@@ -139,7 +139,7 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
           report_date: new Date().toISOString(),
         };
         try {
-          const res = await fetch(`${XANO_BASE}/create_trd, {
+          const res = await fetch(`${XANO_BASE}/create_trd`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
