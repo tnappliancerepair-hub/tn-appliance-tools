@@ -18,7 +18,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const XANO_BASE = "https://xbtp-g9bh-ditq.n7.xano.io/api:3e_TffpA";
+    const XANO_BASE = "https://x8ki-letl-twmt.n7.xano.io/api:3e_TffpA";
 
     const CONFIDENCE_OPTIONS = ["High", "Medium", "Low"];
     const DIY_OPTIONS = [
@@ -139,10 +139,10 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
           report_date: new Date().toISOString(),
         };
         try {
-          const res = await fetch(`${XANO_BASE}/create_trd`, {
+          const res = await fetch("/.netlify/functions/xano-proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ endpoint: "create_tdr", payload }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(JSON.stringify(data));
