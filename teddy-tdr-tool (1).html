@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TN Appliance — TDR Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0f1117; font-family: 'Segoe UI', sans-serif; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    select option { background: #0f1117; color: #e8eaf0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const XANO_BASE = "https://x8ki-letl-twmt.n7.xano.io/api:3e_TffpA";
+
+    const CONFIDENCE_OPTIONS = ["High", "Medium", "Low"];
+    const DIY_OPTIONS = [
+      "Easy – Most homeowners can do this",
+      "Moderate – Some experience needed",
+      "Difficult – Professional recommended",
+      "Not DIY – Requires certification"
+    ];
+    const RECOMMENDATION_OPTIONS = [
+      "Order part + schedule install",
+      "Schedule in-home diagnostic visit",
+      "DIY repair with part",
+      "Unit is not worth repairing – recommend replacement",
+      "Warranty claim – escalate to manufacturer",
+    ];
+    const STATUS_OPTIONS = ["draft", "submitted", "delivered"];
+
+    const initialTDR = {
+      job_id: "",
+      technician_id: 1,
+      technician_first_name: "Teddy",
+      technician_last_name: "Pivacek",
+      problem_summary: "",
+      confidence_level: "Medium",
+      verified_part_number: "",
+      part_number_confidence: "Medium",
+      estimated_repair_cost_range: "",
+      diy_feasibility_rating: "Moderate – Some experience needed",
+      final_recommendation: "Order part + schedule install",
+      technician_notes: "",
+      status: "draft",
+      report_url: "",
+    };
+
+    const C = {
+      bg: "#0f1117", card: "#181b23", border: "#2a2d38",
+      accent: "#f5a623", text: "#e8eaf0", muted: "#7a7f94",
+      error: "#ef4444", inputBg: "#0f1117",
+    };
+
+    function TDRTool() {
+      const [step, setStep] = React.useState("intake");
+      const [modelNumber, setModelNumber] = React.useState("");
+      const [problemDesc, setProblemDesc] = React.useState("");
+      const [tdr, setTDR] = React.useState(initialTDR);
+      const [loading, setLoading] = React.useState(false);
+      const [error, setError] = React.useState("");
+      const [submitResult, setSubmitResult] = React.useState(null);
+
+      const handleAIFill = async () => {
+        if (!modelNumber.trim() || !problemDesc.trim()) {
+          setError("Enter model number and problem description first.");
+          return;
+        }
+        setError("");
+        setLoading(true);
+
+        const prompt = `You are a senior appliance repair technician and parts specialist.
+A customer has submitted a $50 Quick Check request.
+
+Appliance Model Number: ${modelNumber}
+Problem Description: ${problemDesc}
+
+Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with these exact keys:
+{
+  "problem_summary": "2-3 sentence technical summary of the likely root cause",
+  "confidence_level": "High" or "Medium" or "Low",
+  "verified_part_number": "Most likely OEM or universal part number. If uncertain, your best estimate or Needs diagnosis",
+  "part_number_confidence": "High" or "Medium" or "Low",
+  "estimated_repair_cost_range": "$X - $Y estimated range (e.g. $80 - $120)",
+  "diy_feasibility_rating": "Easy – Most homeowners can do this" or "Moderate – Some experience needed" or "Difficult – Professional recommended" or "Not DIY – Requires certification",
+  "final_recommendation": "Order part + schedule install" or "Schedule in-home diagnostic visit" or "DIY repair with part" or "Unit is not worth repairing – recommend replacement" or "Warranty claim – escalate to manufacturer",
+  "technician_notes": "Any important caveats, safety notes, or additional context"
+}`;
+
+        try {
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 1000,
+              messages: [{ role: "user", content: prompt }],
+            }),
+          });
+          const data = await res.json();
+          const text = (data.content || []).map(b => b.text || "").join("");
+          const clean = text.replace(/```json|```/g, "").trim();
+          const parsed = JSON.parse(clean);
+
+          setTDR(prev => ({
+            ...prev,
+            problem_summary: parsed.problem_summary || "",
+            confidence_level: parsed.confidence_level || "Medium",
+            verified_part_number: parsed.verified_part_number || "",
+            part_number_confidence: parsed.part_number_confidence || "Medium",
+            estimated_repair_cost_range: parsed.estimated_repair_cost_range || "",
+            diy_feasibility_rating: parsed.diy_feasibility_rating || "Moderate – Some experience needed",
+            final_recommendation: parsed.final_recommendation || "Order part + schedule install",
+            technician_notes: parsed.technician_notes || "",
+          }));
+          setStep("reviewing");
+        } catch (e) {
+          setError("AI fill failed: " + e.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleSubmit = async () => {
+        if (!tdr.job_id) { setError("Job ID is required."); return; }
+        setError("");
+        setStep("submitting");
+        const payload = {
+          ...tdr,
+          job_id: parseInt(tdr.job_id),
+          technician_id: parseInt(tdr.technician_id),
+          report_date: new Date().toISOString(),
+        };
+        try {
+          const res = await fetch(`${XANO_BASE}/technician_decision_report`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(JSON.stringify(data));
+          setSubmitResult(data);
+          setStep("done");
+        } catch (e) {
+          setError("Submit failed: " + e.message);
+          setStep("reviewing");
+        }
+      };
+
+      const reset = () => {
+        setStep("intake"); setModelNumber(""); setProblemDesc("");
+        setTDR(initialTDR); setError(""); setSubmitResult(null);
+      };
+
+      const inp = { width:"100%", background:C.inputBg, border:`1px solid ${C.border}`, borderRadius:8, color:C.text, padding:"10px 12px", fontSize:14, outline:"none" };
+      const lbl = { display:"block", fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 };
+      const row = { marginBottom:16 };
+
+      const Field = ({ k, label, type="text", options=null }) => (
+        <div style={row}>
+          <label style={lbl}>{label}</label>
+          {options
+            ? <select style={{...inp, cursor:"pointer"}} value={tdr[k]} onChange={e => setTDR(p=>({...p,[k]:e.target.value}))}>
+                {options.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            : type === "textarea"
+            ? <textarea style={{...inp, resize:"vertical", fontFamily:"inherit", lineHeight:1.5}} rows={3} value={tdr[k]} onChange={e => setTDR(p=>({...p,[k]:e.target.value}))} />
+            : <input style={inp} type={type} value={tdr[k]} onChange={e => setTDR(p=>({...p,[k]:e.target.value}))} />
+          }
+        </div>
+      );
+
+      return (
+        <div style={{minHeight:"100vh", background:C.bg, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"32px 16px"}}>
+          <div style={{width:"100%", maxWidth:600, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, overflow:"hidden"}}>
+
+            {/* Header */}
+            <div style={{background:"linear-gradient(135deg,#1a1e2e,#1f2333)", borderBottom:`1px solid ${C.border}`, padding:"20px 24px", display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+              <div style={{display:"flex", alignItems:"center", gap:12}}>
+                <span style={{fontSize:28}}>🔧</span>
+                <div>
+                  <div style={{fontSize:16, fontWeight:700, color:C.text}}>TN Appliance Exchange</div>
+                  <div style={{fontSize:12, color:C.muted, marginTop:2}}>Technician Decision Report</div>
+                </div>
+              </div>
+              <div style={{background:"#2a2d3a", border:`1px solid ${C.border}`, borderRadius:20, padding:"4px 12px", fontSize:12, color:C.accent, fontWeight:600}}>
+                Teddy · Tech ID: 1
+              </div>
+            </div>
+
+            {/* INTAKE */}
+            {step === "intake" && (
+              <div style={{padding:"24px"}}>
+                <div style={{fontSize:18, fontWeight:700, color:C.text, marginBottom:20}}>Quick Check Intake</div>
+                <div style={row}>
+                  <label style={lbl}>Xano Job ID</label>
+                  <input style={inp} type="number" placeholder="e.g. 47" value={tdr.job_id} onChange={e=>setTDR(p=>({...p,job_id:e.target.value}))} />
+                </div>
+                <div style={row}>
+                  <label style={lbl}>Appliance Model Number</label>
+                  <input style={inp} placeholder="e.g. WTW5000DW1" value={modelNumber} onChange={e=>setModelNumber(e.target.value)} />
+                </div>
+                <div style={row}>
+                  <label style={lbl}>Customer Problem Description</label>
+                  <textarea style={{...inp, resize:"vertical", fontFamily:"inherit", lineHeight:1.5}} rows={4} placeholder="Describe what the customer reported..." value={problemDesc} onChange={e=>setProblemDesc(e.target.value)} />
+                </div>
+                {error && <div style={{background:"rgba(239,68,68,0.08)", border:`1px solid rgba(239,68,68,0.25)`, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.error, marginBottom:16}}>{error}</div>}
+                <button
+                  style={{width:"100%", padding:"13px 20px", borderRadius:8, fontSize:15, fontWeight:700, cursor: loading?"not-allowed":"pointer", border:"none", background: loading?"#8a6010":C.accent, color:"#0f1117", opacity: loading?0.7:1}}
+                  onClick={handleAIFill} disabled={loading}>
+                  {loading ? "⏳ Analyzing with AI..." : "⚡ AI Pre-Fill TDR"}
+                </button>
+              </div>
+            )}
+
+            {/* REVIEW */}
+            {step === "reviewing" && (
+              <div style={{padding:"24px"}}>
+                <div style={{fontSize:18, fontWeight:700, color:C.text, marginBottom:16}}>Review & Adjust</div>
+                <div style={{background:"rgba(245,166,35,0.08)", border:`1px solid rgba(245,166,35,0.25)`, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.accent, marginBottom:16}}>
+                  ✅ AI pre-filled — review each field and adjust before submitting.
+                </div>
+                <div style={{marginBottom:16, padding:"8px 12px", background:C.inputBg, borderRadius:8, display:"flex", gap:8, alignItems:"center", border:`1px solid ${C.border}`}}>
+                  <span style={{fontSize:11, color:C.muted, fontWeight:600}}>MODEL:</span>
+                  <span style={{fontSize:14, color:C.text, fontWeight:700, fontFamily:"monospace"}}>{modelNumber}</span>
+                </div>
+                <Field k="problem_summary" label="Problem Summary" type="textarea" />
+                <Field k="confidence_level" label="Diagnosis Confidence" options={CONFIDENCE_OPTIONS} />
+                <Field k="verified_part_number" label="Verified Part Number" />
+                <Field k="part_number_confidence" label="Part Confidence" options={CONFIDENCE_OPTIONS} />
+                <Field k="estimated_repair_cost_range" label="Estimated Repair Cost Range" />
+                <Field k="diy_feasibility_rating" label="DIY Feasibility" options={DIY_OPTIONS} />
+                <Field k="final_recommendation" label="Final Recommendation" options={RECOMMENDATION_OPTIONS} />
+                <Field k="technician_notes" label="Technician Notes (internal)" type="textarea" />
+                <Field k="report_url" label="Report URL (optional)" />
+                <Field k="status" label="Status" options={STATUS_OPTIONS} />
+                {error && <div style={{background:"rgba(239,68,68,0.08)", border:`1px solid rgba(239,68,68,0.25)`, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.error, marginBottom:16}}>{error}</div>}
+                <div style={{display:"flex", gap:8, marginTop:8}}>
+                  <button onClick={()=>setStep("intake")} style={{padding:"12px 20px", borderRadius:8, fontSize:14, fontWeight:600, cursor:"pointer", background:"transparent", border:`1px solid ${C.border}`, color:C.muted}}>← Back</button>
+                  <button onClick={handleSubmit} style={{flex:1, padding:"12px 20px", borderRadius:8, fontSize:14, fontWeight:700, cursor:"pointer", border:"none", background:C.accent, color:"#0f1117"}}>Submit TDR to Xano →</button>
+                </div>
+              </div>
+            )}
+
+            {/* SUBMITTING */}
+            {step === "submitting" && (
+              <div style={{padding:48, display:"flex", flexDirection:"column", alignItems:"center", gap:16}}>
+                <div style={{width:40, height:40, border:`3px solid ${C.border}`, borderTop:`3px solid ${C.accent}`, borderRadius:"50%", animation:"spin 0.8s linear infinite"}} />
+                <div style={{color:C.muted, fontSize:14}}>Submitting to Xano...</div>
+              </div>
+            )}
+
+            {/* DONE */}
+            {step === "done" && submitResult && (
+              <div style={{padding:"24px", textAlign:"center"}}>
+                <div style={{fontSize:48, marginBottom:12}}>✅</div>
+                <div style={{fontSize:22, fontWeight:700, color:C.text, marginBottom:16}}>TDR Submitted!</div>
+                <div style={{display:"inline-flex", flexDirection:"column", gap:6, background:C.inputBg, border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 24px", fontSize:14, color:C.muted, textAlign:"left", marginBottom:24}}>
+                  <div>TDR ID: <strong style={{color:C.text}}>{submitResult.id}</strong></div>
+                  <div>Job ID: <strong style={{color:C.text}}>{submitResult.job_id}</strong></div>
+                  <div>Status: <strong style={{color:C.accent}}>{submitResult.status}</strong></div>
+                </div>
+                <br />
+                <button onClick={reset} style={{padding:"12px 28px", borderRadius:8, fontSize:14, fontWeight:700, cursor:"pointer", border:"none", background:C.accent, color:"#0f1117"}}>+ New TDR</button>
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<TDRTool />, document.getElementById("root"));
+  </script>
+</body>
+</html>
