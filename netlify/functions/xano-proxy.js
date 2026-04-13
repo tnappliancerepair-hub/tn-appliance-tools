@@ -16,12 +16,15 @@ exports.handler = async function (event, context) {
   }
 
   try {
+    const body = JSON.parse(event.body);
+    const payload = body.payload || body;
+
     const response = await fetch(
       "https://x8ki-letl-twmt.n7.xano.io/api:3e_TffpA/create_tdr",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: event.body,
+        body: JSON.stringify(payload),
       }
     );
     const text = await response.text();
