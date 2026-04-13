@@ -1,3 +1,5 @@
+const https = require('https');
+
 exports.handler = async function (event, context) {
   if (event.httpMethod === "OPTIONS") {
     return {
@@ -10,25 +12,43 @@ exports.handler = async function (event, context) {
       body: "",
     };
   }
+
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
+
   try {
     const body = JSON.parse(event.body);
     const payload = body.payload || body;
-    const response = await fetch(
-      "https://xbtp-g9bh-ditq.n7.xano.io/api:3e_TffpA/create_tdr",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }
-    );
-    const text = await response.text();
+
+    const result = await new Promise((resolve, reject) => {
+      const data = JSON.stringify(payload);
+      const options = {
+        hostname: 'xbtp-g9bh-ditq.n7e.xano.io',
+        path: '/api:3e_TffpA/create_tdr',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(data)
+        },
+        rejectUnauthorized: false
+      };
+
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', (chunk) => body += chunk);
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+
+      req.on('error', reject);
+      req.write(data);
+      req.end();
+    });
+
     return {
-      statusCode: response.status,
+      statusCode: result.status,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: text,
+      body: result.body,
     };
   } catch (err) {
     return {
