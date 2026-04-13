@@ -181,9 +181,12 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
             body: JSON.stringify({ endpoint: "create_trd", payload }),
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(JSON.stringify(data));
-          setSubmitResult(data);
-          setStep("done");
+          if (data.id) {
+            setSubmitResult(data);
+            setStep("done");
+          } else {
+            throw new Error(JSON.stringify(data));
+          }
         } catch (e) {
           setError("Submit failed: " + e.message);
           setStep("reviewing");
