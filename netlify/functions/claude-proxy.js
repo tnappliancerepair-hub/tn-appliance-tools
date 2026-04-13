@@ -17,6 +17,7 @@ return { statusCode: 405, body: "Method Not Allowed" };
 
 try {
 const body = JSON.parse(event.body);
+
 const response = await fetch("https://api.anthropic.com/v1/messages", {
 method: "POST",
 headers: {
@@ -26,14 +27,25 @@ headers: {
 },
 body: JSON.stringify(body),
 });
-const text = await response.text();
+
+const data = await response.json();
+
+// Extract the text content from Claude's response
+const rawText = data.content[0].text;
+
+// Strip markdown fences if Claude wrapped it
+const clean = rawText.replace(/```json|```/g, "").trim();
+
+// Parse and return clean JSON
+const parsed = JSON.parse(clean);
+
 return {
-statusCode: response.status,
+statusCode: 200,
 headers: {
 "Content-Type": "application/json",
 "Access-Control-Allow-Origin": "*",
 },
-body: text,
+body: JSON.stringify(parsed),
 };
 } catch (err) {
 return {
