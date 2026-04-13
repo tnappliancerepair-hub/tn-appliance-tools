@@ -17,7 +17,7 @@ exports.handler = async function (event, context) {
 
   try {
     const { endpoint, payload } = JSON.parse(event.body);
-    const XANO_BASE = "https://x8ki-letl-twmt.n7.xano.io/api:3e_TffpA";
+    const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
 
     const response = await fetch(`${XANO_BASE}/${endpoint}`, {
       method: "POST",
