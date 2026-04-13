@@ -25,7 +25,7 @@ exports.handler = async function (event, context) {
       const data = JSON.stringify(payload);
       const options = {
         hostname: 'xbtp-g9bh-ditq.n7e.xano.io',
-        path: '/api:3e_TffpA/create_tdr',
+        path: '/api:3e_TffpA/create_trd',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
