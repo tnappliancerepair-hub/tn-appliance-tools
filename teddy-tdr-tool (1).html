@@ -56,7 +56,7 @@
     const C = {
       bg: "#0f1117", card: "#181b23", border: "#2a2d38",
       accent: "#f5a623", text: "#e8eaf0", muted: "#7a7f94",
-      error: "#ef4444", inputBg: "#0f1117",
+      error: "#ef4444", success: "#10b981", inputBg: "#0f1117",
     };
 
     function getUrlJobId() {
@@ -181,11 +181,21 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
             body: JSON.stringify({ endpoint: "create_tdr", payload }),
           });
           const data = await res.json();
-          if (data.id) {
-            setSubmitResult(data);
+
+          if (data && data.tdr && data.tdr.id) {
+            const hcpStatus = data.hcp_sync && data.hcp_sync.response && data.hcp_sync.response.status;
+            const hcpNoteId = data.hcp_sync && data.hcp_sync.response && data.hcp_sync.response.result && data.hcp_sync.response.result.result && data.hcp_sync.response.result.result.id;
+            setSubmitResult({
+              tdr: data.tdr,
+              hcpSynced: hcpStatus === 200 || hcpStatus === 201,
+              hcpNoteId: hcpNoteId || null,
+              hcpStatus: hcpStatus,
+            });
             setStep("done");
+          } else if (data && data.error) {
+            throw new Error(data.error);
           } else {
-            throw new Error(JSON.stringify(data));
+            throw new Error(JSON.stringify(data).slice(0, 300));
           }
         } catch (e) {
           setError("Submit failed: " + e.message);
@@ -301,7 +311,7 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
                 <Field k="technician_notes" label="Technician Notes (internal)" type="textarea" />
                 <Field k="report_url" label="Report URL (optional)" />
                 <Field k="status" label="Status" options={STATUS_OPTIONS} />
-                {error && <div style={{background:"rgba(239,68,68,0.08)", border:`1px solid rgba(239,68,68,0.25)`, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.error, marginBottom:16}}>{error}</div>}
+                {error && <div style={{background:"rgba(239,68,68,0.08)", border:`1px solid rgba(239,68,68,0.25)`, borderRadius:8, padding:"10px 14px", fontSize:13, color:C.error, marginBottom:16, wordBreak:"break-word"}}>{error}</div>}
                 <div style={{display:"flex", gap:8, marginTop:8}}>
                   <button onClick={()=>setStep("intake")} style={{padding:"12px 20px", borderRadius:8, fontSize:14, fontWeight:600, cursor:"pointer", background:"transparent", border:`1px solid ${C.border}`, color:C.muted}}>← Back</button>
                   <button onClick={handleSubmit} style={{flex:1, padding:"12px 20px", borderRadius:8, fontSize:14, fontWeight:700, cursor:"pointer", border:"none", background:C.accent, color:"#0f1117"}}>Submit TDR to Xano →</button>
@@ -320,12 +330,26 @@ Respond ONLY with a JSON object (no markdown, no explanation, no backticks) with
               <div style={{padding:"24px", textAlign:"center"}}>
                 <div style={{fontSize:48, marginBottom:12}}>✅</div>
                 <div style={{fontSize:22, fontWeight:700, color:C.text, marginBottom:16}}>TDR Submitted!</div>
-                <div style={{display:"inline-flex", flexDirection:"column", gap:6, background:C.inputBg, border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 24px", fontSize:14, color:C.muted, textAlign:"left", marginBottom:24}}>
-                  <div>TDR ID: <strong style={{color:C.text}}>{submitResult.id}</strong></div>
-                  <div>Job ID: <strong style={{color:C.text}}>{submitResult.job_id}</strong></div>
-                  <div>Status: <strong style={{color:C.accent}}>{submitResult.status}</strong></div>
+                <div style={{display:"inline-flex", flexDirection:"column", gap:6, background:C.inputBg, border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 24px", fontSize:14, color:C.muted, textAlign:"left", marginBottom:16}}>
+                  <div>TDR ID: <strong style={{color:C.text}}>{submitResult.tdr.id}</strong></div>
+                  <div>Job ID: <strong style={{color:C.text}}>{submitResult.tdr.job_id}</strong></div>
+                  <div>Status: <strong style={{color:C.accent}}>{submitResult.tdr.status}</strong></div>
                 </div>
-                <br />
+
+                {submitResult.hcpSynced ? (
+                  <div style={{background:"rgba(16,185,129,0.08)", border:`1px solid rgba(16,185,129,0.3)`, borderRadius:10, padding:"12px 16px", fontSize:13, color:C.success, marginBottom:20, textAlign:"left"}}>
+                    <div style={{fontWeight:700, marginBottom:4}}>✅ Note posted to Housecall Pro</div>
+                    {submitResult.hcpNoteId && (
+                      <div style={{fontSize:11, color:C.muted, fontFamily:"monospace", wordBreak:"break-all"}}>{submitResult.hcpNoteId}</div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{background:"rgba(239,68,68,0.08)", border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:"12px 16px", fontSize:13, color:C.error, marginBottom:20, textAlign:"left"}}>
+                    <div style={{fontWeight:700, marginBottom:4}}>⚠️ TDR saved but HCP sync failed</div>
+                    <div style={{fontSize:11, color:C.muted}}>Status: {submitResult.hcpStatus || "unknown"} — check HCP manually</div>
+                  </div>
+                )}
+
                 <button onClick={reset} style={{padding:"12px 28px", borderRadius:8, fontSize:14, fontWeight:700, cursor:"pointer", border:"none", background:C.accent, color:"#0f1117"}}>+ New TDR</button>
               </div>
             )}
