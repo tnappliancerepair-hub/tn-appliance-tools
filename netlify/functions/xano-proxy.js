@@ -10,18 +10,15 @@ exports.handler = async function (event, context) {
       body: "",
     };
   }
-
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
-
   try {
     const body = JSON.parse(event.body);
     const payload = body.payload || body;
-
     const response = await fetch(
-      "",
-      {https://xbtp-g9bh-ditq.n7.xano.io/api:3e_TffpA/create_tdr
+      "https://xbtp-g9bh-ditq.n7.xano.io/api:3e_TffpA/create_tdr",
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
