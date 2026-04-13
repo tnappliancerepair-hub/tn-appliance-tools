@@ -1,60 +1,45 @@
-const https = require('https');
-
 exports.handler = async function (event, context) {
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
-      body: "",
-    };
-  }
+if (event.httpMethod === "OPTIONS") {
+return {
+statusCode: 200,
+headers: {
+"Access-Control-Allow-Origin": "*",
+"Access-Control-Allow-Headers": "Content-Type",
+"Access-Control-Allow-Methods": "POST, OPTIONS",
+},
+body: "",
+};
+}
 
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
-  }
+if (event.httpMethod !== "POST") {
+return { statusCode: 405, body: "Method Not Allowed" };
+}
 
-  try {
-    const body = JSON.parse(event.body);
-    const payload = body.payload || body;
+try {
+const { endpoint, payload } = JSON.parse(event.body);
+const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
 
-    const result = await new Promise((resolve, reject) => {
-      const data = JSON.stringify(payload);
-      const options = {
-        hostname: 'xbtp-g9bh-ditq.n7e.xano.io',
-        path: '/api:3e_TffpA/create_tdr',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(data)
-        },
-        rejectUnauthorized: false
-      };
+const response = await fetch(`${XANO_BASE}/${endpoint}`, {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify(payload),
+});
 
-      const req = https.request(options, (res) => {
-        let body = '';
-        res.on('data', (chunk) => body += chunk);
-        res.on('end', () => resolve({ status: res.statusCode, body }));
-      });
+const data = await response.json();
 
-      req.on('error', reject);
-      req.write(data);
-      req.end();
-    });
-
-    return {
-      statusCode: result.status,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: result.body,
-    };
-  } catch (err) {
-    return {
-      statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ error: err.message }),
-    };
-  }
+return {
+statusCode: response.status,
+headers: {
+"Content-Type": "application/json",
+"Access-Control-Allow-Origin": "*",
+},
+body: JSON.stringify(data),
+};
+} catch (err) {
+return {
+statusCode: 500,
+headers: { "Access-Control-Allow-Origin": "*" },
+body: JSON.stringify({ error: err.message }),
+};
+}
 };
