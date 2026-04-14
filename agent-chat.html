@@ -60,6 +60,7 @@
       messages.scrollTop = messages.scrollHeight;
 
       try {
+        console.log("Sending to proxy:", PROXY);
         const res = await fetch(PROXY, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,14 +73,21 @@
           }),
         });
 
-        const data = await res.json();
+        console.log("Response status:", res.status);
+        const raw = await res.text();
+        console.log("Raw response:", raw);
+        const data = JSON.parse(raw);
+        console.log("Parsed data:", data);
+
         typing.remove();
 
         if (data.conversation_id) conversationId = data.conversation_id;
-        addBubble(data.reply, "assistant");
+        const reply = data.reply || data.message || JSON.stringify(data);
+        addBubble(reply, "assistant");
       } catch (err) {
+        console.error("Error:", err);
         typing.remove();
-        addBubble("Sorry, something went wrong. Please try again.", "assistant");
+        addBubble("Error: " + err.message, "assistant");
       }
 
       btn.disabled = false;
