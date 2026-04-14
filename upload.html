@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TN Appliance — Upload Photos</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f4f4f4; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: white; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; }
+    .logo { font-size: 28px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 32px; font-size: 15px; line-height: 1.5; }
+    .upload-box { border: 2px dashed #ccc; border-radius: 12px; padding: 24px; margin-bottom: 20px; cursor: pointer; transition: border-color 0.2s; }
+    .upload-box:hover { border-color: #0077cc; }
+    .upload-box.has-file { border-color: #00aa44; background: #f0fff4; }
+    .upload-icon { font-size: 40px; margin-bottom: 8px; }
+    .upload-label { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 4px; }
+    .upload-hint { font-size: 13px; color: #999; }
+    .file-name { font-size: 13px; color: #00aa44; margin-top: 8px; font-weight: bold; }
+    input[type="file"] { display: none; }
+    .submit-btn { width: 100%; padding: 16px; background: #1a1a2e; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 8px; }
+    .submit-btn:disabled { background: #aaa; cursor: not-allowed; }
+    .success { display: none; text-align: center; }
+    .success-icon { font-size: 60px; margin-bottom: 16px; }
+    .success-title { font-size: 22px; font-weight: bold; color: #1a1a2e; margin-bottom: 8px; }
+    .success-msg { color: #666; font-size: 15px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="upload-section">
+      <div class="logo">🔧 TN Appliance</div>
+      <p class="subtitle">Almost done! Upload a photo of your model number sticker and a short video of the issue so your technician arrives fully prepared.</p>
+
+      <div class="upload-box" id="photo-box" onclick="document.getElementById('photo-input').click()">
+        <div class="upload-icon">📷</div>
+        <div class="upload-label">Model Number Photo</div>
+        <div class="upload-hint">Tap to upload a photo of the sticker</div>
+        <div class="file-name" id="photo-name"></div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" onchange="handleFile(this, 'photo')">
+
+      <div class="upload-box" id="video-box" onclick="document.getElementById('video-input').click()">
+        <div class="upload-icon">🎥</div>
+        <div class="upload-label">Video of the Issue</div>
+        <div class="upload-hint">Tap to upload a short video</div>
+        <div class="file-name" id="video-name"></div>
+      </div>
+      <input type="file" id="video-input" accept="video/*" onchange="handleFile(this, 'video')">
+
+      <button class="submit-btn" id="submit-btn" onclick="submitFiles()">Submit & Finish</button>
+    </div>
+
+    <div class="success" id="success-section">
+      <div class="success-icon">✅</div>
+      <div class="success-title">You're all set!</div>
+      <p class="success-msg">Your technician will review everything before arrival. You'll receive a confirmation shortly.</p>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('job_id') || null;
+    let photoFile = null;
+    let videoFile = null;
+
+    function handleFile(input, type) {
+      const file = input.files[0];
+      if (!file) return;
+      if (type === 'photo') {
+        photoFile = file;
+        document.getElementById('photo-name').textContent = file.name;
+        document.getElementById('photo-box').classList.add('has-file');
+      } else {
+        videoFile = file;
+        document.getElementById('video-name').textContent = file.name;
+        document.getElementById('video-box').classList.add('has-file');
+      }
+    }
+
+    async function submitFiles() {
+      if (!photoFile && !videoFile) {
+        alert('Please upload at least one file.');
+        return;
+      }
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+
+      try {
+        const formData = new FormData();
+        if (jobId) formData.append('job_id', jobId);
+        if (photoFile) formData.append('model_photo', photoFile);
+        if (videoFile) formData.append('issue_video', videoFile);
+
+        // For now log success — Xano upload endpoint to be wired next session
+        console.log('Files ready to upload:', { jobId, photoFile, videoFile });
+
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('success-section').style.display = 'block';
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Submit & Finish';
+        alert('Upload failed. Please try again.');
+      }
+    }
+  </script>
+</body>
+</html>
