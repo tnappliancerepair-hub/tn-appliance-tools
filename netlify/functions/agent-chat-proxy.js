@@ -13,7 +13,7 @@ exports.handler = async function (event) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           channel: body.channel || "web",
-          conversation_id: body.conversation_id || null,
+          conversation_id: body.conversation_id || 0,
           customer_phone: body.customer_phone || null,
           customer_id: body.customer_id || null,
           message: body.message,
