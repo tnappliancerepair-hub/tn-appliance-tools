@@ -11,13 +11,12 @@ exports.handler = async function (event) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          channel: body.channel || "web",
-          conversation_id: body.conversation_id || 0,
-          customer_phone: body.customer_phone || null,
-          customer_id: body.customer_id || null,
-          message: body.message,
-        }),
+       body: JSON.stringify({
+  channel: body.channel || "web",
+  conversation_id: body.conversation_id || null,
+  customer_phone: body.customer_phone || null,
+  message: body.message,
+}),
       }
     );
 
