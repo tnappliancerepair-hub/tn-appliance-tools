@@ -64,9 +64,8 @@
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
 
-    // Always read fresh from localStorage
-    let conversationId = localStorage.getItem("conversationId") 
-      ? parseInt(localStorage.getItem("conversationId")) 
+    let conversationId = localStorage.getItem("conversationId")
+      ? parseInt(localStorage.getItem("conversationId"))
       : null;
     let customerId = localStorage.getItem("customerId")
       ? parseInt(localStorage.getItem("customerId"))
@@ -182,8 +181,6 @@
       messages.appendChild(typing);
       messages.scrollTop = messages.scrollHeight;
 
-      // Snapshot conversationId BEFORE the request
-      // so a timeout never wipes it
       const currentConversationId = conversationId;
       const currentCustomerId = customerId;
 
@@ -213,35 +210,32 @@
           const data = await res.json();
           typing.remove();
 
-          // Only store conversation_id if we got a valid one back
-          // NEVER overwrite an existing one with null
           if (data.conversation_id) {
             conversationId = data.conversation_id;
             localStorage.setItem("conversationId", conversationId);
           }
 
-          // Store customer_id if returned
-          if (data.customer_id) {
+          if (data.customer_id && data.customer_id > 0) {
             customerId = data.customer_id;
             localStorage.setItem("customerId", customerId);
           }
 
-          const reply = data.reply || data.message || "Got it.";
+          // Strip __JOB_READY__ trigger block before showing to customer
+          const rawReply = data.reply || data.message || "Got it.";
+          const reply = rawReply.replace(/__JOB_READY__.*?__JOB_READY__/gs, "").trim();
+
           addBubble(reply, "assistant");
           success = true;
 
         } catch (err) {
           console.error("Attempt " + attempts + " failed:", err);
 
-          // CRITICAL: restore conversationId — never let a failed
-          // request wipe out who this customer is
           conversationId = currentConversationId || conversationId;
           if (conversationId) {
             localStorage.setItem("conversationId", conversationId);
           }
 
           if (attempts < maxAttempts) {
-            // Wait 2 seconds then retry once
             await new Promise(r => setTimeout(r, 2000));
             typing.textContent = "Still thinking...";
           } else {
@@ -267,7 +261,6 @@
     btn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 
-    // Only auto-greet if no existing conversation
     if (!conversationId) {
       sendMessage("hi", true);
     }
