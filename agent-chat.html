@@ -33,10 +33,7 @@
       color: white;
       transition: background 0.2s;
     }
-    #mic-btn.listening {
-      background: #cc0000;
-      animation: pulse 1s infinite;
-    }
+    #mic-btn.listening { background: #cc0000; animation: pulse 1s infinite; }
     #mic-btn:disabled { background: #aaa; cursor: not-allowed; }
     @keyframes pulse {
       0% { opacity: 1; }
@@ -63,6 +60,7 @@
 
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
+    const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
 
     let conversationId = localStorage.getItem("conversationId")
       ? parseInt(localStorage.getItem("conversationId"))
@@ -122,9 +120,7 @@
         micBtn.classList.remove("listening");
         micBtn.textContent = "🎙️ Press & Hold to Talk";
         micStatus.textContent = "";
-        if (input.value.trim()) {
-          send();
-        }
+        if (input.value.trim()) send();
       };
 
       recognition.onerror = () => {
@@ -164,19 +160,46 @@
       return div;
     }
 
-    function cleanReply(text) {
-      if (!text) return "Got it.";
-      // Strip __JOB_READY__ trigger and everything after it
-      return text.split("__JOB_READY__")[0].trim();
+    async function handleJobCreation(rawReply) {
+      const TRIGGER = "__JOB_READY__";
+      if (!rawReply.includes(TRIGGER)) return rawReply;
+
+      const parts = rawReply.split(TRIGGER);
+      const cleanReply = parts[0].trim();
+      const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
+
+      if (!jsonStr) return cleanReply;
+
+      try {
+        const jobData = JSON.parse(jsonStr);
+        await fetch(XANO_BASE + "/create_job", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name     : jobData.first_name,
+            last_name      : jobData.last_name,
+            phone          : jobData.phone,
+            zip            : jobData.zip,
+            appliance_type : jobData.appliance_type,
+            brand          : jobData.brand,
+            model_number   : jobData.model_number,
+            problem_summary: jobData.problem_summary,
+            source_type    : "web_chat",
+            channel        : "web"
+          })
+        });
+      } catch (err) {
+        console.error("Job creation failed:", err);
+      }
+
+      return cleanReply;
     }
 
     async function sendMessage(text, isGreeting = false) {
       if (isSending) return;
       isSending = true;
 
-      if (!isGreeting) {
-        addBubble(text, "user");
-      }
+      if (!isGreeting) addBubble(text, "user");
 
       btn.disabled = true;
       micBtn.disabled = true;
@@ -192,26 +215,23 @@
 
       let success = false;
       let attempts = 0;
-      const maxAttempts = 2;
 
-      while (!success && attempts < maxAttempts) {
+      while (!success && attempts < 2) {
         attempts++;
         try {
           const res = await fetch(PROXY, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              channel:         "web",
+              channel        : "web",
               conversation_id: currentConversationId,
-              customer_phone:  customerPhone,
-              customer_id:     currentCustomerId,
-              message:         text,
+              customer_phone : customerPhone,
+              customer_id    : currentCustomerId,
+              message        : text,
             }),
           });
 
-          if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-          }
+          if (!res.ok) throw new Error("HTTP " + res.status);
 
           const data = await res.json();
           typing.remove();
@@ -226,24 +246,22 @@
             localStorage.setItem("customerId", customerId);
           }
 
-          const reply = cleanReply(data.reply || data.message);
+          const rawReply = data.reply || data.message || "Got it.";
+          const reply = await handleJobCreation(rawReply);
           addBubble(reply, "assistant");
           success = true;
 
         } catch (err) {
           console.error("Attempt " + attempts + " failed:", err);
-
           conversationId = currentConversationId || conversationId;
-          if (conversationId) {
-            localStorage.setItem("conversationId", conversationId);
-          }
+          if (conversationId) localStorage.setItem("conversationId", conversationId);
 
-          if (attempts < maxAttempts) {
+          if (attempts < 2) {
             await new Promise(r => setTimeout(r, 2000));
             typing.textContent = "Still thinking...";
           } else {
             typing.remove();
-            addBubble("Sorry, that took too long. Please try sending again — your conversation is saved.", "assistant");
+            addBubble("Sorry, that took too long. Please try again — your conversation is saved.", "assistant");
           }
         }
       }
@@ -264,9 +282,7 @@
     btn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 
-    if (!conversationId) {
-      sendMessage("hi", true);
-    }
+    if (!conversationId) sendMessage("hi", true);
   </script>
 </body>
 </html>
