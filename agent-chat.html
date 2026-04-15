@@ -20,19 +20,15 @@
   </style>
 </head>
 <body>
-  <div id="header">🔧 TN Appliance AI Assistant</div>
-  <div id="messages">
-    <div class="bubble assistant">Hi! I'm here to help with your appliance issues. What's going on?</div>
-  </div>
+  <div id="header">🐜 TN Appliance AI Assistant</div>
+  <div id="messages"></div>
   <div id="input-area">
     <input id="msg" type="text" placeholder="Describe your appliance problem..." />
     <button id="send">Send</button>
   </div>
-
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
-    let conversationId = null;
-
+    let conversationId = sessionStorage.getItem("conversationId") || null;
     const messages = document.getElementById("messages");
     const input = document.getElementById("msg");
     const btn = document.getElementById("send");
@@ -46,21 +42,17 @@
       return div;
     }
 
-    async function send() {
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
+    async function sendMessage(text, isGreeting = false) {
+      if (!isGreeting) {
+        addBubble(text, "user");
+      }
       btn.disabled = true;
-
-      addBubble(text, "user");
       const typing = document.createElement("div");
       typing.className = "typing";
       typing.textContent = "Thinking...";
       messages.appendChild(typing);
       messages.scrollTop = messages.scrollHeight;
-
       try {
-        console.log("Sending to proxy:", PROXY);
         const res = await fetch(PROXY, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -72,16 +64,13 @@
             message: text,
           }),
         });
-
-        console.log("Response status:", res.status);
         const raw = await res.text();
-        console.log("Raw response:", raw);
         const data = JSON.parse(raw);
-        console.log("Parsed data:", data);
-
         typing.remove();
-
-        if (data.conversation_id) conversationId = data.conversation_id;
+        if (data.conversation_id) {
+          conversationId = data.conversation_id;
+          sessionStorage.setItem("conversationId", conversationId);
+        }
         const reply = data.reply || data.message || JSON.stringify(data);
         addBubble(reply, "assistant");
       } catch (err) {
@@ -89,13 +78,24 @@
         typing.remove();
         addBubble("Error: " + err.message, "assistant");
       }
-
       btn.disabled = false;
-      input.focus();
+      if (!isGreeting) input.focus();
+    }
+
+    async function send() {
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      await sendMessage(text);
     }
 
     btn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+
+    // Trigger Ant's opening greeting automatically
+    if (!conversationId) {
+      sendMessage("hi", true);
+    }
   </script>
 </body>
 </html>
