@@ -164,6 +164,12 @@
       return div;
     }
 
+    function cleanReply(text) {
+      if (!text) return "Got it.";
+      // Strip __JOB_READY__ trigger and everything after it
+      return text.split("__JOB_READY__")[0].trim();
+    }
+
     async function sendMessage(text, isGreeting = false) {
       if (isSending) return;
       isSending = true;
@@ -220,10 +226,7 @@
             localStorage.setItem("customerId", customerId);
           }
 
-          // Strip __JOB_READY__ trigger block before showing to customer
-          const rawReply = data.reply || data.message || "Got it.";
-          const reply = rawReply.replace(/__JOB_READY__.*?__JOB_READY__/gs, "").trim();
-
+          const reply = cleanReply(data.reply || data.message);
           addBubble(reply, "assistant");
           success = true;
 
