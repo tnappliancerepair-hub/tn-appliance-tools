@@ -60,7 +60,6 @@
 
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
-    const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
 
     let conversationId = localStorage.getItem("conversationId")
       ? parseInt(localStorage.getItem("conversationId"))
@@ -172,7 +171,7 @@
 
       try {
         const jobData = JSON.parse(jsonStr);
-        await fetch(XANO_BASE + "/create_job", {
+        await fetch("/.netlify/functions/create-job-proxy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -183,9 +182,7 @@
             appliance_type : jobData.appliance_type,
             brand          : jobData.brand,
             model_number   : jobData.model_number,
-            problem_summary: jobData.problem_summary,
-            source_type    : "web_chat",
-            channel        : "web"
+            problem_summary: jobData.problem_summary
           })
         });
       } catch (err) {
