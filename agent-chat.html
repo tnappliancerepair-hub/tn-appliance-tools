@@ -13,25 +13,123 @@
     .user { align-self: flex-end; background: #0077cc; color: white; border-bottom-right-radius: 4px; }
     .assistant { align-self: flex-start; background: white; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .typing { align-self: flex-start; color: #999; font-style: italic; font-size: 14px; }
-    #input-area { display: flex; padding: 16px; background: white; border-top: 1px solid #ddd; gap: 10px; }
-    #input-area input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 24px; font-size: 15px; outline: none; }
-    #input-area button { padding: 12px 20px; background: #0077cc; color: white; border: none; border-radius: 24px; font-size: 15px; cursor: pointer; }
-    #input-area button:disabled { background: #aaa; }
+    #input-area { display: flex; flex-direction: column; padding: 16px; background: white; border-top: 1px solid #ddd; gap: 10px; }
+    #text-row { display: flex; gap: 10px; }
+    #text-row input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 24px; font-size: 15px; outline: none; }
+    #text-row button#send { padding: 12px 20px; background: #0077cc; color: white; border: none; border-radius: 24px; font-size: 15px; cursor: pointer; }
+    #text-row button#send:disabled { background: #aaa; }
+    #mic-btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 24px;
+      cursor: pointer;
+      background: #00aa44;
+      color: white;
+      transition: background 0.2s;
+    }
+    #mic-btn.listening {
+      background: #cc0000;
+      animation: pulse 1s infinite;
+    }
+    #mic-btn:disabled { background: #aaa; cursor: not-allowed; }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+    #mic-status { text-align: center; font-size: 13px; color: #999; min-height: 18px; }
   </style>
 </head>
 <body>
   <div id="header">🐜 TN Appliance AI Assistant</div>
   <div id="messages"></div>
   <div id="input-area">
-    <input id="msg" type="text" placeholder="Describe your appliance problem..." />
-    <button id="send">Send</button>
+    <div id="text-row">
+      <input id="msg" type="text" placeholder="Describe your appliance problem..." />
+      <button id="send">Send</button>
+    </div>
+    <div id="mic-status"></div>
+    <button id="mic-btn">🎙️ Press &amp; Hold to Talk</button>
   </div>
+
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
-    let conversationId = sessionStorage.getItem("conversationId") || null;
+    let conversationId = localStorage.getItem("conversationId") || null;
     const messages = document.getElementById("messages");
     const input = document.getElementById("msg");
     const btn = document.getElementById("send");
+    const micBtn = document.getElementById("mic-btn");
+    const micStatus = document.getElementById("mic-status");
+
+    let recognition = null;
+    let isListening = false;
+
+    // Set up speech recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        isListening = true;
+        micBtn.classList.add("listening");
+        micBtn.textContent = "🔴 Listening... Release to Send";
+        micStatus.textContent = "Listening...";
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        input.value = transcript;
+        micStatus.textContent = transcript;
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "🎙️ Press & Hold to Talk";
+        micStatus.textContent = "";
+        // Auto send if there's text
+        if (input.value.trim()) {
+          send();
+        }
+      };
+
+      recognition.onerror = (event) => {
+        isListening = false;
+        micBtn.classList.remove("listening");
+        micBtn.textContent = "🎙️ Press & Hold to Talk";
+        micStatus.textContent = "Couldn't hear that — try again";
+        setTimeout(() => micStatus.textContent = "", 3000);
+      };
+
+      // Press and hold to talk
+      micBtn.addEventListener("mousedown", () => {
+        if (!isListening) recognition.start();
+      });
+      micBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        if (!isListening) recognition.start();
+      });
+      micBtn.addEventListener("mouseup", () => {
+        if (isListening) recognition.stop();
+      });
+      micBtn.addEventListener("touchend", () => {
+        if (isListening) recognition.stop();
+      });
+
+    } else {
+      micBtn.disabled = true;
+      micBtn.textContent = "🎙️ Voice not supported on this browser";
+      micStatus.textContent = "Try Chrome or Safari for voice support";
+    }
 
     function addBubble(text, role) {
       const div = document.createElement("div");
@@ -47,6 +145,7 @@
         addBubble(text, "user");
       }
       btn.disabled = true;
+      micBtn.disabled = true;
       const typing = document.createElement("div");
       typing.className = "typing";
       typing.textContent = "Thinking...";
@@ -58,7 +157,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             channel: "web",
-            conversation_id: conversationId,
+            conversation_id: conversationId ? parseInt(conversationId) : null,
             customer_phone: null,
             customer_id: null,
             message: text,
@@ -69,7 +168,7 @@
         typing.remove();
         if (data.conversation_id) {
           conversationId = data.conversation_id;
-          sessionStorage.setItem("conversationId", conversationId);
+          localStorage.setItem("conversationId", conversationId);
         }
         const reply = data.reply || data.message || JSON.stringify(data);
         addBubble(reply, "assistant");
@@ -79,6 +178,7 @@
         addBubble("Error: " + err.message, "assistant");
       }
       btn.disabled = false;
+      micBtn.disabled = false;
       if (!isGreeting) input.focus();
     }
 
@@ -92,7 +192,7 @@
     btn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 
-    // Trigger Ant's opening greeting automatically
+    // Only trigger greeting if no existing conversation
     if (!conversationId) {
       sendMessage("hi", true);
     }
