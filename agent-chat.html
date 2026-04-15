@@ -63,7 +63,17 @@
 
   <script>
     const PROXY = "/.netlify/functions/agent-chat-proxy";
-    let conversationId = localStorage.getItem("conversationId") || null;
+
+    // Always read fresh from localStorage
+    let conversationId = localStorage.getItem("conversationId") 
+      ? parseInt(localStorage.getItem("conversationId")) 
+      : null;
+    let customerId = localStorage.getItem("customerId")
+      ? parseInt(localStorage.getItem("customerId"))
+      : null;
+    let customerPhone = localStorage.getItem("customerPhone") || null;
+    let isSending = false;
+
     const messages = document.getElementById("messages");
     const input = document.getElementById("msg");
     const btn = document.getElementById("send");
@@ -74,17 +84,17 @@
     let recognition = null;
     let isListening = false;
 
-    // New conversation button
     newConvoBtn.addEventListener("click", () => {
       if (confirm("Start a new conversation? This will clear the current one.")) {
         localStorage.removeItem("conversationId");
+        localStorage.removeItem("customerId");
         conversationId = null;
+        customerId = null;
         messages.innerHTML = "";
         sendMessage("hi", true);
       }
     });
 
-    // Set up speech recognition
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       recognition = new SpeechRecognition();
@@ -118,7 +128,7 @@
         }
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = () => {
         isListening = false;
         micBtn.classList.remove("listening");
         micBtn.textContent = "🎙️ Press & Hold to Talk";
@@ -126,19 +136,10 @@
         setTimeout(() => micStatus.textContent = "", 3000);
       };
 
-      micBtn.addEventListener("mousedown", () => {
-        if (!isListening) recognition.start();
-      });
-      micBtn.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        if (!isListening) recognition.start();
-      });
-      micBtn.addEventListener("mouseup", () => {
-        if (isListening) recognition.stop();
-      });
-      micBtn.addEventListener("touchend", () => {
-        if (isListening) recognition.stop();
-      });
+      micBtn.addEventListener("mousedown", () => { if (!isListening) recognition.start(); });
+      micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (!isListening) recognition.start(); });
+      micBtn.addEventListener("mouseup", () => { if (isListening) recognition.stop(); });
+      micBtn.addEventListener("touchend", () => { if (isListening) recognition.stop(); });
 
     } else {
       micBtn.disabled = true;
@@ -165,42 +166,92 @@
     }
 
     async function sendMessage(text, isGreeting = false) {
+      if (isSending) return;
+      isSending = true;
+
       if (!isGreeting) {
         addBubble(text, "user");
       }
+
       btn.disabled = true;
       micBtn.disabled = true;
+
       const typing = document.createElement("div");
       typing.className = "typing";
       typing.textContent = "Thinking...";
       messages.appendChild(typing);
       messages.scrollTop = messages.scrollHeight;
-      try {
-        const res = await fetch(PROXY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            channel: "web",
-            conversation_id: conversationId ? parseInt(conversationId) : null,
-            customer_phone: null,
-            customer_id: null,
-            message: text,
-          }),
-        });
-        const raw = await res.text();
-        const data = JSON.parse(raw);
-        typing.remove();
-        if (data.conversation_id && !conversationId) {
-          conversationId = data.conversation_id;
-          localStorage.setItem("conversationId", conversationId);
+
+      // Snapshot conversationId BEFORE the request
+      // so a timeout never wipes it
+      const currentConversationId = conversationId;
+      const currentCustomerId = customerId;
+
+      let success = false;
+      let attempts = 0;
+      const maxAttempts = 2;
+
+      while (!success && attempts < maxAttempts) {
+        attempts++;
+        try {
+          const res = await fetch(PROXY, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              channel:         "web",
+              conversation_id: currentConversationId,
+              customer_phone:  customerPhone,
+              customer_id:     currentCustomerId,
+              message:         text,
+            }),
+          });
+
+          if (!res.ok) {
+            throw new Error("HTTP " + res.status);
+          }
+
+          const data = await res.json();
+          typing.remove();
+
+          // Only store conversation_id if we got a valid one back
+          // NEVER overwrite an existing one with null
+          if (data.conversation_id) {
+            conversationId = data.conversation_id;
+            localStorage.setItem("conversationId", conversationId);
+          }
+
+          // Store customer_id if returned
+          if (data.customer_id) {
+            customerId = data.customer_id;
+            localStorage.setItem("customerId", customerId);
+          }
+
+          const reply = data.reply || data.message || "Got it.";
+          addBubble(reply, "assistant");
+          success = true;
+
+        } catch (err) {
+          console.error("Attempt " + attempts + " failed:", err);
+
+          // CRITICAL: restore conversationId — never let a failed
+          // request wipe out who this customer is
+          conversationId = currentConversationId || conversationId;
+          if (conversationId) {
+            localStorage.setItem("conversationId", conversationId);
+          }
+
+          if (attempts < maxAttempts) {
+            // Wait 2 seconds then retry once
+            await new Promise(r => setTimeout(r, 2000));
+            typing.textContent = "Still thinking...";
+          } else {
+            typing.remove();
+            addBubble("Sorry, that took too long. Please try sending again — your conversation is saved.", "assistant");
+          }
         }
-        const reply = data.reply || data.message || JSON.stringify(data);
-        addBubble(reply, "assistant");
-      } catch (err) {
-        console.error("Error:", err);
-        typing.remove();
-        addBubble("Sorry, something went wrong. Please try again.", "assistant");
       }
+
+      isSending = false;
       btn.disabled = false;
       micBtn.disabled = false;
       if (!isGreeting) input.focus();
@@ -216,6 +267,7 @@
     btn.addEventListener("click", send);
     input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 
+    // Only auto-greet if no existing conversation
     if (!conversationId) {
       sendMessage("hi", true);
     }
