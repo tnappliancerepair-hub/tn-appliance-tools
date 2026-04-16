@@ -160,36 +160,67 @@
     }
 
     async function handleJobCreation(rawReply) {
-      const TRIGGER = "__JOB_READY__";
-      if (!rawReply.includes(TRIGGER)) return rawReply;
+      // Handle self-pay job creation
+      if (rawReply.includes("__JOB_READY__")) {
+        const parts = rawReply.split("__JOB_READY__");
+        const cleanReply = parts[0].trim();
+        const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
 
-      const parts = rawReply.split(TRIGGER);
-      const cleanReply = parts[0].trim();
-      const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
-
-      if (!jsonStr) return cleanReply;
-
-      try {
-        const jobData = JSON.parse(jsonStr);
-        await fetch("/.netlify/functions/create-job-proxy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            first_name     : jobData.first_name,
-            last_name      : jobData.last_name,
-            phone          : jobData.phone,
-            zip            : jobData.zip,
-            appliance_type : jobData.appliance_type,
-            brand          : jobData.brand,
-            model_number   : jobData.model_number,
-            problem_summary: jobData.problem_summary
-          })
-        });
-      } catch (err) {
-        console.error("Job creation failed:", err);
+        if (jsonStr) {
+          try {
+            const jobData = JSON.parse(jsonStr);
+            await fetch("/.netlify/functions/create-job-proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                first_name     : jobData.first_name,
+                last_name      : jobData.last_name,
+                phone          : jobData.phone,
+                zip            : jobData.zip,
+                appliance_type : jobData.appliance_type,
+                brand          : jobData.brand,
+                model_number   : jobData.model_number,
+                problem_summary: jobData.problem_summary
+              })
+            });
+          } catch (err) {
+            console.error("Self-pay job creation failed:", err);
+          }
+        }
+        return cleanReply;
       }
 
-      return cleanReply;
+      // Handle warranty job creation
+      if (rawReply.includes("__WARRANTY_READY__")) {
+        const parts = rawReply.split("__WARRANTY_READY__");
+        const cleanReply = parts[0].trim();
+        const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
+
+        if (jsonStr) {
+          try {
+            const jobData = JSON.parse(jsonStr);
+            await fetch("/.netlify/functions/create-warranty-job-proxy", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                first_name     : jobData.first_name,
+                last_name      : jobData.last_name,
+                phone          : jobData.phone,
+                zip            : jobData.zip,
+                appliance_type : jobData.appliance_type,
+                brand          : jobData.brand,
+                model_number   : jobData.model_number,
+                problem_summary: jobData.problem_summary
+              })
+            });
+          } catch (err) {
+            console.error("Warranty job creation failed:", err);
+          }
+        }
+        return cleanReply;
+      }
+
+      return rawReply;
     }
 
     async function sendMessage(text, isGreeting = false) {
