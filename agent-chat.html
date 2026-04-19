@@ -165,7 +165,6 @@
         const parts = rawReply.split("__JOB_READY__");
         const cleanReply = parts[0].trim();
         const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
-
         if (jsonStr) {
           try {
             const jobData = JSON.parse(jsonStr);
@@ -195,7 +194,6 @@
         const parts = rawReply.split("__WARRANTY_READY__");
         const cleanReply = parts[0].trim();
         const jsonStr = parts[1] ? parts[1].replace(/_+$/, "").trim() : null;
-
         if (jsonStr) {
           try {
             const jobData = JSON.parse(jsonStr);
