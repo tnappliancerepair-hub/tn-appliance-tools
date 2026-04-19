@@ -1,0 +1,154 @@
+s<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lee's Schedule</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #f4f4f4; min-height: 100vh; }
+    #header { background: #1a1a2e; color: white; padding: 16px; text-align: center; }
+    #header h1 { font-size: 20px; }
+    #header p { font-size: 13px; opacity: 0.7; margin-top: 4px; }
+    .section { padding: 16px; }
+    .card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h3 { font-size: 14px; color: #999; margin-bottom: 8px; text-transform: uppercase; }
+    .job { padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+    .job:last-child { border-bottom: none; }
+    .job-title { font-weight: bold; font-size: 15px; }
+    .job-detail { font-size: 13px; color: #666; margin-top: 2px; }
+    .empty { color: #999; font-style: italic; font-size: 14px; }
+    button { width: 100%; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+    .btn-block { background: #cc0000; color: white; }
+    .btn-avail { background: #00aa44; color: white; }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 13px; color: #666; margin-bottom-4px; }
+    input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; margin-top: 4px; }
+    .hidden { display: none; }
+    .success { background: #e6f4ea; color: #2d6a4f; padding: 12px; border-radius: 8px; text-align: center; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>🔧 Lee Harding</h1>
+    <p>Your schedule portal</p>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h3>Upcoming Jobs</h3>
+      <div id="jobs-list"><p class="empty">Loading...</p></div>
+    </div>
+
+    <div id="success-msg" class="success hidden">✅ Schedule updated successfully!</div>
+
+    <div class="card">
+      <h3>Block Time Off</h3>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" id="block-date"/>
+      </div>
+      <div class="form-group">
+        <label>Full day off?</label>
+        <select id="full-day">
+          <option value="true">Yes - full day off</option>
+          <option value="false">No - partial day</option>
+        </select>
+      </div>
+      <div id="partial-fields" class="hidden">
+        <div class="form-group">
+          <label>Available from</label>
+          <input type="time" id="start-time"/>
+        </div>
+        <div class="form-group">
+          <label>Available until</label>
+          <input type="time" id="end-time"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Reason (optional)</label>
+        <input type="text" id="reason" placeholder="Doctor appointment, family event..."/>
+      </div>
+      <button class="btn-block" onclick="submitBlock()">Block This Time</button>
+    </div>
+  </div>
+
+  <script>
+    const TECH_ID = 4; // Lee's Xano technician ID
+    const TECH_NAME = "Lee";
+    const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+
+    // Show/hide partial day fields
+    document.getElementById("full-day").addEventListener("change", function() {
+      const partial = document.getElementById("partial-fields");
+      if (this.value === "false") {
+        partial.classList.remove("hidden");
+      } else {
+        partial.classList.add("hidden");
+      }
+    });
+
+    // Load upcoming jobs
+    async function loadJobs() {
+      try {
+        const res = await fetch(`${XANO_BASE}/get_tech_jobs?technician_id=${TECH_ID}`);
+        const jobs = await res.json();
+        const list = document.getElementById("jobs-list");
+        
+        if (!jobs || jobs.length === 0) {
+          list.innerHTML = '<p class="empty">No upcoming jobs scheduled.</p>';
+          return;
+        }
+
+        list.innerHTML = jobs.map(job => `
+          <div class="job">
+            <div class="job-title">${job.appliance_type} — ${job.brand}</div>
+            <div class="job-detail">${job.scheduled_date || "Date TBD"} · ${job.zip}</div>
+            <div class="job-detail">${job.problem_summary}</div>
+          </div>
+        `).join("");
+      } catch(e) {
+        document.getElementById("jobs-list").innerHTML = '<p class="empty">Unable to load jobs right now.</p>';
+      }
+    }
+
+    async function submitBlock() {
+      const date = document.getElementById("block-date").value;
+      const fullDay = document.getElementById("full-day").value === "true";
+      const reason = document.getElementById("reason").value;
+      const startTime = document.getElementById("start-time").value || null;
+      const endTime = document.getElementById("end-time").value || null;
+
+      if (!date) {
+        alert("Please select a date.");
+        return;
+      }
+
+      try {
+        await fetch(`${XANO_BASE}/set_tech_availability`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            technician_id: TECH_ID,
+            blocked_date: date,
+            full_day_off: fullDay,
+            start_time: startTime,
+            end_time: endTime,
+            reason: reason
+          })
+        });
+
+        document.getElementById("success-msg").classList.remove("hidden");
+        document.getElementById("block-date").value = "";
+        document.getElementById("reason").value = "";
+        setTimeout(() => document.getElementById("success-msg").classList.add("hidden"), 3000);
+
+      } catch(e) {
+        alert("Something went wrong. Please try again.");
+      }
+    }
+
+    loadJobs();
+  </script>
+</body>
+</html>chedule-
