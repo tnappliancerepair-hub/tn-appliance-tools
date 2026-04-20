@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Schedule — TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f7fa;
+    color: #1a1a1a;
+    padding: 16px;
+    max-width: 680px;
+    margin: 0 auto;
+    padding-bottom: 80px;
+  }
+  header {
+    background: linear-gradient(135deg, #1e40af, #3b82f6);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  header h1 { font-size: 24px; margin-bottom: 4px; }
+  header .sub { font-size: 14px; opacity: 0.9; }
+  header .badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.2);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  .card h2 { font-size: 17px; margin-bottom: 12px; color: #1e40af; }
+  .card .hint { font-size: 13px; color: #64748b; margin-bottom: 14px; line-height: 1.4; }
+  .pin-gate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70vh;
+    padding: 20px;
+  }
+  .pin-card {
+    background: white;
+    border-radius: 16px;
+    padding: 32px 24px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    text-align: center;
+    max-width: 400px;
+    width: 100%;
+  }
+  .pin-card h1 { font-size: 22px; margin-bottom: 8px; color: #1e40af; }
+  .pin-card .greeting { font-size: 15px; color: #64748b; margin-bottom: 24px; }
+  .pin-input {
+    width: 100%;
+    padding: 16px;
+    font-size: 24px;
+    text-align: center;
+    letter-spacing: 8px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-family: monospace;
+  }
+  .pin-input:focus { outline: none; border-color: #3b82f6; }
+  .pin-submit {
+    width: 100%;
+    padding: 14px;
+    background: #1e40af;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .pin-submit:disabled { background: #94a3b8; cursor: not-allowed; }
+  .pin-error { color: #dc2626; font-size: 14px; margin-top: 12px; min-height: 20px; }
+  .pin-locked {
+    color: #dc2626;
+    font-weight: 600;
+    padding: 12px;
+    background: #fef2f2;
+    border-radius: 8px;
+    margin-top: 12px;
+  }
+  .error-state { text-align: center; padding: 40px 20px; color: #64748b; }
+  .error-state h1 { color: #1e40af; margin-bottom: 12px; }
+  .day-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .day-row:last-child { border-bottom: none; }
+  .day-toggle { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+  .day-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: #3b82f6; }
+  .day-name { font-weight: 600; font-size: 15px; }
+  .time-inputs { display: flex; gap: 6px; align-items: center; flex: 1; }
+  .time-inputs input[type="time"] {
+    flex: 1; padding: 8px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 14px; min-width: 0;
+  }
+  .time-inputs input:disabled { background: #f1f5f9; color: #94a3b8; }
+  .time-inputs .dash { color: #64748b; }
+  .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .form-row label { font-size: 13px; font-weight: 600; color: #334155; }
+  .form-row input {
+    padding: 10px; border: 1px solid #d1d5db;
+    border-radius: 8px; font-size: 15px; font-family: inherit;
+  }
+  .full-day-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; margin-bottom: 8px; }
+  .full-day-row input { width: 18px; height: 18px; accent-color: #dc2626; }
+  .ranges-container { margin-bottom: 12px; }
+  .range-row {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .range-row.block { border-left: 4px solid #dc2626; }
+  .range-row.open { border-left: 4px solid #16a34a; }
+  .range-type-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+  .range-type-btn {
+    flex: 1; padding: 8px; border: 2px solid #e2e8f0;
+    background: white; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .range-type-btn.active-block { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .range-type-btn.active-open { border-color: #16a34a; background: #f0fdf4; color: #16a34a; }
+  .range-times { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .range-times input[type="time"] {
+    flex: 1; padding: 8px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 14px; min-width: 0;
+  }
+  .range-times .dash { color: #64748b; font-weight: 600; }
+  .range-reason {
+    width: 100%; padding: 8px; border: 1px solid #d1d5db;
+    border-radius: 6px; font-size: 13px; margin-bottom: 8px;
+  }
+  .range-remove {
+    background: none; border: none; color: #dc2626;
+    font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 0;
+  }
+  .add-range-btn {
+    width: 100%; padding: 12px; background: #f1f5f9;
+    color: #1e40af; border: 2px dashed #cbd5e1;
+    border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-bottom: 12px;
+  }
+  button.primary {
+    width: 100%; padding: 14px; background: #1e40af;
+    color: white; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  button.save-defaults {
+    width: 100%; padding: 12px; background: #3b82f6;
+    color: white; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 14px;
+  }
+  .job-item {
+    background: #f8fafc; border-radius: 8px; padding: 12px;
+    margin-bottom: 8px; border-left: 4px solid #3b82f6;
+  }
+  .job-item.pending { border-left-color: #eab308; }
+  .job-item.scheduled { border-left-color: #16a34a; }
+  .job-item.completed { border-left-color: #94a3b8; opacity: 0.7; }
+  .job-customer { font-weight: 700; font-size: 15px; color: #1a1a1a; }
+  .job-appliance { font-size: 13px; color: #1e40af; margin-top: 2px; font-weight: 600; }
+  .job-issue { font-size: 13px; color: #334155; margin-top: 4px; }
+  .job-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 11px; }
+  .job-tag { background: #e0e7ff; color: #1e40af; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .job-tag.pending { background: #fef3c7; color: #a16207; }
+  .job-tag.scheduled { background: #dcfce7; color: #15803d; }
+  .job-tag.completed { background: #e2e8f0; color: #475569; }
+  .job-address { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .day-group { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .day-group-header {
+    font-weight: 700; font-size: 14px; color: #1e40af;
+    margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0;
+  }
+  .entry {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 10px; background: white; border-radius: 6px; margin-bottom: 6px;
+  }
+  .entry:last-child { margin-bottom: 0; }
+  .entry.block { border-left: 4px solid #dc2626; }
+  .entry.open { border-left: 4px solid #16a34a; }
+  .entry-info { flex: 1; }
+  .entry-time { font-weight: 600; font-size: 14px; }
+  .entry-detail { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .entry-tag {
+    display: inline-block; padding: 2px 6px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 6px;
+  }
+  .entry-tag.block { background: #fee2e2; color: #dc2626; }
+  .entry-tag.open { background: #dcfce7; color: #16a34a; }
+  .delete-btn {
+    background: none; border: none; color: #dc2626;
+    font-size: 18px; cursor: pointer; padding: 4px 8px;
+  }
+  .empty-state { text-align: center; color: #94a3b8; padding: 20px; font-size: 14px; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%); background: #1e40af;
+    color: white; padding: 12px 20px; border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 14px;
+    z-index: 1000; opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; max-width: 90%; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #dc2626; }
+  .toast.success { background: #16a34a; }
+  .logout-btn {
+    background: rgba(255,255,255,0.2); color: white;
+    border: 1px solid rgba(255,255,255,0.3); padding: 4px 10px;
+    border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 8px;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="errorState" class="error-state hidden">
+  <h1>🔒 Personal Link Required</h1>
+  <p>Please use the personal schedule link your manager sent you.</p>
+  <p style="margin-top: 12px; font-size: 13px;">If you don't have one, contact James.</p>
+</div>
+
+<div id="pinGate" class="pin-gate hidden">
+  <div class="pin-card">
+    <h1>🔧 <span id="pinTechName">Tech</span>'s Schedule</h1>
+    <div class="greeting">Enter your 4-digit PIN to continue</div>
+    <input type="tel" id="pinInput" class="pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="••••" autocomplete="off" />
+    <button class="pin-submit" id="pinSubmit" onclick="submitPin()">Unlock</button>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<div id="mainApp" class="hidden">
+  <header>
+    <h1>🔧 <span id="techName">Tech</span>'s Schedule</h1>
+    <div class="sub">TN Appliance Exchange — Availability Control</div>
+    <span class="badge">Technician ID: <span id="techIdBadge">—</span></span>
+    <br />
+    <button class="logout-btn" onclick="logout()">🔓 Lock</button>
+  </header>
+
+  <div class="card">
+    <h2>📋 My Upcoming Jobs</h2>
+    <div class="hint">Your assigned jobs — use this to plan your availability below.</div>
+    <div id="jobsList"><div class="empty-state">Loading jobs...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>📅 My Default Weekly Hours</h2>
+    <div class="hint">Set the hours you normally work. Start at 6am or 10am — whatever works for you.</div>
+    <div id="defaultHours"></div>
+    <button class="save-defaults" onclick="saveDefaults()">💾 Save My Default Hours</button>
+  </div>
+
+  <div class="card">
+    <h2>⏰ Change a Specific Day</h2>
+    <div class="hint">Pick a date, then add as many time ranges as you need. Example: Block 1–4 PM (pick up kids), Open 5–8 PM (working late).</div>
+    <div class="form-row">
+      <label for="entryDate">Date</label>
+      <input type="date" id="entryDate" />
+    </div>
+    <div class="full-day-row">
+      <input type="checkbox" id="fullDayOff" onchange="toggleFullDayOff()" />
+      <label for="fullDayOff">🚫 Entire day off (vacation, sick, etc.)</label>
+    </div>
+    <div id="rangesContainer" class="ranges-container"></div>
+    <button class="add-range-btn" id="addRangeBtn" onclick="addRange()">+ Add another time range</button>
+    <button class="primary" onclick="saveDayChanges()">💾 Save Changes for This Day</button>
+  </div>
+
+  <div class="card">
+    <h2>📆 My Upcoming Schedule Changes</h2>
+    <div id="entriesList"><div class="empty-state">Loading...</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_VERIFY_PIN = "/.netlify/functions/verify-pin-proxy";
+  const API_GET_TECH_JOBS = "/.netlify/functions/get-tech-jobs-proxy";
+  const USE_LIVE_API_FOR_AVAILABILITY = false;
+
+  const TECH_CONFIG = {
+    "teddy":  { id: 1, firstName: "Teddy" },
+    "jimmy":  { id: 2, firstName: "Jimmy" },
+    "andre":  { id: 3, firstName: "Andre" },
+    "lee":    { id: 4, firstName: "Lee" },
+    "billy":  { id: 5, firstName: "Billy" },
+    "john":   { id: 6, firstName: "John" }
+  };
+
+  const MAX_PIN_ATTEMPTS = 3;
+  const LOCKOUT_MINUTES = 5;
+
+  let currentTech = null;
+  let pinAttempts = 0;
+  let lockoutUntil = 0;
+  let entries = [];
+  let currentRanges = [];
+
+  const DAYS = [
+    { key: "MO", name: "Monday" },
+    { key: "TU", name: "Tuesday" },
+    { key: "WE", name: "Wednesday" },
+    { key: "TH", name: "Thursday" },
+    { key: "FR", name: "Friday" },
+    { key: "SA", name: "Saturday" },
+    { key: "SU", name: "Sunday" }
+  ];
+
+  let defaults = {
+    MO: { enabled: true, start: "08:00", end: "17:00" },
+    TU: { enabled: true, start: "08:00", end: "17:00" },
+    WE: { enabled: true, start: "08:00", end: "17:00" },
+    TH: { enabled: true, start: "08:00", end: "17:00" },
+    FR: { enabled: true, start: "08:00", end: "17:00" },
+    SA: { enabled: false, start: "09:00", end: "15:00" },
+    SU: { enabled: false, start: "09:00", end: "15:00" }
+  };
+
+  function init() {
+    const params = new URLSearchParams(window.location.search);
+    const techParam = (params.get("tech") || "").toLowerCase().trim();
+
+    if (!techParam || !TECH_CONFIG[techParam]) {
+      document.getElementById("errorState").classList.remove("hidden");
+      return;
+    }
+
+    currentTech = TECH_CONFIG[techParam];
+    document.getElementById("pinTechName").textContent = currentTech.firstName;
+    document.getElementById("pinGate").classList.remove("hidden");
+    document.getElementById("pinInput").focus();
+
+    document.getElementById("pinInput").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") submitPin();
+    });
+  }
+
+  async function submitPin() {
+    const now = Date.now();
+    if (lockoutUntil > now) {
+      const mins = Math.ceil((lockoutUntil - now) / 60000);
+      document.getElementById("pinError").innerHTML = '<div class="pin-locked">🔒 Locked out. Try again in ' + mins + ' min.</div>';
+      return;
+    }
+
+    const pin = document.getElementById("pinInput").value.trim();
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      document.getElementById("pinError").textContent = "Enter a 4-digit PIN";
+      return;
+    }
+
+    const submitBtn = document.getElementById("pinSubmit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking...";
+    document.getElementById("pinError").textContent = "";
+
+    try {
+      const res = await fetch(API_VERIFY_PIN, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ technician_id: currentTech.id, pin })
+      });
+
+      if (!res.ok) throw new Error("Server error");
+      const data = await res.json();
+
+      if (data.success === true) {
+        currentTech.firstName = data.first_name || currentTech.firstName;
+        currentTech.lastName = data.last_name || "";
+        unlockApp();
+      } else {
+        pinAttempts++;
+        if (pinAttempts >= MAX_PIN_ATTEMPTS) {
+          lockoutUntil = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
+          document.getElementById("pinError").innerHTML = '<div class="pin-locked">🔒 Too many attempts. Locked for ' + LOCKOUT_MINUTES + ' min.</div>';
+          document.getElementById("pinInput").value = "";
+        } else {
+          const left = MAX_PIN_ATTEMPTS - pinAttempts;
+          document.getElementById("pinError").textContent = "Wrong PIN. " + left + " " + (left === 1 ? "attempt" : "attempts") + " remaining.";
+          document.getElementById("pinInput").value = "";
+          document.getElementById("pinInput").focus();
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      document.getElementById("pinError").textContent = "Connection error. Try again.";
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Unlock";
+    }
+  }
+
+  function unlockApp() {
+    document.getElementById("pinGate").classList.add("hidden");
+    document.getElementById("mainApp").classList.remove("hidden");
+    document.getElementById("techName").textContent = currentTech.firstName;
+    document.getElementById("techIdBadge").textContent = currentTech.id;
+
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("entryDate").min = today;
+    document.getElementById("entryDate").value = today;
+
+    renderDefaults();
+    loadDefaults();
+    loadAvailability();
+    renderRanges();
+    loadJobs();
+  }
+
+  function logout() {
+    if (!confirm("Lock your schedule? You'll need to re-enter your PIN.")) return;
+    window.location.reload();
+  }
+
+  async function loadJobs() {
+    const list = document.getElementById("jobsList");
+    try {
+      const res = await fetch(API_GET_TECH_JOBS + "?technician_id=" + currentTech.id);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      renderJobs(data);
+    } catch (err) {
+      console.error("Failed to load jobs:", err);
+      list.innerHTML = '<div class="empty-state">Unable to load jobs right now.</div>';
+    }
+  }
+
+  function renderJobs(jobs) {
+    const list = document.getElementById("jobsList");
+    if (!Array.isArray(jobs) || jobs.length === 0) {
+      list.innerHTML = '<div class="empty-state">No jobs assigned to you yet.</div>';
+      return;
+    }
+
+    const sorted = [...jobs].sort((a, b) => {
+      const order = { pending: 0, scheduled: 1, completed: 2 };
+      return (order[getJobDisplayStatus(a)] || 0) - (order[getJobDisplayStatus(b)] || 0);
+    });
+
+    list.innerHTML = sorted.map(j => {
+      const status = getJobDisplayStatus(j);
+      const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+      const customerName = ((j.customer_first_name || "") + " " + (j.customer_last_name || "")).trim() || "Unknown customer";
+      const appliance = [j.brand, j.appliance_type].filter(Boolean).join(" ") || "—";
+      const issue = j.problem_summary || "No details yet";
+      const address = [j.customer_address, j.customer_city, j.customer_state, j.customer_zip].filter(Boolean).join(", ");
+      const phone = j.customer_phone ? formatPhone(j.customer_phone) : "";
+
+      return '<div class="job-item ' + status + '">' +
+        '<div class="job-customer">' + escapeHtml(customerName) + '</div>' +
+        '<div class="job-appliance">' + escapeHtml(appliance) + '</div>' +
+        '<div class="job-issue">' + escapeHtml(issue) + '</div>' +
+        (address ? '<div class="job-address">📍 ' + escapeHtml(address) + '</div>' : "") +
+        '<div class="job-meta">' +
+          '<span class="job-tag ' + status + '">' + statusLabel + '</span>' +
+          (j.customer_type ? '<span class="job-tag">' + escapeHtml(j.customer_type.replace("_", " ")) + '</span>' : "") +
+          (phone ? '<span class="job-tag">' + phone + '</span>' : "") +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function getJobDisplayStatus(job) {
+    if (!job) return "pending";
+    const s = (job.current_status || "").toLowerCase();
+    if (s === "completed" || s === "complete" || s === "done") return "completed";
+    if (job.scheduled_start) return "scheduled";
+    return "pending";
+  }
+
+  function formatPhone(p) {
+    const digits = String(p).replace(/\D/g, "");
+    if (digits.length === 10) return "(" + digits.slice(0,3) + ") " + digits.slice(3,6) + "-" + digits.slice(6);
+    return p;
+  }
+
+  function renderDefaults() {
+    const container = document.getElementById("defaultHours");
+    container.innerHTML = DAYS.map(day => {
+      const d = defaults[day.key];
+      return '<div class="day-row">' +
+        '<div class="day-toggle">' +
+          '<input type="checkbox" id="day-' + day.key + '" ' + (d.enabled ? "checked" : "") +
+          ' onchange="toggleDay(\'' + day.key + '\')" />' +
+          '<span class="day-name">' + day.name + '</span>' +
+        '</div>' +
+        '<div class="time-inputs">' +
+          '<input type="time" id="start-' + day.key + '" value="' + d.start + '"' +
+            (!d.enabled ? " disabled" : "") +
+            ' onchange="updateDay(\'' + day.key + '\', \'start\', this.value)" />' +
+          '<span class="dash">–</span>' +
+          '<input type="time" id="end-' + day.key + '" value="' + d.end + '"' +
+            (!d.enabled ? " disabled" : "") +
+            ' onchange="updateDay(\'' + day.key + '\', \'end\', this.value)" />' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function toggleDay(dayKey) {
+    const checked = document.getElementById("day-" + dayKey).checked;
+    defaults[dayKey].enabled = checked;
+    document.getElementById("start-" + dayKey).disabled = !checked;
+    document.getElementById("end-" + dayKey).disabled = !checked;
+  }
+
+  function updateDay(dayKey, field, value) {
+    defaults[dayKey][field] = value;
+  }
+
+  function addRange() {
+    currentRanges.push({ type: "block", start: "13:00", end: "16:00", reason: "" });
+    renderRanges();
+  }
+
+  function removeRange(index) {
+    currentRanges.splice(index, 1);
+    renderRanges();
+  }
+
+  function setRangeType(index, type) {
+    currentRanges[index].type = type;
+    renderRanges();
+  }
+
+  function updateRange(index, field, value) {
+    currentRanges[index][field] = value;
+  }
+
+  function renderRanges() {
+    const container = document.getElementById("rangesContainer");
+    if (currentRanges.length === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding: 10px;">No time ranges added yet. Tap "+ Add another time range" below.</div>';
+      return;
+    }
+    container.innerHTML = currentRanges.map((r, i) => {
+      return '<div class="range-row ' + r.type + '">' +
+        '<div class="range-type-toggle">' +
+          '<button class="range-type-btn ' + (r.type === 'block' ? 'active-block' : '') + '"' +
+            ' onclick="setRangeType(' + i + ', \'block\')">🚫 Block Off</button>' +
+          '<button class="range-type-btn ' + (r.type === 'open' ? 'active-open' : '') + '"' +
+            ' onclick="setRangeType(' + i + ', \'open\')">✅ Open To Work</button>' +
+        '</div>' +
+        '<div class="range-times">' +
+          '<input type="time" value="' + r.start + '" onchange="updateRange(' + i + ', \'start\', this.value)" />' +
+          '<span class="dash">–</span>' +
+          '<input type="time" value="' + r.end + '" onchange="updateRange(' + i + ', \'end\', this.value)" />' +
+        '</div>' +
+        '<input type="text" class="range-reason" placeholder="Reason (optional) — kids, doctor, overtime..."' +
+          ' value="' + escapeAttr(r.reason) + '" onchange="updateRange(' + i + ', \'reason\', this.value)" />' +
+        '<button class="range-remove" onclick="removeRange(' + i + ')">✕ Remove this range</button>' +
+      '</div>';
+    }).join("");
+  }
+
+  function toggleFullDayOff() {
+    const full = document.getElementById("fullDayOff").checked;
+    document.getElementById("addRangeBtn").style.display = full ? "none" : "block";
+    document.getElementById("rangesContainer").style.display = full ? "none" : "block";
+  }
+
+  async function saveDayChanges() {
+    const date = document.getElementById("entryDate").value;
+    if (!date) { showToast("Please pick a date first", "error"); return; }
+
+    const fullDayOff = document.getElementById("fullDayOff").checked;
+    let newEntries = [];
+
+    if (fullDayOff) {
+      newEntries.push({
+        id: "local_" + Date.now(),
+        technician_id: currentTech.id,
+        blocked_date: date,
+        full_day_off: true,
+        start_time: null, end_time: null,
+        reason: "Full day off", type: "block"
+      });
+    } else {
+      if (currentRanges.length === 0) {
+        showToast("Add at least one time range, or check 'Entire day off'", "error"); return;
+      }
+      for (const r of currentRanges) {
+        if (!r.start || !r.end) { showToast("All ranges need start and end times", "error"); return; }
+        if (r.start >= r.end) { showToast("End time must be after start time", "error"); return; }
+      }
+      newEntries = currentRanges.map((r, i) => ({
+        id: "local_" + Date.now() + "_" + i,
+        technician_id: currentTech.id,
+        blocked_date: date,
+        full_day_off: false,
+        start_time: r.start, end_time: r.end,
+        reason: r.reason || null, type: r.type
+      }));
+    }
+
+    entries = entries.filter(e => e.blocked_date !== date);
+    entries = entries.concat(newEntries);
+
+    try {
+      localStorage.setItem("availability_" + currentTech.id, JSON.stringify(entries));
+      renderEntries();
+      clearDayForm();
+      showToast("Schedule saved ✓", "success");
+    } catch (err) {
+      showToast("Couldn't save: " + err.message, "error");
+    }
+  }
+
+  async function saveDefaults() {
+    try {
+      localStorage.setItem("defaults_" + currentTech.id, JSON.stringify(defaults));
+      showToast("Default hours saved ✓", "success");
+    } catch (err) {
+      showToast("Couldn't save: " + err.message, "error");
+    }
+  }
+
+  async function loadAvailability() {
+    try {
+      const stored = localStorage.getItem("availability_" + currentTech.id);
+      entries = stored ? JSON.parse(stored) : [];
+    } catch (err) { entries = []; }
+    renderEntries();
+  }
+
+  async function loadDefaults() {
+    try {
+      const stored = localStorage.getItem("defaults_" + currentTech.id);
+      if (stored) defaults = JSON.parse(stored);
+    } catch (err) {}
+    renderDefaults();
+  }
+
+  async function deleteEntry(id) {
+    if (!confirm("Delete this schedule change?")) return;
+    entries = entries.filter(e => e.id !== id);
+    localStorage.setItem("availability_" + currentTech.id, JSON.stringify(entries));
+    renderEntries();
+    showToast("Deleted", "success");
+  }
+
+  function renderEntries() {
+    const list = document.getElementById("entriesList");
+    if (!entries || entries.length === 0) {
+      list.innerHTML = '<div class="empty-state">No upcoming changes. Your default hours apply.</div>';
+      return;
+    }
+    const groups = {};
+    entries.forEach(e => {
+      if (!groups[e.blocked_date]) groups[e.blocked_date] = [];
+      groups[e.blocked_date].push(e);
+    });
+    const sortedDates = Object.keys(groups).sort();
+    list.innerHTML = sortedDates.map(date => {
+      const dayEntries = groups[date].sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
+      const entriesHtml = dayEntries.map(e => {
+        const type = e.type || "block";
+        const tagLabel = type === "block" ? "Blocked" : "Open";
+        const timeStr = e.full_day_off ? "All day" : formatTime(e.start_time) + " – " + formatTime(e.end_time);
+        const reason = e.reason ? escapeHtml(e.reason) : "—";
+        return '<div class="entry ' + type + '">' +
+          '<div class="entry-info">' +
+            '<div class="entry-time">' +
+              '<span class="entry-tag ' + type + '">' + tagLabel + '</span>' + timeStr +
+            '</div>' +
+            '<div class="entry-detail">' + reason + '</div>' +
+          '</div>' +
+          '<button class="delete-btn" onclick="deleteEntry(\'' + e.id + '\')">🗑️</button>' +
+        '</div>';
+      }).join("");
+      return '<div class="day-group">' +
+        '<div class="day-group-header">' + formatDate(date) + '</div>' +
+        entriesHtml +
+      '</div>';
+    }).join("");
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + "T12:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+  }
+
+  function formatTime(t) {
+    if (!t) return "";
+    const parts = t.split(":");
+    const hour = parseInt(parts[0], 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const h12 = hour % 12 || 12;
+    return h12 + ":" + parts[1] + " " + ampm;
+  }
+
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function escapeAttr(s) {
+    return String(s || "").replace(/"/g, "&quot;");
+  }
+
+  function clearDayForm() {
+    document.getElementById("fullDayOff").checked = false;
+    currentRanges = [];
+    renderRanges();
+    document.getElementById("addRangeBtn").style.display = "block";
+    document.getElementById("rangesContainer").style.display = "block";
+  }
+
+  function showToast(msg, type) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.className = "toast show " + (type || "");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+</script>
+
+</body>
+</html>
