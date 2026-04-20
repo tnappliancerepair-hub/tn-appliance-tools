@@ -34,15 +34,25 @@ exports.handler = async (event) => {
       };
     }
 
+    // Force types: Xano expects technician_id as integer, pin as string
+    const payload = {
+      technician_id: parseInt(technician_id, 10),
+      pin: String(pin).trim()
+    };
+
+    console.log("verify-pin-proxy sending to Xano:", payload);
+
     const XANO_URL = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_tech_pin";
 
     const response = await fetch(XANO_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ technician_id, pin })
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
+
+    console.log("verify-pin-proxy got from Xano:", data);
 
     return {
       statusCode: 200,
