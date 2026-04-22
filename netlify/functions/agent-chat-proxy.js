@@ -2,10 +2,11 @@ exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
-
   try {
     const body = JSON.parse(event.body);
-
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    
     const xanoRes = await fetch(
       "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/chat/reply",
       {
@@ -18,9 +19,12 @@ exports.handler = async function (event) {
           customer_id:      body.customer_id      ?? null,
           message:          body.message,
         }),
+        signal: controller.signal
       }
     );
-
+    
+    clearTimeout(timeout);
+    
     if (!xanoRes.ok) {
       const errText = await xanoRes.text();
       return {
@@ -28,15 +32,12 @@ exports.handler = async function (event) {
         body: JSON.stringify({ error: errText }),
       };
     }
-
     const data = await xanoRes.json();
-
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     };
-
   } catch (err) {
     return {
       statusCode: 500,
