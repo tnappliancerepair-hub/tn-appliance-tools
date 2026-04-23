@@ -21,25 +21,10 @@
     #text-row input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 24px; font-size: 15px; outline: none; }
     #text-row button#send { padding: 12px 20px; background: #0077cc; color: white; border: none; border-radius: 24px; font-size: 15px; cursor: pointer; }
     #text-row button#send:disabled { background: #aaa; }
-    #mic-btn {
-      width: 100%;
-      padding: 16px;
-      font-size: 18px;
-      font-weight: bold;
-      border: none;
-      border-radius: 24px;
-      cursor: pointer;
-      background: #00aa44;
-      color: white;
-      transition: background 0.2s;
-    }
+    #mic-btn { width: 100%; padding: 16px; font-size: 18px; font-weight: bold; border: none; border-radius: 24px; cursor: pointer; background: #00aa44; color: white; transition: background 0.2s; }
     #mic-btn.listening { background: #cc0000; animation: pulse 1s infinite; }
     #mic-btn:disabled { background: #aaa; cursor: not-allowed; }
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.6; }
-      100% { opacity: 1; }
-    }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
     #mic-status { text-align: center; font-size: 13px; color: #999; min-height: 18px; }
   </style>
 </head>
@@ -159,13 +144,13 @@
       return div;
     }
 
-    async function handleJobCreation(rawReply) {
-      if (rawReply.includes("__JOB_READY__")) {
-        const parts = rawReply.split("__JOB_READY__");
+    function stripTriggers(rawReply) {
+      if (rawReply.includes("%%JOB_READY%%")) {
+        const parts = rawReply.split("%%JOB_READY%%");
         return parts[0].trim();
       }
-      if (rawReply.includes("__WARRANTY_READY__")) {
-        const parts = rawReply.split("__WARRANTY_READY__");
+      if (rawReply.includes("%%WARRANTY_READY%%")) {
+        const parts = rawReply.split("%%WARRANTY_READY%%");
         return parts[0].trim();
       }
       return rawReply;
@@ -212,7 +197,7 @@
           const data = await res.json();
           typing.remove();
 
-          if (data.conversation_id) {
+          if (data.conversation_id && !conversationId) {
             conversationId = data.conversation_id;
             localStorage.setItem("conversationId", conversationId);
           }
@@ -223,13 +208,13 @@
           }
 
           const rawReply = data.reply || data.message || "Got it.";
-          const reply = await handleJobCreation(rawReply);
+          const reply = stripTriggers(rawReply);
           addBubble(reply, "assistant");
           success = true;
 
         } catch (err) {
           console.error("Attempt " + attempts + " failed:", err);
-          conversationId = currentConversationId || conversationId;
+          conversationId = currentConversationId ?? conversationId;
           if (conversationId) localStorage.setItem("conversationId", conversationId);
 
           if (attempts < 2) {
