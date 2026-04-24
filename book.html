@@ -12,7 +12,7 @@
       min-height: 100vh;
       padding: 20px;
     }
-    .container { max-width: 500px; margin: 0 auto; }
+    .container { max-width: 520px; margin: 0 auto; }
     .header {
       background: #1a1a2e;
       color: white;
@@ -20,15 +20,8 @@
       border-radius: 16px 16px 0 0;
       text-align: center;
     }
-    .header h1 {
-      font-size: 22px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .header p {
-      font-size: 14px;
-      opacity: 0.8;
-    }
+    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .header p { font-size: 14px; opacity: 0.8; }
     .card {
       background: white;
       padding: 24px 20px;
@@ -57,17 +50,42 @@
       line-height: 1.5;
     }
     .intro strong { color: #1a1a2e; }
-    .slot-btn {
-      display: block;
-      width: 100%;
-      padding: 18px 16px;
-      margin-bottom: 12px;
-      background: white;
-      border: 2px solid #ddd;
+    .day-group {
+      margin-bottom: 18px;
+      border: 1px solid #e5e5e5;
       border-radius: 12px;
-      font-size: 16px;
+      overflow: hidden;
+    }
+    .day-header {
+      background: #f7f8fb;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .day-name {
+      font-weight: 700;
+      font-size: 15px;
+      color: #1a1a2e;
+    }
+    .day-date {
+      font-size: 13px;
+      color: #666;
+      margin-top: 2px;
+    }
+    .day-slots {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .slot-btn {
+      padding: 14px 10px;
+      background: white;
+      border: 2px solid #e5e5e5;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
       font-family: inherit;
-      text-align: left;
+      color: #0077cc;
       cursor: pointer;
       transition: all 0.15s;
     }
@@ -75,36 +93,31 @@
       border-color: #0077cc;
       background: #f0f7ff;
     }
-    .slot-btn:active {
-      transform: scale(0.98);
-    }
-    .slot-btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .slot-day {
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 4px;
-    }
-    .slot-date {
-      font-size: 13px;
-      color: #666;
-      margin-bottom: 6px;
-    }
-    .slot-window {
-      font-size: 18px;
+    .slot-btn:active { transform: scale(0.98); }
+    .slot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .show-more {
+      width: 100%;
+      padding: 14px;
+      margin-top: 8px;
+      background: white;
+      border: 2px dashed #cccccc;
+      border-radius: 12px;
+      font-size: 15px;
       font-weight: 600;
+      font-family: inherit;
+      color: #555;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .show-more:hover {
+      border-color: #0077cc;
       color: #0077cc;
     }
     .success {
       text-align: center;
       padding: 20px 0;
     }
-    .check {
-      font-size: 48px;
-      margin-bottom: 12px;
-    }
+    .check { font-size: 48px; margin-bottom: 12px; }
     .success h2 {
       font-size: 22px;
       color: #1a1a2e;
@@ -118,10 +131,7 @@
       margin: 20px 0;
       text-align: left;
     }
-    .success-details div {
-      margin-bottom: 8px;
-      font-size: 15px;
-    }
+    .success-details div { margin-bottom: 8px; font-size: 15px; }
     .success-details div:last-child { margin-bottom: 0; }
     .success-details strong { color: #1a1a2e; }
     .footer-note {
@@ -162,17 +172,16 @@
 
   <script>
     const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+    const DEFAULT_DAYS_VISIBLE = 5;
 
     function getJobId() {
       const p = new URLSearchParams(window.location.search);
       return p.get("job_id") || p.get("job") || "";
     }
-
     function getUrlZip() {
       const p = new URLSearchParams(window.location.search);
       return p.get("zip") || "";
     }
-
     function getUrlName() {
       const p = new URLSearchParams(window.location.search);
       return p.get("name") || "";
@@ -188,9 +197,7 @@
 
     function rawWindowFromDisplay(display) {
       const parts = display.split("-").map(s => s.trim().toLowerCase());
-      function hr(s) {
-        return parseInt(s.replace(/[^0-9]/g, ""), 10);
-      }
+      function hr(s) { return parseInt(s.replace(/[^0-9]/g, ""), 10); }
       return `${hr(parts[0])}-${hr(parts[1])}`;
     }
 
@@ -200,12 +207,10 @@
         showError("No job ID found. Please use the link we sent you via text.");
         return null;
       }
-
       try {
         const res = await fetch(`/.netlify/functions/get-job-proxy?job_id=${jobId}`);
         if (!res.ok) throw new Error("Job not found");
-        const job = await res.json();
-        return job;
+        return await res.json();
       } catch (e) {
         showError("We couldn't find your appointment.");
         return null;
@@ -216,8 +221,7 @@
       try {
         const res = await fetch(`${XANO_BASE}/get_available_slots?zip_code=${encodeURIComponent(zipCode)}&days_ahead=14`);
         if (!res.ok) throw new Error("Could not load slots");
-        const data = await res.json();
-        return data;
+        return await res.json();
       } catch (e) {
         showError("We couldn't load available times right now.");
         return null;
@@ -252,7 +256,7 @@
       }
     }
 
-    function showSuccess(displayWindow, date, day, customerName) {
+    function showSuccess(displayWindow, date, customerName) {
       const dateObj = new Date(date + "T12:00:00");
       const dateFormatted = dateObj.toLocaleDateString("en-US", {
         weekday: "long", month: "long", day: "numeric", year: "numeric"
@@ -273,6 +277,58 @@
         </div>`;
     }
 
+    function groupSlotsByDate(slots) {
+      const groups = {};
+      const order = [];
+      slots.forEach(s => {
+        if (!groups[s.date]) {
+          groups[s.date] = { date: s.date, day: s.day, slots: [] };
+          order.push(s.date);
+        }
+        groups[s.date].slots.push(s);
+      });
+      return order.map(d => groups[d]);
+    }
+
+    function renderDayGroup(group) {
+      const dateObj = new Date(group.date + "T12:00:00");
+      const monthDay = dateObj.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+
+      const slotsHtml = group.slots.map(slot => `
+        <button class="slot-btn" data-date="${slot.date}" data-window="${slot.window}">
+          ${slot.window}
+        </button>
+      `).join("");
+
+      return `
+        <div class="day-group">
+          <div class="day-header">
+            <div class="day-name">${group.day}</div>
+            <div class="day-date">${monthDay}</div>
+          </div>
+          <div class="day-slots">${slotsHtml}</div>
+        </div>`;
+    }
+
+    function attachSlotHandlers(jobId, customerName) {
+      document.querySelectorAll(".slot-btn").forEach(btn => {
+        if (btn.dataset.bound) return;
+        btn.dataset.bound = "1";
+        btn.addEventListener("click", async () => {
+          const date = btn.dataset.date;
+          const win = btn.dataset.window;
+          document.querySelectorAll(".slot-btn").forEach(b => b.disabled = true);
+          btn.innerHTML = "Booking...";
+          const result = await bookSlot(jobId, date, win);
+          if (result) {
+            showSuccess(win, date, customerName);
+          } else {
+            showError("Something went wrong booking that slot. Please try again.");
+          }
+        });
+      });
+    }
+
     function renderSlots(job, slots, customerName) {
       if (!slots || slots.length === 0) {
         document.getElementById("content").innerHTML = `
@@ -283,46 +339,36 @@
         return;
       }
 
+      const groupedAll = groupSlotsByDate(slots);
+      const initial = groupedAll.slice(0, DEFAULT_DAYS_VISIBLE);
+      const rest = groupedAll.slice(DEFAULT_DAYS_VISIBLE);
+
       const intro = `
         <div class="intro">
           Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${job.appliance_type || "appliance"}</strong> repair. Pick a time that works:
         </div>`;
 
-      const buttons = slots.map((slot, idx) => {
-        const dateObj = new Date(slot.date + "T12:00:00");
-        const monthDay = dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-        return `
-          <button class="slot-btn" data-idx="${idx}">
-            <div class="slot-day">${slot.day}</div>
-            <div class="slot-date">${monthDay}</div>
-            <div class="slot-window">${slot.window}</div>
-          </button>`;
-      }).join("");
+      const initialHtml = initial.map(g => renderDayGroup(g)).join("");
+      const showMoreBtn = rest.length > 0
+        ? `<button class="show-more" id="showMoreBtn">+ Show more days (${rest.length} more)</button>`
+        : "";
 
-      document.getElementById("content").innerHTML = intro + buttons;
+      document.getElementById("content").innerHTML = intro + initialHtml + showMoreBtn;
+      attachSlotHandlers(job.id, customerName);
 
-      document.querySelectorAll(".slot-btn").forEach(btn => {
-        btn.addEventListener("click", async (e) => {
-          const idx = parseInt(btn.dataset.idx);
-          const slot = slots[idx];
-          document.querySelectorAll(".slot-btn").forEach(b => b.disabled = true);
-          btn.innerHTML = `<div style="text-align:center;color:#0077cc;">Booking...</div>`;
-
-          const result = await bookSlot(job.id, slot.date, slot.window);
-          if (result) {
-            showSuccess(slot.window, slot.date, slot.day, customerName);
-          } else {
-            showError("Something went wrong booking that slot. Please try again.");
-          }
+      if (rest.length > 0) {
+        document.getElementById("showMoreBtn").addEventListener("click", () => {
+          const restHtml = rest.map(g => renderDayGroup(g)).join("");
+          document.getElementById("showMoreBtn").outerHTML = restHtml;
+          attachSlotHandlers(job.id, customerName);
         });
-      });
+      }
     }
 
     async function init() {
       const job = await loadJob();
       if (!job) return;
 
-      // If already booked, show confirmation
       if (job.scheduling_status === "booked" && job.scheduled_start) {
         const dateObj = new Date(job.scheduled_start);
         const dateStr = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -338,10 +384,8 @@
         return;
       }
 
-      // Get zip from URL first, then fall back to job data if available
       const urlZip = getUrlZip();
       const zip = urlZip || job.zip || job.zip_code || "";
-      
       if (!zip) {
         showError("We're missing your zip code. Please call us to schedule.");
         return;
@@ -350,7 +394,6 @@
       const slotsData = await loadSlots(zip);
       if (!slotsData) return;
 
-      // Get customer name from URL or default
       const customerName = getUrlName() || "";
       renderSlots(job, slotsData.available_slots, customerName);
     }
