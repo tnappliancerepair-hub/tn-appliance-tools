@@ -206,7 +206,8 @@
       try {
         const res = await fetch(`${XANO_BASE}/get_customer?customer_id=${customerId}`);
         if (!res.ok) throw new Error("Customer not found");
-        return await res.json();
+        const customer = await res.json();
+        return customer;
       } catch (e) {
         return null;
       }
@@ -273,7 +274,7 @@
         </div>`;
     }
 
-    function renderSlots(job, slots, customerName, applianceType) {
+    function renderSlots(job, slots, customerName) {
       if (!slots || slots.length === 0) {
         document.getElementById("content").innerHTML = `
           <div class="empty">
@@ -285,7 +286,7 @@
 
       const intro = `
         <div class="intro">
-          Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${applianceType || "appliance"}</strong> repair. Pick a time that works:
+          Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${job.appliance_type || "appliance"}</strong> repair. Pick a time that works:
         </div>`;
 
       const buttons = slots.map((slot, idx) => {
@@ -338,18 +339,13 @@
         return;
       }
 
-      // Get customer record for zip + name
-      let zip = job.zip || job.zip_code || "";
-      let customerName = "";
-
+      // Look up customer to get zip
+      let customer = null;
       if (job.customer_id) {
-        const customer = await loadCustomer(job.customer_id);
-        if (customer) {
-          zip = zip || customer.zip || customer.zip_code || "";
-          customerName = customer.first_name || "";
-        }
+        customer = await loadCustomer(job.customer_id);
       }
 
+      const zip = (customer && customer.zip) || "";
       if (!zip) {
         showError("We're missing your zip code on file. Please call us to schedule.");
         return;
@@ -358,7 +354,8 @@
       const slotsData = await loadSlots(zip);
       if (!slotsData) return;
 
-      renderSlots(job, slotsData.available_slots, customerName, job.appliance_type);
+      const customerName = (customer && customer.first_name) || "";
+      renderSlots(job, slotsData.available_slots, customerName);
     }
 
     init();
