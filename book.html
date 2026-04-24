@@ -202,6 +202,16 @@
       }
     }
 
+    async function loadCustomer(customerId) {
+      try {
+        const res = await fetch(`${XANO_BASE}/get_customer?customer_id=${customerId}`);
+        if (!res.ok) throw new Error("Customer not found");
+        return await res.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function loadSlots(zipCode) {
       try {
         const res = await fetch(`${XANO_BASE}/get_available_slots?zip_code=${encodeURIComponent(zipCode)}&days_ahead=14`);
@@ -263,7 +273,7 @@
         </div>`;
     }
 
-    function renderSlots(job, slots, customerName) {
+    function renderSlots(job, slots, customerName, applianceType) {
       if (!slots || slots.length === 0) {
         document.getElementById("content").innerHTML = `
           <div class="empty">
@@ -275,7 +285,7 @@
 
       const intro = `
         <div class="intro">
-          Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${job.appliance_type || "appliance"}</strong> repair. Pick a time that works:
+          Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${applianceType || "appliance"}</strong> repair. Pick a time that works:
         </div>`;
 
       const buttons = slots.map((slot, idx) => {
@@ -312,12 +322,7 @@
       const job = await loadJob();
       if (!job) return;
 
-      const zip = job.zip || job.zip_code || "";
-      if (!zip) {
-        showError("We're missing your zip code. Please call us to schedule.");
-        return;
-      }
-
+      // If already booked, show confirmation
       if (job.scheduling_status === "booked" && job.scheduled_start) {
         const dateObj = new Date(job.scheduled_start);
         const dateStr = dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -333,11 +338,27 @@
         return;
       }
 
+      // Get customer record for zip + name
+      let zip = job.zip || job.zip_code || "";
+      let customerName = "";
+
+      if (job.customer_id) {
+        const customer = await loadCustomer(job.customer_id);
+        if (customer) {
+          zip = zip || customer.zip || customer.zip_code || "";
+          customerName = customer.first_name || "";
+        }
+      }
+
+      if (!zip) {
+        showError("We're missing your zip code on file. Please call us to schedule.");
+        return;
+      }
+
       const slotsData = await loadSlots(zip);
       if (!slotsData) return;
 
-      const customerName = job.first_name || "";
-      renderSlots(job, slotsData.available_slots, customerName);
+      renderSlots(job, slotsData.available_slots, customerName, job.appliance_type);
     }
 
     init();
