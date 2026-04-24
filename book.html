@@ -168,6 +168,16 @@
       return p.get("job_id") || p.get("job") || "";
     }
 
+    function getUrlZip() {
+      const p = new URLSearchParams(window.location.search);
+      return p.get("zip") || "";
+    }
+
+    function getUrlName() {
+      const p = new URLSearchParams(window.location.search);
+      return p.get("name") || "";
+    }
+
     function showError(msg) {
       document.getElementById("content").innerHTML = `
         <div class="error">
@@ -198,17 +208,6 @@
         return job;
       } catch (e) {
         showError("We couldn't find your appointment.");
-        return null;
-      }
-    }
-
-    async function loadCustomer(customerId) {
-      try {
-        const res = await fetch(`${XANO_BASE}/get_customer?customer_id=${customerId}`);
-        if (!res.ok) throw new Error("Customer not found");
-        const customer = await res.json();
-        return customer;
-      } catch (e) {
         return null;
       }
     }
@@ -339,22 +338,20 @@
         return;
       }
 
-      // Look up customer to get zip
-      let customer = null;
-      if (job.customer_id) {
-        customer = await loadCustomer(job.customer_id);
-      }
-
-      const zip = (customer && customer.zip) || "";
+      // Get zip from URL first, then fall back to job data if available
+      const urlZip = getUrlZip();
+      const zip = urlZip || job.zip || job.zip_code || "";
+      
       if (!zip) {
-        showError("We're missing your zip code on file. Please call us to schedule.");
+        showError("We're missing your zip code. Please call us to schedule.");
         return;
       }
 
       const slotsData = await loadSlots(zip);
       if (!slotsData) return;
 
-      const customerName = (customer && customer.first_name) || "";
+      // Get customer name from URL or default
+      const customerName = getUrlName() || "";
       renderSlots(job, slotsData.available_slots, customerName);
     }
 
