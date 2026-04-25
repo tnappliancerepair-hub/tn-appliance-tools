@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>View Job Attachments - TN Appliance</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f9;
+    color: #222;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .header h1 { margin: 0 0 16px 0; font-size: 22px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="number"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid #d5d9df;
+    border-radius: 8px;
+  }
+  button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  button:hover:not(:disabled) { background: #0056b3; }
+  .status {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .status.info { background: #e8f4ff; color: #004085; }
+  .status.error { background: #fff5f5; color: #721c24; border-left: 4px solid #dc3545; }
+  .status.success { background: #d4edda; color: #155724; }
+  .summary {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: white;
+    padding: 14px 20px;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    flex: 1;
+    min-width: 140px;
+  }
+  .stat .num { font-size: 24px; font-weight: 700; color: #007bff; }
+  .stat .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.15s;
+  }
+  .card:hover { transform: translateY(-2px); }
+  .media-wrap {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: #1a1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .media-wrap img, .media-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .media-wrap .placeholder { color: #888; font-size: 14px; }
+  .info {
+    padding: 12px 14px;
+  }
+  .info .filename {
+    font-weight: 600;
+    font-size: 13px;
+    color: #222;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 6px;
+  }
+  .info .meta {
+    font-size: 11px;
+    color: #888;
+    line-height: 1.5;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .badge.intake { background: #e8f4ff; color: #004085; }
+  .badge.completion { background: #fff3e0; color: #cc6600; }
+  .badge.tdr { background: #f0e8ff; color: #4b1e88; }
+  .badge.photo { background: #d4edda; color: #155724; }
+  .badge.video { background: #f8d7da; color: #721c24; }
+  .empty {
+    background: white;
+    padding: 40px;
+    text-align: center;
+    border-radius: 12px;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📋 Job Attachments Viewer</h1>
+    <div class="controls">
+      <input type="number" id="job-id" placeholder="Enter job ID (e.g. 195)" value="195">
+      <button id="load-btn" onclick="loadJob()">Load</button>
+    </div>
+  </div>
+
+  <div id="status"></div>
+  <div id="summary" class="summary" style="display:none;"></div>
+  <div id="content"></div>
+</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const NETLIFY_BASE = window.location.origin;
+
+async function loadJob() {
+  const jobId = parseInt(document.getElementById('job-id').value, 10);
+  const btn = document.getElementById('load-btn');
+  const statusEl = document.getElementById('status');
+  const summaryEl = document.getElementById('summary');
+  const contentEl = document.getElementById('content');
+
+  if (!jobId || jobId < 1) {
+    showStatus('Please enter a valid job ID.', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  statusEl.innerHTML = '';
+  summaryEl.style.display = 'none';
+  contentEl.innerHTML = '';
+
+  try {
+    // Step 1: Get attachments list from Xano
+    const xanoRes = await fetch(`${XANO_BASE}/get_job_attachments?job_id=${jobId}`);
+    if (!xanoRes.ok) {
+      throw new Error(`Xano error: ${xanoRes.status}`);
+    }
+    const xanoData = await xanoRes.json();
+
+    if (!xanoData.success) {
+      throw new Error('Could not fetch attachments');
+    }
+
+    if (xanoData.count === 0) {
+      contentEl.innerHTML = '<div class="empty">No attachments found for this job.</div>';
+      showStatus(`Loaded job #${jobId} — 0 attachments`, 'info');
+      return;
+    }
+
+    showStatus(`Loaded job #${jobId} — ${xanoData.count} attachments. Generating view URLs...`, 'info');
+
+    // Step 2: Get signed view URLs from Netlify
+    const s3Keys = xanoData.attachments.map(a => a.s3_key);
+    const signRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/s3-view-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ s3_keys: s3Keys })
+    });
+    if (!signRes.ok) {
+      throw new Error(`Sign error: ${signRes.status}`);
+    }
+    const signData = await signRes.json();
+
+    if (!signData.success) {
+      throw new Error('Could not sign URLs');
+    }
+
+    // Map s3_key → view_url
+    const urlMap = {};
+    signData.signed_urls.forEach(s => {
+      urlMap[s.s3_key] = s.view_url;
+    });
+
+    // Step 3: Render
+    renderSummary(xanoData.attachments);
+    renderGrid(xanoData.attachments, urlMap);
+    showStatus(`✓ Loaded job #${jobId} — ${xanoData.count} attachments (links expire in 15 min)`, 'success');
+
+  } catch (err) {
+    console.error(err);
+    showStatus(`Error: ${err.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Load';
+  }
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + type;
+  el.textContent = msg;
+}
+
+function renderSummary(attachments) {
+  const el = document.getElementById('summary');
+  const photos = attachments.filter(a => a.file_type === 'photo').length;
+  const videos = attachments.filter(a => a.file_type === 'video').length;
+  const intake = attachments.filter(a => a.attachment_type === 'intake').length;
+  const completion = attachments.filter(a => a.attachment_type === 'completion').length;
+  const totalBytes = attachments.reduce((s, a) => s + (a.file_size_bytes || 0), 0);
+  const totalMB = (totalBytes / 1048576).toFixed(1);
+
+  el.innerHTML = `
+    <div class="stat"><div class="num">${attachments.length}</div><div class="label">Total Files</div></div>
+    <div class="stat"><div class="num">${photos}</div><div class="label">Photos</div></div>
+    <div class="stat"><div class="num">${videos}</div><div class="label">Videos</div></div>
+    <div class="stat"><div class="num">${intake}</div><div class="label">Intake</div></div>
+    <div class="stat"><div class="num">${completion}</div><div class="label">Completion</div></div>
+    <div class="stat"><div class="num">${totalMB} MB</div><div class="label">Total Size</div></div>
+  `;
+  el.style.display = 'flex';
+}
+
+function renderGrid(attachments, urlMap) {
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="grid" id="card-grid"></div>';
+  const grid = document.getElementById('card-grid');
+
+  attachments.forEach(a => {
+    const url = urlMap[a.s3_key];
+    const sizeMB = ((a.file_size_bytes || 0) / 1048576).toFixed(2);
+    const date = new Date(a.created_at).toLocaleString();
+
+    let mediaHtml;
+    if (!url) {
+      mediaHtml = '<div class="placeholder">No URL</div>';
+    } else if (a.file_type === 'video') {
+      mediaHtml = `<video controls preload="metadata" src="${url}"></video>`;
+    } else {
+      mediaHtml = `<img src="${url}" alt="${escapeHtml(a.original_filename)}" loading="lazy">`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="media-wrap">${mediaHtml}</div>
+      <div class="info">
+        <div class="filename">${escapeHtml(a.original_filename || 'unnamed')}</div>
+        <div>
+          <span class="badge ${a.attachment_type}">${a.attachment_type}</span>
+          <span class="badge ${a.file_type}">${a.file_type}</span>
+        </div>
+        <div class="meta">
+          ${sizeMB} MB • by ${a.uploaded_by}<br>
+          ${date}
+        </div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+}
+
+// Auto-load on page open
+window.addEventListener('DOMContentLoaded', () => {
+  loadJob();
+});
+</script>
+</body>
+</html>
