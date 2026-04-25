@@ -21,15 +21,15 @@ exports.handler = async function (event) {
     }
 
     const s3Client = new S3Client({
-      region: process.env.AWS_S3_REGION,
+      region: process.env.TN_AWS_S3_REGION,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY
       }
     });
 
     const command = new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET,
+      Bucket: process.env.TN_AWS_S3_BUCKET,
       Key: body.s3_key,
       ContentType: body.mime_type
     });
