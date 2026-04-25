@@ -50,6 +50,65 @@
       line-height: 1.5;
     }
     .intro strong { color: #1a1a2e; }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 14px 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      background: white;
+      color: #1a1a2e;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #0077cc;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 100px 100px;
+      gap: 8px;
+    }
+    @media (max-width: 420px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+    .continue-btn {
+      width: 100%;
+      padding: 16px;
+      margin-top: 22px;
+      background: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .continue-btn:hover { background: #005fa3; }
+    .continue-btn:active { transform: scale(0.98); }
+    .continue-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .form-note {
+      font-size: 12px;
+      color: #888;
+      margin-top: 14px;
+      line-height: 1.4;
+      text-align: center;
+    }
     .day-group {
       margin-bottom: 18px;
       border: 1px solid #e5e5e5;
@@ -113,6 +172,26 @@
       border-color: #0077cc;
       color: #0077cc;
     }
+    .address-summary {
+      background: #f7f8fb;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-size: 14px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .address-summary .edit-link {
+      color: #0077cc;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      margin-left: 10px;
+    }
     .success {
       text-align: center;
       padding: 20px 0;
@@ -162,7 +241,7 @@
     <div class="card" id="content">
       <div class="loading">
         <div class="spinner"></div>
-        <p>Loading available times...</p>
+        <p>Loading...</p>
       </div>
     </div>
     <div class="help">
@@ -173,6 +252,11 @@
   <script>
     const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
     const DEFAULT_DAYS_VISIBLE = 5;
+
+    let currentJob = null;
+    let currentZip = "";
+    let currentName = "";
+    let currentAddress = { street: "", city: "", state: "TN", zip: "" };
 
     function getJobId() {
       const p = new URLSearchParams(window.location.search);
@@ -228,7 +312,7 @@
       }
     }
 
-    async function bookSlot(jobId, date, displayWindow) {
+    async function bookSlot(jobId, date, displayWindow, address) {
       const raw = rawWindowFromDisplay(displayWindow);
       const startPart = displayWindow.split("-")[0].trim().toLowerCase();
       const isPM = startPart.includes("pm");
@@ -246,6 +330,10 @@
             preferred_date: date,
             preferred_time: preferredTime,
             service_eta_window: raw,
+            service_address: address.street,
+            service_city: address.city,
+            service_state: address.state,
+            service_zip: address.zip,
             notes: `Customer self-scheduled via web portal`
           })
         });
@@ -256,19 +344,87 @@
       }
     }
 
-    function showSuccess(displayWindow, date, customerName) {
+    function renderAddressForm() {
+      const greeting = currentName ? `Hi ${currentName}!` : "Hi!";
+      const applianceText = currentJob.appliance_type || "appliance";
+
+      document.getElementById("content").innerHTML = `
+        <div class="intro">
+          ${greeting} Your waiver is signed and we're ready to schedule your <strong>${applianceText}</strong> repair.
+          <br><br>
+          <strong>First — please confirm your service address</strong> so we can show you scheduling options:
+        </div>
+
+        <label class="form-label" for="streetInput">Street Address</label>
+        <input type="text" id="streetInput" class="form-input" placeholder="123 Main St, Apt 4B" autocomplete="street-address" value="${currentAddress.street}" />
+
+        <div class="form-row" style="margin-top:14px;">
+          <div>
+            <label class="form-label" for="cityInput" style="margin-top:0;">City</label>
+            <input type="text" id="cityInput" class="form-input" placeholder="Nashville" autocomplete="address-level2" value="${currentAddress.city}" />
+          </div>
+          <div>
+            <label class="form-label" for="stateInput" style="margin-top:0;">State</label>
+            <input type="text" id="stateInput" class="form-input" placeholder="TN" maxlength="2" autocomplete="address-level1" value="${currentAddress.state}" />
+          </div>
+          <div>
+            <label class="form-label" for="zipInput" style="margin-top:0;">Zip</label>
+            <input type="text" id="zipInput" class="form-input" placeholder="37215" maxlength="5" autocomplete="postal-code" inputmode="numeric" value="${currentAddress.zip || currentZip}" />
+          </div>
+        </div>
+
+        <button class="continue-btn" id="continueBtn">Continue to Available Times →</button>
+        <p class="form-note">We'll only use this address to send your technician to the right place.</p>
+      `;
+
+      document.getElementById("continueBtn").addEventListener("click", handleContinue);
+      document.getElementById("streetInput").focus();
+    }
+
+    async function handleContinue() {
+      const street = document.getElementById("streetInput").value.trim();
+      const city = document.getElementById("cityInput").value.trim();
+      const state = document.getElementById("stateInput").value.trim().toUpperCase();
+      const zip = document.getElementById("zipInput").value.trim();
+
+      if (!street || !city || !state || !zip) {
+        alert("Please fill in all address fields so we can dispatch your technician.");
+        return;
+      }
+
+      if (zip.length !== 5 || !/^\d+$/.test(zip)) {
+        alert("Please enter a valid 5-digit zip code.");
+        return;
+      }
+
+      currentAddress = { street, city, state, zip };
+
+      document.getElementById("content").innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading available times...</p>
+        </div>`;
+
+      const slotsData = await loadSlots(zip);
+      if (!slotsData) return;
+      renderSlotsView(slotsData.available_slots);
+    }
+
+    function showSuccess(displayWindow, date) {
       const dateObj = new Date(date + "T12:00:00");
       const dateFormatted = dateObj.toLocaleDateString("en-US", {
         weekday: "long", month: "long", day: "numeric", year: "numeric"
       });
+      const fullAddress = `${currentAddress.street}, ${currentAddress.city}, ${currentAddress.state} ${currentAddress.zip}`;
       document.getElementById("content").innerHTML = `
         <div class="success">
           <div class="check">✅</div>
           <h2>You're Scheduled!</h2>
-          <p>Thanks${customerName ? " " + customerName : ""}, your appointment is confirmed.</p>
+          <p>Thanks${currentName ? " " + currentName : ""}, your appointment is confirmed.</p>
           <div class="success-details">
             <div><strong>Date:</strong> ${dateFormatted}</div>
             <div><strong>Arrival Window:</strong> ${displayWindow}</div>
+            <div><strong>Service Address:</strong> ${fullAddress}</div>
           </div>
           <p class="footer-note">
             Your technician will text you when they're on their way.<br>
@@ -293,13 +449,11 @@
     function renderDayGroup(group) {
       const dateObj = new Date(group.date + "T12:00:00");
       const monthDay = dateObj.toLocaleDateString("en-US", { month: "long", day: "numeric" });
-
       const slotsHtml = group.slots.map(slot => `
         <button class="slot-btn" data-date="${slot.date}" data-window="${slot.window}">
           ${slot.window}
         </button>
       `).join("");
-
       return `
         <div class="day-group">
           <div class="day-header">
@@ -310,7 +464,7 @@
         </div>`;
     }
 
-    function attachSlotHandlers(jobId, customerName) {
+    function attachSlotHandlers() {
       document.querySelectorAll(".slot-btn").forEach(btn => {
         if (btn.dataset.bound) return;
         btn.dataset.bound = "1";
@@ -319,9 +473,9 @@
           const win = btn.dataset.window;
           document.querySelectorAll(".slot-btn").forEach(b => b.disabled = true);
           btn.innerHTML = "Booking...";
-          const result = await bookSlot(jobId, date, win);
+          const result = await bookSlot(currentJob.id, date, win, currentAddress);
           if (result) {
-            showSuccess(win, date, customerName);
+            showSuccess(win, date);
           } else {
             showError("Something went wrong booking that slot. Please try again.");
           }
@@ -329,7 +483,7 @@
       });
     }
 
-    function renderSlots(job, slots, customerName) {
+    function renderSlotsView(slots) {
       if (!slots || slots.length === 0) {
         document.getElementById("content").innerHTML = `
           <div class="empty">
@@ -343,9 +497,16 @@
       const initial = groupedAll.slice(0, DEFAULT_DAYS_VISIBLE);
       const rest = groupedAll.slice(DEFAULT_DAYS_VISIBLE);
 
+      const fullAddress = `${currentAddress.street}, ${currentAddress.city}, ${currentAddress.state} ${currentAddress.zip}`;
+      const addressBar = `
+        <div class="address-summary">
+          <span>📍 ${fullAddress}</span>
+          <a class="edit-link" id="editAddrLink">Edit</a>
+        </div>`;
+
       const intro = `
         <div class="intro">
-          Hi${customerName ? " " + customerName : ""}! Your waiver is signed and we're ready to schedule your <strong>${job.appliance_type || "appliance"}</strong> repair. Pick a time that works:
+          Great! Pick a time that works for you:
         </div>`;
 
       const initialHtml = initial.map(g => renderDayGroup(g)).join("");
@@ -353,14 +514,19 @@
         ? `<button class="show-more" id="showMoreBtn">+ Show more days (${rest.length} more)</button>`
         : "";
 
-      document.getElementById("content").innerHTML = intro + initialHtml + showMoreBtn;
-      attachSlotHandlers(job.id, customerName);
+      document.getElementById("content").innerHTML = addressBar + intro + initialHtml + showMoreBtn;
+
+      document.getElementById("editAddrLink").addEventListener("click", () => {
+        renderAddressForm();
+      });
+
+      attachSlotHandlers();
 
       if (rest.length > 0) {
         document.getElementById("showMoreBtn").addEventListener("click", () => {
           const restHtml = rest.map(g => renderDayGroup(g)).join("");
           document.getElementById("showMoreBtn").outerHTML = restHtml;
-          attachSlotHandlers(job.id, customerName);
+          attachSlotHandlers();
         });
       }
     }
@@ -368,6 +534,7 @@
     async function init() {
       const job = await loadJob();
       if (!job) return;
+      currentJob = job;
 
       if (job.scheduling_status === "booked" && job.scheduled_start) {
         const dateObj = new Date(job.scheduled_start);
@@ -384,18 +551,18 @@
         return;
       }
 
-      const urlZip = getUrlZip();
-      const zip = urlZip || job.zip || job.zip_code || "";
-      if (!zip) {
-        showError("We're missing your zip code. Please call us to schedule.");
-        return;
-      }
+      currentZip = getUrlZip() || job.zip || job.zip_code || "";
+      currentName = getUrlName() || "";
 
-      const slotsData = await loadSlots(zip);
-      if (!slotsData) return;
+      // Pre-fill any existing address from job record (in case they came back)
+      currentAddress = {
+        street: job.service_address || "",
+        city: job.service_city || "",
+        state: job.service_state || "TN",
+        zip: job.service_zip || currentZip || ""
+      };
 
-      const customerName = getUrlName() || "";
-      renderSlots(job, slotsData.available_slots, customerName);
+      renderAddressForm();
     }
 
     init();
