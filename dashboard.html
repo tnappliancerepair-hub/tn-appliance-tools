@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Dashboard - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f9;
+    color: #222;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .top-bar {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .top-bar .left h1 { margin: 0; font-size: 22px; }
+  .top-bar .left .sub { font-size: 13px; color: #888; margin-top: 4px; }
+  .top-bar .actions { display: flex; gap: 8px; }
+  .input-row { display: flex; gap: 8px; align-items: center; }
+  input[type="number"] {
+    width: 120px;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #d5d9df;
+    border-radius: 6px;
+  }
+  button {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: #007bff; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #0056b3; }
+  .btn-secondary { background: #e5e9ef; color: #333; }
+  .btn-secondary:hover:not(:disabled) { background: #d5d9df; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  .status-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .status-pill.pending { background: #fff3cd; color: #856404; }
+  .status-pill.scheduled { background: #cce5ff; color: #004085; }
+  .status-pill.in_progress, .status-pill.in-progress { background: #fff3e0; color: #cc6600; }
+  .status-pill.complete, .status-pill.completed { background: #d4edda; color: #155724; }
+  .status-pill.cancelled { background: #f8d7da; color: #721c24; }
+  .banner {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+  .banner.info { background: #e8f4ff; color: #004085; }
+  .banner.error { background: #fff5f5; color: #721c24; border-left: 4px solid #dc3545; }
+  .banner.success { background: #d4edda; color: #155724; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 768px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .card h2 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+  }
+  .field-row {
+    display: flex;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 14px;
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-row .label {
+    width: 110px;
+    color: #888;
+    flex-shrink: 0;
+  }
+  .field-row .value {
+    flex: 1;
+    color: #222;
+    word-wrap: break-word;
+  }
+  .field-row .value.empty { color: #ccc; font-style: italic; }
+  .field-row .value strong { color: #1a1a1a; }
+  .field-row .value a { color: #007bff; text-decoration: none; }
+  .field-row .value a:hover { text-decoration: underline; }
+  .problem-box {
+    background: #fff8e1;
+    border-left: 4px solid #ffa726;
+    padding: 12px 14px;
+    border-radius: 6px;
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .problem-box.empty { background: #f4f6f9; border-left-color: #ccc; color: #999; font-style: italic; }
+  .media-card { margin-bottom: 16px; }
+  .media-summary {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .media-stat {
+    background: #f4f6f9;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .media-stat .num { font-weight: 700; color: #007bff; }
+  .media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .media-tile {
+    background: #f4f6f9;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .media-tile:hover { transform: scale(1.02); }
+  .media-tile img, .media-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .media-tile .tile-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  .media-tile .tile-badge.completion { background: rgba(204, 102, 0, 0.9); }
+  .media-tile .tile-badge.tdr { background: rgba(75, 30, 136, 0.9); }
+  .media-empty {
+    padding: 24px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    background: #f4f6f9;
+    border-radius: 8px;
+  }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox-content {
+    max-width: 95%;
+    max-height: 95%;
+  }
+  .lightbox img, .lightbox video {
+    max-width: 100%;
+    max-height: 90vh;
+    display: block;
+  }
+  .lightbox .close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    color: white;
+    font-size: 32px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(0,0,0,0.5);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="top-bar">
+    <div class="left">
+      <h1 id="title">Job Dashboard</h1>
+      <div class="sub" id="subtitle">Loading...</div>
+    </div>
+    <div class="actions">
+      <div class="input-row">
+        <input type="number" id="job-id-input" placeholder="Job ID" value="195">
+        <button class="btn-secondary" onclick="loadJob()">Load</button>
+      </div>
+      <button class="btn-primary" id="copy-btn" onclick="copySummary()" disabled>📋 Copy Summary</button>
+    </div>
+  </div>
+
+  <div id="banner-area"></div>
+
+  <div id="content" style="display:none;">
+
+    <div class="grid">
+      <div class="card">
+        <h2>Customer</h2>
+        <div class="field-row">
+          <div class="label">Name</div>
+          <div class="value" id="cust-name"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Phone</div>
+          <div class="value" id="cust-phone"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Email</div>
+          <div class="value" id="cust-email"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Address</div>
+          <div class="value" id="cust-address"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Appliance</h2>
+        <div class="field-row">
+          <div class="label">Type</div>
+          <div class="value" id="app-type"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Brand</div>
+          <div class="value" id="app-brand"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Model</div>
+          <div class="value" id="app-model"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Serial</div>
+          <div class="value" id="app-serial"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <h2>Problem Summary</h2>
+      <div class="problem-box" id="problem-summary"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Service Details</h2>
+        <div class="field-row">
+          <div class="label">Status</div>
+          <div class="value" id="job-status"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Tier</div>
+          <div class="value" id="job-tier"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Source</div>
+          <div class="value" id="job-source"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Payment</div>
+          <div class="value" id="job-payment"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Assignment</h2>
+        <div class="field-row">
+          <div class="label">Tech</div>
+          <div class="value" id="tech-name"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Scheduled</div>
+          <div class="value" id="job-scheduled"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">ETA Window</div>
+          <div class="value" id="job-eta"></div>
+        </div>
+        <div class="field-row">
+          <div class="label">Created</div>
+          <div class="value" id="job-created"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card media-card">
+      <h2>Photos & Videos</h2>
+      <div class="media-summary" id="media-summary"></div>
+      <div id="media-content"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="close" onclick="closeLightbox(event)">×</div>
+  <div class="lightbox-content" id="lightbox-content"></div>
+</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const NETLIFY_BASE = window.location.origin;
+
+let currentJobData = null;
+let currentAttachments = [];
+
+const urlParams = new URLSearchParams(window.location.search);
+const initialJobId = urlParams.get('job_id') || '195';
+document.getElementById('job-id-input').value = initialJobId;
+
+async function loadJob() {
+  const jobId = parseInt(document.getElementById('job-id-input').value, 10);
+  if (!jobId || jobId < 1) {
+    showBanner('Please enter a valid job ID.', 'error');
+    return;
+  }
+
+  showBanner('Loading job ' + jobId + '...', 'info');
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('copy-btn').disabled = true;
+
+  try {
+    const [jobRes, attachRes] = await Promise.all([
+      fetch(`${XANO_BASE}/get_job_for_dashboard?job_id=${jobId}`),
+      fetch(`${XANO_BASE}/get_job_attachments?job_id=${jobId}`)
+    ]);
+
+    if (!jobRes.ok) throw new Error(`Job fetch failed (${jobRes.status})`);
+    if (!attachRes.ok) throw new Error(`Attachments fetch failed (${attachRes.status})`);
+
+    const jobData = await jobRes.json();
+    const attachData = await attachRes.json();
+
+    if (!jobData.success) throw new Error('Job not found');
+
+    currentJobData = jobData;
+    currentAttachments = attachData.attachments || [];
+
+    let urlMap = {};
+    if (currentAttachments.length > 0) {
+      const s3Keys = currentAttachments.map(a => a.s3_key);
+      const signRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/s3-view-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_keys: s3Keys })
+      });
+      if (signRes.ok) {
+        const signData = await signRes.json();
+        if (signData.success) {
+          signData.signed_urls.forEach(s => { urlMap[s.s3_key] = s.view_url; });
+        }
+      }
+    }
+
+    render(jobData, currentAttachments, urlMap);
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('copy-btn').disabled = false;
+    clearBanner();
+    updateUrl(jobId);
+
+  } catch (err) {
+    console.error(err);
+    showBanner('Error: ' + err.message, 'error');
+  }
+}
+
+function render(data, attachments, urlMap) {
+  const job = data.job;
+  const customer = data.customer;
+  const appliance = data.appliance;
+  const tech = data.tech;
+
+  const jobLabel = job.job_number || `#${job.id}`;
+  document.getElementById('title').textContent = `Job ${jobLabel}`;
+  document.getElementById('subtitle').textContent = `Created ${formatDate(job.created_at)}`;
+
+  setField('cust-name', customer ? customer.name : null);
+  setField('cust-phone', customer && customer.phone ? `<a href="tel:${customer.phone}">${formatPhone(customer.phone)}</a>` : null, true);
+  setField('cust-email', customer && customer.email ? `<a href="mailto:${customer.email}">${customer.email}</a>` : null, true);
+  let addr = '';
+  if (customer) {
+    const parts = [customer.address, customer.city, customer.state, customer.zip].filter(Boolean);
+    addr = parts.join(', ');
+  }
+  setField('cust-address', addr || null);
+
+  setField('app-type', appliance.type);
+  setField('app-brand', appliance.brand);
+  setField('app-model', appliance.model_number);
+  setField('app-serial', appliance.serial_number);
+
+  const problem = appliance.problem_summary || appliance.problem_description;
+  const problemEl = document.getElementById('problem-summary');
+  if (problem && problem.trim()) {
+    problemEl.textContent = problem;
+    problemEl.className = 'problem-box';
+  } else {
+    problemEl.textContent = 'No problem summary recorded.';
+    problemEl.className = 'problem-box empty';
+  }
+
+  const statusKey = (job.current_status || '').toLowerCase().replace(/\s+/g, '_');
+  const statusLabel = job.friendly_status || job.current_status || 'Unknown';
+  setField('job-status', `<span class="status-pill ${statusKey}">${statusLabel}</span>`, true);
+  setField('job-tier', formatTier(job.recommended_service));
+  setField('job-source', job.source_type ? job.source_type.replace(/_/g, ' ') : null);
+  setField('job-payment', job.payment_status);
+
+  setField('tech-name', tech ? tech.name : 'Unassigned');
+  setField('job-scheduled', job.scheduled_start ? formatDate(job.scheduled_start) : null);
+  setField('job-eta', job.service_eta_window);
+  setField('job-created', formatDate(job.created_at));
+
+  renderMedia(attachments, urlMap);
+}
+
+function renderMedia(attachments, urlMap) {
+  const summaryEl = document.getElementById('media-summary');
+  const contentEl = document.getElementById('media-content');
+
+  if (attachments.length === 0) {
+    summaryEl.innerHTML = '';
+    contentEl.innerHTML = '<div class="media-empty">No photos or videos uploaded yet.</div>';
+    return;
+  }
+
+  const photos = attachments.filter(a => a.file_type === 'photo').length;
+  const videos = attachments.filter(a => a.file_type === 'video').length;
+  const intake = attachments.filter(a => a.attachment_type === 'intake').length;
+  const completion = attachments.filter(a => a.attachment_type === 'completion').length;
+
+  summaryEl.innerHTML = `
+    <div class="media-stat"><span class="num">${attachments.length}</span> total</div>
+    <div class="media-stat"><span class="num">${photos}</span> photos</div>
+    <div class="media-stat"><span class="num">${videos}</span> videos</div>
+    ${intake ? `<div class="media-stat"><span class="num">${intake}</span> intake</div>` : ''}
+    ${completion ? `<div class="media-stat"><span class="num">${completion}</span> completion</div>` : ''}
+  `;
+
+  let html = '<div class="media-grid">';
+  attachments.forEach((a, idx) => {
+    const url = urlMap[a.s3_key];
+    if (!url) {
+      html += `<div class="media-tile"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;font-size:12px;">Unavailable</div></div>`;
+      return;
+    }
+    const badge = `<span class="tile-badge ${a.attachment_type}">${a.attachment_type}</span>`;
+    if (a.file_type === 'video') {
+      html += `<div class="media-tile" onclick="openLightbox(${idx})"><video src="${url}" muted preload="metadata"></video>${badge}<div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.7);color:white;font-size:18px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;">▶</div></div>`;
+    } else {
+      html += `<div class="media-tile" onclick="openLightbox(${idx})"><img src="${url}" alt="" loading="lazy">${badge}</div>`;
+    }
+  });
+  html += '</div>';
+  contentEl.innerHTML = html;
+
+  window._mediaUrls = attachments.map(a => ({ url: urlMap[a.s3_key], type: a.file_type, filename: a.original_filename }));
+}
+
+function openLightbox(idx) {
+  const item = window._mediaUrls[idx];
+  if (!item || !item.url) return;
+  const lightboxContent = document.getElementById('lightbox-content');
+  if (item.type === 'video') {
+    lightboxContent.innerHTML = `<video src="${item.url}" controls autoplay></video>`;
+  } else {
+    lightboxContent.innerHTML = `<img src="${item.url}" alt="${item.filename || ''}">`;
+  }
+  document.getElementById('lightbox').classList.add('show');
+}
+
+function closeLightbox(e) {
+  if (e.target.id === 'lightbox' || e.target.classList.contains('close')) {
+    document.getElementById('lightbox').classList.remove('show');
+    document.getElementById('lightbox-content').innerHTML = '';
+  }
+}
+
+function setField(id, value, isHtml) {
+  const el = document.getElementById(id);
+  if (value === null || value === undefined || value === '') {
+    el.textContent = '—';
+    el.classList.add('empty');
+  } else {
+    el.classList.remove('empty');
+    if (isHtml) el.innerHTML = value;
+    else el.textContent = value;
+  }
+}
+
+function formatPhone(phone) {
+  if (!phone) return '';
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return `(${cleaned.slice(0,3)}) ${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+  }
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `(${cleaned.slice(1,4)}) ${cleaned.slice(4,7)}-${cleaned.slice(7)}`;
+  }
+  return phone;
+}
+
+function formatDate(ts) {
+  if (!ts) return '';
+  const d = new Date(typeof ts === 'number' ? ts : ts);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true
+  });
+}
+
+function formatTier(tier) {
+  if (!tier) return null;
+  const map = {
+    quick_check: '$50 Quick Check',
+    premium_call: '$90 Premium Call',
+    in_home: '$100 In-Home',
+    truck_roll: 'Truck Roll',
+    warranty: 'Warranty'
+  };
+  return map[tier] || tier.replace(/_/g, ' ');
+}
+
+function copySummary() {
+  if (!currentJobData) return;
+  const job = currentJobData.job;
+  const customer = currentJobData.customer;
+  const appliance = currentJobData.appliance;
+
+  const jobLabel = job.job_number || `#${job.id}`;
+  const name = customer ? customer.name : 'Unknown';
+  const phone = customer && customer.phone ? formatPhone(customer.phone) : '';
+  const applianceLine = [appliance.type, appliance.brand, appliance.model_number].filter(Boolean).join(' / ');
+  const problem = appliance.problem_summary || appliance.problem_description || 'No description';
+  const cityLine = customer ? [customer.address, customer.city].filter(Boolean).join(', ') : '';
+
+  const summary = `Job ${jobLabel} - ${name}${phone ? ' (' + phone + ')' : ''}\n` +
+                  `${applianceLine}\n` +
+                  `Issue: "${problem}"\n` +
+                  (cityLine ? cityLine + '\n' : '') +
+                  `${currentAttachments.length} photos/videos uploaded`;
+
+  navigator.clipboard.writeText(summary).then(() => {
+    showToast('✓ Summary copied to clipboard');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = summary;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✓ Summary copied');
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function showBanner(msg, type) {
+  const area = document.getElementById('banner-area');
+  area.innerHTML = `<div class="banner ${type}">${msg}</div>`;
+}
+
+function clearBanner() {
+  document.getElementById('banner-area').innerHTML = '';
+}
+
+function updateUrl(jobId) {
+  const url = new URL(window.location);
+  url.searchParams.set('job_id', jobId);
+  window.history.replaceState({}, '', url);
+}
+
+loadJob();
+</script>
+</body>
+</html>
