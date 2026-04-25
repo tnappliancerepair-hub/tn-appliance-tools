@@ -53,14 +53,26 @@
     .info-item span { font-size: 14px; font-weight: 600; color: var(--text); }
     .info-item.full { grid-column: 1 / -1; }
     .photos-section { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .photos-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); }
+    .photos-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .photos-count { color: var(--muted2); font-weight: 400; }
+    .photos-loading { display: flex; align-items: center; gap: 8px; padding: 12px; color: var(--muted2); font-size: 12px; }
+    .mini-spinner { width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    .photo-section-group { margin-bottom: 14px; }
+    .photo-section-group:last-child { margin-bottom: 0; }
+    .photo-section-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .photo-section-label .pill { padding: 1px 6px; border-radius: 4px; font-size: 9px; }
+    .photo-section-label .pill.intake { background: rgba(74,158,255,0.15); color: var(--blue); }
+    .photo-section-label .pill.completion { background: rgba(245,166,35,0.15); color: var(--accent); }
+    .photo-section-label .pill.tdr { background: rgba(0,214,143,0.15); color: var(--green); }
     .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .photo-thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--border2); cursor: pointer; transition: border-color 0.2s; }
+    .photo-thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--border2); cursor: pointer; transition: border-color 0.2s; position: relative; background: #000; }
     .photo-thumb:hover { border-color: var(--accent); }
-    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-thumb img, .photo-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-thumb .play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .photo-thumb .play-overlay::after { content: '▶'; color: white; font-size: 22px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+    .photo-thumb .type-tag { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-family: var(--mono); text-transform: uppercase; }
     .no-photos { text-align: center; padding: 20px; color: var(--muted2); font-size: 13px; }
-    .video-link { display: flex; align-items: center; gap: 8px; background: rgba(74,158,255,0.08); border: 1px solid rgba(74,158,255,0.2); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--blue); text-decoration: none; margin-top: 8px; transition: background 0.2s; }
-    .video-link:hover { background: rgba(74,158,255,0.12); }
+    .photos-error { padding: 12px; color: var(--red); font-size: 12px; background: rgba(255,71,87,0.06); border-radius: 6px; }
     .diag-summary { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .diag-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 6px; }
     .ant-badge { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.25); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--accent); }
@@ -121,6 +133,11 @@
     .intake-card { background: var(--card); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
     .intake-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 20px; }
     .load-btn { width: 100%; padding: 13px; background: var(--accent); border: none; border-radius: 10px; color: #080a0f; font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--sans); margin-top: 4px; }
+    .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 20px; }
+    .lightbox.show { display: flex; }
+    .lightbox-content { max-width: 95%; max-height: 95%; }
+    .lightbox img, .lightbox video { max-width: 100%; max-height: 90vh; display: block; }
+    .lightbox .close { position: absolute; top: 16px; right: 20px; color: white; font-size: 32px; cursor: pointer; user-select: none; background: rgba(0,0,0,0.5); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   </style>
 </head>
 <body>
@@ -133,13 +150,23 @@
     </div>
   </div>
 
+  <div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+    <div class="close" onclick="closeLightbox(event)">×</div>
+    <div class="lightbox-content" id="lightbox-content"></div>
+  </div>
+
 <script>
 const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+const NETLIFY_BASE = window.location.origin;
 
 let state = {
   step: "intake",
   jobId: "",
   job: null,
+  attachments: [],
+  attachmentUrls: {},
+  attachmentsLoading: false,
+  attachmentsError: "",
   diagnosis: "",
   partType: "",
   oemPartNumber: "",
@@ -172,11 +199,49 @@ async function loadJob(jobId) {
     state.jobId = jobId;
     state.diagnosis = job.problem_summary || "";
     state.step = "review";
+    render();
+    loadAttachments(jobId);
   } catch(e) {
     state.error = "Could not load job #" + jobId + ". Check the job ID and try again.";
     state.step = "intake";
+    render();
   }
-  render();
+}
+
+async function loadAttachments(jobId) {
+  state.attachmentsLoading = true;
+  state.attachmentsError = "";
+  state.attachments = [];
+  state.attachmentUrls = {};
+  renderPhotosOnly();
+
+  try {
+    const xanoRes = await fetch(`${XANO_BASE}/get_job_attachments?job_id=${jobId}`);
+    if (!xanoRes.ok) throw new Error(`Could not load attachments (${xanoRes.status})`);
+    const xanoData = await xanoRes.json();
+    if (!xanoData.success) throw new Error("Attachment fetch failed");
+
+    state.attachments = xanoData.attachments || [];
+
+    if (state.attachments.length > 0) {
+      const s3Keys = state.attachments.map(a => a.s3_key);
+      const signRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/s3-view-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ s3_keys: s3Keys })
+      });
+      if (signRes.ok) {
+        const signData = await signRes.json();
+        if (signData.success) {
+          signData.signed_urls.forEach(s => { state.attachmentUrls[s.s3_key] = s.view_url; });
+        }
+      }
+    }
+  } catch(e) {
+    state.attachmentsError = e.message || "Could not load photos";
+  }
+  state.attachmentsLoading = false;
+  renderPhotosOnly();
 }
 
 async function aiPreFill() {
@@ -279,6 +344,7 @@ async function submitTDR() {
 function reset() {
   state = {
     step: "intake", jobId: "", job: null,
+    attachments: [], attachmentUrls: {}, attachmentsLoading: false, attachmentsError: "",
     diagnosis: "", partType: "", oemPartNumber: "", oemPrice: "",
     amazonPartNumber: "", amazonPrice: "", repairEstimate: "",
     laborEstimate: "", recommendation: "", techNotes: "",
@@ -324,12 +390,74 @@ function renderLoading() {
     </div>`;
 }
 
+function renderPhotosSection() {
+  if (state.attachmentsLoading) {
+    return `
+      <div class="photos-section">
+        <div class="photos-title">📸 Customer & Tech Uploads</div>
+        <div class="photos-loading"><div class="mini-spinner"></div> Loading photos and videos...</div>
+      </div>`;
+  }
+  if (state.attachmentsError) {
+    return `
+      <div class="photos-section">
+        <div class="photos-title">📸 Customer & Tech Uploads</div>
+        <div class="photos-error">⚠️ ${state.attachmentsError}</div>
+      </div>`;
+  }
+  if (!state.attachments.length) {
+    return `
+      <div class="photos-section">
+        <div class="photos-title">📸 Customer & Tech Uploads</div>
+        <div class="no-photos">No photos or videos uploaded yet</div>
+      </div>`;
+  }
+
+  const groups = { intake: [], completion: [], tdr: [] };
+  state.attachments.forEach((a, idx) => {
+    a._idx = idx;
+    if (groups[a.attachment_type]) {
+      groups[a.attachment_type].push(a);
+    } else {
+      groups.intake.push(a);
+    }
+  });
+
+  const renderGroup = (label, type, items) => {
+    if (!items.length) return "";
+    return `
+      <div class="photo-section-group">
+        <div class="photo-section-label">${label} <span class="pill ${type}">${type}</span> <span class="photos-count">${items.length}</span></div>
+        <div class="photo-grid">
+          ${items.map(a => {
+            const url = state.attachmentUrls[a.s3_key];
+            if (!url) {
+              return `<div class="photo-thumb"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted2);font-size:10px;text-align:center;padding:4px;">Unavailable</div></div>`;
+            }
+            const tag = a.file_type === 'video' ? 'VIDEO' : 'PHOTO';
+            const inner = a.file_type === 'video'
+              ? `<video src="${url}" muted preload="metadata"></video><div class="play-overlay"></div>`
+              : `<img src="${url}" alt="" loading="lazy" />`;
+            return `<div class="photo-thumb" onclick="openLightbox(${a._idx})">${inner}<div class="type-tag">${tag}</div></div>`;
+          }).join("")}
+        </div>
+      </div>`;
+  };
+
+  return `
+    <div class="photos-section">
+      <div class="photos-title">
+        <span>📸 Customer & Tech Uploads</span>
+        <span class="photos-count">${state.attachments.length} total</span>
+      </div>
+      ${renderGroup("Customer intake", "intake", groups.intake)}
+      ${renderGroup("Tech completion", "completion", groups.completion)}
+      ${renderGroup("TDR evidence", "tdr", groups.tdr)}
+    </div>`;
+}
+
 function renderReview() {
   const job = state.job;
-  const photos = [];
-  if (job.photo_appliance_url) photos.push({ url: job.photo_appliance_url, label: "Appliance" });
-  if (job.photo_model_tag_url) photos.push({ url: job.photo_model_tag_url, label: "Model Tag" });
-  if (job.issue_video_url) photos.push({ url: job.issue_video_url, label: "Video", isVideo: true });
 
   const recBtns = [
     { key: "repair", icon: "🔧", label: "Schedule Repair", sub: "Tech installs the part" },
@@ -370,20 +498,7 @@ function renderReview() {
       </div>
     </div>
 
-    <div class="photos-section">
-      <div class="photos-title">📸 Customer Uploads</div>
-      ${photos.length === 0
-        ? `<div class="no-photos">No photos uploaded yet</div>`
-        : `<div class="photo-grid">
-            ${photos.filter(p => !p.isVideo).map(p => `
-              <div class="photo-thumb" onclick="window.open('${p.url}','_blank')">
-                <img src="${p.url}" alt="${p.label}" onerror="this.parentElement.innerHTML='<div style=padding:8px;font-size:10px;color:var(--muted2)>${p.label}</div>'" />
-              </div>`).join("")}
-          </div>
-          ${photos.filter(p => p.isVideo).map(p => `
-            <a href="${p.url}" target="_blank" class="video-link">▶ Watch Issue Video</a>`).join("")}`
-      }
-    </div>
+    <div id="photos-container">${renderPhotosSection()}</div>
 
     <div class="diag-summary">
       <div class="diag-title">🐜 Ant Intake Summary <span class="ant-badge">AI Collected</span></div>
@@ -504,6 +619,34 @@ function render() {
     case "done": html = renderDone(); break;
   }
   app.innerHTML = `<div class="container">${html}</div>`;
+}
+
+function renderPhotosOnly() {
+  const container = document.getElementById("photos-container");
+  if (container) {
+    container.innerHTML = renderPhotosSection();
+  }
+}
+
+function openLightbox(idx) {
+  const a = state.attachments[idx];
+  if (!a) return;
+  const url = state.attachmentUrls[a.s3_key];
+  if (!url) return;
+  const lightboxContent = document.getElementById("lightbox-content");
+  if (a.file_type === "video") {
+    lightboxContent.innerHTML = `<video src="${url}" controls autoplay></video>`;
+  } else {
+    lightboxContent.innerHTML = `<img src="${url}" alt="${a.original_filename || ''}" />`;
+  }
+  document.getElementById("lightbox").classList.add("show");
+}
+
+function closeLightbox(e) {
+  if (e.target.id === "lightbox" || e.target.classList.contains("close")) {
+    document.getElementById("lightbox").classList.remove("show");
+    document.getElementById("lightbox-content").innerHTML = "";
+  }
 }
 
 function handleLoadJob() {
