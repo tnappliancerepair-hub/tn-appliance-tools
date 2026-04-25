@@ -1,0 +1,10 @@
+{
+  "name": "tn-appliance-tools",
+  "version": "1.0.0",
+  "description": "TN Appliance Exchange Netlify functions",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.620.0",
+    "@aws-sdk/s3-request-presigner": "^3.620.0"
+  }
+}
