@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tech Ant - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0e1118, #131a2a);
+    border-bottom: 1px solid #2a3040;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .header .icon { font-size: 24px; }
+  .header .text { flex: 1; }
+  .header .title { font-size: 14px; font-weight: 700; }
+  .header .sub { font-size: 11px; color: #8a93aa; font-family: 'IBM Plex Mono', monospace; margin-top: 2px; }
+  .header .badge {
+    background: rgba(245,166,35,0.12);
+    border: 1px solid rgba(245,166,35,0.3);
+    color: #f5a623;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  
+  /* Job context bar */
+  .job-bar {
+    background: #131720;
+    border-bottom: 1px solid #2a3040;
+    padding: 10px 16px;
+    font-size: 12px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .job-bar .label { color: #8a93aa; font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; }
+  .job-bar .value { color: #e8edf5; font-weight: 600; }
+  .job-bar .sep { color: #2a3040; }
+  
+  /* Chat area */
+  .chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+  }
+  .chat::-webkit-scrollbar { width: 6px; }
+  .chat::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 3px; }
+  
+  .msg {
+    max-width: 85%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: #4a9eff;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: #1e2433;
+    color: #e8edf5;
+    border-bottom-left-radius: 4px;
+    border: 1px solid #2a3040;
+  }
+  .msg.system {
+    align-self: center;
+    background: rgba(245,166,35,0.08);
+    color: #f5a623;
+    border: 1px solid rgba(245,166,35,0.2);
+    font-size: 12px;
+    padding: 8px 14px;
+    max-width: 90%;
+    text-align: center;
+  }
+  .msg .ant-tag {
+    font-size: 10px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .typing {
+    align-self: flex-start;
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 4px;
+  }
+  .typing span {
+    width: 8px;
+    height: 8px;
+    background: #4a9eff;
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  .typing span:nth-child(1) { animation-delay: -0.32s; }
+  .typing span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+  }
+  
+  /* Upload progress in chat */
+  .upload-msg {
+    align-self: flex-end;
+    background: #1e2433;
+    border: 1px solid #4a9eff;
+    border-radius: 14px;
+    padding: 10px 14px;
+    max-width: 85%;
+    font-size: 13px;
+  }
+  .upload-msg .filename {
+    color: #e8edf5;
+    font-weight: 600;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .upload-msg .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: #2a3040;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .upload-msg .progress-fill {
+    height: 100%;
+    background: #4a9eff;
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .upload-msg.success { border-color: #00d68f; }
+  .upload-msg.success .progress-fill { background: #00d68f; }
+  .upload-msg.error { border-color: #ff4757; }
+  .upload-msg.error .progress-fill { background: #ff4757; }
+  .upload-msg .status {
+    font-size: 11px;
+    color: #8a93aa;
+    margin-top: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .upload-msg.success .status { color: #00d68f; }
+  .upload-msg.error .status { color: #ff4757; }
+  
+  /* Input area */
+  .input-wrap {
+    background: #131720;
+    border-top: 1px solid #2a3040;
+    padding: 12px;
+    flex-shrink: 0;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .input-row textarea {
+    flex: 1;
+    background: #0e1118;
+    border: 1px solid #2a3040;
+    border-radius: 12px;
+    color: #e8edf5;
+    padding: 10px 14px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    max-height: 100px;
+    min-height: 42px;
+    line-height: 1.4;
+  }
+  .input-row textarea:focus { border-color: #4a9eff; }
+  .input-row textarea::placeholder { color: #5a6480; }
+  .btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: opacity 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-camera {
+    background: #2a3040;
+    color: #e8edf5;
+    border: 1px solid #2a3040;
+  }
+  .btn-camera:hover:not(:disabled) { background: #3a4050; }
+  .btn-send {
+    background: #4a9eff;
+    color: white;
+  }
+  .btn-send:hover:not(:disabled) { background: #3a8eef; }
+  .btn-mic {
+    background: #1e2433;
+    color: #8a93aa;
+    border: 1px solid #2a3040;
+  }
+  .btn-mic.recording { background: #ff4757; color: white; }
+  
+  /* Quick action buttons (button grids) */
+  .quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px;
+    background: rgba(74,158,255,0.04);
+    border-top: 1px solid #2a3040;
+    flex-shrink: 0;
+    max-height: 30vh;
+    overflow-y: auto;
+  }
+  .quick-actions .quick-btn {
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .quick-actions .quick-btn:hover { background: #2a3040; border-color: #4a9eff; }
+  .quick-actions .quick-btn.required {
+    border-color: #f5a623;
+    background: rgba(245,166,35,0.08);
+    color: #f5a623;
+  }
+  
+  /* Submit ready banner */
+  .submit-banner {
+    background: linear-gradient(135deg, #00d68f, #00aa70);
+    color: #080a0f;
+    padding: 14px 16px;
+    text-align: center;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .submit-banner:hover { opacity: 0.9; }
+  
+  /* Loading screen */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    flex-direction: column;
+    gap: 16px;
+    color: #8a93aa;
+  }
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #2a3040;
+    border-top-color: #f5a623;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  /* Error screen */
+  .error-screen {
+    padding: 30px 20px;
+    text-align: center;
+    color: #ff4757;
+  }
+  .error-screen h2 { margin-bottom: 8px; font-size: 18px; }
+  .error-screen p { color: #8a93aa; font-size: 14px; }
+  
+  /* Lightbox */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img, .lightbox video { max-width: 95%; max-height: 90vh; }
+  .lightbox .close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    color: white;
+    font-size: 28px;
+    background: rgba(0,0,0,0.5);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  input[type="file"] { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="icon">🐜</div>
+  <div class="text">
+    <div class="title">Tech Ant</div>
+    <div class="sub" id="header-sub">Loading...</div>
+  </div>
+  <div class="badge" id="header-badge">CONNECTING</div>
+</div>
+
+<div class="job-bar" id="job-bar" style="display:none;">
+  <span class="label">Job</span><span class="value" id="job-id">—</span>
+  <span class="sep">•</span>
+  <span class="value" id="job-customer">—</span>
+  <span class="sep">•</span>
+  <span class="value" id="job-appliance">—</span>
+</div>
+
+<div id="main-area">
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Loading job context...</p>
+  </div>
+</div>
+
+<div class="submit-banner" id="submit-banner" style="display:none;" onclick="submitTDR()">
+  ✅ Ready to Submit TDR — Tap to Finalize
+</div>
+
+<div class="quick-actions" id="quick-actions" style="display:none;"></div>
+
+<div class="input-wrap" id="input-wrap" style="display:none;">
+  <div class="input-row">
+    <button class="btn btn-camera" id="btn-camera" onclick="document.getElementById('file-input').click()" title="Upload photo/video">📷</button>
+    <button class="btn btn-mic" id="btn-mic" onclick="toggleRecording()" title="Voice input">🎤</button>
+    <textarea id="input-msg" placeholder="Type or tap mic..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
+    <button class="btn btn-send" id="btn-send" onclick="sendMessage()">↑</button>
+  </div>
+</div>
+
+<input type="file" id="file-input" multiple accept="image/*,video/*" onchange="handleFiles(event)">
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="close" onclick="closeLightbox(event)">×</div>
+  <div id="lightbox-content"></div>
+</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const NETLIFY_BASE = window.location.origin;
+
+const params = new URLSearchParams(window.location.search);
+const JOB_ID = params.get('job_id');
+const TECH_ID = params.get('tech_id');
+const SESSION_ID = params.get('session_id') || ('tech_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+
+let conversationHistory = [];
+let collectedData = {};
+let isSubmitting = false;
+let recognition = null;
+let isRecording = false;
+let appliancetype = 'other';
+
+// === INIT ===
+async function init() {
+  if (!JOB_ID || !TECH_ID) {
+    showError('Missing job_id or tech_id in URL', 'Use the link sent to you via SMS.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${XANO_BASE}/get_job_for_dashboard?job_id=${JOB_ID}`);
+    if (!res.ok) throw new Error('Could not load job');
+    const data = await res.json();
+    if (!data.success || !data.job) throw new Error('Job not found');
+    
+    appliancetype = (data.appliance && data.appliance.type) ? data.appliance.type.toLowerCase() : 'other';
+    
+    document.getElementById('header-sub').textContent = `Tech ID ${TECH_ID} • Job #${JOB_ID}`;
+    document.getElementById('header-badge').textContent = 'LIVE';
+    document.getElementById('job-id').textContent = '#' + (data.job.id || JOB_ID);
+    document.getElementById('job-customer').textContent = (data.customer && data.customer.name) || 'Customer';
+    document.getElementById('job-appliance').textContent = `${data.appliance.brand || ''} ${data.appliance.type || ''}`.trim();
+    document.getElementById('job-bar').style.display = 'flex';
+    
+    // Replace loading with chat
+    document.getElementById('main-area').innerHTML = '<div class="chat" id="chat"></div>';
+    document.getElementById('input-wrap').style.display = 'block';
+    
+    // Show appliance-specific quick actions
+    showQuickActions();
+    
+    // Send initial greeting trigger
+    sendInitialGreeting();
+    
+    // Set up speech recognition if available
+    setupSpeechRecognition();
+    
+  } catch (err) {
+    showError('Could not load job', err.message);
+  }
+}
+
+function showError(title, msg) {
+  document.getElementById('main-area').innerHTML = `
+    <div class="error-screen">
+      <h2>⚠️ ${title}</h2>
+      <p>${msg}</p>
+    </div>
+  `;
+}
+
+// === MESSAGES ===
+async function sendInitialGreeting() {
+  // Tech Ant kicks off conversation
+  await sendToAnt("Hey Ant, I'm here at the job. Let's do the report.", true);
+}
+
+async function sendMessage() {
+  const input = document.getElementById('input-msg');
+  const text = input.value.trim();
+  if (!text || isSubmitting) return;
+  
+  input.value = '';
+  autoGrow(input);
+  
+  await sendToAnt(text, false);
+}
+
+async function sendToAnt(text, hideUserMsg) {
+  if (!hideUserMsg) {
+    addMessage('user', text);
+  }
+  
+  showTyping();
+  
+  try {
+    const res = await fetch(`${XANO_BASE}/tech_ant_reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: SESSION_ID,
+        job_id: parseInt(JOB_ID, 10),
+        tech_id: parseInt(TECH_ID, 10),
+        user_message: text,
+        conversation_history: conversationHistory,
+        attachment_ids: []
+      })
+    });
+    
+    hideTyping();
+    
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Ant error (${res.status}): ${errText.slice(0, 200)}`);
+    }
+    
+    const data = await res.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Ant returned no success');
+    }
+    
+    addMessage('assistant', data.reply);
+    
+    conversationHistory.push({ role: 'user', content: text });
+    conversationHistory.push({ role: 'assistant', content: data.reply });
+    
+    if (data.collected_data) {
+      collectedData = { ...collectedData, ...data.collected_data };
+    }
+    
+    if (data.ready_to_submit) {
+      document.getElementById('submit-banner').style.display = 'block';
+    }
+    
+  } catch (err) {
+    hideTyping();
+    addMessage('system', '⚠️ ' + err.message);
+  }
+}
+
+function addMessage(role, content) {
+  const chat = document.getElementById('chat');
+  if (!chat) return;
+  
+  const msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  
+  if (role === 'assistant') {
+    const tag = document.createElement('div');
+    tag.className = 'ant-tag';
+    tag.textContent = '🐜 Ant';
+    msg.appendChild(tag);
+    
+    const textNode = document.createElement('div');
+    textNode.textContent = content;
+    msg.appendChild(textNode);
+  } else {
+    msg.textContent = content;
+  }
+  
+  chat.appendChild(msg);
+  scrollToBottom();
+}
+
+function showTyping() {
+  const chat = document.getElementById('chat');
+  if (!chat) return;
+  if (document.getElementById('typing-indicator')) return;
+  
+  const t = document.createElement('div');
+  t.className = 'typing';
+  t.id = 'typing-indicator';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  chat.appendChild(t);
+  scrollToBottom();
+}
+
+function hideTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function scrollToBottom() {
+  const chat = document.getElementById('chat');
+  if (chat) chat.scrollTop = chat.scrollHeight;
+}
+
+// === FILE UPLOAD ===
+function handleFiles(event) {
+  const files = Array.from(event.target.files);
+  event.target.value = '';
+  files.forEach(uploadFile);
+}
+
+async function uploadFile(file) {
+  const chat = document.getElementById('chat');
+  if (!chat) return;
+  
+  const msgEl = document.createElement('div');
+  msgEl.className = 'upload-msg';
+  msgEl.innerHTML = `
+    <div class="filename">${escapeHtml(file.name)}</div>
+    <div class="progress-bar"><div class="progress-fill" style="width:5%"></div></div>
+    <div class="status">Starting upload...</div>
+  `;
+  chat.appendChild(msgEl);
+  scrollToBottom();
+  
+  const updateProgress = (pct, status) => {
+    const fill = msgEl.querySelector('.progress-fill');
+    const stat = msgEl.querySelector('.status');
+    if (fill) fill.style.width = pct + '%';
+    if (stat) stat.textContent = status;
+  };
+  
+  const setError = (msg) => {
+    msgEl.classList.add('error');
+    updateProgress(100, '❌ ' + msg);
+  };
+  
+  const setSuccess = (msg) => {
+    msgEl.classList.add('success');
+    updateProgress(100, '✓ ' + msg);
+  };
+  
+  try {
+    // 1. Get metadata + S3 key from Xano
+    updateProgress(10, 'Preparing...');
+    
+    const fileType = file.type.startsWith('video/') ? 'video' : 'photo';
+    const xanoBody = {
+      job_id: parseInt(JOB_ID, 10),
+      attachment_type: 'tdr',
+      file_type: fileType,
+      original_filename: file.name,
+      mime_type: file.type || 'application/octet-stream',
+      uploaded_by: 'tech',
+      tech_id: parseInt(TECH_ID, 10)
+    };
+    
+    const xanoRes = await fetch(`${XANO_BASE}/generate_upload_url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(xanoBody)
+    });
+    if (!xanoRes.ok) {
+      const t = await xanoRes.text();
+      throw new Error(`Xano (${xanoRes.status}): ${t.slice(0,80)}`);
+    }
+    const xanoData = await xanoRes.json();
+    if (!xanoData.success) throw new Error('Xano returned no success');
+    
+    updateProgress(20, 'Got upload URL...');
+    
+    // 2. Get signed URL from Netlify
+    const presignRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/s3-presign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        s3_key: xanoData.s3_key,
+        mime_type: file.type || 'application/octet-stream'
+      })
+    });
+    if (!presignRes.ok) {
+      const t = await presignRes.text();
+      throw new Error(`Sign (${presignRes.status}): ${t.slice(0,80)}`);
+    }
+    const presignData = await presignRes.json();
+    if (!presignData.success) throw new Error('Presign no success');
+    
+    updateProgress(30, 'Uploading to S3...');
+    
+    // 3. Upload to S3 with progress
+    await uploadToS3(file, presignData.upload_url, (pct) => {
+      updateProgress(30 + pct * 0.6, `Uploading ${Math.round(pct)}%...`);
+    });
+    
+    updateProgress(95, 'Finalizing...');
+    
+    // 4. Mark complete
+    await fetch(`${XANO_BASE}/save_attachment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        attachment_id: xanoData.attachment_id,
+        file_size_bytes: file.size
+      })
+    });
+    
+    setSuccess('Uploaded');
+    
+    // 5. Tell Ant about the upload
+    const description = file.type.startsWith('video/') ? 'video' : 'photo';
+    sendToAnt(`I just uploaded a ${description}: ${file.name}`, false);
+    
+  } catch (err) {
+    console.error(err);
+    setError(err.message || 'Upload failed');
+  }
+}
+
+function uploadToS3(file, url, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress((e.loaded / e.total) * 100);
+      }
+    };
+    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('S3 ' + xhr.status));
+    xhr.onerror = () => reject(new Error('S3 network error'));
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.send(file);
+  });
+}
+
+// === QUICK ACTIONS (appliance-specific photo prompts) ===
+function showQuickActions() {
+  const requirements = {
+    refrigerator: ['Model Tag 📷', 'Fridge Temp 🌡️', 'Freezer Temp 🌡️', 'Failure Photo 📸'],
+    oven: ['Model Tag 📷', 'Oven Temp 🌡️', 'Failure Photo 📸'],
+    range: ['Model Tag 📷', 'Oven Temp 🌡️', 'Cooktop ON 🔥', 'Failure Photo 📸'],
+    stove: ['Model Tag 📷', 'Oven Temp 🌡️', 'Cooktop ON 🔥', 'Failure Photo 📸'],
+    dryer: ['Model Tag 📷', 'Drum Temp 🌡️', 'Vent Photo 🌬️', 'Failure Photo 📸'],
+    washer: ['Model Tag 📷', 'Water Level 💧', 'Failure Photo 📸'],
+    dishwasher: ['Model Tag 📷', 'Water in Tub 💧', 'Failure Photo 📸'],
+    other: ['Model Tag 📷', 'Failure Photo 📸']
+  };
+  
+  const list = requirements[appliancetype] || requirements.other;
+  const qa = document.getElementById('quick-actions');
+  qa.innerHTML = list.map(label => `<button class="quick-btn" onclick="promptUpload('${label.replace(/'/g, "\\'")}')">${label}</button>`).join('');
+  qa.style.display = 'flex';
+}
+
+function promptUpload(label) {
+  // Insert a hint into the input box, then open file picker
+  document.getElementById('file-input').click();
+}
+
+// === SUBMIT TDR ===
+async function submitTDR() {
+  if (isSubmitting) return;
+  isSubmitting = true;
+  
+  document.getElementById('submit-banner').textContent = '⏳ Submitting...';
+  
+  try {
+    // Build payload - merge collected_data with defaults
+    const payload = {
+      job_id: parseInt(JOB_ID, 10),
+      technician_id: parseInt(TECH_ID, 10),
+      problem_summary: collectedData.symptom || collectedData.problem_summary || '',
+      diagnostic_test_performed: collectedData.diagnostic_test_performed || '',
+      failed_component: collectedData.failed_component || '',
+      failure_cause: collectedData.failure_cause || '',
+      failure_cause_notes: collectedData.failure_cause_notes || '',
+      verified_part_number: collectedData.verified_part_number || '',
+      final_recommendation: collectedData.recommendation || '',
+      technician_notes: collectedData.tech_notes || '',
+      tech_ant_session_id: SESSION_ID,
+      status: 'submitted',
+      report_date: new Date().toISOString()
+    };
+    
+    const res = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'create_tdr', payload })
+    });
+    
+    const data = await res.json();
+    
+    if (data && data.tdr && data.tdr.id) {
+      addMessage('system', '✅ TDR submitted! ID #' + data.tdr.id + '. You can close this and continue in HCP.');
+      document.getElementById('submit-banner').style.background = 'linear-gradient(135deg, #00d68f, #00aa70)';
+      document.getElementById('submit-banner').textContent = '✅ TDR Submitted #' + data.tdr.id;
+      document.getElementById('submit-banner').onclick = null;
+    } else {
+      throw new Error('TDR submission failed: ' + JSON.stringify(data).slice(0, 150));
+    }
+  } catch (err) {
+    addMessage('system', '⚠️ Submit failed: ' + err.message);
+    document.getElementById('submit-banner').textContent = '⚠️ Try Again';
+    isSubmitting = false;
+  }
+}
+
+// === SPEECH RECOGNITION ===
+function setupSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById('btn-mic').style.display = 'none';
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+  
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    const input = document.getElementById('input-msg');
+    input.value = (input.value + ' ' + transcript).trim();
+    autoGrow(input);
+  };
+  
+  recognition.onend = () => {
+    isRecording = false;
+    document.getElementById('btn-mic').classList.remove('recording');
+  };
+  
+  recognition.onerror = (e) => {
+    isRecording = false;
+    document.getElementById('btn-mic').classList.remove('recording');
+  };
+}
+
+function toggleRecording() {
+  if (!recognition) return;
+  if (isRecording) {
+    recognition.stop();
+    isRecording = false;
+    document.getElementById('btn-mic').classList.remove('recording');
+  } else {
+    try {
+      recognition.start();
+      isRecording = true;
+      document.getElementById('btn-mic').classList.add('recording');
+    } catch (e) {
+      console.warn('Mic error:', e);
+    }
+  }
+}
+
+// === HELPERS ===
+function handleKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+
+function closeLightbox(e) {
+  if (e.target.id === 'lightbox' || e.target.classList.contains('close')) {
+    document.getElementById('lightbox').classList.remove('show');
+  }
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>
