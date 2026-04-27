@@ -4,7 +4,6 @@ exports.config = {
 
 exports.handler = async function (event) {
 
-  // Allow all origins — works from any domain including tnapplianceexchange.net
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
@@ -12,7 +11,6 @@ exports.handler = async function (event) {
     "Content-Type": "application/json"
   };
 
-  // Handle preflight
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: corsHeaders, body: "" };
   }
@@ -23,7 +21,9 @@ exports.handler = async function (event) {
 
   try {
     const body = JSON.parse(event.body);
-    const { message, session_id, source } = body;
+    const message = body.message;
+    const session_id = body.session_id || ("web_" + Date.now());
+    const source = body.source || "website";
 
     if (!message) {
       return {
@@ -33,9 +33,8 @@ exports.handler = async function (event) {
       };
     }
 
-    // Call Xano chat/reply2 endpoint #94
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 27000);
+    const timer = setTimeout(function() { controller.abort(); }, 27000);
 
     const xanoRes = await fetch(
       "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/chat/reply2",
@@ -46,14 +45,14 @@ exports.handler = async function (event) {
         },
         body: JSON.stringify({
           message: message,
-          session_id: session_id || ("web_" + Date.now()),
-          source: source || "website"
+          session_id: session_id,
+          source: source
         }),
         signal: controller.signal
       }
     );
 
-    clearTimeout(timeout);
+    clearTimeout(timer);
 
     if (!xanoRes.ok) {
       const errText = await xanoRes.text();
@@ -62,22 +61,24 @@ exports.handler = async function (event) {
         statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({
-          reply: "Hey — Ant is having a moment. Try again in a few seconds or call us at 615-280-2949. 🐜"
+          reply: "Hey — Ant is having a moment. Try again in a few seconds or call us at 615-280-2949."
         })
       };
     }
 
     const data = await xanoRes.json();
 
-    // Extract reply from Xano response
-    const reply =
-      data?.reply ||
-      data?.message ||
-      data?.response ||
-      data?.content ||
-      data?.result ||
-      (typeof data === "string" ? data : null) ||
-      "Got it — give me just a second. 🐜";
+    let reply = "Got it — give me just a second.";
+
+    if (data && data.reply) {
+      reply = data.reply;
+    } else if (data && data.message) {
+      reply = data.message;
+    } else if (data && data.response) {
+      reply = data.response;
+    } else if (typeof data === "string") {
+      reply = data;
+    }
 
     return {
       statusCode: 200,
@@ -91,7 +92,7 @@ exports.handler = async function (event) {
       statusCode: 200,
       headers: corsHeaders,
       body: JSON.stringify({
-        reply: "Ant is thinking hard on this one — try sending that again. 🐜"
+        reply: "Ant is thinking — try sending that again."
       })
     };
   }
