@@ -913,6 +913,15 @@ async function addAnt(text, extra) {
 
   await typewrite(el.querySelector('.mt'), text);
 
+  // Auto-detect upload link and replace with button
+  const mt = el.querySelector('.mt');
+  if (text.includes('upload.html') || text.includes('upload.html')) {
+    mt.innerHTML = mt.textContent.replace(
+      /https?:\/\/[^\s]*upload\.html/g,
+      '<a href="https://superlative-naiad-233aa7.netlify.app/upload.html" target="_blank" style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:12px 20px;background:var(--orange);color:#000;font-weight:700;font-size:13px;border-radius:12px;text-decoration:none;letter-spacing:.03em;">📸 Send a Photo or Video →</a>'
+    );
+  }
+
   const bbl = el.querySelector('.bbl');
 
   if (extra?.part) {
