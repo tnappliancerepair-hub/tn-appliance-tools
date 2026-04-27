@@ -22,7 +22,8 @@ exports.handler = async function (event) {
   try {
     const body = JSON.parse(event.body);
     const message = body.message;
-    const session_id = body.session_id || ("web_" + Date.now());
+    const ts = new Date().getTime();
+    const session_id = body.session_id || ("web_" + ts);
     const source = body.source || "website";
 
     if (!message) {
@@ -61,7 +62,7 @@ exports.handler = async function (event) {
         statusCode: 200,
         headers: corsHeaders,
         body: JSON.stringify({
-          reply: "Hey — Ant is having a moment. Try again in a few seconds or call us at 615-280-2949."
+          reply: "Hey — Ant is having a moment. Try again or call 615-280-2949."
         })
       };
     }
