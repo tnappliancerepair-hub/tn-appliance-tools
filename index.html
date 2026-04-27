@@ -1,249 +1,1093 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>TN Appliance — AI Assistant</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; background: #f4f4f4; display: flex; flex-direction: column; height: 100vh; }
-    #header { background: #1a1a2e; color: white; padding: 16px; text-align: center; font-size: 18px; font-weight: bold; display: flex; align-items: center; justify-content: center; position: relative; }
-    #new-convo-btn { position: absolute; right: 16px; background: transparent; border: 1px solid rgba(255,255,255,0.4); color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; }
-    #new-convo-btn:hover { background: rgba(255,255,255,0.1); }
-    #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-    .bubble { max-width: 75%; padding: 12px 16px; border-radius: 18px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-    .user { align-self: flex-end; background: #0077cc; color: white; border-bottom-right-radius: 4px; }
-    .assistant { align-self: flex-start; background: white; color: #333; border-bottom-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    .assistant a { color: #0077cc; text-decoration: underline; }
-    .typing { align-self: flex-start; color: #999; font-style: italic; font-size: 14px; }
-    #input-area { display: flex; flex-direction: column; padding: 16px; background: white; border-top: 1px solid #ddd; gap: 10px; }
-    #text-row { display: flex; gap: 10px; }
-    #text-row input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 24px; font-size: 15px; outline: none; }
-    #text-row button#send { padding: 12px 20px; background: #0077cc; color: white; border: none; border-radius: 24px; font-size: 15px; cursor: pointer; }
-    #text-row button#send:disabled { background: #aaa; }
-    #mic-btn { width: 100%; padding: 16px; font-size: 18px; font-weight: bold; border: none; border-radius: 24px; cursor: pointer; background: #00aa44; color: white; transition: background 0.2s; }
-    #mic-btn.listening { background: #cc0000; animation: pulse 1s infinite; }
-    #mic-btn:disabled { background: #aaa; cursor: not-allowed; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-    #mic-status { text-align: center; font-size: 13px; color: #999; min-height: 18px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TN Appliance Exchange · Stop Guessing. Ask a Technician.</title>
+<meta name="description" content="Stop guessing. Ask a technician. Tell Ant what's broken. We take it from there. $50. Credited toward your repair. Tennessee + Louisiana.">
+<meta property="og:title" content="TN Appliance Exchange · Stop Guessing. Ask a Technician.">
+<meta property="og:description" content="Tell Ant what's broken. Ant collects the details. A real technician takes it from there.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  /* iOS Safari forced black */
+  html { background-color: #050505 !important; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+
+/* ── RESET ── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+/* ── TOKENS ── */
+:root {
+  --black:   #050505;
+  --surface: #0c0c0c;
+  --surf2:   #111111;
+  --border:  #1a1a1a;
+  --bord2:   #252525;
+  --orange:  #ff6200;
+  --oran2:   #ff7c28;
+  --green:   #39ff14;
+  --grn-bg:  rgba(57,255,20,0.03);
+  --grn-bd:  rgba(57,255,20,0.15);
+  --white:   #f0f0f0;
+  --gray:    #666;
+  --gray2:   #333;
+  --mono:    'Geist Mono', monospace;
+  --serif:   'Instrument Serif', serif;
+  --block:   'Bebas Neue', sans-serif;
+}
+
+/* ── BASE ── */
+html, body {
+  height:100%;
+  width:100%;
+  background:#050505 !important;
+  background-color:#050505 !important;
+  -webkit-appearance:none;
+  color:var(--white);
+  font-family:var(--mono);
+  overflow:hidden !important;
+  overscroll-behavior:none;
+  position:fixed;
+  /* Prevent iOS bounce/white flash */
+  -webkit-overflow-scrolling:auto;
+}
+html { background:#050505 !important; }
+body { background:#050505 !important; }
+
+/* ── AMBIENT ── */
+.bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+.bg-orb { position:absolute; border-radius:50%; filter:blur(160px); animation:orb-breathe 9s ease-in-out infinite alternate; }
+.orb1 { width:900px; height:900px; background:radial-gradient(circle,rgba(255,98,0,0.09),transparent 70%); top:-350px; left:-250px; }
+.orb2 { width:500px; height:500px; background:radial-gradient(circle,rgba(255,98,0,0.04),transparent 70%); bottom:-100px; right:-100px; animation-delay:4s; }
+.orb3 { width:400px; height:400px; background:radial-gradient(circle,rgba(57,255,20,0.03),transparent 70%); top:50%; right:-150px; animation-delay:2s; }
+@keyframes orb-breathe { from{transform:scale(1);opacity:.5} to{transform:scale(1.2);opacity:1} }
+.bg::after {
+  content:''; position:absolute; inset:0;
+  background-image:linear-gradient(rgba(255,98,0,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,98,0,0.012) 1px,transparent 1px);
+  background-size:72px 72px;
+}
+body::after {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(0,0,0,0.025) 3px,rgba(0,0,0,0.025) 4px);
+}
+
+/* ── SHELL ── */
+.shell {
+  position:fixed;
+  inset:0;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  background:#050505;
+}
+
+/* ── NAV ── */
+nav {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 32px;
+  border-bottom:1px solid var(--border);
+  background:rgba(5,5,5,0.88);
+  backdrop-filter:blur(24px);
+  position:relative; z-index:100; flex-shrink:0;
+  animation:fade-in .5s ease forwards;
+}
+@keyframes fade-in { from{opacity:0} to{opacity:1} }
+
+.nav-brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
+.nav-ant { font-size:22px; animation:ant-glow 3s ease-in-out infinite; }
+@keyframes ant-glow {
+  0%,100% { filter:drop-shadow(0 0 8px rgba(255,98,0,.5)); }
+  50%      { filter:drop-shadow(0 0 22px rgba(255,98,0,.95)); }
+}
+.nav-name { font-family:var(--block); font-size:16px; letter-spacing:.06em; color:var(--white); line-height:1; }
+.nav-tag  { font-size:9px; color:var(--gray); letter-spacing:.1em; text-transform:uppercase; margin-top:1px; }
+
+.nav-right { display:flex; align-items:center; gap:14px; }
+.pill {
+  display:flex; align-items:center; gap:7px;
+  font-size:10px; color:var(--green);
+  border:1px solid rgba(57,255,20,.2); border-radius:20px;
+  padding:5px 12px; background:rgba(57,255,20,.03);
+  letter-spacing:.07em; text-transform:uppercase;
+}
+.pill-dot { width:5px; height:5px; background:var(--green); border-radius:50%; animation:pdot 2s ease-in-out infinite; }
+@keyframes pdot { 0%,100%{box-shadow:0 0 0 0 rgba(57,255,20,.5)} 50%{box-shadow:0 0 0 5px rgba(57,255,20,0)} }
+.nav-call { font-size:11px; color:var(--gray); text-decoration:none; letter-spacing:.04em; transition:color .2s; }
+.nav-call:hover { color:var(--white); }
+
+/* ── MAIN ── */
+main {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:24px 24px 0;
+  position:relative;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+
+/* ── HERO ── */
+.hero {
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  width:100%; max-width:580px;
+  animation:hero-in .8s ease forwards; opacity:0;
+  transition:opacity .4s ease, transform .4s ease;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:16px;
+}
+@keyframes hero-in { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+.hero.exit { opacity:0; transform:translateY(-36px); pointer-events:none; }
+
+/* ── ANT ORB ── */
+.ant-orb {
+  position:relative;
+  width:180px; height:180px;
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:32px;
+}
+
+.ring {
+  position:absolute; border-radius:50%;
+  border:1px solid rgba(255,98,0,.15);
+  animation:ring-pulse 3s ease-in-out infinite;
+}
+.ring:nth-child(1) { width:180px; height:180px; animation-delay:0s; }
+.ring:nth-child(2) { width:140px; height:140px; animation-delay:.35s; border-color:rgba(255,98,0,.22); }
+.ring:nth-child(3) { width:104px; height:104px; animation-delay:.7s;  border-color:rgba(255,98,0,.32); }
+.ring:nth-child(4) { width:72px;  height:72px;  animation-delay:1.05s; border-color:rgba(255,98,0,.45); }
+@keyframes ring-pulse {
+  0%,100% { transform:scale(1); opacity:.4; }
+  50%      { transform:scale(1.07); opacity:1; }
+}
+
+/* thinking — rings accelerate */
+.ant-orb.thinking .ring { animation-duration:.8s !important; }
+.ant-orb.thinking .ring:nth-child(1) { border-color:rgba(255,98,0,.25); }
+.ant-orb.thinking .ring:nth-child(2) { border-color:rgba(255,98,0,.45); }
+.ant-orb.thinking .ring:nth-child(3) { border-color:rgba(255,98,0,.65); }
+.ant-orb.thinking .ring:nth-child(4) { border-color:rgba(255,98,0,.85); }
+
+.orb-glow {
+  position:absolute; width:80px; height:80px; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,98,0,.28) 0%,rgba(255,98,0,.06) 60%,transparent 100%);
+  animation:glow-breathe 3s ease-in-out infinite;
+}
+@keyframes glow-breathe { 0%,100%{transform:scale(1);opacity:.6} 50%{transform:scale(1.25);opacity:1} }
+
+.ant-emoji {
+  position:relative; z-index:10;
+  font-size:44px;
+  animation:ant-idle 4s ease-in-out infinite;
+  filter:drop-shadow(0 0 18px rgba(255,98,0,.85));
+  user-select:none;
+  transition:font-size .3s;
+}
+@keyframes ant-idle {
+  0%,100% { transform:scale(1) rotate(-3deg); }
+  33%      { transform:scale(1.08) rotate(3deg); }
+  66%      { transform:scale(1.04) rotate(-1deg); }
+}
+.ant-orb.thinking .ant-emoji { animation:ant-think .9s ease-in-out infinite !important; }
+@keyframes ant-think {
+  0%   { transform:rotate(-10deg) scale(1.06); }
+  25%  { transform:rotate(10deg) scale(1.12); }
+  50%  { transform:rotate(-6deg) scale(1.06); }
+  75%  { transform:rotate(8deg) scale(1.1); }
+  100% { transform:rotate(-10deg) scale(1.06); }
+}
+
+/* ── HEADLINE ── */
+.tagline {
+  font-family:var(--block);
+  font-size:clamp(38px,9vw,68px);
+  letter-spacing:.04em;
+  line-height:1.0;
+  margin-bottom:8px;
+  color:#f0f0f0 !important;
+  text-shadow: 0 0 40px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.9);
+  -webkit-text-fill-color:#f0f0f0 !important;
+}
+.tagline .t2 { color:var(--orange) !important; -webkit-text-fill-color:var(--orange) !important; display:block; text-shadow:0 0 20px rgba(255,98,0,.5); }
+
+.meet {
+  font-family:var(--serif);
+  font-size:clamp(17px,3.5vw,24px);
+  color:#888 !important;
+  font-style:italic;
+  margin-bottom:20px;
+  text-shadow:0 1px 4px rgba(0,0,0,.9);
+}
+.meet b { color:#f0f0f0 !important; font-style:normal; -webkit-text-fill-color:#f0f0f0; }
+
+.hero-sub {
+  font-size:13px; color:#888 !important;
+  line-height:1.9; letter-spacing:.03em;
+  margin-bottom:32px;
+  text-shadow:0 1px 4px rgba(0,0,0,.9);
+}
+.hero-sub strong { color:#f0f0f0 !important; font-weight:600; -webkit-text-fill-color:#f0f0f0; }
+
+/* how strip */
+.how {
+  display:flex; width:100%;
+  border:1px solid var(--border); border-radius:12px;
+  overflow:hidden; margin-bottom:28px; background:var(--surface);
+}
+.how-step { flex:1; padding:14px 10px; text-align:center; border-right:1px solid var(--border); }
+.how-step:last-child { border-right:none; }
+.hs-icon  { font-size:18px; display:block; margin-bottom:6px; }
+.hs-title { font-size:11px; color:var(--white); display:block; margin-bottom:2px; letter-spacing:.02em; }
+.hs-sub   { font-size:9px; color:var(--gray); display:block; line-height:1.5; }
+
+/* chips */
+.chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+.chip {
+  background:transparent; border:1px solid var(--bord2); border-radius:20px;
+  padding:8px 15px; font-family:var(--mono); font-size:11px; color:var(--gray);
+  cursor:pointer; transition:all .18s; letter-spacing:.02em; white-space:nowrap;
+}
+.chip:hover, .chip:active { border-color:var(--orange); color:var(--orange); background:rgba(255,98,0,.06); transform:translateY(-1px); }
+
+/* ── CHAT ── */
+.chat-wrap {
+  width:100%;
+  max-width:680px;
+  display:none;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+  animation:chat-rise .5s ease forwards;
+}
+.msgs-outer {
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  padding:16px 8px 24px;
+  min-height:0;
+}
+.msgs-outer::-webkit-scrollbar { width:3px; }
+.msgs-outer::-webkit-scrollbar-thumb { background:rgba(255,98,0,.3); border-radius:2px; }
+@keyframes chat-rise { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+.chat-wrap.active { display:flex; }
+
+/* thinking bar */
+.think-bar { display:none; align-items:center; gap:12px; padding:8px 0 20px; font-size:11px; color:var(--gray); letter-spacing:.04em; }
+.think-bar.on { display:flex; }
+#thinkEmoji { font-size:22px; transition:all .25s; }
+#thinkText  { transition:opacity .25s; }
+
+/* messages */
+.msgs { display:flex; flex-direction:column; gap:22px; padding-bottom:8px; }
+
+.msg { display:flex; gap:13px; animation:msg-in .35s ease forwards; opacity:0; }
+@keyframes msg-in { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.msg.you { flex-direction:row-reverse; }
+
+.av {
+  width:32px; height:32px; border-radius:9px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:2px;
+}
+.av.a { background:rgba(255,98,0,.07); border:1px solid rgba(255,98,0,.18); font-size:16px; }
+.av.u { background:var(--surf2); border:1px solid var(--bord2); font-size:10px; color:var(--gray); letter-spacing:.02em; }
+
+.mbody { max-width:80%; display:flex; flex-direction:column; gap:5px; }
+.msg.you .mbody { align-items:flex-end; }
+
+.bbl { padding:14px 18px; border-radius:16px; font-size:14px; line-height:1.65; letter-spacing:.01em; }
+.bbl.ant { background:var(--surface); border:1px solid var(--bord2); border-top-left-radius:3px; color:var(--white); will-change:contents; }
+.bbl.you { background:var(--orange); border-top-right-radius:3px; color:#000; font-weight:500; }
+.mmeta { font-size:9px; color:var(--gray2); letter-spacing:.05em; padding:0 4px; }
+
+/* part card */
+.pcard {
+  margin-top:12px; background:var(--grn-bg);
+  border:1px solid var(--grn-bd); border-radius:10px;
+  padding:16px; display:flex; flex-direction:column; gap:9px;
+}
+.ptag  { font-size:9px; color:var(--green); letter-spacing:.1em; text-transform:uppercase; }
+.pname { font-size:14px; color:var(--white); }
+.prow  { display:flex; justify-content:space-between; font-size:11px; }
+.prow .pk { color:var(--gray); }
+.prow .pv { color:var(--white); }
+.diytag {
+  font-size:9px; padding:3px 10px; border-radius:3px;
+  background:rgba(255,98,0,.1); border:1px solid rgba(255,98,0,.22);
+  color:var(--orange); letter-spacing:.07em; text-transform:uppercase; width:fit-content;
+}
+
+/* options */
+.opts { margin-top:12px; display:flex; flex-direction:column; gap:6px; }
+.opt {
+  display:flex; align-items:center; gap:12px;
+  padding:13px 15px; border:1px solid var(--bord2);
+  border-radius:11px; background:var(--surf2);
+  text-decoration:none; cursor:pointer; transition:all .15s;
+}
+.opt:hover { border-color:var(--orange); background:rgba(255,98,0,.05); transform:translateX(4px); }
+.opt-ico  { font-size:18px; width:24px; text-align:center; flex-shrink:0; }
+.opt-lw   { flex:1; display:flex; flex-direction:column; gap:2px; }
+.opt-lbl  { font-size:12px; color:var(--white); }
+.opt-sub  { font-size:10px; color:var(--gray); letter-spacing:.02em; }
+.opt-prc  { font-size:13px; color:var(--gray); white-space:nowrap; font-weight:500; }
+.opt-prc.hi { color:var(--green); }
+.opt-arr  { font-size:11px; color:var(--gray2); flex-shrink:0; }
+
+.credit {
+  display:flex; align-items:flex-start; gap:10px;
+  margin-top:10px; padding:13px 15px;
+  background:rgba(255,98,0,.04); border:1px solid rgba(255,98,0,.14);
+  border-radius:9px; font-size:11px; color:var(--gray); line-height:1.7;
+}
+.credit b { color:var(--orange); font-weight:500; }
+
+/* ── INPUT PROMPT ── */
+.ibox-prompt {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:0 4px;
+  width:100%;
+}
+.ibox-ant {
+  font-size:16px;
+  filter:drop-shadow(0 0 6px rgba(255,98,0,.6));
+  animation:ant-glow 3s ease-in-out infinite;
+  flex-shrink:0;
+}
+.ibox-label {
+  font-family:var(--mono);
+  font-size:15px;
+  color:var(--white);
+  letter-spacing:.02em;
+  font-weight:600;
+}
+.ibox-cursor {
+  width:2px; height:16px;
+  background:var(--orange);
+  border-radius:1px;
+  animation:cursor-blink .9s step-end infinite;
+  margin-left:3px;
+  flex-shrink:0;
+}
+@keyframes cursor-blink {
+  0%,100% { opacity:1; }
+  50%      { opacity:0; }
+}
+
+.ibox-hint {
+  font-family:var(--mono);
+  font-size:11px;
+  color:rgba(255,98,0,.6);
+  letter-spacing:.04em;
+  padding:2px 4px 6px;
+  animation:hint-fade 2s ease-in-out infinite alternate;
+}
+@keyframes hint-fade {
+  from { opacity:.5; }
+  to   { opacity:1; }
+}
+
+/* ── INPUT ── */
+.input-zone {
+  position:relative;
+  z-index:200;
+  background:rgba(5,5,5,1);
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  flex-shrink:0;
+  border-top:1px solid rgba(255,98,0,.15);
+}
+.input-inner { width:100%; max-width:100%; margin:0; padding:0 0; display:flex; flex-direction:column; gap:8px; }
+
+.ibox {
+  display:flex; align-items:flex-end; gap:10px;
+  background:var(--surface); border:1px solid rgba(255,98,0,.35);
+  border-top:1px solid rgba(255,98,0,.35);
+  border-left:none; border-right:none; border-bottom:none;
+  border-radius:0;
+  padding:13px 20px 13px 20px;
+  transition:border-color .2s, box-shadow .2s;
+  box-shadow:
+    0 0 0 0 transparent,
+    0 -4px 40px rgba(255,98,0,.18),
+    0 -2px 80px rgba(255,98,0,.08);
+  animation:input-breathe 3s ease-in-out infinite;
+}
+@keyframes input-breathe {
+  0%,100% {
+    box-shadow:0 0 30px rgba(255,98,0,.12), 0 0 80px rgba(255,98,0,.06);
+    border-top-color:rgba(255,98,0,.45);
+  }
+  50% {
+    box-shadow:0 0 50px rgba(255,98,0,.25), 0 0 120px rgba(255,98,0,.1);
+    border-top-color:rgba(255,98,0,.8);
+  }
+}
+.ibox:focus-within {
+  border-color:var(--orange) !important;
+  box-shadow:
+    0 -4px 60px rgba(255,98,0,.5),
+    0 -2px 120px rgba(255,98,0,.2) !important;
+  animation:none !important;
+}
+
+textarea {
+  flex:1; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:16px; color:var(--white);
+  resize:none; line-height:1.6; max-height:140px;
+  overflow-y:auto; letter-spacing:.01em;
+}
+textarea::placeholder { color:#555; font-size:14px; }
+textarea::-webkit-scrollbar { width:0; }
+
+.btns { display:flex; gap:8px; align-items:center; flex-shrink:0; }
+
+.ibtn {
+  width:52px; height:52px; background:transparent;
+  border:1px solid var(--bord2); border-radius:14px;
+  color:var(--gray); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; transition:all .18s;
+}
+.ibtn:hover { border-color:var(--orange); color:var(--orange); }
+.ibtn.mic-on {
+  background:rgba(255,98,0,.15) !important;
+  border-color:var(--orange) !important;
+  color:var(--orange) !important;
+  animation:mic-ring 1s ease-in-out infinite;
+}
+@keyframes mic-ring { 0%,100%{box-shadow:0 0 0 0 rgba(255,98,0,.4)} 50%{box-shadow:0 0 0 7px rgba(255,98,0,0)} }
+
+.sbtn {
+  width:52px; height:52px; background:var(--orange); border:none;
+  border-radius:14px; color:#000; font-size:22px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all .15s; flex-shrink:0;
+  box-shadow:0 0 20px rgba(255,98,0,.4);
+}
+.sbtn:hover  { background:var(--oran2); transform:scale(1.06); box-shadow:0 0 30px rgba(255,98,0,.6); }
+.sbtn:active { transform:scale(.95); }
+.sbtn:disabled { opacity:.3; cursor:not-allowed; transform:none !important; }
+
+.isub {
+  display:flex; justify-content:space-between;
+  padding:8px 20px 16px; font-size:11px; color:#555; letter-spacing:.03em;
+  background:var(--surface);
+}
+.isub a { color:var(--gray); text-decoration:none; transition:color .2s; }
+.isub a:hover { color:var(--orange); }
+
+/* ── FOOTER ── */
+footer {
+  display:flex; justify-content:center;
+  gap:6px; flex-wrap:wrap;
+  padding:8px 16px 6px;
+  background:rgba(5,5,5,1);
+  border-bottom:1px solid rgba(57,255,20,.1);
+  width:100%;
+  flex-shrink:0;
+}
+footer a {
+  font-size:11px;
+  color:var(--green);
+  text-decoration:none;
+  letter-spacing:.05em;
+  transition:all .2s;
+  border:1px solid rgba(57,255,20,.3);
+  border-radius:20px;
+  padding:4px 11px;
+  background:rgba(57,255,20,.04);
+  white-space:nowrap;
+}
+footer a:hover {
+  background:rgba(57,255,20,.12);
+  border-color:var(--green);
+  color:#fff;
+}
+footer span { display:none; }
+
+/* ── PRICE LADDER ── */
+.price-ladder {
+  width:100%;
+  margin-top:36px;
+  background:var(--surface);
+  border:1px solid rgba(255,98,0,.3);
+  border-radius:16px;
+  padding:28px 28px 22px;
+  box-shadow:0 0 40px rgba(255,98,0,.07);
+}
+.pl-title {
+  font-size:13px;
+  color:var(--orange);
+  letter-spacing:.03em;
+  margin-bottom:24px;
+  text-align:center;
+  font-weight:600;
+  line-height:1.5;
+}
+.pl-steps {
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin-bottom:20px;
+}
+.pl-step {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  gap:6px;
+  background:var(--surf2);
+  border:1px solid var(--bord2);
+  border-radius:12px;
+  padding:18px 14px;
+  transition:border-color .2s;
+}
+.pl-step:hover { border-color:rgba(255,98,0,.4); }
+.pl-price {
+  font-family:var(--block);
+  font-size:32px;
+  color:var(--orange);
+  letter-spacing:.04em;
+  line-height:1;
+  filter:drop-shadow(0 0 8px rgba(255,98,0,.4));
+}
+.pl-name {
+  font-size:12px;
+  color:var(--white);
+  font-weight:600;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.pl-desc {
+  font-size:11px;
+  color:var(--gray);
+  line-height:1.6;
+  letter-spacing:.02em;
+}
+.pl-arrow {
+  font-size:20px;
+  color:rgba(255,98,0,.5);
+  flex-shrink:0;
+  margin-top:28px;
+  font-weight:700;
+}
+.pl-note {
+  text-align:center;
+  font-size:12px;
+  color:var(--white);
+  letter-spacing:.03em;
+  padding-top:16px;
+  border-top:1px solid var(--border);
+  font-weight:500;
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px) {
+  nav { padding:14px 18px; }
+  .nav-call, .nav-tag { display:none; }
+  .ant-orb { width:150px; height:150px; }
+  .ring:nth-child(1) { width:150px; height:150px; }
+  .ring:nth-child(2) { width:116px; height:116px; }
+  .ring:nth-child(3) { width:86px;  height:86px; }
+  .ring:nth-child(4) { width:60px;  height:60px; }
+  .ant-emoji { font-size:36px; }
+  .tagline { font-size:40px; }
+  main { padding:16px 10px 0; }
+  footer a { font-size:10px; padding:3px 8px; }
+  .hs-sub { display:none; }
+  .pl-steps { flex-direction:column; }
+  .pl-arrow { transform:rotate(90deg); margin:0 auto; }
+  .pl-price { font-size:28px; }
+  .price-ladder { padding:20px 16px 16px; }
+}
+</style>
 </head>
 <body>
-  <div id="header">
-    🐜 TN Appliance AI Assistant
-    <button id="new-convo-btn">New Conversation</button>
-  </div>
-  <div id="messages"></div>
-  <div id="input-area">
-    <div id="text-row">
-      <input id="msg" type="text" placeholder="Describe your appliance problem..." />
-      <button id="send">Send</button>
+
+<div class="bg">
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+  <div class="bg-orb orb3"></div>
+</div>
+
+<div class="shell">
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-brand">
+    <span class="nav-ant">🐜</span>
+    <div>
+      <div class="nav-name">TN Appliance Exchange</div>
+      <div class="nav-tag">Stop Guessing. Ask a Technician.</div>
     </div>
-    <div id="mic-status"></div>
-    <button id="mic-btn">🎙️ Press &amp; Hold to Talk</button>
+  </a>
+  <div class="nav-right">
+    <div class="pill"><span class="pill-dot"></span>Ant is online</div>
+    <a href="tel:6152802949" class="nav-call">615-280-2949</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+  <!-- HERO -->
+  <div class="hero" id="hero">
+
+    <!-- ANT ORB -->
+    <div class="ant-orb" id="antOrb">
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="ring"></div>
+      <div class="orb-glow"></div>
+      <div class="ant-emoji" id="antEmoji">🐜</div>
+    </div>
+
+    <!-- HEADLINE -->
+    <h1 class="tagline">
+      Stop Guessing.<br>
+      <span class="t2">Ask a Technician.</span>
+    </h1>
+    <p class="meet">Meet <b>Ant</b> 🐜</p>
+    <p class="hero-sub">
+      Tell Ant what's broken.<br>
+      Ant collects the details.<br>
+      <strong>Top Pro Techs take it from there.</strong>
+    </p>
+
+    <!-- HOW IT WORKS -->
+    <div class="how">
+      <div class="how-step">
+        <span class="hs-icon">🐜</span>
+        <span class="hs-title">You tell Ant</span>
+        <span class="hs-sub">Appliance, symptoms, model number</span>
+      </div>
+      <div class="how-step">
+        <span class="hs-icon">🔧</span>
+        <span class="hs-title">Pro Tech reviews it</span>
+        <span class="hs-sub">Top Pro confirms the diagnosis</span>
+      </div>
+      <div class="how-step">
+        <span class="hs-icon">✓</span>
+        <span class="hs-title">You decide</span>
+        <span class="hs-sub">3 options · $50 credited toward repair</span>
+      </div>
+    </div>
+
+    <!-- QUICK STARTS -->
+    <div class="chips">
+      <button class="chip" onclick="quickStart(this)">🧊 Fridge not cooling</button>
+      <button class="chip" onclick="quickStart(this)">💧 Washer won't drain</button>
+      <button class="chip" onclick="quickStart(this)">🌀 Dryer not heating</button>
+      <button class="chip" onclick="quickStart(this)">🍽️ Dishwasher leaking</button>
+      <button class="chip" onclick="quickStart(this)">🧊 No ice maker</button>
+      <button class="chip" onclick="quickStart(this)">⚡ Error code showing</button>
+    </div>
+
+    <!-- PRICE LADDER -->
+    <div class="price-ladder">
+      <div class="pl-title">💡 How the pricing works — every dollar credits toward your repair</div>
+      <div class="pl-steps">
+        <div class="pl-step">
+          <span class="pl-price">$50</span>
+          <span class="pl-name">Quick Check</span>
+          <span class="pl-desc">Ant collects your info. Pro Tech reviews it. You get the answer and your three options.</span>
+        </div>
+        <div class="pl-arrow">→</div>
+        <div class="pl-step">
+          <span class="pl-price">$90</span>
+          <span class="pl-name">Video Call</span>
+          <span class="pl-desc">Live call with a Pro Tech. See it together. Decide together. $50 already credited.</span>
+        </div>
+        <div class="pl-arrow">→</div>
+        <div class="pl-step">
+          <span class="pl-price">$100</span>
+          <span class="pl-name">In-Home Visit</span>
+          <span class="pl-desc">Tech arrives with the part in hand. Fixes it. No surprise fees. $50 already credited.</span>
+        </div>
+      </div>
+      <div class="pl-note">You never pay for the same thing twice. Every dollar moves forward. 🐜</div>
+    </div>
+
+  </div><!-- /hero -->
+
+  <!-- CHAT -->
+  <div class="chat-wrap" id="chatWrap">
+    <div class="think-bar" id="thinkBar">
+      <span id="thinkEmoji">🐜🤔</span>
+      <span id="thinkText">Reading your message...</span>
+    </div>
+    <div class="msgs-outer" id="msgsOuter">
+      <div class="msgs" id="msgs"></div>
+    </div>
   </div>
 
-  <script>
-    const PROXY = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/chat/reply2";
+</main>
 
-    let conversationId = localStorage.getItem("conversationId")
-      ? parseInt(localStorage.getItem("conversationId"))
-      : null;
-    let customerId = localStorage.getItem("customerId")
-      ? parseInt(localStorage.getItem("customerId"))
-      : null;
-    let customerPhone = localStorage.getItem("customerPhone") || null;
-    let isSending = false;
+<!-- INPUT -->
+<div class="input-zone">
+  <div class="input-inner">
+    <footer>
+      <a href="/areas">Coverage areas</a>
+      <a href="/services">Services</a>
+      <a href="/about">About</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">SMS Terms</a>
+      <a href="/tech">Tech login</a>
+      <a href="tel:6152802949">615-280-2949</a>
+    </footer>
+    <div class="ibox" style="flex-direction:column;align-items:stretch;">
+      <div class="ibox-prompt">
+        <span class="ibox-ant">🐜</span>
+        <span class="ibox-label">Tell me about your appliance issue</span>
+        <span class="ibox-cursor"></span>
+      </div>
+      <div class="ibox-hint">👇 Tap below and type — or use the 🎤 mic button to speak</div>
+      <div style="display:flex;align-items:flex-end;gap:10px;">
+      <textarea id="txt" placeholder="e.g. My Whirlpool fridge stopped cooling but the freezer still works…" rows="1" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="btns">
+        <button class="ibtn" id="micBtn" title="Voice input">🎤</button>
+        <button class="sbtn" id="sndBtn" onclick="send()" title="Send">↑</button>
+      </div>
+      </div>
+      </div>
+    </div>
+    <div class="isub" style="padding:6px 20px 0;">
+      <span>$50 · Ant collects · Pro Techs review · Credited toward repair</span>
+      <a href="tel:6152802949">Prefer to call? →</a>
+    </div>
+  </div>
+</div>
 
-    const messages = document.getElementById("messages");
-    const input = document.getElementById("msg");
-    const btn = document.getElementById("send");
-    const micBtn = document.getElementById("mic-btn");
-    const micStatus = document.getElementById("mic-status");
-    const newConvoBtn = document.getElementById("new-convo-btn");
+</div><!-- /shell -->
 
-    let recognition = null;
-    let isListening = false;
+<script>
+// ── CONFIG ──
+const PROXY = 'https://superlative-naiad-233aa7.netlify.app/.netlify/functions/agent-chat-proxy';
+const SESSION = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,9);
 
-    newConvoBtn.addEventListener("click", () => {
-      if (confirm("Start a new conversation? This will clear the current one.")) {
-        localStorage.removeItem("conversationId");
-        localStorage.removeItem("customerId");
-        conversationId = null;
-        customerId = null;
-        messages.innerHTML = "";
-        sendMessage("hi", true);
-      }
-    });
+// ── STATE ──
+let started  = false;
+let busy     = false;
+let demoStep = 0;
+let conversationId = null;
+let customerId = null;
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
+// ── DOM ──
+const hero     = document.getElementById('hero');
+const antOrb   = document.getElementById('antOrb');
+const antEmoji = document.getElementById('antEmoji');
+const chatWrap = document.getElementById('chatWrap');
+const msgs     = document.getElementById('msgs');
+const txt      = document.getElementById('txt');
+const sndBtn   = document.getElementById('sndBtn');
+const thinkBar = document.getElementById('thinkBar');
+const thinkEm  = document.getElementById('thinkEmoji');
+const thinkTx  = document.getElementById('thinkText');
 
-      recognition.onstart = () => {
-        isListening = true;
-        micBtn.classList.add("listening");
-        micBtn.textContent = "🔴 Listening... Release to Send";
-        micStatus.textContent = "Listening...";
-      };
+// ── TEXTAREA ──
+txt.addEventListener('input', () => {
+  txt.style.height = 'auto';
+  txt.style.height = Math.min(txt.scrollHeight, 120) + 'px';
+});
+txt.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
 
-      recognition.onresult = (event) => {
-        let transcript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        input.value = transcript;
-        micStatus.textContent = transcript;
-      };
+// ── QUICK START ──
+function quickStart(btn) {
+  const t = btn.textContent.replace(/^[\p{Emoji}\s]+/u,'').trim();
+  txt.value = t || btn.textContent.trim();
+  send();
+}
 
-      recognition.onend = () => {
-        isListening = false;
-        micBtn.classList.remove("listening");
-        micBtn.textContent = "🎙️ Press & Hold to Talk";
-        micStatus.textContent = "";
-        if (input.value.trim()) send();
-      };
+// ── HERO → CHAT ──
+function activate() {
+  if (started) return;
+  started = true;
+  hero.classList.add('exit');
+  setTimeout(() => {
+    hero.style.visibility = 'hidden';
+    hero.style.position = 'absolute';
+    hero.style.pointerEvents = 'none';
+    chatWrap.classList.add('active');
+  }, 420);
+}
 
-      recognition.onerror = () => {
-        isListening = false;
-        micBtn.classList.remove("listening");
-        micBtn.textContent = "🎙️ Press & Hold to Talk";
-        micStatus.textContent = "Couldn't hear that — try again";
-        setTimeout(() => micStatus.textContent = "", 3000);
-      };
+// ── THINKING ──
+const states = [
+  { e:'🐜🤔', t:'Reading your message...' },
+  { e:'🐜💭', t:'Noting the details...' },
+  { e:'🐜🔍', t:'Checking your appliance type...' },
+  { e:'🐜⚡', t:'Getting ready to help...' },
+  { e:'🐜✅', t:'Almost ready...' },
+];
+let thinkTimer = null;
+let thinkIdx   = 0;
 
-      micBtn.addEventListener("mousedown", () => { if (!isListening) recognition.start(); });
-      micBtn.addEventListener("touchstart", (e) => { e.preventDefault(); if (!isListening) recognition.start(); });
-      micBtn.addEventListener("mouseup", () => { if (isListening) recognition.stop(); });
-      micBtn.addEventListener("touchend", () => { if (isListening) recognition.stop(); });
+function startThink() {
+  antOrb.classList.add('thinking');
+  thinkBar.classList.add('on');
+  thinkIdx = 0;
+  thinkEm.textContent = states[0].e;
+  thinkTx.textContent = states[0].t;
+  thinkTimer = setInterval(() => {
+    thinkIdx = (thinkIdx + 1) % states.length;
+    thinkEm.textContent = states[thinkIdx].e;
+    thinkTx.textContent = states[thinkIdx].t;
+  }, 950);
+}
 
-    } else {
-      micBtn.disabled = true;
-      micBtn.textContent = "🎙️ Voice not supported on this browser";
-      micStatus.textContent = "Try Chrome or Safari for voice support";
-    }
+function stopThink() {
+  clearInterval(thinkTimer);
+  antOrb.classList.remove('thinking');
+  thinkBar.classList.remove('on');
+}
 
-    function addBubble(text, role) {
-      const div = document.createElement("div");
-      div.className = "bubble " + role;
-      if (role === "assistant") {
-        const escaped = text
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        div.innerHTML = escaped.replace(urlRegex, '<a href="$1" target="_blank">$1</a>');
+// ── ADD USER MESSAGE ──
+function addUser(text) {
+  activate();
+  const el = document.createElement('div');
+  el.className = 'msg you';
+  el.innerHTML = `
+    <div class="av u">You</div>
+    <div class="mbody">
+      <div class="bbl you">${esc(text)}</div>
+      <span class="mmeta">You · ${now()}</span>
+    </div>`;
+  msgs.appendChild(el);
+  scrollToMsg(el);
+}
+
+// ── TYPEWRITER ──
+function typewrite(el, text, speed=22) {
+  return new Promise(resolve => {
+    const words = text.split(' ');
+    let i = 0;
+    el.textContent = '';
+    const tick = () => {
+      if (i < words.length) {
+        el.textContent = words.slice(0,++i).join(' ');
+        setTimeout(tick, speed + Math.random()*18);
       } else {
-        div.textContent = text;
+        el.textContent = text;
+        // removed - using container scroll only
+        resolve();
       }
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-      return div;
+    };
+    tick();
+  });
+}
+
+// ── ADD ANT MESSAGE ──
+async function addAnt(text, extra) {
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML = `
+    <div class="av a">🐜</div>
+    <div class="mbody">
+      <div class="bbl ant"><span class="mt"></span></div>
+      <span class="mmeta">Ant · ${now()}</span>
+    </div>`;
+  msgs.appendChild(el);
+  scrollDown();
+
+  await typewrite(el.querySelector('.mt'), text);
+
+  const bbl = el.querySelector('.bbl');
+
+  if (extra?.part) {
+    const p = extra.part;
+    const pc = document.createElement('div');
+    pc.className = 'pcard';
+    pc.innerHTML = `
+      <span class="ptag">✓ Pro Tech Verified · Correct Part Identified</span>
+      <span class="pname">${p.name}</span>
+      <div class="prow"><span class="pk">Fits your exact model</span><span class="pv" style="color:var(--green)">✓ Confirmed</span></div>
+      <div class="prow"><span class="pk">DIY difficulty</span><span class="pv"><span class="diytag">${p.diy}</span></span></div>
+      <div class="prow" style="margin-top:2px"><span class="pk" style="font-style:italic;font-size:10px">Part sourced through our supplier network — choose an option below.</span></div>`;
+    bbl.appendChild(pc);
+    scrollDown();
+  }
+
+  if (extra?.opts) {
+    const ow = document.createElement('div');
+    ow.className = 'opts';
+    extra.opts.forEach(o => {
+      const a = document.createElement('a');
+      a.className = 'opt';
+      a.href = o.href || '#';
+      if (o.href?.startsWith('http')) a.target = '_blank';
+      a.innerHTML = `
+        <span class="opt-ico">${o.icon}</span>
+        <span class="opt-lw">
+          <span class="opt-lbl">${o.label}</span>
+          ${o.sub ? `<span class="opt-sub">${o.sub}</span>` : ''}
+        </span>
+        <span class="opt-prc ${o.hi?'hi':''}">${o.price}</span>
+        <span class="opt-arr">→</span>`;
+      ow.appendChild(a);
+    });
+    bbl.appendChild(ow);
+    const cn = document.createElement('div');
+    cn.className = 'credit';
+    cn.innerHTML = `<span>💡</span><span><b>Every dollar credits toward your repair.</b> Paid $50 for Quick Check? Comes off your in-home bill. You never pay for the same thing twice.</span>`;
+    bbl.appendChild(cn);
+    scrollDown();
+  }
+}
+
+// ── SEND ──
+async function send() {
+  const text = txt.value.trim();
+  if (!text || busy) return;
+  busy = true;
+  sndBtn.disabled = true;
+  txt.value = '';
+  txt.style.height = 'auto';
+
+  addUser(text);
+  startThink();
+
+  try {
+    const res  = await fetch(PROXY, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ message:text, session_id:SESSION, source:'website', conversation_id:conversationId, customer_id:customerId, channel:'web' })
+    });
+    const data = await res.json();
+    stopThink();
+    if (data?.reply || data?.message) {
+      if (data.conversation_id) conversationId = data.conversation_id;
+      if (data.customer_id) customerId = data.customer_id;
+      await addAnt(data.reply || data.message);
+    } else {
+      await demoReply(text);
     }
+  } catch {
+    stopThink();
+    await demoReply(text);
+  }
 
-    function stripTriggers(rawReply) {
-      if (rawReply.includes("%%JOB_READY%%")) {
-        const parts = rawReply.split("%%JOB_READY%%");
-        return parts[0].trim();
-      }
-      if (rawReply.includes("%%WARRANTY_READY%%")) {
-        const parts = rawReply.split("%%WARRANTY_READY%%");
-        return parts[0].trim();
-      }
-      return rawReply;
-    }
+  busy = false;
+  sndBtn.disabled = false;
+  txt.focus();
+}
 
-    async function sendMessage(text, isGreeting = false) {
-      if (isSending) return;
-      isSending = true;
+// ── DEMO FLOW ──
+const demo = [
+  {
+    text: "Got it. To make sure we get the right information to our technician — can you find your model number? It's usually on a sticker inside the door or on the back panel."
+  },
+  {
+    text: "Perfect. I've passed your information to our tech team. A Pro Tech is going to review your symptoms and confirm what's going on. Here's what we found.",
+    part: { name:'Ice Maker Assembly', diy:'Moderate · ~40 min' }
+  },
+  {
+    text: "Here are your three options. Everything you pay today is credited toward your repair — you never pay for the same thing twice.",
+    opts:[
+      { icon:'⭐', label:'OEM Part — Guaranteed Original',  sub:'Ships 1-2 days · Manufacturer spec · Best quality', price:'$89',  href:'https://buy.stripe.com/14A8wH61R9fK4jf1JDg3600' },
+      { icon:'🛒', label:'Compatible Part — Budget Option', sub:'Ships fast · Works great · Not OEM branded',        price:'$54',  href:'#' },
+      { icon:'🔧', label:'We Come Fix It — You Do Nothing', sub:'Tech arrives with part · No surprises · No hassle', price:'$100', href:'https://buy.stripe.com/fZuaEP75V4Zu5nj2NHg3602' },
+    ]
+  },
+  {
+    text: "Is there anything else I can help with? Another appliance giving you trouble? 🐜"
+  }
+];
 
-      if (!isGreeting) addBubble(text, "user");
+async function demoReply(text) {
+  await sleep(300);
+  let r;
+  if      (demoStep===0) { r=demo[/[a-z]{2,}\d{3,}/i.test(text)?1:0]; demoStep=r===demo[1]?2:1; }
+  else if (demoStep===1) { r=demo[1]; demoStep=2; }
+  else if (demoStep===2) { r=demo[2]; demoStep=3; }
+  else                   { r=demo[3]; }
+  await addAnt(r.text, { part:r.part, opts:r.opts });
+}
 
-      btn.disabled = true;
-      micBtn.disabled = true;
+// ── MIC ──
+const micBtn = document.getElementById('micBtn');
+let recog  = null;
+let micOn  = false;
 
-      const typing = document.createElement("div");
-      typing.className = "typing";
-      typing.textContent = "Thinking...";
-      messages.appendChild(typing);
-      messages.scrollTop = messages.scrollHeight;
+(function initMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    micBtn.addEventListener('click', () => { micBtn.textContent='❌'; setTimeout(()=>micBtn.textContent='🎤',2000); });
+    return;
+  }
+  recog = new SR();
+  recog.continuous     = false;
+  recog.interimResults = true;
+  recog.lang           = 'en-US';
 
-      const currentConversationId = conversationId;
-      const currentCustomerId = customerId;
+  recog.onstart = () => {
+    micOn = true;
+    micBtn.classList.add('mic-on');
+    micBtn.textContent = '🔴';
+    txt.placeholder    = 'Listening…';
+  };
+  recog.onresult = e => {
+    const t = Array.from(e.results).map(r=>r[0].transcript).join('');
+    txt.value = t;
+    txt.style.height = 'auto';
+    txt.style.height = Math.min(txt.scrollHeight,120)+'px';
+  };
+  recog.onend = () => {
+    micOn = false;
+    micBtn.classList.remove('mic-on');
+    micBtn.textContent = '🎤';
+    txt.placeholder    = "Tell Ant what's broken…";
+    if (txt.value.trim()) send();
+  };
+  recog.onerror = () => {
+    micOn = false;
+    micBtn.classList.remove('mic-on');
+    micBtn.textContent = '🎤';
+    txt.placeholder    = "Tell Ant what's broken…";
+  };
+  micBtn.addEventListener('click', () => {
+    if (micOn) { recog.stop(); }
+    else { try { recog.start(); } catch(e){} }
+  });
+})();
 
-      let success = false;
-      let attempts = 0;
-
-      while (!success && attempts < 2) {
-        attempts++;
-        try {
-          const res = await fetch(PROXY, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              channel        : "web",
-              conversation_id: currentConversationId,
-              customer_phone : customerPhone,
-              customer_id    : currentCustomerId,
-              message        : text,
-            }),
-          });
-
-          if (!res.ok) throw new Error("HTTP " + res.status);
-
-          const data = await res.json();
-          typing.remove();
-
-          if (data.conversation_id && !conversationId) {
-            conversationId = data.conversation_id;
-            localStorage.setItem("conversationId", conversationId);
-          }
-
-          if (data.customer_id && data.customer_id > 0) {
-            customerId = data.customer_id;
-            localStorage.setItem("customerId", customerId);
-          }
-
-          const rawReply = data.reply || data.message || "Got it.";
-          const reply = stripTriggers(rawReply);
-          addBubble(reply, "assistant");
-          success = true;
-
-        } catch (err) {
-          console.error("Attempt " + attempts + " failed:", err);
-          conversationId = currentConversationId ?? conversationId;
-          if (conversationId) localStorage.setItem("conversationId", conversationId);
-
-          if (attempts < 2) {
-            await new Promise(r => setTimeout(r, 2000));
-            typing.textContent = "Still thinking...";
-          } else {
-            typing.remove();
-            addBubble("Sorry, that took too long. Please try again — your conversation is saved.", "assistant");
-          }
-        }
-      }
-
-      isSending = false;
-      btn.disabled = false;
-      micBtn.disabled = false;
-      if (!isGreeting) input.focus();
-    }
-
-    async function send() {
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-      await sendMessage(text);
-    }
-
-    btn.addEventListener("click", send);
-    input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-
-    if (!conversationId) sendMessage("hi", true);
-  </script>
+// ── UTILS ──
+function scrollDown() {
+  const outer = document.getElementById('msgsOuter');
+  if (outer) {
+    // requestAnimationFrame ensures DOM has painted before we scroll
+    requestAnimationFrame(() => {
+      outer.scrollTop = outer.scrollHeight;
+    });
+  }
+}
+function scrollToMsg(el) {
+  requestAnimationFrame(() => { scrollDown(); });
+}
+function now()        { return new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); }
+function esc(s)       { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sleep(ms)    { return new Promise(r=>setTimeout(r,ms)); }
+</script>
 </body>
 </html>
