@@ -62,7 +62,6 @@ html, body {
   overflow:hidden !important;
   overscroll-behavior:none;
   position:fixed;
-  /* Prevent iOS bounce/white flash */
   -webkit-overflow-scrolling:auto;
 }
 html { background:#050505 !important; }
@@ -180,7 +179,6 @@ main {
   50%      { transform:scale(1.07); opacity:1; }
 }
 
-/* thinking — rings accelerate */
 .ant-orb.thinking .ring { animation-duration:.8s !important; }
 .ant-orb.thinking .ring:nth-child(1) { border-color:rgba(255,98,0,.25); }
 .ant-orb.thinking .ring:nth-child(2) { border-color:rgba(255,98,0,.45); }
@@ -362,6 +360,104 @@ main {
   border-radius:9px; font-size:11px; color:var(--gray); line-height:1.7;
 }
 .credit b { color:var(--orange); font-weight:500; }
+
+/* ── CONSENT CHECKBOX ── */
+.consent-card {
+  margin-top:14px;
+  padding:18px 20px;
+  background:rgba(255,98,0,.04);
+  border:1.5px solid rgba(255,98,0,.35);
+  border-radius:12px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  animation:consent-pulse 2.5s ease-in-out infinite;
+}
+@keyframes consent-pulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(255,98,0,.15); }
+  50%      { box-shadow:0 0 0 8px rgba(255,98,0,0); }
+}
+.consent-card.checked {
+  background:rgba(57,255,20,.04);
+  border-color:rgba(57,255,20,.4);
+  animation:none;
+}
+
+.consent-row {
+  display:flex;
+  align-items:flex-start;
+  gap:13px;
+  cursor:pointer;
+  user-select:none;
+}
+.consent-card.checked .consent-row { cursor:default; }
+
+.consent-checkbox {
+  width:26px;
+  height:26px;
+  border:2px solid var(--orange);
+  border-radius:6px;
+  background:var(--surf2);
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .2s;
+  margin-top:2px;
+}
+.consent-row:hover .consent-checkbox {
+  border-color:var(--oran2);
+  background:rgba(255,98,0,.1);
+  transform:scale(1.05);
+}
+.consent-card.checked .consent-checkbox {
+  background:var(--green);
+  border-color:var(--green);
+}
+.consent-check-mark {
+  font-size:18px;
+  color:#000;
+  font-weight:900;
+  opacity:0;
+  transform:scale(.5);
+  transition:all .2s;
+}
+.consent-card.checked .consent-check-mark {
+  opacity:1;
+  transform:scale(1);
+}
+
+.consent-text {
+  flex:1;
+  font-size:13px;
+  color:var(--white);
+  line-height:1.5;
+  letter-spacing:.01em;
+}
+.consent-text b { color:var(--orange); font-weight:600; }
+.consent-card.checked .consent-text b { color:var(--green); }
+
+.consent-fine {
+  font-size:10px;
+  color:var(--gray);
+  line-height:1.6;
+  letter-spacing:.02em;
+}
+.consent-fine a {
+  color:var(--orange);
+  text-decoration:none;
+  border-bottom:1px dotted rgba(255,98,0,.4);
+}
+.consent-fine a:hover { color:var(--oran2); }
+
+.consent-confirmed {
+  display:none;
+  font-size:11px;
+  color:var(--green);
+  letter-spacing:.04em;
+  font-weight:600;
+}
+.consent-card.checked .consent-confirmed { display:flex; align-items:center; gap:6px; }
 
 /* ── INPUT ── */
 .input-zone {
@@ -747,6 +843,8 @@ let busy     = false;
 let demoStep = 0;
 let conversationId = null;
 let customerId = null;
+let smsConsentGiven = false;
+let smsConsentAt = null;
 
 // ── DOM ──
 const hero     = document.getElementById('hero');
@@ -855,6 +953,12 @@ function typewrite(el, text, speed=22) {
 
 // ── ADD ANT MESSAGE ──
 async function addAnt(text, extra) {
+  // Detect consent checkbox trigger token and strip it from displayed text
+  const showConsent = text.includes('__SHOW_CONSENT_CHECKBOX__');
+  if (showConsent) {
+    text = text.replace(/__SHOW_CONSENT_CHECKBOX__/g, '').trim();
+  }
+
   const el = document.createElement('div');
   el.className = 'msg';
   el.innerHTML = `
@@ -878,6 +982,12 @@ async function addAnt(text, extra) {
   }
 
   const bbl = el.querySelector('.bbl');
+
+  // Render consent checkbox if triggered
+  if (showConsent) {
+    renderConsentCheckbox(bbl);
+    scrollDown();
+  }
 
   if (extra?.part) {
     const p = extra.part;
@@ -920,6 +1030,70 @@ async function addAnt(text, extra) {
   }
 }
 
+// ── CONSENT CHECKBOX ──
+function renderConsentCheckbox(parentEl) {
+  const card = document.createElement('div');
+  card.className = 'consent-card';
+  card.innerHTML = `
+    <label class="consent-row">
+      <div class="consent-checkbox">
+        <span class="consent-check-mark">✓</span>
+      </div>
+      <div class="consent-text">
+        <b>Yes, text me about my service.</b><br>
+        Confirmations, tech ETAs, parts updates, and a quick check-in after the job. No marketing, ever. Reply STOP anytime to opt out.
+      </div>
+    </label>
+    <div class="consent-fine">
+      Standard message rates apply. By checking the box you agree to our 
+      <a href="https://tnapplianceexchange.net/privacy-policy-2/" target="_blank">Privacy Policy</a> 
+      and 
+      <a href="https://tnapplianceexchange.net/terms-and-conditions/" target="_blank">SMS Terms</a>.
+    </div>
+    <div class="consent-confirmed">
+      <span style="font-size:14px;">✓</span>
+      <span>Consent recorded — you're all set.</span>
+    </div>
+  `;
+  parentEl.appendChild(card);
+
+  const row = card.querySelector('.consent-row');
+  let consented = false;
+
+  row.addEventListener('click', async (e) => {
+    if (consented) return;
+    consented = true;
+    card.classList.add('checked');
+
+    // Capture consent state
+    smsConsentGiven = true;
+    smsConsentAt = new Date().toISOString();
+
+    // Send hidden consent confirmation back to backend
+    try {
+      await fetch(PROXY, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ 
+          message:'__CONSENT_GIVEN__', 
+          session_id:SESSION, 
+          source:'website', 
+          conversation_id:conversationId, 
+          customer_id:customerId, 
+          channel:'web',
+          sms_consent:true,
+          sms_consent_at:smsConsentAt
+        })
+      });
+    } catch(err) {
+      console.warn('Consent log failed:', err);
+    }
+
+    // Ant acknowledges with a brief follow-up
+    setTimeout(() => addAnt("Got it, thanks! 🐜"), 600);
+  });
+}
+
 // ── SEND ──
 async function send() {
   const text = txt.value.trim();
@@ -936,7 +1110,16 @@ async function send() {
     const res  = await fetch(PROXY, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ message:text, session_id:SESSION, source:'website', conversation_id:conversationId, customer_id:customerId, channel:'web' })
+      body:JSON.stringify({ 
+        message:text, 
+        session_id:SESSION, 
+        source:'website', 
+        conversation_id:conversationId, 
+        customer_id:customerId, 
+        channel:'web',
+        sms_consent:smsConsentGiven,
+        sms_consent_at:smsConsentAt
+      })
     });
     const data = await res.json();
     stopThink();
