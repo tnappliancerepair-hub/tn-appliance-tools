@@ -363,53 +363,6 @@ main {
 }
 .credit b { color:var(--orange); font-weight:500; }
 
-/* ── INPUT PROMPT ── */
-.ibox-prompt {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:0 4px;
-  width:100%;
-}
-.ibox-ant {
-  font-size:16px;
-  filter:drop-shadow(0 0 6px rgba(255,98,0,.6));
-  animation:ant-glow 3s ease-in-out infinite;
-  flex-shrink:0;
-}
-.ibox-label {
-  font-family:var(--mono);
-  font-size:15px;
-  color:var(--white);
-  letter-spacing:.02em;
-  font-weight:600;
-}
-.ibox-cursor {
-  width:2px; height:16px;
-  background:var(--orange);
-  border-radius:1px;
-  animation:cursor-blink .9s step-end infinite;
-  margin-left:3px;
-  flex-shrink:0;
-}
-@keyframes cursor-blink {
-  0%,100% { opacity:1; }
-  50%      { opacity:0; }
-}
-
-.ibox-hint {
-  font-family:var(--mono);
-  font-size:11px;
-  color:rgba(255,98,0,.6);
-  letter-spacing:.04em;
-  padding:2px 4px 6px;
-  animation:hint-fade 2s ease-in-out infinite alternate;
-}
-@keyframes hint-fade {
-  from { opacity:.5; }
-  to   { opacity:1; }
-}
-
 /* ── INPUT ── */
 .input-zone {
   position:relative;
@@ -461,7 +414,7 @@ textarea {
   resize:none; line-height:1.6; max-height:140px;
   overflow-y:auto; letter-spacing:.01em;
 }
-textarea::placeholder { color:#555; font-size:14px; }
+textarea::placeholder { color:#888; font-size:14px; }
 textarea::-webkit-scrollbar { width:0; }
 
 .btns { display:flex; gap:8px; align-items:center; flex-shrink:0; }
@@ -685,21 +638,20 @@ footer span { display:none; }
     <div class="how">
       <div class="how-step">
         <span class="hs-icon">🐜</span>
-       <div class="ibox" style="flex-direction:column;align-items:stretch;">
-  <div class="ibox-prompt">
-    <span class="ibox-ant">🐜</span>
-    <span class="ibox-label">Tell me about your appliance issue</span>
-    <span class="ibox-cursor"></span>
-  </div>
-  <div class="ibox-hint">👇 Tap below and type — or use the 🎤 mic button to speak</div>
-  <div style="display:flex;align-items:flex-end;gap:10px;">
-  <textarea id="txt" placeholder="e.g. My Whirlpool fridge stopped cooling but the freezer still works…" rows="1" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
-  <div class="btns">
-    <button class="ibtn" id="micBtn" title="Voice input">🎤</button>
-    <button class="sbtn" id="sndBtn" onclick="send()" title="Send">↑</button>
-  </div>
-  </div>
-</div>
+        <span class="hs-title">You tell Ant</span>
+        <span class="hs-sub">Appliance, symptoms, model number</span>
+      </div>
+      <div class="how-step">
+        <span class="hs-icon">🔧</span>
+        <span class="hs-title">Pro Tech reviews it</span>
+        <span class="hs-sub">Top Pro confirms the diagnosis</span>
+      </div>
+      <div class="how-step">
+        <span class="hs-icon">✓</span>
+        <span class="hs-title">You decide</span>
+        <span class="hs-sub">3 options · $50 credited toward repair</span>
+      </div>
+    </div>
 
     <!-- QUICK STARTS -->
     <div class="chips">
@@ -763,20 +715,16 @@ footer span { display:none; }
       <a href="/tech">Tech login</a>
       <a href="tel:6152802949">615-280-2949</a>
     </footer>
-    <div class="ibox" style="flex-direction:column;align-items:stretch;">
-      <div class="ibox-prompt">
-        <span class="ibox-ant">🐜</span>
-        <span class="ibox-label">Tell me about your appliance issue</span>
-        <span class="ibox-cursor"></span>
-      </div>
-      <div class="ibox-hint">👇 Tap below and type — or use the 🎤 mic button to speak</div>
-      <div style="display:flex;align-items:flex-end;gap:10px;">
-      <textarea id="txt" placeholder="e.g. My Whirlpool fridge stopped cooling but the freezer still works…" rows="1" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+    <div class="ibox">
+      <textarea id="txt" 
+        placeholder="🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling..." 
+        rows="1" 
+        autocomplete="off" 
+        autocorrect="off" 
+        spellcheck="false"></textarea>
       <div class="btns">
         <button class="ibtn" id="micBtn" title="Voice input">🎤</button>
         <button class="sbtn" id="sndBtn" onclick="send()" title="Send">↑</button>
-      </div>
-      </div>
       </div>
     </div>
     <div class="isub" style="padding:6px 20px 0;">
@@ -898,7 +846,6 @@ function typewrite(el, text, speed=22) {
         setTimeout(tick, speed + Math.random()*18);
       } else {
         el.textContent = text;
-        // removed - using container scroll only
         resolve();
       }
     };
@@ -923,7 +870,7 @@ async function addAnt(text, extra) {
 
   // Auto-detect upload link and replace with button
   const mt = el.querySelector('.mt');
-  if (text.includes('upload.html') || text.includes('upload.html')) {
+  if (text.includes('upload.html')) {
     mt.innerHTML = mt.textContent.replace(
       /https?:\/\/[^\s]*upload\.html/g,
       '<a href="https://superlative-naiad-233aa7.netlify.app/upload.html" target="_blank" style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:12px 20px;background:var(--orange);color:#000;font-weight:700;font-size:13px;border-radius:12px;text-decoration:none;letter-spacing:.03em;">📸 Send a Photo or Video →</a>'
@@ -1074,14 +1021,14 @@ let micOn  = false;
     micOn = false;
     micBtn.classList.remove('mic-on');
     micBtn.textContent = '🎤';
-    txt.placeholder    = "Tell Ant what's broken…";
+    txt.placeholder    = "🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling...";
     if (txt.value.trim()) send();
   };
   recog.onerror = () => {
     micOn = false;
     micBtn.classList.remove('mic-on');
     micBtn.textContent = '🎤';
-    txt.placeholder    = "Tell Ant what's broken…";
+    txt.placeholder    = "🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling...";
   };
   micBtn.addEventListener('click', () => {
     if (micOn) { recog.stop(); }
@@ -1093,7 +1040,6 @@ let micOn  = false;
 function scrollDown() {
   const outer = document.getElementById('msgsOuter');
   if (outer) {
-    // requestAnimationFrame ensures DOM has painted before we scroll
     requestAnimationFrame(() => {
       outer.scrollTop = outer.scrollHeight;
     });
