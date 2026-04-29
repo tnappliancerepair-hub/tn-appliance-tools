@@ -685,20 +685,21 @@ footer span { display:none; }
     <div class="how">
       <div class="how-step">
         <span class="hs-icon">🐜</span>
-        <span class="hs-title">You tell Ant</span>
-        <span class="hs-sub">Appliance, symptoms, model number</span>
-      </div>
-      <div class="how-step">
-        <span class="hs-icon">🔧</span>
-        <span class="hs-title">Pro Tech reviews it</span>
-        <span class="hs-sub">Top Pro confirms the diagnosis</span>
-      </div>
-      <div class="how-step">
-        <span class="hs-icon">✓</span>
-        <span class="hs-title">You decide</span>
-        <span class="hs-sub">3 options · $50 credited toward repair</span>
-      </div>
-    </div>
+       <div class="ibox" style="flex-direction:column;align-items:stretch;">
+  <div class="ibox-prompt">
+    <span class="ibox-ant">🐜</span>
+    <span class="ibox-label">Tell me about your appliance issue</span>
+    <span class="ibox-cursor"></span>
+  </div>
+  <div class="ibox-hint">👇 Tap below and type — or use the 🎤 mic button to speak</div>
+  <div style="display:flex;align-items:flex-end;gap:10px;">
+  <textarea id="txt" placeholder="e.g. My Whirlpool fridge stopped cooling but the freezer still works…" rows="1" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+  <div class="btns">
+    <button class="ibtn" id="micBtn" title="Voice input">🎤</button>
+    <button class="sbtn" id="sndBtn" onclick="send()" title="Send">↑</button>
+  </div>
+  </div>
+</div>
 
     <!-- QUICK STARTS -->
     <div class="chips">
