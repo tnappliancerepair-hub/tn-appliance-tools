@@ -981,6 +981,7 @@ const collected = {
   zip: null,
   customer_preference_text: null,
   scheduling_type: null,
+  recommended_service: null,
   sms_consent: false,
   sms_consent_at: null
 };
@@ -1098,9 +1099,33 @@ async function addAnt(text, extra) {
     text = text.replace(/__SHOW_CONSENT_CHECKBOX__/g, '').trim();
   }
 
-  // Detect submit-button trigger token and strip it from displayed text
-  const showSubmit = text.includes('__READY_TO_SUBMIT__');
-  if (showSubmit) {
+  // Detect submit-button trigger and strip it from displayed text.
+  // Two accepted forms:
+  //   1. Bare token:    __READY_TO_SUBMIT__
+  //   2. JSON wrapped:  __READY_TO_SUBMIT__{...}__READY_TO_SUBMIT__
+  // When JSON is present, parse and merge into `collected` (Ant is source of truth).
+  let showSubmit = false;
+  const submitWrap = text.match(/__READY_TO_SUBMIT__([\s\S]*?)__READY_TO_SUBMIT__/);
+  if (submitWrap) {
+    showSubmit = true;
+    const inner = submitWrap[1].trim();
+    if (inner) {
+      try {
+        const parsed = JSON.parse(inner);
+        if (parsed && typeof parsed === 'object') {
+          Object.keys(parsed).forEach(k => {
+            if (parsed[k] != null && parsed[k] !== '') {
+              collected[k] = parsed[k];
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to parse __READY_TO_SUBMIT__ JSON, falling back to heuristics:', e);
+      }
+    }
+    text = text.replace(/__READY_TO_SUBMIT__[\s\S]*?__READY_TO_SUBMIT__/g, '').trim();
+  } else if (text.includes('__READY_TO_SUBMIT__')) {
+    showSubmit = true;
     text = text.replace(/__READY_TO_SUBMIT__/g, '').trim();
   }
 
@@ -1533,7 +1558,7 @@ async function handleSubmitClick(card) {
     brand:                    collected.brand                   || '',
     model_number:             collected.model_number            || '',
     problem_summary:          collected.problem_summary         || '',
-    recommended_service:      'quick_check',
+    recommended_service:      collected.recommended_service     || 'quick_check',
     channel:                  'web_chat',
     customer_preference_text: collected.customer_preference_text || '',
     scheduling_type:          collected.scheduling_type         || '',
