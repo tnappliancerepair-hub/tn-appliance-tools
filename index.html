@@ -1069,28 +1069,11 @@ function renderConsentCheckbox(parentEl) {
     smsConsentGiven = true;
     smsConsentAt = new Date().toISOString();
 
-    // Send hidden consent confirmation back to backend
-    try {
-      await fetch(PROXY, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ 
-          message:'__CONSENT_GIVEN__', 
-          session_id:SESSION, 
-          source:'website', 
-          conversation_id:conversationId, 
-          customer_id:customerId, 
-          channel:'web',
-          sms_consent:true,
-          sms_consent_at:smsConsentAt
-        })
-      });
-    } catch(err) {
-      console.warn('Consent log failed:', err);
-    }
-
-    // Ant acknowledges with a brief follow-up
-    setTimeout(() => addAnt("Got it, thanks! 🐜"), 600);
+    // Send a real user message that Ant will process and respond to
+    setTimeout(() => {
+      txt.value = "Yes, you can text me about my service.";
+      send();
+    }, 400);
   });
 }
 
