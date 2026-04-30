@@ -1142,15 +1142,6 @@ async function addAnt(text, extra) {
 
   await typewrite(el.querySelector('.mt'), text);
 
-  // Auto-detect upload link and replace with button
-  const mt = el.querySelector('.mt');
-  if (text.includes('upload.html')) {
-    mt.innerHTML = mt.textContent.replace(
-      /https?:\/\/[^\s]*upload\.html/g,
-      '<a href="https://superlative-naiad-233aa7.netlify.app/upload.html" target="_blank" style="display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:12px 20px;background:var(--orange);color:#000;font-weight:700;font-size:13px;border-radius:12px;text-decoration:none;letter-spacing:.03em;">📸 Send a Photo or Video →</a>'
-    );
-  }
-
   const bbl = el.querySelector('.bbl');
 
   // Render consent checkbox if triggered
@@ -1579,7 +1570,9 @@ async function handleSubmitClick(card) {
       const errBody = await res.text().catch(() => '');
       throw new Error(`Server returned ${res.status}${errBody ? ` — ${errBody.slice(0, 140)}` : ''}`);
     }
-    renderSubmitSuccess(card);
+    const data = await res.json().catch(() => ({}));
+    const jobId = data?.id ?? data?.job_id ?? data?.job?.id ?? null;
+    renderSubmitSuccess(card, jobId);
     setTimeout(() => {
       addAnt("You're all set! 🐜 A Pro Tech will review your request and reach out shortly. Thanks for trusting us — talk soon.");
     }, 600);
@@ -1588,7 +1581,10 @@ async function handleSubmitClick(card) {
   }
 }
 
-function renderSubmitSuccess(card) {
+function renderSubmitSuccess(card, jobId) {
+  const uploadHref = jobId
+    ? `/upload.html?job_id=${encodeURIComponent(jobId)}`
+    : `/upload.html`;
   card.innerHTML = `
     <div class="submit-success">
       <div class="submit-success-icon">✓</div>
@@ -1596,6 +1592,13 @@ function renderSubmitSuccess(card) {
         <b>Request submitted</b><br>
         A Pro Tech will review your details and reach out shortly.
       </div>
+    </div>
+    <a class="submit-btn" href="${uploadHref}" style="text-decoration:none;margin-top:12px;">
+      <span class="submit-label">📸 Upload Photos &amp; Videos</span>
+      <span class="submit-arrow">→</span>
+    </a>
+    <div class="submit-fine">
+      Photos help us prepare the right parts. Takes 60 seconds.
     </div>
   `;
   scrollDown();
