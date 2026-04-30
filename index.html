@@ -459,6 +459,130 @@ main {
 }
 .consent-card.checked .consent-confirmed { display:flex; align-items:center; gap:6px; }
 
+/* ── SUBMIT REQUEST ── */
+.submit-card {
+  margin-top:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.submit-btn {
+  width:100%;
+  padding:18px 24px;
+  background:var(--orange);
+  border:1.5px solid var(--orange);
+  border-radius:14px;
+  color:#000;
+  font-family:var(--mono);
+  font-size:15px;
+  font-weight:700;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background .2s, transform .15s, box-shadow .2s;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  animation:submit-pulse 2.4s ease-in-out infinite;
+  box-shadow:0 0 24px rgba(255,98,0,.35);
+}
+@keyframes submit-pulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(255,98,0,.35), 0 0 24px rgba(255,98,0,.3); }
+  50%      { box-shadow:0 0 0 10px rgba(255,98,0,0), 0 0 44px rgba(255,98,0,.55); }
+}
+.submit-btn:hover {
+  background:var(--oran2);
+  transform:translateY(-1px);
+  box-shadow:0 0 44px rgba(255,98,0,.6);
+}
+.submit-btn:active { transform:translateY(0) scale(.99); }
+.submit-btn:disabled {
+  opacity:.7;
+  cursor:wait;
+  animation:none;
+}
+.submit-arrow { font-size:18px; line-height:1; }
+.submit-fine {
+  font-size:10px;
+  color:var(--gray);
+  text-align:center;
+  letter-spacing:.02em;
+  line-height:1.6;
+}
+
+.submit-success {
+  margin-top:14px;
+  padding:18px 20px;
+  background:rgba(57,255,20,.05);
+  border:1.5px solid rgba(57,255,20,.4);
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  animation:submit-success-in .4s ease forwards;
+  box-shadow:0 0 24px rgba(57,255,20,.12);
+}
+@keyframes submit-success-in {
+  from { opacity:0; transform:scale(.96); }
+  to   { opacity:1; transform:scale(1); }
+}
+.submit-success-icon {
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  background:var(--green);
+  color:#000;
+  font-weight:900;
+  font-size:20px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+}
+.submit-success-text {
+  flex:1;
+  font-size:13px;
+  color:var(--white);
+  line-height:1.5;
+}
+.submit-success-text b { color:var(--green); font-weight:600; }
+
+.submit-error {
+  margin-top:14px;
+  padding:14px 18px;
+  background:rgba(255,60,60,.05);
+  border:1.5px solid rgba(255,60,60,.35);
+  border-radius:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.submit-error-msg {
+  font-size:12px;
+  color:#ff7878;
+  line-height:1.55;
+  letter-spacing:.01em;
+}
+.submit-error-retry {
+  align-self:flex-start;
+  padding:8px 14px;
+  background:transparent;
+  border:1px solid rgba(255,60,60,.4);
+  border-radius:8px;
+  color:#ff7878;
+  font-family:var(--mono);
+  font-size:11px;
+  cursor:pointer;
+  letter-spacing:.04em;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.submit-error-retry:hover {
+  background:rgba(255,60,60,.1);
+  border-color:#ff7878;
+  color:#fff;
+}
+
 /* ── INPUT ── */
 .input-zone {
   position:relative;
@@ -845,6 +969,21 @@ let conversationId = null;
 let customerId = null;
 let smsConsentGiven = false;
 let smsConsentAt = null;
+let submitButtonShown = false;
+const collected = {
+  appliance_type: null,
+  brand: null,
+  model_number: null,
+  problem_summary: null,
+  first_name: null,
+  last_name: null,
+  phone: null,
+  zip: null,
+  customer_preference_text: null,
+  scheduling_type: null,
+  sms_consent: false,
+  sms_consent_at: null
+};
 
 // ── DOM ──
 const hero     = document.getElementById('hero');
@@ -959,6 +1098,12 @@ async function addAnt(text, extra) {
     text = text.replace(/__SHOW_CONSENT_CHECKBOX__/g, '').trim();
   }
 
+  // Detect submit-button trigger token and strip it from displayed text
+  const showSubmit = text.includes('__READY_TO_SUBMIT__');
+  if (showSubmit) {
+    text = text.replace(/__READY_TO_SUBMIT__/g, '').trim();
+  }
+
   const el = document.createElement('div');
   el.className = 'msg';
   el.innerHTML = `
@@ -986,6 +1131,13 @@ async function addAnt(text, extra) {
   // Render consent checkbox if triggered
   if (showConsent) {
     renderConsentCheckbox(bbl);
+    scrollDown();
+  }
+
+  // Render submit button if triggered (only once per conversation)
+  if (showSubmit && !submitButtonShown) {
+    submitButtonShown = true;
+    renderSubmitButton(bbl);
     scrollDown();
   }
 
@@ -1087,21 +1239,23 @@ async function send() {
   txt.style.height = 'auto';
 
   addUser(text);
+  updateCollected(text);
   startThink();
 
   try {
     const res  = await fetch(PROXY, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ 
-        message:text, 
-        session_id:SESSION, 
-        source:'website', 
-        conversation_id:conversationId, 
-        customer_id:customerId, 
+      body:JSON.stringify({
+        message:text,
+        session_id:SESSION,
+        source:'website',
+        conversation_id:conversationId,
+        customer_id:customerId,
         channel:'web',
         sms_consent:smsConsentGiven,
-        sms_consent_at:smsConsentAt
+        sms_consent_at:smsConsentAt,
+        collected
       })
     });
     const data = await res.json();
@@ -1217,6 +1371,222 @@ function scrollToMsg(el) {
 function now()        { return new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}); }
 function esc(s)       { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function sleep(ms)    { return new Promise(r=>setTimeout(r,ms)); }
+
+// ── COLLECTED STATE HEURISTICS ──
+const APPLIANCE_KEYWORDS = {
+  refrigerator: ['fridge','refrigerator','freezer','ice maker','icemaker'],
+  washer:       ['washer','washing machine'],
+  dryer:        ['dryer'],
+  dishwasher:   ['dishwasher'],
+  oven:         ['oven','range','stove','cooktop'],
+  microwave:    ['microwave']
+};
+const BRANDS = ['Whirlpool','Samsung','LG','GE','Maytag','Kenmore','Frigidaire','KitchenAid','Bosch','Amana','Electrolux','Sub-Zero','Sub Zero','Viking','Wolf','Thermador','Miele','Sears','Hotpoint','Jenn-Air','JennAir'];
+const NAME_STOPWORDS = new Set(['yes','no','yep','nope','sure','ok','okay','yeah','yup','nah','correct','right','wrong','maybe','idk','dunno','please','thanks','thank','hello','hi','hey','help']);
+
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s; }
+
+function updateCollected(userText) {
+  const t = (userText || '').trim();
+  if (!t) return;
+  const lower = t.toLowerCase();
+  const justDigits = t.replace(/[^\d]/g, '');
+
+  // First substantive message → problem summary
+  if (!collected.problem_summary && t.length >= 10) {
+    collected.problem_summary = t;
+  }
+
+  // Phone (10/11 digit, with or without formatting)
+  if (!collected.phone) {
+    if (justDigits.length === 10) {
+      collected.phone = justDigits;
+    } else if (justDigits.length === 11 && justDigits.startsWith('1')) {
+      collected.phone = justDigits.slice(1);
+    } else {
+      const m = t.match(/\(?(\d{3})\)?[-.\s]?(\d{3})[-.\s]?(\d{4})/);
+      if (m) collected.phone = m[1] + m[2] + m[3];
+    }
+  }
+
+  // Zip (5 digits, not embedded in a phone)
+  if (!collected.zip) {
+    if (justDigits.length === 5) {
+      collected.zip = justDigits;
+    } else if (justDigits.length !== 10 && justDigits.length !== 11) {
+      const m = t.match(/(?:^|\D)(\d{5})(?:\D|$)/);
+      if (m) collected.zip = m[1];
+    }
+  }
+
+  // Appliance type
+  if (!collected.appliance_type) {
+    for (const [type, keys] of Object.entries(APPLIANCE_KEYWORDS)) {
+      if (keys.some(k => lower.includes(k))) { collected.appliance_type = type; break; }
+    }
+  }
+
+  // Brand
+  if (!collected.brand) {
+    for (const b of BRANDS) {
+      const escaped = b.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+      if (new RegExp(`\\b${escaped}\\b`, 'i').test(t)) { collected.brand = b; break; }
+    }
+  }
+
+  // Model number — 5+ char token mixing letters and digits
+  if (!collected.model_number) {
+    const tokens = t.split(/[\s,;]+/);
+    for (const tok of tokens) {
+      const cleaned = tok.replace(/[^A-Za-z0-9-]/g, '');
+      if (cleaned.length >= 5 && /[A-Za-z]/.test(cleaned) && /\d/.test(cleaned)) {
+        collected.model_number = cleaned.toUpperCase();
+        break;
+      }
+    }
+  }
+
+  // Names
+  if (!collected.first_name) {
+    const m = t.match(/(?:my\s+name\s+is|i['']?m|this\s+is|name['']?s|call\s+me)\s+([A-Za-z'-]{2,})(?:\s+([A-Za-z'-]{2,}))?/i);
+    if (m && !NAME_STOPWORDS.has(m[1].toLowerCase())) {
+      collected.first_name = capitalize(m[1]);
+      if (m[2]) collected.last_name = capitalize(m[2]);
+    } else {
+      // Bare "First Last" reply — exactly two short alpha words
+      const tokens = t.split(/\s+/).filter(Boolean);
+      if (
+        tokens.length === 2 &&
+        tokens.every(tk => /^[A-Za-z'-]{2,}$/.test(tk)) &&
+        !NAME_STOPWORDS.has(tokens[0].toLowerCase()) &&
+        !NAME_STOPWORDS.has(tokens[1].toLowerCase())
+      ) {
+        collected.first_name = capitalize(tokens[0]);
+        collected.last_name  = capitalize(tokens[1]);
+      }
+    }
+  }
+
+  // Scheduling preference
+  if (!collected.scheduling_type) {
+    if (/\b(asap|emergency|right\s+(?:now|away)|today|tonight|urgent)\b/i.test(t)) {
+      collected.scheduling_type = 'asap';
+    } else if (/\b(tomorrow|next\s+week|later|schedule|appointment|specific\s+time)\b/i.test(t)) {
+      collected.scheduling_type = 'schedule_later';
+    } else if (/\b(whenever|flexible|any\s*time|no\s+rush)\b/i.test(t)) {
+      collected.scheduling_type = 'flexible';
+    }
+  }
+
+  // Free-form preference text (accumulate)
+  if (/\b(prefer|preference|would\s+like|works?\s+for\s+me|best\s+time|after\s+\d|before\s+\d|morning|afternoon|evening|weekend|weekday)\b/i.test(t)) {
+    collected.customer_preference_text = collected.customer_preference_text
+      ? (collected.customer_preference_text + ' | ' + t)
+      : t;
+  }
+
+  // Keep SMS consent in sync
+  collected.sms_consent    = smsConsentGiven;
+  collected.sms_consent_at = smsConsentAt;
+}
+
+// ── SUBMIT BUTTON ──
+const XANO_CREATE_JOB = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/create_job_from_chat';
+
+function renderSubmitButton(parentEl) {
+  const card = document.createElement('div');
+  card.className = 'submit-card';
+  parentEl.appendChild(card);
+  renderSubmitIdle(card);
+}
+
+function renderSubmitIdle(card) {
+  card.innerHTML = `
+    <button class="submit-btn" type="button">
+      <span class="submit-label">Submit My Request</span>
+      <span class="submit-arrow">→</span>
+    </button>
+    <div class="submit-fine">
+      We'll send your details to a Pro Tech who'll review and reach out shortly.
+    </div>
+  `;
+  card.querySelector('.submit-btn').addEventListener('click', () => handleSubmitClick(card));
+}
+
+async function handleSubmitClick(card) {
+  const btn = card.querySelector('.submit-btn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.querySelector('.submit-label').textContent = 'Submitting…';
+  btn.querySelector('.submit-arrow').textContent = '⏳';
+
+  // Sync consent state right before submit
+  collected.sms_consent    = smsConsentGiven;
+  collected.sms_consent_at = smsConsentAt;
+
+  const payload = {
+    first_name:               collected.first_name              || '',
+    last_name:                collected.last_name               || '',
+    phone:                    collected.phone                   || '',
+    zip:                      collected.zip                     || '',
+    appliance_type:           collected.appliance_type          || '',
+    brand:                    collected.brand                   || '',
+    model_number:             collected.model_number            || '',
+    problem_summary:          collected.problem_summary         || '',
+    recommended_service:      'quick_check',
+    channel:                  'web_chat',
+    customer_preference_text: collected.customer_preference_text || '',
+    scheduling_type:          collected.scheduling_type         || '',
+    sms_consent:              !!collected.sms_consent,
+    sms_consent_at:           collected.sms_consent_at,
+    conversation_id:          conversationId,
+    customer_id:              customerId,
+    session_id:               SESSION
+  };
+
+  try {
+    const res = await fetch(XANO_CREATE_JOB, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`Server returned ${res.status}${errBody ? ` — ${errBody.slice(0, 140)}` : ''}`);
+    }
+    renderSubmitSuccess(card);
+    setTimeout(() => {
+      addAnt("You're all set! 🐜 A Pro Tech will review your request and reach out shortly. Thanks for trusting us — talk soon.");
+    }, 600);
+  } catch (err) {
+    renderSubmitError(card, err);
+  }
+}
+
+function renderSubmitSuccess(card) {
+  card.innerHTML = `
+    <div class="submit-success">
+      <div class="submit-success-icon">✓</div>
+      <div class="submit-success-text">
+        <b>Request submitted</b><br>
+        A Pro Tech will review your details and reach out shortly.
+      </div>
+    </div>
+  `;
+  scrollDown();
+}
+
+function renderSubmitError(card, err) {
+  const msg = (err && err.message) ? err.message : 'Something went wrong.';
+  card.innerHTML = `
+    <div class="submit-error">
+      <div class="submit-error-msg">⚠ ${esc(msg)}</div>
+      <button class="submit-error-retry" type="button">↻ Try again</button>
+    </div>
+  `;
+  card.querySelector('.submit-error-retry').addEventListener('click', () => renderSubmitIdle(card));
+  scrollDown();
+}
 </script>
 </body>
 </html>
