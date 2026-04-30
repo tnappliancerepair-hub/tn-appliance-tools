@@ -1569,8 +1569,6 @@ async function handleSubmitClick(card) {
     session_id:               SESSION
   };
 
-  alert('DEBUG PAYLOAD:\n\n' + JSON.stringify(payload, null, 2));
-
   try {
     const res = await fetch(XANO_CREATE_JOB, {
       method: 'POST',
