@@ -1,0 +1,5 @@
+# Xano workspace pull - contains hardcoded secrets (Twilio creds, swagger tokens, etc.)
+# Never commit. This is local source-of-truth for Claude Code working with Xano backend.
+xano-workspace/
+/xano-workspace
+./xano-workspace

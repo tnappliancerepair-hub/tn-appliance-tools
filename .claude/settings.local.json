@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(notepad *)",
+      "Bash(claude mcp *)",
+      "Bash(netlify --version)",
+      "Bash(netlify status *)",
+      "Bash(npx -y netlify-cli --version)",
+      "Bash(npx -y netlify-cli status)",
+      "Bash(node *)",
+      "mcp__netlify__netlify-project-services-reader",
+      "mcp__netlify__netlify-deploy-services-reader",
+      "WebFetch(domain:tnapplianceexchange.net)",
+      "WebFetch(domain:superlative-naiad-233aa7.netlify.app)",
+      "Bash(curl -sI -L --max-time 15 https://tnapplianceexchange.net)",
+      "Bash(curl -sI -L --max-time 15 https://superlative-naiad-233aa7.netlify.app)",
+      "Bash(nslookup tnapplianceexchange.net 8.8.8.8)",
+      "Bash(nslookup -type=ns tnapplianceexchange.net 8.8.8.8)",
+      "Bash(git rm *)",
+      "mcp__netlify__netlify-deploy-services-updater",
+      "WebSearch",
+      "WebFetch(domain:docs.xano.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install *)",
+      "Bash(xano --version)",
+      "Bash(npm ls *)",
+      "Bash(xano workspace *)",
+      "Bash(xano --help)",
+      "Bash(xano profile:create --help)",
+      "Read(//c/Users/jpiva/.xano/**)",
+      "Bash(xano auth *)",
+      "mcp__xano__cli_docs"
+    ]
+  }
+}
