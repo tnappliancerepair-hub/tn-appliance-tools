@@ -1041,6 +1041,7 @@ let customerId = null;
 let smsConsentGiven = false;
 let smsConsentAt = null;
 let submitButtonShown = false;
+let warrantySubmitButtonShown = false;
 const collected = {
   appliance_type: null,
   brand: null,
@@ -1200,6 +1201,32 @@ async function addAnt(text, extra) {
     text = text.replace(/__READY_TO_SUBMIT__/g, '').trim();
   }
 
+  // Warranty-path equivalent. Same JSON-wrap convention, different token + endpoint.
+  let showWarranty = false;
+  const warrantyWrap = text.match(/__WARRANTY_READY__([\s\S]*?)__WARRANTY_READY__/);
+  if (warrantyWrap) {
+    showWarranty = true;
+    const inner = warrantyWrap[1].trim();
+    if (inner) {
+      try {
+        const parsed = JSON.parse(inner);
+        if (parsed && typeof parsed === 'object') {
+          Object.keys(parsed).forEach(k => {
+            if (parsed[k] != null && parsed[k] !== '') {
+              collected[k] = parsed[k];
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to parse __WARRANTY_READY__ JSON, falling back to heuristics:', e);
+      }
+    }
+    text = text.replace(/__WARRANTY_READY__[\s\S]*?__WARRANTY_READY__/g, '').trim();
+  } else if (text.includes('__WARRANTY_READY__')) {
+    showWarranty = true;
+    text = text.replace(/__WARRANTY_READY__/g, '').trim();
+  }
+
   const el = document.createElement('div');
   el.className = 'msg';
   el.innerHTML = `
@@ -1225,6 +1252,13 @@ async function addAnt(text, extra) {
   if (showSubmit && !submitButtonShown) {
     submitButtonShown = true;
     renderSubmitButton(bbl);
+    scrollDown();
+  }
+
+  // Render warranty submit button if triggered (only once per conversation)
+  if (showWarranty && !warrantySubmitButtonShown) {
+    warrantySubmitButtonShown = true;
+    renderWarrantySubmitButton(bbl);
     scrollDown();
   }
 
@@ -1684,6 +1718,80 @@ function renderSubmitError(card, err) {
     </div>
   `;
   card.querySelector('.submit-error-retry').addEventListener('click', () => renderSubmitIdle(card));
+  scrollDown();
+}
+
+// ── WARRANTY SUBMIT (parallel to self-pay; routes through Netlify function) ──
+const WARRANTY_PROXY = '/.netlify/functions/create-warranty-job-proxy';
+
+function renderWarrantySubmitButton(parentEl) {
+  const card = document.createElement('div');
+  card.className = 'submit-card';
+  parentEl.appendChild(card);
+  renderWarrantyIdle(card);
+}
+
+function renderWarrantyIdle(card) {
+  card.innerHTML = `
+    <button class="submit-btn" type="button">
+      <span class="submit-label">Submit My Warranty Request</span>
+      <span class="submit-arrow">→</span>
+    </button>
+    <div class="submit-fine">
+      We'll send your details to our warranty team who'll review and reach out shortly.
+    </div>
+  `;
+  card.querySelector('.submit-btn').addEventListener('click', () => handleWarrantySubmitClick(card));
+}
+
+async function handleWarrantySubmitClick(card) {
+  const btn = card.querySelector('.submit-btn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.querySelector('.submit-label').textContent = 'Submitting…';
+  btn.querySelector('.submit-arrow').textContent = '⏳';
+
+  const payload = {
+    first_name:      collected.first_name      || '',
+    last_name:       collected.last_name       || '',
+    phone:           collected.phone           || '',
+    zip:             collected.zip             || '',
+    appliance_type:  collected.appliance_type  || '',
+    brand:           collected.brand           || '',
+    model_number:    collected.model_number    || '',
+    problem_summary: collected.problem_summary || ''
+  };
+
+  try {
+    const res = await fetch(WARRANTY_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`Server returned ${res.status}${errBody ? ` — ${errBody.slice(0, 140)}` : ''}`);
+    }
+    const data = await res.json().catch(() => ({}));
+    const jobId = data?.id ?? data?.job_id ?? data?.job?.id ?? null;
+    renderSubmitSuccess(card, jobId);
+    setTimeout(() => {
+      addAnt("You're all set! 🐜 Our warranty team will review your claim and reach out shortly. Thanks for trusting us — talk soon.");
+    }, 600);
+  } catch (err) {
+    renderWarrantyError(card, err);
+  }
+}
+
+function renderWarrantyError(card, err) {
+  const msg = (err && err.message) ? err.message : 'Something went wrong.';
+  card.innerHTML = `
+    <div class="submit-error">
+      <div class="submit-error-msg">⚠ ${esc(msg)}</div>
+      <button class="submit-error-retry" type="button">↻ Try again</button>
+    </div>
+  `;
+  card.querySelector('.submit-error-retry').addEventListener('click', () => renderWarrantyIdle(card));
   scrollDown();
 }
 </script>
