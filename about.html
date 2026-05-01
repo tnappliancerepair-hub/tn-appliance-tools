@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LONG LIVE ANT! — TN Appliance Exchange</title>
+<meta name="description" content="The story of why TN Appliance Exchange carries the name Ant — for Teddy Pivacek's late son Anthony, and the family that fixes things in his honor.">
+
+<meta property="og:title" content="LONG LIVE ANT!">
+<meta property="og:description" content="Why TN Appliance Exchange carries his name.">
+<meta property="og:url" content="https://tnapplianceexchange.net/about">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="TN Appliance Exchange">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LONG LIVE ANT!">
+<meta name="twitter:description" content="Why TN Appliance Exchange carries his name.">
+
+<meta name="theme-color" content="#050505">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0EF3THNXLE');
+</script>
+
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  :root {
+    --black:   #050505;
+    --surface: #0c0c0c;
+    --surf2:   #111111;
+    --border:  #1a1a1a;
+    --bord2:   #252525;
+    --orange:  #ff6200;
+    --oran2:   #ff7c28;
+    --white:   #f0f0f0;
+    --gray:    #888;
+    --gray2:   #555;
+    --mono:    'Geist Mono', monospace;
+    --serif:   'Instrument Serif', serif;
+    --block:   'Bebas Neue', sans-serif;
+  }
+
+  html, body {
+    background:#050505;
+    color:var(--white);
+    font-family:var(--serif);
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    min-height:100%;
+  }
+
+  /* ── AMBIENT (subtle, doesn't compete with the writing) ── */
+  .bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .bg-orb { position:absolute; border-radius:50%; filter:blur(180px); }
+  .orb1 { width:900px; height:900px; background:radial-gradient(circle,rgba(255,98,0,0.08),transparent 70%); top:-380px; left:-260px; animation:orb-breathe 11s ease-in-out infinite alternate; }
+  .orb2 { width:520px; height:520px; background:radial-gradient(circle,rgba(255,98,0,0.04),transparent 70%); bottom:-120px; right:-120px; animation:orb-breathe 13s ease-in-out infinite alternate; animation-delay:3s; }
+  @keyframes orb-breathe { from{transform:scale(1);opacity:.55} to{transform:scale(1.15);opacity:1} }
+  .bg::after {
+    content:''; position:absolute; inset:0;
+    background-image:linear-gradient(rgba(255,98,0,0.010) 1px,transparent 1px),linear-gradient(90deg,rgba(255,98,0,0.010) 1px,transparent 1px);
+    background-size:80px 80px;
+  }
+
+  /* ── PAGE LAYOUT ── */
+  .page {
+    position:relative;
+    z-index:1;
+    width:100%;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    width:100%;
+    max-width:760px;
+    padding:24px 28px 0;
+    display:flex;
+    justify-content:flex-start;
+  }
+  .back {
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--gray);
+    text-decoration:none;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:8px 14px;
+    border:1px solid var(--bord2);
+    border-radius:20px;
+    background:rgba(255,98,0,0.02);
+    transition:all .2s;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+  }
+  .back:hover {
+    color:var(--orange);
+    border-color:var(--orange);
+    background:rgba(255,98,0,0.07);
+    transform:translateX(-2px);
+  }
+
+  /* ── ARTICLE COLUMN ── */
+  article {
+    width:100%;
+    max-width:700px;
+    padding:48px 28px 80px;
+  }
+
+  /* ── HEADLINE — battle cry ── */
+  .headline {
+    font-family:var(--block);
+    font-size:clamp(64px, 14vw, 132px);
+    line-height:0.92;
+    letter-spacing:.02em;
+    color:var(--orange);
+    text-align:center;
+    margin:24px 0 56px;
+    text-shadow:
+      0 0 30px rgba(255,98,0,.45),
+      0 0 80px rgba(255,98,0,.22),
+      0 4px 12px rgba(0,0,0,.6);
+    animation:headline-glow 4s ease-in-out infinite alternate;
+  }
+  @keyframes headline-glow {
+    from { text-shadow:0 0 30px rgba(255,98,0,.45), 0 0 80px rgba(255,98,0,.22), 0 4px 12px rgba(0,0,0,.6); }
+    to   { text-shadow:0 0 50px rgba(255,98,0,.75), 0 0 130px rgba(255,98,0,.35), 0 4px 12px rgba(0,0,0,.6); }
+  }
+
+  /* ── BODY PROSE ── */
+  .prose p {
+    font-family:var(--serif);
+    font-size:19px;
+    line-height:1.78;
+    color:var(--white);
+    margin-bottom:1.45em;
+    letter-spacing:.005em;
+  }
+  .prose p:first-of-type::first-letter {
+    font-family:var(--serif);
+    font-size:1.15em;
+  }
+
+  /* Inline emphasis on the name "Ant" */
+  .prose strong.ant {
+    color:var(--orange);
+    font-weight:600;
+    font-style:normal;
+    letter-spacing:.01em;
+  }
+
+  /* Italicized dialogue / inline italic words */
+  .prose em {
+    font-style:italic;
+    color:#fff8f0;
+    font-family:var(--serif);
+  }
+
+  /* The standalone therapist's question — pull-quote treatment */
+  .pullquote {
+    margin:2em 0 1.6em;
+    padding:22px 26px 22px 28px;
+    border-left:3px solid var(--orange);
+    background:rgba(255,98,0,0.04);
+    border-radius:0 12px 12px 0;
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:21px;
+    line-height:1.7;
+    color:#fff8f0;
+  }
+
+  /* The "I will." line — let it breathe */
+  .punctum {
+    font-family:var(--serif);
+    font-size:28px;
+    color:var(--orange);
+    letter-spacing:.01em;
+    margin:.8em 0 1.6em;
+  }
+
+  /* ── SIGNATURE ── */
+  .sig {
+    margin-top:56px;
+    padding-top:28px;
+    border-top:1px solid var(--border);
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--gray);
+    line-height:1.7;
+    letter-spacing:.04em;
+  }
+  .sig .name {
+    color:var(--white);
+    font-size:13px;
+    letter-spacing:.05em;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    width:100%;
+    max-width:700px;
+    padding:0 28px 40px;
+    text-align:center;
+  }
+  footer a {
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--gray);
+    text-decoration:none;
+    letter-spacing:.05em;
+    margin:0 8px;
+    transition:color .2s;
+  }
+  footer a:hover { color:var(--orange); }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width:600px) {
+    .topbar { padding:18px 18px 0; }
+    article { padding:36px 20px 60px; }
+    .headline { margin:16px 0 40px; }
+    .prose p { font-size:17px; line-height:1.75; }
+    .pullquote { font-size:18px; padding:18px 20px; margin:1.6em 0 1.4em; }
+    .punctum { font-size:24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+</div>
+
+<div class="page">
+
+  <div class="topbar">
+    <a href="/" class="back">← Back to home</a>
+  </div>
+
+  <article>
+
+    <h1 class="headline">LONG LIVE ANT!</h1>
+
+    <div class="prose">
+
+      <p>My son Anthony James Te Pivacek was born on a typical Las Vegas morning in mid-March. Came in screaming so hard everyone knew he'd arrived. Bright blue eyes, a head full of hair, and oranger than Donald Trump.</p>
+
+      <p>He came in fast. Walking by 10 months. Reading early. Talking early. School came easy to him. He started running before he started walking, just to keep himself from falling. That was Anthony. Forward motion.</p>
+
+      <p>In school, his wrestling teammates gave him a name: <strong class="ant">Ant.</strong> He wrestled in the lightest weight class his whole career. Small kid. Mighty heart. Outworked everyone on the mat.</p>
+
+      <p>He grew up watching me and his Uncle Jimmy build this trade with our bare hands. Worked alongside us cleaning old refrigerators and washers in high school, with his best friend Brandon Pack right there next to him. When it was time to graduate, he told me he wanted to study poetry at MTSU. I told him I just wanted him to learn how to make a living first.</p>
+
+      <p>He looked at me and said, <em>"You never went to school for this. If you go, I go."</em></p>
+
+      <p>So I went. Forty years old, in night classes at TCAT Murfreesboro, sitting next to my 18-year-old son. Year and a half of nights. We both graduated.</p>
+
+      <p>Then he asked me, after a Florida vacation, <em>"Dad, you think I could go fix appliances down there?"</em></p>
+
+      <p>I told him what my own dad told me: <em>"You can do this any city, USA, son. Any city, USA."</em></p>
+
+      <p>So he went. Built a life in Tampa. Worked the trade we learned together. Sang in bars on his nights off — turned out the poetry never left him, it just found a different stage. Skateboarded the Tampa parks. Got baptized at a Spanish-speaking church (he didn't speak Spanish — he just loved the people). Fasted for weeks because Jesus did. Once jogged 10 miles to church when his truck broke down because he didn't want to miss it. <em>"I left early,"</em> he said.</p>
+
+      <p>He was everybody's best friend. After he died, dozens of people came up to me — each one thinking <em>they</em> were his closest. Every one of them was right.</p>
+
+      <p>He was my best friend too.</p>
+
+      <p>A wrong-way drunk driver killed Anthony almost two years ago. The day before, we were trading Caravan listings — a running joke between us. The day of, we were still talking. Then he was gone.</p>
+
+      <p>I shut down the Florida side of the business. I didn't think I could go back there. I worked, worked, worked here in Tennessee — anything to not think. My brother Jimmy worked alongside me. My guy Lee stayed steady. We kept building.</p>
+
+      <p>A young grief therapist eventually asked me one question that changed everything:</p>
+
+      <div class="pullquote">"If you'd died in that crash, and Anthony had lived — would you want him to carry on with the goals you two set together?"</div>
+
+      <p>Of course I would.</p>
+
+      <p>So that's what I'm doing now. Going hard as I can.</p>
+
+      <p>This company carries his name because every job we do is one I'd be doing with him if he were here. The platform we're building is named <strong class="ant">Ant</strong> because he was small but mighty, and we're going to be the same. Faster, more affordable, better — for as many families as we can reach. Tennessee. Louisiana. And eventually, any city, USA.</p>
+
+      <p>Now his brother Andre is on the job. He insisted on working this family business and was determined to be the best — and he's an amazing tech. He says they don't make things he can't fix — just things he doesn't want to fix. Andre will become the future of appliance repair. Nobody outworks him.</p>
+
+      <p>My brother Jimmy has been at my side through all of it — the build, the loss, the rebuild. When I couldn't think, he kept us moving. He's the reason we're still here. My cousin John, who learned this trade from MY dad when I was just a little boy, runs Louisiana for us now. Sixty years old, started a whole new chapter to come work with his cousin. That's the kind of man he is. Lee and Billy round out the crew. Every one of them showed up when it mattered.</p>
+
+      <p>My wife Alyse has my back even when I'm wrong. My son Alec, getting ready to turn 16, is full of energy, life, and bad jokes — and he's growing up watching what it looks like to keep going.</p>
+
+      <p>We're a family that fixes things.</p>
+
+      <p>Anthony had a list of goals he wrote out by hand. He didn't get to finish them.</p>
+
+      <p class="punctum">I will.</p>
+
+      <div class="sig">
+        — <span class="name">Teddy Pivacek</span><br>
+        Owner, TN Appliance Exchange
+      </div>
+
+    </div>
+
+  </article>
+
+  <footer>
+    <a href="/">Home</a>
+    <a href="/areas">Coverage areas</a>
+    <a href="/services">Services</a>
+    <a href="/privacy">Privacy</a>
+    <a href="tel:6152802949">615-280-2949</a>
+  </footer>
+
+</div>
+
+</body>
+</html>
