@@ -1752,14 +1752,19 @@ async function handleWarrantySubmitClick(card) {
   btn.querySelector('.submit-arrow').textContent = '⏳';
 
   const payload = {
-    first_name:      collected.first_name      || '',
-    last_name:       collected.last_name       || '',
-    phone:           collected.phone           || '',
-    zip:             collected.zip             || '',
-    appliance_type:  collected.appliance_type  || '',
-    brand:           collected.brand           || '',
-    model_number:    collected.model_number    || '',
-    problem_summary: collected.problem_summary || ''
+    first_name:         collected.first_name         || '',
+    last_name:          collected.last_name          || '',
+    phone:              collected.phone              || '',
+    zip:                collected.zip                || '',
+    appliance_type:     collected.appliance_type     || '',
+    brand:              collected.brand              || '',
+    model_number:       collected.model_number       || '',
+    problem_summary:    collected.problem_summary    || '',
+    customer_type:      collected.customer_type      || 'warranty',
+    warranty_company:   collected.warranty_company   || '',
+    claim_number:       collected.claim_number       || '',
+    dispatch_source_id: collected.dispatch_source_id || '',
+    serial_number:      collected.serial_number      || ''
   };
 
   try {
