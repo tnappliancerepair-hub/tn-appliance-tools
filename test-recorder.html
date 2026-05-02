@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>10-Second Video Recorder — Test</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f9;
+    color: #222;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  .container { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 16px 0; }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card.hidden { display: none; }
+  .lead { font-size: 14px; color: #555; margin: 0 0 12px 0; }
+  button {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: #007bff; color: #fff; }
+  .btn-success { background: #28a745; color: #fff; }
+  .btn-danger { background: #dc3545; color: #fff; }
+  .btn-secondary { background: #6c757d; color: #fff; }
+  video {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 8px;
+    background: #000;
+    display: block;
+  }
+  .countdown {
+    font-size: 56px;
+    font-weight: 800;
+    color: #dc3545;
+    text-align: center;
+    line-height: 1;
+    margin: 12px 0;
+  }
+  .recording-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #dc3545;
+    gap: 8px;
+  }
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #dc3545;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .log {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    background: #111;
+    color: #4ade80;
+    padding: 10px;
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .err { color: #f87171; }
+  .meta-row { font-size: 13px; color: #555; margin: 4px 0; }
+  .meta-row b { color: #222; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>10-Second Video Recorder · Test</h1>
+
+  <div class="card" id="step-idle">
+    <p class="lead">Tap the button below. Your phone will ask for camera + mic permission once. Then it records for 10 seconds in this page (no native camera app, no chooser sheet).</p>
+    <button class="btn-primary" id="btn-start">🎥 Start 10-Second Recording</button>
+  </div>
+
+  <div class="card hidden" id="step-recording">
+    <video id="preview" autoplay playsinline muted></video>
+    <div class="countdown" id="countdown">10</div>
+    <div class="recording-indicator"><span class="dot"></span> Recording…</div>
+    <button class="btn-danger" id="btn-stop" style="margin-top:12px;">Stop Now</button>
+  </div>
+
+  <div class="card hidden" id="step-review">
+    <video id="playback" controls playsinline></video>
+    <div class="meta-row"><b>Size:</b> <span id="meta-size">—</span></div>
+    <div class="meta-row"><b>Type:</b> <span id="meta-type">—</span></div>
+    <div class="meta-row"><b>Duration (approx):</b> <span id="meta-duration">—</span></div>
+    <p class="lead" style="margin-top:12px;"><b>Looks good?</b></p>
+    <button class="btn-success" id="btn-use">✓ Use This Video</button>
+    <button class="btn-secondary" id="btn-redo">↻ Re-record</button>
+  </div>
+
+  <div class="card">
+    <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Diagnostic log</div>
+    <div class="log" id="log">[ready]</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+function log(msg, isErr) {
+  const line = document.createElement('div');
+  if (isErr) line.className = 'err';
+  line.textContent = '· ' + msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// State
+let stream = null;
+let recorder = null;
+let chunks = [];
+let countdownInterval = null;
+let recordedBlob = null;
+let recordedUrl = null;
+let recordStartTs = 0;
+
+function show(stepId) {
+  ['step-idle','step-recording','step-review'].forEach(id => {
+    $(id).classList.toggle('hidden', id !== stepId);
+  });
+}
+
+// Capability checks at boot
+log('UA: ' + navigator.userAgent);
+if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  log('FATAL: navigator.mediaDevices.getUserMedia not available', true);
+  $('btn-start').disabled = true;
+}
+if (typeof MediaRecorder === 'undefined') {
+  log('FATAL: MediaRecorder not available', true);
+  $('btn-start').disabled = true;
+}
+
+function pickMimeType() {
+  // Prefer mp4/h264 (iOS Safari default) → webm fallbacks for Android/desktop
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=h264,aac',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  for (const c of candidates) {
+    if (MediaRecorder.isTypeSupported(c)) {
+      return c;
+    }
+  }
+  return ''; // empty = browser default
+}
+
+async function startRecording() {
+  try {
+    log('Requesting camera + mic permission…');
+    // Back camera (better for appliance shots). Audio so customer can describe.
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: true
+    });
+    log('Permission granted; stream tracks: ' + stream.getTracks().map(t => t.kind + ':' + t.label).join(', '));
+
+    const previewEl = $('preview');
+    previewEl.srcObject = stream;
+    try { await previewEl.play(); } catch (e) { log('preview.play() warning: ' + e.message, true); }
+
+    const mimeType = pickMimeType();
+    log('MediaRecorder mimeType: ' + (mimeType || '(browser default)'));
+
+    const opts = mimeType ? { mimeType } : {};
+    try {
+      recorder = new MediaRecorder(stream, opts);
+    } catch (ctorErr) {
+      log('MediaRecorder ctor failed with chosen mimeType, retrying with default: ' + ctorErr.message, true);
+      recorder = new MediaRecorder(stream);
+    }
+
+    chunks = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      const type = recorder.mimeType || (chunks[0] && chunks[0].type) || 'video/webm';
+      recordedBlob = new Blob(chunks, { type });
+      recordedUrl = URL.createObjectURL(recordedBlob);
+      const elapsedMs = Date.now() - recordStartTs;
+      log('=== RECORDING COMPLETE ===');
+      log('Size: ' + recordedBlob.size + ' bytes (' + (recordedBlob.size/1048576).toFixed(2) + ' MB)');
+      log('Type: ' + recordedBlob.type);
+      log('Chunks: ' + chunks.length);
+      log('Elapsed: ' + (elapsedMs/1000).toFixed(2) + 's');
+
+      stopStream();
+
+      $('playback').src = recordedUrl;
+      $('meta-size').textContent = recordedBlob.size.toLocaleString() + ' bytes (' + (recordedBlob.size/1048576).toFixed(2) + ' MB)';
+      $('meta-type').textContent = recordedBlob.type || '(unknown)';
+      $('meta-duration').textContent = (elapsedMs/1000).toFixed(2) + 's';
+      show('step-review');
+    };
+    recorder.onerror = (e) => {
+      log('Recorder error: ' + (e.error ? e.error.name + ' / ' + e.error.message : 'unknown'), true);
+    };
+
+    recordStartTs = Date.now();
+    recorder.start(250); // emit chunks every 250ms (smaller chunks, smoother stop)
+    log('Recording started (state=' + recorder.state + ')');
+    show('step-recording');
+
+    let secondsLeft = 10;
+    $('countdown').textContent = secondsLeft;
+    countdownInterval = setInterval(() => {
+      secondsLeft--;
+      $('countdown').textContent = secondsLeft;
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+        log('10s reached, auto-stopping');
+        stopRecording();
+      }
+    }, 1000);
+  } catch (err) {
+    log('ERROR: ' + err.name + ': ' + err.message, true);
+    if (err.name === 'NotAllowedError') log('→ User denied camera/mic permission. Settings → Safari → Camera + Microphone.', true);
+    if (err.name === 'NotFoundError') log('→ No camera available on this device.', true);
+    if (err.name === 'NotReadableError') log('→ Camera in use by another app (call?). Hang up and retry.', true);
+    if (err.name === 'OverconstrainedError') log('→ Constraint failed (no environment camera?). Could retry without facingMode.', true);
+    stopStream();
+    show('step-idle');
+  }
+}
+
+function stopRecording() {
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  if (recorder && recorder.state !== 'inactive') {
+    log('Stopping recorder (state=' + recorder.state + ')');
+    recorder.stop();
+  }
+}
+
+function stopStream() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  $('preview').srcObject = null;
+}
+
+function reset() {
+  if (recordedUrl) { URL.revokeObjectURL(recordedUrl); recordedUrl = null; }
+  recordedBlob = null;
+  chunks = [];
+  $('playback').src = '';
+  show('step-idle');
+}
+
+$('btn-start').addEventListener('click', startRecording);
+$('btn-stop').addEventListener('click', () => { log('Manual stop requested'); stopRecording(); });
+$('btn-redo').addEventListener('click', () => { log('Re-record requested'); reset(); startRecording(); });
+$('btn-use').addEventListener('click', () => {
+  if (!recordedBlob) { log('No blob to use', true); return; }
+  log('=== USE clicked ===');
+  console.log('[recorder] USE clicked. Blob:', { size: recordedBlob.size, type: recordedBlob.type });
+  log('Blob size: ' + recordedBlob.size + ' bytes');
+  log('Blob type: ' + recordedBlob.type);
+
+  // Wrap as File so consumers see what would hand off to handleFiles([file]).
+  const ext = recordedBlob.type.includes('mp4') ? 'mp4' : (recordedBlob.type.includes('webm') ? 'webm' : 'bin');
+  const filename = 'recording_' + Date.now() + '.' + ext;
+  try {
+    const file = new File([recordedBlob], filename, { type: recordedBlob.type });
+    log('Would hand off File: name=' + file.name + ', type=' + file.type + ', size=' + file.size);
+    console.log('[recorder] Would hand off File:', file);
+  } catch (e) {
+    log('File ctor failed (rare): ' + e.message + ' — would pass Blob directly', true);
+  }
+
+  // Generate base64 preview to confirm encoded payload is valid.
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    const preview = dataUrl.slice(0, 120) + '... (' + dataUrl.length + ' chars total)';
+    log('Base64 preview: ' + preview);
+    console.log('[recorder] Base64 data URL prefix:', dataUrl.slice(0, 200));
+    console.log('[recorder] Base64 total length:', dataUrl.length);
+  };
+  reader.onerror = (e) => {
+    log('FileReader error: ' + (reader.error ? reader.error.message : 'unknown'), true);
+    console.error('[recorder] FileReader error:', reader.error);
+  };
+  reader.readAsDataURL(recordedBlob);
+});
+
+show('step-idle');
+log('Ready. Tap Start to begin.');
+</script>
+</body>
+</html>
