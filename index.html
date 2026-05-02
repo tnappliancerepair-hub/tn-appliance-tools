@@ -1721,8 +1721,7 @@ function renderSubmitError(card, err) {
   scrollDown();
 }
 
-// ── WARRANTY SUBMIT (parallel to self-pay; routes through Netlify function) ──
-const WARRANTY_PROXY = '/.netlify/functions/create-warranty-job-proxy';
+// ── WARRANTY SUBMIT (parallel to self-pay; direct to Xano with warranty fields) ──
 
 function renderWarrantySubmitButton(parentEl) {
   const card = document.createElement('div');
@@ -1752,23 +1751,32 @@ async function handleWarrantySubmitClick(card) {
   btn.querySelector('.submit-arrow').textContent = '⏳';
 
   const payload = {
-    first_name:         collected.first_name         || '',
-    last_name:          collected.last_name          || '',
-    phone:              collected.phone              || '',
-    zip:                collected.zip                || '',
-    appliance_type:     collected.appliance_type     || '',
-    brand:              collected.brand              || '',
-    model_number:       collected.model_number       || '',
-    problem_summary:    collected.problem_summary    || '',
-    customer_type:      collected.customer_type      || 'warranty',
-    warranty_company:   collected.warranty_company   || '',
-    claim_number:       collected.claim_number       || '',
-    dispatch_source_id: collected.dispatch_source_id || '',
-    serial_number:      collected.serial_number      || ''
+    first_name:               collected.first_name              || '',
+    last_name:                collected.last_name               || '',
+    phone:                    collected.phone                   || '',
+    zip:                      collected.zip                     || '',
+    appliance_type:           collected.appliance_type          || '',
+    brand:                    collected.brand                   || '',
+    model_number:             collected.model_number            || '',
+    problem_summary:          collected.problem_summary         || '',
+    recommended_service:      collected.recommended_service     || 'quick_check',
+    channel:                  'web_chat',
+    customer_preference_text: collected.customer_preference_text || '',
+    scheduling_type:          collected.scheduling_type         || '',
+    sms_consent:              !!collected.sms_consent,
+    sms_consent_at:           collected.sms_consent_at,
+    conversation_id:          conversationId,
+    customer_id:              customerId,
+    session_id:               SESSION,
+    customer_type:            collected.customer_type           || 'warranty',
+    warranty_company:         collected.warranty_company        || '',
+    claim_number:             collected.claim_number            || '',
+    dispatch_source_id:       collected.dispatch_source_id      || '',
+    serial_number:            collected.serial_number           || ''
   };
 
   try {
-    const res = await fetch(WARRANTY_PROXY, {
+    const res = await fetch(XANO_CREATE_JOB, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
