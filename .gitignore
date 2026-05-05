@@ -3,3 +3,9 @@
 xano-workspace/
 /xano-workspace
 ./xano-workspace
+
+# Local debugging / scratch / build artifacts.
+.netlify/
+*.tmp.json
+*.bak
+.claude/settings.local.json
