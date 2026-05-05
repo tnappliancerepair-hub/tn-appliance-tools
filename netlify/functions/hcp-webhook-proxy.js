@@ -28,6 +28,26 @@ const crypto = require('crypto');
 const XANO_DEFAULT_URL = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook';
 
 exports.handler = async function (event, context) {
+  // ──────────────────────────────────────────────────────────────────────
+  // TEMPORARY DIAGNOSTIC ONLY - REVERT AFTER ROOT CAUSE IDENTIFIED.
+  // The catch block below leaks internal error details (message, name, code,
+  // stack) in the HTTP response body so we can debug without Netlify function
+  // log access. This is a security regression while present. The top-of-
+  // function debug object is also leaked in the error response. Both must
+  // be removed once we identify why fetch was throwing.
+  // Tracking: see git log for "DIAGNOSTIC version" commit.
+  // ──────────────────────────────────────────────────────────────────────
+  const debug = {
+    node_version: process.version,
+    has_HCP_WEBHOOK_SECRET: !!process.env.HCP_WEBHOOK_SECRET,
+    has_HCP_INTERNAL_AUTH_SECRET: !!process.env.HCP_INTERNAL_AUTH_SECRET,
+    has_SIGNATURE_VERIFICATION_ENABLED: !!process.env.SIGNATURE_VERIFICATION_ENABLED,
+    has_XANO_HCP_WEBHOOK_URL: !!process.env.XANO_HCP_WEBHOOK_URL,
+    xano_url_first_30_chars: (process.env.XANO_HCP_WEBHOOK_URL || 'unset').slice(0, 30),
+    internal_auth_length: (process.env.HCP_INTERNAL_AUTH_SECRET || '').length,
+    fetch_available: typeof fetch !== 'undefined'
+  };
+
   // CORS preflight (HCP doesn't issue OPTIONS, but other tooling might).
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -144,7 +164,21 @@ exports.handler = async function (event, context) {
     });
   } catch (err) {
     console.error('[hcp-webhook-proxy] forward to Xano failed:', err.message);
-    return { statusCode: 502, body: JSON.stringify({ error: 'upstream unavailable' }) };
+    // TEMPORARY DIAGNOSTIC: expose error details + debug object in response.
+    // REVERT to {"error":"upstream unavailable"} once root cause is identified.
+    return {
+      statusCode: 502,
+      body: JSON.stringify({
+        error: 'upstream unavailable',
+        diagnostic: {
+          message: err.message,
+          name: err.name,
+          stack: err.stack ? err.stack.split('\n').slice(0, 5).join('\n') : null,
+          code: err.code || null
+        },
+        debug: debug
+      })
+    };
   }
 
   // Read Xano's response and proxy the status + body back to HCP.
