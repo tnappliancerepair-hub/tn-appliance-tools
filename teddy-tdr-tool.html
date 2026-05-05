@@ -167,6 +167,7 @@ let state = {
   attachmentUrls: {},
   attachmentsLoading: false,
   attachmentsError: "",
+  customerReportedProblem: "",
   diagnosis: "",
   partType: "",
   oemPartNumber: "",
@@ -197,6 +198,7 @@ async function loadJob(jobId) {
     const job = await res.json();
     state.job = job;
     state.jobId = jobId;
+    state.customerReportedProblem = job.problem_summary || "";
     state.diagnosis = job.problem_summary || "";
     state.step = "review";
     render();
@@ -306,7 +308,8 @@ async function submitTDR() {
     technician_id: 1,
     technician_first_name: "Teddy",
     technician_last_name: "Pivacek",
-    problem_summary: state.diagnosis,
+    problem_summary: state.customerReportedProblem,
+    diagnosis: state.diagnosis,
     confidence_level: "High",
     verified_part_number: state.partType === "oem" ? state.oemPartNumber : state.amazonPartNumber,
     part_source: state.partType,
