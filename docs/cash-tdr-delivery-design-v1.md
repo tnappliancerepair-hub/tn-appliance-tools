@@ -1,14 +1,14 @@
 # Cash Flow TDR Delivery — Design v1
 
-**Status:** Scoping in progress. Sections 1-3 LOCKED per Teddy's brief — §3 POLICY UPDATED 2026-05-05 (per-failure pricing). Section 4 LOCKED 2026-05-05 (multi-failure + multi-party customer support). Sections 5-16 are PROPOSED SHAPES — confirm or rewrite each before any build commitment.
+**Status:** Scoping in progress. Sections 1-4 LOCKED per Teddy's brief. **4 design decisions LOCKED 2026-05-05** that resolved §16 q2/q3/q16 and added a new operating rule (D4): unified `scheduling_status` (D1), customer-facing fields on TDR (D2), judgment-driven labor pricing (D3), pre-work labor adjustment rule (D4). Sections 6, 7, 9, 12, 15 updated accordingly. Sections 5-16 remain PROPOSED SHAPES — confirm or rewrite each before any build commitment.
 
-**Last updated:** 2026-05-05 (post-b49b45f revision: multi-failure + rental customer pattern)
+**Last updated:** 2026-05-05 (4 locked decisions: scheduling_status / TDR fields / judgment labor / pre-work adjustment)
 
 **Owner:** Teddy / James Pivacek
 
 **Estimated build:** TBD pending review of proposed sections
 
-> **⚠️ Speculative content flagged.** Sections 1-3 are the locked policy (with §3 updated 2026-05-05 for multi-failure). Section 4 is the locked multi-failure + multi-party requirement (added 2026-05-05). Sections 5-16 are proposed shapes synthesized from existing design docs (`inbound-pipeline-design-v1.md`, `gmail-integration-design-v1.md`, `ant-tech-assist-design-v1.md`) and the cash-flow-TDR domain. Every proposed section has a ⚠️ marker; treat each as "draft, edit freely" until reviewed. Open questions in §16 are the real unknowns.
+> **⚠️ Speculative content flagged.** Sections 1-3 are the locked policy (with §3 updated 2026-05-05 for multi-failure + judgment-driven labor + pre-work adjustment). Section 4 is the locked multi-failure + multi-party requirement (added 2026-05-05). Sections 5-16 are proposed shapes synthesized from existing design docs (`inbound-pipeline-design-v1.md`, `gmail-integration-design-v1.md`, `ant-tech-assist-design-v1.md`) and the cash-flow-TDR domain. **Locked decisions D1–D4 (2026-05-05)** are reflected in §6 (state machine), §7 (schema), §9 (operating rules), §12 (failure modes), §15 (operational handoff), and §16 (resolved subsection). Every still-proposed section has a ⚠️ marker; treat each as "draft, edit freely" until reviewed. Open questions in §16 are the real unknowns.
 
 ---
 
@@ -51,7 +51,13 @@ Each failure on the TDR gets its own four-option pricing menu, plus an explicit 
 - Pricing is per-failure — Teddy enters labor estimate + OEM part number/price + Amazon equivalent number/price **per failure** into Teddy Tool, the four options render automatically off those inputs **for each failure**.
 - "Skip this repair" is always free and always available per failure on cash jobs. Useful for rental scenarios where landlord declines a non-critical repair, or for customers prioritizing budget across multiple failures.
 - **Warranty path override:** warranty jobs **do not show "Skip"** — all failures are repaired (warranty co requirement; partial repair invalidates the claim).
-- Labor bundling across failures (one truck roll, multiple repairs vs labor charged per-failure): ⚠️ open question — see §16 q5.
+- **Labor pricing is judgment-driven, not formula-driven (LOCKED 2026-05-05 — Decision 3).** Teddy enters per-failure labor estimates using domain knowledge about which failure is "first repair" (full labor) vs "incremental" (reduced labor because the tech is already on-site). No fixed `first_failure_full / additional_failure_incremental` formula. The bundling effect happens through Teddy's per-failure judgment, not through a separate column or computed multiplier. `tdr_failure.estimated_labor_price_cents` stays as the single per-failure column. (Resolves §16 q16.)
+
+### Operating rules (LOCKED 2026-05-05 — shown to customer on the TDR view page, see §9)
+
+- **Pre-work labor adjustment (Decision 4).** If when the technician arrives, the actual labor turns out to differ from the quoted estimate, the tech tells the customer the new price **before starting any work**. Customer chooses: (a) accept the new price, or (b) have the unopened part returned (if applicable — opened parts are non-returnable per existing operating rules). Once work begins, the agreed price is final — no mid-job adjustments.
+- The tech does not start work until the customer agrees to the price.
+- Operational SOP for documenting the adjustment (schema update mechanics, customer confirmation method, Stripe rebilling) is ⚠️ open — see §16 q17.
 
 ---
 
@@ -196,20 +202,31 @@ Two real production patterns observed today (2026-05-05) that v1 must support na
 
 ---
 
-## 6. State machine for the QC pipeline ⚠️ PROPOSED
+## 6. State machine for the QC pipeline — LOCKED 2026-05-05 (Decision 1)
 
-> Proposed `qc_status` enum on the existing `jobs` table (header-level), and `selected_option` enum on `tdr_failure` (per-failure-level). Job-level state aggregates over failure-level state.
+> **Decision 1 (locked 2026-05-05):** Pre-diagnosis is the SAME process for cash and warranty (both go to Teddy for remote review). Only the post-pre-diagnosis path diverges — warranty schedules a home visit; cash sends the customer-facing TDR with options. The shared operational state lives on the existing `scheduling_status` enum (extended with new shared values). Cash-specific commercial state lives on a new `qc_status` column (NULL for warranty jobs). Resolves §16 q2.
 
-### Job-level state machine
+### Shared operational state — `scheduling_status` (extended)
+
+The existing `scheduling_status` enum gains 4 new values used by both cash and warranty:
 
 ```
-intake_complete
-   │
-   ▼
-payment_link_sent
-   │
-   ▼
-diagnosis_pending  ← (the $50 just landed)
+intake_complete         (customer finished intake, ready for Teddy review)
+prediagnosis_pending    (waiting for Teddy to pre-diagnose — both cash AND
+                         warranty queue here)
+needs_more_info         (Teddy reviewed, needs more from customer
+                         before proceeding)
+no_fix_possible         (Teddy determined the unit can't be repaired)
+```
+
+Existing values (`pending`, `awaiting_parts`, `ready`, `broadcasting`, `scheduled`, `in_progress`, `completed`, `escalated`, `canceled`, `held`) are unchanged.
+
+**Cash priority:** cash jobs (`qc_status NOT NULL`) get queue priority over warranty jobs of similar age in `prediagnosis_pending`. They paid $50 to skip the line. Surface in Teddy Tool dashboard with a sort/badge.
+
+### Cash-only commercial state — `qc_status` (new column, NULL for warranty)
+
+```
+diagnosis_pending  ← (the $50 just landed, awaiting Teddy composition)
    │
    ▼
 diagnosis_sent     ← (Teddy composed N failures, customer SMS sent)
@@ -222,16 +239,12 @@ choice_pending     ← (waiting for customer to pick options on all failures)
    ├──→ all_chosen        (every failure has an option, payment phase begins)
    ├──→ all_skipped       (every failure skipped — terminal, declined-equivalent)
    ├──→ abandoned         (no completion within timeout — see §12)
-   │
-   ▼ (option_payment_pending if any paid path chosen)
-fulfillment_in_progress
-   │
-   ├──→ fulfillment_complete    (all chosen failures fulfilled,
-   │                             no skips OR skips already accounted for)
-   ├──→ fulfillment_partial     (some failures fulfilled, others skipped)
+   ├──→ refunded          (terminal, post-refund)
 ```
 
-### Per-failure state machine (`tdr_failure.selected_option`)
+Note: `intake_complete` and the pre-payment lifecycle previously drafted as `qc_status` values now live on the shared `scheduling_status` enum. `qc_status` carries only the cash-specific commercial states above.
+
+### Per-failure state machine — `tdr_failure.selected_option`
 
 ```
 pending      (default — Teddy added the failure, customer hasn't chosen yet)
@@ -247,15 +260,12 @@ Plus a `fulfilled_at` timestamp on `tdr_failure` for tracking when each individu
 
 ### Aggregation rules
 
-- Job is `all_chosen` only when every `tdr_failure.selected_option != pending`.
-- Job is `all_skipped` when every `tdr_failure.selected_option = skip`.
-- Job is `fulfillment_complete` when every `tdr_failure` is either `fulfilled_at IS NOT NULL` (paid path completed) OR `selected_option = skip` AND no other path was paid.
-- Job is `fulfillment_partial` when at least one failure was skipped AND at least one was fulfilled.
+- Job has `qc_status = all_chosen` only when every `tdr_failure.selected_option != pending`.
+- Job has `qc_status = all_skipped` when every `tdr_failure.selected_option = skip`.
+- Job transitions `scheduling_status` to `completed` when every `tdr_failure` is either `fulfilled_at IS NOT NULL` (paid path completed) OR `selected_option = skip`.
 - **Warranty jobs cannot transition any failure to `skip`** — enforced at API layer, not just UI.
 
-Terminal states: `fulfillment_complete`, `fulfillment_partial`, `all_skipped`, `abandoned`, `refunded`. Each preserves all upstream state for audit.
-
-⚠️ **Open question:** does this `qc_status` live alongside the existing `scheduling_status` on jobs (independent dimensions), or should they be unified? Need to walk the existing scheduling_status enum and see if there's overlap to avoid double-state.
+Terminal `qc_status` values: `all_skipped`, `abandoned`, `refunded`, plus reaching `scheduling_status = completed` end-state.
 
 ---
 
@@ -263,11 +273,17 @@ Terminal states: `fulfillment_complete`, `fulfillment_partial`, `all_skipped`, `
 
 ### Extensions to existing `jobs` table
 
-⚠️ Proposed new columns:
+Mix of "extend existing enum" and "add new columns":
+
+#### Extending existing `scheduling_status` enum (shared, cash + warranty — LOCKED Decision 1)
+
+Add 4 new values: `intake_complete`, `prediagnosis_pending`, `needs_more_info`, `no_fix_possible`. Existing values unchanged.
+
+#### New columns
 
 | Column | Type | Purpose |
 |---|---|---|
-| `qc_status` | enum (values listed in §6) | The pipeline state |
+| `qc_status` | enum (cash-only states from §6, NULL for warranty) | The cash commercial pipeline state |
 | `qc_diagnosis_paid_at` | timestamp, nullable | When the $50 came in via Stripe |
 | `qc_diagnosis_sent_at` | timestamp, nullable | When the customer-facing diagnosis SMS fired |
 | `qc_choice_made_at` | timestamp, nullable | When the customer's last failure-choice was recorded |
@@ -278,11 +294,22 @@ Terminal states: `fulfillment_complete`, `fulfillment_partial`, `all_skipped`, `
 
 The existing `customer_id` column stays as the "primary" customer for backward compatibility. New code reads `bill_to_customer_id ?? customer_id` for billing decisions and `on_site_contact_id ?? customer_id` for on-site comms.
 
-### Existing `technician_decision_report` table — repurposed as TDR header
+### `technician_decision_report` extensions (LOCKED Decision 2)
 
-⚠️ The existing TDR becomes a one-per-job header record. Most fields stay (diagnosis, technician_id, problem_summary, failure_cause, status, etc.). The fields that describe a single repair (verified_part_number, estimated_repair_cost_range, parts_used, parts_not_used, failed_component) move conceptually to the new `tdr_failure` table.
+> **Decision 2 (locked 2026-05-05):** Customer-facing diagnosis fields live on TDR, not on a separate `qc_diagnosis_offer` table. The "internal vs customer-facing" distinction is enforced at the API layer (different endpoints return different field sets), not at the schema layer. Resolves §16 q3.
 
-⚠️ Migration plan: existing TDR rows are single-failure jobs. Phase 1f migration creates one tdr_failure row per existing TDR, copying the relevant fields. Existing columns on TDR are NOT dropped in v1 (additive migration only) — they're left for backward compatibility and gradual deprecation in v2.
+The existing TDR becomes a one-per-job header record (existing fields like `diagnosis`, `technician_id`, `problem_summary`, `failure_cause`, `status` stay). Add the following customer-facing columns:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `customer_facing_diagnosis` | text, nullable | Plain-English version distinct from internal `diagnosis` field — sanitized for customer view |
+| `public_view_token` | text, indexed | Signed token for the SMS link to `cash-tdr-customer.html` |
+| `sent_to_customer_at` | timestamp, nullable | When the customer-facing TDR SMS fired |
+| `viewed_at` | timestamp, nullable | When the customer first opened the link |
+| `expires_at` | timestamp, nullable | When the public link should stop accepting choices |
+| `labor_credit_cents` | int default 5000 | The $50 applied ONCE per job on the first We Install option chosen |
+
+Per-repair fields (`verified_part_number`, `estimated_repair_cost_range`, `parts_used`, `parts_not_used`, `failed_component`) move conceptually to `tdr_failure`. Existing columns on TDR are NOT dropped in v1 (additive migration only). Phase 1f migration creates one tdr_failure row per existing TDR.
 
 ### NEW table: `tdr_failure`
 
@@ -306,24 +333,9 @@ selected_at (timestamp, nullable)
 fulfilled_at (timestamp, nullable) — for tracking completion of this specific failure
 ```
 
-### NEW table: `qc_diagnosis_offer` ⚠️ PROPOSED — see §16 alternative
+### ~~NEW table: `qc_diagnosis_offer`~~ — REMOVED 2026-05-05 (Decision 2)
 
-⚠️ This table separates the **customer-facing** version of the diagnosis from the internal `technician_decision_report`. Now refers to the TDR header; the per-failure offer details live in `tdr_failure`.
-
-```
-id (pk)
-created_at
-job_id (fk jobs)
-tdr_id (fk technician_decision_report)
-labor_credit_cents (int default 5000)  — the $50 applied ONCE per job
-                                         on the first We Install option chosen
-status (enum: draft, sent, viewed, partially_chosen, fully_chosen, expired)
-sent_at (timestamp, nullable)
-viewed_at (timestamp, nullable)
-fully_chosen_at (timestamp, nullable)
-public_view_token (text, indexed)  — signed token for SMS link
-expires_at (timestamp, nullable)
-```
+The previously-proposed `qc_diagnosis_offer` table is gone. Its fields are now on `technician_decision_report` (see "TDR extensions" above). The `status` enum it carried (draft / sent / viewed / partially_chosen / fully_chosen / expired) is replaced by deriving status from the existing `qc_status` + `tdr_failure.selected_option` aggregate (no separate column needed).
 
 ### NEW table: `stripe_payment_intent` ⚠️ PROPOSED
 
@@ -389,6 +401,14 @@ metadata (json) — Stripe webhook payload audit
   - "Confirm and pay" CTA enabled only when every failure has a non-pending choice.
 - **Helper actions:** "I want to think about it" (saves partial state, sends a reminder later) and "I'm not interested" (records all failures as `skip` → terminal `all_skipped`).
 - **Footer:** contact info, "questions? text us at 615-280-2949"
+
+### Operating rules (shown on the page — LOCKED 2026-05-05 — Decision 4)
+
+The TDR view page MUST display these operating rules to the customer before any "Confirm and pay" action:
+
+- **Pre-work labor adjustment.** "If when our technician arrives, the actual labor turns out to be different from your quote, they will tell you the new price BEFORE starting any work. You can accept the new price or have your unopened part returned (if applicable). Once work begins, the agreed price is final."
+- **Part returns.** Unopened parts can be returned. Opened parts are non-returnable.
+- **No mid-job adjustments.** Once work begins, the agreed price is final.
 
 ### SMS templates (mirrors Tier 1 customer message templates from `ant-tech-assist-design-v1.md`)
 
@@ -462,6 +482,7 @@ metadata (json) — Stripe webhook payload audit
 | **Landlord and tenant disagree** on which failures matter | Operational, not detectable in code | Escalate to Danielle. Open question: see §16 q1 |
 | **Landlord declines all repairs but tenant escalates** | `qc_status = all_skipped` AND tenant calls in | Manual escalation to Teddy/Danielle. Possible Tier 3 customer-messaging case |
 | **Customer DIYs a failure incorrectly**, tech discovers during install of OTHER failure that DIY part was wrong/installed wrong | Tech notices on-site, files in HCP note | Existing tech-escalation flow. Liability question — see §16 q4 |
+| **Tech finds actual labor differs from Teddy's estimate** at the property (per Decision 4 operating rule) | Tech assesses on arrival, BEFORE starting work | Tech states the new price to customer per §3 operating rule. Customer accepts new price OR returns unopened part. If accepted: tech updates `tdr_failure.estimated_labor_price_cents` to actual; customer confirmation captured (mechanism per §16 q17); Stripe rebills via `payment_intent.modify` for unsettled charges or a new payment intent for the delta. Tech does NOT start work until customer agrees. |
 
 ### Audit trail
 
@@ -512,14 +533,25 @@ This pipeline does NOT cover:
 | Pricing rule changes (labor estimate baseline, $50 credit policy) | Teddy, manual env-var or table update |
 | Stripe webhook health | Engineering — alert on missed webhook delivery |
 | Landlord-tenant disputes (rental scenario) | Danielle, with Teddy escalation |
+| Pre-work labor confirmation (tech states new price if it differs, customer agrees before work starts — Decision 4) | Tech (on-site), with system support per §16 q17 |
 
 ---
 
 ## 16. Open questions
 
+### Resolved 2026-05-05
+
+- **Q2 RESOLVED — Decision 1:** `qc_status` is a separate column from `scheduling_status`. `scheduling_status` is extended with 4 new shared values (`intake_complete`, `prediagnosis_pending`, `needs_more_info`, `no_fix_possible`) used by both cash and warranty. `qc_status` carries cash-specific commercial states only (NULL for warranty). Cash jobs get queue priority in `prediagnosis_pending`. See §6.
+- **Q3 RESOLVED — Decision 2:** Extend `technician_decision_report` with customer-facing fields (`customer_facing_diagnosis`, `public_view_token`, `sent_to_customer_at`, `viewed_at`, `expires_at`, `labor_credit_cents`). The proposed `qc_diagnosis_offer` table is removed. Internal-vs-customer-facing distinction lives at the API layer, not the schema layer. See §7.
+- **Q16 RESOLVED — Decision 3:** Labor pricing is judgment-driven, not formula-driven. Teddy enters per-failure labor estimates using domain knowledge (first-repair full vs incremental). No `first_failure / additional_failure` columns or formulas. `tdr_failure.estimated_labor_price_cents` stays as the single per-failure column. See §3.
+
+The original entries for Q2, Q3, Q16 below are kept for cross-reference; ignore them in favor of the resolutions above.
+
+### Still open
+
 1. **Pricing display math.** §3's "We Install It (OEM)" shows `$495 ($215 labor + $280 part − $50 credit)`. Literal math: `215 + 280 = 495`, then minus `50` = `$445`. Does the customer see `$495` (subtotal before credit, with credit shown as a line item) or `$445` (post-credit total)? Same question for Amazon: `$310` displayed but `$310 − $50 = $260`. Need explicit policy on display vs internal math. *(Note: §3 table now shows post-credit totals as of 2026-05-05; this question is about display convention going forward.)*
-2. **`qc_status` co-existence with `scheduling_status`.** The existing `jobs.scheduling_status` enum has values like `pending`, `awaiting_parts`, `ready`, `broadcasting`, `scheduled`, `in_progress`, `completed`, `escalated`, `canceled`, `held`. Some overlap with proposed QC states. Should QC introduce a separate `qc_status` column (parallel dimensions) or extend `scheduling_status`?
-3. **`qc_diagnosis_offer` separate table vs extending `technician_decision_report`.** Proposed §7 favors separation (audit vs public-facing). But extending TDR is simpler. Trade-off: clean conceptual separation vs schema simplicity. Pick one before Phase 1a.
+2. ~~**`qc_status` co-existence with `scheduling_status`.**~~ **RESOLVED 2026-05-05 — Decision 1.** See "Resolved" subsection above.
+3. ~~**`qc_diagnosis_offer` separate table vs extending `technician_decision_report`.**~~ **RESOLVED 2026-05-05 — Decision 2.** See "Resolved" subsection above.
 4. **SMS vs email** for customer-facing notifications. Default SMS based on platform convention; email as fallback if customer didn't consent to SMS at intake. Confirm.
 5. **Choice timeout duration.** Proposed 24hr first reminder, 72hr second, auto-abandon at 7 days. Are those right for QC customers' decision-making cadence?
 6. **Multi-appliance during intake.** If customer brings up a second appliance during the chat, current flow can't handle it. Does intake gate to one appliance per job, or do we add a "multiple appliances" branch?
@@ -535,7 +567,11 @@ This pipeline does NOT cover:
 13. **Decision authority for rentals: landlord email + tenant phone, or one contact sufficient?** Currently proposing both (bill_to gets decision SMS, tenant gets FYI), but this might be overkill or insufficient depending on the property arrangement.
 14. **Tenant copy of TDR.** Does the on-site tenant get a copy of the TDR (FYI), or is it strictly bill_to-only? Privacy implications (rent info, repair history) vs operational clarity (tenant needs to know what's happening in their home).
 15. **DIY-gone-wrong liability.** If customer DIYs incorrectly and damages further, what's our policy? Refund the part? No refund? Charge them for additional damage diagnosis? Partial credit on a follow-up We Install? Need explicit policy before exposing the DIY paths.
-16. **Pricing per failure: bundled vs per-failure labor.** If customer picks We Install on 2 failures, do we charge $215 labor twice (per-failure) or once (one truck roll, multiple repairs)? This affects the math significantly. Bundled is fairer to the customer; per-failure is fairer to the tech (more time per call). Pick a policy before §3 pricing math is final.
+16. ~~**Pricing per failure: bundled vs per-failure labor.**~~ **RESOLVED 2026-05-05 — Decision 3.** See "Resolved" subsection above.
+
+### New questions added 2026-05-05 (Decision 4 follow-up)
+
+17. **Operational SOP for documenting pre-work labor adjustment.** When the tech updates the labor price on-site (per Decision 4), the workflow needs a defined SOP: how does the tech update `tdr_failure.estimated_labor_price_cents` — mobile UI? HCP note that gets parsed? Verbal-then-Danielle-records? How does the customer confirm — digital signature, SMS reply, or verbal recorded in tech notes? How does Stripe rebill — `payment_intent.modify` for unsettled charges, or a new payment intent for the delta? This blocks the operational rollout of Decision 4.
 
 Each open question has an explicit forcing function (review by Teddy + Danielle, code inspection, customer-cohort observation) that collapses it before commit. None blocks scoping.
 
