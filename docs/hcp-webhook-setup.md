@@ -139,61 +139,28 @@ Once a real warranty job comes through cleanly:
 
 Adds HMAC-SHA256 signature verification by routing HCP traffic through a Netlify function that does the verification, then forwards to Xano. Sidesteps a Xano platform limitation: `util.get_raw_input` only returns parsed JSON, which prevents byte-faithful HMAC verification from inside XanoScript.
 
-### Status as of 2026-05-05 noon — PAUSED, RESUMABLE
+### Status as of 2026-05-05 end-of-session — CUTOVER COMPLETE
 
-**Current deployment state:**
+**Production state:**
 
-- ✅ Netlify function `hcp-webhook-proxy.js` deployed and working end-to-end at `https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy`. Test ping returns HTTP 200 with Xano's standard test-ping success body (proxied through cleanly).
-- ⚠️ Internal-auth secret is **hardcoded in the JS source** at commit `e5cc351`. This is **NOT** the desired final state — it's a diagnostic workaround for an env-var contamination issue (see below). The desired final state is `process.env.HCP_INTERNAL_AUTH_SECRET` reads, which is what the original commit `841efc0` had.
-- ⚠️ Diagnostic error-leaking catch block is also still active (introduced in commit `687b1d7`). The function returns `err.message`, stack traces, and a `debug` object containing env-var presence flags in error responses. Security regression while present.
-- HCP webhook URL still points at the direct Xano URL (`https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook`). **No HCP dashboard change has been made.** Production traffic flow unchanged.
-- `xano-workspace/api/intake/hcp_job_webhook_POST.xs` is modified on local disk with the `_internal_auth` precondition + `text? _internal_auth?` input field. **Not pushed to Xano.** The `.xs` change is gitignored, not in the repo. Live Xano endpoint is at the version from earlier today (no precondition active).
+- ✅ HCP webhook URL in HCP dashboard points at the Netlify gateway: `https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy`. All 16 HCP event types subscribed.
+- ✅ `netlify/functions/hcp-webhook-proxy.js` is at the clean baseline shape (no hardcoded secret, no diagnostic error-leaking catch block). Reads `process.env.HCP_INTERNAL_AUTH_SECRET` and forwards `_internal_auth` body field + `X-Internal-Auth` header to Xano.
+- ✅ `HCP_INTERNAL_AUTH_SECRET` set in Netlify via `netlify env:set` CLI — this bypasses the dashboard textarea contamination issue entirely. Value is clean (32-char hex, no leading non-ASCII chars).
+- ✅ `xano-workspace/api/intake/hcp_job_webhook_POST.xs` has the `_internal_auth` precondition active. Pushed and live. Direct-to-Xano POSTs (without the gateway) return `{"success":false,"error":"unauthorized"}`, confirming the precondition is enforced.
+- ✅ Real HCP events flow through cleanly: `job.appointment.scheduled`, `job.started`, `job.completed`, etc. all process end-to-end via the gateway path.
 
-**Issue discovered:**
+**Deferred — open investigation:**
 
-- Netlify env-var dashboard appears to contaminate `HCP_INTERNAL_AUTH_SECRET` with 2 invisible non-ASCII characters at the start of the stored value.
-- When the function reads `process.env.HCP_INTERNAL_AUTH_SECRET`, it gets a 34-character string (expected 32) with `charCodeAt(0) === 59698` (a Private Use Area Unicode codepoint).
-- This causes `fetch()` to throw `TypeError: Cannot convert argument to a ByteString because the character at index 0 has a value of 59698 which is greater than 255` when the contaminated value is set as the `X-Internal-Auth` HTTP header.
-- Reproduced across two separate paste attempts with two freshly-generated 32-char hex secrets. The contamination is consistent.
-- Confirmed root cause by hardcoding the same value as a JS string literal — function works cleanly. Source code goes through the JS parser which is ASCII-strict, sidestepping whatever the env-var pipeline is doing.
-- Hypothesis: Netlify's env-var dashboard textarea preprocessing, or browser clipboard tooling injecting a BOM/wrapper sequence on paste. Both unconfirmed — see resume tasks below.
+- `SIGNATURE_VERIFICATION_ENABLED` is still `false` on Netlify. HCP isn't sending the `x-housecallpro-signature` header on real events, so flipping this to `true` would reject everything. Root cause unknown — possibly an HCP-side configuration we haven't found, possibly an account-tier limitation. Investigation deferred until there's bandwidth.
+- Until that's resolved, Netlify is not actually verifying HCP signatures — it's just enforcing the internal-auth precondition between itself and Xano. The signature-verification gate is in the code and ready to flip on as soon as HCP starts sending the header.
 
-**Resume sequence for next session:**
+**Rollback path (if needed):**
 
-1. **Investigate the contamination cause.** Try at least two of:
-   - Set the value via Netlify CLI: `netlify env:set HCP_INTERNAL_AUTH_SECRET <value>` (bypasses the dashboard textarea entirely)
-   - Type the value directly in the dashboard textarea, character by character, instead of pasting (eliminates clipboard tooling as the source)
-   - Set via `netlify.toml` `[context.production.environment]` block (committed to repo; secret rotation handles any history leak)
+Clear `HCP_INTERNAL_AUTH_SECRET` in the Xano workspace env, then `xano workspace push --env`. The Xano precondition will reject all requests (including from the gateway) — at that point switch the HCP dashboard webhook URL back to the direct Xano endpoint and the old direct-to-Xano flow resumes. The Netlify function can be left in place; it's harmless when HCP isn't pointed at it.
 
-   After each attempt, trigger a Netlify redeploy, then re-run the test-ping curl against the diagnostic function. Confirm via the response `debug` object that `env_internal_auth_length === 32` and `env_internal_auth_first_char_code === 101` (lowercase 'e' = 0x65).
+**Memory record of today's contamination workaround:**
 
-2. **Generate a fresh secret.** `openssl rand -hex 16`. Set in Netlify env using the verified-clean method from step 1.
-
-3. **Revert the hardcoding.** In `netlify/functions/hcp-webhook-proxy.js`:
-   - Remove the `internalAuthHardcoded` constant declaration near the top of `exports.handler`
-   - Replace all `internalAuthHardcoded` references back to `internalAuth` (which reads from `process.env.HCP_INTERNAL_AUTH_SECRET`)
-   - Search for the `DIAGNOSTIC HARDCODED SECRET` and `DIAGNOSTIC: using hardcoded value` comment markers (3 occurrences expected) — all should be removed
-
-4. **Revert the error-leaking catch block** in the same file:
-   - Restore the catch to `return { statusCode: 502, body: JSON.stringify({ error: 'upstream unavailable' }) };`
-   - Remove the `debug` object declaration block at the top of `exports.handler`
-   - Search for `TEMPORARY DIAGNOSTIC` comment markers (3 occurrences expected) — all should be removed
-
-5. **Push the cleanup commit.** Commit message suggestion: `Revert HCP webhook diagnostics + rotate internal auth secret`. After deploy, run the test ping; confirm HTTP 200 with Xano's success body and **no** `diagnostic` field in the response.
-
-6. **Continue cutover sequence step 2 onwards** — push the Xano-side `.xs` change with `xano workspace push -i "api/intake/hcp_job_webhook_POST.xs" --force`, then proceed through the numbered Sequence subsection below (steps 3-9).
-
-**Security note for cleanup commit:**
-
-The current internal-auth secret value `edaa13cbc2bffea253d685d4a0b499c6` is in the public git repo at commit `e5cc351` and visible to anyone with read access. Rotation is the standard remediation: generate a fresh value in step 2 above, the value left in history becomes invalid as soon as the new value is in Netlify and the old hardcoding is replaced. Don't bother with `git filter-repo` — rotation is sufficient.
-
-**Tracking commits for cleanup search:**
-
-- `841efc0` — initial Netlify function + Xano-side precondition (clean baseline; this is the shape we want to return to)
-- `687b1d7` — DIAGNOSTIC: expose fetch error in response body
-- `e5cc351` — DIAGNOSTIC: hardcode internal-auth secret
-
-Both `687b1d7` and `e5cc351` contain `// TEMPORARY DIAGNOSTIC` or `// DIAGNOSTIC HARDCODED` comment markers in code — quickly findable via `git grep "TEMPORARY DIAGNOSTIC"` or `git grep "DIAGNOSTIC HARDCODED"`.
+The env-var contamination issue (Netlify dashboard textarea prepending 2 non-ASCII chars to pasted values, charCodeAt(0)=59698) is captured in the persistent memory entry `netlify_env_var_contamination.md` for future reference. The CLI workaround (`netlify env:set`) is the load-bearing fix.
 
 ### Architecture after cutover
 
