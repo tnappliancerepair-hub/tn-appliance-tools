@@ -28,38 +28,6 @@ const crypto = require('crypto');
 const XANO_DEFAULT_URL = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook';
 
 exports.handler = async function (event, context) {
-  // ──────────────────────────────────────────────────────────────────────
-  // TEMPORARY DIAGNOSTIC ONLY - REVERT AFTER ROOT CAUSE IDENTIFIED.
-  // The catch block below leaks internal error details (message, name, code,
-  // stack) in the HTTP response body so we can debug without Netlify function
-  // log access. This is a security regression while present. The top-of-
-  // function debug object is also leaked in the error response. Both must
-  // be removed once we identify why fetch was throwing.
-  // Tracking: see git log for "DIAGNOSTIC version" commit.
-  // ──────────────────────────────────────────────────────────────────────
-  // ─── DIAGNOSTIC HARDCODED SECRET ───────────────────────────────────────
-  // Sidestepping a Netlify env-var contamination issue: process.env returned
-  // a 34-char value with a non-ASCII char (Unicode 59698) at index 0, despite
-  // the dashboard showing 32 hex chars. JS source goes through the parser
-  // which is strict ASCII, so hardcoding bypasses the contamination path.
-  // ROTATE THIS SECRET AFTER DIAGNOSIS - it lives in git history once pushed.
-  // ───────────────────────────────────────────────────────────────────────
-  const internalAuthHardcoded = 'edaa13cbc2bffea253d685d4a0b499c6';
-
-  const debug = {
-    node_version: process.version,
-    has_HCP_WEBHOOK_SECRET: !!process.env.HCP_WEBHOOK_SECRET,
-    has_HCP_INTERNAL_AUTH_SECRET: !!process.env.HCP_INTERNAL_AUTH_SECRET,
-    has_SIGNATURE_VERIFICATION_ENABLED: !!process.env.SIGNATURE_VERIFICATION_ENABLED,
-    has_XANO_HCP_WEBHOOK_URL: !!process.env.XANO_HCP_WEBHOOK_URL,
-    xano_url_first_30_chars: (process.env.XANO_HCP_WEBHOOK_URL || 'unset').slice(0, 30),
-    env_internal_auth_length: (process.env.HCP_INTERNAL_AUTH_SECRET || '').length,
-    env_internal_auth_first_char_code: (process.env.HCP_INTERNAL_AUTH_SECRET || '').charCodeAt(0) || null,
-    hardcoded_internal_auth_length: internalAuthHardcoded.length,
-    hardcoded_internal_auth_first_char_code: internalAuthHardcoded.charCodeAt(0),
-    fetch_available: typeof fetch !== 'undefined'
-  };
-
   // CORS preflight (HCP doesn't issue OPTIONS, but other tooling might).
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -154,12 +122,11 @@ exports.handler = async function (event, context) {
   let forwardBody;
   try {
     const parsed = rawBody ? JSON.parse(rawBody) : {};
-    // DIAGNOSTIC: using hardcoded value instead of env var. See top of file.
-    parsed._internal_auth = internalAuthHardcoded;
+    parsed._internal_auth = internalAuth;
     forwardBody = JSON.stringify(parsed);
   } catch (_e) {
     // Body wasn't JSON. Pass an envelope so Xano still sees the auth field.
-    forwardBody = JSON.stringify({ _internal_auth: internalAuthHardcoded, _raw_body_passthrough: rawBody });
+    forwardBody = JSON.stringify({ _internal_auth: internalAuth, _raw_body_passthrough: rawBody });
   }
 
   // Forward to Xano. Internal auth also sent as header for forward-compat
@@ -171,28 +138,13 @@ exports.handler = async function (event, context) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // DIAGNOSTIC: using hardcoded value instead of env var. See top of file.
-        'X-Internal-Auth': internalAuthHardcoded,
+        'X-Internal-Auth': internalAuth,
       },
       body: forwardBody,
     });
   } catch (err) {
     console.error('[hcp-webhook-proxy] forward to Xano failed:', err.message);
-    // TEMPORARY DIAGNOSTIC: expose error details + debug object in response.
-    // REVERT to {"error":"upstream unavailable"} once root cause is identified.
-    return {
-      statusCode: 502,
-      body: JSON.stringify({
-        error: 'upstream unavailable',
-        diagnostic: {
-          message: err.message,
-          name: err.name,
-          stack: err.stack ? err.stack.split('\n').slice(0, 5).join('\n') : null,
-          code: err.code || null
-        },
-        debug: debug
-      })
-    };
+    return { statusCode: 502, body: JSON.stringify({ error: 'upstream unavailable' }) };
   }
 
   // Read Xano's response and proxy the status + body back to HCP.
