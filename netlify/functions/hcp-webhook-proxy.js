@@ -37,6 +37,15 @@ exports.handler = async function (event, context) {
   // be removed once we identify why fetch was throwing.
   // Tracking: see git log for "DIAGNOSTIC version" commit.
   // ──────────────────────────────────────────────────────────────────────
+  // ─── DIAGNOSTIC HARDCODED SECRET ───────────────────────────────────────
+  // Sidestepping a Netlify env-var contamination issue: process.env returned
+  // a 34-char value with a non-ASCII char (Unicode 59698) at index 0, despite
+  // the dashboard showing 32 hex chars. JS source goes through the parser
+  // which is strict ASCII, so hardcoding bypasses the contamination path.
+  // ROTATE THIS SECRET AFTER DIAGNOSIS - it lives in git history once pushed.
+  // ───────────────────────────────────────────────────────────────────────
+  const internalAuthHardcoded = 'edaa13cbc2bffea253d685d4a0b499c6';
+
   const debug = {
     node_version: process.version,
     has_HCP_WEBHOOK_SECRET: !!process.env.HCP_WEBHOOK_SECRET,
@@ -44,7 +53,10 @@ exports.handler = async function (event, context) {
     has_SIGNATURE_VERIFICATION_ENABLED: !!process.env.SIGNATURE_VERIFICATION_ENABLED,
     has_XANO_HCP_WEBHOOK_URL: !!process.env.XANO_HCP_WEBHOOK_URL,
     xano_url_first_30_chars: (process.env.XANO_HCP_WEBHOOK_URL || 'unset').slice(0, 30),
-    internal_auth_length: (process.env.HCP_INTERNAL_AUTH_SECRET || '').length,
+    env_internal_auth_length: (process.env.HCP_INTERNAL_AUTH_SECRET || '').length,
+    env_internal_auth_first_char_code: (process.env.HCP_INTERNAL_AUTH_SECRET || '').charCodeAt(0) || null,
+    hardcoded_internal_auth_length: internalAuthHardcoded.length,
+    hardcoded_internal_auth_first_char_code: internalAuthHardcoded.charCodeAt(0),
     fetch_available: typeof fetch !== 'undefined'
   };
 
@@ -142,11 +154,12 @@ exports.handler = async function (event, context) {
   let forwardBody;
   try {
     const parsed = rawBody ? JSON.parse(rawBody) : {};
-    parsed._internal_auth = internalAuth;
+    // DIAGNOSTIC: using hardcoded value instead of env var. See top of file.
+    parsed._internal_auth = internalAuthHardcoded;
     forwardBody = JSON.stringify(parsed);
   } catch (_e) {
     // Body wasn't JSON. Pass an envelope so Xano still sees the auth field.
-    forwardBody = JSON.stringify({ _internal_auth: internalAuth, _raw_body_passthrough: rawBody });
+    forwardBody = JSON.stringify({ _internal_auth: internalAuthHardcoded, _raw_body_passthrough: rawBody });
   }
 
   // Forward to Xano. Internal auth also sent as header for forward-compat
@@ -158,7 +171,8 @@ exports.handler = async function (event, context) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Internal-Auth': internalAuth,
+        // DIAGNOSTIC: using hardcoded value instead of env var. See top of file.
+        'X-Internal-Auth': internalAuthHardcoded,
       },
       body: forwardBody,
     });
