@@ -1,14 +1,14 @@
 # Cash Flow TDR Delivery — Design v1
 
-**Status:** Scoping in progress. Sections 1-3 locked per Teddy's brief. Sections 4-15 are PROPOSED SHAPES — confirm or rewrite each before any build commitment.
+**Status:** Scoping in progress. Sections 1-3 LOCKED per Teddy's brief — §3 POLICY UPDATED 2026-05-05 (per-failure pricing). Section 4 LOCKED 2026-05-05 (multi-failure + multi-party customer support). Sections 5-16 are PROPOSED SHAPES — confirm or rewrite each before any build commitment.
 
-**Last updated:** 2026-05-05
+**Last updated:** 2026-05-05 (post-b49b45f revision: multi-failure + rental customer pattern)
 
 **Owner:** Teddy / James Pivacek
 
 **Estimated build:** TBD pending review of proposed sections
 
-> **⚠️ Speculative content flagged.** Sections 1-3 are verbatim from the scope brief. Sections 4-15 are proposed shapes synthesized from existing design docs (`inbound-pipeline-design-v1.md`, `gmail-integration-design-v1.md`, `ant-tech-assist-design-v1.md`) and the cash-flow-TDR domain. Every proposed section has a ⚠️ marker; treat each as "draft, edit freely" until reviewed. Open questions in §15 are the real unknowns.
+> **⚠️ Speculative content flagged.** Sections 1-3 are the locked policy (with §3 updated 2026-05-05 for multi-failure). Section 4 is the locked multi-failure + multi-party requirement (added 2026-05-05). Sections 5-16 are proposed shapes synthesized from existing design docs (`inbound-pipeline-design-v1.md`, `gmail-integration-design-v1.md`, `ant-tech-assist-design-v1.md`) and the cash-flow-TDR domain. Every proposed section has a ⚠️ marker; treat each as "draft, edit freely" until reviewed. Open questions in §16 are the real unknowns.
 
 ---
 
@@ -30,33 +30,83 @@ Customer completes intake (free, builds commitment), pays $50 to unlock pre-diag
 
 ---
 
-## 3. The four customer options
+## 3. The four customer options (PER FAILURE) — POLICY UPDATED 2026-05-05
 
-Each option has distinct pricing and commitment. **Example pricing only — actual numbers come from Teddy's diagnosis input per job.**
+> **Updated 2026-05-05:** This section was originally written assuming one repair decision per job. Real customer pattern shows 10-30% of jobs have multiple distinct failures, with the customer (especially in cash flow) often deciding per-failure. The four options below now apply **per failure**, not per job. See §4 for the multi-failure + multi-party architecture.
 
-| Option | Price example | What customer gets | What we do |
+Each failure on the TDR gets its own four-option pricing menu, plus an explicit fifth "Skip" option. Pricing is **per failure** — the customer can mix and match across failures. **Example pricing only — actual numbers come from Teddy's diagnosis input per failure.**
+
+| Option | Price example (per failure) | What customer gets | What we do |
 |---|---|---|---|
 | **DIY OEM Part** | $280 part + free shipping | Brand-name original part shipped | Send part, no labor |
 | **DIY Amazon Equivalent** | $95 part + free shipping | Aftermarket equivalent shipped | Send part, no labor |
-| **We Install It (OEM)** | $445 ($215 labor + $280 part − $50 credit) | OEM part + tech installs | Truck roll, install, complete repair |
-| **We Install It (Amazon)** | $260 ($215 labor + $95 part − $50 credit) | Amazon part + tech installs | Truck roll, install, complete repair |
+| **We Install It (OEM)** | $445 ($215 labor + $280 part − $50 credit on first We Install) | OEM part + tech installs | Truck roll, install, complete repair |
+| **We Install It (Amazon)** | $260 ($215 labor + $95 part − $50 credit on first We Install) | Amazon part + tech installs | Truck roll, install, complete repair |
+| **Skip this repair** | $0 | Acknowledgment only — failure noted, not fixed | Document and close out this failure |
 
 ### Pricing rules (locked)
 
-- The $50 already paid for diagnosis credits **ONLY** toward the "We Install It" labor cost.
+- The $50 already paid for diagnosis credits **ONLY ONCE per job**, against the first We Install option chosen — does not stack or multiply across failures.
 - DIY paths get the part at full price — the $50 was the assessment fee, parts are separate.
-- Pricing is per-job — Teddy enters labor estimate + OEM part number/price + Amazon equivalent number/price into Teddy Tool, the four options render automatically off those inputs.
+- Pricing is per-failure — Teddy enters labor estimate + OEM part number/price + Amazon equivalent number/price **per failure** into Teddy Tool, the four options render automatically off those inputs **for each failure**.
+- "Skip this repair" is always free and always available per failure on cash jobs. Useful for rental scenarios where landlord declines a non-critical repair, or for customers prioritizing budget across multiple failures.
+- **Warranty path override:** warranty jobs **do not show "Skip"** — all failures are repaired (warranty co requirement; partial repair invalidates the claim).
+- Labor bundling across failures (one truck roll, multiple repairs vs labor charged per-failure): ⚠️ open question — see §16 q5.
 
 ---
 
-## 4. End-to-end flow ⚠️ PROPOSED — confirm channels and trigger points
+## 4. Multi-failure + multi-party customer support (LOCKED 2026-05-05)
 
-> Proposed actor-and-channel sequence. Built off the existing intake/Customer-Ant + HCP-integration + Teddy-Tool patterns. Channel choices (SMS vs email) and trigger mechanics (push vs pull) need confirmation.
+Two real production patterns observed today (2026-05-05) that v1 must support natively:
+
+### Pattern A: Multi-failure jobs
+
+10-30% of diagnosis events surface more than one distinct failure on the same appliance. Examples:
+- Refrigerator: ice maker fails AND door gasket torn
+- Washer: drain pump bad AND bearings noisy
+- Oven: bake element burnt AND control panel intermittent
+
+**Cash multi-failure:** customer decides per-failure. Common to fix the critical issue and skip the cosmetic/marginal one. Per-failure pricing menu (§3) is the mechanism.
+
+**Warranty multi-failure:** never skip — all failures are repaired. Warranty company requirement; partial repair invalidates the claim or requires re-submission. The customer-facing TDR for a warranty job shows all failures with no "Skip" option (UI hides it; API rejects skip transitions on warranty jobs).
+
+### Pattern B: Multi-party customers (rental / commercial)
+
+`bill_to` ≠ `on_site_contact`. The party who reports the symptom is not the party who pays or makes the repair decision. Real case observed 2026-05-05:
+
+- Tenant reported "won't heat" via Ant intake (the `on_site_contact`).
+- Teddy diagnosed in person and ALSO found a loud bearing not mentioned by the tenant.
+- TDR went to landlord (the `bill_to`), who decides per-failure: fix the heat issue (critical), skip the bearing (cost call).
+
+**Other multi-party scenarios anticipated:**
+- Commercial accounts (property manager pays, on-site staff reports)
+- Vacation rental managers (manager pays, guest or cleaner reports)
+- Second-home owners (out-of-state owner pays, neighbor or caretaker on-site)
+
+**Tenant-reported symptoms vs technician-found failures** must be distinguished on the TDR. The landlord seeing the report needs to know which failures the tenant complained about (rental-relationship implications) vs which failures Teddy surfaced during diagnosis (where the tenant may not even be aware of them).
+
+### Implications for v1
+
+- Each TDR is a header record (one per job) with N failure children — see §7 schema.
+- Each failure carries a `tenant_reported` flag.
+- Each failure has its own `selected_option` enum (incl. `skip`).
+- Job-level state aggregates over failure-level decisions — see §6 state machine.
+- Customer-facing page renders N failure cards stacked, each with the four-plus-Skip menu — see §9.
+- Rental flow has its own SMS template variant and recipient routing — see §9.
+- Decision authority on options is `bill_to` only in rental scenarios — tenant cannot pick options.
+
+---
+
+## 5. End-to-end flow ⚠️ PROPOSED — confirm channels and trigger points
+
+> Proposed actor-and-channel sequence. Built off the existing intake/Customer-Ant + HCP-integration + Teddy-Tool patterns. Channel choices (SMS vs email) and trigger mechanics (push vs pull) need confirmation. The rental variant (Pattern B from §4) is captured below as a divergence at steps 5-7.
 
 ```
 1. INTAKE (free)
    Customer ↔ Customer Ant chat (web)
    → creates jobs row in Xano, qc_status="intake_complete"
+   → if rental: also captures bill_to (landlord) + on_site_contact (tenant)
+                and sets is_rental=true
    ↓
 2. QUICK CHECK PITCH
    Customer Ant pitches $50 Quick Check naturally during intake
@@ -73,40 +123,52 @@ Each option has distinct pricing and commitment. **Example pricing only — actu
 5. TEDDY NOTIFIED
    SMS to Teddy + Teddy Tool dashboard ping
    ↓
-6. TEDDY DIAGNOSES (Teddy Tool, existing UI extended)
-   Reviews intake info + photos. Enters:
-     - diagnosis text (already wired)
+6. TEDDY DIAGNOSES (Teddy Tool, multi-failure UI)
+   Reviews intake info + photos. For EACH failure found:
+     - failure_description text
+     - tenant_reported flag (was this in the intake/on-site complaint
+       or did Teddy surface it during diagnosis?)
      - OEM part number + price
      - Amazon equivalent number + price
-     - labor estimate
-   Submit → compose_qc_diagnosis endpoint
+     - labor estimate (per-failure)
+   Submit → compose_qc_diagnosis endpoint creates one tdr header
+            + N tdr_failure rows
    qc_status="diagnosis_sent"
    ↓
-7. CUSTOMER NOTIFIED
-   send_qc_diagnosis_to_customer fires SMS with signed link
-   to a customer-facing diagnosis-and-options page
+7. CUSTOMER NOTIFIED  (or LANDLORD NOTIFIED in rental scenario)
+   Standard:
+     send_qc_diagnosis_to_customer fires SMS to bill_to_customer
+   Rental variant (jobs.is_rental = true):
+     SMS to bill_to (landlord) using qc_diagnosis_ready_rental template
+     Tenant (on_site_contact) optionally gets FYI SMS — see §16 q3
    qc_status="choice_pending"
    ↓
-8. CUSTOMER CHOOSES
-   Public page (cash-tdr-customer.html or similar) renders the
-   diagnosis + four option cards. Customer taps one card.
-   POST to qc_customer_choice endpoint
-   qc_status="chose_diy_oem" | "chose_diy_amazon"
-              | "chose_install_oem" | "chose_install_amazon"
-              | "declined"
+8. CUSTOMER CHOOSES (per-failure)
+   Public page renders N failure cards.
+   Customer (bill_to in rental case) taps one option per card.
+   POSTs to qc_customer_choice for each card (or batched submit).
+   tdr_failure.selected_option set per row.
+   When every tdr_failure.selected_option != pending:
+     Job-level qc_status flips based on aggregate (see §6).
    ↓
-9. FULFILLMENT BRANCHES
-   ├── DIY paths → Stripe charge (full part price) →
-   │   on payment success, manual or automated parts order →
-   │   ship to customer's address from intake →
-   │   tracking number SMS
-   │   qc_status="fulfillment_complete"
+9. FULFILLMENT BRANCHES (per failure, then aggregated)
+   ├── DIY paths → Stripe charge per part →
+   │   parts ordered (manual v1) →
+   │   shipped to bill_to address →
+   │   tracking SMS to bill_to
    │
-   └── We Install paths → Stripe charge (labor + part − $50 credit) →
-       on payment success, HCP appointment booked →
-       existing scheduler / tech dispatch flow →
-       on HCP work_status=completed: feedback SMS chain
-       qc_status="fulfillment_complete"
+   ├── We Install paths → Stripe charge (sum of all We Install failures,
+   │   with $50 credit applied ONCE on first We Install) →
+   │   single HCP appointment booked covering all install failures →
+   │   tech rolls, fixes all chosen failures in one visit →
+   │   on completion: feedback SMS chain to bill_to + on_site_contact
+   │
+   └── Skip paths → no charge, recorded as skipped, closed out
+
+   When ALL failures reach a terminal state (fulfilled or skipped):
+     qc_status="fulfillment_complete"  (no skips)
+       OR  "fulfillment_partial"        (some skips, some fulfilled)
+       OR  "all_skipped"                (every failure skipped — terminal)
 ```
 
 ### Channels
@@ -118,15 +180,27 @@ Each option has distinct pricing and commitment. **Example pricing only — actu
 ⚠️ Proposed:
 - Stripe → Xano: webhook
 - Xano → Teddy: SMS via existing `send_sms` endpoint, plus a Teddy Tool dashboard query that surfaces "diagnosis_pending" jobs
-- Xano → Customer: SMS with signed-link URL (token in URL, validated by Xano on page load)
-- Customer page → Xano: AJAX POST on choice click
+- Xano → Customer (or Landlord): SMS with signed-link URL (token in URL, validated by Xano on page load)
+- Customer page → Xano: AJAX POST per failure choice
 - Xano → Stripe: API call to create checkout session for option-specific payment
+
+### Rental flow variant (Pattern B)
+
+⚠️ Proposed:
+- `jobs.is_rental` flag set during intake (Customer Ant asks "is this a rental?" or detects from intake context).
+- `bill_to_customer_id` and `on_site_contact_id` set during intake — bill_to from landlord info (collected by Customer Ant), on_site_contact from the tenant who's chatting.
+- Step 7 routes the diagnosis SMS to bill_to (landlord) using the rental SMS template.
+- Tenant gets a separate FYI SMS (optional, gated on §16 q3).
+- Decision authority on options is bill_to only — tenant cannot pick options (UI gates by signed-token party identity).
+- Fulfillment SMS (parts shipped, tech scheduled) goes to BOTH bill_to AND on_site_contact (tenant needs to know when tech is coming).
 
 ---
 
-## 5. State machine for the QC pipeline ⚠️ PROPOSED
+## 6. State machine for the QC pipeline ⚠️ PROPOSED
 
-> Proposed `qc_status` enum on the existing `jobs` table. Single column captures the pipeline state.
+> Proposed `qc_status` enum on the existing `jobs` table (header-level), and `selected_option` enum on `tdr_failure` (per-failure-level). Job-level state aggregates over failure-level state.
+
+### Job-level state machine
 
 ```
 intake_complete
@@ -138,32 +212,54 @@ payment_link_sent
 diagnosis_pending  ← (the $50 just landed)
    │
    ▼
-diagnosis_sent     ← (Teddy composed, customer SMS sent)
+diagnosis_sent     ← (Teddy composed N failures, customer SMS sent)
    │
    ▼
-choice_pending     ← (waiting for customer to click)
+choice_pending     ← (waiting for customer to pick options on all failures)
    │
-   ├──→ chose_diy_oem
-   ├──→ chose_diy_amazon
-   ├──→ chose_install_oem
-   ├──→ chose_install_amazon
-   ├──→ declined          (customer explicitly opted out)
-   ├──→ abandoned         (no choice within timeout — see §11)
+   ├──→ partial_chosen    (some failures have options, others still pending —
+   │                       see timeout in §12)
+   ├──→ all_chosen        (every failure has an option, payment phase begins)
+   ├──→ all_skipped       (every failure skipped — terminal, declined-equivalent)
+   ├──→ abandoned         (no completion within timeout — see §12)
    │
-   ▼ (option_payment_pending if paid path)
+   ▼ (option_payment_pending if any paid path chosen)
 fulfillment_in_progress
    │
-   ▼
-fulfillment_complete
+   ├──→ fulfillment_complete    (all chosen failures fulfilled,
+   │                             no skips OR skips already accounted for)
+   ├──→ fulfillment_partial     (some failures fulfilled, others skipped)
 ```
 
-Terminal states: `fulfillment_complete`, `declined`, `abandoned`, `refunded`. Each terminal state preserves all upstream state for audit.
+### Per-failure state machine (`tdr_failure.selected_option`)
+
+```
+pending      (default — Teddy added the failure, customer hasn't chosen yet)
+   │
+   ├──→ diy_oem        (customer picked DIY OEM)
+   ├──→ diy_amazon     (customer picked DIY Amazon)
+   ├──→ install_oem    (customer picked We Install OEM)
+   ├──→ install_amazon (customer picked We Install Amazon)
+   └──→ skip           (customer picked Skip this repair)
+```
+
+Plus a `fulfilled_at` timestamp on `tdr_failure` for tracking when each individual repair completes.
+
+### Aggregation rules
+
+- Job is `all_chosen` only when every `tdr_failure.selected_option != pending`.
+- Job is `all_skipped` when every `tdr_failure.selected_option = skip`.
+- Job is `fulfillment_complete` when every `tdr_failure` is either `fulfilled_at IS NOT NULL` (paid path completed) OR `selected_option = skip` AND no other path was paid.
+- Job is `fulfillment_partial` when at least one failure was skipped AND at least one was fulfilled.
+- **Warranty jobs cannot transition any failure to `skip`** — enforced at API layer, not just UI.
+
+Terminal states: `fulfillment_complete`, `fulfillment_partial`, `all_skipped`, `abandoned`, `refunded`. Each preserves all upstream state for audit.
 
 ⚠️ **Open question:** does this `qc_status` live alongside the existing `scheduling_status` on jobs (independent dimensions), or should they be unified? Need to walk the existing scheduling_status enum and see if there's overlap to avoid double-state.
 
 ---
 
-## 6. Schema additions ⚠️ PROPOSED
+## 7. Schema additions ⚠️ PROPOSED — REVISED 2026-05-05
 
 ### Extensions to existing `jobs` table
 
@@ -171,37 +267,65 @@ Terminal states: `fulfillment_complete`, `declined`, `abandoned`, `refunded`. Ea
 
 | Column | Type | Purpose |
 |---|---|---|
-| `qc_status` | enum (values listed in §5) | The pipeline state |
+| `qc_status` | enum (values listed in §6) | The pipeline state |
 | `qc_diagnosis_paid_at` | timestamp, nullable | When the $50 came in via Stripe |
 | `qc_diagnosis_sent_at` | timestamp, nullable | When the customer-facing diagnosis SMS fired |
-| `qc_choice_made_at` | timestamp, nullable | When the customer picked an option |
-| `qc_customer_choice` | enum (diy_oem, diy_amazon, install_oem, install_amazon, declined, abandoned) | Their pick |
+| `qc_choice_made_at` | timestamp, nullable | When the customer's last failure-choice was recorded |
+| `qc_customer_choice` | enum (legacy single-failure marker, see migration note below) | Their pick — preserved for v1 phases pre-1f |
+| `bill_to_customer_id` | int FK customer, nullable | Defaults to existing `customer_id` if NULL. Set explicitly for rental/multi-party. |
+| `on_site_contact_id` | int FK customer, nullable | Defaults to existing `customer_id` if NULL. Set to the tenant in rental scenarios. |
+| `is_rental` | bool, default false | Triggers the rental SMS template variant + fulfillment-recipient routing |
 
-### New table: `qc_diagnosis_offer` ⚠️ PROPOSED — see §15 alternative
+The existing `customer_id` column stays as the "primary" customer for backward compatibility. New code reads `bill_to_customer_id ?? customer_id` for billing decisions and `on_site_contact_id ?? customer_id` for on-site comms.
 
-⚠️ This table separates the **customer-facing** version of the diagnosis from the internal `technician_decision_report`. TDR is the tech's full audit record; this is the public/abridged version with pricing.
+### Existing `technician_decision_report` table — repurposed as TDR header
+
+⚠️ The existing TDR becomes a one-per-job header record. Most fields stay (diagnosis, technician_id, problem_summary, failure_cause, status, etc.). The fields that describe a single repair (verified_part_number, estimated_repair_cost_range, parts_used, parts_not_used, failed_component) move conceptually to the new `tdr_failure` table.
+
+⚠️ Migration plan: existing TDR rows are single-failure jobs. Phase 1f migration creates one tdr_failure row per existing TDR, copying the relevant fields. Existing columns on TDR are NOT dropped in v1 (additive migration only) — they're left for backward compatibility and gradual deprecation in v2.
+
+### NEW table: `tdr_failure`
+
+⚠️ One row per failure on a TDR.
+
+```
+id (pk)
+created_at
+tdr_id (fk technician_decision_report)
+failure_description (text)        — Teddy's plain-English description of this specific failure
+tenant_reported (bool)            — true if this failure came from intake / on-site complaint;
+                                    false if Teddy surfaced it during diagnosis
+recommended_oem_part_number (text)
+recommended_oem_part_price_cents (int)
+recommended_amazon_part_number (text, nullable)
+recommended_amazon_part_price_cents (int, nullable)
+estimated_labor_price_cents (int)  — labor for THIS failure specifically
+                                     (see §16 q5: bundled vs per-failure)
+selected_option (enum: pending, diy_oem, diy_amazon, install_oem, install_amazon, skip)
+selected_at (timestamp, nullable)
+fulfilled_at (timestamp, nullable) — for tracking completion of this specific failure
+```
+
+### NEW table: `qc_diagnosis_offer` ⚠️ PROPOSED — see §16 alternative
+
+⚠️ This table separates the **customer-facing** version of the diagnosis from the internal `technician_decision_report`. Now refers to the TDR header; the per-failure offer details live in `tdr_failure`.
 
 ```
 id (pk)
 created_at
 job_id (fk jobs)
-tdr_id (fk technician_decision_report, nullable)
-diagnosis_text (text)              — derived from TDR.diagnosis, sanitized for customer
-oem_part_number (text)
-oem_part_price_cents (int)
-amazon_part_number (text)
-amazon_part_price_cents (int)
-labor_estimate_cents (int)
-labor_credit_cents (int default 5000)  — the $50 already paid
-status (enum: draft, sent, viewed, chosen, expired)
+tdr_id (fk technician_decision_report)
+labor_credit_cents (int default 5000)  — the $50 applied ONCE per job
+                                         on the first We Install option chosen
+status (enum: draft, sent, viewed, partially_chosen, fully_chosen, expired)
 sent_at (timestamp, nullable)
 viewed_at (timestamp, nullable)
-chosen_at (timestamp, nullable)
+fully_chosen_at (timestamp, nullable)
 public_view_token (text, indexed)  — signed token for SMS link
 expires_at (timestamp, nullable)
 ```
 
-### New table: `stripe_payment_intent` ⚠️ PROPOSED
+### NEW table: `stripe_payment_intent` ⚠️ PROPOSED
 
 ⚠️ Tracks all Stripe charges for a job (the $50, plus the second option-specific charge). Could also be a column on jobs but a separate table allows for retries, refunds, and audit cleanly.
 
@@ -209,6 +333,8 @@ expires_at (timestamp, nullable)
 id (pk)
 created_at
 job_id (fk jobs)
+tdr_failure_id (fk tdr_failure, nullable)  — non-null for option payments,
+                                             null for the $50 entry payment
 stripe_payment_intent_id (text)
 purpose (enum: qc_diagnosis_50, option_payment, refund)
 amount_cents (int)
@@ -219,55 +345,69 @@ metadata (json) — Stripe webhook payload audit
 
 ⚠️ **Open question:** does the existing job_financial table cover this? Need to inspect — it might already have payment_status fields suitable for extending.
 
+### Customer table
+
+⚠️ No new fields needed. `bill_to_customer_id` and `on_site_contact_id` on `jobs` are FKs to existing `customer` rows. Customer Ant intake captures both parties as separate customer records when `is_rental` is true.
+
 ---
 
-## 7. New endpoints ⚠️ PROPOSED
+## 8. New endpoints ⚠️ PROPOSED
 
 | Endpoint | Method | Caller | Purpose |
 |---|---|---|---|
-| `compose_qc_diagnosis` | POST | Teddy Tool (extends existing `submitTDR`) | Creates the qc_diagnosis_offer row, computes prices, sets `qc_status="diagnosis_sent"` |
-| `send_qc_diagnosis_to_customer` | POST | called inside `compose_qc_diagnosis` or as separate trigger | Generates signed token, sends SMS to customer with link |
-| `qc_diagnosis_view` | GET | customer-facing page on load | Validates signed token, returns diagnosis + four options for the page to render |
-| `qc_customer_choice` | POST | customer-facing page on click | Records the choice, generates the option-specific Stripe checkout session, returns checkout URL |
+| `compose_qc_diagnosis` | POST | Teddy Tool (extends existing `submitTDR`) | Creates the TDR header + N tdr_failure rows + qc_diagnosis_offer row, computes prices, sets `qc_status="diagnosis_sent"` |
+| `send_qc_diagnosis_to_customer` | POST | called inside `compose_qc_diagnosis` or as separate trigger | Generates signed token, sends SMS — routes by `is_rental` flag to standard or rental template |
+| `qc_diagnosis_view` | GET | customer-facing page on load | Validates signed token, returns TDR header + N failures + four-options-per-failure for the page to render |
+| `qc_customer_choice` | POST | customer-facing page on click | Records the choice for ONE tdr_failure row, returns running total. When all failures chosen, generates the option-specific Stripe checkout session |
 | `qc_stripe_webhook` | POST | Stripe | Handles `payment_intent.succeeded` for both the $50 and the option payment; flips `qc_status` accordingly |
 | `qc_compose_reminder` | POST | cron task (15 min) | Finds `diagnosis_pending` jobs older than N hours, SMS Teddy |
-| `qc_choice_reminder` | POST | cron task (1 hr) | Finds `choice_pending` jobs older than N days, SMS customer |
+| `qc_choice_reminder` | POST | cron task (1 hr) | Finds `choice_pending` or `partial_chosen` jobs older than N days, SMS bill_to |
 
 ### Tools the customer-facing page needs
 
-⚠️ The signed token approach mirrors HCP webhook setup pattern. The token encodes job_id + qc_diagnosis_offer.id + expiry, signed by Xano with an env var secret. Page calls `qc_diagnosis_view?token=...` to fetch render data; same token used for `qc_customer_choice` POST.
+⚠️ The signed token approach mirrors HCP webhook setup pattern. The token encodes job_id + qc_diagnosis_offer.id + party-identity (bill_to vs on_site_contact, for rental access gating) + expiry, signed by Xano with an env var secret. Page calls `qc_diagnosis_view?token=...` to fetch render data; same token used for `qc_customer_choice` POST.
 
 ---
 
-## 8. Customer-facing touchpoints ⚠️ PROPOSED
+## 9. Customer-facing touchpoints ⚠️ PROPOSED — REVISED 2026-05-05
 
 ### New page: `cash-tdr-customer.html`
 
 ⚠️ Public landing page, no auth required (signed token in URL). Mobile-first single-page layout:
 
-- Header: TN Appliance branding, customer name from intake
-- Diagnosis block: plain-English diagnosis text from the TDR
-- Four option cards (stacked on mobile, 2x2 grid on desktop):
-  - Each shows: option name, total price prominently, what's included, "I want this" button
-  - Tapping a button POSTs to `qc_customer_choice` and redirects to Stripe checkout for paid options or a confirmation page for declined
-- Below the cards: "I want to think about it" (saves choice as `pending`, sends a reminder later) and "I'm not interested" (records `declined`)
-- Footer: contact info, "questions? text us at 615-280-2949"
+- **Header:** TN Appliance branding, customer name (bill_to) from intake. If `is_rental`: "Diagnosis report for your rental at {address}".
+- **Diagnosis block:** plain-English overall diagnosis text from the TDR header.
+- **N failure cards stacked vertically** (one per `tdr_failure` row):
+  - Per card: failure description, **"Tenant reported" badge** if `tenant_reported=true`, **"Found during diagnosis"** badge if false.
+  - Each card shows the 4 options + **Skip option as a clearly-styled fifth choice** (e.g., outlined gray button labeled "Skip this repair — $0").
+  - Tapping a button selects that option for that failure (UI updates immediately, no full page reload).
+  - **Warranty jobs:** Skip option is hidden (UI gate, plus API enforcement per §6).
+- **Running total at the bottom** updates live as the customer makes selections:
+  - Lists each selected failure with its chosen option and price.
+  - Shows the $50 credit applied (once, on the first We Install only).
+  - Shows grand total.
+  - "Confirm and pay" CTA enabled only when every failure has a non-pending choice.
+- **Helper actions:** "I want to think about it" (saves partial state, sends a reminder later) and "I'm not interested" (records all failures as `skip` → terminal `all_skipped`).
+- **Footer:** contact info, "questions? text us at 615-280-2949"
 
 ### SMS templates (mirrors Tier 1 customer message templates from `ant-tech-assist-design-v1.md`)
 
-| Template | Body |
-|---|---|
-| `qc_diagnosis_ready` | hi {preferred_name} - your diagnosis from tn appliance is ready. here's what we found and your options: {link} |
-| `qc_choice_received` | got it {preferred_name} - you chose {option_label}. {next_step_blurb} |
-| `qc_payment_received` | thanks {preferred_name} - payment confirmed for the {option_label}. {fulfillment_next_step} |
-| `qc_choice_reminder_24h` | hi {preferred_name} - just a heads up, your diagnosis from tn appliance is still waiting for your pick. {link} |
-| `qc_choice_reminder_72h` | hi {preferred_name} - last reminder on your diagnosis. if you don't need to fix this anymore, no problem - just text STOP and we'll close it out. otherwise: {link} |
+| Template | Recipient | Body |
+|---|---|---|
+| `qc_diagnosis_ready` | bill_to (standard) | hi {preferred_name} - your diagnosis from tn appliance is ready. here's what we found and your options: {link} |
+| `qc_diagnosis_ready_rental` | bill_to (landlord) | tn appliance diagnosis for your rental at {address}. tenant reported: {tenant_symptoms}. we found {failure_count} issue(s). repair quote: {link} |
+| `qc_diagnosis_fyi_tenant` | on_site_contact (tenant, optional — see §16 q3) | hi {tenant_preferred_name} - tn appliance finished diagnosing the {appliance}. your landlord is reviewing the repair quote and will let you know next steps. |
+| `qc_choice_received` | bill_to | got it {preferred_name} - you picked options for {chosen_count} of {total_count} repair(s). {next_step_blurb} |
+| `qc_payment_received` | bill_to | thanks {preferred_name} - payment confirmed. {fulfillment_next_step} |
+| `qc_choice_reminder_24h` | bill_to | hi {preferred_name} - your tn appliance diagnosis is still waiting for your picks. {link} |
+| `qc_choice_reminder_72h` | bill_to | hi {preferred_name} - last reminder on your tn appliance diagnosis. if you don't need to fix this anymore, no problem - just text STOP and we'll close it out. otherwise: {link} |
+| `qc_fulfillment_tenant` | on_site_contact (rental only) | hi {tenant_preferred_name} - tn appliance is scheduled to come fix your {appliance} on {date} between {time_window}. |
 
 ⚠️ Tone matches existing Customer Ant + Tech Ant templates: lowercase, casual, hyphens not em dashes.
 
 ---
 
-## 9. Stripe integration ⚠️ PROPOSED
+## 10. Stripe integration ⚠️ PROPOSED
 
 ### Existing infrastructure (verify before extending)
 
@@ -276,11 +416,11 @@ metadata (json) — Stripe webhook payload audit
 ### Two payment moments per QC job
 
 1. **$50 entry payment** — could continue using the existing static Stripe link (or a dynamic session per job, both work). On success, `qc_status` flips to `diagnosis_pending`.
-2. **Option payment** — must be dynamic per job. Amount and description vary by which option the customer picked. Generated via Stripe API call when `qc_customer_choice` fires.
+2. **Option payment** — must be dynamic per job, with line items per chosen failure. Amount and description vary by which options the customer picked across all failures. Generated via Stripe API call when the customer confirms their full choice set.
 
 ### Webhook handling
 
-⚠️ Proposed: a single `qc_stripe_webhook` endpoint that handles `payment_intent.succeeded` events. Reads metadata to determine which payment moment (the metadata field `purpose` distinguishes `qc_diagnosis_50` from `option_payment`). Updates `stripe_payment_intent` row, flips `qc_status`.
+⚠️ Proposed: a single `qc_stripe_webhook` endpoint that handles `payment_intent.succeeded` events. Reads metadata to determine which payment moment (the metadata field `purpose` distinguishes `qc_diagnosis_50` from `option_payment`). For option payments, also reads metadata to mark which `tdr_failure` rows that payment covers. Updates `stripe_payment_intent` row, flips `qc_status`.
 
 ### Refund policy
 
@@ -288,70 +428,79 @@ metadata (json) — Stripe webhook payload audit
 - $50 refund only if Teddy can't compose a diagnosis (rare — refund manually via Stripe dashboard)
 - Option-payment refund only if customer cancels before fulfillment starts
 - Once parts ship or tech rolls, refunds are case-by-case manual
+- Per-failure refunds (customer cancels one repair after paying for multiple): manual case-by-case in v1
 
 ---
 
-## 10. Parts sourcing ⚠️ PROPOSED
+## 11. Parts sourcing ⚠️ PROPOSED
 
 | Part type | Where the number comes from | Who places the order | Latency target |
 |---|---|---|---|
 | OEM | Teddy's manual lookup using model + symptom | v1: Danielle, manually placing the order with the wholesaler. v2: automated wholesaler API (out of v1 scope). | 1-3 business days |
-| Amazon equivalent | Teddy's manual lookup on Amazon | v1: Danielle, ordering from Amazon Business account, ships to customer address from intake | 1-3 business days |
+| Amazon equivalent | Teddy's manual lookup on Amazon | v1: Danielle, ordering from Amazon Business account, ships to bill_to address from intake | 1-3 business days |
 
 ⚠️ **Key question:** does Teddy or Danielle place the order? Inferring Teddy enters part number/price during diagnosis, Danielle handles physical fulfillment. Confirm this division of labor.
 
 ⚠️ v1 manual parts handling is acceptable because volume is low; doesn't block the rest of the pipeline. Automation in v2.
 
+⚠️ Multi-failure orders: when a customer picks multiple DIY paths, Danielle places multiple part orders, all shipping to the same bill_to address. Bundled shipment vs separate is at Danielle's discretion in v1.
+
 ---
 
-## 11. Failure modes + observability ⚠️ PROPOSED
+## 12. Failure modes + observability ⚠️ PROPOSED — REVISED 2026-05-05
 
 | Failure | Detection | Response |
 |---|---|---|
 | Customer paid $50 but Teddy hasn't composed within 4 business hours | `qc_compose_reminder` cron, 15-min cadence | SMS Teddy (escalation, not a customer-facing alert) |
 | Customer hasn't chosen within 24 hours of `diagnosis_sent` | `qc_choice_reminder` cron, 1-hr cadence | Send `qc_choice_reminder_24h` SMS template |
 | Customer hasn't chosen within 72 hours | same cron | Send `qc_choice_reminder_72h` SMS template, then auto-mark `abandoned` after 7 days |
+| Customer made some failure choices but not all (`partial_chosen` state) | `qc_choice_reminder` cron checks for jobs with any `tdr_failure.selected_option = pending` past 48 hours | SMS `qc_choice_reminder_24h` template, then `_72h` |
 | Option payment fails | Stripe webhook with `payment_intent.payment_failed` | SMS customer with retry link, escalate to Danielle if 2 retries fail |
 | Part unavailable (manual order can't be filled) | Danielle flags in some operational system (TBD) | Manual: Danielle SMS customer with alternative or refund |
 | Customer pays for We Install but no tech available in cluster | Existing scheduler escalation flow | Existing path — book next available, SMS customer |
 | Repair fails post-shipment (DIY) or post-install (We Install) | Customer feedback SMS chain | Existing feedback handling — escalate negative feedback to Teddy/Danielle |
+| **Landlord and tenant disagree** on which failures matter | Operational, not detectable in code | Escalate to Danielle. Open question: see §16 q1 |
+| **Landlord declines all repairs but tenant escalates** | `qc_status = all_skipped` AND tenant calls in | Manual escalation to Teddy/Danielle. Possible Tier 3 customer-messaging case |
+| **Customer DIYs a failure incorrectly**, tech discovers during install of OTHER failure that DIY part was wrong/installed wrong | Tech notices on-site, files in HCP note | Existing tech-escalation flow. Liability question — see §16 q4 |
 
 ### Audit trail
 
-⚠️ Every state transition on `qc_status` should write to `event_log` with action like `qc_status_changed_to_<state>` and metadata containing `{job_id, prior_status, new_status, trigger}`. Mirrors the auditability pattern in HCP webhook handler.
+⚠️ Every state transition on `qc_status` AND `tdr_failure.selected_option` should write to `event_log` with action like `qc_status_changed_to_<state>` or `failure_option_selected` and metadata containing `{job_id, tdr_failure_id, prior_status, new_status, trigger}`. Mirrors the auditability pattern in HCP webhook handler.
 
 ---
 
-## 12. Out of scope
+## 13. Out of scope
 
 This pipeline does NOT cover:
 
-- **Warranty path** — separate inbound pipeline (`docs/inbound-pipeline-design-v1.md`)
+- **Warranty path** — separate inbound pipeline (`docs/inbound-pipeline-design-v1.md`). Multi-failure handling for warranty jobs DOES use the `tdr_failure` schema added here, but the choice/skip UI and pricing flow do not apply.
 - **In-person estimate-only** offerings (no $50 prepaid diagnosis)
 - **Live tech-on-phone consultation** before diagnosis (out of v1)
 - **Subscription / repeat customer pricing** (out of v1)
-- **Multi-appliance jobs** — one diagnosis = one appliance. Customer with two broken appliances gets two intakes / two QCs.
-- **Customer counter-offers / negotiation** outside the four options — manual escalation only
+- **Multi-appliance jobs** — one diagnosis = one appliance. Customer with two broken appliances gets two intakes / two QCs. (Multi-FAILURE on one appliance IS in scope per §4 — distinct from multi-appliance.)
+- **Customer counter-offers / negotiation** outside the four options + Skip — manual escalation only
 - **Per-region or per-cluster pricing variations** — single global pricing model in v1
 
 ---
 
-## 13. Phasing ⚠️ PROPOSED
+## 14. Phasing ⚠️ PROPOSED — REVISED 2026-05-05
 
 | Phase | Scope | Estimated sessions |
 |---|---|---|
-| 1a | Schema additions (`qc_status`, `qc_diagnosis_offer` table, `stripe_payment_intent` table). Teddy Tool extensions: add part-number + price + labor inputs alongside existing diagnosis field. `compose_qc_diagnosis` endpoint. | 2 |
-| 1b | Customer-facing diagnosis page (`cash-tdr-customer.html`). `qc_diagnosis_view` + `qc_customer_choice` endpoints. SMS templates. `send_qc_diagnosis_to_customer`. | 2 |
+| 1a | Schema additions (`qc_status`, `qc_diagnosis_offer` table, `stripe_payment_intent` table, `bill_to_customer_id` / `on_site_contact_id` / `is_rental` on jobs). Teddy Tool extensions: add part-number + price + labor inputs alongside existing diagnosis field. `compose_qc_diagnosis` endpoint (single-failure version for now). | 2 |
+| 1b | Customer-facing diagnosis page (`cash-tdr-customer.html`) — single-failure version. `qc_diagnosis_view` + `qc_customer_choice` endpoints. SMS templates. `send_qc_diagnosis_to_customer`. | 2 |
 | 1c | Stripe integration: dynamic Checkout Sessions for option payments. `qc_stripe_webhook` for both $50 and option payments. | 1-2 |
 | 1d | Reminder crons (`qc_compose_reminder`, `qc_choice_reminder`). Audit-trail event_log writes for state transitions. | 1 |
-| 1e | End-to-end live test with Teddy + Danielle on a real customer (or synthetic). Soft-launch behind `CASH_TDR_DELIVERY_ENABLED` env flag. | 1 |
+| 1e | End-to-end live test with Teddy + Danielle on a real customer (or synthetic) — single-failure baseline. Soft-launch behind `CASH_TDR_DELIVERY_ENABLED` env flag. | 1 |
+| **1f** | **Multi-failure UI + tdr_failure table.** Schema migration (additive, backfill one tdr_failure row per existing TDR). Teddy Tool: per-failure entry form (add/remove failures, per-failure pricing). Customer page: N failure cards + Skip option + running total. compose_qc_diagnosis revised to write multiple tdr_failure rows. State-machine aggregation logic. Warranty-mode Skip suppression. | 2-3 |
+| **1g** | **Rental / bill_to flow.** is_rental flag wired into Customer Ant intake (capture landlord + tenant as separate customer rows). Rental SMS template variant. send_qc_diagnosis_to_customer routes by is_rental. Optional tenant FYI SMS. Decision-authority gating in signed token (tenant cannot pick options). Fulfillment SMS routes to both bill_to and on_site_contact. | 1-2 |
 | 2 | Automated parts sourcing (wholesaler API + Amazon Business API). Out of v1. | TBD |
 
-⚠️ Total v1: 7-9 sessions / ~20-30 active hours.
+⚠️ Total v1: 9-12 sessions / ~30-40 active hours. Up from 7-9 sessions in pre-revision estimate due to multi-failure + rental complexity (Phases 1f and 1g added).
 
 ---
 
-## 14. Operational handoff ⚠️ PROPOSED
+## 15. Operational handoff ⚠️ PROPOSED
 
 | Responsibility | Owner |
 |---|---|
@@ -362,22 +511,31 @@ This pipeline does NOT cover:
 | Customer-facing landing page errors / 500s | Engineering — SMS alert to Teddy if `qc_diagnosis_view` 5xx rate spikes |
 | Pricing rule changes (labor estimate baseline, $50 credit policy) | Teddy, manual env-var or table update |
 | Stripe webhook health | Engineering — alert on missed webhook delivery |
+| Landlord-tenant disputes (rental scenario) | Danielle, with Teddy escalation |
 
 ---
 
-## 15. Open questions
+## 16. Open questions
 
-1. **Pricing display math.** §3's "We Install It (OEM)" shows `$495 ($215 labor + $280 part − $50 credit)`. Literal math: `215 + 280 = 495`, then minus `50` = `$445`. Does the customer see `$495` (subtotal before credit, with credit shown as a line item) or `$445` (post-credit total)? Same question for Amazon: `$310` displayed but `$310 − $50 = $260`. Need explicit policy on display vs internal math.
+1. **Pricing display math.** §3's "We Install It (OEM)" shows `$495 ($215 labor + $280 part − $50 credit)`. Literal math: `215 + 280 = 495`, then minus `50` = `$445`. Does the customer see `$495` (subtotal before credit, with credit shown as a line item) or `$445` (post-credit total)? Same question for Amazon: `$310` displayed but `$310 − $50 = $260`. Need explicit policy on display vs internal math. *(Note: §3 table now shows post-credit totals as of 2026-05-05; this question is about display convention going forward.)*
 2. **`qc_status` co-existence with `scheduling_status`.** The existing `jobs.scheduling_status` enum has values like `pending`, `awaiting_parts`, `ready`, `broadcasting`, `scheduled`, `in_progress`, `completed`, `escalated`, `canceled`, `held`. Some overlap with proposed QC states. Should QC introduce a separate `qc_status` column (parallel dimensions) or extend `scheduling_status`?
-3. **`qc_diagnosis_offer` separate table vs extending `technician_decision_report`.** Proposed §6 favors separation (audit vs public-facing). But extending TDR is simpler. Trade-off: clean conceptual separation vs schema simplicity. Pick one before Phase 1a.
+3. **`qc_diagnosis_offer` separate table vs extending `technician_decision_report`.** Proposed §7 favors separation (audit vs public-facing). But extending TDR is simpler. Trade-off: clean conceptual separation vs schema simplicity. Pick one before Phase 1a.
 4. **SMS vs email** for customer-facing notifications. Default SMS based on platform convention; email as fallback if customer didn't consent to SMS at intake. Confirm.
 5. **Choice timeout duration.** Proposed 24hr first reminder, 72hr second, auto-abandon at 7 days. Are those right for QC customers' decision-making cadence?
 6. **Multi-appliance during intake.** If customer brings up a second appliance during the chat, current flow can't handle it. Does intake gate to one appliance per job, or do we add a "multiple appliances" branch?
-7. **Auto-equiv Amazon lookup vs Teddy manual.** Teddy entering OEM and Amazon part numbers per job is friction. Is there a Teddy Tool feature where given OEM + appliance, the tool suggests an Amazon equivalent? Out of v1 either way, but worth flagging for v2.
+7. **Auto-equiv Amazon lookup vs Teddy manual.** Teddy entering OEM and Amazon part numbers per failure is friction (and now multiplied by failure count). Is there a Teddy Tool feature where given OEM + appliance, the tool suggests an Amazon equivalent? Out of v1 either way, but worth flagging for v2.
 8. **$50 credit expiry.** Does the credit expire if the customer doesn't choose within N days? Affects abandoned-state semantics.
-9. **Refund policy in edge cases.** Customer paid $50, got diagnosis, chose, paid second payment, then asks for refund within Stripe's chargeback window — what's the policy? Per-state explicit policy needed.
+9. **Refund policy in edge cases.** Customer paid $50, got diagnosis, chose, paid second payment, then asks for refund within Stripe's chargeback window — what's the policy? Per-state explicit policy needed. Also: per-failure refunds when customer paid for multiple repairs but cancels one.
 10. **Existing `STRIPE_LINK_50/90/100` env vars** — are these static Checkout links, dynamic session URLs, or template URLs with merge fields? Read `send_payment_link_POST.xs` before extending.
 11. **Teddy Tool location for QC pricing inputs.** The current Teddy Tool form (`teddy-tdr-tool.html`) already has OEM + Amazon part + price + labor inputs collected client-side (per the `saveReviewInputs()` we inspected today). They're sent in the `submitTDR` payload but currently ignored by `create_tdr_POST.xs`. Are these the same fields or do we need new ones?
+
+### New questions added 2026-05-05 (multi-failure + rental revision)
+
+12. **Landlord/tenant disagreement on critical failures.** If the landlord declines a tenant-reported failure (e.g., tenant says "won't heat", landlord skips the repair), what's the policy? Auto-escalate to Danielle? Block the skip in the UI? Just record and move on? Affects rental-relationship liability.
+13. **Decision authority for rentals: landlord email + tenant phone, or one contact sufficient?** Currently proposing both (bill_to gets decision SMS, tenant gets FYI), but this might be overkill or insufficient depending on the property arrangement.
+14. **Tenant copy of TDR.** Does the on-site tenant get a copy of the TDR (FYI), or is it strictly bill_to-only? Privacy implications (rent info, repair history) vs operational clarity (tenant needs to know what's happening in their home).
+15. **DIY-gone-wrong liability.** If customer DIYs incorrectly and damages further, what's our policy? Refund the part? No refund? Charge them for additional damage diagnosis? Partial credit on a follow-up We Install? Need explicit policy before exposing the DIY paths.
+16. **Pricing per failure: bundled vs per-failure labor.** If customer picks We Install on 2 failures, do we charge $215 labor twice (per-failure) or once (one truck roll, multiple repairs)? This affects the math significantly. Bundled is fairer to the customer; per-failure is fairer to the tech (more time per call). Pick a policy before §3 pricing math is final.
 
 Each open question has an explicit forcing function (review by Teddy + Danielle, code inspection, customer-cohort observation) that collapses it before commit. None blocks scoping.
 
@@ -392,5 +550,7 @@ Each open question has an explicit forcing function (review by Teddy + Danielle,
 - Multi-appliance bundling
 - Live-tech-on-phone pre-diagnosis option
 - Self-service diagnosis edits by Teddy after customer received link (currently: send-once)
+- Auto-equivalent Amazon part lookup (reduce Teddy's per-failure entry friction)
+- Schema-driven warranty company support beyond AHS + SquareTrade
 
 These are all extensions to the v1 productized triage model, not changes to it.
