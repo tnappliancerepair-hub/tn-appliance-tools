@@ -132,3 +132,75 @@ Once a real warranty job comes through cleanly:
 - Tell engineering. We'll flip `TECH_ASSIST_ENABLED="true"` in Xano env vars to start routing real jobs through the Tech Ant Assist pipeline (`start_tech_assist_session`, completion gate, escalation cron).
 - We'll also reconcile the recent dev-test data in `customer` and `jobs` tables — likely soft-deleting or marking the test rows so the live data is clean from day one.
 - The `meister_task_id` column in the `jobs` schema is currently dead (no code reads or writes it). If MeisterTask is meant to feed Xano too, that's a separate integration to scope.
+
+---
+
+## Cutover sequence — Netlify gateway migration
+
+Adds HMAC-SHA256 signature verification by routing HCP traffic through a Netlify function that does the verification, then forwards to Xano. Sidesteps a Xano platform limitation: `util.get_raw_input` only returns parsed JSON, which prevents byte-faithful HMAC verification from inside XanoScript.
+
+### Architecture after cutover
+
+```
+HCP -> https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy
+       (Netlify function: verifies x-housecallpro-signature via HMAC-SHA256)
+       -> https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook
+          (Xano endpoint: precondition checks _internal_auth body field, then
+           runs the existing event-routing handler)
+```
+
+### Components
+
+- **Netlify function:** `netlify/functions/hcp-webhook-proxy.js`
+- **Xano endpoint:** `xano-workspace/api/intake/hcp_job_webhook_POST.xs` (precondition added at top of stack; existing handler logic unchanged)
+- **HCP signing secret:** stored as `HCP_WEBHOOK_SECRET` env var in Netlify (NOT in repo, NOT in Xano).
+- **Internal auth shared secret:** generated via `openssl rand -hex 16`, stored as `HCP_INTERNAL_AUTH_SECRET` in BOTH Netlify and Xano (NOT in repo). Forwarded by Netlify as a `_internal_auth` body field on every request to Xano. Xano's precondition checks for matching value.
+- **Verification gate:** `SIGNATURE_VERIFICATION_ENABLED` env var on Netlify side. `false` = log diagnostics, forward regardless of signature match. `true` = reject mismatches with 401.
+
+### Sequence (execute in order, verify each step before advancing)
+
+1. **Deploy Netlify function.** Push `hcp-webhook-proxy.js` (committed in repo) → Netlify auto-deploys. Confirm by curling: `curl -i -X POST https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy -H 'Content-Type: application/json' -d '{"foo":"bar"}'` should return HTTP 200 with the test-ping success body forwarded from Xano.
+2. **Push Xano changes.** `xano workspace push -i "api/intake/hcp_job_webhook_POST.xs" --force`. The new `_internal_auth` precondition exists in code but is **skipped** because `$env.HCP_INTERNAL_AUTH_SECRET` isn't set yet. Existing direct-to-Xano traffic keeps working unchanged. Confirm via the same curl above hitting the direct Xano URL.
+3. **Set Netlify env vars** (Site settings → Build & deploy → Environment): `HCP_WEBHOOK_SECRET`, `HCP_INTERNAL_AUTH_SECRET`, `SIGNATURE_VERIFICATION_ENABLED=false`, optional `XANO_HCP_WEBHOOK_URL`. Trigger a Netlify redeploy if needed for env vars to take effect.
+4. **Test Netlify function manually.** Run `curl -i -X POST https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy -H 'Content-Type: application/json' -d '{"event":"customer.created","id":"evt_cutover_test","created_at":"2026-05-05T22:00:00Z","data":{"customer":{"id":"cus_cutover_test"}}}'`. Expect HTTP 200 with `{"status":"success","message":"Customer event ignored"}` from Xano. Check Netlify function logs for the `[hcp-webhook-proxy] DIAGNOSTIC mode: received=(none) computed=<hex> match=false` line.
+5. **Update HCP webhook URL.** In HCP dashboard → Settings → Webhooks → edit the existing webhook → change URL from `https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook` to `https://superlative-naiad-233aa7.netlify.app/.netlify/functions/hcp-webhook-proxy`. Save. All 16 event subscriptions stay the same. HCP signing secret stays the same.
+6. **Verify next event flows through.** Wait for the next real HCP event (or fire HCP's "Test webhook" button). Check three places:
+   - HCP delivery log shows HTTP 200
+   - Netlify function logs show `[hcp-webhook-proxy] DIAGNOSTIC mode: received=<hex> computed=<hex> match=true|false`
+   - Xano `event_log` shows `hcp_webhook_received` and `hcp_webhook_raw_input_capture` entries with the expected event_type
+7. **Activate the Xano-side internal auth precondition.** Add `HCP_INTERNAL_AUTH_SECRET` to the env block in `xano-workspace/workspace/jamess_workspace.xs`, value = same 32-char hex stored in Netlify. Push with `xano workspace push --env -i "workspace/jamess_workspace.xs" --force`. **From this moment, direct-to-Xano POSTs without the body field get rejected with 401.** Netlify-routed traffic continues to work because Netlify injects the field.
+8. **Verify lockout of direct-to-Xano POSTs.** Run `curl -i -X POST https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook -H 'Content-Type: application/json' -d '{"foo":"bar"}'`. Expect `{"success":false,"error":"unauthorized"}`. Run `curl` against the Netlify URL with the same body. Expect HTTP 200 with the test-ping success body. Confirms gateway-only access.
+9. **Activate strict signature verification.** After 10+ real HCP events have been observed in Netlify logs with `match=true`, set `SIGNATURE_VERIFICATION_ENABLED=true` in Netlify dashboard env vars. Trigger a Netlify redeploy. From this moment, signature mismatches return 401 from Netlify and never reach Xano.
+
+### Verification commands (paste-ready)
+
+After step 6, this command pulls recent HCP-related event_log entries to confirm traffic is flowing through correctly:
+
+```sh
+curl -sS -H "Authorization: Bearer $(awk '/access_token:/{print $2; exit}' ~/.xano/credentials.yaml)" -H 'Content-Type: application/json' -X POST -d '{"sort":{"created_at":"desc"},"per_page":50}' 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1/table/3/content/search' | grep -oE '"created_at":[0-9]+|"action":"hcp_[^"]*"|"hcp_job_id":"[^"]*"' | paste - - - | head -20
+```
+
+After step 7, this command confirms direct-to-Xano POSTs get rejected:
+
+```sh
+curl -i -X POST https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/hcp_job_webhook \
+  -H 'Content-Type: application/json' \
+  -d '{"event":"customer.created","data":{}}'
+# Expect: HTTP 200 with body {"success":false,"error":"unauthorized"}
+```
+
+### Rollback
+
+At any step, if something breaks, rollback options in order of severity:
+
+- **Step 9 fails** (real signatures don't match): set `SIGNATURE_VERIFICATION_ENABLED=false` in Netlify. Reverts to log-only diagnostic mode. Investigate signature shape from logs.
+- **Step 7 fails** (legitimate Netlify traffic gets 401): empty out `HCP_INTERNAL_AUTH_SECRET` in Xano workspace env, push. Precondition reverts to skip mode. Investigate why Netlify isn't injecting the field.
+- **Step 5 fails** (HCP delivery log shows non-200): revert HCP webhook URL to the direct Xano URL. Falls back to pre-Netlify behavior (no signature verification, but functional). Diagnose Netlify side independently.
+- **Step 2 fails** (Xano push compile error): revert the `.xs` file via `git checkout HEAD -- xano-workspace/api/intake/hcp_job_webhook_POST.xs` and re-push.
+- **Step 1 fails** (Netlify function 5xx): revert the netlify-function commit; HCP keeps hitting direct Xano URL (which still works).
+
+The deploy is structured so each step is independently reversible without affecting the previously verified steps.
+
+### Diagnostic log retention
+
+The `[hcp-webhook-proxy] DIAGNOSTIC mode: received=... computed=... match=...` lines in Netlify function logs are the canonical record of "what shape are HCP signatures actually arriving in." After step 9 ships and 30 days of clean strict-mode operation pass with no false rejections, the diagnostic log line can be reduced to error-only logging in a follow-up commit. Until then, keep the verbose log — it's the only record of any signature-shape regressions.
