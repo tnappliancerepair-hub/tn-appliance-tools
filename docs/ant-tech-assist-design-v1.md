@@ -188,3 +188,78 @@ Schema work + skeleton, no live behavior changes:
 6. Copy tech-ant.html to tech-ant-live.html
 7. Port CaptureOverlay IIFE from index.html (lines 2046-2480) into tech-ant-live.html
 8. Stub tech_assist_chat endpoint returning {success: true, message: "phase 1a stub"}
+
+---
+
+## Danielle Interview Findings (2026-05-05)
+
+Office manager interview that validates Tech Assist v1's design and unblocks Phase 1d. Danielle runs warranty portal submissions to AHS/SquareTrade and is the primary office-side user of any tooling that affects warranty turnaround.
+
+### Key bottleneck identified
+
+The biggest production friction is incomplete tech reports + lack of communication when reports are done.
+
+> "When the tech report is not fully there. He may have report but no parts or other way around. Slows down the process cause they wont update it till later and not even tell me it's done."
+
+This validates the Tech Assist v1 architecture (completion-enforcing scribe + escalation cron). Phase 1d is no longer interview-blocked — the interview confirms the design solves the right problem.
+
+### Critical metrics
+
+| Metric | Today | Tech Assist v1 target |
+|---|---|---|
+| Job completion → warranty claim submission | ~2 weeks | Same-day |
+| AHS submission → approval | up to 48 hours | Unchanged (warranty co's process) |
+| Approval → payment | varies by company | Unchanged |
+
+The 2-week gap is the headline opportunity — 14x improvement target.
+
+### Warranty company behavior (Danielle's answers)
+
+- SquareTrade does NOT send claims back for resubmission. (Either no rejections or rejections happen via a different mechanism Danielle doesn't see — worth verifying in v2.)
+- AHS rejection causes: insufficient information from tech OR wording issues.
+- Specific terminology rule discovered: AHS does NOT accept "bad" as a failure description. Implication: Tech Assist's structured-field capture should use AHS-acceptable terminology, possibly with a templated phrase library.
+- No partial payments — binary state (full pay or unpaid). Simplifies AR tracker design — no gap-tracking needed.
+- Question for v2: should schema-driven warranty handling support warranty companies beyond AHS+SquareTrade? Danielle unsure of plans.
+
+### Repetitive/automation candidates
+
+- "Everything is repetitive. It the job" — she's normalized friction, not specific tasks. Automation needs come from observation, not feature requests.
+- Parts location lookups: techs constantly call her to ask if parts are local. Self-serve tech tool would eliminate this friction.
+- Strategic work crowded out by tactical:
+  - Customer follow-up
+  - Parts arrival tracking → faster scheduling
+  - Unpaid job follow-up
+
+  All three are automation candidates for future projects.
+
+### Dashboard/visibility (NOT a priority)
+
+> "I don't feel like I have to dig for much of anything really. Everything is easily accessible"
+
+Don't over-invest in dashboards thinking they'll help her — she doesn't perceive visibility as the problem.
+
+### Strategic ask (the priority signal)
+
+When asked "if you could fix ONE thing": "More support for the office. Not in the office just in general."
+
+Translation: she wants tools that reduce the load, not extra people. The current Tech Assist v1 + future automation projects (AR tracker, parts visibility, customer follow-up) are exactly this.
+
+### Good day vs bad day (energizing vs draining)
+
+- Good day: real-time tech reports + timely customer responses + full schedule.
+- Bad day: opposite of all those.
+- Side note: Dawn handles most of the customer messaging system — worth understanding her workflow for future tool design (TDR delivery, customer follow-up automation).
+
+### Success metrics for Tech Assist v1 (post-launch)
+
+Measurable improvements to track:
+- Submission-time-to-warranty-co (target: same-day vs 2-week baseline).
+- AHS rejection rate (target: drop via templated terminology — avoid "bad" and similar non-accepted words).
+- Parts-pending → completion-when-arrived gap (target: real-time tech-to-office signal eliminates "didn't tell me it's done").
+
+### What this unlocks
+
+- Phase 1d is no longer interview-blocked. Still blocked on TCR clearance for SMS delivery (~5/11–5/15 per existing memory).
+- AR tracker design has clearer scope — binary paid/unpaid, no partial-payment tracking needed.
+- Future Tier 3 customer messaging automation has a clear customer (Dawn) and a clear use case (timely response).
+- Parts visibility self-serve tool is a small high-leverage project after Tech Assist v1 ships.
