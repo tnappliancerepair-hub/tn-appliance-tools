@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display: none !important; }
   :root {
     --black:#050505; --surface:#0c0c0c; --surf2:#111111;
     --border:#1a1a1a; --bord2:#252525;
@@ -22,7 +23,6 @@
   }
   html { background:var(--black); }
   body { background:var(--black); color:var(--white); font-family:var(--body); font-size:15px; line-height:1.5; min-height:100vh; min-height:100dvh; padding-bottom:env(safe-area-inset-bottom); }
-  body.summary-sticky { padding-bottom:240px; }
 
   .container { max-width:720px; margin:0 auto; padding:20px 16px 24px; }
   .loading,.error { min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; }
@@ -149,6 +149,18 @@
 const XANO_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_diagnosis_view';
 const state = { data:null, selections:{} };
 
+function syncBodyPadding() {
+  const el = document.getElementById('summary');
+  if (el && el.classList.contains('sticky')) {
+    document.body.style.paddingBottom = (el.offsetHeight + 16) + 'px';
+  } else {
+    document.body.style.paddingBottom = '';
+  }
+}
+
+const _summaryEl = document.getElementById('summary');
+if (_summaryEl) new ResizeObserver(syncBodyPadding).observe(_summaryEl);
+
 async function init() {
   const token = new URLSearchParams(location.search).get('token');
   if (!token) {
@@ -165,6 +177,7 @@ async function init() {
     state.data = data;
     renderAll();
     document.getElementById('loading').hidden = true;
+    document.getElementById('error').hidden = true;
     document.getElementById('content').hidden = false;
   } catch (e) {
     showError('Could not load your diagnosis. Please try again or contact us.');
@@ -173,6 +186,7 @@ async function init() {
 
 function showError(msg) {
   document.getElementById('loading').hidden = true;
+  document.getElementById('content').hidden = true;
   document.querySelector('#error .error-msg').textContent = msg;
   document.getElementById('error').hidden = false;
 }
@@ -304,6 +318,7 @@ function renderSummary() {
     summary.classList.remove('sticky');
     document.body.classList.remove('summary-sticky');
   }
+  syncBodyPadding();
 }
 
 function optLabel(o) { return ({diy_oem:'DIY OEM',diy_amazon:'DIY Amazon',install_oem:'We Install OEM',install_amazon:'We Install Amazon',skip:'Skip'})[o]||o; }
