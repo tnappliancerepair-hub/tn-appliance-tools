@@ -34,7 +34,7 @@
   .error a { color:var(--orange); text-decoration:none; font-weight:600; }
 
   header.brand { display:flex; align-items:center; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:24px; }
-  header.brand .mark { width:40px; height:40px; background:var(--orange); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:24px; color:var(--black); font-weight:600; flex-shrink:0; }
+  header.brand .mark { width:40px; height:40px; background:var(--orange); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:24px; line-height:1; flex-shrink:0; }
   header.brand .text .greet { font-family:var(--serif); font-size:24px; line-height:1.1; }
   header.brand .text .sub { font-family:var(--mono); font-size:11px; color:var(--gray); margin-top:4px; text-transform:uppercase; letter-spacing:0.06em; }
 
@@ -106,7 +106,7 @@
 
 <main id="content" class="container" hidden>
   <header class="brand">
-    <div class="mark">A</div>
+    <div class="mark">🐜</div>
     <div class="text">
       <div class="greet" id="greet"></div>
       <div class="sub" id="subtitle"></div>
@@ -213,12 +213,12 @@ function failureCardHTML(f) {
         <button class="opt${sel('diy_oem')}" data-failure-id="${esc(f.id)}" data-option="diy_oem">
           <span class="name">DIY · OEM Part</span>
           <span class="price">${money(p.diy_oem.total)}</span>
-          <span class="desc">Brand-name original part. Free shipping. You install.</span>
+          <span class="desc">Brand-name original part. You install.</span>
         </button>
         <button class="opt${sel('diy_amazon')}" data-failure-id="${esc(f.id)}" data-option="diy_amazon">
           <span class="name">DIY · Amazon</span>
           <span class="price">${money(p.diy_amazon.total)}</span>
-          <span class="desc">Aftermarket equivalent. Free shipping. You install.</span>
+          <span class="desc">Aftermarket equivalent. You install.</span>
         </button>
         <button class="opt${sel('install_oem')}" data-failure-id="${esc(f.id)}" data-option="install_oem">
           <span class="name">We Install · OEM</span>
