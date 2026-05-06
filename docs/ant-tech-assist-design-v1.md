@@ -193,6 +193,8 @@ Schema work + skeleton, no live behavior changes:
 
 ## Danielle Interview Findings (2026-05-05)
 
+> **Updated 2026-05-05 (later same day):** This section was originally written from a partial Q&A. The full 10-question transcript subsequently revealed that the "2-week gap" headline metric was a misread — actual job-completion-to-submission is ~2 days; the 2 weeks is parts-ordering wait DURING the repair. Sections below corrected. Full verbatim Q&A is preserved in memory at `~/.claude/.../memory/danielle_interview_findings.md`.
+
 Office manager interview that validates Tech Assist v1's design and unblocks Phase 1d. Danielle runs warranty portal submissions to AHS/SquareTrade and is the primary office-side user of any tooling that affects warranty turnaround.
 
 ### Key bottleneck identified
@@ -203,21 +205,28 @@ The biggest production friction is incomplete tech reports + lack of communicati
 
 This validates the Tech Assist v1 architecture (completion-enforcing scribe + escalation cron). Phase 1d is no longer interview-blocked — the interview confirms the design solves the right problem.
 
-### Critical metrics
+### Critical metrics — corrected 2026-05-05
 
 | Metric | Today | Tech Assist v1 target |
 |---|---|---|
-| Job completion → warranty claim submission | ~2 weeks | Same-day |
+| Job completion → warranty claim submission | ~2 days | Unchanged (already fast) |
+| Daily tech-chasing for incomplete reports | ~every day ("almost every day i need to request something from someone") | Eliminated by completion-enforcing scribe |
+| Job-scheduled → completion (parts-wait jobs) | ~2 weeks | Unchanged in v1 (parts-ordering automation is Phase 2 cash TDR §10/§11) |
 | AHS submission → approval | up to 48 hours | Unchanged (warranty co's process) |
 | Approval → payment | varies by company | Unchanged |
 
-The 2-week gap is the headline opportunity — 14x improvement target.
+The previous draft of this section claimed the 2-week gap was the headline opportunity ("14x improvement"). That was wrong — Danielle's verbatim per Q4: *"No job completed to submission is 2 days. It's about a 2 week from when tech gose out when job is scheduled to completion generlly. An that is mainly for the jobs we have to request parts for."*
 
-### Warranty company behavior (Danielle's answers)
+**The actual headline opportunity** is the daily tech-chasing friction (Q5: *"Almost every day i need to request something from someone"*). Tech Assist v1's completion-enforcing scribe directly closes it.
 
-- SquareTrade does NOT send claims back for resubmission. (Either no rejections or rejections happen via a different mechanism Danielle doesn't see — worth verifying in v2.)
-- AHS rejection causes: insufficient information from tech OR wording issues.
-- Specific terminology rule discovered: AHS does NOT accept "bad" as a failure description. Implication: Tech Assist's structured-field capture should use AHS-acceptable terminology, possibly with a templated phrase library.
+### Warranty company behavior — Q1, Q2, Q3 verbatim
+
+**AHS phrasing rules (Q1).** *"They will reject if it says bad asking what is bad about it. The examples given are good wording to use. AHS needs to know how the failure effects the machine."* → Phase 1d feature: AHS phrasing coach detects rejected language ("bad", etc.) and suggests "how the failure affects the machine" framings inline.
+
+**AHS field structure (Q2).** *"AHS has star astrics next to the reqired fields. Item, style, brand, model, age are all things I manully have to enter. I copy and past tech report and part numbers. Then manully enter part again and cost if we supply and labor."* → Phase 1d captures structured TDR data; Phase 2 opportunity is AHS portal auto-population eliminating Danielle's re-entry entirely.
+
+**SquareTrade is fundamentally different (Q3).** *"SquareTrade just wants to know if machine got fixed first time with parts they sent, if not what parts are needed to fix it and if what they sent was used, not used, or needed for second possible repair. SqareTrade is more or less wanting to determine if its a good repair for them or easier to replace."* → **Phase 1d implication: warranty-company-aware question sets** branched on `jobs.warranty_company`. AHS = narrative form; SquareTrade = binary decision-tree (first-fix? parts-needed? part-used/not-used/needed-for-second-visit?). NOT one universal TDR form.
+
 - No partial payments — binary state (full pay or unpaid). Simplifies AR tracker design — no gap-tracking needed.
 - Question for v2: should schema-driven warranty handling support warranty companies beyond AHS+SquareTrade? Danielle unsure of plans.
 
@@ -228,9 +237,10 @@ The 2-week gap is the headline opportunity — 14x improvement target.
 - Strategic work crowded out by tactical:
   - Customer follow-up
   - Parts arrival tracking → faster scheduling
-  - Unpaid job follow-up
 
-  All three are automation candidates for future projects.
+  Both are automation candidates for future projects.
+
+**Removed from earlier draft:** "unpaid job follow-up" was previously listed here as an automation candidate. Per Q7 (full Q&A), this is NOT a current friction point: *"Not currectly sure how many if any."* Don't build for this.
 
 ### Dashboard/visibility (NOT a priority)
 
@@ -250,16 +260,26 @@ Translation: she wants tools that reduce the load, not extra people. The current
 - Bad day: opposite of all those.
 - Side note: Dawn handles most of the customer messaging system — worth understanding her workflow for future tool design (TDR delivery, customer follow-up automation).
 
-### Success metrics for Tech Assist v1 (post-launch)
+### Success metrics for Tech Assist v1 (post-launch) — corrected 2026-05-05
 
 Measurable improvements to track:
-- Submission-time-to-warranty-co (target: same-day vs 2-week baseline).
-- AHS rejection rate (target: drop via templated terminology — avoid "bad" and similar non-accepted words).
-- Parts-pending → completion-when-arrived gap (target: real-time tech-to-office signal eliminates "didn't tell me it's done").
+- **Daily tech-chasing volume** (target: drop count of "request something from someone" instances per week — measured via Tech Assist completion-enforcement preventing incomplete TDRs from being submitted in the first place).
+- **AHS rejection rate** (target: drop via phrasing coach — avoid "bad" and similar non-accepted words; suggest "how the failure affects the machine" alternatives).
+- **Parts-pending → completion-when-arrived gap** (target: real-time tech-to-office signal eliminates "didn't tell me it's done").
+- ~~Submission-time-to-warranty-co (target: same-day vs 2-week baseline).~~ **Removed:** baseline was misread; submission is already 2 days, not a target area.
 
 ### What this unlocks
 
-- Phase 1d is no longer interview-blocked. Still blocked on TCR clearance for SMS delivery (~5/11–5/15 per existing memory).
+- **Phase 1d scope sharpens** to: completion-enforcement on TDR + AHS phrasing coach + warranty-company-aware question sets (AHS narrative vs SquareTrade decision-tree) + parts used/not-used/needed-for-second-repair tracking.
+- Phase 1d is no longer interview-blocked. Still blocked on TCR clearance for SMS delivery (campaign rejected 2026-05-05; fix landed; resubmission pending per `tcr_pending_blocks_sms_verification.md` memory).
 - AR tracker design has clearer scope — binary paid/unpaid, no partial-payment tracking needed.
-- Future Tier 3 customer messaging automation has a clear customer (Dawn) and a clear use case (timely response).
+- Future Tier 3 customer messaging automation has a clear customer (Dawn) and a clear use case (timely response). Per Q10: Dawn + Danielle handle messages with judgment, not rules — AI triage is Phase 3+.
 - Parts visibility self-serve tool is a small high-leverage project after Tech Assist v1 ships.
+
+### Future projects identified (NOT Phase 1d)
+
+| Project | Phase | Eliminates | Source |
+|---|---|---|---|
+| AHS portal auto-population | 2 | Danielle's manual data re-entry into AHS portal | Q2 |
+| Unified parts-arrival event source | 2 | TN/LA workflow split (TN: Google Sheets + Meister; LA: customer-notify or Dawn-tracking) | Q6 |
+| Customer-message AI triage | 3 | Routing decisions between Dawn (routine) and Danielle (escalations) | Q10 |
