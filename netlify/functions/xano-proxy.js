@@ -16,8 +16,24 @@ return { statusCode: 405, body: "Method Not Allowed" };
 }
 
 try {
-const { endpoint, payload } = JSON.parse(event.body);
-const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+const { endpoint, payload, api_group } = JSON.parse(event.body);
+
+// Route to the right api_group canonical. Default to "intake" for back-compat
+// with existing callers. cash_tdr added 2026-05-06 for Phase 1c step 3b.
+const API_GROUP_CANONICALS = {
+  intake: "3e_TffpA",
+  cash_tdr: "VGkW9mcV",
+};
+const groupKey = api_group || "intake";
+const canonical = API_GROUP_CANONICALS[groupKey];
+if (!canonical) {
+  return {
+    statusCode: 400,
+    headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+    body: JSON.stringify({ error: "unknown api_group: " + groupKey }),
+  };
+}
+const XANO_BASE = `https://xbtp-g9bh-ditq.n7e.xano.io/api:${canonical}`;
 
 const response = await fetch(`${XANO_BASE}/${endpoint}`, {
 method: "POST",

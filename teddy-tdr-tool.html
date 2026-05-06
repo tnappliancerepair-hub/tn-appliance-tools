@@ -126,6 +126,27 @@
     .hcp-ok { background: rgba(0,214,143,0.08); border: 1px solid rgba(0,214,143,0.25); color: var(--green); }
     .hcp-fail { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.25); color: var(--red); }
     .new-btn { padding: 13px 32px; background: var(--accent); border: none; border-radius: 10px; color: #080a0f; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--sans); }
+    /* Send to Customer section (Phase 1c step 3b) */
+    .send-section { background: var(--card2); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: left; }
+    .send-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); }
+    .send-pre { display: flex; flex-direction: column; gap: 10px; }
+    .preview-link { color: var(--blue); font-size: 13px; text-decoration: none; padding: 8px 0; font-family: var(--mono); }
+    .preview-link:hover { text-decoration: underline; }
+    .send-customer-btn { width: 100%; padding: 14px; background: var(--accent2); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--sans); letter-spacing: 0.02em; }
+    .send-customer-btn:hover { opacity: 0.92; }
+    .send-pre-note { font-size: 12px; color: var(--muted2); line-height: 1.4; }
+    .send-loading { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: 14px; padding: 8px 0; font-family: var(--mono); }
+    .send-success { background: rgba(0,214,143,0.08); border: 1px solid rgba(0,214,143,0.25); border-radius: 8px; padding: 12px 14px; }
+    .send-success-row { color: var(--green); font-size: 14px; font-weight: 600; margin-bottom: 10px; font-family: var(--mono); }
+    .send-success-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .copy-btn { padding: 7px 14px; background: var(--card); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 12px; cursor: pointer; font-family: var(--mono); }
+    .copy-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .resend-btn { padding: 7px 14px; background: transparent; border: 1px solid var(--border2); border-radius: 8px; color: var(--muted2); font-size: 12px; cursor: pointer; font-family: var(--mono); }
+    .resend-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .send-error { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.25); border-radius: 8px; padding: 12px 14px; }
+    .send-error-msg { color: var(--red); font-size: 13px; margin-bottom: 10px; line-height: 1.4; }
+    .send-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .back-btn { padding: 7px 14px; background: var(--card); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 12px; cursor: pointer; font-family: var(--sans); }
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { width: 36px; height: 36px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px; }
     .loading-screen { padding: 60px 24px; text-align: center; }
@@ -181,6 +202,9 @@ let state = {
   aiLoading: false,
   submitResult: null,
   error: "",
+  sendStatus: null,
+  sendResult: null,
+  sendError: "",
 };
 
 function getUrlJobId() {
@@ -310,6 +334,7 @@ async function submitTDR() {
     technician_last_name: "Pivacek",
     problem_summary: state.customerReportedProblem,
     diagnosis: state.diagnosis,
+    customer_facing_diagnosis: state.diagnosis,
     confidence_level: "High",
     verified_part_number: state.partType === "oem" ? state.oemPartNumber : state.amazonPartNumber,
     part_source: state.partType,
@@ -351,7 +376,8 @@ function reset() {
     diagnosis: "", partType: "", oemPartNumber: "", oemPrice: "",
     amazonPartNumber: "", amazonPrice: "", repairEstimate: "",
     laborEstimate: "", recommendation: "", techNotes: "",
-    aiLoading: false, submitResult: null, error: ""
+    aiLoading: false, submitResult: null, error: "",
+    sendStatus: null, sendResult: null, sendError: ""
   };
   render();
 }
@@ -596,19 +622,139 @@ function renderDone() {
     <div class="done-screen">
       <div class="done-icon">✅</div>
       <div class="done-title">TDR Submitted!</div>
-      <div class="done-sub">Report saved. Customer notification will fire shortly.</div>
       ${tdr ? `
         <div class="done-details">
           <div class="done-row"><span>TDR ID</span><span>#${tdr.id}</span></div>
           <div class="done-row"><span>Job ID</span><span>#${tdr.job_id}</span></div>
           <div class="done-row"><span>Recommendation</span><span>${state.recommendation}</span></div>
-          <div class="done-row"><span>Status</span><span>${tdr.status || "submitted"}</span></div>
         </div>` : ""}
       <div class="hcp-status ${hcpOk ? 'hcp-ok' : 'hcp-fail'}">
-        ${hcpOk ? "✅ Note posted to HousecallPro" : "⚠️ TDR saved — HCP sync failed. Check HCP manually."}
+        ${hcpOk ? "✅ HCP note posted" : "⚠️ HCP sync failed — check manually"}
+      </div>
+      <div class="send-section">
+        <div class="send-section-title">Send to Customer</div>
+        ${renderSendStateBlock(tdr)}
       </div>
       <button class="new-btn" onclick="reset()">+ New TDR</button>
     </div>`;
+}
+
+function renderSendStateBlock(tdr) {
+  if (!tdr || !tdr.id) {
+    return `<div class="send-error"><div class="send-error-msg">Cannot send — no TDR ID found.</div></div>`;
+  }
+  if (state.sendStatus === "sending") {
+    return `<div class="send-loading"><div class="mini-spinner"></div> Sending to customer...</div>`;
+  }
+  if (state.sendStatus === "sent") {
+    const sentAt = state.sendResult && state.sendResult.sent_at ? formatTime(state.sendResult.sent_at) : "just now";
+    const sentTo = (state.sendResult && state.sendResult.sent_to) || "customer";
+    const url = state.sendResult && state.sendResult.customer_url;
+    return `
+      <div class="send-success">
+        <div class="send-success-row">✅ Sent to ${escapeHtmlSimple(sentTo)} at ${sentAt}</div>
+        <div class="send-success-actions">
+          ${url ? `<button class="copy-btn" onclick="copyCustomerLink(this, '${url}')">Copy link</button>` : ""}
+          <button class="resend-btn" onclick="handleSendToCustomer(true)">Re-send Anyway</button>
+        </div>
+      </div>`;
+  }
+  if (state.sendStatus === "send_failed" || state.sendStatus === "already_sent") {
+    const reason = state.sendResult && state.sendResult.reason;
+    const msg = state.sendError || "Send failed";
+    let primaryBtn = `<button class="resend-btn" onclick="handleSendToCustomer(false)">Try Again</button>`;
+    if (reason === "already_sent") {
+      const prevSent = state.sendResult && state.sendResult.sent_at ? formatTime(state.sendResult.sent_at) : "earlier";
+      primaryBtn = `<button class="resend-btn" onclick="handleSendToCustomer(true)">Re-send Anyway (sent ${prevSent})</button>`;
+    } else if (reason === "missing_diagnosis") {
+      primaryBtn = `<button class="back-btn" onclick="state.step='review'; render();">← Back to TDR form</button>`;
+    } else if (reason === "no_consent") {
+      const phone = state.sendResult && state.sendResult.customer_phone;
+      primaryBtn = phone ? `<a class="copy-btn" href="tel:${phone}">📞 Call ${phone}</a>` : primaryBtn;
+    } else if (reason === "no_phone") {
+      primaryBtn = `<button class="back-btn" onclick="reset()">← New TDR</button>`;
+    }
+    return `
+      <div class="send-error">
+        <div class="send-error-msg">⚠️ ${escapeHtmlSimple(msg)}</div>
+        <div class="send-error-actions">${primaryBtn}</div>
+      </div>`;
+  }
+  // Default: not yet sent
+  return `
+    <div class="send-pre">
+      <a href="cash-tdr-customer.html?token=preview" target="_blank" class="preview-link">👁 Preview customer view ↗</a>
+      <button class="send-customer-btn" onclick="handleSendToCustomer(false)">📨 Send to Customer</button>
+      <div class="send-pre-note">Customer receives an SMS with a signed link to review their diagnosis and pick a repair option.</div>
+    </div>`;
+}
+
+async function handleSendToCustomer(forceResend) {
+  const r = state.submitResult;
+  const tdrId = r && r.tdr && r.tdr.id;
+  if (!tdrId) {
+    state.sendError = "No TDR ID found. Try resubmitting.";
+    state.sendStatus = "send_failed";
+    state.sendResult = { reason: "tdr_not_found" };
+    render();
+    return;
+  }
+  state.sendStatus = "sending";
+  state.sendError = "";
+  render();
+  try {
+    const res = await fetch("/.netlify/functions/xano-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        endpoint: "send_qc_diagnosis_to_customer",
+        api_group: "cash_tdr",
+        payload: { tdr_id: parseInt(tdrId), technician_id: 1, force_resend: !!forceResend },
+      }),
+    });
+    const data = await res.json();
+    state.sendResult = data;
+    if (data && data.success === true) {
+      state.sendStatus = "sent";
+      state.sendError = "";
+    } else {
+      state.sendStatus = (data && data.reason === "already_sent") ? "already_sent" : "send_failed";
+      state.sendError = (data && data.error) || "Send failed";
+    }
+  } catch (e) {
+    state.sendStatus = "send_failed";
+    state.sendError = "Network error: " + e.message;
+    state.sendResult = { reason: "network_error" };
+  }
+  render();
+}
+
+function copyCustomerLink(btn, url) {
+  if (!navigator.clipboard) {
+    alert("Clipboard not available. Manually copy: " + url);
+    return;
+  }
+  navigator.clipboard.writeText(url).then(() => {
+    const original = btn.textContent;
+    btn.textContent = "✓ Copied";
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }).catch(err => {
+    alert("Could not copy: " + err.message);
+  });
+}
+
+function formatTime(iso) {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch (_e) {
+    return iso;
+  }
+}
+
+function escapeHtmlSimple(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 }
 
 function render() {
