@@ -510,7 +510,7 @@ This pipeline does NOT cover:
 |---|---|---|
 | 1a | Schema additions (`qc_status`, `qc_diagnosis_offer` table, `stripe_payment_intent` table, `bill_to_customer_id` / `on_site_contact_id` / `is_rental` on jobs). Teddy Tool extensions: add part-number + price + labor inputs alongside existing diagnosis field. `compose_qc_diagnosis` endpoint (single-failure version for now). | 2 |
 | 1b | Customer-facing diagnosis page (`cash-tdr-customer.html`) — single-failure version. `qc_diagnosis_view` + `qc_customer_choice` endpoints. SMS templates. `send_qc_diagnosis_to_customer`. | 2 |
-| 1c | Stripe integration: dynamic Checkout Sessions for option payments. `qc_stripe_webhook` for both $50 and option payments. | 1-2 |
+| 1c | Stripe integration: dynamic Checkout Sessions for option payments. `qc_stripe_webhook` for both $50 and option payments. **QC token signing on Netlify gateway** (mirrors HCP webhook architecture — XanoScript has no native HMAC primitive). Two Netlify Functions: `generate-qc-token.js` called by SMS send flow to mint URLs, and `validate-qc-token.js` called by Xano `qc_diagnosis_view` via `api.request` with internal-auth header. New env var `QC_TOKEN_SECRET` lives on Netlify side only. Replaces the Phase 1b stub that accepts any non-empty token. | 1-2 |
 | 1d | Reminder crons (`qc_compose_reminder`, `qc_choice_reminder`). Audit-trail event_log writes for state transitions. | 1 |
 | 1e | End-to-end live test with Teddy + Danielle on a real customer (or synthetic) — single-failure baseline. Soft-launch behind `CASH_TDR_DELIVERY_ENABLED` env flag. | 1 |
 | **1f** | **Multi-failure UI + tdr_failure table.** Schema migration (additive, backfill one tdr_failure row per existing TDR). Teddy Tool: per-failure entry form (add/remove failures, per-failure pricing). Customer page: N failure cards + Skip option + running total. compose_qc_diagnosis revised to write multiple tdr_failure rows. State-machine aggregation logic. Warranty-mode Skip suppression. | 2-3 |
@@ -547,6 +547,17 @@ This pipeline does NOT cover:
 
 The original entries for Q2, Q3, Q16 below are kept for cross-reference; ignore them in favor of the resolutions above.
 
+### Locked policies added 2026-05-05 (post-Phase-1b)
+
+**TDR delivery SLA — 2 business hours after $50 payment.** Teddy's pre-diagnosis turnaround commitment. Window starts when the Stripe webhook fires `qc_diagnosis_paid_at`; ends when `send_qc_diagnosis_to_customer` fires the SMS. Surface this commitment in every customer touchpoint that mentions Quick Check timing:
+
+- Customer Ant chat (during intake, when explaining what the $50 buys)
+- Stripe confirmation page after the $50 payment lands
+- Customer-facing TDR delivery SMS template (Phase 1c `send_qc_diagnosis_to_customer`)
+- Marketing materials for the Quick Check (truck wraps, website, ad copy)
+
+Distinct from post-selection SLAs (DIY parts ship 1-3 days; We Install scheduled within 2 business hours of Confirm and Pay — see §9 customer-facing alert). Definition of "business hours" is open — see q18.
+
 ### Still open
 
 1. **Pricing display math.** §3's "We Install It (OEM)" shows `$495 ($215 labor + $280 part − $50 credit)`. Literal math: `215 + 280 = 495`, then minus `50` = `$445`. Does the customer see `$495` (subtotal before credit, with credit shown as a line item) or `$445` (post-credit total)? Same question for Amazon: `$310` displayed but `$310 − $50 = $260`. Need explicit policy on display vs internal math. *(Note: §3 table now shows post-credit totals as of 2026-05-05; this question is about display convention going forward.)*
@@ -572,6 +583,10 @@ The original entries for Q2, Q3, Q16 below are kept for cross-reference; ignore 
 ### New questions added 2026-05-05 (Decision 4 follow-up)
 
 17. **Operational SOP for documenting pre-work labor adjustment.** When the tech updates the labor price on-site (per Decision 4), the workflow needs a defined SOP: how does the tech update `tdr_failure.estimated_labor_price_cents` — mobile UI? HCP note that gets parsed? Verbal-then-Danielle-records? How does the customer confirm — digital signature, SMS reply, or verbal recorded in tech notes? How does Stripe rebill — `payment_intent.modify` for unsettled charges, or a new payment intent for the delta? This blocks the operational rollout of Decision 4.
+
+### New questions added 2026-05-05 (TDR SLA follow-up)
+
+18. **"Business hours" definition for the 2-hour TDR delivery SLA.** The locked policy commits to "2 business hours" but doesn't define what counts. Tennessee timezone 8am-5pm Mon-Fri only? Saturday hours? US federal holidays excluded? Late-evening intakes — does the clock start on receipt or at next-business-day open? Pick a definition before Phase 1c surfaces this language to customers (Customer Ant intake script, Stripe confirmation page, send-TDR SMS template, marketing). Soft-default proposal: 8am-6pm Central Mon-Fri excluding US federal holidays; weekend/after-hours intakes start the clock at next business open.
 
 Each open question has an explicit forcing function (review by Teddy + Danielle, code inspection, customer-cohort observation) that collapses it before commit. None blocks scoping.
 
