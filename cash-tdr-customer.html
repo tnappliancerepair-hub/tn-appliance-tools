@@ -237,19 +237,11 @@ function failureCardHTML(f) {
         </button>
         <button class="opt${sel('install_oem')}" data-failure-id="${esc(f.id)}" data-option="install_oem">
           <span class="name">We Install · OEM</span>
-          <div class="breakdown">
-            Subtotal ${money(p.install_oem.labor + p.install_oem.part)}<br>
-            <span style="color:var(--green)">$50 Quick Check credit applied</span>
-          </div>
           <span class="price">${money(p.install_oem.total)}</span>
           <span class="desc">OEM part + tech installs.</span>
         </button>
         <button class="opt${sel('install_amazon')}" data-failure-id="${esc(f.id)}" data-option="install_amazon">
           <span class="name">We Install · Amazon</span>
-          <div class="breakdown">
-            Subtotal ${money(p.install_amazon.labor + p.install_amazon.part)}<br>
-            <span style="color:var(--green)">$50 Quick Check credit applied</span>
-          </div>
           <span class="price">${money(p.install_amazon.total)}</span>
           <span class="desc">Aftermarket part + tech installs.</span>
         </button>
@@ -270,10 +262,15 @@ function renderSummary() {
   const sels = state.selections;
   const allChosen = failures.every(f => sels[f.id]);
   const anyChosen = failures.some(f => sels[f.id]);
+  const anyNonSkip = failures.some(f => sels[f.id] && sels[f.id] !== 'skip');
 
-  let subtotalCents = 0;
-  let creditCents = 0;
-  let firstWeInstall = true;
+  // Phase 1c step 3e pricing math (must match qc_create_checkout_session
+  // line items exactly — drift between display and Stripe is a trust bug).
+  // Parts: marked-up costs already returned by qc_diagnosis_view (oem*1.30, amz*1.30).
+  // Labor: aggregated across install_* selections, $50 credit applied to total
+  // labor floor 0 (no overflow into parts). Shipping: flat $15 if any non-skip.
+  let partsSubtotal = 0;
+  let laborSubtotal = 0;
   const items = failures.map(f => {
     const opt = sels[f.id];
     if (!opt) return `<li class="pending"><span>${esc(f.failure_description)}</span><span>not yet chosen</span></li>`;
@@ -281,25 +278,50 @@ function renderSummary() {
     const pr = f.pricing[opt];
     let line;
     if (opt.startsWith('install_')) {
-      line = pr.labor + pr.part;
-      subtotalCents += line;
-      if (firstWeInstall) { creditCents = state.data.labor_credit_cents; firstWeInstall = false; }
+      line = pr.part + pr.labor;
+      partsSubtotal += pr.part;
+      laborSubtotal += pr.labor;
     } else {
       line = pr.total;
-      subtotalCents += line;
+      partsSubtotal += pr.total;
     }
     return `<li><span>${esc(f.failure_description)} · ${optLabel(opt)}</span><span>${money(line)}</span></li>`;
   }).join('');
-  const total = subtotalCents - creditCents;
+
+  const SHIPPING_CENTS = 1500;
+  const CREDIT_CENTS = 5000;
+  const creditApplied = laborSubtotal > 0 ? Math.min(CREDIT_CENTS, laborSubtotal) : 0;
+  const laborAfterCredit = Math.max(0, laborSubtotal - CREDIT_CENTS);
+  const shipping = anyNonSkip ? SHIPPING_CENTS : 0;
+  const total = partsSubtotal + laborAfterCredit + shipping;
+
+  // Build math rows: credit (if labor > 0), shipping (if any non-skip), total.
+  const mathRows = [];
+  if (laborSubtotal > 0) {
+    mathRows.push(`<div class="row credit"><span>Quick Check Credit (applied to labor)</span><span>−${money(creditApplied)}</span></div>`);
+  }
+  if (anyNonSkip) {
+    mathRows.push(`<div class="row"><span>Shipping and parts sourcing</span><span>${money(SHIPPING_CENTS)}</span></div>`);
+  }
+  mathRows.push(`<div class="row total"><span>Total</span><span>${money(total)}</span></div>`);
+
+  // Button state: disabled if not all chosen OR if all chosen but everyone skipped.
+  let btnText, btnDisabled;
+  if (!allChosen) {
+    btnText = `Choose an option for all ${failures.length} item${failures.length>1?'s':''}`;
+    btnDisabled = true;
+  } else if (!anyNonSkip) {
+    btnText = 'Select at least one repair (not Skip)';
+    btnDisabled = true;
+  } else {
+    btnText = 'Confirm and Pay';
+    btnDisabled = false;
+  }
 
   summary.innerHTML = `
     <ul class="items">${items}</ul>
-    <div class="math">
-      <div class="row"><span>Subtotal</span><span>${money(subtotalCents)}</span></div>
-      ${creditCents > 0 ? `<div class="row credit"><span>$50 Quick Check credit applied</span><span>−${money(creditCents)}</span></div>` : ''}
-      <div class="row total"><span>Total</span><span>${money(total)}</span></div>
-    </div>
-    <button class="confirm" id="confirm-btn"${allChosen ? '' : ' disabled'}>${allChosen ? 'Confirm and Pay' : `Choose an option for all ${failures.length} item${failures.length>1?'s':''}`}</button>`;
+    <div class="math">${mathRows.join('')}</div>
+    <button class="confirm" id="confirm-btn"${btnDisabled ? ' disabled' : ''}>${btnText}</button>`;
 
   document.getElementById('confirm-btn').addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
@@ -316,19 +338,41 @@ function renderSummary() {
       return;
     }
 
+    // Build selections array for qc_persist_selections (Phase 1c step 3e —
+    // selected_option must be persisted to tdr_failure rows BEFORE checkout
+    // so the backend can compute selected-option-aware line items).
+    const selectionsArr = Object.keys(state.selections).map(fid => ({
+      failure_id: parseInt(fid, 10),
+      selected_option: state.selections[fid]
+    })).filter(s => s.selected_option && !isNaN(s.failure_id));
+
     try {
-      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_create_checkout_session', {
+      // Step A: persist selections.
+      const persistRes = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_persist_selections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tdr_id: tdrId, public_view_token: urlToken, selections: selectionsArr })
+      });
+      const persistData = await persistRes.json().catch(() => null);
+      if (!persistRes.ok || !persistData || persistData.ok !== true) {
+        console.error('CONFIRM AND PAY: persist selections failed', { status: persistRes.status, persistData });
+        showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+        return;
+      }
+
+      // Step B: create checkout session.
+      const checkoutRes = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_create_checkout_session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tdr_id: tdrId, public_view_token: urlToken })
       });
-      const data = await r.json().catch(() => null);
-      if (!r.ok || !data || data.success !== true || !data.checkout_url) {
-        console.error('CONFIRM AND PAY: checkout session creation failed', { status: r.status, data });
+      const checkoutData = await checkoutRes.json().catch(() => null);
+      if (!checkoutRes.ok || !checkoutData || checkoutData.success !== true || !checkoutData.checkout_url) {
+        console.error('CONFIRM AND PAY: checkout session creation failed', { status: checkoutRes.status, checkoutData });
         showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
         return;
       }
-      window.location.href = data.checkout_url;
+      window.location.href = checkoutData.checkout_url;
     } catch (e) {
       console.error('CONFIRM AND PAY: network error', e);
       btn.disabled = false;
