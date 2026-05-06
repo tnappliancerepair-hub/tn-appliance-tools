@@ -24,7 +24,10 @@
 //     retry per its exponential backoff. Self-healing for transient outages.
 //   - Network failure reaching Xano: 500 to Stripe. Retries.
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Use Stripe SDK's static webhooks.constructEvent — does NOT require API key
+// initialization (we only verify signatures here, never call Stripe API).
+// Avoids module-load crash when STRIPE_SECRET_KEY is unset in this context.
+const Stripe = require('stripe');
 
 const XANO_URL = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/stripe_checkout_session_completed';
 
@@ -46,7 +49,7 @@ exports.handler = async function (event) {
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const sharedSecret = process.env.XANO_WEBHOOK_SHARED_SECRET;
-  if (!webhookSecret || !sharedSecret || !process.env.STRIPE_SECRET_KEY) {
+  if (!webhookSecret || !sharedSecret) {
     console.error('[stripe-webhook] env vars not configured');
     return { statusCode: 500, body: JSON.stringify({ error: 'server misconfigured' }) };
   }
@@ -65,7 +68,7 @@ exports.handler = async function (event) {
 
   let stripeEvent;
   try {
-    stripeEvent = stripe.webhooks.constructEvent(rawBody, sigHeader, webhookSecret);
+    stripeEvent = Stripe.webhooks.constructEvent(rawBody, sigHeader, webhookSecret);
   } catch (err) {
     console.error('[stripe-webhook] signature verification failed:', err.message);
     return {
