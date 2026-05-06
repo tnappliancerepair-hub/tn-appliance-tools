@@ -1,0 +1,11 @@
+# Legacy WordPress URL redirects (added 2026-05-05).
+# Old GoDaddy WordPress site used /privacy-policy-2/ and /terms-and-conditions/
+# slugs. After Netlify migration, canonical paths became /privacy and /terms.
+# These 301s catch any in-the-wild references (old marketing materials,
+# archived TCR submissions, search engine indexes, customer-saved bookmarks)
+# so they don't hit 404 and break consent-flow verification.
+
+/privacy-policy-2     /privacy   301
+/privacy-policy-2/    /privacy   301
+/terms-and-conditions     /terms   301
+/terms-and-conditions/    /terms   301
