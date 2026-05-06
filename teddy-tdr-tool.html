@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TN Appliance — TDR Tool</title>
+  <title>TN Appliance — Teddy Cockpit</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -29,132 +29,128 @@
       content: '';
       position: fixed;
       inset: 0;
-      background-image: 
+      background-image:
         linear-gradient(rgba(74,158,255,0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(74,158,255,0.03) 1px, transparent 1px);
       background-size: 40px 40px;
       pointer-events: none;
       z-index: 0;
     }
-    .container { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; padding: 16px; padding-bottom: 48px; }
-    .header { background: linear-gradient(135deg, #0e1118, #131a2a); border: 1px solid var(--border2); border-radius: 16px; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-icon { font-size: 28px; }
-    .header-title { font-size: 15px; font-weight: 700; color: var(--text); }
-    .header-sub { font-size: 11px; color: var(--muted2); margin-top: 2px; font-family: var(--mono); }
-    .header-badge { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.3); border-radius: 20px; padding: 5px 12px; font-size: 11px; color: var(--accent); font-weight: 700; font-family: var(--mono); }
-    .job-banner { background: rgba(0,214,143,0.06); border: 1px solid rgba(0,214,143,0.2); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--green); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-    .job-banner.loading { color: var(--accent); border-color: rgba(245,166,35,0.2); background: rgba(245,166,35,0.06); }
-    .job-banner.error { color: var(--red); border-color: rgba(255,71,87,0.2); background: rgba(255,71,87,0.06); }
-    .customer-card { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .customer-card-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); }
-    .customer-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .info-item label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); display: block; margin-bottom: 3px; }
-    .info-item span { font-size: 14px; font-weight: 600; color: var(--text); }
-    .info-item.full { grid-column: 1 / -1; }
-    .photos-section { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .photos-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .photos-count { color: var(--muted2); font-weight: 400; }
-    .photos-loading { display: flex; align-items: center; gap: 8px; padding: 12px; color: var(--muted2); font-size: 12px; }
-    .mini-spinner { width: 14px; height: 14px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
-    .photo-section-group { margin-bottom: 14px; }
-    .photo-section-group:last-child { margin-bottom: 0; }
-    .photo-section-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--mono); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-    .photo-section-label .pill { padding: 1px 6px; border-radius: 4px; font-size: 9px; }
-    .photo-section-label .pill.intake { background: rgba(74,158,255,0.15); color: var(--blue); }
-    .photo-section-label .pill.completion { background: rgba(245,166,35,0.15); color: var(--accent); }
-    .photo-section-label .pill.tdr { background: rgba(0,214,143,0.15); color: var(--green); }
-    .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .photo-thumb { aspect-ratio: 1; border-radius: 8px; overflow: hidden; border: 1px solid var(--border2); cursor: pointer; transition: border-color 0.2s; position: relative; background: #000; }
+    .container { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 48px; }
+    .header { background: linear-gradient(135deg, #0e1118, #131a2a); border: 1px solid var(--border2); border-radius: 16px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
+    .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-icon { font-size: 22px; }
+    .header-title { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .header-sub { font-size: 10px; color: var(--muted2); margin-top: 2px; font-family: var(--mono); }
+    .header-badge { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.3); border-radius: 20px; padding: 4px 10px; font-size: 10px; color: var(--accent); font-weight: 700; font-family: var(--mono); white-space: nowrap; }
+    .back-link { color: var(--muted2); text-decoration: none; font-size: 12px; font-family: var(--mono); display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; margin-bottom: 8px; }
+    .back-link:hover { color: var(--text); }
+
+    .cockpit-card { background: var(--card); border: 1px solid var(--border2); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+    .cockpit-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .cockpit-row:first-child { padding-top: 0; }
+    .cockpit-row:last-child { padding-bottom: 0; border-bottom: none; }
+    .cockpit-section-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .cockpit-job-line { font-size: 16px; font-weight: 700; color: var(--text); display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .cockpit-job-line .job-id { color: var(--muted2); font-family: var(--mono); font-size: 14px; font-weight: 600; }
+    .cockpit-job-line .name { color: var(--text); }
+    .cockpit-job-sub { font-size: 12px; color: var(--muted2); margin-top: 4px; }
+    .cockpit-job-sub a { color: var(--blue); text-decoration: none; font-family: var(--mono); }
+    .cockpit-job-sub a:hover { text-decoration: underline; }
+
+    .job-type-badge { padding: 3px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; }
+    .job-type-badge.cash { background: rgba(0,214,143,0.12); color: var(--green); border: 1px solid rgba(0,214,143,0.3); }
+    .job-type-badge.warranty { background: rgba(74,158,255,0.12); color: var(--blue); border: 1px solid rgba(74,158,255,0.3); }
+    .job-type-badge.unknown { background: rgba(245,166,35,0.12); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); }
+
+    .machine-line { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+    .machine-text { font-size: 14px; color: var(--text); font-weight: 600; }
+    .machine-model { font-family: var(--mono); font-size: 13px; color: var(--blue); }
+    .schematic-link { color: var(--accent); font-size: 13px; text-decoration: none; padding: 6px 10px; border: 1px solid rgba(245,166,35,0.3); border-radius: 6px; font-family: var(--mono); white-space: nowrap; transition: all 0.15s; }
+    .schematic-link:hover { background: rgba(245,166,35,0.08); border-color: var(--accent); }
+    .schematic-disabled { color: var(--muted); font-size: 12px; padding: 6px 10px; border: 1px dashed var(--border2); border-radius: 6px; font-family: var(--mono); }
+
+    .issue-text { font-size: 14px; color: var(--text); line-height: 1.5; }
+    .issue-text-muted { font-size: 13px; color: var(--muted2); font-style: italic; }
+
+    .media-split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; }
+    @media (max-width: 540px) { .media-split { grid-template-columns: 1fr; } }
+    .media-block { min-width: 0; }
+    .media-block-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .media-empty { font-size: 12px; color: var(--muted); padding: 10px 0; font-style: italic; }
+    .video-card { aspect-ratio: 16/10; border-radius: 10px; overflow: hidden; border: 1px solid var(--border2); cursor: pointer; position: relative; background: #000; transition: border-color 0.2s; }
+    .video-card:hover { border-color: var(--accent); }
+    .video-card video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .video-card .play-big { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+    .video-card .play-big::after { content: '▶'; color: white; font-size: 38px; text-shadow: 0 2px 8px rgba(0,0,0,0.7); }
+    .video-stack { display: flex; flex-direction: column; gap: 8px; }
+
+    .photo-grid-cockpit { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .photo-thumb { aspect-ratio: 1; border-radius: 6px; overflow: hidden; border: 1px solid var(--border2); cursor: pointer; transition: border-color 0.2s; position: relative; background: #000; }
     .photo-thumb:hover { border-color: var(--accent); }
     .photo-thumb img, .photo-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
     .photo-thumb .play-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-    .photo-thumb .play-overlay::after { content: '▶'; color: white; font-size: 22px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
-    .photo-thumb .type-tag { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: white; font-size: 9px; padding: 2px 5px; border-radius: 3px; font-family: var(--mono); text-transform: uppercase; }
-    .no-photos { text-align: center; padding: 20px; color: var(--muted2); font-size: 13px; }
-    .photos-error { padding: 12px; color: var(--red); font-size: 12px; background: rgba(255,71,87,0.06); border-radius: 6px; }
-    .diag-summary { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .diag-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 6px; }
-    .ant-badge { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.25); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--accent); }
-    .diag-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .diag-item:last-child { border-bottom: none; }
-    .diag-label { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 100px; padding-top: 1px; text-transform: uppercase; }
-    .diag-value { color: var(--text); flex: 1; }
-    .section-card { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    .photo-thumb .play-overlay::after { content: '▶'; color: white; font-size: 18px; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+    .photo-thumb .type-tag { position: absolute; bottom: 2px; left: 2px; background: rgba(0,0,0,0.7); color: white; font-size: 8px; padding: 1px 4px; border-radius: 3px; font-family: var(--mono); text-transform: uppercase; }
+
+    .section-card { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
     .section-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; font-family: var(--mono); }
     .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
     .field label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; font-family: var(--mono); }
-    .field input, .field textarea, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
-    .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
-    .field-hint { font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.4; font-family: var(--sans); }
+    .field input, .field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
+    .field input:focus, .field textarea:focus { border-color: var(--accent); }
     .field textarea { resize: vertical; line-height: 1.5; min-height: 80px; }
-    .field select { cursor: pointer; }
-    select option { background: #0e1118; }
-    .part-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .part-option { background: var(--bg); border: 2px solid var(--border2); border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.2s; }
-    .part-option.selected-oem { border-color: var(--blue); background: rgba(74,158,255,0.06); }
-    .part-option.selected-amazon { border-color: var(--accent); background: rgba(245,166,35,0.06); }
-    .part-option-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 4px; }
-    .part-option-label.oem { color: var(--blue); }
-    .part-option-label.amazon { color: var(--accent); }
-    .part-option input { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--border2); color: var(--text); font-size: 13px; font-family: var(--mono); padding: 4px 0; outline: none; }
-    .part-option-desc { font-size: 11px; color: var(--muted2); margin-top: 6px; }
-    .rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .rec-btn { background: var(--bg); border: 2px solid var(--border2); border-radius: 10px; padding: 14px 12px; cursor: pointer; text-align: center; transition: all 0.2s; font-family: var(--sans); }
-    .rec-btn:hover { border-color: var(--border); }
-    .rec-btn.selected-repair { border-color: var(--green); background: rgba(0,214,143,0.06); }
-    .rec-btn.selected-diy { border-color: var(--blue); background: rgba(74,158,255,0.06); }
-    .rec-btn.selected-replace { border-color: var(--red); background: rgba(255,71,87,0.06); }
-    .rec-btn.selected-inhome { border-color: var(--accent); background: rgba(245,166,35,0.06); }
-    .rec-icon { font-size: 22px; margin-bottom: 6px; }
-    .rec-label { font-size: 12px; font-weight: 700; color: var(--text); }
-    .rec-sub { font-size: 10px; color: var(--muted2); margin-top: 3px; }
-    .estimate-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .ai-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: 10px; color: #080a0f; font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--sans); transition: opacity 0.2s; margin-bottom: 10px; }
-    .ai-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .send-btn { width: 100%; padding: 16px; background: var(--green); border: none; border-radius: 12px; color: #080a0f; font-size: 16px; font-weight: 700; cursor: pointer; font-family: var(--sans); transition: opacity 0.2s; letter-spacing: 0.02em; }
-    .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .field-hint { font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.4; font-family: var(--sans); }
+    .field-hint.live { color: var(--green); font-family: var(--mono); }
+    .field-hint.live.error { color: var(--red); }
+
+    .ai-link { display: inline-block; color: var(--muted2); font-size: 11px; text-decoration: underline dotted; cursor: pointer; margin-bottom: 10px; font-family: var(--mono); }
+    .ai-link:hover { color: var(--accent); }
+    .ai-link.loading { color: var(--accent); cursor: wait; }
+    .ai-link .mini-spin { display: inline-block; width: 9px; height: 9px; border: 1.5px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 5px; }
+
+    .part-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; align-items: end; }
+    .part-row .field { margin-bottom: 0; }
+    .part-row-label { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .part-row-label.oem { color: var(--blue); }
+    .part-row-label.amazon { color: var(--accent); }
+    .part-block { margin-bottom: 16px; }
+    .part-block:last-of-type { margin-bottom: 0; }
+
+    .submit-btn { width: 100%; padding: 16px; background: var(--green); border: none; border-radius: 12px; color: #080a0f; font-size: 16px; font-weight: 700; cursor: pointer; font-family: var(--sans); transition: opacity 0.2s; letter-spacing: 0.02em; }
+    .submit-btn.warranty { background: var(--blue); color: #fff; }
+    .submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
     .error-box { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.25); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--red); margin-bottom: 14px; }
+    .warning-box { background: rgba(245,166,35,0.06); border: 1px solid rgba(245,166,35,0.25); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 14px; }
+    .info-box { background: rgba(74,158,255,0.06); border: 1px solid rgba(74,158,255,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--blue); margin-bottom: 14px; line-height: 1.45; font-family: var(--mono); }
+
     .done-screen { text-align: center; padding: 40px 24px; }
     .done-icon { font-size: 56px; margin-bottom: 16px; }
     .done-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
     .done-sub { font-size: 14px; color: var(--muted2); margin-bottom: 24px; }
-    .done-details { background: var(--card2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: left; margin-bottom: 20px; font-family: var(--mono); font-size: 13px; }
-    .done-row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .done-details { background: var(--card2); border: 1px solid var(--border2); border-radius: 10px; padding: 16px; text-align: left; margin-bottom: 18px; font-family: var(--mono); font-size: 13px; }
+    .done-row { display: flex; justify-content: space-between; padding: 4px 0; gap: 12px; }
     .done-row span:first-child { color: var(--muted); }
-    .done-row span:last-child { color: var(--text); font-weight: 600; }
-    .hcp-status { border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; text-align: left; }
-    .hcp-ok { background: rgba(0,214,143,0.08); border: 1px solid rgba(0,214,143,0.25); color: var(--green); }
-    .hcp-fail { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.25); color: var(--red); }
-    .new-btn { padding: 13px 32px; background: var(--accent); border: none; border-radius: 10px; color: #080a0f; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--sans); }
-    /* Send to Customer section (Phase 1c step 3b) */
-    .send-section { background: var(--card2); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: left; }
-    .send-section-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; font-family: var(--mono); }
-    .send-pre { display: flex; flex-direction: column; gap: 10px; }
-    .preview-link { color: var(--blue); font-size: 13px; text-decoration: none; padding: 8px 0; font-family: var(--mono); }
-    .preview-link:hover { text-decoration: underline; }
-    .send-customer-btn { width: 100%; padding: 14px; background: var(--accent2); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--sans); letter-spacing: 0.02em; }
-    .send-customer-btn:hover { opacity: 0.92; }
-    .send-pre-note { font-size: 12px; color: var(--muted2); line-height: 1.4; }
-    .send-loading { display: flex; align-items: center; gap: 10px; color: var(--accent); font-size: 14px; padding: 8px 0; font-family: var(--mono); }
-    .send-success { background: rgba(0,214,143,0.08); border: 1px solid rgba(0,214,143,0.25); border-radius: 8px; padding: 12px 14px; }
-    .send-success-row { color: var(--green); font-size: 14px; font-weight: 600; margin-bottom: 10px; font-family: var(--mono); }
-    .send-success-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .copy-btn { padding: 7px 14px; background: var(--card); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 12px; cursor: pointer; font-family: var(--mono); }
+    .done-row span:last-child { color: var(--text); font-weight: 600; word-break: break-all; text-align: right; }
+    .done-row a { color: var(--blue); text-decoration: none; font-family: var(--mono); font-weight: 600; word-break: break-all; }
+    .done-row a:hover { text-decoration: underline; }
+    .done-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .next-btn { padding: 13px 28px; background: var(--accent); border: none; border-radius: 10px; color: #080a0f; font-size: 14px; font-weight: 700; cursor: pointer; font-family: var(--sans); text-decoration: none; display: inline-block; }
+    .secondary-btn { padding: 13px 22px; background: var(--card2); border: 1px solid var(--border2); border-radius: 10px; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--sans); text-decoration: none; display: inline-block; }
+    .copy-btn { padding: 6px 12px; background: var(--card); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 11px; cursor: pointer; font-family: var(--mono); margin-left: 6px; }
     .copy-btn:hover { border-color: var(--blue); color: var(--blue); }
-    .resend-btn { padding: 7px 14px; background: transparent; border: 1px solid var(--border2); border-radius: 8px; color: var(--muted2); font-size: 12px; cursor: pointer; font-family: var(--mono); }
-    .resend-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .send-error { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.25); border-radius: 8px; padding: 12px 14px; }
-    .send-error-msg { color: var(--red); font-size: 13px; margin-bottom: 10px; line-height: 1.4; }
-    .send-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .back-btn { padding: 7px 14px; background: var(--card); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); font-size: 12px; cursor: pointer; font-family: var(--sans); }
+
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner { width: 36px; height: 36px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px; }
     .loading-screen { padding: 60px 24px; text-align: center; }
     .loading-screen p { color: var(--muted2); font-size: 14px; }
+
     .intake-card { background: var(--card); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
     .intake-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 20px; }
     .load-btn { width: 100%; padding: 13px; background: var(--accent); border: none; border-radius: 10px; color: #080a0f; font-size: 15px; font-weight: 700; cursor: pointer; font-family: var(--sans); margin-top: 4px; }
+
     .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; align-items: center; justify-content: center; z-index: 9999; padding: 20px; }
     .lightbox.show { display: flex; }
     .lightbox-content { max-width: 95%; max-height: 95%; }
@@ -167,7 +163,7 @@
     <div class="container">
       <div class="loading-screen">
         <div class="spinner"></div>
-        <p>Loading TDR Tool...</p>
+        <p>Loading Teddy Cockpit...</p>
       </div>
     </div>
   </div>
@@ -178,34 +174,25 @@
   </div>
 
 <script>
-const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
 const NETLIFY_BASE = window.location.origin;
 
 let state = {
   step: "intake",
   jobId: "",
-  job: null,
-  attachments: [],
-  attachmentUrls: {},
-  attachmentsLoading: false,
-  attachmentsError: "",
-  customerReportedProblem: "",
+  cockpit: null,
   diagnosis: "",
-  partType: "",
   oemPartNumber: "",
   oemPrice: "",
   amazonPartNumber: "",
   amazonPrice: "",
-  repairEstimate: "",
   laborEstimate: "",
-  recommendation: "",
   techNotes: "",
   aiLoading: false,
   submitResult: null,
-  error: "",
-  sendStatus: null,
   sendResult: null,
-  sendError: "",
+  finalizeStatus: null,
+  finalizeError: "",
+  error: ""
 };
 
 function getUrlJobId() {
@@ -213,85 +200,73 @@ function getUrlJobId() {
   return p.get("job_id") || p.get("job") || "";
 }
 
-async function loadJob(jobId) {
+function parseDollarsToCents(input) {
+  if (input == null) return null;
+  const s = String(input).replace(/[$,\s]/g, "").trim();
+  if (s === "") return null;
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  const f = parseFloat(s);
+  if (!isFinite(f) || f < 0) return null;
+  return Math.round(f * 100);
+}
+
+function centsToDisplay(cents) {
+  if (cents == null) return "";
+  const dollars = cents / 100;
+  return "$" + dollars.toFixed(2);
+}
+
+function markup30Display(cents) {
+  if (cents == null) return null;
+  return Math.round(cents * 13 / 10);
+}
+
+async function loadCockpit(jobId) {
   state.step = "loading";
   state.error = "";
   render();
   try {
-    const res = await fetch("/.netlify/functions/get-job-proxy?job_id=" + jobId);
-    if (!res.ok) throw new Error("Job not found");
-    const job = await res.json();
-    state.job = job;
-    state.jobId = jobId;
-    state.customerReportedProblem = job.problem_summary || "";
-    state.diagnosis = job.problem_summary || "";
+    const res = await fetch("/.netlify/functions/xano-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: "qc_cockpit_load", payload: { job_id: jobId }, api_group: "intake", method: "GET" })
+    });
+    let data;
+    try { data = await res.json(); } catch(_e) { throw new Error("Bad response from server"); }
+    if (!data || !data.success) {
+      throw new Error((data && data.error) || ("Job " + jobId + " not found"));
+    }
+    state.cockpit = data;
+    state.jobId = String(data.job.id);
+    state.diagnosis = data.appliance.problem_summary || "";
     state.step = "review";
     render();
-    loadAttachments(jobId);
   } catch(e) {
-    state.error = "Could not load job #" + jobId + ". Check the job ID and try again.";
+    state.error = e.message || ("Could not load job #" + jobId);
     state.step = "intake";
     render();
   }
 }
 
-async function loadAttachments(jobId) {
-  state.attachmentsLoading = true;
-  state.attachmentsError = "";
-  state.attachments = [];
-  state.attachmentUrls = {};
-  renderPhotosOnly();
-
-  try {
-    const xanoRes = await fetch(`${XANO_BASE}/get_job_attachments?job_id=${jobId}`);
-    if (!xanoRes.ok) throw new Error(`Could not load attachments (${xanoRes.status})`);
-    const xanoData = await xanoRes.json();
-    if (!xanoData.success) throw new Error("Attachment fetch failed");
-
-    state.attachments = xanoData.attachments || [];
-
-    if (state.attachments.length > 0) {
-      const s3Keys = state.attachments.map(a => a.s3_key);
-      const signRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/s3-view-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ s3_keys: s3Keys })
-      });
-      if (signRes.ok) {
-        const signData = await signRes.json();
-        if (signData.success) {
-          signData.signed_urls.forEach(s => { state.attachmentUrls[s.s3_key] = s.view_url; });
-        }
-      }
-    }
-  } catch(e) {
-    state.attachmentsError = e.message || "Could not load photos";
-  }
-  state.attachmentsLoading = false;
-  renderPhotosOnly();
-}
-
 async function aiPreFill() {
-  if (!state.job) return;
+  if (!state.cockpit) return;
+  saveReviewInputs();
   state.aiLoading = true;
   state.error = "";
   render();
 
-  const prompt = `You are a senior appliance technician. Based on this service request, provide a diagnosis and part recommendation.
-
-Appliance: ${state.job.brand} ${state.job.appliance_type}
-Model: ${state.job.model_number || "Unknown"}
-Customer reported: ${state.job.problem_summary}
-
-Respond ONLY with a JSON object, no markdown:
-{
-  "diagnosis": "2-3 sentence technical summary of likely root cause in plain English",
-  "oem_part_number": "OEM part number if confident, or null",
-  "amazon_search": "Best search term to find this part on Amazon",
-  "repair_estimate": "Labor estimate range e.g. $80-$120",
-  "recommendation": "repair" or "diy" or "replace" or "inhome",
-  "tech_notes": "Any important caveats or safety notes"
-}`;
+  const app = state.cockpit.appliance || {};
+  const prompt = "You are a senior appliance technician. Based on this service request, provide a diagnosis and part recommendation.\n\n" +
+    "Appliance: " + (app.brand || "") + " " + (app.appliance_type || "") + "\n" +
+    "Model: " + (app.model_number || "Unknown") + "\n" +
+    "Customer reported: " + (app.problem_summary || "") + "\n\n" +
+    "Respond ONLY with a JSON object, no markdown:\n" +
+    "{\n" +
+    '  "diagnosis": "2-3 sentence technical summary of likely root cause in plain English",\n' +
+    '  "oem_part_number": "OEM part number if confident, or null",\n' +
+    '  "amazon_search": "Best search term to find this part on Amazon",\n' +
+    '  "tech_notes": "Any important caveats or safety notes"\n' +
+    "}";
 
   try {
     const res = await fetch("/.netlify/functions/claude-proxy", {
@@ -304,14 +279,12 @@ Respond ONLY with a JSON object, no markdown:
       })
     });
     const data = await res.json();
-    if (data.diagnosis) {
+    if (data && data.diagnosis) {
       state.diagnosis = data.diagnosis || state.diagnosis;
-      state.oemPartNumber = data.oem_part_number || "";
-      state.repairEstimate = data.repair_estimate || "";
-      state.recommendation = data.recommendation || "";
-      state.techNotes = data.tech_notes || "";
+      if (data.oem_part_number) state.oemPartNumber = data.oem_part_number;
+      if (data.tech_notes) state.techNotes = data.tech_notes;
     }
-  } catch(e) {
+  } catch(_e) {
     state.error = "AI pre-fill failed. Fill in manually.";
   }
   state.aiLoading = false;
@@ -320,445 +293,441 @@ Respond ONLY with a JSON object, no markdown:
 
 async function submitTDR() {
   saveReviewInputs();
-  if (!state.jobId) { state.error = "No job loaded."; render(); return; }
-  if (!state.recommendation) { state.error = "Please select a recommendation."; render(); return; }
+  if (!state.cockpit) { state.error = "No job loaded."; render(); return; }
   if (!state.diagnosis.trim()) { state.error = "Please enter a diagnosis."; render(); return; }
 
-  state.step = "submitting";
+  const oemCents = state.oemPrice.trim() === "" ? null : parseDollarsToCents(state.oemPrice);
+  const amzCents = state.amazonPrice.trim() === "" ? null : parseDollarsToCents(state.amazonPrice);
+  const laborCents = state.laborEstimate.trim() === "" ? null : parseDollarsToCents(state.laborEstimate);
+
+  if (state.oemPrice.trim() !== "" && oemCents === null) { state.error = "OEM cost looks off — use a number like $85 or 85.50."; render(); return; }
+  if (state.amazonPrice.trim() !== "" && amzCents === null) { state.error = "Amazon cost looks off — use a number like $28 or 28.99."; render(); return; }
+  if (state.laborEstimate.trim() !== "" && laborCents === null) { state.error = "Labor cost looks off — use a number like $215."; render(); return; }
+
+  if (oemCents == null && amzCents == null) { state.error = "Enter at least one part cost (OEM or Amazon)."; render(); return; }
+  if (laborCents == null) { state.error = "Labor customer cost is required."; render(); return; }
+
+  const job = state.cockpit.job;
+  const appliance = state.cockpit.appliance;
+  const customerType = (job.customer_type || "").toLowerCase();
+  const isCash = customerType === "self_pay";
+
+  state.finalizeStatus = "submitting";
+  state.finalizeError = "";
   state.error = "";
   render();
 
-  const payload = {
+  const createPayload = {
     job_id: parseInt(state.jobId),
     technician_id: 1,
     technician_first_name: "Teddy",
     technician_last_name: "Pivacek",
-    problem_summary: state.customerReportedProblem,
+    problem_summary: appliance.problem_summary || "",
     diagnosis: state.diagnosis,
     customer_facing_diagnosis: state.diagnosis,
     confidence_level: "High",
-    verified_part_number: state.partType === "oem" ? state.oemPartNumber : state.amazonPartNumber,
-    part_source: state.partType,
-    oem_part_number: state.oemPartNumber,
-    oem_price: state.oemPrice,
-    amazon_part_number: state.amazonPartNumber,
-    amazon_price: state.amazonPrice,
-    estimated_repair_cost_range: state.repairEstimate,
-    final_recommendation: state.recommendation,
     technician_notes: state.techNotes,
     status: "submitted",
-    report_date: new Date().toISOString(),
+    mode: "pre_diagnosis",
+    failure_description: state.diagnosis,
+    oem_part_number: state.oemPartNumber || null,
+    amazon_part_number: state.amazonPartNumber || null,
+    oem_part_our_cost_cents: oemCents == null ? 0 : oemCents,
+    amazon_part_our_cost_cents: amzCents == null ? 0 : amzCents,
+    labor_customer_cost_cents: laborCents
   };
 
   try {
     const res = await fetch("/.netlify/functions/xano-proxy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint: "create_tdr", payload })
+      body: JSON.stringify({ endpoint: "create_tdr", payload: createPayload, api_group: "intake" })
     });
     const data = await res.json();
-    if (data && data.tdr && data.tdr.id) {
-      state.submitResult = data;
-      state.step = "done";
-    } else {
-      throw new Error(JSON.stringify(data).slice(0, 200));
+    if (!data || !data.tdr || !data.tdr.id) {
+      throw new Error((data && data.message) || ("Could not create TDR: " + JSON.stringify(data).slice(0, 200)));
     }
+    state.submitResult = data;
   } catch(e) {
-    state.error = "Submit failed: " + e.message;
-    state.step = "review";
+    state.finalizeStatus = "failed";
+    state.finalizeError = "Could not create TDR. " + e.message;
+    render();
+    return;
+  }
+
+  if (isCash) {
+    try {
+      const tdrId = state.submitResult.tdr.id;
+      const sendRes = await fetch("/.netlify/functions/xano-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "send_qc_diagnosis_to_customer",
+          api_group: "cash_tdr",
+          payload: { tdr_id: parseInt(tdrId), technician_id: 1, force_resend: false }
+        })
+      });
+      const sendData = await sendRes.json();
+      state.sendResult = sendData;
+      if (sendData && sendData.success === true) {
+        state.finalizeStatus = "cash_sent";
+        state.step = "done";
+      } else {
+        state.finalizeStatus = "failed";
+        state.finalizeError = "TDR created (#" + state.submitResult.tdr.id + ") but customer SMS failed: " + ((sendData && sendData.error) || "unknown error");
+      }
+    } catch(e) {
+      state.finalizeStatus = "failed";
+      state.finalizeError = "TDR created (#" + state.submitResult.tdr.id + ") but customer SMS failed: " + e.message;
+    }
+  } else {
+    state.finalizeStatus = "warranty_saved";
+    state.step = "done";
   }
   render();
 }
 
 function reset() {
   state = {
-    step: "intake", jobId: "", job: null,
-    attachments: [], attachmentUrls: {}, attachmentsLoading: false, attachmentsError: "",
-    diagnosis: "", partType: "", oemPartNumber: "", oemPrice: "",
-    amazonPartNumber: "", amazonPrice: "", repairEstimate: "",
-    laborEstimate: "", recommendation: "", techNotes: "",
-    aiLoading: false, submitResult: null, error: "",
-    sendStatus: null, sendResult: null, sendError: ""
+    step: "intake", jobId: "", cockpit: null,
+    diagnosis: "", oemPartNumber: "", oemPrice: "",
+    amazonPartNumber: "", amazonPrice: "", laborEstimate: "",
+    techNotes: "", aiLoading: false,
+    submitResult: null, sendResult: null,
+    finalizeStatus: null, finalizeError: "", error: ""
   };
   render();
 }
 
 function renderHeader() {
-  return `
-    <div class="header">
-      <div class="header-left">
-        <div class="header-icon">🔧</div>
-        <div>
-          <div class="header-title">TN Appliance Exchange</div>
-          <div class="header-sub">Technician Decision Report</div>
-        </div>
-      </div>
-      <div class="header-badge">Teddy · Tech ID: 1</div>
-    </div>`;
+  return '<div class="header">' +
+    '<div class="header-left">' +
+      '<div class="header-icon">🔧</div>' +
+      '<div>' +
+        '<div class="header-title">TN Appliance Exchange</div>' +
+        '<div class="header-sub">Teddy Cockpit</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="header-badge">Teddy · Tech ID: 1</div>' +
+  '</div>';
 }
 
 function renderIntake() {
-  return `
-    ${renderHeader()}
-    <div class="intake-card">
-      <div class="intake-title">Load Job</div>
-      ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
-      <div class="field">
-        <label>Xano Job ID</label>
-        <input type="number" id="jobIdInput" placeholder="e.g. 188" value="${state.jobId}" />
-      </div>
-      <button class="load-btn" onclick="handleLoadJob()">Load Job →</button>
-    </div>`;
+  return renderHeader() +
+    '<div class="intake-card">' +
+      '<div class="intake-title">Load Job</div>' +
+      (state.error ? '<div class="error-box">' + escapeHtml(state.error) + '</div>' : '') +
+      '<div class="field">' +
+        '<label>Xano Job ID</label>' +
+        '<input type="number" id="jobIdInput" placeholder="e.g. 205" value="' + escapeAttr(state.jobId) + '" />' +
+      '</div>' +
+      '<button class="load-btn" onclick="handleLoadJob()">Load Job →</button>' +
+    '</div>';
 }
 
 function renderLoading() {
-  return `
-    ${renderHeader()}
-    <div class="loading-screen">
-      <div class="spinner"></div>
-      <p>Loading job from Xano...</p>
-    </div>`;
+  return renderHeader() +
+    '<div class="loading-screen">' +
+      '<div class="spinner"></div>' +
+      '<p>Loading job from Xano...</p>' +
+    '</div>';
 }
 
-function renderPhotosSection() {
-  if (state.attachmentsLoading) {
-    return `
-      <div class="photos-section">
-        <div class="photos-title">📸 Customer & Tech Uploads</div>
-        <div class="photos-loading"><div class="mini-spinner"></div> Loading photos and videos...</div>
-      </div>`;
+function renderJobTypeBadge(customerType, warrantyCompany) {
+  const ct = (customerType || "").toLowerCase();
+  if (ct === "self_pay") return '<span class="job-type-badge cash">CASH JOB</span>';
+  if (ct === "warranty") {
+    const co = warrantyCompany ? (" · " + escapeHtml(warrantyCompany)) : "";
+    return '<span class="job-type-badge warranty">WARRANTY' + co + '</span>';
   }
-  if (state.attachmentsError) {
-    return `
-      <div class="photos-section">
-        <div class="photos-title">📸 Customer & Tech Uploads</div>
-        <div class="photos-error">⚠️ ${state.attachmentsError}</div>
-      </div>`;
-  }
-  if (!state.attachments.length) {
-    return `
-      <div class="photos-section">
-        <div class="photos-title">📸 Customer & Tech Uploads</div>
-        <div class="no-photos">No photos or videos uploaded yet</div>
-      </div>`;
-  }
+  return '<span class="job-type-badge unknown">' + escapeHtml((customerType || "?").toUpperCase()) + '</span>';
+}
 
-  const groups = { intake: [], completion: [], tdr: [] };
-  state.attachments.forEach((a, idx) => {
+function renderSchematicLink(modelNumber) {
+  if (!modelNumber || !modelNumber.trim()) {
+    return '<span class="schematic-disabled">📐 Schematic — model unknown</span>';
+  }
+  const url = "https://www.searspartsdirect.com/search?q=" + encodeURIComponent(modelNumber.trim());
+  return '<a class="schematic-link" href="' + url + '" target="_blank" rel="noopener">📐 Open schematic on Sears PartsDirect ↗</a>';
+}
+
+function renderMediaSplit() {
+  const attachments = (state.cockpit && state.cockpit.attachments) || [];
+  const videos = [];
+  const photos = [];
+  attachments.forEach((a, idx) => {
     a._idx = idx;
-    if (groups[a.attachment_type]) {
-      groups[a.attachment_type].push(a);
-    } else {
-      groups.intake.push(a);
-    }
+    if (a.file_type === "video") videos.push(a); else photos.push(a);
   });
 
-  const renderGroup = (label, type, items) => {
-    if (!items.length) return "";
-    return `
-      <div class="photo-section-group">
-        <div class="photo-section-label">${label} <span class="pill ${type}">${type}</span> <span class="photos-count">${items.length}</span></div>
-        <div class="photo-grid">
-          ${items.map(a => {
-            const url = state.attachmentUrls[a.s3_key];
-            if (!url) {
-              return `<div class="photo-thumb"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted2);font-size:10px;text-align:center;padding:4px;">Unavailable</div></div>`;
-            }
-            const tag = a.file_type === 'video' ? 'VIDEO' : 'PHOTO';
-            const inner = a.file_type === 'video'
-              ? `<video src="${url}" muted preload="metadata"></video><div class="play-overlay"></div>`
-              : `<img src="${url}" alt="" loading="lazy" />`;
-            return `<div class="photo-thumb" onclick="openLightbox(${a._idx})">${inner}<div class="type-tag">${tag}</div></div>`;
-          }).join("")}
-        </div>
-      </div>`;
+  const renderVideo = a => {
+    const url = a.signed_view_url;
+    if (!url) {
+      return '<div class="video-card" style="display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:11px;">Video unavailable</div>';
+    }
+    return '<div class="video-card" onclick="openLightbox(' + a._idx + ')">' +
+      '<video src="' + escapeAttr(url) + '" muted preload="metadata"></video>' +
+      '<div class="play-big"></div>' +
+    '</div>';
+  };
+  const renderPhoto = a => {
+    const url = a.signed_view_url;
+    if (!url) {
+      return '<div class="photo-thumb"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted2);font-size:9px;">N/A</div></div>';
+    }
+    return '<div class="photo-thumb" onclick="openLightbox(' + a._idx + ')">' +
+      '<img src="' + escapeAttr(url) + '" alt="" loading="lazy" />' +
+      '<div class="type-tag">photo</div>' +
+    '</div>';
   };
 
-  return `
-    <div class="photos-section">
-      <div class="photos-title">
-        <span>📸 Customer & Tech Uploads</span>
-        <span class="photos-count">${state.attachments.length} total</span>
-      </div>
-      ${renderGroup("Customer intake", "intake", groups.intake)}
-      ${renderGroup("Tech completion", "completion", groups.completion)}
-      ${renderGroup("TDR evidence", "tdr", groups.tdr)}
-    </div>`;
+  const videosBlock = videos.length === 0
+    ? '<div class="media-block"><div class="media-block-label">🎥 Failure videos (0)</div><div class="media-empty">No video uploaded</div></div>'
+    : '<div class="media-block"><div class="media-block-label">🎥 Failure videos (' + videos.length + ')</div><div class="video-stack">' + videos.map(renderVideo).join("") + '</div></div>';
+
+  const photosBlock = photos.length === 0
+    ? '<div class="media-block"><div class="media-block-label">📷 Photos (0)</div><div class="media-empty">No photos</div></div>'
+    : '<div class="media-block"><div class="media-block-label">📷 Photos (' + photos.length + ')</div><div class="photo-grid-cockpit">' + photos.map(renderPhoto).join("") + '</div></div>';
+
+  return '<div class="media-split">' + videosBlock + photosBlock + '</div>';
+}
+
+function renderCockpitHeader() {
+  const c = state.cockpit;
+  const job = c.job, app = c.appliance, cust = c.customer;
+  const customerLine = (cust.full_name || "—") +
+    (cust.phone ? (' · <a href="tel:' + escapeAttr(cust.phone) + '">' + escapeHtml(cust.phone) + '</a>') : "");
+  const addrParts = [cust.address_line1, cust.city, cust.state, cust.zip].filter(p => p && String(p).trim());
+  const addrLine = addrParts.length ? addrParts.join(", ") : "";
+
+  const machineParts = [app.brand, app.appliance_type].filter(p => p && String(p).trim()).join(" ");
+
+  let existingTdrWarning = "";
+  if (c.existing_tdr && c.existing_tdr.id) {
+    existingTdrWarning = '<div class="warning-box">⚠️ This job already has TDR #' + c.existing_tdr.id + '. Submitting will create a new TDR. Verify with Teddy before continuing.</div>';
+  }
+
+  return existingTdrWarning +
+    '<div class="cockpit-card">' +
+      '<div class="cockpit-row">' +
+        '<div class="cockpit-job-line">' +
+          '<span class="job-id">JOB #' + escapeHtml(String(job.id)) + '</span>' +
+          '<span class="name">' + escapeHtml(cust.full_name || "—") + '</span>' +
+          renderJobTypeBadge(job.customer_type, job.warranty_company) +
+        '</div>' +
+        '<div class="cockpit-job-sub">' +
+          (cust.phone ? '<a href="tel:' + escapeAttr(cust.phone) + '">' + escapeHtml(cust.phone) + '</a>' : "") +
+          (addrLine ? (cust.phone ? " · " : "") + escapeHtml(addrLine) : "") +
+        '</div>' +
+      '</div>' +
+
+      '<div class="cockpit-row">' +
+        '<div class="cockpit-section-label">Machine</div>' +
+        '<div class="machine-line">' +
+          '<span class="machine-text">' + escapeHtml(machineParts || "Unknown appliance") + '</span>' +
+          (app.model_number ? '<span class="machine-model">Model: ' + escapeHtml(app.model_number) + '</span>' : '<span class="machine-model" style="color:var(--muted);">Model: unknown</span>') +
+          renderSchematicLink(app.model_number) +
+        '</div>' +
+      '</div>' +
+
+      '<div class="cockpit-row">' +
+        '<div class="cockpit-section-label">Customer reported</div>' +
+        (app.problem_summary
+          ? '<div class="issue-text">' + escapeHtml(app.problem_summary) + '</div>'
+          : '<div class="issue-text-muted">No reported problem captured at intake.</div>') +
+      '</div>' +
+
+      '<div class="cockpit-row">' +
+        renderMediaSplit() +
+      '</div>' +
+    '</div>';
 }
 
 function renderReview() {
-  const job = state.job;
+  const c = state.cockpit;
+  if (!c) return renderIntake();
+  const job = c.job;
+  const customerType = (job.customer_type || "").toLowerCase();
+  const isCash = customerType === "self_pay";
+  const isWarranty = customerType === "warranty";
+  const submitLabel = isCash ? "📩 Submit and send to customer" : (isWarranty ? "📋 Submit to HCP notes" : "📋 Submit TDR");
+  const submitClass = isCash ? "submit-btn" : "submit-btn warranty";
 
-  const recBtns = [
-    { key: "repair", icon: "🔧", label: "Schedule Repair", sub: "Tech installs the part" },
-    { key: "diy", icon: "📦", label: "DIY Part", sub: "Customer installs" },
-    { key: "replace", icon: "🔄", label: "Replace Unit", sub: "Not worth repairing" },
-    { key: "inhome", icon: "🏠", label: "Needs In-Home", sub: "Can't diagnose remotely" },
-  ];
+  const finalizing = state.finalizeStatus === "submitting";
+  const finalizeError = state.finalizeStatus === "failed" ? state.finalizeError : "";
 
-  return `
-    ${renderHeader()}
-    <div class="job-banner">
-      ✅ Job #${state.jobId} — ${job.brand || ""} ${job.appliance_type || ""} ${job.model_number ? "· " + job.model_number : ""}
-    </div>
+  // Compute live preview hints if values are valid.
+  const oemCents = state.oemPrice.trim() === "" ? null : parseDollarsToCents(state.oemPrice);
+  const amzCents = state.amazonPrice.trim() === "" ? null : parseDollarsToCents(state.amazonPrice);
+  const laborCents = state.laborEstimate.trim() === "" ? null : parseDollarsToCents(state.laborEstimate);
+  const oemHint = state.oemPrice.trim() === "" ? "" :
+    (oemCents == null ? '<div class="field-hint live error">Use a number like $85 or 85.50.</div>'
+                      : '<div class="field-hint live">Customer pays ' + centsToDisplay(markup30Display(oemCents)) + ' (30% markup)</div>');
+  const amzHint = state.amazonPrice.trim() === "" ? "" :
+    (amzCents == null ? '<div class="field-hint live error">Use a number like $28 or 28.99.</div>'
+                      : '<div class="field-hint live">Customer pays ' + centsToDisplay(markup30Display(amzCents)) + ' (30% markup)</div>');
+  const laborHint = state.laborEstimate.trim() === "" ? "" :
+    (laborCents == null ? '<div class="field-hint live error">Use a number like $215.</div>'
+                        : '<div class="field-hint live">Customer pays ' + centsToDisplay(laborCents) + ' directly (no markup)</div>');
 
-    <div class="customer-card">
-      <div class="customer-card-title">Customer Info</div>
-      <div class="customer-info-grid">
-        <div class="info-item">
-          <label>Name</label>
-          <span>${job.customer_name || "—"}</span>
-        </div>
-        <div class="info-item">
-          <label>Phone</label>
-          <span>${job.customer_phone || "—"}</span>
-        </div>
-        <div class="info-item">
-          <label>Appliance</label>
-          <span>${job.brand || ""} ${job.appliance_type || ""}</span>
-        </div>
-        <div class="info-item">
-          <label>Model</label>
-          <span style="font-family:var(--mono);font-size:12px;">${job.model_number || "Unknown"}</span>
-        </div>
-        <div class="info-item full">
-          <label>Customer Reported</label>
-          <span style="font-size:13px;color:var(--muted2);">${job.problem_summary || "—"}</span>
-        </div>
-      </div>
-    </div>
+  let smsConsentNote = "";
+  if (isCash && job.sms_consent !== true) {
+    smsConsentNote = '<div class="info-box">⚠️ Customer has not consented to SMS. The submit button will fail at the send step. Call them at ' + escapeHtml(c.customer.phone || "the number on file") + ' instead, or update their SMS consent first.</div>';
+  }
 
-    <div id="photos-container">${renderPhotosSection()}</div>
+  return renderHeader() +
+    '<a class="back-link" href="dashboard.html">← Back to dashboard</a>' +
+    renderCockpitHeader() +
 
-    <div class="diag-summary">
-      <div class="diag-title">🐜 Ant Intake Summary <span class="ant-badge">AI Collected</span></div>
-      <div class="diag-item"><div class="diag-label">Appliance</div><div class="diag-value">${job.appliance_type || "—"}</div></div>
-      <div class="diag-item"><div class="diag-label">Brand</div><div class="diag-value">${job.brand || "—"}</div></div>
-      <div class="diag-item"><div class="diag-label">Model</div><div class="diag-value" style="font-family:var(--mono);font-size:12px;">${job.model_number || "Not provided"}</div></div>
-      <div class="diag-item"><div class="diag-label">Problem</div><div class="diag-value">${job.problem_summary || "—"}</div></div>
-      <div class="diag-item"><div class="diag-label">Service</div><div class="diag-value">${job.recommended_service || "—"}</div></div>
-      <div class="diag-item"><div class="diag-label">Source</div><div class="diag-value">${job.source_type || "—"}</div></div>
-    </div>
+    '<div class="section-card">' +
+      '<div class="section-title">Diagnosis</div>' +
+      (state.error ? '<div class="error-box">' + escapeHtml(state.error) + '</div>' : '') +
+      '<div class="field">' +
+        '<label>Diagnosis (plain English)</label>' +
+        '<textarea id="diagnosisInput" rows="4" placeholder="What did you find? Describe in plain English...">' + escapeHtml(state.diagnosis) + '</textarea>' +
+      '</div>' +
+      (state.aiLoading
+        ? '<span class="ai-link loading"><span class="mini-spin"></span>Analyzing problem...</span>'
+        : '<a class="ai-link" onclick="aiPreFill()">⚡ or try AI guess from problem summary</a>') +
+    '</div>' +
 
-    <div class="section-card">
-      <div class="section-title">Your Diagnosis</div>
-      ${state.error ? `<div class="error-box">${state.error}</div>` : ""}
-      <button class="ai-btn" onclick="aiPreFill()" ${state.aiLoading ? "disabled" : ""}>
-        ${state.aiLoading ? "⏳ Analyzing..." : "⚡ AI Pre-Fill Diagnosis"}
-      </button>
-      <div class="field">
-        <label>Diagnosis (plain English)</label>
-        <textarea id="diagnosisInput" rows="4" placeholder="What did you find? Describe in plain English...">${state.diagnosis}</textarea>
-      </div>
-      <div class="field">
-        <label>Internal Notes</label>
-        <textarea id="techNotesInput" rows="2" placeholder="Any caveats, safety notes, or internal context...">${state.techNotes}</textarea>
-      </div>
-    </div>
+    '<div class="section-card">' +
+      '<div class="section-title">Part Recommendations</div>' +
 
-    <div class="section-card">
-      <div class="section-title">Part Decision</div>
-      <div class="part-grid">
-        <div class="part-option ${state.partType === 'oem' ? 'selected-oem' : ''}" onclick="selectPart('oem')">
-          <div class="part-option-label oem">OEM part — our cost</div>
-          <input type="text" id="oemPartInput" placeholder="Part number" value="${state.oemPartNumber}" onclick="event.stopPropagation()" oninput="state.oemPartNumber=this.value" />
-          <input type="text" id="oemPriceInput" placeholder="Our cost e.g. $85" value="${state.oemPrice}" onclick="event.stopPropagation()" oninput="state.oemPrice=this.value" style="margin-top:6px;" />
-          <div class="part-option-desc">Manufacturer original. Customer pays 30% above this cost at checkout.</div>
-        </div>
-        <div class="part-option ${state.partType === 'amazon' ? 'selected-amazon' : ''}" onclick="selectPart('amazon')">
-          <div class="part-option-label amazon">Amazon part — our cost</div>
-          <input type="text" id="amazonPartInput" placeholder="Part # or ASIN" value="${state.amazonPartNumber}" onclick="event.stopPropagation()" oninput="state.amazonPartNumber=this.value" />
-          <input type="text" id="amazonPriceInput" placeholder="Our cost e.g. $28" value="${state.amazonPrice}" onclick="event.stopPropagation()" oninput="state.amazonPrice=this.value" style="margin-top:6px;" />
-          <div class="part-option-desc">Aftermarket. Customer pays 30% above this cost at checkout.</div>
-        </div>
-      </div>
-    </div>
+      '<div class="part-block">' +
+        '<div class="part-row-label oem">OEM PART</div>' +
+        '<div class="part-row">' +
+          '<div class="field"><label>Part #</label><input type="text" id="oemPartInput" placeholder="e.g. WPW10295370" value="' + escapeAttr(state.oemPartNumber) + '" oninput="state.oemPartNumber=this.value" /></div>' +
+          '<div class="field"><label>Our Cost</label><input type="text" id="oemPriceInput" placeholder="$85" value="' + escapeAttr(state.oemPrice) + '" oninput="state.oemPrice=this.value; updateOemHint()" /></div>' +
+        '</div>' +
+        '<div id="oemHintWrap">' + oemHint + '</div>' +
+      '</div>' +
 
-    <div class="section-card">
-      <div class="section-title">Estimate</div>
-      <div class="estimate-row">
-        <div class="field">
-          <label>Repair Cost Range</label>
-          <input type="text" id="repairEstInput" placeholder="e.g. $120-$160" value="${state.repairEstimate}" oninput="state.repairEstimate=this.value" />
-          <div class="field-hint">Customer-facing range shown in the cash TDR view.</div>
-        </div>
-        <div class="field">
-          <label>Labor — customer cost</label>
-          <input type="text" id="laborEstInput" placeholder="e.g. $215" value="${state.laborEstimate}" oninput="state.laborEstimate=this.value" />
-          <div class="field-hint">Customer pays this directly. No markup. $50 Quick Check Credit applied at checkout if any We Install option is selected.</div>
-        </div>
-      </div>
-    </div>
+      '<div class="part-block">' +
+        '<div class="part-row-label amazon">AMAZON EQUIVALENT</div>' +
+        '<div class="part-row">' +
+          '<div class="field"><label>Part # / ASIN</label><input type="text" id="amazonPartInput" placeholder="e.g. B07XYZ" value="' + escapeAttr(state.amazonPartNumber) + '" oninput="state.amazonPartNumber=this.value" /></div>' +
+          '<div class="field"><label>Our Cost</label><input type="text" id="amazonPriceInput" placeholder="$28" value="' + escapeAttr(state.amazonPrice) + '" oninput="state.amazonPrice=this.value; updateAmzHint()" /></div>' +
+        '</div>' +
+        '<div id="amzHintWrap">' + amzHint + '</div>' +
+      '</div>' +
+    '</div>' +
 
-    <div class="section-card">
-      <div class="section-title">Recommendation</div>
-      <div class="rec-grid">
-        ${recBtns.map(b => `
-          <div class="rec-btn ${state.recommendation === b.key ? 'selected-' + b.key : ''}" onclick="selectRec('${b.key}')">
-            <div class="rec-icon">${b.icon}</div>
-            <div class="rec-label">${b.label}</div>
-            <div class="rec-sub">${b.sub}</div>
-          </div>`).join("")}
-      </div>
-    </div>
+    '<div class="section-card">' +
+      '<div class="section-title">Labor</div>' +
+      '<div class="field">' +
+        '<label>Customer Cost</label>' +
+        '<input type="text" id="laborEstInput" placeholder="$215" value="' + escapeAttr(state.laborEstimate) + '" oninput="state.laborEstimate=this.value; updateLaborHint()" />' +
+        '<div id="laborHintWrap">' + laborHint + '</div>' +
+      '</div>' +
+    '</div>' +
 
-    <button class="send-btn" onclick="handleSendTDR()" ${!state.recommendation || !state.diagnosis.trim() ? "disabled" : ""}>
-      Send TDR →
-    </button>`;
+    '<div class="section-card">' +
+      '<div class="section-title">Notes</div>' +
+      '<div class="field">' +
+        '<label>Internal notes (optional)</label>' +
+        '<textarea id="techNotesInput" rows="2" placeholder="Caveats, safety notes, internal context...">' + escapeHtml(state.techNotes) + '</textarea>' +
+      '</div>' +
+    '</div>' +
+
+    smsConsentNote +
+    (finalizeError ? '<div class="error-box">' + escapeHtml(finalizeError) + '</div>' : "") +
+
+    '<button class="' + submitClass + '" onclick="handleSubmit()" ' + (finalizing ? 'disabled' : '') + '>' +
+      (finalizing ? "Submitting…" : submitLabel) +
+    '</button>';
 }
 
-function renderSubmitting() {
-  return `
-    ${renderHeader()}
-    <div class="loading-screen">
-      <div class="spinner"></div>
-      <p>Submitting TDR to Xano...</p>
-    </div>`;
+function updateOemHint() {
+  const wrap = document.getElementById("oemHintWrap");
+  if (!wrap) return;
+  if (state.oemPrice.trim() === "") { wrap.innerHTML = ""; return; }
+  const c = parseDollarsToCents(state.oemPrice);
+  if (c == null) { wrap.innerHTML = '<div class="field-hint live error">Use a number like $85 or 85.50.</div>'; return; }
+  wrap.innerHTML = '<div class="field-hint live">Customer pays ' + centsToDisplay(markup30Display(c)) + ' (30% markup)</div>';
+}
+function updateAmzHint() {
+  const wrap = document.getElementById("amzHintWrap");
+  if (!wrap) return;
+  if (state.amazonPrice.trim() === "") { wrap.innerHTML = ""; return; }
+  const c = parseDollarsToCents(state.amazonPrice);
+  if (c == null) { wrap.innerHTML = '<div class="field-hint live error">Use a number like $28 or 28.99.</div>'; return; }
+  wrap.innerHTML = '<div class="field-hint live">Customer pays ' + centsToDisplay(markup30Display(c)) + ' (30% markup)</div>';
+}
+function updateLaborHint() {
+  const wrap = document.getElementById("laborHintWrap");
+  if (!wrap) return;
+  if (state.laborEstimate.trim() === "") { wrap.innerHTML = ""; return; }
+  const c = parseDollarsToCents(state.laborEstimate);
+  if (c == null) { wrap.innerHTML = '<div class="field-hint live error">Use a number like $215.</div>'; return; }
+  wrap.innerHTML = '<div class="field-hint live">Customer pays ' + centsToDisplay(c) + ' directly (no markup)</div>';
 }
 
 function renderDone() {
-  const r = state.submitResult;
-  const tdr = r && r.tdr;
-  const hcpOk = r && r.hcp_sync && r.hcp_sync.response && (r.hcp_sync.response.status === 200 || r.hcp_sync.response.status === 201);
-  return `
-    ${renderHeader()}
-    <div class="done-screen">
-      <div class="done-icon">✅</div>
-      <div class="done-title">TDR Submitted!</div>
-      ${tdr ? `
-        <div class="done-details">
-          <div class="done-row"><span>TDR ID</span><span>#${tdr.id}</span></div>
-          <div class="done-row"><span>Job ID</span><span>#${tdr.job_id}</span></div>
-          <div class="done-row"><span>Recommendation</span><span>${state.recommendation}</span></div>
-        </div>` : ""}
-      <div class="hcp-status ${hcpOk ? 'hcp-ok' : 'hcp-fail'}">
-        ${hcpOk ? "✅ HCP note posted" : "⚠️ HCP sync failed — check manually"}
-      </div>
-      <div class="send-section">
-        <div class="send-section-title">Send to Customer</div>
-        ${renderSendStateBlock(tdr)}
-      </div>
-      <button class="new-btn" onclick="reset()">+ New TDR</button>
-    </div>`;
-}
+  const tdr = state.submitResult && state.submitResult.tdr;
+  const send = state.sendResult || {};
+  const isCash = state.finalizeStatus === "cash_sent";
+  const isWarranty = state.finalizeStatus === "warranty_saved";
+  const job = state.cockpit && state.cockpit.job;
 
-function renderSendStateBlock(tdr) {
-  if (!tdr || !tdr.id) {
-    return `<div class="send-error"><div class="send-error-msg">Cannot send — no TDR ID found.</div></div>`;
-  }
-  if (state.sendStatus === "sending") {
-    return `<div class="send-loading"><div class="mini-spinner"></div> Sending to customer...</div>`;
-  }
-  if (state.sendStatus === "sent") {
-    const sentAt = state.sendResult && state.sendResult.sent_at ? formatTime(state.sendResult.sent_at) : "just now";
-    const sentTo = (state.sendResult && state.sendResult.sent_to) || "customer";
-    const url = state.sendResult && state.sendResult.customer_url;
-    return `
-      <div class="send-success">
-        <div class="send-success-row">✅ Sent to ${escapeHtmlSimple(sentTo)} at ${sentAt}</div>
-        <div class="send-success-actions">
-          ${url ? `<button class="copy-btn" onclick="copyCustomerLink(this, '${url}')">Copy link</button>` : ""}
-          <button class="resend-btn" onclick="handleSendToCustomer(true)">Re-send Anyway</button>
-        </div>
-      </div>`;
-  }
-  if (state.sendStatus === "send_failed" || state.sendStatus === "already_sent") {
-    const reason = state.sendResult && state.sendResult.reason;
-    const msg = state.sendError || "Send failed";
-    let primaryBtn = `<button class="resend-btn" onclick="handleSendToCustomer(false)">Try Again</button>`;
-    if (reason === "already_sent") {
-      const prevSent = state.sendResult && state.sendResult.sent_at ? formatTime(state.sendResult.sent_at) : "earlier";
-      primaryBtn = `<button class="resend-btn" onclick="handleSendToCustomer(true)">Re-send Anyway (sent ${prevSent})</button>`;
-    } else if (reason === "missing_diagnosis") {
-      primaryBtn = `<button class="back-btn" onclick="state.step='review'; render();">← Back to TDR form</button>`;
-    } else if (reason === "no_consent") {
-      const phone = state.sendResult && state.sendResult.customer_phone;
-      primaryBtn = phone ? `<a class="copy-btn" href="tel:${phone}">📞 Call ${phone}</a>` : primaryBtn;
-    } else if (reason === "no_phone") {
-      primaryBtn = `<button class="back-btn" onclick="reset()">← New TDR</button>`;
+  let title = "TDR Saved";
+  let subtitle = "";
+  let extraRows = "";
+
+  if (isCash) {
+    title = "Sent to Customer";
+    subtitle = "Customer SMS dispatched with diagnosis link.";
+    if (send.customer_url) {
+      extraRows += '<div class="done-row"><span>Customer link</span><span><a href="' + escapeAttr(send.customer_url) + '" target="_blank" rel="noopener">' + escapeHtml(send.customer_url) + '</a> <button class="copy-btn" onclick="copyToClipboard(this, \'' + escapeAttr(send.customer_url) + '\')">copy</button></span></div>';
     }
-    return `
-      <div class="send-error">
-        <div class="send-error-msg">⚠️ ${escapeHtmlSimple(msg)}</div>
-        <div class="send-error-actions">${primaryBtn}</div>
-      </div>`;
+    if (send.sent_to) extraRows += '<div class="done-row"><span>Sent to</span><span>' + escapeHtml(send.sent_to) + '</span></div>';
+    if (send.expires_at) extraRows += '<div class="done-row"><span>Expires</span><span>' + escapeHtml(formatTime(send.expires_at)) + '</span></div>';
+  } else if (isWarranty) {
+    title = "Saved to HCP";
+    subtitle = "Pre-diagnosis HCP note posted; job marked pre_diagnosis_complete.";
+    const hcpStatus = state.submitResult && state.submitResult.hcp_sync && state.submitResult.hcp_sync.response && state.submitResult.hcp_sync.response.status;
+    if (hcpStatus) extraRows += '<div class="done-row"><span>HCP status</span><span>' + escapeHtml(String(hcpStatus)) + '</span></div>';
   }
-  // Default: not yet sent
-  return `
-    <div class="send-pre">
-      <a href="cash-tdr-customer.html?token=preview" target="_blank" class="preview-link">👁 Preview customer view ↗</a>
-      <button class="send-customer-btn" onclick="handleSendToCustomer(false)">📨 Send to Customer</button>
-      <div class="send-pre-note">Customer receives an SMS with a signed link to review their diagnosis and pick a repair option.</div>
-    </div>`;
+
+  return renderHeader() +
+    '<div class="done-screen">' +
+      '<div class="done-icon">✅</div>' +
+      '<div class="done-title">' + escapeHtml(title) + '</div>' +
+      (subtitle ? '<div class="done-sub">' + escapeHtml(subtitle) + '</div>' : "") +
+      '<div class="done-details">' +
+        (tdr ? '<div class="done-row"><span>TDR</span><span>#' + escapeHtml(String(tdr.id)) + '</span></div>' : "") +
+        (state.submitResult && state.submitResult.tdr_failure_id ? '<div class="done-row"><span>Failure row</span><span>#' + escapeHtml(String(state.submitResult.tdr_failure_id)) + '</span></div>' : "") +
+        (job ? '<div class="done-row"><span>Job</span><span>#' + escapeHtml(String(job.id)) + '</span></div>' : "") +
+        extraRows +
+      '</div>' +
+      '<div class="done-actions">' +
+        '<a class="next-btn" href="dashboard.html">Open next job →</a>' +
+        '<button class="secondary-btn" onclick="reset()">+ Load by ID</button>' +
+      '</div>' +
+    '</div>';
 }
 
-async function handleSendToCustomer(forceResend) {
-  const r = state.submitResult;
-  const tdrId = r && r.tdr && r.tdr.id;
-  if (!tdrId) {
-    state.sendError = "No TDR ID found. Try resubmitting.";
-    state.sendStatus = "send_failed";
-    state.sendResult = { reason: "tdr_not_found" };
-    render();
-    return;
-  }
-  state.sendStatus = "sending";
-  state.sendError = "";
-  render();
-  try {
-    const res = await fetch("/.netlify/functions/xano-proxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        endpoint: "send_qc_diagnosis_to_customer",
-        api_group: "cash_tdr",
-        payload: { tdr_id: parseInt(tdrId), technician_id: 1, force_resend: !!forceResend },
-      }),
-    });
-    const data = await res.json();
-    state.sendResult = data;
-    if (data && data.success === true) {
-      state.sendStatus = "sent";
-      state.sendError = "";
-    } else {
-      state.sendStatus = (data && data.reason === "already_sent") ? "already_sent" : "send_failed";
-      state.sendError = (data && data.error) || "Send failed";
-    }
-  } catch (e) {
-    state.sendStatus = "send_failed";
-    state.sendError = "Network error: " + e.message;
-    state.sendResult = { reason: "network_error" };
-  }
-  render();
-}
-
-function copyCustomerLink(btn, url) {
-  if (!navigator.clipboard) {
-    alert("Clipboard not available. Manually copy: " + url);
-    return;
-  }
-  navigator.clipboard.writeText(url).then(() => {
-    const original = btn.textContent;
-    btn.textContent = "✓ Copied";
-    setTimeout(() => { btn.textContent = original; }, 1500);
-  }).catch(err => {
-    alert("Could not copy: " + err.message);
-  });
+function copyToClipboard(btn, text) {
+  if (!navigator.clipboard) { alert("Manually copy: " + text); return; }
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = "✓ copied";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  }).catch(err => { alert("Could not copy: " + err.message); });
 }
 
 function formatTime(iso) {
   try {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch (_e) {
-    return iso;
-  }
+    return d.toLocaleString();
+  } catch(_e) { return iso; }
 }
 
-function escapeHtmlSimple(s) {
+function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 }
+function escapeAttr(s) { return escapeHtml(s); }
 
 function render() {
   const app = document.getElementById("app");
@@ -767,33 +736,24 @@ function render() {
     case "intake": html = renderIntake(); break;
     case "loading": html = renderLoading(); break;
     case "review": html = renderReview(); break;
-    case "submitting": html = renderSubmitting(); break;
     case "done": html = renderDone(); break;
   }
-  app.innerHTML = `<div class="container">${html}</div>`;
-}
-
-function renderPhotosOnly() {
-  const container = document.getElementById("photos-container");
-  if (container) {
-    container.innerHTML = renderPhotosSection();
-  }
+  app.innerHTML = '<div class="container">' + html + '</div>';
 }
 
 function openLightbox(idx) {
-  const a = state.attachments[idx];
+  const a = state.cockpit && state.cockpit.attachments && state.cockpit.attachments[idx];
   if (!a) return;
-  const url = state.attachmentUrls[a.s3_key];
+  const url = a.signed_view_url;
   if (!url) return;
   const lightboxContent = document.getElementById("lightbox-content");
   if (a.file_type === "video") {
-    lightboxContent.innerHTML = `<video src="${url}" controls autoplay></video>`;
+    lightboxContent.innerHTML = '<video src="' + escapeAttr(url) + '" controls autoplay></video>';
   } else {
-    lightboxContent.innerHTML = `<img src="${url}" alt="${a.original_filename || ''}" />`;
+    lightboxContent.innerHTML = '<img src="' + escapeAttr(url) + '" alt="" />';
   }
   document.getElementById("lightbox").classList.add("show");
 }
-
 function closeLightbox(e) {
   if (e.target.id === "lightbox" || e.target.classList.contains("close")) {
     document.getElementById("lightbox").classList.remove("show");
@@ -805,49 +765,32 @@ function handleLoadJob() {
   const input = document.getElementById("jobIdInput");
   const jobId = input ? input.value.trim() : state.jobId;
   if (!jobId) { state.error = "Enter a job ID."; render(); return; }
-  loadJob(jobId);
+  loadCockpit(jobId);
 }
 
-function selectPart(type) {
-  saveReviewInputs();
-  state.partType = type;
-  render();
-}
-
-function selectRec(key) {
-  saveReviewInputs();
-  state.recommendation = key;
-  render();
-}
-
-function handleSendTDR() {
-  saveReviewInputs();
-  submitTDR();
-}
+function handleSubmit() { saveReviewInputs(); submitTDR(); }
 
 function saveReviewInputs() {
   const d = document.getElementById("diagnosisInput");
   const t = document.getElementById("techNotesInput");
-  const r = document.getElementById("repairEstInput");
-  const l = document.getElementById("laborEstInput");
   const op = document.getElementById("oemPartInput");
   const opr = document.getElementById("oemPriceInput");
   const ap = document.getElementById("amazonPartInput");
   const apr = document.getElementById("amazonPriceInput");
+  const l = document.getElementById("laborEstInput");
   if (d) state.diagnosis = d.value;
   if (t) state.techNotes = t.value;
-  if (r) state.repairEstimate = r.value;
-  if (l) state.laborEstimate = l.value;
   if (op) state.oemPartNumber = op.value;
   if (opr) state.oemPrice = opr.value;
   if (ap) state.amazonPartNumber = ap.value;
   if (apr) state.amazonPrice = apr.value;
+  if (l) state.laborEstimate = l.value;
 }
 
 const urlJobId = getUrlJobId();
 if (urlJobId) {
   state.jobId = urlJobId;
-  loadJob(urlJobId);
+  loadCockpit(urlJobId);
 } else {
   state.step = "intake";
   render();
