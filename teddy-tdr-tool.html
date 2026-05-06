@@ -256,16 +256,27 @@ async function aiPreFill() {
   render();
 
   const app = state.cockpit.appliance || {};
-  const prompt = "You are a senior appliance technician. Based on this service request, provide a diagnosis and part recommendation.\n\n" +
+  const prompt = "You are a senior appliance technician writing a technical diagnosis for a customer's TDR. Based on the service request below, identify the root cause and recommend a part.\n\n" +
     "Appliance: " + (app.brand || "") + " " + (app.appliance_type || "") + "\n" +
     "Model: " + (app.model_number || "Unknown") + "\n" +
     "Customer reported: " + (app.problem_summary || "") + "\n\n" +
+    "CRITICAL RULES for the diagnosis text:\n" +
+    "- Describe the symptom + likely component failure in 2-3 plain sentences.\n" +
+    "- Name the failed part if you're confident.\n" +
+    "- DO NOT mention scheduling, timing, ETA, \"within X hours\", \"once part arrives\", \"we will repair\", or anything about when/how the repair happens. The system handles scheduling separately.\n" +
+    "- DO NOT make customer-service promises (no \"we'll get it fixed for you\", no \"expect a call\", etc.)\n" +
+    "- JUST the diagnosis. Technical. Plain English. No fluff.\n\n" +
+    "Example GOOD diagnosis:\n" +
+    "  \"Compressor relay clicking but compressor not starting. Likely failed start relay assembly.\"\n\n" +
+    "Example BAD diagnosis (do NOT generate this):\n" +
+    "  \"Compressor relay clicking but compressor won't start. Likely failed start relay assembly. Customer should expect repair within 1-2 hrs once part arrives.\"\n" +
+    "  (The second sentence is operational/scheduling content — never include that.)\n\n" +
     "Respond ONLY with a JSON object, no markdown:\n" +
     "{\n" +
-    '  "diagnosis": "2-3 sentence technical summary of likely root cause in plain English",\n' +
+    '  "diagnosis": "2-3 sentence diagnosis ONLY. Symptom + likely component. No scheduling, no timing, no service promises.",\n' +
     '  "oem_part_number": "OEM part number if confident, or null",\n' +
     '  "amazon_search": "Best search term to find this part on Amazon",\n' +
-    '  "tech_notes": "Any important caveats or safety notes"\n' +
+    '  "tech_notes": "Any safety notes or caveats for the technician (not shown to customer)"\n' +
     "}";
 
   try {
