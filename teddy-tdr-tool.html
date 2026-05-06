@@ -86,6 +86,7 @@
     .field label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; font-family: var(--mono); }
     .field input, .field textarea, .field select { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
     .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--accent); }
+    .field-hint { font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.4; font-family: var(--sans); }
     .field textarea { resize: vertical; line-height: 1.5; min-height: 80px; }
     .field select { cursor: pointer; }
     select option { background: #0e1118; }
@@ -559,16 +560,16 @@ function renderReview() {
       <div class="section-title">Part Decision</div>
       <div class="part-grid">
         <div class="part-option ${state.partType === 'oem' ? 'selected-oem' : ''}" onclick="selectPart('oem')">
-          <div class="part-option-label oem">OEM Part</div>
+          <div class="part-option-label oem">OEM part — our cost</div>
           <input type="text" id="oemPartInput" placeholder="Part number" value="${state.oemPartNumber}" onclick="event.stopPropagation()" oninput="state.oemPartNumber=this.value" />
-          <input type="text" id="oemPriceInput" placeholder="Price e.g. $85" value="${state.oemPrice}" onclick="event.stopPropagation()" oninput="state.oemPrice=this.value" style="margin-top:6px;" />
-          <div class="part-option-desc">Manufacturer original. Longer life, higher cost.</div>
+          <input type="text" id="oemPriceInput" placeholder="Our cost e.g. $85" value="${state.oemPrice}" onclick="event.stopPropagation()" oninput="state.oemPrice=this.value" style="margin-top:6px;" />
+          <div class="part-option-desc">Manufacturer original. Customer pays 30% above this cost at checkout.</div>
         </div>
         <div class="part-option ${state.partType === 'amazon' ? 'selected-amazon' : ''}" onclick="selectPart('amazon')">
-          <div class="part-option-label amazon">Amazon Generic</div>
+          <div class="part-option-label amazon">Amazon part — our cost</div>
           <input type="text" id="amazonPartInput" placeholder="Part # or ASIN" value="${state.amazonPartNumber}" onclick="event.stopPropagation()" oninput="state.amazonPartNumber=this.value" />
-          <input type="text" id="amazonPriceInput" placeholder="Price e.g. $28" value="${state.amazonPrice}" onclick="event.stopPropagation()" oninput="state.amazonPrice=this.value" style="margin-top:6px;" />
-          <div class="part-option-desc">Aftermarket. Faster and cheaper. Great for pumps, belts, hoses.</div>
+          <input type="text" id="amazonPriceInput" placeholder="Our cost e.g. $28" value="${state.amazonPrice}" onclick="event.stopPropagation()" oninput="state.amazonPrice=this.value" style="margin-top:6px;" />
+          <div class="part-option-desc">Aftermarket. Customer pays 30% above this cost at checkout.</div>
         </div>
       </div>
     </div>
@@ -579,10 +580,12 @@ function renderReview() {
         <div class="field">
           <label>Repair Cost Range</label>
           <input type="text" id="repairEstInput" placeholder="e.g. $120-$160" value="${state.repairEstimate}" oninput="state.repairEstimate=this.value" />
+          <div class="field-hint">Customer-facing range shown in the cash TDR view.</div>
         </div>
         <div class="field">
-          <label>Labor Time</label>
-          <input type="text" id="laborEstInput" placeholder="e.g. 1.5 hrs" value="${state.laborEstimate}" oninput="state.laborEstimate=this.value" />
+          <label>Labor — customer cost</label>
+          <input type="text" id="laborEstInput" placeholder="e.g. $215" value="${state.laborEstimate}" oninput="state.laborEstimate=this.value" />
+          <div class="field-hint">Customer pays this directly. No markup. $50 Quick Check Credit applied at checkout if any We Install option is selected.</div>
         </div>
       </div>
     </div>
