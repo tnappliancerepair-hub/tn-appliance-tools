@@ -301,15 +301,40 @@ function renderSummary() {
     </div>
     <button class="confirm" id="confirm-btn"${allChosen ? '' : ' disabled'}>${allChosen ? 'Confirm and Pay' : `Choose an option for all ${failures.length} item${failures.length>1?'s':''}`}</button>`;
 
-  document.getElementById('confirm-btn').addEventListener('click', () => {
-    console.log('CONFIRM AND PAY clicked', { selections: state.selections, subtotalCents, creditCents, total });
-    alert(
-      "Thanks for confirming your selections!\n\n" +
-      "Here's what happens next:\n" +
-      "- DIY parts: We'll order your parts now. You'll receive tracking info shortly.\n" +
-      "- We Install: We'll contact you within 2 business hours to schedule your repair.\n\n" +
-      "(Demo mode - Phase 1c will wire actual Stripe payment + send these messages via SMS.)"
-    );
+  document.getElementById('confirm-btn').addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Loading…';
+
+    const urlToken = new URLSearchParams(location.search).get('token');
+    const tdrId = parseTokenTdrId(urlToken);
+    if (!tdrId || !urlToken) {
+      console.error('CONFIRM AND PAY: missing tdrId or token', { tdrId, hasToken: !!urlToken });
+      showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+      return;
+    }
+
+    try {
+      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_create_checkout_session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tdr_id: tdrId, public_view_token: urlToken })
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data || data.success !== true || !data.checkout_url) {
+        console.error('CONFIRM AND PAY: checkout session creation failed', { status: r.status, data });
+        showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+        return;
+      }
+      window.location.href = data.checkout_url;
+    } catch (e) {
+      console.error('CONFIRM AND PAY: network error', e);
+      btn.disabled = false;
+      btn.textContent = originalText;
+      showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+    }
   });
 
   if (anyChosen) {
@@ -325,6 +350,20 @@ function renderSummary() {
 function optLabel(o) { return ({diy_oem:'DIY OEM',diy_amazon:'DIY Amazon',install_oem:'We Install OEM',install_amazon:'We Install Amazon',skip:'Skip'})[o]||o; }
 function money(c) { return '$' + (c/100).toFixed(2); }
 function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+// Extract tdr_id from the signed JWT-style token (base64url(payload).hmac_sig).
+// Used by the Confirm and Pay flow to call qc_create_checkout_session.
+function parseTokenTdrId(token) {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const payloadB64 = token.split('.')[0];
+    const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = padded.length % 4 ? padded + '='.repeat(4 - (padded.length % 4)) : padded;
+    const obj = JSON.parse(atob(pad));
+    return obj && obj.tdr_id;
+  } catch (e) {
+    return null;
+  }
+}
 
 init();
 </script>
