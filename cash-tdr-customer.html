@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Diagnosis · TN Appliance Exchange</title>
+<meta name="theme-color" content="#050505">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root {
+    --black:#050505; --surface:#0c0c0c; --surf2:#111111;
+    --border:#1a1a1a; --bord2:#252525;
+    --orange:#ff6200; --oran2:#ff7c28;
+    --green:#39ff14; --grn-bg:rgba(57,255,20,0.06); --grn-bd:rgba(57,255,20,0.4);
+    --warn-bg:rgba(255,98,0,0.05); --warn-bd:rgba(255,98,0,0.25);
+    --white:#f0f0f0; --gray:#888; --gray2:#444;
+    --mono:'Geist Mono',monospace; --serif:'Instrument Serif',serif;
+    --body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  html { background:var(--black); }
+  body { background:var(--black); color:var(--white); font-family:var(--body); font-size:15px; line-height:1.5; min-height:100vh; min-height:100dvh; padding-bottom:env(safe-area-inset-bottom); }
+  body.summary-sticky { padding-bottom:240px; }
+
+  .container { max-width:720px; margin:0 auto; padding:20px 16px 24px; }
+  .loading,.error { min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  .spinner { width:32px; height:32px; border:3px solid var(--bord2); border-top-color:var(--orange); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading p { margin-top:14px; color:var(--gray); font-family:var(--mono); font-size:12px; }
+  .error h2 { font-family:var(--serif); font-size:28px; margin-bottom:8px; color:var(--white); }
+  .error p { color:var(--gray); max-width:340px; }
+  .error a { color:var(--orange); text-decoration:none; font-weight:600; }
+
+  header.brand { display:flex; align-items:center; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+  header.brand .mark { width:40px; height:40px; background:var(--orange); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:24px; color:var(--black); font-weight:600; flex-shrink:0; }
+  header.brand .text .greet { font-family:var(--serif); font-size:24px; line-height:1.1; }
+  header.brand .text .sub { font-family:var(--mono); font-size:11px; color:var(--gray); margin-top:4px; text-transform:uppercase; letter-spacing:0.06em; }
+
+  section.diagnosis { margin-bottom:32px; }
+  section.diagnosis h2 { font-family:var(--mono); font-size:11px; color:var(--gray); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px; }
+  section.diagnosis p { font-family:var(--serif); font-size:22px; line-height:1.4; color:var(--white); }
+
+  section.failures h2 { font-family:var(--mono); font-size:11px; color:var(--gray); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:14px; }
+  .failure-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .failure-card .head { margin-bottom:14px; }
+  .failure-card h3 { font-family:var(--serif); font-size:20px; line-height:1.3; }
+  .failure-card .badge { display:inline-block; margin-top:8px; padding:3px 9px; border-radius:6px; font-family:var(--mono); font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; border:1px solid var(--bord2); color:var(--gray); }
+
+  .options { display:grid; grid-template-columns:1fr; gap:10px; margin-bottom:10px; }
+  @media (min-width:560px) { .options { grid-template-columns:1fr 1fr; } }
+  .opt { background:var(--surf2); border:1px solid var(--bord2); border-radius:10px; padding:14px; text-align:left; cursor:pointer; color:var(--white); font:inherit; transition:border-color .15s, background .15s; }
+  .opt:hover { border-color:var(--gray2); }
+  .opt.selected { border-color:var(--green); background:var(--grn-bg); }
+  .opt .name { font-family:var(--mono); font-size:11px; color:var(--gray); text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:6px; }
+  .opt.selected .name { color:var(--green); }
+  .opt .price { font-family:var(--serif); font-size:26px; line-height:1.1; display:block; margin-bottom:4px; }
+  .opt .breakdown { font-family:var(--mono); font-size:11px; color:var(--gray); margin-bottom:6px; line-height:1.6; }
+  .opt .desc { font-size:12px; color:var(--gray); display:block; }
+
+  .opt-skip { display:block; width:100%; background:transparent; border:1px dashed var(--bord2); border-radius:10px; padding:13px; color:var(--gray); font:inherit; cursor:pointer; text-align:center; font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:0.08em; transition:border-color .15s, color .15s, background .15s; }
+  .opt-skip:hover { border-color:var(--gray); color:var(--white); }
+  .opt-skip.selected { border-color:var(--gray); border-style:solid; color:var(--white); background:var(--surf2); }
+
+  aside.rules { background:var(--surface); border:1px solid var(--warn-bd); border-radius:12px; padding:18px; margin:32px 0 22px; }
+  aside.rules .head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  aside.rules .head .icon { width:24px; height:24px; flex-shrink:0; border:1px solid var(--orange); border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--orange); font-family:var(--serif); font-size:14px; font-weight:600; }
+  aside.rules h3 { font-family:var(--serif); font-size:18px; }
+  aside.rules ul { list-style:none; padding-left:0; margin:0; }
+  aside.rules li { font-size:13px; color:var(--white); margin-bottom:10px; padding-left:18px; position:relative; line-height:1.5; }
+  aside.rules li::before { content:"·"; color:var(--orange); position:absolute; left:6px; top:-2px; font-size:18px; line-height:1.4; }
+  aside.rules li:last-child { margin-bottom:0; }
+  aside.rules li strong { color:var(--white); font-weight:600; }
+
+  .summary { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:24px; }
+  .summary.sticky { position:fixed; left:0; right:0; bottom:0; max-width:720px; margin:0 auto; border-radius:12px 12px 0 0; padding-bottom:calc(18px + env(safe-area-inset-bottom)); box-shadow:0 -8px 24px rgba(0,0,0,0.6); z-index:100; }
+  .summary .items { list-style:none; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--border); }
+  .summary .items li { display:flex; justify-content:space-between; gap:12px; font-size:13px; padding:5px 0; color:var(--white); }
+  .summary .items li.pending span:last-child,
+  .summary .items li.skip span:last-child { color:var(--gray); font-family:var(--mono); font-size:11px; text-transform:uppercase; }
+  .summary .math .row { display:flex; justify-content:space-between; padding:4px 0; font-family:var(--mono); font-size:13px; }
+  .summary .math .row.credit { color:var(--green); }
+  .summary .math .row.total { font-family:var(--serif); font-size:22px; padding-top:10px; margin-top:6px; border-top:1px solid var(--bord2); }
+  .summary .confirm { width:100%; margin-top:14px; padding:14px; background:var(--orange); color:var(--black); border:none; border-radius:10px; font:inherit; font-weight:700; font-size:15px; cursor:pointer; transition:background .15s; }
+  .summary .confirm:hover:not(:disabled) { background:var(--oran2); }
+  .summary .confirm:disabled { background:var(--gray2); color:var(--gray); cursor:not-allowed; }
+
+  footer { text-align:center; padding:22px 0 6px; border-top:1px solid var(--border); margin-top:24px; }
+  footer p { color:var(--gray); font-size:12px; margin-bottom:4px; }
+  footer a { color:var(--orange); text-decoration:none; font-weight:600; font-family:var(--mono); }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading">
+  <div class="spinner"></div>
+  <p>Loading your diagnosis…</p>
+</div>
+
+<div id="error" class="error" hidden>
+  <h2>Link unavailable</h2>
+  <p class="error-msg"></p>
+  <p style="margin-top:14px;">Questions? Text us at <a href="sms:+16152802949">615-280-2949</a>.</p>
+</div>
+
+<main id="content" class="container" hidden>
+  <header class="brand">
+    <div class="mark">A</div>
+    <div class="text">
+      <div class="greet" id="greet"></div>
+      <div class="sub" id="subtitle"></div>
+    </div>
+  </header>
+
+  <section class="diagnosis">
+    <h2>What we found</h2>
+    <p id="diagnosis-text"></p>
+  </section>
+
+  <section class="failures">
+    <h2 id="failures-heading">Your repair options</h2>
+    <div id="failures-wrap"></div>
+  </section>
+
+  <aside class="rules">
+    <div class="head">
+      <div class="icon">!</div>
+      <h3>Before you confirm</h3>
+    </div>
+    <ul>
+      <li><strong>Pre-work labor adjustment.</strong> If when our technician arrives, the actual labor turns out to be different from your quote, they will tell you the new price BEFORE starting any work. You can accept the new price or have your unopened part returned (if applicable). Once work begins, the agreed price is final.</li>
+      <li><strong>Part returns.</strong> Unopened parts can be returned. Opened parts are non-returnable.</li>
+      <li><strong>Disassembled machines.</strong> We won't repair a machine that's already been disassembled.</li>
+      <li><strong>Right to refuse service.</strong> We reserve the right to refuse service.</li>
+      <li><strong>$50 diagnosis fee.</strong> The Quick Check fee is non-refundable.</li>
+    </ul>
+  </aside>
+
+  <div class="summary" id="summary"></div>
+
+  <footer>
+    <p>Questions? Text us at <a href="sms:+16152802949">615-280-2949</a></p>
+    <p style="font-family:var(--mono); font-size:10px; margin-top:8px;">TN Appliance Exchange</p>
+  </footer>
+</main>
+
+<script>
+const XANO_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/qc_diagnosis_view';
+const state = { data:null, selections:{} };
+
+async function init() {
+  const token = new URLSearchParams(location.search).get('token');
+  if (!token) {
+    showError('No token provided. This page must be opened from the SMS link we sent you.');
+    return;
+  }
+  try {
+    const r = await fetch(`${XANO_ENDPOINT}?token=${encodeURIComponent(token)}`);
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || data.success === false) {
+      showError((data && data.error) || 'This link has expired or is invalid.');
+      return;
+    }
+    state.data = data;
+    renderAll();
+    document.getElementById('loading').hidden = true;
+    document.getElementById('content').hidden = false;
+  } catch (e) {
+    showError('Could not load your diagnosis. Please try again or contact us.');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('loading').hidden = true;
+  document.querySelector('#error .error-msg').textContent = msg;
+  document.getElementById('error').hidden = false;
+}
+
+function renderAll() {
+  const c = state.data.customer;
+  document.getElementById('greet').textContent = `Hi ${c.first_name}`;
+  document.getElementById('subtitle').textContent = `Your ${c.appliance} diagnosis`;
+  document.getElementById('diagnosis-text').textContent = state.data.diagnosis;
+  const heading = document.getElementById('failures-heading');
+  heading.textContent = state.data.failures.length === 1 ? 'Your repair options' : `Your ${state.data.failures.length} repair options`;
+  renderFailures();
+  renderSummary();
+}
+
+function renderFailures() {
+  const wrap = document.getElementById('failures-wrap');
+  wrap.innerHTML = state.data.failures.map(failureCardHTML).join('');
+  wrap.querySelectorAll('[data-option]').forEach(btn => {
+    btn.addEventListener('click', () => selectOption(btn.dataset.failureId, btn.dataset.option));
+  });
+}
+
+function failureCardHTML(f) {
+  const isRental = state.data.is_rental;
+  const badge = isRental
+    ? `<div class="badge">${f.tenant_reported ? 'Reported by tenant' : 'Found during diagnosis'}</div>`
+    : '';
+  const sel = (k) => state.selections[f.id] === k ? ' selected' : '';
+  const p = f.pricing;
+  return `
+    <article class="failure-card" data-failure-id="${esc(f.id)}">
+      <div class="head">
+        <h3>${esc(f.failure_description)}</h3>
+        ${badge}
+      </div>
+      <div class="options">
+        <button class="opt${sel('diy_oem')}" data-failure-id="${esc(f.id)}" data-option="diy_oem">
+          <span class="name">DIY · OEM Part</span>
+          <span class="price">${money(p.diy_oem.total)}</span>
+          <span class="desc">Brand-name original part. Free shipping. You install.</span>
+        </button>
+        <button class="opt${sel('diy_amazon')}" data-failure-id="${esc(f.id)}" data-option="diy_amazon">
+          <span class="name">DIY · Amazon</span>
+          <span class="price">${money(p.diy_amazon.total)}</span>
+          <span class="desc">Aftermarket equivalent. Free shipping. You install.</span>
+        </button>
+        <button class="opt${sel('install_oem')}" data-failure-id="${esc(f.id)}" data-option="install_oem">
+          <span class="name">We Install · OEM</span>
+          <div class="breakdown">
+            Subtotal ${money(p.install_oem.labor + p.install_oem.part)}<br>
+            <span style="color:var(--green)">$50 Quick Check credit applied</span>
+          </div>
+          <span class="price">${money(p.install_oem.total)}</span>
+          <span class="desc">OEM part + tech installs.</span>
+        </button>
+        <button class="opt${sel('install_amazon')}" data-failure-id="${esc(f.id)}" data-option="install_amazon">
+          <span class="name">We Install · Amazon</span>
+          <div class="breakdown">
+            Subtotal ${money(p.install_amazon.labor + p.install_amazon.part)}<br>
+            <span style="color:var(--green)">$50 Quick Check credit applied</span>
+          </div>
+          <span class="price">${money(p.install_amazon.total)}</span>
+          <span class="desc">Aftermarket part + tech installs.</span>
+        </button>
+      </div>
+      <button class="opt-skip${sel('skip')}" data-failure-id="${esc(f.id)}" data-option="skip">Skip this repair · $0</button>
+    </article>`;
+}
+
+function selectOption(failureId, opt) {
+  state.selections[failureId] = opt;
+  renderFailures();
+  renderSummary();
+}
+
+function renderSummary() {
+  const summary = document.getElementById('summary');
+  const failures = state.data.failures;
+  const sels = state.selections;
+  const allChosen = failures.every(f => sels[f.id]);
+  const anyChosen = failures.some(f => sels[f.id]);
+
+  let subtotalCents = 0;
+  let creditCents = 0;
+  let firstWeInstall = true;
+  const items = failures.map(f => {
+    const opt = sels[f.id];
+    if (!opt) return `<li class="pending"><span>${esc(f.failure_description)}</span><span>not yet chosen</span></li>`;
+    if (opt === 'skip') return `<li class="skip"><span>${esc(f.failure_description)}</span><span>Skipped</span></li>`;
+    const pr = f.pricing[opt];
+    let line;
+    if (opt.startsWith('install_')) {
+      line = pr.labor + pr.part;
+      subtotalCents += line;
+      if (firstWeInstall) { creditCents = state.data.labor_credit_cents; firstWeInstall = false; }
+    } else {
+      line = pr.total;
+      subtotalCents += line;
+    }
+    return `<li><span>${esc(f.failure_description)} · ${optLabel(opt)}</span><span>${money(line)}</span></li>`;
+  }).join('');
+  const total = subtotalCents - creditCents;
+
+  summary.innerHTML = `
+    <ul class="items">${items}</ul>
+    <div class="math">
+      <div class="row"><span>Subtotal</span><span>${money(subtotalCents)}</span></div>
+      ${creditCents > 0 ? `<div class="row credit"><span>$50 Quick Check credit applied</span><span>−${money(creditCents)}</span></div>` : ''}
+      <div class="row total"><span>Total</span><span>${money(total)}</span></div>
+    </div>
+    <button class="confirm" id="confirm-btn"${allChosen ? '' : ' disabled'}>${allChosen ? 'Confirm and Pay' : `Choose an option for all ${failures.length} item${failures.length>1?'s':''}`}</button>`;
+
+  document.getElementById('confirm-btn').addEventListener('click', () => {
+    console.log('CONFIRM AND PAY clicked', { selections: state.selections, subtotalCents, creditCents, total });
+    alert(
+      "Thanks for confirming your selections!\n\n" +
+      "Here's what happens next:\n" +
+      "- DIY parts: We'll order your parts now. You'll receive tracking info shortly.\n" +
+      "- We Install: We'll contact you within 2 business hours to schedule your repair.\n\n" +
+      "(Demo mode - Phase 1c will wire actual Stripe payment + send these messages via SMS.)"
+    );
+  });
+
+  if (anyChosen) {
+    summary.classList.add('sticky');
+    document.body.classList.add('summary-sticky');
+  } else {
+    summary.classList.remove('sticky');
+    document.body.classList.remove('summary-sticky');
+  }
+}
+
+function optLabel(o) { return ({diy_oem:'DIY OEM',diy_amazon:'DIY Amazon',install_oem:'We Install OEM',install_amazon:'We Install Amazon',skip:'Skip'})[o]||o; }
+function money(c) { return '$' + (c/100).toFixed(2); }
+function esc(s) { return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+init();
+</script>
+</body>
+</html>
