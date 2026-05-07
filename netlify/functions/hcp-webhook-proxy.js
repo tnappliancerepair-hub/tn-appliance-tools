@@ -62,6 +62,9 @@ exports.handler = async function (event, context) {
 
   const rawBody = event.body || '';
 
+  // DIAG 2026-05-07 - REMOVE after HCP payload investigation
+  console.log('[hcp-webhook-proxy] DIAG-BODY=' + (rawBody || '').slice(0, 2000));
+
   // Header lookup is case-insensitive in Netlify's normalized event.headers,
   // but we check both common spellings defensively.
   const sigHeader =
