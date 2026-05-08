@@ -926,6 +926,208 @@ footer span { display:none; }
   .bizinfo-grid { grid-template-columns:1fr; gap:12px; }
 }
 
+/* ── HOMEPAGE CONSENT DISCLOSURE CARD (TCR visibility layer, 2026-05-08) ──
+   Disclosure-only. Mockup buttons inside are NON-INTERACTIVE (cursor:default).
+   Real consent enforcement still lives in the chat-side gate. */
+.homepage-consent-card {
+  width:100%;
+  margin-top:24px;
+  background:var(--surface);
+  border:2px solid var(--orange);
+  border-radius:16px;
+  padding:28px 30px 26px;
+  scroll-margin-top:24px;
+}
+.hcc-header {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:18px;
+  padding-bottom:14px;
+  border-bottom:1px solid var(--border);
+}
+.hcc-icon { font-size:22px; line-height:1; }
+.hcc-header h2 {
+  font-size:15px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--white);
+  margin:0;
+  font-weight:600;
+}
+.hcc-intro {
+  font-size:14px;
+  color:#bbb;
+  line-height:1.7;
+  margin:0 0 22px;
+}
+.hcc-intro strong { color:var(--white); font-weight:500; }
+.hcc-samples, .hcc-mechanism { margin-bottom:22px; }
+.hcc-samples-label, .hcc-mechanism-label {
+  font-size:11px;
+  color:var(--green);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  margin:0 0 10px;
+  font-weight:600;
+}
+.hcc-samples ul {
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.hcc-samples li {
+  font-size:12px;
+  color:#ccc;
+  line-height:1.65;
+  background:var(--surf2);
+  border:1px solid var(--bord2);
+  border-radius:8px;
+  padding:10px 14px;
+  margin-bottom:8px;
+  font-family:var(--mono);
+}
+.hcc-samples li:last-child { margin-bottom:0; }
+.hcc-mechanism > p:not(.hcc-mechanism-label) {
+  font-size:13px;
+  color:#bbb;
+  line-height:1.7;
+  margin:0 0 14px;
+}
+/* Mockup of the chat consent gate. Frame-style differentiation makes
+   it read as "screenshot" rather than another interactive element. */
+.hcc-mockup {
+  background:rgba(0,0,0,.45);
+  border:1px dashed #3a3a3a;
+  border-radius:12px;
+  padding:18px 16px 16px;
+  margin-top:8px;
+}
+.hcc-mockup-card {
+  background:#0d0d0d;
+  border:2px solid var(--orange);
+  border-radius:14px;
+  padding:18px 16px 16px;
+  display:flex;
+  flex-direction:column;
+  gap:13px;
+  max-width:520px;
+  margin:0 auto;
+}
+.hcc-mockup-icon { font-size:22px; line-height:1; }
+.hcc-mockup-card h3 {
+  font-size:14px;
+  font-weight:600;
+  color:var(--white);
+  line-height:1.35;
+  margin:0;
+}
+.hcc-mockup-card p {
+  font-size:12px;
+  color:#a8a8a8;
+  line-height:1.6;
+  margin:0;
+}
+.hcc-mockup-buttons {
+  display:flex;
+  gap:8px;
+  flex-wrap:nowrap;
+}
+.hcc-mockup-buttons span {
+  flex:1 1 50%;
+  min-height:44px;
+  padding:11px 12px;
+  border-radius:9px;
+  font-size:12px;
+  font-weight:600;
+  text-align:center;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:var(--mono);
+  cursor:default;
+  user-select:none;
+  line-height:1.3;
+}
+.hcc-mockup-btn-yes {
+  background:var(--orange);
+  border:1.5px solid var(--orange);
+  color:#000;
+}
+.hcc-mockup-btn-no {
+  background:transparent;
+  border:1.5px solid #555;
+  color:#e8e8e8;
+}
+.hcc-mockup-caption {
+  font-size:11px;
+  color:#888;
+  font-style:italic;
+  text-align:center;
+  margin:14px 0 0;
+  line-height:1.6;
+  letter-spacing:.01em;
+}
+.hcc-keywords {
+  background:var(--surf2);
+  border:1px solid var(--bord2);
+  border-radius:10px;
+  padding:14px 18px;
+  margin-bottom:22px;
+}
+.hcc-keywords p {
+  font-size:13px;
+  color:#bbb;
+  line-height:1.7;
+  margin:0;
+}
+.hcc-keywords strong { color:var(--white); font-weight:500; }
+.hcc-actions {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+.hcc-btn-primary {
+  flex:1 1 auto;
+  background:var(--orange);
+  border:1.5px solid var(--orange);
+  color:#000;
+  padding:13px 18px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:.02em;
+  text-decoration:none;
+  text-align:center;
+  font-family:var(--mono);
+  transition:background .15s, color .15s;
+}
+.hcc-btn-primary:hover { background:#ff7a1f; }
+.hcc-btn-secondary {
+  padding:13px 16px;
+  border:1px solid var(--bord2);
+  border-radius:10px;
+  font-size:12px;
+  color:var(--gray);
+  text-decoration:none;
+  letter-spacing:.04em;
+  font-family:var(--mono);
+  transition:color .15s, border-color .15s;
+}
+.hcc-btn-secondary:hover { color:var(--orange); border-color:var(--orange); }
+@media(max-width:600px) {
+  .homepage-consent-card { padding:22px 18px 20px; }
+  .hcc-mockup { padding:14px 10px 12px; }
+  .hcc-mockup-card { padding:16px 14px 14px; }
+  .hcc-actions { flex-direction:column; align-items:stretch; }
+  .hcc-btn-primary, .hcc-btn-secondary { text-align:center; }
+}
+@media(max-width:420px) {
+  .hcc-mockup-buttons { flex-direction:column; }
+  .hcc-mockup-buttons span { flex:1 1 auto; min-height:46px; }
+}
+
 /* ── RESPONSIVE ── */
 @media(max-width:600px) {
   nav { padding:14px 18px; }
@@ -1003,6 +1205,57 @@ footer span { display:none; }
       Ant collects the details.<br>
       <strong>Top Pro Techs take it from there.</strong>
     </p>
+
+    <!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
+         Disclosure-only. Click handlers route into the chat with consent
+         choice pre-recorded; the chat-side gate from b6673e6 still enforces. -->
+    <section class="homepage-consent-card" id="sms-consent-disclosure">
+      <div class="hcc-header">
+        <span class="hcc-icon" aria-hidden="true">🔔</span>
+        <h2>About our text messages</h2>
+      </div>
+
+      <p class="hcc-intro">
+        TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
+      </p>
+
+      <div class="hcc-samples">
+        <p class="hcc-samples-label">Examples of what we'd text you:</p>
+        <ul>
+          <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
+          <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
+          <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
+        </ul>
+      </div>
+
+      <div class="hcc-mechanism">
+        <p class="hcc-mechanism-label">How you opt in:</p>
+        <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
+
+        <div class="hcc-mockup">
+          <div class="hcc-mockup-card">
+            <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
+            <h3>Before we continue, we need your permission to text you.</h3>
+            <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
+            <div class="hcc-mockup-buttons">
+              <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
+              <span class="hcc-mockup-btn-no">No, call me only</span>
+            </div>
+          </div>
+          <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
+        </div>
+      </div>
+
+      <div class="hcc-keywords">
+        <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
+      </div>
+
+      <div class="hcc-actions">
+        <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
+        <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
+        <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
+      </div>
+    </section>
 
     <!-- HOW IT WORKS -->
     <div class="how">
