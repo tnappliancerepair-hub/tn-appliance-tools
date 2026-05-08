@@ -129,6 +129,8 @@ nav {
 @keyframes pdot { 0%,100%{box-shadow:0 0 0 0 rgba(57,255,20,.5)} 50%{box-shadow:0 0 0 5px rgba(57,255,20,0)} }
 .nav-call { font-size:11px; color:var(--gray); text-decoration:none; letter-spacing:.04em; transition:color .2s; }
 .nav-call:hover { color:var(--white); }
+.nav-link { font-size:11px; color:var(--gray); text-decoration:none; letter-spacing:.04em; transition:color .2s; padding:4px 8px; border:1px solid #2a2a2a; border-radius:6px; }
+.nav-link:hover { color:var(--white); border-color:#444; }
 
 /* ── MAIN ── */
 main {
@@ -363,102 +365,111 @@ main {
 .credit b { color:var(--orange); font-weight:500; }
 
 /* ── CONSENT CHECKBOX ── */
+/* ── CONSENT GATE (TCR compliance, 2026-05-08) ──
+   Full-takeover card that blocks chat input until customer makes an
+   affirmative or negative SMS-consent choice. Replaces the previous
+   inline checkbox so reviewers cannot mistake the flow for "phone
+   collected before consent obtained". */
 .consent-card {
-  margin-top:14px;
-  padding:18px 20px;
-  background:rgba(255,98,0,.04);
-  border:1.5px solid rgba(255,98,0,.35);
-  border-radius:12px;
+  margin-top:18px;
+  padding:24px 22px 20px;
+  background:#0d0d0d;
+  border:2px solid var(--orange);
+  border-radius:14px;
+  box-shadow:0 4px 18px rgba(255,98,0,.18), 0 0 0 1px rgba(255,98,0,.2) inset;
   display:flex;
   flex-direction:column;
-  gap:14px;
-  animation:consent-pulse 2.5s ease-in-out infinite;
+  gap:18px;
+  width:100%;
+  max-width:100%;
 }
-@keyframes consent-pulse {
-  0%,100% { box-shadow:0 0 0 0 rgba(255,98,0,.15); }
-  50%      { box-shadow:0 0 0 8px rgba(255,98,0,0); }
+.consent-card .consent-icon {
+  font-size:28px;
+  line-height:1;
+  text-align:left;
 }
-.consent-card.checked {
-  background:rgba(57,255,20,.04);
-  border-color:rgba(57,255,20,.4);
-  animation:none;
-}
-
-.consent-row {
-  display:flex;
-  align-items:flex-start;
-  gap:13px;
-  cursor:pointer;
-  user-select:none;
-}
-.consent-card.checked .consent-row { cursor:default; }
-
-.consent-checkbox {
-  width:26px;
-  height:26px;
-  border:2px solid var(--orange);
-  border-radius:6px;
-  background:var(--surf2);
-  flex-shrink:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  transition:all .2s;
-  margin-top:2px;
-}
-.consent-row:hover .consent-checkbox {
-  border-color:var(--oran2);
-  background:rgba(255,98,0,.1);
-  transform:scale(1.05);
-}
-.consent-card.checked .consent-checkbox {
-  background:var(--green);
-  border-color:var(--green);
-}
-.consent-check-mark {
-  font-size:18px;
-  color:#000;
-  font-weight:900;
-  opacity:0;
-  transform:scale(.5);
-  transition:all .2s;
-}
-.consent-card.checked .consent-check-mark {
-  opacity:1;
-  transform:scale(1);
-}
-
-.consent-text {
-  flex:1;
-  font-size:13px;
+.consent-card h3 {
+  font-size:17px;
+  font-weight:600;
   color:var(--white);
-  line-height:1.5;
   letter-spacing:.01em;
+  line-height:1.35;
+  margin:0;
 }
-.consent-text b { color:var(--orange); font-weight:600; }
-.consent-card.checked .consent-text b { color:var(--green); }
+.consent-card .consent-body {
+  font-size:13px;
+  color:#b8b8b8;
+  line-height:1.6;
+  letter-spacing:.01em;
+  margin:0;
+}
+.consent-card .consent-body strong { color:var(--white); font-weight:500; }
+
+.consent-buttons {
+  display:flex;
+  gap:10px;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  width:100%;
+}
+.consent-buttons button {
+  flex:1 1 50%;
+  min-height:48px;
+  padding:13px 14px;
+  border-radius:10px;
+  font-family:inherit;
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:.01em;
+  cursor:pointer;
+  transition:transform .12s, box-shadow .12s, background .12s, border-color .12s;
+  text-align:center;
+  line-height:1.25;
+}
+.consent-buttons button:active { transform:translateY(1px); }
+.consent-btn-yes {
+  background:var(--orange);
+  border:1.5px solid var(--orange);
+  color:#000;
+  box-shadow:0 2px 0 rgba(0,0,0,.3);
+}
+.consent-btn-yes:hover { background:#ff7a1f; border-color:#ff7a1f; }
+.consent-btn-no {
+  background:transparent;
+  border:1.5px solid #555;
+  color:#e8e8e8;
+}
+.consent-btn-no:hover { border-color:#999; background:rgba(255,255,255,.04); }
 
 .consent-fine {
-  font-size:10px;
-  color:var(--gray);
+  font-size:11px;
+  color:#7a7a7a;
   line-height:1.6;
   letter-spacing:.02em;
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 14px;
 }
 .consent-fine a {
-  color:var(--orange);
-  text-decoration:none;
-  border-bottom:1px dotted rgba(255,98,0,.4);
+  color:#bbb;
+  text-decoration:underline;
+  text-decoration-color:#555;
+  text-underline-offset:3px;
 }
-.consent-fine a:hover { color:var(--oran2); }
+.consent-fine a:hover { color:var(--orange); text-decoration-color:var(--orange); }
 
-.consent-confirmed {
-  display:none;
-  font-size:11px;
-  color:var(--green);
-  letter-spacing:.04em;
-  font-weight:600;
+@media (max-width:420px) {
+  .consent-card { padding:20px 18px 16px; gap:14px; }
+  .consent-card h3 { font-size:16px; }
+  .consent-buttons { flex-direction:column; }
+  .consent-buttons button { flex:1 1 auto; min-height:48px; font-size:14px; }
 }
-.consent-card.checked .consent-confirmed { display:flex; align-items:center; gap:6px; }
+
+/* When the gate is active, hide the chat text input + send button so
+   the customer cannot type past the card. The footer (Privacy/Terms
+   links) remains visible. */
+body.consent-gate-active .input-zone .ibox,
+body.consent-gate-active .input-zone .isub { display:none; }
 
 /* ── SUBMIT REQUEST ── */
 .submit-card {
@@ -834,10 +845,92 @@ footer span { display:none; }
   letter-spacing:.02em;
 }
 
+/* ── BUSINESS INFO (TCR compliance, 2026-05-08) ── */
+.bizinfo {
+  width:100%;
+  margin-top:20px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:24px 28px 22px;
+  scroll-margin-top:24px;
+}
+.bizinfo-title {
+  font-size:13px;
+  color:var(--orange);
+  letter-spacing:.03em;
+  margin-bottom:18px;
+  text-align:center;
+  font-weight:600;
+}
+.bizinfo-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+}
+.bizinfo-card {
+  background:var(--surf2);
+  border:1px solid var(--bord2);
+  border-radius:12px;
+  padding:16px 18px;
+}
+.bizinfo-card h3 {
+  font-family:var(--block);
+  font-size:14px;
+  letter-spacing:.06em;
+  color:var(--white);
+  margin:0 0 10px;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+  font-weight:500;
+}
+.bizinfo-row {
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--gray);
+  line-height:1.85;
+  letter-spacing:.02em;
+  margin:0 0 4px;
+}
+.bizinfo-row strong { color:var(--white); font-weight:500; }
+.bizinfo-row a { color:var(--orange); text-decoration:none; }
+.bizinfo-row a:hover { text-decoration:underline; }
+.bizinfo-foot {
+  margin-top:16px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:center;
+  align-items:center;
+}
+.bizinfo-foot a {
+  font-size:11px;
+  color:var(--gray);
+  text-decoration:none;
+  letter-spacing:.04em;
+  padding:8px 14px;
+  border:1px solid var(--bord2);
+  border-radius:8px;
+  transition:color .2s, border-color .2s;
+}
+.bizinfo-foot a:hover { color:var(--orange); border-color:var(--orange); }
+.bizinfo-foot a.bizinfo-cta {
+  background:rgba(255,98,0,.08);
+  border-color:rgba(255,98,0,.4);
+  color:var(--orange);
+  font-weight:500;
+}
+.bizinfo-foot a.bizinfo-cta:hover { background:rgba(255,98,0,.18); border-color:var(--orange); color:#ff7a1f; }
+@media(max-width:600px) {
+  .bizinfo { padding:18px 16px 16px; }
+  .bizinfo-grid { grid-template-columns:1fr; gap:12px; }
+}
+
 /* ── RESPONSIVE ── */
 @media(max-width:600px) {
   nav { padding:14px 18px; }
   .nav-call, .nav-tag { display:none; }
+  .nav-link { font-size:10px; padding:3px 6px; }
   .ant-orb { width:150px; height:150px; }
   .ring:nth-child(1) { width:150px; height:150px; }
   .ring:nth-child(2) { width:116px; height:116px; }
@@ -878,6 +971,7 @@ footer span { display:none; }
   </a>
   <div class="nav-right">
     <div class="pill"><span class="pill-dot"></span>Ant is online</div>
+    <a href="/sms-opt-in" class="nav-link">SMS Opt-In</a>
     <a href="tel:6152802949" class="nav-call">615-280-2949</a>
   </div>
 </nav>
@@ -980,6 +1074,33 @@ footer span { display:none; }
       <div class="cov-foot">Don't see your city? Ask Ant — we may still cover you.</div>
     </div>
 
+    <!-- BUSINESS INFO (TCR compliance, 2026-05-08) -->
+    <div class="bizinfo" id="business-info">
+      <div class="bizinfo-title">About TN Appliance Exchange LLC</div>
+      <div class="bizinfo-grid">
+        <div class="bizinfo-card">
+          <h3>Contact</h3>
+          <p class="bizinfo-row"><strong>Legal name:</strong> TN Appliance Exchange LLC</p>
+          <p class="bizinfo-row"><strong>Phone:</strong> <a href="tel:6152802949">615-280-2949</a></p>
+          <p class="bizinfo-row"><strong>Email:</strong> <a href="mailto:tnappliancerepair@gmail.com">tnappliancerepair@gmail.com</a></p>
+          <p class="bizinfo-row"><strong>Location:</strong> Antioch, TN 37013</p>
+          <p class="bizinfo-row"><strong>Hours:</strong> Self-schedule 24/7, 365 days a year — technicians available Monday–Friday</p>
+        </div>
+        <div class="bizinfo-card">
+          <h3>Service area &amp; verification</h3>
+          <p class="bizinfo-row">Tennessee: Nashville · Franklin · Brentwood · Murfreesboro · Hermitage · Mount Juliet · Madison · Antioch · Clarksville · Hendersonville · Lebanon</p>
+          <p class="bizinfo-row">Louisiana: New Orleans · Metairie · Kenner · Baton Rouge · Hammond · Slidell · Ponchatoula</p>
+          <p class="bizinfo-row" style="margin-top:10px;">Registered Tennessee LLC — <a href="https://tnbear.tn.gov/ECommerce/FilingSearch.aspx" target="_blank" rel="noopener">verify our filing at the Tennessee Secretary of State (search "TN Appliance Exchange LLC")</a>.</p>
+          <p class="bizinfo-row"><a href="https://share.google/SiEwOI4MfRWyGpfZD" target="_blank" rel="noopener">View our Google Business Profile →</a></p>
+        </div>
+      </div>
+      <div class="bizinfo-foot">
+        <a class="bizinfo-cta" href="/sms-opt-in">How we handle SMS consent →</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">SMS Terms</a>
+      </div>
+    </div>
+
   </div><!-- /hero -->
 
   <!-- CHAT -->
@@ -1004,6 +1125,7 @@ footer span { display:none; }
       <a href="/about.html">About</a>
       <a href="/privacy">Privacy</a>
       <a href="/terms">SMS Terms</a>
+      <a href="/sms-opt-in">SMS Opt-In Process</a>
       <a href="tel:6152802949">615-280-2949</a>
     </footer>
     <div class="ibox">
@@ -1055,7 +1177,14 @@ const collected = {
   scheduling_type: null,
   recommended_service: null,
   sms_consent: false,
-  sms_consent_at: null
+  sms_consent_at: null,
+  // TCR compliance audit fields (added 2026-05-08). Populated when
+  // the customer clicks one of the two consent-gate buttons. Xano
+  // endpoint create_job_from_chat needs corresponding columns added
+  // to persist these — flagged separately in the deployment report.
+  consent_granted_at: null,
+  consent_language_version: null,
+  consent_method: null
 };
 
 // ── DOM ──
@@ -1327,51 +1456,84 @@ async function addAnt(text, extra) {
   }
 }
 
-// ── CONSENT CHECKBOX ──
+// ── CONSENT GATE (TCR compliance overhaul, 2026-05-08) ──
+// Full-takeover card with two equal buttons. The chat text input is
+// HIDDEN while this card is showing (via body.consent-gate-active),
+// so the customer cannot type past it. The only way forward is to
+// click "Yes, text me about my service" or "No, call me only".
+//
+// Locked consent language version — change here AND on /sms-opt-in
+// in lockstep so the audit trail says exactly what the customer saw.
+const CONSENT_LANGUAGE_VERSION = 'v1.0_2026-05-08';
+const CONSENT_BODY_TEXT = "TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.";
+
+let consentGateRendered = false;
+let consentMethod = null;
+
 function renderConsentCheckbox(parentEl) {
+  // Idempotency: if Ant emits the trigger token twice, only render once.
+  if (consentGateRendered) return;
+  consentGateRendered = true;
+
   const card = document.createElement('div');
   card.className = 'consent-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-labelledby', 'consent-gate-heading');
   card.innerHTML = `
-    <label class="consent-row">
-      <div class="consent-checkbox">
-        <span class="consent-check-mark">✓</span>
-      </div>
-      <div class="consent-text">
-        <b>Yes, text me about my service.</b><br>
-        Confirmations, tech ETAs, parts updates, and a quick check-in after the job. No marketing, ever. Reply STOP anytime to opt out.
-      </div>
-    </label>
-    <div class="consent-fine">
-      Standard message rates apply. By checking the box you agree to our 
-      <a href="https://tnapplianceexchange.net/privacy" target="_blank">Privacy Policy</a>
-      and
-      <a href="https://tnapplianceexchange.net/terms" target="_blank">SMS Terms</a>.
+    <div class="consent-icon" aria-hidden="true">🔔</div>
+    <h3 id="consent-gate-heading">Before we continue, we need your permission to text you.</h3>
+    <p class="consent-body">${esc(CONSENT_BODY_TEXT)}</p>
+    <div class="consent-buttons">
+      <button type="button" class="consent-btn-yes" data-choice="yes">Yes, text me about my service</button>
+      <button type="button" class="consent-btn-no"  data-choice="no">No, call me only</button>
     </div>
-    <div class="consent-confirmed">
-      <span style="font-size:14px;">✓</span>
-      <span>Consent recorded — you're all set.</span>
+    <div class="consent-fine">
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="/terms"   target="_blank" rel="noopener">SMS Terms</a>
+      <a href="/sms-opt-in" target="_blank" rel="noopener">Learn more about how we handle SMS consent</a>
     </div>
   `;
   parentEl.appendChild(card);
 
-  const row = card.querySelector('.consent-row');
-  let consented = false;
+  // Hide the chat input zone while the gate is active.
+  document.body.classList.add('consent-gate-active');
 
-  row.addEventListener('click', async (e) => {
-    if (consented) return;
-    consented = true;
-    card.classList.add('checked');
+  let resolved = false;
+  const handle = (choice) => {
+    if (resolved) return;
+    resolved = true;
 
-    // Capture consent state
-    smsConsentGiven = true;
-    smsConsentAt = new Date().toISOString();
+    // Disable both buttons so a slow tap doesn't double-fire.
+    card.querySelectorAll('button').forEach(b => { b.disabled = true; });
 
-    // Send a real user message that Ant will process and respond to
+    if (choice === 'yes') {
+      smsConsentGiven = true;
+      smsConsentAt = new Date().toISOString();
+      consentMethod = 'affirmative_button_click';
+    } else {
+      smsConsentGiven = false;
+      smsConsentAt = null;
+      consentMethod = 'voice_only_button_click';
+    }
+
+    // Re-enable the chat input zone for subsequent steps (phone, etc.).
+    document.body.classList.remove('consent-gate-active');
+
+    // Send a clear user-side message so Ant can branch on it. The
+    // affirmative path proceeds normally to the phone-number step;
+    // the voice-only path tells Ant explicitly to NEVER text.
+    const userMessage = (choice === 'yes')
+      ? "Yes, you can text me about my service."
+      : "No, please do NOT text me. Voice contact only.";
+
     setTimeout(() => {
-      txt.value = "Yes, you can text me about my service.";
+      txt.value = userMessage;
       send();
-    }, 400);
-  });
+    }, 250);
+  };
+
+  card.querySelector('.consent-btn-yes').addEventListener('click', () => handle('yes'));
+  card.querySelector('.consent-btn-no').addEventListener('click', () => handle('no'));
 }
 
 // ── SEND ──
@@ -1400,6 +1562,9 @@ async function send() {
         channel:'web',
         sms_consent:smsConsentGiven,
         sms_consent_at:smsConsentAt,
+        consent_granted_at:smsConsentAt,
+        consent_language_version: smsConsentGiven || consentMethod ? CONSENT_LANGUAGE_VERSION : null,
+        consent_method:consentMethod,
         collected
       })
     });
@@ -1631,8 +1796,11 @@ function updateCollected(userText) {
   }
 
   // Keep SMS consent in sync
-  collected.sms_consent    = smsConsentGiven;
-  collected.sms_consent_at = smsConsentAt;
+  collected.sms_consent              = smsConsentGiven;
+  collected.sms_consent_at           = smsConsentAt;
+  collected.consent_granted_at       = smsConsentAt;
+  collected.consent_language_version = (smsConsentGiven || consentMethod) ? CONSENT_LANGUAGE_VERSION : null;
+  collected.consent_method           = consentMethod;
 }
 
 // ── SUBMIT BUTTON ──
@@ -1668,8 +1836,11 @@ async function handleSubmitClick(card) {
   btn.querySelector('.submit-arrow').textContent = '⏳';
 
   // Sync consent state right before submit
-  collected.sms_consent    = smsConsentGiven;
-  collected.sms_consent_at = smsConsentAt;
+  collected.sms_consent              = smsConsentGiven;
+  collected.sms_consent_at           = smsConsentAt;
+  collected.consent_granted_at       = smsConsentAt;
+  collected.consent_language_version = (smsConsentGiven || consentMethod) ? CONSENT_LANGUAGE_VERSION : null;
+  collected.consent_method           = consentMethod;
 
   const payload = {
     first_name:               collected.first_name              || '',
@@ -1686,6 +1857,14 @@ async function handleSubmitClick(card) {
     scheduling_type:          collected.scheduling_type         || '',
     sms_consent:              !!collected.sms_consent,
     sms_consent_at:           collected.sms_consent_at,
+    // TCR compliance audit fields (2026-05-08). Xano endpoint
+    // `create_job_from_chat` should add columns: consent_granted_at
+    // (timestamp, nullable), consent_language_version (text, nullable),
+    // consent_method (text, nullable). Frontend sends regardless;
+    // unknown fields are dropped silently until columns exist.
+    consent_granted_at:       collected.consent_granted_at      || null,
+    consent_language_version: collected.consent_language_version || null,
+    consent_method:           collected.consent_method          || null,
     conversation_id:          conversationId,
     customer_id:              customerId,
     session_id:               SESSION
