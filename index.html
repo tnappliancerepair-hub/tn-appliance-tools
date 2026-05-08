@@ -931,24 +931,32 @@ footer span { display:none; }
    Real consent enforcement still lives in the chat-side gate. */
 .homepage-consent-card {
   width:100%;
-  margin-top:24px;
+  margin:0 0 22px;
   background:var(--surface);
   border:2px solid var(--orange);
   border-radius:16px;
-  padding:28px 30px 26px;
+  padding:20px 24px 18px;
   scroll-margin-top:24px;
+}
+.hcc-eyebrow {
+  font-size:10px;
+  color:var(--gray);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  margin-bottom:8px;
+  font-family:var(--mono);
 }
 .hcc-header {
   display:flex;
   align-items:center;
-  gap:12px;
-  margin-bottom:18px;
-  padding-bottom:14px;
+  gap:10px;
+  margin-bottom:14px;
+  padding-bottom:12px;
   border-bottom:1px solid var(--border);
 }
-.hcc-icon { font-size:22px; line-height:1; }
+.hcc-icon { font-size:20px; line-height:1; }
 .hcc-header h2 {
-  font-size:15px;
+  font-size:14px;
   letter-spacing:.06em;
   text-transform:uppercase;
   color:var(--white);
@@ -1007,11 +1015,11 @@ footer span { display:none; }
   background:#0d0d0d;
   border:2px solid var(--orange);
   border-radius:14px;
-  padding:18px 16px 16px;
+  padding:16px 14px 14px;
   display:flex;
   flex-direction:column;
-  gap:13px;
-  max-width:520px;
+  gap:11px;
+  max-width:460px;
   margin:0 auto;
 }
 .hcc-mockup-icon { font-size:22px; line-height:1; }
@@ -1117,9 +1125,9 @@ footer span { display:none; }
 }
 .hcc-btn-secondary:hover { color:var(--orange); border-color:var(--orange); }
 @media(max-width:600px) {
-  .homepage-consent-card { padding:22px 18px 20px; }
-  .hcc-mockup { padding:14px 10px 12px; }
-  .hcc-mockup-card { padding:16px 14px 14px; }
+  .homepage-consent-card { padding:18px 16px 16px; margin:0 0 18px; }
+  .hcc-mockup { padding:12px 10px 10px; }
+  .hcc-mockup-card { padding:14px 12px 12px; }
   .hcc-actions { flex-direction:column; align-items:stretch; }
   .hcc-btn-primary, .hcc-btn-secondary { text-align:center; }
 }
@@ -1181,6 +1189,62 @@ footer span { display:none; }
 <!-- MAIN -->
 <main id="main">
 
+  <!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
+       Repositioned 2026-05-08 PM: now ABOVE the hero so reviewers see
+       compliance evidence as the first content block. Sits OUTSIDE the
+       hero div so it stays visible even after chat activates and the
+       hero hides. Disclosure-only. Click handlers route into the chat
+       with consent choice pre-recorded; the chat-side gate from b6673e6
+       still enforces. -->
+  <section class="homepage-consent-card" id="sms-consent-disclosure">
+    <div class="hcc-eyebrow">Service notice — SMS communication</div>
+    <div class="hcc-header">
+      <span class="hcc-icon" aria-hidden="true">🔔</span>
+      <h2>About our text messages</h2>
+    </div>
+
+    <p class="hcc-intro">
+      TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
+    </p>
+
+    <div class="hcc-samples">
+      <p class="hcc-samples-label">Examples of what we'd text you:</p>
+      <ul>
+        <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
+        <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
+        <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
+      </ul>
+    </div>
+
+    <div class="hcc-mechanism">
+      <p class="hcc-mechanism-label">How you opt in:</p>
+      <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
+
+      <div class="hcc-mockup">
+        <div class="hcc-mockup-card">
+          <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
+          <h3>Before we continue, we need your permission to text you.</h3>
+          <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
+          <div class="hcc-mockup-buttons">
+            <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
+            <span class="hcc-mockup-btn-no">No, call me only</span>
+          </div>
+        </div>
+        <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
+      </div>
+    </div>
+
+    <div class="hcc-keywords">
+      <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
+    </div>
+
+    <div class="hcc-actions">
+      <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
+      <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
+      <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
+    </div>
+  </section>
+
   <!-- HERO -->
   <div class="hero" id="hero">
 
@@ -1205,57 +1269,6 @@ footer span { display:none; }
       Ant collects the details.<br>
       <strong>Top Pro Techs take it from there.</strong>
     </p>
-
-    <!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
-         Disclosure-only. Click handlers route into the chat with consent
-         choice pre-recorded; the chat-side gate from b6673e6 still enforces. -->
-    <section class="homepage-consent-card" id="sms-consent-disclosure">
-      <div class="hcc-header">
-        <span class="hcc-icon" aria-hidden="true">🔔</span>
-        <h2>About our text messages</h2>
-      </div>
-
-      <p class="hcc-intro">
-        TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
-      </p>
-
-      <div class="hcc-samples">
-        <p class="hcc-samples-label">Examples of what we'd text you:</p>
-        <ul>
-          <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
-          <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
-          <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
-        </ul>
-      </div>
-
-      <div class="hcc-mechanism">
-        <p class="hcc-mechanism-label">How you opt in:</p>
-        <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
-
-        <div class="hcc-mockup">
-          <div class="hcc-mockup-card">
-            <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
-            <h3>Before we continue, we need your permission to text you.</h3>
-            <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
-            <div class="hcc-mockup-buttons">
-              <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
-              <span class="hcc-mockup-btn-no">No, call me only</span>
-            </div>
-          </div>
-          <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
-        </div>
-      </div>
-
-      <div class="hcc-keywords">
-        <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
-      </div>
-
-      <div class="hcc-actions">
-        <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
-        <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
-        <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
-      </div>
-    </section>
 
     <!-- HOW IT WORKS -->
     <div class="how">
