@@ -752,6 +752,30 @@ footer a:hover {
 }
 footer span { display:none; }
 
+/* Recovery link: after the customer has picked a channel on the homepage
+   strip, the strip hides itself. This button gives them a way back. Hidden
+   by default; revealed by JS only when localStorage.consentPreSelect exists. */
+.change-pref-link {
+  font-size:10.5px;
+  font-family:var(--mono);
+  color:#888;
+  background:transparent;
+  border:1px dashed #3a3a3a;
+  border-radius:20px;
+  padding:3px 11px;
+  cursor:pointer;
+  letter-spacing:.04em;
+  white-space:nowrap;
+  transition:color .2s, border-color .2s, background .2s, border-style .2s;
+}
+.change-pref-link:hover {
+  color:var(--orange);
+  border-color:var(--orange);
+  border-style:solid;
+  background:rgba(255,98,0,.05);
+}
+.change-pref-link[hidden] { display:none !important; }
+
 /* ── PRICE LADDER ── */
 .price-ladder {
   width:100%;
@@ -1205,6 +1229,14 @@ footer span { display:none; }
   border:1px solid rgba(255,98,0,.45);
   border-radius:12px;
   padding:14px 20px 14px;
+  /* Fade-out applied via .ss-hiding after the customer picks a channel.
+     transitionend swaps display:none so the strip stops reserving layout. */
+  transition:opacity .4s ease, transform .4s ease;
+}
+.service-strip.ss-hiding {
+  opacity:0;
+  transform:translateY(-12px);
+  pointer-events:none;
 }
 .ss-heading {
   font-size:14px;
@@ -1603,6 +1635,7 @@ footer span { display:none; }
       <a href="/terms">SMS Terms</a>
       <a href="/sms-opt-in">SMS Opt-In Process</a>
       <a href="tel:6152802949">615-280-2949</a>
+      <button type="button" id="changeContactPrefLink" class="change-pref-link" hidden aria-label="Change my contact preference and re-show the channel picker">↺ Change my contact preference</button>
     </footer>
     <div class="chat-prominence-banner" aria-hidden="true">
       <span class="cpb-emoji">💬</span>
@@ -2089,12 +2122,15 @@ function _renderConsentFresh(parentEl) {
 
 // ── SERVICE STRIP (homepage channel pre-selection) ──
 // Routing buttons that store a pre-selection, surface visual feedback,
-// smooth-scroll to the chat, and focus the textarea. NOT consent capture —
-// the chat-side gate above is the source of truth.
+// smooth-scroll to the chat, focus the textarea, then hide the strip so
+// it stops obstructing the chat. NOT consent capture — the chat-side gate
+// above is the source of truth.
 function setupServiceStripButtons() {
+  const strip       = document.getElementById('how-our-service-works');
   const ssBtnYes    = document.getElementById('ssBtnYes');
   const ssBtnNo     = document.getElementById('ssBtnNo');
   const ssConfirmed = document.getElementById('ssConfirmed');
+  const cpl         = document.getElementById('changeContactPrefLink');
   if (!ssBtnYes || !ssBtnNo) return;
 
   const messages = {
@@ -2111,10 +2147,47 @@ function setupServiceStripButtons() {
     }
   }
 
+  function hideStripAnimated() {
+    if (!strip) return;
+    // Hold the green "Got it" banner readable for ~1.2s, then fade out
+    // (~400ms via CSS transition on .service-strip), then display:none so
+    // the strip stops reserving layout above the hero.
+    setTimeout(() => {
+      strip.classList.add('ss-hiding');
+      let done = false;
+      const finalize = () => { if (!done) { done = true; strip.style.display = 'none'; } };
+      strip.addEventListener('transitionend', finalize, { once: true });
+      // Safety net if transitionend doesn't fire (some Safari edge cases).
+      setTimeout(finalize, 600);
+    }, 1200);
+  }
+
+  function hideStripInstant() {
+    if (strip) strip.style.display = 'none';
+  }
+
+  function showStripAgain() {
+    if (!strip) return;
+    // Reset visual state of the strip and the buttons.
+    strip.classList.remove('ss-hiding');
+    strip.style.display = '';
+    void strip.offsetHeight; // force reflow before clearing transform/opacity
+    ssBtnYes.classList.remove('ss-selected');
+    ssBtnNo.classList.remove('ss-selected');
+    if (ssConfirmed) ssConfirmed.hidden = true;
+
+    _clearPreSelect();
+    if (cpl) cpl.hidden = true;
+
+    try { strip.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    catch(e) { strip.scrollIntoView(); }
+  }
+
   function pickChannel(choice) {
     window.consentChoice = choice;
     try { localStorage.setItem('consentPreSelect', choice); } catch(e) {}
     applyState(choice);
+    if (cpl) cpl.hidden = false;
 
     // Smooth-scroll the chat input into view, then auto-focus the textarea.
     const inputZone = document.querySelector('.input-zone');
@@ -2125,17 +2198,26 @@ function setupServiceStripButtons() {
     setTimeout(() => {
       try { if (txt && typeof txt.focus === 'function') txt.focus(); } catch(e) {}
     }, 380);
+
+    // After scroll + focus settle, hide the strip so it stops obstructing
+    // the chat. Independent timer chain so it does not block scroll/focus.
+    hideStripAnimated();
   }
 
   ssBtnYes.addEventListener('click', () => pickChannel('yes'));
   ssBtnNo.addEventListener('click',  () => pickChannel('no'));
+  if (cpl) cpl.addEventListener('click', showStripAgain);
 
-  // Restore prior selection on page reload so the visual state matches storage.
+  // Restore prior selection on page reload so the visual state matches
+  // storage AND the strip stays hidden (no animation — instant). The
+  // change-preference link is revealed instead, as the recovery path.
   try {
     const stored = localStorage.getItem('consentPreSelect');
     if (stored === 'yes' || stored === 'no') {
       window.consentChoice = stored;
       applyState(stored);
+      hideStripInstant();
+      if (cpl) cpl.hidden = false;
     }
   } catch(e) {}
 }
