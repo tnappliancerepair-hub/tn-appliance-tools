@@ -160,12 +160,12 @@ main {
 @keyframes hero-in { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
 .hero.exit { opacity:0; transform:translateY(-36px); pointer-events:none; }
 
-/* ── ANT ORB ── */
+/* ── ANT ORB ── (compacted 2026-05-08 PM for chat-centered redesign) */
 .ant-orb {
   position:relative;
-  width:180px; height:180px;
+  width:120px; height:120px;
   display:flex; align-items:center; justify-content:center;
-  margin-bottom:32px;
+  margin-bottom:18px;
 }
 
 .ring {
@@ -173,10 +173,10 @@ main {
   border:1px solid rgba(255,98,0,.15);
   animation:ring-pulse 3s ease-in-out infinite;
 }
-.ring:nth-child(1) { width:180px; height:180px; animation-delay:0s; }
-.ring:nth-child(2) { width:140px; height:140px; animation-delay:.35s; border-color:rgba(255,98,0,.22); }
-.ring:nth-child(3) { width:104px; height:104px; animation-delay:.7s;  border-color:rgba(255,98,0,.32); }
-.ring:nth-child(4) { width:72px;  height:72px;  animation-delay:1.05s; border-color:rgba(255,98,0,.45); }
+.ring:nth-child(1) { width:120px; height:120px; animation-delay:0s; }
+.ring:nth-child(2) { width:94px;  height:94px;  animation-delay:.35s; border-color:rgba(255,98,0,.22); }
+.ring:nth-child(3) { width:70px;  height:70px;  animation-delay:.7s;  border-color:rgba(255,98,0,.32); }
+.ring:nth-child(4) { width:48px;  height:48px;  animation-delay:1.05s; border-color:rgba(255,98,0,.45); }
 @keyframes ring-pulse {
   0%,100% { transform:scale(1); opacity:.4; }
   50%      { transform:scale(1.07); opacity:1; }
@@ -189,7 +189,7 @@ main {
 .ant-orb.thinking .ring:nth-child(4) { border-color:rgba(255,98,0,.85); }
 
 .orb-glow {
-  position:absolute; width:80px; height:80px; border-radius:50%;
+  position:absolute; width:54px; height:54px; border-radius:50%;
   background:radial-gradient(circle,rgba(255,98,0,.28) 0%,rgba(255,98,0,.06) 60%,transparent 100%);
   animation:glow-breathe 3s ease-in-out infinite;
 }
@@ -197,9 +197,9 @@ main {
 
 .ant-emoji {
   position:relative; z-index:10;
-  font-size:44px;
+  font-size:30px;
   animation:ant-idle 4s ease-in-out infinite;
-  filter:drop-shadow(0 0 18px rgba(255,98,0,.85));
+  filter:drop-shadow(0 0 14px rgba(255,98,0,.85));
   user-select:none;
   transition:font-size .3s;
 }
@@ -217,13 +217,13 @@ main {
   100% { transform:rotate(-10deg) scale(1.06); }
 }
 
-/* ── HEADLINE ── */
+/* ── HEADLINE ── (compacted 2026-05-08 PM ~35% smaller for chat-centered redesign) */
 .tagline {
   font-family:var(--block);
-  font-size:clamp(38px,9vw,68px);
+  font-size:clamp(28px,6vw,46px);
   letter-spacing:.04em;
   line-height:1.0;
-  margin-bottom:8px;
+  margin-bottom:6px;
   color:#f0f0f0 !important;
   text-shadow: 0 0 40px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.9);
   -webkit-text-fill-color:#f0f0f0 !important;
@@ -606,6 +606,41 @@ body.consent-gate-active .input-zone .isub { display:none; }
   flex-shrink:0;
   border-top:1px solid rgba(255,98,0,.15);
 }
+
+/* ── CHAT PROMINENCE HEADER (2026-05-08 PM, redesign) ──
+   Sits at the top of the input-zone to label the chat as the page's
+   primary action. Visible on initial load. Doesn't change chat logic. */
+.chat-prominence-header {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 22px 10px;
+  border-bottom:1px solid rgba(255,98,0,.08);
+}
+.chat-prominence-header .cph-emoji { font-size:18px; line-height:1; }
+.chat-prominence-header .cph-text {
+  font-family:var(--block);
+  font-size:16px;
+  letter-spacing:.06em;
+  color:var(--white);
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.chat-prominence-header .cph-ant { font-size:18px; }
+.chat-prominence-header .cph-tag {
+  margin-left:auto;
+  font-size:10px;
+  color:var(--gray);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-family:var(--mono);
+}
+@media(max-width:600px) {
+  .chat-prominence-header { padding:11px 16px 8px; }
+  .chat-prominence-header .cph-text { font-size:14px; }
+  .chat-prominence-header .cph-tag { display:none; }
+}
 .input-inner { width:100%; max-width:100%; margin:0; padding:0 0; display:flex; flex-direction:column; gap:8px; }
 
 .ibox {
@@ -931,20 +966,13 @@ footer span { display:none; }
    Real consent enforcement still lives in the chat-side gate. */
 .homepage-consent-card {
   width:100%;
-  margin:0 0 22px;
+  max-width:760px;
+  margin:32px auto 24px;
   background:var(--surface);
-  border:2px solid var(--orange);
-  border-radius:16px;
-  padding:20px 24px 18px;
+  border:1px solid rgba(255,98,0,.35);
+  border-radius:14px;
+  padding:24px 26px 22px;
   scroll-margin-top:24px;
-}
-.hcc-eyebrow {
-  font-size:10px;
-  color:var(--gray);
-  letter-spacing:.12em;
-  text-transform:uppercase;
-  margin-bottom:8px;
-  font-family:var(--mono);
 }
 .hcc-header {
   display:flex;
@@ -1015,38 +1043,39 @@ footer span { display:none; }
   background:#0d0d0d;
   border:2px solid var(--orange);
   border-radius:14px;
-  padding:16px 14px 14px;
+  padding:22px 20px 20px;
   display:flex;
   flex-direction:column;
-  gap:11px;
-  max-width:460px;
+  gap:14px;
+  max-width:600px;
   margin:0 auto;
+  box-shadow:0 4px 18px rgba(255,98,0,.18), 0 0 0 1px rgba(255,98,0,.2) inset;
 }
 .hcc-mockup-icon { font-size:22px; line-height:1; }
 .hcc-mockup-card h3 {
-  font-size:14px;
+  font-size:16px;
   font-weight:600;
   color:var(--white);
   line-height:1.35;
   margin:0;
 }
 .hcc-mockup-card p {
-  font-size:12px;
-  color:#a8a8a8;
+  font-size:13px;
+  color:#b8b8b8;
   line-height:1.6;
   margin:0;
 }
 .hcc-mockup-buttons {
   display:flex;
-  gap:8px;
+  gap:10px;
   flex-wrap:nowrap;
 }
 .hcc-mockup-buttons span {
   flex:1 1 50%;
-  min-height:44px;
-  padding:11px 12px;
-  border-radius:9px;
-  font-size:12px;
+  min-height:54px;
+  padding:14px 16px;
+  border-radius:10px;
+  font-size:14px;
   font-weight:600;
   text-align:center;
   display:flex;
@@ -1141,15 +1170,15 @@ footer span { display:none; }
 }
 .hcc-btn-secondary:hover { color:var(--orange); border-color:var(--orange); }
 @media(max-width:600px) {
-  .homepage-consent-card { padding:18px 16px 16px; margin:0 0 18px; }
-  .hcc-mockup { padding:12px 10px 10px; }
-  .hcc-mockup-card { padding:14px 12px 12px; }
+  .homepage-consent-card { padding:20px 16px 18px; margin:24px auto 20px; max-width:100%; }
+  .hcc-mockup { padding:14px 10px 12px; }
+  .hcc-mockup-card { padding:18px 14px 16px; }
   .hcc-actions { flex-direction:column; align-items:stretch; }
   .hcc-btn-primary, .hcc-btn-secondary { text-align:center; }
 }
 @media(max-width:420px) {
   .hcc-mockup-buttons { flex-direction:column; }
-  .hcc-mockup-buttons span { flex:1 1 auto; min-height:46px; }
+  .hcc-mockup-buttons span { flex:1 1 auto; min-height:50px; }
 }
 
 /* ── RESPONSIVE ── */
@@ -1157,13 +1186,13 @@ footer span { display:none; }
   nav { padding:14px 18px; }
   .nav-call, .nav-tag { display:none; }
   .nav-link { font-size:10px; padding:3px 6px; }
-  .ant-orb { width:150px; height:150px; }
-  .ring:nth-child(1) { width:150px; height:150px; }
-  .ring:nth-child(2) { width:116px; height:116px; }
-  .ring:nth-child(3) { width:86px;  height:86px; }
-  .ring:nth-child(4) { width:60px;  height:60px; }
-  .ant-emoji { font-size:36px; }
-  .tagline { font-size:40px; }
+  .ant-orb { width:96px; height:96px; margin-bottom:12px; }
+  .ring:nth-child(1) { width:96px; height:96px; }
+  .ring:nth-child(2) { width:74px; height:74px; }
+  .ring:nth-child(3) { width:54px; height:54px; }
+  .ring:nth-child(4) { width:38px; height:38px; }
+  .ant-emoji { font-size:24px; }
+  .tagline { font-size:30px; }
   main { padding:16px 10px 0; }
   footer a { font-size:10px; padding:3px 8px; }
   .hs-sub { display:none; }
@@ -1204,63 +1233,6 @@ footer span { display:none; }
 
 <!-- MAIN -->
 <main id="main">
-
-  <!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
-       Repositioned 2026-05-08 PM: now ABOVE the hero so reviewers see
-       compliance evidence as the first content block. Sits OUTSIDE the
-       hero div so it stays visible even after chat activates and the
-       hero hides. Disclosure-only. Click handlers route into the chat
-       with consent choice pre-recorded; the chat-side gate from b6673e6
-       still enforces. -->
-  <section class="homepage-consent-card" id="sms-consent-disclosure">
-    <div class="hcc-eyebrow">Service notice — SMS communication</div>
-    <div class="hcc-header">
-      <span class="hcc-icon" aria-hidden="true">🔔</span>
-      <h2>About our text messages</h2>
-    </div>
-
-    <p class="hcc-intro">
-      TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
-    </p>
-
-    <div class="hcc-samples">
-      <p class="hcc-samples-label">Examples of what we'd text you:</p>
-      <ul>
-        <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
-        <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
-        <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
-      </ul>
-    </div>
-
-    <div class="hcc-mechanism">
-      <p class="hcc-mechanism-label">How you opt in:</p>
-      <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
-
-      <div class="hcc-mockup">
-        <div class="hcc-mockup-card">
-          <span class="hcc-mockup-demo-tag" aria-label="Static demonstration, not interactive">Live preview · click happens inside the chat</span>
-          <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
-          <h3>Before we continue, we need your permission to text you.</h3>
-          <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
-          <div class="hcc-mockup-buttons">
-            <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
-            <span class="hcc-mockup-btn-no">No, call me only</span>
-          </div>
-        </div>
-        <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
-      </div>
-    </div>
-
-    <div class="hcc-keywords">
-      <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
-    </div>
-
-    <div class="hcc-actions">
-      <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
-      <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
-      <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
-    </div>
-  </section>
 
   <!-- HERO -->
   <div class="hero" id="hero">
@@ -1402,6 +1374,11 @@ footer span { display:none; }
 <!-- INPUT -->
 <div class="input-zone">
   <div class="input-inner">
+    <div class="chat-prominence-header" aria-hidden="true">
+      <span class="cph-emoji">💬</span>
+      <span class="cph-text">Chat with Ant <span class="cph-ant" aria-hidden="true">🐜</span></span>
+      <span class="cph-tag">Free · Type below to start</span>
+    </div>
     <footer>
       <a href="#coverage">Coverage areas</a>
       <a href="#pricing">Services</a>
@@ -1412,11 +1389,11 @@ footer span { display:none; }
       <a href="tel:6152802949">615-280-2949</a>
     </footer>
     <div class="ibox">
-      <textarea id="txt" 
-        placeholder="🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling..." 
-        rows="1" 
-        autocomplete="off" 
-        autocorrect="off" 
+      <textarea id="txt"
+        placeholder="🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling..."
+        rows="1"
+        autocomplete="off"
+        autocorrect="off"
         spellcheck="false"></textarea>
       <div class="btns">
         <button class="ibtn" id="micBtn" title="Voice input">🎤</button>
@@ -1429,6 +1406,61 @@ footer span { display:none; }
     </div>
   </div>
 </div>
+
+<!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
+     Repositioned to live BELOW the chat (after input-zone). Demoted
+     visual weight (1px softer border) so the chat reads as the
+     centerpiece and the disclosure reads as supporting context.
+     All disclosure content (samples, mockup, keywords, links) intact.
+     Chat-side enforcement gate from b6673e6 untouched. -->
+<section class="homepage-consent-card" id="sms-consent-disclosure">
+  <div class="hcc-header">
+    <span class="hcc-icon" aria-hidden="true">🔔</span>
+    <h2>How consent works when you chat with Ant</h2>
+  </div>
+
+  <p class="hcc-intro">
+    TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
+  </p>
+
+  <div class="hcc-samples">
+    <p class="hcc-samples-label">Examples of what we'd text you:</p>
+    <ul>
+      <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
+      <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
+      <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
+    </ul>
+  </div>
+
+  <div class="hcc-mechanism">
+    <p class="hcc-mechanism-label">How you opt in:</p>
+    <p>When you start a service request in the chat above, before any phone number is collected, you'll see this exact choice:</p>
+
+    <div class="hcc-mockup">
+      <div class="hcc-mockup-card">
+        <span class="hcc-mockup-demo-tag" aria-label="Static demonstration, not interactive">Live preview · click happens inside the chat</span>
+        <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
+        <h3>Before we continue, we need your permission to text you.</h3>
+        <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
+        <div class="hcc-mockup-buttons">
+          <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
+          <span class="hcc-mockup-btn-no">No, call me only</span>
+        </div>
+      </div>
+      <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
+    </div>
+  </div>
+
+  <div class="hcc-keywords">
+    <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
+  </div>
+
+  <div class="hcc-actions">
+    <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
+    <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
+    <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
+  </div>
+</section>
 
 </div><!-- /shell -->
 
