@@ -294,7 +294,7 @@ Each warranty job ends with TDR submission to the relevant warranty portal.
 - Numbers:
   - **Business outbound + customer SMS:** `+16292840444`
   - **Tech inbound + Tech Scheduler outbound:** `+17273508487`
-  - **Vapi TN BYO numbers:** `+16292607111`, `+16292477111`
+  - **Vapi BYO numbers:** TN `+16292607111` (Ant Inbound), TN `+16292477111`, LA `+15043559111` *(LA number corrected 2026-05-09 from blueprint copy-paste error; per April 29 + May 4 handoffs)*
   - **Owner cell (Teddy):** `+16154855795` (often quoted as `615-485-5795`)
   - **Danielle:** `615-485-0713`
   - **Customer-facing voice (RingCentral, porting to Vapi):** `615-280-2949`
@@ -477,6 +477,8 @@ These are the decisions that get lost across chat sessions. Re-read this section
 6. **Voice-only customers get Vapi outbound calls at every SMS trigger point.** One general-purpose "Ant Status Update" Vapi agent receives trigger context (job_id, event_type, custom message body) and delivers the equivalent voice update. Same touchpoints as SMS, different channel. The `consent_method = "voice_only_button_click"` flag on the customer determines which channel fires.
 
 7. **Customer transparency SMS is the standard.** Every state change in the job lifecycle generates a customer notification. The customer should never wait in silence. The four new triggers being added (Teddy started review, parts ordered, parts shipped + tracking, parts delivered) are the customer-transparency workstream that makes this principle real for the supplier-direct-ship model.
+
+8. **Scheduling Philosophy B (locked April 29, 2026).** No fixed time windows. Two-tier scheduling — must-time customers (specific constraint) vs open-schedule customers (flexible, ASAP-eligible). Target throughput 6-7 jobs/day per tech. After 4pm cross-cluster jobs may be declined. Mutual respect framework — no-show trip fee for customers, automatic late-SMS before ETA, 30-min-out arrival reminder. Honest 2-5 day timeline communicated upfront, never promise same-day. Customer flexibility is rewarded with faster service. Source: `docs/handoff-2026-04-29-tech-ant-centerpiece.md`.
 
 ---
 
