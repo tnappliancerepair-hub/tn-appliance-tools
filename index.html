@@ -462,6 +462,35 @@ main {
 }
 .consent-fine a:hover { color:var(--orange); text-decoration-color:var(--orange); }
 
+/* Confirmation variant — shown when homepage strip pre-selection is present.
+   Single Confirm button + small "Change my choice" link that drops back
+   to the fresh two-button gate. */
+.consent-buttons-single { justify-content:center; }
+.consent-buttons-single .consent-btn-yes { flex:1 1 100%; max-width:480px; }
+.consent-change-link {
+  background:none;
+  border:none;
+  padding:6px 4px;
+  margin:2px auto 0;
+  font-family:var(--mono);
+  font-size:12px;
+  color:#888;
+  text-decoration:underline;
+  text-decoration-color:#3a3a3a;
+  text-underline-offset:3px;
+  cursor:pointer;
+  letter-spacing:.02em;
+}
+.consent-change-link:hover { color:var(--orange); text-decoration-color:var(--orange); }
+.consent-pre-note {
+  font-size:12px;
+  color:#9be089;
+  font-family:var(--mono);
+  letter-spacing:.04em;
+  margin:0 0 4px;
+  text-align:center;
+}
+
 @media (max-width:420px) {
   .consent-card { padding:20px 18px 16px; gap:14px; }
   .consent-card h3 { font-size:16px; }
@@ -473,7 +502,8 @@ main {
    the customer cannot type past the card. The footer (Privacy/Terms
    links) remains visible. */
 body.consent-gate-active .input-zone .ibox,
-body.consent-gate-active .input-zone .isub { display:none; }
+body.consent-gate-active .input-zone .isub,
+body.consent-gate-active .input-zone .chat-prominence-banner { display:none; }
 
 /* ── SUBMIT REQUEST ── */
 .submit-card {
@@ -614,27 +644,30 @@ body.consent-gate-active .input-zone .isub { display:none; }
 
 .ibox {
   display:flex; align-items:flex-end; gap:10px;
-  background:var(--surface); border:1px solid rgba(255,98,0,.35);
-  border-top:1px solid rgba(255,98,0,.35);
-  border-left:none; border-right:none; border-bottom:none;
+  background:var(--surface);
+  border:none;
+  border-top:3px solid var(--orange);
   border-radius:0;
   padding:13px 20px 13px 20px;
   transition:border-color .2s, box-shadow .2s;
   box-shadow:
-    0 0 0 0 transparent,
-    0 -4px 40px rgba(255,98,0,.18),
-    0 -2px 80px rgba(255,98,0,.08);
-  animation:input-breathe 3s ease-in-out infinite;
+    0 -4px 28px rgba(255,98,0,.28),
+    0 -8px 60px rgba(255,98,0,.12);
+  /* One-time intro pulse: 3 cycles ≈ 9s, then settle to base style. */
+  animation:input-intro-pulse 3s ease-in-out 3 forwards;
 }
-@keyframes input-breathe {
+@keyframes input-intro-pulse {
   0%,100% {
-    box-shadow:0 0 30px rgba(255,98,0,.12), 0 0 80px rgba(255,98,0,.06);
-    border-top-color:rgba(255,98,0,.45);
+    box-shadow:0 -4px 28px rgba(255,98,0,.28), 0 -8px 60px rgba(255,98,0,.12);
+    border-top-color:rgba(255,98,0,.7);
   }
   50% {
-    box-shadow:0 0 50px rgba(255,98,0,.25), 0 0 120px rgba(255,98,0,.1);
-    border-top-color:rgba(255,98,0,.8);
+    box-shadow:0 -4px 50px rgba(255,98,0,.5), 0 -8px 110px rgba(255,98,0,.22);
+    border-top-color:rgba(255,98,0,1);
   }
+}
+@media(max-width:600px) {
+  .ibox { border-top-width:2px; }
 }
 .ibox:focus-within {
   border-color:var(--orange) !important;
@@ -935,11 +968,11 @@ footer span { display:none; }
    Real consent enforcement still lives in the chat-side gate. */
 .homepage-consent-card {
   width:100%;
-  margin:0 0 18px;
+  margin:24px 0 18px;
   background:var(--surface);
-  border:2px solid var(--orange);
-  border-radius:16px;
-  padding:14px 22px 14px;
+  border:1px solid rgba(255,98,0,.32);
+  border-radius:14px;
+  padding:14px 18px 14px;
   scroll-margin-top:24px;
 }
 .hcc-eyebrow {
@@ -1158,6 +1191,133 @@ footer span { display:none; }
   .hcc-actions { flex-direction:column; align-items:stretch; }
   .hcc-btn-primary, .hcc-btn-secondary { text-align:center; padding:11px 14px; }
 }
+
+/* ── SERVICE STRIP (above-fold, replaces heavy disclosure card 2026-05-09) ──
+   Compact strip explaining service mechanics + two functional routing buttons
+   that pre-select channel and start the chat. NOT a consent record — the
+   chat-side gate is still source of truth. The full disclosure card lives
+   below the chat input (demoted style). */
+.service-strip {
+  width:100%;
+  max-width:760px;
+  margin:0 auto 14px;
+  background:var(--surface);
+  border:1px solid rgba(255,98,0,.45);
+  border-radius:12px;
+  padding:14px 20px 14px;
+}
+.ss-heading {
+  font-size:14px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--white);
+  margin:0 0 8px;
+  font-weight:600;
+}
+.ss-body {
+  font-size:13.5px;
+  color:#bbb;
+  line-height:1.55;
+  margin:0 0 12px;
+}
+.ss-buttons {
+  display:flex;
+  gap:10px;
+  flex-wrap:nowrap;
+}
+.ss-btn {
+  flex:1 1 50%;
+  min-height:48px;
+  padding:11px 14px;
+  border-radius:10px;
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  font-family:var(--mono);
+  cursor:pointer;
+  letter-spacing:.02em;
+  transition:transform .12s, box-shadow .15s, background .15s, border-color .15s;
+  line-height:1.3;
+}
+.ss-btn-yes {
+  background:var(--orange);
+  border:1.5px solid var(--orange);
+  color:#000;
+  box-shadow:0 0 14px rgba(255,98,0,.25);
+}
+.ss-btn-yes:hover { background:#ff7a1f; transform:translateY(-1px); box-shadow:0 0 18px rgba(255,98,0,.4); }
+.ss-btn-yes:active { transform:translateY(0); }
+.ss-btn-yes.ss-selected { background:#ff7a1f; box-shadow:0 0 0 2px rgba(255,98,0,.45), 0 0 22px rgba(255,98,0,.5); }
+.ss-btn-no {
+  background:transparent;
+  border:1.5px solid #6a6a6a;
+  color:#e8e8e8;
+}
+.ss-btn-no:hover { border-color:#cfcfcf; color:#fff; transform:translateY(-1px); }
+.ss-btn-no:active { transform:translateY(0); }
+.ss-btn-no.ss-selected { border-color:var(--orange); color:#fff; box-shadow:0 0 0 2px rgba(255,98,0,.35), 0 0 18px rgba(255,98,0,.25); }
+.ss-detail-link {
+  margin:10px 0 0;
+  text-align:center;
+  font-size:11.5px;
+  color:#888;
+}
+.ss-detail-link a { color:#aaa; text-decoration:underline; text-underline-offset:2px; }
+.ss-detail-link a:hover { color:var(--orange); }
+.ss-confirmed {
+  margin:12px 0 0;
+  padding:10px 14px;
+  background:rgba(57,255,20,.06);
+  border:1px solid rgba(57,255,20,.28);
+  border-radius:8px;
+  font-size:12.5px;
+  color:#9be089;
+  text-align:center;
+  font-family:var(--mono);
+  letter-spacing:.02em;
+}
+@media(max-width:600px) {
+  .service-strip { padding:12px 14px 12px; margin:0 auto 12px; border-radius:10px; }
+  .ss-body { font-size:13px; }
+  .ss-btn { font-size:12.5px; min-height:46px; padding:10px 12px; }
+}
+@media(max-width:420px) {
+  .ss-buttons { flex-direction:column; }
+  .ss-btn { flex:1 1 auto; min-height:50px; }
+}
+
+/* ── CHAT PROMINENCE BANNER (above input zone, 2026-05-09) ──
+   Sits inside .input-inner directly above .ibox. Hidden during the
+   chat-side consent gate (alongside .ibox/.isub). */
+.chat-prominence-banner {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  padding:7px 14px 7px;
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--orange);
+  background:rgba(255,98,0,.08);
+  border-top:1px solid rgba(255,98,0,.22);
+  font-weight:600;
+}
+.chat-prominence-banner .cpb-emoji { font-size:14px; line-height:1; }
+.chat-prominence-banner .cpb-tag {
+  font-size:10px;
+  font-weight:400;
+  color:#888;
+  text-transform:none;
+  letter-spacing:.04em;
+}
+@media(max-width:600px) {
+  .chat-prominence-banner { padding:6px 12px 6px; font-size:10px; gap:8px; }
+  .chat-prominence-banner .cpb-emoji { font-size:13px; }
+  .chat-prominence-banner .cpb-tag { font-size:9.5px; }
+}
+
 @media(max-width:420px) {
   .hcc-mockup-buttons { flex-direction:column; }
   .hcc-mockup-buttons span { flex:1 1 auto; min-height:46px; }
@@ -1216,60 +1376,26 @@ footer span { display:none; }
 <!-- MAIN -->
 <main id="main">
 
-  <!-- HOMEPAGE SMS CONSENT DISCLOSURE (TCR visibility layer, 2026-05-08).
-       Repositioned 2026-05-08 PM: now ABOVE the hero so reviewers see
-       compliance evidence as the first content block. Sits OUTSIDE the
-       hero div so it stays visible even after chat activates and the
-       hero hides. Disclosure-only. Click handlers route into the chat
-       with consent choice pre-recorded; the chat-side gate from b6673e6
-       still enforces. -->
-  <section class="homepage-consent-card" id="sms-consent-disclosure">
-    <div class="hcc-eyebrow">Service notice — SMS communication</div>
-    <div class="hcc-header">
-      <span class="hcc-icon" aria-hidden="true">🔔</span>
-      <h2>About our text messages</h2>
-    </div>
-
-    <p class="hcc-intro">
-      TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
+  <!-- SERVICE STRIP (above-fold, replaces heavy disclosure card 2026-05-09).
+       Compact service explanation + two functional routing buttons that
+       pre-select communication channel and start the chat. Pre-selection is
+       NOT a consent record — the chat-side gate (renderConsentCheckbox)
+       remains source of truth and renders a confirmation variant when
+       a pre-selection is present. -->
+  <section class="service-strip" id="how-our-service-works">
+    <h2 class="ss-heading">How our service works</h2>
+    <p class="ss-body">
+      Our system is automated to keep your repair moving fast. Texting is how we send appointment confirmations, tech ETAs, and parts updates in real time. If you'd rather not receive texts, we also have automated calls that can deliver the same updates by voice. Pick whichever works best for you.
     </p>
-
-    <div class="hcc-samples">
-      <p class="hcc-samples-label">Examples of what we'd text you:</p>
-      <ul>
-        <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
-        <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
-        <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
-      </ul>
+    <div class="ss-buttons">
+      <button type="button" class="ss-btn ss-btn-yes" id="ssBtnYes">✓ Yes, text me — start diagnosis</button>
+      <button type="button" class="ss-btn ss-btn-no"  id="ssBtnNo">📞 Call me only — start diagnosis</button>
     </div>
-
-    <div class="hcc-mechanism">
-      <p class="hcc-mechanism-label">How you opt in:</p>
-      <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
-
-      <div class="hcc-mockup">
-        <div class="hcc-mockup-card">
-          <span class="hcc-mockup-demo-tag" aria-label="Static demonstration, not interactive">Live preview · click happens inside the chat</span>
-          <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
-          <h3>Before we continue, we need your permission to text you.</h3>
-          <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
-          <div class="hcc-mockup-buttons">
-            <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
-            <span class="hcc-mockup-btn-no">No, call me only</span>
-          </div>
-        </div>
-        <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
-      </div>
-    </div>
-
-    <div class="hcc-keywords">
-      <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
-    </div>
-
-    <div class="hcc-actions">
-      <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
-      <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
-      <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
+    <p class="ss-detail-link">
+      <a href="/sms-opt-in">What kinds of texts? See full opt-in details →</a>
+    </p>
+    <div class="ss-confirmed" id="ssConfirmed" hidden role="status" aria-live="polite">
+      ✓ Got it — chat with Ant below to start.
     </div>
   </section>
 
@@ -1326,6 +1452,62 @@ footer span { display:none; }
       <button class="chip" onclick="quickStart(this)">🧊 No ice maker</button>
       <button class="chip" onclick="quickStart(this)">⚡ Error code showing</button>
     </div>
+
+    <!-- HOMEPAGE SMS DISCLOSURE (TCR visibility, demoted 2026-05-09).
+         Moved here from above-fold so the hero/chat get first-paint focus.
+         Service-strip above the hero now handles the at-a-glance compliance
+         signal; this card carries the full audit content (sample messages,
+         opt-in mockup, STOP/HELP keywords, links to /sms-opt-in, /privacy,
+         /terms). Mockup buttons stay inert (pointer-events:none, DEMO tag). -->
+    <section class="homepage-consent-card" id="sms-consent-disclosure">
+      <div class="hcc-eyebrow">Service notice — SMS communication</div>
+      <div class="hcc-header">
+        <span class="hcc-icon" aria-hidden="true">🔔</span>
+        <h2>About our text messages</h2>
+      </div>
+
+      <p class="hcc-intro">
+        TN Appliance Exchange LLC sends transactional SMS only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. <strong>We never send marketing or promotional messages.</strong>
+      </p>
+
+      <div class="hcc-samples">
+        <p class="hcc-samples-label">Examples of what we'd text you:</p>
+        <ul>
+          <li>"Hi, this is TN Appliance Exchange confirming your repair appointment on [date] at [time]. Reply YES to confirm or STOP to opt out."</li>
+          <li>"TN Appliance update: Your technician [name] is on the way and will arrive in approximately [eta] minutes. Reply STOP to opt out."</li>
+          <li>"TN Appliance: Your replacement part has shipped and is expected to arrive [date]. Reply STOP to opt out."</li>
+        </ul>
+      </div>
+
+      <div class="hcc-mechanism">
+        <p class="hcc-mechanism-label">How you opt in:</p>
+        <p>When you start a service request in our chat, before any phone number is collected, you'll see this exact choice:</p>
+
+        <div class="hcc-mockup">
+          <div class="hcc-mockup-card">
+            <span class="hcc-mockup-demo-tag" aria-label="Static demonstration, not interactive">Live preview · click happens inside the chat</span>
+            <div class="hcc-mockup-icon" aria-hidden="true">🔔</div>
+            <h3>Before we continue, we need your permission to text you.</h3>
+            <p>TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
+            <div class="hcc-mockup-buttons">
+              <span class="hcc-mockup-btn-yes">Yes, text me about my service</span>
+              <span class="hcc-mockup-btn-no">No, call me only</span>
+            </div>
+          </div>
+          <p class="hcc-mockup-caption">You must affirmatively click one of these two buttons. The chat input is hidden until you do. Customers who choose "No, call me only" never receive SMS — only voice contact.</p>
+        </div>
+      </div>
+
+      <div class="hcc-keywords">
+        <p><strong>Reply STOP</strong> to any message to unsubscribe immediately. <strong>Reply HELP</strong> for support. Message and data rates may apply. Message frequency varies.</p>
+      </div>
+
+      <div class="hcc-actions">
+        <a href="/sms-opt-in" class="hcc-btn-primary">Read the full SMS opt-in process →</a>
+        <a href="/privacy" class="hcc-btn-secondary">Privacy Policy</a>
+        <a href="/terms" class="hcc-btn-secondary">SMS Terms</a>
+      </div>
+    </section>
 
     <!-- PRICE LADDER -->
     <div class="price-ladder" id="pricing">
@@ -1422,6 +1604,11 @@ footer span { display:none; }
       <a href="/sms-opt-in">SMS Opt-In Process</a>
       <a href="tel:6152802949">615-280-2949</a>
     </footer>
+    <div class="chat-prominence-banner" aria-hidden="true">
+      <span class="cpb-emoji">💬</span>
+      <span>Chat with Ant <span class="cpb-emoji">🐜</span></span>
+      <span class="cpb-tag">Free · Type below to start</span>
+    </div>
     <div class="ibox">
       <textarea id="txt" 
         placeholder="🐜 Tell me about your appliance issue — e.g. My Whirlpool fridge stopped cooling..." 
@@ -1764,11 +1951,110 @@ const CONSENT_BODY_TEXT = "TN Appliance Exchange LLC sends transactional SMS mes
 let consentGateRendered = false;
 let consentMethod = null;
 
+function _readPreSelect() {
+  // window.consentChoice is the in-page mirror, localStorage is the
+  // cross-refresh persistence. Either one wins.
+  let v = (typeof window !== 'undefined') ? window.consentChoice : null;
+  if (!v) {
+    try { v = localStorage.getItem('consentPreSelect'); } catch(e) {}
+  }
+  return (v === 'yes' || v === 'no') ? v : null;
+}
+
+function _clearPreSelect() {
+  try { window.consentChoice = null; } catch(e) {}
+  try { localStorage.removeItem('consentPreSelect'); } catch(e) {}
+}
+
+function _commitConsent(choice) {
+  if (choice === 'yes') {
+    smsConsentGiven = true;
+    smsConsentAt = new Date().toISOString();
+    consentMethod = 'affirmative_button_click';
+  } else {
+    smsConsentGiven = false;
+    smsConsentAt = null;
+    consentMethod = 'voice_only_button_click';
+  }
+  document.body.classList.remove('consent-gate-active');
+  const userMessage = (choice === 'yes')
+    ? "Yes, you can text me about my service."
+    : "No, please do NOT text me. Voice contact only.";
+  setTimeout(() => {
+    txt.value = userMessage;
+    send();
+  }, 250);
+}
+
 function renderConsentCheckbox(parentEl) {
   // Idempotency: if Ant emits the trigger token twice, only render once.
   if (consentGateRendered) return;
   consentGateRendered = true;
 
+  // Hide the chat input zone while the gate is active.
+  document.body.classList.add('consent-gate-active');
+
+  const preSelect = _readPreSelect();
+  if (preSelect) {
+    _renderConsentConfirmation(parentEl, preSelect);
+  } else {
+    _renderConsentFresh(parentEl);
+  }
+}
+
+// Confirmation variant — shown when the homepage service strip has
+// pre-selected a channel. Single Confirm button + a "Change my choice"
+// link that drops back to the fresh two-button gate (still source of truth).
+function _renderConsentConfirmation(parentEl, preSelect) {
+  const choiceLabel = (preSelect === 'yes')
+    ? 'Yes, text me about service'
+    : 'Voice contact only';
+  const confirmLabel = (preSelect === 'yes')
+    ? 'Confirm — text me about my service'
+    : 'Confirm — call me only, no texts';
+
+  const card = document.createElement('div');
+  card.className = 'consent-card';
+  card.setAttribute('role', 'dialog');
+  card.setAttribute('aria-labelledby', 'consent-gate-heading');
+  card.innerHTML = `
+    <div class="consent-icon" aria-hidden="true">🔔</div>
+    <p class="consent-pre-note">From the homepage you chose:</p>
+    <h3 id="consent-gate-heading">${esc(choiceLabel)}</h3>
+    <p class="consent-body">${esc(CONSENT_BODY_TEXT)}</p>
+    <div class="consent-buttons consent-buttons-single">
+      <button type="button" class="consent-btn-yes" data-confirm="${esc(preSelect)}">${esc(confirmLabel)}</button>
+    </div>
+    <button type="button" class="consent-change-link">Change my choice</button>
+    <div class="consent-fine">
+      <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>
+      <a href="/terms"   target="_blank" rel="noopener">SMS Terms</a>
+      <a href="/sms-opt-in" target="_blank" rel="noopener">Learn more about how we handle SMS consent</a>
+    </div>
+  `;
+  parentEl.appendChild(card);
+
+  let resolved = false;
+  card.querySelector('.consent-btn-yes').addEventListener('click', () => {
+    if (resolved) return;
+    resolved = true;
+    card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    _clearPreSelect();
+    _commitConsent(preSelect);
+  });
+
+  card.querySelector('.consent-change-link').addEventListener('click', () => {
+    if (resolved) return;
+    // Drop pre-selection and re-render the fresh two-button gate.
+    _clearPreSelect();
+    card.remove();
+    consentGateRendered = false;
+    renderConsentCheckbox(parentEl);
+  });
+}
+
+// Fresh two-button gate — original consent capture flow (source of truth).
+function _renderConsentFresh(parentEl) {
   const card = document.createElement('div');
   card.className = 'consent-card';
   card.setAttribute('role', 'dialog');
@@ -1789,45 +2075,77 @@ function renderConsentCheckbox(parentEl) {
   `;
   parentEl.appendChild(card);
 
-  // Hide the chat input zone while the gate is active.
-  document.body.classList.add('consent-gate-active');
-
   let resolved = false;
   const handle = (choice) => {
     if (resolved) return;
     resolved = true;
-
-    // Disable both buttons so a slow tap doesn't double-fire.
     card.querySelectorAll('button').forEach(b => { b.disabled = true; });
-
-    if (choice === 'yes') {
-      smsConsentGiven = true;
-      smsConsentAt = new Date().toISOString();
-      consentMethod = 'affirmative_button_click';
-    } else {
-      smsConsentGiven = false;
-      smsConsentAt = null;
-      consentMethod = 'voice_only_button_click';
-    }
-
-    // Re-enable the chat input zone for subsequent steps (phone, etc.).
-    document.body.classList.remove('consent-gate-active');
-
-    // Send a clear user-side message so Ant can branch on it. The
-    // affirmative path proceeds normally to the phone-number step;
-    // the voice-only path tells Ant explicitly to NEVER text.
-    const userMessage = (choice === 'yes')
-      ? "Yes, you can text me about my service."
-      : "No, please do NOT text me. Voice contact only.";
-
-    setTimeout(() => {
-      txt.value = userMessage;
-      send();
-    }, 250);
+    _clearPreSelect();
+    _commitConsent(choice);
   };
-
   card.querySelector('.consent-btn-yes').addEventListener('click', () => handle('yes'));
   card.querySelector('.consent-btn-no').addEventListener('click', () => handle('no'));
+}
+
+// ── SERVICE STRIP (homepage channel pre-selection) ──
+// Routing buttons that store a pre-selection, surface visual feedback,
+// smooth-scroll to the chat, and focus the textarea. NOT consent capture —
+// the chat-side gate above is the source of truth.
+function setupServiceStripButtons() {
+  const ssBtnYes    = document.getElementById('ssBtnYes');
+  const ssBtnNo     = document.getElementById('ssBtnNo');
+  const ssConfirmed = document.getElementById('ssConfirmed');
+  if (!ssBtnYes || !ssBtnNo) return;
+
+  const messages = {
+    yes: "✓ Got it — chat with Ant below to start. We'll text you about your service.",
+    no:  "✓ Got it — chat with Ant below to start. We'll only call you, never text."
+  };
+
+  function applyState(choice) {
+    ssBtnYes.classList.toggle('ss-selected', choice === 'yes');
+    ssBtnNo.classList.toggle('ss-selected',  choice === 'no');
+    if (ssConfirmed && messages[choice]) {
+      ssConfirmed.textContent = messages[choice];
+      ssConfirmed.hidden = false;
+    }
+  }
+
+  function pickChannel(choice) {
+    window.consentChoice = choice;
+    try { localStorage.setItem('consentPreSelect', choice); } catch(e) {}
+    applyState(choice);
+
+    // Smooth-scroll the chat input into view, then auto-focus the textarea.
+    const inputZone = document.querySelector('.input-zone');
+    if (inputZone && typeof inputZone.scrollIntoView === 'function') {
+      try { inputZone.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
+      catch(e) { inputZone.scrollIntoView(); }
+    }
+    setTimeout(() => {
+      try { if (txt && typeof txt.focus === 'function') txt.focus(); } catch(e) {}
+    }, 380);
+  }
+
+  ssBtnYes.addEventListener('click', () => pickChannel('yes'));
+  ssBtnNo.addEventListener('click',  () => pickChannel('no'));
+
+  // Restore prior selection on page reload so the visual state matches storage.
+  try {
+    const stored = localStorage.getItem('consentPreSelect');
+    if (stored === 'yes' || stored === 'no') {
+      window.consentChoice = stored;
+      applyState(stored);
+    }
+  } catch(e) {}
+}
+
+// Wire the strip buttons after DOM is ready (script is at end of body so
+// the DOM exists, but DOMContentLoaded keeps things robust if it ever moves).
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupServiceStripButtons);
+} else {
+  setupServiceStripButtons();
 }
 
 // ── SEND ──
