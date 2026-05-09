@@ -132,14 +132,18 @@ nav {
 .nav-link { font-size:11px; color:var(--gray); text-decoration:none; letter-spacing:.04em; transition:color .2s; padding:4px 8px; border:1px solid #2a2a2a; border-radius:6px; }
 .nav-link:hover { color:var(--white); border-color:#444; }
 
-/* ── MAIN ── */
+/* ── MAIN ──
+   Consent disclosure (TCR visibility) is the first child of <main> and MUST be
+   visible above the fold on first paint. justify-content:flex-start anchors it
+   to the top — center+overflow-y:auto is a flexbox trap that clips the start
+   of overflowing content. Padding kept small for the same reason. */
 main {
   flex:1;
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
-  padding:24px 24px 0;
+  justify-content:flex-start;
+  padding:14px 24px 0;
   position:relative;
   overflow-y:auto;
   overflow-x:hidden;
@@ -931,11 +935,11 @@ footer span { display:none; }
    Real consent enforcement still lives in the chat-side gate. */
 .homepage-consent-card {
   width:100%;
-  margin:0 0 22px;
+  margin:0 0 18px;
   background:var(--surface);
   border:2px solid var(--orange);
   border-radius:16px;
-  padding:20px 24px 18px;
+  padding:14px 22px 14px;
   scroll-margin-top:24px;
 }
 .hcc-eyebrow {
@@ -943,15 +947,15 @@ footer span { display:none; }
   color:var(--gray);
   letter-spacing:.12em;
   text-transform:uppercase;
-  margin-bottom:8px;
+  margin-bottom:4px;
   font-family:var(--mono);
 }
 .hcc-header {
   display:flex;
   align-items:center;
   gap:10px;
-  margin-bottom:14px;
-  padding-bottom:12px;
+  margin-bottom:10px;
+  padding-bottom:10px;
   border-bottom:1px solid var(--border);
 }
 .hcc-icon { font-size:20px; line-height:1; }
@@ -966,11 +970,11 @@ footer span { display:none; }
 .hcc-intro {
   font-size:14px;
   color:#bbb;
-  line-height:1.7;
-  margin:0 0 22px;
+  line-height:1.65;
+  margin:0 0 14px;
 }
 .hcc-intro strong { color:var(--white); font-weight:500; }
-.hcc-samples, .hcc-mechanism { margin-bottom:22px; }
+.hcc-samples, .hcc-mechanism { margin-bottom:14px; }
 .hcc-samples-label, .hcc-mechanism-label {
   font-size:11px;
   color:var(--green);
@@ -987,12 +991,12 @@ footer span { display:none; }
 .hcc-samples li {
   font-size:12px;
   color:#ccc;
-  line-height:1.65;
+  line-height:1.55;
   background:var(--surf2);
   border:1px solid var(--bord2);
   border-radius:8px;
-  padding:10px 14px;
-  margin-bottom:8px;
+  padding:8px 12px;
+  margin-bottom:6px;
   font-family:var(--mono);
 }
 .hcc-samples li:last-child { margin-bottom:0; }
@@ -1008,17 +1012,17 @@ footer span { display:none; }
   background:rgba(0,0,0,.45);
   border:1px dashed #3a3a3a;
   border-radius:12px;
-  padding:18px 16px 16px;
-  margin-top:8px;
+  padding:12px 14px 12px;
+  margin-top:6px;
 }
 .hcc-mockup-card {
   background:#0d0d0d;
   border:2px solid var(--orange);
   border-radius:14px;
-  padding:16px 14px 14px;
+  padding:14px 14px 12px;
   display:flex;
   flex-direction:column;
-  gap:11px;
+  gap:9px;
   max-width:460px;
   margin:0 auto;
 }
@@ -1088,16 +1092,16 @@ footer span { display:none; }
   color:#888;
   font-style:italic;
   text-align:center;
-  margin:14px 0 0;
-  line-height:1.6;
+  margin:10px 0 0;
+  line-height:1.55;
   letter-spacing:.01em;
 }
 .hcc-keywords {
   background:var(--surf2);
   border:1px solid var(--bord2);
   border-radius:10px;
-  padding:14px 18px;
-  margin-bottom:22px;
+  padding:12px 16px;
+  margin-bottom:14px;
 }
 .hcc-keywords p {
   font-size:13px;
@@ -1141,11 +1145,18 @@ footer span { display:none; }
 }
 .hcc-btn-secondary:hover { color:var(--orange); border-color:var(--orange); }
 @media(max-width:600px) {
-  .homepage-consent-card { padding:18px 16px 16px; margin:0 0 18px; }
-  .hcc-mockup { padding:12px 10px 10px; }
-  .hcc-mockup-card { padding:14px 12px 12px; }
+  main { padding:10px 14px 0; }
+  .homepage-consent-card { padding:12px 14px 12px; margin:0 0 14px; }
+  .hcc-eyebrow { margin-bottom:3px; }
+  .hcc-header { margin-bottom:8px; padding-bottom:8px; }
+  .hcc-intro { margin-bottom:12px; line-height:1.55; }
+  .hcc-samples, .hcc-mechanism { margin-bottom:12px; }
+  .hcc-mockup { padding:10px 10px 10px; }
+  .hcc-mockup-card { padding:12px 12px 10px; gap:8px; }
+  .hcc-mockup-caption { margin-top:8px; }
+  .hcc-keywords { padding:10px 14px; margin-bottom:12px; }
   .hcc-actions { flex-direction:column; align-items:stretch; }
-  .hcc-btn-primary, .hcc-btn-secondary { text-align:center; }
+  .hcc-btn-primary, .hcc-btn-secondary { text-align:center; padding:11px 14px; }
 }
 @media(max-width:420px) {
   .hcc-mockup-buttons { flex-direction:column; }
