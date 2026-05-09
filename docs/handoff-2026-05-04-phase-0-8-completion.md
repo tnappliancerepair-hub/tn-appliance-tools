@@ -1,3 +1,7 @@
+> May 4, 2026 ~6:35am CT handoff. Documents the Phase 0-8 Tech Scheduler completion (~3,500 lines XanoScript shipped over 11-hour Sunday May 3 → Monday May 4 marathon session). Captures tech roster with phone numbers, 24 Xano tables, 10 named tools, environment variables, Vapi agent inventory, 11 XanoScript footguns, and the next-up Phase 8b polish + Phase 6b customer reply handler items. Recovered from local files on 2026-05-09 evening.
+
+---
+
 # TN Appliance Exchange — Ant Platform Handoff
 **Generated:** Monday May 4, 2026, ~6:35am CT
 **Last session:** Sunday May 3 → Monday May 4, ~11hr marathon (2:30pm → 1:30am)

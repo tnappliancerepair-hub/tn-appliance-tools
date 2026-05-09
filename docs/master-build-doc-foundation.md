@@ -1,12 +1,4 @@
-> Foundational vision and platform architecture document for TN Appliance Exchange / Ant Platform. Originating context predating the system-blueprint-v1.md (which is the running architecture + status). Contains the founding manifesto, Anthony origin story, pricing philosophy, long-term licensable platform vision, customer journey design, and working style notes. Recovered from local files on 2026-05-09 evening — should be treated as the canonical 'why' document that every future session reads first.
->
-> Companion to:
-> - docs/system-blueprint-v1.md (architecture + running status)
-> - docs/system-blueprint-decisions-2026-05-09.md (locked decisions)
-> - docs/handoff-2026-05-04-phase-0-8-completion.md (Tech Scheduler build handoff if committed)
-> - docs/tech-scheduler-vs-assist-discovery-2026-05-09.md (Tech Scheduler vs Tech Assist discovery)
-> - docs/unified-tech-tool-architecture-hypothesis-2026-05-09.md (Option B hypothesis, NOT for execution)
-> - docs/week-1-execution-plan.md (placeholder)
+> Foundational vision and platform architecture document for TN Appliance Exchange / Ant Platform. Originating context predating subsequent handoffs and the system blueprint. Contains the founding manifesto, Anthony origin story, pricing philosophy, long-term licensable platform vision, customer journey design, and working style notes. Recovered from local files on 2026-05-09 evening — the canonical 'why' document.
 
 ---
 
