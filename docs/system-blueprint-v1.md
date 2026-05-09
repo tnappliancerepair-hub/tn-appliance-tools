@@ -434,6 +434,20 @@ Pulled from git log + memory. Most recent first.
 
 **B2B unit economics:** Replace the human dispatcher (~$40-60k/yr role) per shop. The business model is per-tech / per-shop SaaS pricing once the platform stabilizes.
 
+### Strategic goal (2026-05-09 articulated)
+
+The goal is to **prove the system works in production with real techs and real customers, then let the best ideas win.** Scaling (whether by adding techs, licensing to other independent appliance shops, or geographic expansion) follows proof.
+
+**Optimization priorities, in order:**
+
+1. **Time to working proof** — get the system live with real techs serving real customers, with measurable evidence it works
+2. **Iteration speed** — when something is wrong or someone has a better idea, the system absorbs the change fast
+3. **Scalability path** — when proof works, scaling doesn't require a rebuild
+
+**Implication for architecture choices:**
+
+Architecture decisions are **evidence-driven, not theory-driven**. Until production data exists, "what's the best architecture" is the wrong question. The right question is "what's the fastest path to having the existing systems running in production so we can learn what's actually broken." Architectural elegance defers to operational learning. **The best idea wins, defined by real-world observation, not by reasoning alone.**
+
 ---
 
 ## Section 15 — Architectural commitments (load-bearing decisions) [LAYER 1]
