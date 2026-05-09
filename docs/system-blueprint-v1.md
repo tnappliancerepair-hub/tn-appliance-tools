@@ -531,6 +531,8 @@ Documented gotchas pulled from memory + design docs. Reference when writing or r
 
 ## Section 18 — Uncertainty / what's unverified [LAYER 2]
 
+**2026-05-09 update:** Several questions in this section have been answered or formally locked in `docs/system-blueprint-decisions-2026-05-09.md`. Marked inline below with **[ANSWERED → see decisions doc]** or **[LOCKED]**. Still-open items remain unmarked.
+
 These are the questions a future session should ask Teddy before relying on this blueprint. Carries forward the 18 from `docs/system-blueprint-cc-reconstruction.md` plus new items surfaced during this write.
 
 **Carried forward from the prior reconstruction:**
@@ -555,7 +557,7 @@ These are the questions a future session should ask Teddy before relying on this
 
 10. **The 25 unassigned-HCP `tech_id=1` rows** flagged in the deferred queue — cleaned up via the queued `null_unassigned_hcp_techs` endpoint, or still pending?
 
-11. **The Vapi assistant IDs and configuration** — user prompt provided 3 confirmed IDs (Ant Inbound, Ant Warranty Fallback, Ant Parts Follow-Up) and 8 names needing verification. The 8 unverified agents need their IDs confirmed and their existence in the Vapi dashboard verified.
+11. **The Vapi assistant IDs and configuration** — user prompt provided 3 confirmed IDs (Ant Inbound, Ant Warranty Fallback, Ant Parts Follow-Up) and 8 names needing verification. The 8 unverified agents need their IDs confirmed and their existence in the Vapi dashboard verified. **[PARTIALLY ANSWERED 2026-05-09 → see decisions doc]** — repo cannot enumerate; configs live in Vapi dashboard. Teddy to do 10-min manual inventory. Architectural pattern for invocation confirmed via `trigger_vapi_warranty_call_POST.xs`.
 
 12. **Customer-portal vs PWA** — is the cash-TDR experience SMS-link-only, or is there a longer-running customer dashboard at any URL? `dashboard.html` exists but unread.
 
@@ -575,19 +577,19 @@ These are the questions a future session should ask Teddy before relying on this
 
 19. **The 9 design decisions locked for Ant Tech Scheduler** — user prompt references "9 design decisions" but the v2 design doc I read covers 8 build phases; the canonical "9 decisions" list either lives in the predecessor `ant-tech-scheduler-design.md` (Saturday 5/2 evening, voice/scope decisions per the v2 doc header) or in memory I don't have. Where is the canonical 9-decisions list, and should it be quoted verbatim into this blueprint?
 
-20. **Vapi general-purpose "Ant Status Update" agent** for voice-only customer transparency — does this exist as one of the 8 unverified agents (e.g., is "Auth Update" or "Parts ETA" actually this), or is it a NEW agent that needs to be designed and built?
+20. **Vapi general-purpose "Ant Status Update" agent** for voice-only customer transparency — does this exist as one of the 8 unverified agents (e.g., is "Auth Update" or "Parts ETA" actually this), or is it a NEW agent that needs to be designed and built? **[PARTIALLY ANSWERED 2026-05-09 → see decisions doc Decision 2]** — awaits Teddy's manual Vapi dashboard inventory. Build pattern locked; existing-vs-new branch unresolved.
 
 21. **Existing intake-time waiver vs DIY-path Release of Liability waiver** — confirmed separate concepts. The intake-time waiver fires after submission via `jotform_waiver_webhook_POST`; the DIY-path waiver fires before the $40 Premium Video Call connects. Both need explicit copy + Jotform IDs (or replacement mechanism). New Jotform form ID for the DIY waiver does NOT exist yet.
 
-22. **"Teddy started review" SMS trigger** — what's the actual mechanic? Is it (a) when Teddy clicks a "Start Review" button in the Teddy Tool that doesn't exist yet? (b) when `cockpit_load` is called server-side? (c) some other event? Needs a single load-bearing event to fire on.
+22. **"Teddy started review" SMS trigger** — what's the actual mechanic? Is it (a) when Teddy clicks a "Start Review" button in the Teddy Tool that doesn't exist yet? (b) when `cockpit_load` is called server-side? (c) some other event? Needs a single load-bearing event to fire on. **[LOCKED 2026-05-09 → see decisions doc Decision 3]** — auto-fire on `qc_cockpit_load`, idempotent via `jobs.teddy_review_started_at` timestamp.
 
-23. **Carrier "parts delivered" event source** — for the Install-branch SMS trigger, who reports delivery? Carrier webhook (UPS/FedEx/USPS APIs)? Polling? Customer self-report ("Reply DELIVERED when your part arrives")? Architectural decision needed.
+23. **Carrier "parts delivered" event source** — for the Install-branch SMS trigger, who reports delivery? Carrier webhook (UPS/FedEx/USPS APIs)? Polling? Customer self-report ("Reply DELIVERED when your part arrives")? Architectural decision needed. **[LOCKED 2026-05-09 → see decisions doc Decision 4]** — customer self-report via inbound SMS keyword (DELIVERED / arrived / got it / received), with daily 3-day-stale nudge as backup.
 
-24. **TDR options page no-fix-needed customer-facing copy** — the `skip` enum exists in the schema, but the `cash-tdr-customer.html` UI may not surface it explicitly with the "you saved money vs $100-150" framing. Needs a UX pass.
+24. **TDR options page no-fix-needed customer-facing copy** — the `skip` enum exists in the schema, but the `cash-tdr-customer.html` UI may not surface it explicitly with the "you saved money vs $100-150" framing. Needs a UX pass. **[LOCKED 2026-05-09 → see decisions doc Decision 5]** — standard "Teddy completed review" SMS template handles `skip` branch with same warm tone; no new trigger. Verification action: read homepage + Stripe checkout + intake waiver copy to confirm "no refund" framing is unambiguous up front.
 
 25. **Auth gate for the "Change my contact preference" link** — currently any visitor with `localStorage.consentPreSelect` can hit the recovery link and re-show the strip. Is that the intent, or should there be a soft confirm? Low risk; flagging for completeness.
 
-26. **`SMS_ENABLED` env var** — user prompt mentions it as a planned gate. Not in code today. Is the intent to add a master Twilio kill-switch wrapping all `send_sms_*` calls, or is TCR clearance the de-facto gate?
+26. **`SMS_ENABLED` env var** — user prompt mentions it as a planned gate. Not in code today. Is the intent to add a master Twilio kill-switch wrapping all `send_sms_*` calls, or is TCR clearance the de-facto gate? **[LOCKED 2026-05-09 → see decisions doc Decision 6]** — BUILD. Phase 2 verification confirmed `SMS_ENABLED` doesn't exist anywhere. 16 direct Twilio call sites + 1 wrapper + 1 Netlify function need to be gated. Default `false` until TCR clears.
 
 ---
 
