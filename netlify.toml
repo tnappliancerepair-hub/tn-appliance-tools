@@ -3,3 +3,10 @@
 
 [functions]
   node_bundler = "esbuild"
+
+# Scheduled function: AHS dispatch email poller (every 15 minutes).
+# Reads tnappliancerepair@gmail.com via Gmail API, extracts dispatch.xml
+# attachments from Frontdoor emails, POSTs to Xano ahs_email_intake.
+# See docs/gmail-oauth-setup.md for one-time OAuth setup.
+[functions."ahs-gmail-poller"]
+  schedule = "*/15 * * * *"
