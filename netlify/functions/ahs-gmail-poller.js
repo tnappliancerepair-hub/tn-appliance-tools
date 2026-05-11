@@ -39,6 +39,23 @@ const MAX_MESSAGES_PER_RUN = 25;
 
 exports.handler = async (event) => {
   const startedAt = Date.now();
+
+  // TEMPORARY DIAGNOSTIC — env-var visibility probe. Remove once env-var
+  // delivery to scheduled functions is verified. Logs only lengths + short
+  // prefix/suffix slices, never full secret values.
+  console.log('[ahs-gmail-poller] env diag:', {
+    hasClientId: !!process.env.GMAIL_CLIENT_ID,
+    clientIdLen: (process.env.GMAIL_CLIENT_ID || '').length,
+    clientIdEnd: (process.env.GMAIL_CLIENT_ID || '').slice(-20),
+    hasClientSecret: !!process.env.GMAIL_CLIENT_SECRET,
+    clientSecretLen: (process.env.GMAIL_CLIENT_SECRET || '').length,
+    clientSecretStart: (process.env.GMAIL_CLIENT_SECRET || '').slice(0, 8),
+    hasRefreshToken: !!process.env.GMAIL_REFRESH_TOKEN,
+    refreshTokenLen: (process.env.GMAIL_REFRESH_TOKEN || '').length,
+    refreshTokenStart: (process.env.GMAIL_REFRESH_TOKEN || '').slice(0, 4),
+    allEnvKeys: Object.keys(process.env).filter((k) => k.startsWith('GMAIL')),
+  });
+
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
