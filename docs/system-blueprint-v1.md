@@ -532,6 +532,14 @@ Documented gotchas pulled from memory + design docs. Reference when writing or r
 
 23. **Parameterless endpoints require an empty `input { }` block.** XanoScript parser rejects `query verb=GET { api_group=... stack {...} }` with `Missing block: input` if the input declaration is omitted. Fix: add `input { }` even when no parameters are needed. Discovered during the SMS_ENABLED kill-switch admin endpoint build (2026-05-11) on first `xano workspace push` attempt.
 
+24. **`xano workspace push --include` reports success without actually deploying to runtime.** The CLI's storage layer accepts the push (subsequent pulls return the new source) but the runtime execution layer continues serving the previous version. Mechanism unclear. **Workaround:** paste full source via Xano dashboard XanoScript editor manually. Or use full `xano workspace push --force` (no `--include`) — but currently blocked by separate "Duplicate table name: account" validation error on full pushes that needs investigation. Discovered 2026-05-11 Day 2 trigger 1 build.
+
+25. **Xano metadata API pagination — content endpoint returns rows OLDEST FIRST by default.** To verify recently-created rows, paginate to the LAST page (use `pageTotal` from any response), not page 1. There is no sort parameter documented to reverse this. Pages of 100 mean a table with 3,400 rows requires 34 pages to reach the newest entries. Cost CC ~2 hours of false-negative debugging on 2026-05-11: reported "0 rows found" when the row was on page 35 (newest) while CC was reading page 1 (oldest). **Always query last page when looking for newly-created rows** in `event_log`, `jobs`, or any other table.
+
+26. **Xano metadata API search filter via `search={"where":[...]}` URL parameter is unreliable.** The filter may silently return wrong rows (likely first row of table by default rather than filtered subset). **Use direct row-ID URL path** `/api:meta/workspace/N/table/M/content/{row_id}` for reliable single-row reads. Discovered 2026-05-11 when search filter for `job_id=136` returned a different job with null timestamps, masking the working trigger.
+
+27. **XanoScript dashboard editor rejects `|push:{multi-line-object-literal}` pattern** with "missing closing backticks" parse error. The CLI parser accepts this syntax fine but the dashboard's XanoScript editor does not. **Workaround:** hoist the object literal into a separate var (`$att_obj` pattern) and push the variable reference: `var $att_obj { value = {...} }` then `var.update $array { value = $array|push:$att_obj }`. Note: this technique brushes against footgun #4 (`|push:$variable_reference` can produce associative arrays) — verify resulting array shape via downstream consumers. Discovered 2026-05-11 during manual dashboard paste of `qc_cockpit_load`.
+
 ---
 
 ## Section 17 — Pending external blockers [LAYER 2]
