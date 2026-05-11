@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VendorDispatch xsi:noNamespaceSchemaLocation="Dispatch.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <Vendor Id="822218" Name="TN APPLIANCE EXCHANGE LLC">
+        <PhoneNumber Type="OFF" Number="6152802949"></PhoneNumber>
+        <CommercialProperty Id="2021528" StreetNumber="" StreetDirection="" StreetName="" UnitType="" UnitNumber="" CityName="" StateCode="" ZipPostCode="" ZipPlus4=""></CommercialProperty>
+    </Vendor>
+    <DepartmentList>
+        <Department Name="Authorizations">
+            <PhoneNumber Type="OFF" Number="8002511608"></PhoneNumber>
+        </Department>
+        <Department Name="Customer Service">
+            <PhoneNumber Type="OFF" Number="8007764663"></PhoneNumber>
+        </Department>
+    </DepartmentList>
+    <DispatchActivityInfo DispatchActivityType="EMAIL" IsAuthoRequired="false"></DispatchActivityInfo>
+    <Contract ContractId="684356978" ListingEffectiveDate="2015-10-23" ListingExpirationDate="2015-10-24" ContractEffectiveDate="2025-11-18" ContractExpirationDate="2026-11-18" FormCode="SHNA24">
+        <CoveredProperty StreetNumber="2717" StreetDirection="" StreetName="ASCENSION CT" UnitType="" UnitNumber="" CityName="MARRERO" StateCode="LA" ZipPostCode="70072" ZipPlus4="6089"></CoveredProperty>
+    </Contract>
+    <ContractCustomerList>
+        <ContractCustomer Name="ROBIN JONES &amp; HOSEA JONES">
+            <PhoneNumber Type="CELL" Number="5042354591"></PhoneNumber>
+        </ContractCustomer>
+    </ContractCustomerList>
+    <DispatchContactList>
+        <DispatchContact Name="Hosea Jones">
+            <PhoneNumber Type="HOME" Number="5042354591"></PhoneNumber>
+        </DispatchContact>
+    </DispatchContactList>
+    <ContractContactList></ContractContactList>
+    <DispatchList Id="42072309" dispatchPriorityValueList="NORMAL" dispatchTypeValueList="NORMAL" DispatchDateTime="2026-05-11T11:41:19" Trade="APL" ServiceFeeAmount="100.00" ServiceFeePaidAmount="0.00" ServiceFeeOpenAmount="100.00">
+        <WorkOrderLineList Id="5122" Description="Refrigerator">
+            <Symptom Name="Failure-unit is not cooling/freezing"></Symptom>
+            <Attribute Name="Brand" Value="GE Profile"></Attribute>
+        </WorkOrderLineList>
+    </DispatchList>
+    <CoverageNotes>
+        <CoverageNoteHeader Description="The following are some added coverage provisions provided for this Customer:">
+            <CoverageNoteDetail> - Rust and Corrosion</CoverageNoteDetail>
+            <CoverageNoteDetail> - Built-In Microwave Ovens - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Air Conditioning Systems - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Heating Systems - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Ductwork - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Garage Door Openers - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Plumbing - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Ranges, Ovens, Cooktops - Additional Coverage</CoverageNoteDetail>
+            <CoverageNoteDetail> - Removal of Defective Equipment</CoverageNoteDetail>
+            <CoverageNoteDetail> - Improper Install, Repair, or Modifications</CoverageNoteDetail>
+            <CoverageNoteDetail> - Lack of Maintenance</CoverageNoteDetail>
+            <CoverageNoteDetail> - Mismatched Systems</CoverageNoteDetail>
+            <CoverageNoteDetail> - Refrigerant Recapture and Disposal</CoverageNoteDetail>
+            <CoverageNoteDetail> - Undetectable Pre-Existing Conditions</CoverageNoteDetail>
+        </CoverageNoteHeader>
+    </CoverageNotes>
+    <ProductVersionRemarks>
+        <ProductVersionRemarksDetail>SHIELDGOLD HOME WARRANTY</ProductVersionRemarksDetail>
+        <ProductVersionRemarksDetail>30-DAY RECALL APPLIES TO THE SERVICE WORK PERFORMED ON THE PREVIOUS DISPATCH REQUEST</ProductVersionRemarksDetail>
+        <ProductVersionRemarksDetail>REMINDER: COMPLETION DATE MUST BE PROVIDED TO AHS FOR ALL SERVICE CALLS</ProductVersionRemarksDetail>
+        <ProductVersionRemarksDetail>HVAC REFRIGERANT: $10 PER POUND LIMIT PER OCCURRENCE</ProductVersionRemarksDetail>
+    </ProductVersionRemarks>
+    <MessageNotes>
+        <MessageNotesDetail>*** DO NOT COLLECT TRADE SERVICE FEE *** </MessageNotesDetail>
+        <MessageNotesDetail>*** Customer accepts text communication : 5042354591</MessageNotesDetail>
+        <MessageNotesDetail>*** Customer accepts email communication : RJ2HOTT@GMAIL.COM</MessageNotesDetail>
+    </MessageNotes>
+    <DispatchNotes></DispatchNotes>
+</VendorDispatch>
