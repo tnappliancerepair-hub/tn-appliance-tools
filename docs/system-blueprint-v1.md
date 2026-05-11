@@ -530,6 +530,8 @@ Documented gotchas pulled from memory + design docs. Reference when writing or r
 
 22. **`§` character breaks the parser.** Use the word "section" instead.
 
+23. **Parameterless endpoints require an empty `input { }` block.** XanoScript parser rejects `query verb=GET { api_group=... stack {...} }` with `Missing block: input` if the input declaration is omitted. Fix: add `input { }` even when no parameters are needed. Discovered during the SMS_ENABLED kill-switch admin endpoint build (2026-05-11) on first `xano workspace push` attempt.
+
 ---
 
 ## Section 17 — Pending external blockers [LAYER 2]

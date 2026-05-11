@@ -42,7 +42,7 @@ Each wrap also includes a `// ── SMS_ENABLED gate (call_site: <FILE>:<LINE>)
 
 | File | Purpose |
 |------|---------|
-| `xano-workspace/api/admin/sms_enabled_status_GET.xs` | Admin status endpoint. Returns `{sms_enabled, env_var_raw, total_gated_sends_last_24h, total_owner_bypass_sends_last_24h, last_gated_sends[]}`. Requires an `admin` API group in Xano — **if "admin" group doesn't exist, create it via the Xano dashboard before pushing this file**, OR change the `api_group = "admin"` line in the file to `"intake"` if you prefer to host it there. |
+| `xano-workspace/api/admin/sms_enabled_status_GET.xs` | Admin status endpoint. Returns `{sms_enabled, env_var_raw, total_gated_sends_last_24h, total_owner_bypass_sends_last_24h, last_gated_sends[]}`. Requires an `admin` API group in Xano — **if "admin" group doesn't exist, create it via the Xano dashboard before pushing this file**, OR change the `api_group = "admin"` line in the file to `"intake"` if you prefer to host it there. **NOTE: Xano auto-generates random URL slugs for new API groups. The display name in the dashboard is 'admin' but the public URL prefix is `/api:SXH92Wk7`. This is normal Xano behavior — the slug does not match the display name.** |
 
 ---
 
@@ -215,7 +215,7 @@ curl -X POST "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms" \
 ### Test 3 — admin status endpoint
 
 ```bash
-curl "https://xbtp-g9bh-ditq.n7e.xano.io/api:admin/sms_enabled_status"
+curl "https://xbtp-g9bh-ditq.n7e.xano.io/api:SXH92Wk7/sms_enabled_status"
 ```
 
 (If the admin API group doesn't exist and you put the file in `intake` instead, use `/api:3e_TffpA/sms_enabled_status`.)
