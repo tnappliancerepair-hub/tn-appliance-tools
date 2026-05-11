@@ -11,3 +11,4 @@ xano-workspace/
 .claude/settings.local.json
 .tmp_smoke/
 .smoke_check.js
+node_modules/
