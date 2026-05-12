@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "@aws-sdk/client-s3": "^3.620.0",
+    "@aws-sdk/client-ses": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.620.0",
     "googleapis": "^171.4.0",
     "stripe": "^17.0.0"
