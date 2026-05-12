@@ -33,8 +33,19 @@
 const { google } = require('googleapis');
 
 const XANO_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/ahs_email_intake';
-const GMAIL_QUERY = 'from:noreply@msg.frontdoor.com subject:"New Dispatch Notification" has:attachment -label:AHS-Processed';
+const GMAIL_QUERY = 'from:noreply@msg.frontdoor.com subject:"New Dispatch Notification" has:attachment -label:AHS-Processed -label:AHS-Processing';
 const PROCESSED_LABEL_NAME = 'AHS-Processed';
+// Two-phase claim label introduced 2026-05-11 after parallel "Run now" double-click
+// created duplicate jobs in production (request ids cd08e69f + a46731eb both
+// processed the same Gmail messages because list-to-label-apply window allowed
+// the second invocation to see them as unprocessed). The claim label is applied
+// IMMEDIATELY after list (before the Xano POST) so a parallel invocation's
+// query — which excludes both labels — won't see them. Window-narrowing fix,
+// not atomic mutex (Gmail modify isn't a conditional CAS). Two truly-simultaneous
+// invocations could still race the list→claim window (~150ms vs the prior
+// ~POST-duration window of seconds). If duplicates recur under this fix,
+// escalate to Xano-side gmail_message_id uniqueness check.
+const IN_PROGRESS_LABEL_NAME = 'AHS-Processing';
 const MAX_MESSAGES_PER_RUN = 25;
 
 exports.handler = async (event) => {
@@ -55,9 +66,11 @@ exports.handler = async (event) => {
   oauth2.setCredentials({ refresh_token: refreshToken });
   const gmail = google.gmail({ version: 'v1', auth: oauth2 });
 
-  let labelId;
+  let processedLabelId;
+  let inProgressLabelId;
   try {
-    labelId = await resolveOrCreateLabel(gmail);
+    processedLabelId = await resolveOrCreateLabel(gmail, PROCESSED_LABEL_NAME);
+    inProgressLabelId = await resolveOrCreateLabel(gmail, IN_PROGRESS_LABEL_NAME);
   } catch (e) {
     console.error('[ahs-gmail-poller] label resolution failed:', e.message);
     return jsonResp(500, { ok: false, error: 'label resolution failed: ' + e.message });
@@ -73,25 +86,45 @@ exports.handler = async (event) => {
 
   console.log(`[ahs-gmail-poller] query="${GMAIL_QUERY}" found ${messageIds.length} candidate messages`);
 
+  // Phase 1: claim each candidate by applying AHS-Processing IMMEDIATELY,
+  // before any per-message processing. Parallel invocations exclude this
+  // label in their list query, so the claim narrows the race window from
+  // ~POST-duration (seconds) to ~Gmail-modify-call-duration (~150ms).
+  const claimed = [];
+  for (const id of messageIds) {
+    try {
+      await applyLabels(gmail, id, [inProgressLabelId]);
+      claimed.push(id);
+    } catch (e) {
+      console.error(`[ahs-gmail-poller] message ${id} claim failed, skipping this run:`, e.message);
+    }
+  }
+
   const results = {
     processed: [],
     skipped_no_attachment: [],
     skipped_xano_error: [],
     skipped_fetch_error: [],
+    skipped_claim_failed: messageIds.filter((id) => !claimed.includes(id)),
   };
 
-  for (const id of messageIds) {
+  // Phase 2: process each claimed message. On Xano success, swap labels
+  // (apply AHS-Processed + remove AHS-Processing). On any failure path,
+  // remove the AHS-Processing claim so the message retries next cycle.
+  for (const id of claimed) {
     let xml;
     try {
       xml = await fetchDispatchXml(gmail, id);
     } catch (e) {
       console.error(`[ahs-gmail-poller] message ${id} fetch failed:`, e.message);
       results.skipped_fetch_error.push({ id, error: e.message });
+      await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
     if (!xml) {
       console.log(`[ahs-gmail-poller] message ${id} has no dispatch.xml attachment, skipping`);
       results.skipped_no_attachment.push(id);
+      await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
 
@@ -104,22 +137,27 @@ exports.handler = async (event) => {
     } catch (e) {
       console.error(`[ahs-gmail-poller] message ${id} Xano POST threw:`, e.message);
       results.skipped_xano_error.push({ id, error: e.message });
+      await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
 
     if (xanoStatus < 200 || xanoStatus >= 300) {
       console.error(`[ahs-gmail-poller] message ${id} Xano returned ${xanoStatus}: ${xanoBody}`);
       results.skipped_xano_error.push({ id, status: xanoStatus, body: xanoBody });
+      await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
 
+    // Finalize: apply Processed, remove Processing (single Gmail call).
     try {
-      await applyLabel(gmail, id, labelId);
+      await modifyLabels(gmail, id, [processedLabelId], [inProgressLabelId]);
     } catch (e) {
-      // Xano already created the job. Label application failed — log + continue.
-      // This could re-process next cycle, but Xano will create a duplicate job
-      // (idempotency dedup on claim_number is a deferred Phase 4 task).
-      console.error(`[ahs-gmail-poller] message ${id} label apply failed AFTER Xano success:`, e.message);
+      // Xano already created the job. Label swap failed — log + continue.
+      // The message keeps the AHS-Processing label; next invocation's query
+      // excludes -label:AHS-Processing so the message won't be re-fetched
+      // until a manual cleanup removes the stale claim. Better than the
+      // pre-fix behavior where label apply failure could cause re-processing.
+      console.error(`[ahs-gmail-poller] message ${id} label swap failed AFTER Xano success:`, e.message);
     }
 
     let xanoSummary = xanoBody;
@@ -137,11 +175,13 @@ exports.handler = async (event) => {
     elapsed_ms: elapsed,
     query: GMAIL_QUERY,
     found: messageIds.length,
+    claimed_count: claimed.length,
     processed_count: results.processed.length,
     skipped_counts: {
       no_attachment: results.skipped_no_attachment.length,
       xano_error: results.skipped_xano_error.length,
       fetch_error: results.skipped_fetch_error.length,
+      claim_failed: results.skipped_claim_failed.length,
     },
     details: results,
   };
@@ -149,20 +189,20 @@ exports.handler = async (event) => {
   return jsonResp(200, summary);
 };
 
-async function resolveOrCreateLabel(gmail) {
+async function resolveOrCreateLabel(gmail, labelName) {
   const list = await gmail.users.labels.list({ userId: 'me' });
-  const existing = (list.data.labels || []).find((l) => l.name === PROCESSED_LABEL_NAME);
+  const existing = (list.data.labels || []).find((l) => l.name === labelName);
   if (existing) return existing.id;
 
   const created = await gmail.users.labels.create({
     userId: 'me',
     requestBody: {
-      name: PROCESSED_LABEL_NAME,
+      name: labelName,
       labelListVisibility: 'labelShow',
       messageListVisibility: 'show',
     },
   });
-  console.log(`[ahs-gmail-poller] created label ${PROCESSED_LABEL_NAME} (id ${created.data.id})`);
+  console.log(`[ahs-gmail-poller] created label ${labelName} (id ${created.data.id})`);
   return created.data.id;
 }
 
@@ -222,12 +262,37 @@ async function postToXano(rawXml) {
   return { status: resp.status, body };
 }
 
-async function applyLabel(gmail, messageId, labelId) {
+async function applyLabels(gmail, messageId, addLabelIds) {
   await gmail.users.messages.modify({
     userId: 'me',
     id: messageId,
-    requestBody: { addLabelIds: [labelId] },
+    requestBody: { addLabelIds },
   });
+}
+
+async function modifyLabels(gmail, messageId, addLabelIds, removeLabelIds) {
+  await gmail.users.messages.modify({
+    userId: 'me',
+    id: messageId,
+    requestBody: { addLabelIds, removeLabelIds },
+  });
+}
+
+// Best-effort claim release on any per-message failure path. Logs the error
+// but never throws — we don't want a label-release failure to mask the
+// underlying processing failure in the caller. Worst case: a stale
+// AHS-Processing label sticks until manual cleanup, blocking that one
+// message from retrying.
+async function releaseClaim(gmail, messageId, inProgressLabelId) {
+  try {
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      requestBody: { removeLabelIds: [inProgressLabelId] },
+    });
+  } catch (e) {
+    console.error(`[ahs-gmail-poller] message ${messageId} claim release failed:`, e.message);
+  }
 }
 
 function jsonResp(statusCode, body) {
