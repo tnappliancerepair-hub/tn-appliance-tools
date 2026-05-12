@@ -26,7 +26,7 @@
 // field keys is required (e.g. "Schedule Date" must match before "Schedule
 // Period").
 
-const { normalizePhone, parseName, parseDateMDY } = require('../normalize');
+const { normalizePhone, parseName, parseDateMDY, buildDedupSignature } = require('../normalize');
 
 // Section headers — appearance of any of these starts a new dispatch
 // record. The "current dispatch" accumulator commits to dispatches[] when
@@ -304,6 +304,13 @@ function buildStubDispatch(body) {
       raw_city: '',
       raw_state: '',
       raw_zip: '',
+      // Stub dispatches have no customer data — dedup_status=FAILED.
+      // The Xano endpoint's logged-only path doesn't act on dedup fields
+      // for these (no new customer/job created), so values are
+      // informational only.
+      addr_norm: null,
+      dedup_signature: null,
+      dedup_status: 'FAILED',
     },
   };
 }
@@ -346,6 +353,15 @@ function buildDispatchRecord(raw) {
 
   // Zip — accept both "Zip Code" and "Zip code"
   const zip = f['Zip Code'] || f['Zip code'] || '';
+  const rawStreet = (f['Consumer Address'] || '').trim();
+  const rawCity = (f['City'] || '').trim();
+  const rawState = (f['State'] || '').trim();
+
+  // Compute the full normalized dedup signature here so the Xano endpoint
+  // doesn't have to do string manipulation (footgun #28 + general XS pain).
+  // buildDedupSignature returns { signature, status, phone10, addrNorm }.
+  // status is one of: OK | PARTIAL_PHONE_ONLY | PARTIAL_ADDR_ONLY | FAILED.
+  const dedup = buildDedupSignature(rawPhone, rawStreet, rawCity, rawState, zip);
 
   return {
     // Section + raw section header
@@ -383,15 +399,20 @@ function buildDispatchRecord(raw) {
       last_name,
       full_name,
       raw_phone: rawPhone,
-      phone10,
+      phone10: dedup.phone10,
       home_phone: (f['Home Phone'] || '').trim(),
       cell_phone: (f['Cell Phone'] || '').trim(),
       work_phone: (f['Work Phone'] || '').trim(),
       email: (f['Consumer Email'] || '').trim(),
-      raw_street: (f['Consumer Address'] || '').trim(),
-      raw_city: (f['City'] || '').trim(),
-      raw_state: (f['State'] || '').trim(),
+      raw_street: rawStreet,
+      raw_city: rawCity,
+      raw_state: rawState,
       raw_zip: zip,
+      // Pre-computed dedup fields — Xano endpoint uses these directly,
+      // no normalization logic in XanoScript (per Phase A1 amendment).
+      addr_norm: dedup.addrNorm,
+      dedup_signature: dedup.signature,
+      dedup_status: dedup.status,
     },
   };
 }
