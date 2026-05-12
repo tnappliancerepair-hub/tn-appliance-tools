@@ -8,5 +8,13 @@
 # Reads tnappliancerepair@gmail.com via Gmail API, extracts dispatch.xml
 # attachments from Frontdoor emails, POSTs to Xano ahs_email_intake.
 # See docs/gmail-oauth-setup.md for one-time OAuth setup.
-[functions."ahs-gmail-poller"]
-  schedule = "*/15 * * * *"
+#
+# SCHEDULE DISABLED 2026-05-12 pending clean-data investigation. Earlier
+# diagnostic suggested ~3 parallel invocations per cron boundary, but the
+# 7:01 PM 2026-05-11 parallel pair (request IDs cd08e69f + a46731eb) is
+# now suspected to have been a manual Run-now double-click rather than
+# automated retry behavior. Need at least one scheduled fire with ZERO
+# manual interference to determine the real cron behavior. Re-enable
+# after that clean observation.
+# [functions."ahs-gmail-poller"]
+#   schedule = "*/15 * * * *"
