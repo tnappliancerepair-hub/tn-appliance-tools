@@ -64,21 +64,6 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return cors(200, '');
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'method not allowed' });
 
-  // TEMPORARY DIAGNOSTIC — env-var visibility probe. Remove once
-  // EMAIL_SHARED_SECRET / TN_AWS_* are confirmed reachable at runtime.
-  // Logs presence + lengths only, never full secret values.
-  console.log('[send-email] env diag:', {
-    hasEmailSharedSecret: !!process.env.EMAIL_SHARED_SECRET,
-    emailSharedSecretLen: (process.env.EMAIL_SHARED_SECRET || '').length,
-    hasAwsKeyId: !!process.env.TN_AWS_ACCESS_KEY_ID,
-    awsKeyIdLen: (process.env.TN_AWS_ACCESS_KEY_ID || '').length,
-    hasAwsSecret: !!process.env.TN_AWS_SECRET_ACCESS_KEY,
-    awsSecretLen: (process.env.TN_AWS_SECRET_ACCESS_KEY || '').length,
-    hasEmailEnabled: !!process.env.EMAIL_ENABLED,
-    emailEnabledValue: (process.env.EMAIL_ENABLED || '(unset)'),
-    allEmailKeys: Object.keys(process.env).filter(k => k.startsWith('EMAIL_') || k.startsWith('TN_AWS_')),
-  });
-
   const sharedSecret = process.env.EMAIL_SHARED_SECRET;
   const awsKeyId = process.env.TN_AWS_ACCESS_KEY_ID;
   const awsSecret = process.env.TN_AWS_SECRET_ACCESS_KEY;
