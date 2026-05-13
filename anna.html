@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#150027">
+<title>Annalise is 13 — May 16</title>
+<meta property="og:title" content="Annalise is 13 — Saturday May 16, 6PM">
+<meta property="og:description" content="Tacos, nachos, and a roll to Pop Stroke. 3137 Skinner Dr, Antioch TN.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Dancing+Script:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#150027;color:#f8e1ff;font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  body{
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255,31,143,0.30) 0%, rgba(160,32,240,0.20) 30%, transparent 65%),
+      radial-gradient(ellipse 90% 60% at 50% 100%, rgba(160,32,240,0.30) 0%, rgba(98,0,177,0.20) 30%, transparent 60%),
+      linear-gradient(180deg, #1a0533 0%, #150027 40%, #0d0019 100%);
+    min-height:100vh;
+    position:relative;
+  }
+
+  /* Sparkle canvas */
+  #sparkles{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+
+  /* Holographic shimmer overlay */
+  .shimmer{
+    position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0.04;
+    background:
+      repeating-linear-gradient(115deg, transparent 0px, rgba(255,255,255,0.5) 1px, transparent 3px, transparent 12px);
+    mix-blend-mode:overlay;
+  }
+
+  main{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;padding:clamp(20px,5vw,40px) clamp(16px,4vw,32px) 60px;max-width:680px;margin:0 auto}
+
+  /* HERO */
+  .hero{
+    width:100%;text-align:center;
+    padding:clamp(40px,12vh,100px) 0 clamp(30px,8vh,60px);
+    position:relative;
+  }
+
+  .eyebrow{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:clamp(12px,3vw,14px);
+    letter-spacing:0.5em;
+    color:#FF8FCF;
+    text-transform:uppercase;
+    opacity:0;
+    animation:fadeUp 1s 0.2s forwards;
+    margin-bottom:clamp(20px,4vh,32px);
+    text-shadow:0 0 16px rgba(255,143,207,0.5);
+  }
+
+  .name{
+    font-family:'Dancing Script',cursive;
+    font-weight:700;
+    font-size:clamp(54px,13vw,82px);
+    line-height:1;
+    background:linear-gradient(120deg, #FFC8E8 0%, #FF1F8F 25%, #DB4FFF 60%, #A020F0 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    filter:drop-shadow(0 0 18px rgba(255,31,143,0.4));
+    opacity:0;
+    animation:fadeUp 1s 0.5s forwards, shimmerShift 6s ease-in-out infinite 2s;
+    background-size:200% 100%;
+  }
+
+  .age-wrapper{
+    position:relative;
+    margin:clamp(8px,1.5vh,16px) 0;
+    opacity:0;
+    animation:scaleIn 1.4s 0.9s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+
+  .age{
+    font-family:'Playfair Display',serif;
+    font-weight:900;
+    font-style:italic;
+    font-size:clamp(180px,42vw,320px);
+    line-height:0.85;
+    background:linear-gradient(135deg, #FFD1F0 0%, #FF1F8F 30%, #C840FF 65%, #6020D0 100%);
+    background-size:200% 200%;
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    filter:drop-shadow(0 0 30px rgba(255,31,143,0.5)) drop-shadow(0 0 60px rgba(160,32,240,0.4));
+    animation:gradientPulse 5s ease-in-out infinite 2.3s;
+    position:relative;
+    z-index:2;
+    letter-spacing:-0.04em;
+  }
+
+  .age::after{
+    content:'';
+    position:absolute;
+    inset:-10% -5%;
+    background:radial-gradient(circle, rgba(255,31,143,0.25) 0%, rgba(160,32,240,0.18) 40%, transparent 70%);
+    z-index:-1;
+    filter:blur(20px);
+  }
+
+  .occasion{
+    font-family:'Playfair Display',serif;
+    font-style:italic;
+    font-weight:400;
+    font-size:clamp(22px,5.5vw,30px);
+    letter-spacing:0.06em;
+    color:#FFC8E8;
+    opacity:0;
+    animation:fadeUp 1s 1.5s forwards;
+    margin-top:clamp(4px,1vh,12px);
+    text-shadow:0 0 16px rgba(255,143,207,0.3);
+  }
+
+  .date-line{
+    font-family:'Inter',sans-serif;
+    font-weight:300;
+    font-size:clamp(13px,3.4vw,16px);
+    letter-spacing:0.4em;
+    color:#E8B8E8;
+    margin-top:clamp(16px,3vh,24px);
+    opacity:0;
+    animation:fadeUp 1s 1.8s forwards;
+    text-transform:uppercase;
+  }
+
+  /* DIVIDER — sparkle line */
+  .divider{
+    width:120px;height:1px;
+    background:linear-gradient(90deg,transparent,#FF1F8F,#DB4FFF,#FF1F8F,transparent);
+    margin:clamp(28px,6vh,44px) auto;
+    opacity:0;
+    animation:fadeIn 1s 2s forwards;
+    position:relative;
+  }
+  .divider::before, .divider::after{
+    content:'✦';
+    position:absolute;
+    top:-9px;
+    color:#FF8FCF;
+    font-size:14px;
+    text-shadow:0 0 10px rgba(255,143,207,0.8);
+  }
+  .divider::before{left:-4px}
+  .divider::after{right:-4px}
+
+  /* COUNTDOWN */
+  .countdown{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:clamp(6px,1.5vw,12px);
+    width:100%;
+    max-width:520px;
+    margin-bottom:clamp(36px,7vh,52px);
+    opacity:0;
+    animation:fadeUp 1s 2.2s forwards;
+  }
+
+  .cd-cell{
+    background:linear-gradient(180deg, rgba(255,31,143,0.10) 0%, rgba(160,32,240,0.06) 100%);
+    border:1px solid rgba(255,143,207,0.30);
+    border-radius:14px;
+    padding:clamp(10px,2.4vw,16px) 4px;
+    text-align:center;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 0 20px rgba(255,31,143,0.10);
+  }
+
+  .cd-num{
+    font-family:'Playfair Display',serif;
+    font-weight:700;
+    font-style:italic;
+    font-size:clamp(26px,7vw,38px);
+    background:linear-gradient(135deg, #FFC8E8 0%, #FF1F8F 50%, #DB4FFF 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    line-height:1;
+    text-shadow:0 0 18px rgba(255,31,143,0.4);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .cd-label{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:clamp(10px,2.4vw,12px);
+    letter-spacing:0.3em;
+    color:#B888B8;
+    text-transform:uppercase;
+    margin-top:6px;
+  }
+
+  /* DETAILS CARD */
+  .details{
+    width:100%;
+    background:linear-gradient(180deg, rgba(30,10,50,0.65) 0%, rgba(15,5,30,0.65) 100%);
+    border:1px solid rgba(255,143,207,0.22);
+    border-radius:18px;
+    padding:clamp(24px,5vw,36px) clamp(20px,5vw,32px);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    opacity:0;
+    animation:fadeUp 1s 2.5s forwards;
+    margin-bottom:clamp(28px,5vh,40px);
+    box-shadow:0 0 40px rgba(160,32,240,0.10);
+  }
+
+  .detail-row{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid rgba(255,143,207,0.10)}
+  .detail-row:last-child{border-bottom:none}
+  .detail-icon{
+    flex:0 0 32px;height:32px;
+    display:grid;place-items:center;
+    background:linear-gradient(135deg, rgba(255,31,143,0.18), rgba(160,32,240,0.18));
+    border:1px solid rgba(255,143,207,0.4);
+    border-radius:50%;
+    color:#FFC8E8;
+    font-size:14px;
+  }
+  .detail-text{flex:1;line-height:1.5}
+  .detail-text strong{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:clamp(11px,3vw,13px);
+    letter-spacing:0.25em;
+    color:#FF8FCF;
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:6px;
+  }
+  .detail-text span{font-size:clamp(15px,3.8vw,17px);color:#f8e1ff}
+  .detail-text small{display:block;color:#B888B8;font-size:13px;margin-top:2px}
+
+  /* SCHEDULE */
+  .schedule{margin-top:8px;padding-left:0}
+  .schedule li{
+    list-style:none;
+    padding:8px 0;
+    color:#E8C8E8;
+    font-size:clamp(14px,3.6vw,15px);
+    display:flex;align-items:baseline;gap:10px;
+  }
+  .schedule li::before{
+    content:'✦';
+    color:#FF1F8F;
+    flex:0 0 12px;
+    font-size:12px;
+    text-shadow:0 0 8px rgba(255,31,143,0.7);
+  }
+  .schedule .t{
+    font-family:'Playfair Display',serif;
+    font-style:italic;
+    font-weight:700;
+    color:#FF8FCF;
+    letter-spacing:0.04em;
+    min-width:62px;
+  }
+
+  /* CTA BUTTONS */
+  .ctas{
+    display:flex;flex-direction:column;gap:12px;
+    width:100%;margin-bottom:clamp(28px,5vh,40px);
+    opacity:0;
+    animation:fadeUp 1s 2.8s forwards;
+  }
+
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:18px 24px;
+    border-radius:14px;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:clamp(15px,4vw,17px);
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    text-decoration:none;
+    transition:transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    cursor:pointer;
+    border:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  .btn-primary{
+    background:linear-gradient(135deg, #FF8FCF 0%, #FF1F8F 50%, #A020F0 100%);
+    color:#fff;
+    box-shadow:0 4px 24px rgba(255,31,143,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    position:relative;
+    overflow:hidden;
+  }
+  .btn-primary::before{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+    transform:translateX(-100%);
+    animation:shine 3.5s ease-in-out infinite 3s;
+  }
+  .btn-primary:active{transform:scale(0.98);filter:brightness(0.95)}
+
+  .btn-secondary{
+    background:rgba(255,143,207,0.10);
+    border:1px solid rgba(255,143,207,0.4);
+    color:#FFC8E8;
+    backdrop-filter:blur(6px);
+  }
+  .btn-secondary:active{transform:scale(0.98);background:rgba(255,143,207,0.18)}
+
+  /* CONTACTS */
+  .contacts{
+    width:100%;
+    text-align:center;
+    opacity:0;
+    animation:fadeUp 1s 3.1s forwards;
+  }
+  .contacts-title{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:clamp(11px,3vw,13px);
+    letter-spacing:0.35em;
+    color:#B888B8;
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .contact-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .contact-card{
+    background:rgba(30,10,50,0.5);
+    border:1px solid rgba(255,143,207,0.25);
+    border-radius:14px;
+    padding:14px 12px;
+    text-decoration:none;
+    color:#f8e1ff;
+    text-align:center;
+    transition:all 0.2s;
+    backdrop-filter:blur(6px);
+  }
+  .contact-card:active{background:rgba(255,31,143,0.15);transform:scale(0.98)}
+  .contact-name{
+    font-family:'Playfair Display',serif;
+    font-style:italic;
+    font-weight:700;
+    font-size:16px;
+    color:#FF8FCF;
+  }
+  .contact-num{
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    color:#E8C8E8;
+    margin-top:4px;
+    letter-spacing:0.04em;
+  }
+
+  .footer{
+    margin-top:48px;
+    text-align:center;
+    font-family:'Dancing Script',cursive;
+    font-weight:400;
+    font-size:18px;
+    color:#9070A0;
+    opacity:0;
+    animation:fadeIn 1s 3.4s forwards;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(18px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  @keyframes fadeIn{
+    from{opacity:0}
+    to{opacity:1}
+  }
+  @keyframes scaleIn{
+    from{opacity:0;transform:scale(0.7)}
+    to{opacity:1;transform:scale(1)}
+  }
+  @keyframes shimmerShift{
+    0%,100%{background-position:0% 50%}
+    50%{background-position:100% 50%}
+  }
+  @keyframes gradientPulse{
+    0%,100%{
+      background-position:0% 50%;
+      filter:drop-shadow(0 0 30px rgba(255,31,143,0.5)) drop-shadow(0 0 60px rgba(160,32,240,0.4));
+    }
+    50%{
+      background-position:100% 50%;
+      filter:drop-shadow(0 0 40px rgba(255,31,143,0.7)) drop-shadow(0 0 80px rgba(160,32,240,0.55));
+    }
+  }
+  @keyframes shine{
+    0%{transform:translateX(-100%)}
+    40%,100%{transform:translateX(200%)}
+  }
+
+  @media (max-width:380px){
+    .countdown{gap:6px}
+    .cd-cell{padding:10px 2px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:0.01ms !important;animation-iteration-count:1 !important}
+    .age{animation:none}
+    #sparkles{display:none}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="sparkles"></canvas>
+<div class="shimmer"></div>
+
+<main>
+  <section class="hero">
+    <div class="eyebrow">You Are Invited</div>
+    <div class="name">Annalise</div>
+    <div class="age-wrapper"><div class="age">13</div></div>
+    <div class="occasion">Birthday Celebration</div>
+    <div class="date-line">Saturday · May 16th · 6 PM</div>
+  </section>
+
+  <div class="divider"></div>
+
+  <div class="countdown" id="cd" aria-live="polite">
+    <div class="cd-cell"><div class="cd-num" id="cdD">--</div><div class="cd-label">Days</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdH">--</div><div class="cd-label">Hours</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdM">--</div><div class="cd-label">Min</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdS">--</div><div class="cd-label">Sec</div></div>
+  </div>
+
+  <div class="details">
+    <div class="detail-row">
+      <div class="detail-icon">✦</div>
+      <div class="detail-text">
+        <strong>Where</strong>
+        <span>3137 Skinner Dr</span>
+        <small>Antioch, TN 37013</small>
+      </div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-icon">♡</div>
+      <div class="detail-text">
+        <strong>The Vibe</strong>
+        <ul class="schedule">
+          <li><span class="t">6:00</span>All-you-can-eat tacos &amp; nachos</li>
+          <li><span class="t">7:30</span>Roll to Pop Stroke</li>
+          <li><span class="t">10:30</span>Wrap or sleepover</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctas">
+    <a href="https://popstroke.com" target="_blank" rel="noopener" class="btn btn-primary">
+      Roll to Pop Stroke ✦
+    </a>
+    <button type="button" class="btn btn-secondary" id="addCal">
+      + Add to Calendar
+    </button>
+  </div>
+
+  <div class="contacts">
+    <div class="contacts-title">RSVP / Questions</div>
+    <div class="contact-row">
+      <a href="tel:+16152959245" class="contact-card">
+        <div class="contact-name">Anna</div>
+        <div class="contact-num">(615) 295-9245</div>
+      </a>
+      <a href="tel:+16159671304" class="contact-card">
+        <div class="contact-name">Jimmy</div>
+        <div class="contact-num">(615) 967-1304</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="footer">~ can’t wait to celebrate ~</div>
+</main>
+
+<script>
+(function(){
+  // ============ COUNTDOWN ============
+  var target = new Date('2026-05-16T18:00:00-05:00').getTime();
+  var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+  function tick(){
+    var now = Date.now();
+    var diff = Math.max(0, target - now);
+    var d = Math.floor(diff / 86400000);
+    var h = Math.floor((diff % 86400000) / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    var s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cdD').textContent = pad(d);
+    document.getElementById('cdH').textContent = pad(h);
+    document.getElementById('cdM').textContent = pad(m);
+    document.getElementById('cdS').textContent = pad(s);
+    if (diff <= 0) {
+      document.getElementById('cd').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;font-family:Playfair Display,serif;font-style:italic;font-size:22px;background:linear-gradient(135deg,#FFC8E8,#FF1F8F,#DB4FFF);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">It’s your day ✨</div>';
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ============ ADD TO CALENDAR ============
+  document.getElementById('addCal').addEventListener('click', function(){
+    var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + '&text=' + encodeURIComponent('Annalise’s 13th Birthday')
+      + '&dates=20260516T230000Z/20260517T033000Z'
+      + '&details=' + encodeURIComponent('Tacos & nachos at 6, roll to Pop Stroke at 7:30. RSVP: Anna (615) 295-9245 or Jimmy (615) 967-1304.')
+      + '&location=' + encodeURIComponent('3137 Skinner Dr, Antioch, TN 37013');
+    window.open(url, '_blank', 'noopener');
+  });
+
+  // ============ SPARKLES / GLITTER PARTICLES ============
+  var canvas = document.getElementById('sparkles');
+  var ctx = canvas.getContext('2d');
+  var DPR = Math.min(2, window.devicePixelRatio || 1);
+  var W = 0, H = 0;
+  function resize(){
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(DPR, DPR);
+  }
+  resize();
+  window.addEventListener('resize', function(){
+    canvas.width = 0; canvas.height = 0;
+    resize();
+  });
+
+  // Two layers: drifting glitter + occasional sparkle "stars" that twinkle
+  var glitter = [];
+  var sparkles = [];
+
+  function spawnGlitter(){
+    var hueChoices = [325, 290, 280, 320, 305]; // pink/magenta/violet
+    var hue = hueChoices[Math.floor(Math.random() * hueChoices.length)];
+    glitter.push({
+      x: Math.random() * W,
+      y: -10,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: 0.3 + Math.random() * 0.8,
+      size: 0.6 + Math.random() * 1.8,
+      hue: hue,
+      life: 0,
+      maxLife: 400 + Math.random() * 400,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: 0.01 + Math.random() * 0.03,
+      twinkle: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function spawnSparkle(){
+    sparkles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: 1 + Math.random() * 2,
+      life: 0,
+      maxLife: 80 + Math.random() * 60,
+      hue: 320 + Math.random() * 20,
+    });
+  }
+
+  var sparkleAccumulator = 0;
+
+  function frame(){
+    ctx.clearRect(0, 0, W, H);
+
+    // Spawn glitter (lower count on mobile)
+    var spawnRate = window.innerWidth < 600 ? 1 : 2;
+    for (var i = 0; i < spawnRate; i++) spawnGlitter();
+
+    // Spawn occasional twinkle stars
+    sparkleAccumulator++;
+    if (sparkleAccumulator > 8) { sparkleAccumulator = 0; spawnSparkle(); }
+
+    // Render glitter — drifting downward, gentle wobble
+    for (var j = glitter.length - 1; j >= 0; j--) {
+      var p = glitter[j];
+      p.life++;
+      p.wobble += p.wobbleSpeed;
+      p.twinkle += 0.08;
+      p.x += p.vx + Math.sin(p.wobble) * 0.4;
+      p.y += p.vy;
+      if (p.y > H + 10 || p.life >= p.maxLife) { glitter.splice(j, 1); continue; }
+      var t = p.life / p.maxLife;
+      var fadeIn = Math.min(1, p.life / 30);
+      var fadeOut = 1 - Math.max(0, (t - 0.7) / 0.3);
+      var alpha = fadeIn * fadeOut * (0.5 + 0.5 * Math.sin(p.twinkle));
+      // glow
+      var glowSize = p.size * 4;
+      var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
+      grad.addColorStop(0, 'hsla(' + p.hue + ',100%,75%,' + (alpha * 0.6) + ')');
+      grad.addColorStop(0.5, 'hsla(' + p.hue + ',90%,65%,' + (alpha * 0.2) + ')');
+      grad.addColorStop(1, 'hsla(' + p.hue + ',80%,55%,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+      // core
+      ctx.fillStyle = 'hsla(' + p.hue + ',100%,85%,' + alpha + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Render twinkle sparkles — 4-point stars that pulse in and fade
+    for (var k = sparkles.length - 1; k >= 0; k--) {
+      var s = sparkles[k];
+      s.life++;
+      if (s.life >= s.maxLife) { sparkles.splice(k, 1); continue; }
+      var st = s.life / s.maxLife;
+      var sAlpha = Math.sin(st * Math.PI) * 0.9; // pulse: 0 → 0.9 → 0
+      var sSize = s.size * (1 + Math.sin(st * Math.PI) * 1.5);
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.globalAlpha = sAlpha;
+      // glow
+      var sGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, sSize * 4);
+      sGrad.addColorStop(0, 'hsla(' + s.hue + ',100%,90%,1)');
+      sGrad.addColorStop(0.4, 'hsla(' + s.hue + ',100%,70%,0.3)');
+      sGrad.addColorStop(1, 'hsla(' + s.hue + ',100%,60%,0)');
+      ctx.fillStyle = sGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, sSize * 4, 0, Math.PI * 2);
+      ctx.fill();
+      // 4-point star
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      ctx.beginPath();
+      ctx.moveTo(0, -sSize * 3);
+      ctx.lineTo(sSize * 0.5, -sSize * 0.5);
+      ctx.lineTo(sSize * 3, 0);
+      ctx.lineTo(sSize * 0.5, sSize * 0.5);
+      ctx.lineTo(0, sSize * 3);
+      ctx.lineTo(-sSize * 0.5, sSize * 0.5);
+      ctx.lineTo(-sSize * 3, 0);
+      ctx.lineTo(-sSize * 0.5, -sSize * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    requestAnimationFrame(frame);
+  }
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    frame();
+  }
+})();
+</script>
+</body>
+</html>

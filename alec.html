@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0a0606">
+<title>Alec is 16 — May 16</title>
+<meta property="og:title" content="Alec is 16 — Saturday May 16, 6PM">
+<meta property="og:description" content="Tacos, nachos, and a roll to Pop Stroke. 3137 Skinner Dr, Antioch TN.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Bebas+Neue&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0a0606;color:#f5e8c8;font-family:'Inter',-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  body{
+    background:
+      radial-gradient(ellipse 90% 60% at 50% 100%, rgba(255,107,26,0.35) 0%, rgba(178,34,34,0.18) 25%, transparent 60%),
+      radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255,199,60,0.08) 0%, transparent 60%),
+      #0a0606;
+    min-height:100vh;
+    position:relative;
+  }
+
+  /* Canvas particle layer */
+  #embers{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+
+  /* Subtle film grain */
+  .grain{
+    position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0.05;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+    mix-blend-mode:overlay;
+  }
+
+  main{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;padding:clamp(20px,5vw,40px) clamp(16px,4vw,32px) 60px;max-width:680px;margin:0 auto}
+
+  /* HERO */
+  .hero{
+    width:100%;text-align:center;
+    padding:clamp(40px,12vh,100px) 0 clamp(30px,8vh,60px);
+    position:relative;
+  }
+
+  .eyebrow{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(14px,3.6vw,18px);
+    letter-spacing:0.45em;
+    color:#FFC73C;
+    text-transform:uppercase;
+    opacity:0;
+    animation:fadeUp 1s 0.2s forwards;
+    margin-bottom:clamp(20px,4vh,32px);
+    text-shadow:0 0 12px rgba(255,199,60,0.4);
+  }
+
+  .name{
+    font-family:'Cinzel',serif;
+    font-weight:400;
+    font-size:clamp(28px,7vw,44px);
+    letter-spacing:0.3em;
+    color:#f5e8c8;
+    text-transform:uppercase;
+    opacity:0;
+    animation:fadeUp 1s 0.5s forwards;
+    margin-left:0.3em; /* compensate for tracking */
+  }
+
+  .age-wrapper{
+    position:relative;
+    margin:clamp(10px,2vh,20px) 0;
+    opacity:0;
+    animation:scaleIn 1.4s 0.9s cubic-bezier(0.16,1,0.3,1) forwards;
+  }
+
+  .age{
+    font-family:'Cinzel',serif;
+    font-weight:900;
+    font-size:clamp(180px,42vw,320px);
+    line-height:0.85;
+    background:linear-gradient(180deg,#FFE082 0%,#FFC73C 35%,#FF8C1A 75%,#B22222 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:transparent;
+    filter:drop-shadow(0 0 30px rgba(255,140,26,0.5)) drop-shadow(0 0 60px rgba(255,107,26,0.3));
+    animation:flicker 4s ease-in-out infinite 2.3s;
+    position:relative;
+    z-index:2;
+    letter-spacing:-0.04em;
+  }
+
+  .age::after{
+    content:'';
+    position:absolute;
+    inset:-10% -5%;
+    background:radial-gradient(circle, rgba(255,140,26,0.25) 0%, transparent 60%);
+    z-index:-1;
+    filter:blur(20px);
+  }
+
+  .occasion{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(20px,5vw,28px);
+    letter-spacing:0.3em;
+    color:#FFC73C;
+    text-transform:uppercase;
+    opacity:0;
+    animation:fadeUp 1s 1.5s forwards;
+    margin-top:clamp(4px,1vh,12px);
+  }
+
+  .date-line{
+    font-family:'Cinzel',serif;
+    font-size:clamp(14px,3.6vw,18px);
+    letter-spacing:0.18em;
+    color:#e8d4a0;
+    margin-top:clamp(16px,3vh,24px);
+    opacity:0;
+    animation:fadeUp 1s 1.8s forwards;
+  }
+
+  /* DIVIDER */
+  .divider{
+    width:60px;height:1px;
+    background:linear-gradient(90deg,transparent,#FFC73C,transparent);
+    margin:clamp(28px,6vh,44px) auto;
+    opacity:0;
+    animation:fadeIn 1s 2s forwards;
+  }
+
+  /* COUNTDOWN */
+  .countdown{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:clamp(6px,1.5vw,12px);
+    width:100%;
+    max-width:520px;
+    margin-bottom:clamp(36px,7vh,52px);
+    opacity:0;
+    animation:fadeUp 1s 2.2s forwards;
+  }
+
+  .cd-cell{
+    background:linear-gradient(180deg, rgba(255,199,60,0.06) 0%, rgba(178,34,34,0.04) 100%);
+    border:1px solid rgba(255,199,60,0.25);
+    border-radius:8px;
+    padding:clamp(10px,2.4vw,16px) 4px;
+    text-align:center;
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }
+
+  .cd-num{
+    font-family:'Cinzel',serif;
+    font-weight:700;
+    font-size:clamp(26px,7vw,38px);
+    color:#FFE082;
+    line-height:1;
+    text-shadow:0 0 18px rgba(255,199,60,0.5);
+    font-variant-numeric:tabular-nums;
+  }
+
+  .cd-label{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(10px,2.4vw,12px);
+    letter-spacing:0.25em;
+    color:#a89060;
+    text-transform:uppercase;
+    margin-top:6px;
+  }
+
+  /* DETAILS CARD */
+  .details{
+    width:100%;
+    background:linear-gradient(180deg, rgba(20,10,8,0.7) 0%, rgba(10,6,6,0.7) 100%);
+    border:1px solid rgba(255,199,60,0.2);
+    border-radius:12px;
+    padding:clamp(24px,5vw,36px) clamp(20px,5vw,32px);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    opacity:0;
+    animation:fadeUp 1s 2.5s forwards;
+    margin-bottom:clamp(28px,5vh,40px);
+  }
+
+  .detail-row{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid rgba(255,199,60,0.08)}
+  .detail-row:last-child{border-bottom:none}
+  .detail-icon{
+    flex:0 0 32px;height:32px;
+    display:grid;place-items:center;
+    background:rgba(255,199,60,0.1);
+    border:1px solid rgba(255,199,60,0.3);
+    border-radius:50%;
+    color:#FFC73C;
+    font-family:'Bebas Neue',sans-serif;
+    font-size:14px;
+  }
+  .detail-text{flex:1;line-height:1.5}
+  .detail-text strong{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(13px,3vw,15px);
+    letter-spacing:0.18em;
+    color:#FFC73C;
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:4px;
+  }
+  .detail-text span{font-size:clamp(14px,3.6vw,16px);color:#f5e8c8}
+  .detail-text small{display:block;color:#a89060;font-size:13px;margin-top:2px}
+  .detail-text a{color:#FFE082;text-decoration:none;border-bottom:1px dotted rgba(255,224,130,0.4)}
+
+  /* SCHEDULE */
+  .schedule{margin-top:8px;padding-left:0}
+  .schedule li{
+    list-style:none;
+    padding:8px 0;
+    color:#e8d4a0;
+    font-size:clamp(14px,3.6vw,15px);
+    display:flex;align-items:baseline;gap:10px;
+  }
+  .schedule li::before{
+    content:'';
+    width:6px;height:6px;
+    border-radius:50%;
+    background:#FF6B1A;
+    flex:0 0 6px;
+    box-shadow:0 0 10px rgba(255,107,26,0.6);
+  }
+  .schedule .t{
+    font-family:'Bebas Neue',sans-serif;
+    color:#FFC73C;
+    letter-spacing:0.1em;
+    min-width:62px;
+  }
+
+  /* CTA BUTTONS */
+  .ctas{
+    display:flex;flex-direction:column;gap:12px;
+    width:100%;margin-bottom:clamp(28px,5vh,40px);
+    opacity:0;
+    animation:fadeUp 1s 2.8s forwards;
+  }
+
+  .btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    padding:18px 24px;
+    border-radius:10px;
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(16px,4vw,18px);
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    text-decoration:none;
+    transition:transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    cursor:pointer;
+    border:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  .btn-primary{
+    background:linear-gradient(135deg, #FFE082 0%, #FFC73C 50%, #FF8C1A 100%);
+    color:#1a0a06;
+    box-shadow:0 4px 20px rgba(255,140,26,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    font-weight:700;
+  }
+  .btn-primary:active{transform:scale(0.98);filter:brightness(0.95)}
+
+  .btn-secondary{
+    background:rgba(255,199,60,0.08);
+    border:1px solid rgba(255,199,60,0.4);
+    color:#FFC73C;
+    backdrop-filter:blur(6px);
+  }
+  .btn-secondary:active{transform:scale(0.98);background:rgba(255,199,60,0.15)}
+
+  /* CONTACTS */
+  .contacts{
+    width:100%;
+    text-align:center;
+    opacity:0;
+    animation:fadeUp 1s 3.1s forwards;
+  }
+  .contacts-title{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(12px,3vw,14px);
+    letter-spacing:0.3em;
+    color:#a89060;
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .contact-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .contact-card{
+    background:rgba(20,10,8,0.5);
+    border:1px solid rgba(255,199,60,0.2);
+    border-radius:10px;
+    padding:14px 12px;
+    text-decoration:none;
+    color:#f5e8c8;
+    text-align:center;
+    transition:all 0.2s;
+    backdrop-filter:blur(6px);
+  }
+  .contact-card:active{background:rgba(255,199,60,0.1);transform:scale(0.98)}
+  .contact-name{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:14px;
+    letter-spacing:0.22em;
+    color:#FFC73C;
+    text-transform:uppercase;
+  }
+  .contact-num{
+    font-family:'Cinzel',serif;
+    font-size:14px;
+    color:#e8d4a0;
+    margin-top:4px;
+    letter-spacing:0.04em;
+  }
+
+  .footer{
+    margin-top:48px;
+    text-align:center;
+    font-size:11px;
+    letter-spacing:0.3em;
+    color:#604528;
+    text-transform:uppercase;
+    opacity:0;
+    animation:fadeIn 1s 3.4s forwards;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp{
+    from{opacity:0;transform:translateY(18px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  @keyframes fadeIn{
+    from{opacity:0}
+    to{opacity:1}
+  }
+  @keyframes scaleIn{
+    from{opacity:0;transform:scale(0.7)}
+    to{opacity:1;transform:scale(1)}
+  }
+  @keyframes flicker{
+    0%,100%{filter:drop-shadow(0 0 30px rgba(255,140,26,0.5)) drop-shadow(0 0 60px rgba(255,107,26,0.3))}
+    20%{filter:drop-shadow(0 0 36px rgba(255,140,26,0.65)) drop-shadow(0 0 75px rgba(255,107,26,0.4))}
+    35%{filter:drop-shadow(0 0 26px rgba(255,140,26,0.45)) drop-shadow(0 0 50px rgba(255,107,26,0.25))}
+    50%{filter:drop-shadow(0 0 40px rgba(255,140,26,0.7)) drop-shadow(0 0 80px rgba(255,107,26,0.45))}
+    70%{filter:drop-shadow(0 0 28px rgba(255,140,26,0.5)) drop-shadow(0 0 55px rgba(255,107,26,0.3))}
+  }
+
+  @media (max-width:380px){
+    .countdown{gap:6px}
+    .cd-cell{padding:10px 2px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:0.01ms !important;animation-iteration-count:1 !important}
+    .age{animation:none}
+    #embers{display:none}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="embers"></canvas>
+<div class="grain"></div>
+
+<main>
+  <section class="hero">
+    <div class="eyebrow">You Are Invited</div>
+    <div class="name">Alec</div>
+    <div class="age-wrapper"><div class="age">16</div></div>
+    <div class="occasion">Birthday Bash</div>
+    <div class="date-line">Saturday · May 16th · 6 PM</div>
+  </section>
+
+  <div class="divider"></div>
+
+  <div class="countdown" id="cd" aria-live="polite">
+    <div class="cd-cell"><div class="cd-num" id="cdD">--</div><div class="cd-label">Days</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdH">--</div><div class="cd-label">Hours</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdM">--</div><div class="cd-label">Min</div></div>
+    <div class="cd-cell"><div class="cd-num" id="cdS">--</div><div class="cd-label">Sec</div></div>
+  </div>
+
+  <div class="details">
+    <div class="detail-row">
+      <div class="detail-icon">◆</div>
+      <div class="detail-text">
+        <strong>Location</strong>
+        <span>3137 Skinner Dr</span>
+        <small>Antioch, TN 37013</small>
+      </div>
+    </div>
+    <div class="detail-row">
+      <div class="detail-icon">◇</div>
+      <div class="detail-text">
+        <strong>The Night</strong>
+        <ul class="schedule">
+          <li><span class="t">6:00</span>All-you-can-eat tacos &amp; nachos</li>
+          <li><span class="t">7:30</span>Roll to Pop Stroke</li>
+          <li><span class="t">10:30</span>Wrap or crash here</li>
+        </ul>
+        <small style="margin-top:10px">Bros: stay overnight or get picked up — your call.</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctas">
+    <a href="https://popstroke.com" target="_blank" rel="noopener" class="btn btn-primary">
+      Roll to Pop Stroke →
+    </a>
+    <button type="button" class="btn btn-secondary" id="addCal">
+      + Add to Calendar
+    </button>
+  </div>
+
+  <div class="contacts">
+    <div class="contacts-title">RSVP / Questions</div>
+    <div class="contact-row">
+      <a href="tel:+16155809973" class="contact-card">
+        <div class="contact-name">Alec</div>
+        <div class="contact-num">(615) 580-9973</div>
+      </a>
+      <a href="tel:+16154855795" class="contact-card">
+        <div class="contact-name">Teddy</div>
+        <div class="contact-num">(615) 485-5795</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="footer">— Bring An Appetite —</div>
+</main>
+
+<script>
+(function(){
+  // ============ COUNTDOWN ============
+  // May 16, 2026, 6:00 PM Central Daylight Time = 23:00 UTC
+  var target = new Date('2026-05-16T18:00:00-05:00').getTime();
+  var pad = function(n){ return n < 10 ? '0' + n : '' + n; };
+  function tick(){
+    var now = Date.now();
+    var diff = Math.max(0, target - now);
+    var d = Math.floor(diff / 86400000);
+    var h = Math.floor((diff % 86400000) / 3600000);
+    var m = Math.floor((diff % 3600000) / 60000);
+    var s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cdD').textContent = pad(d);
+    document.getElementById('cdH').textContent = pad(h);
+    document.getElementById('cdM').textContent = pad(m);
+    document.getElementById('cdS').textContent = pad(s);
+    if (diff <= 0) {
+      document.getElementById('cd').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;font-family:Cinzel,serif;font-size:22px;color:#FFE082;text-shadow:0 0 20px rgba(255,199,60,0.6)">IT’S TIME 🔥</div>';
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ============ ADD TO CALENDAR ============
+  document.getElementById('addCal').addEventListener('click', function(){
+    // 6:00 PM CDT → 23:00 UTC ; 10:30 PM CDT → 03:30 UTC next day
+    var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + '&text=' + encodeURIComponent('Alec’s 16th Birthday')
+      + '&dates=20260516T230000Z/20260517T033000Z'
+      + '&details=' + encodeURIComponent('Tacos & nachos at 6, roll to Pop Stroke at 7:30. RSVP: Alec (615) 580-9973 or Teddy (615) 485-5795.')
+      + '&location=' + encodeURIComponent('3137 Skinner Dr, Antioch, TN 37013');
+    window.open(url, '_blank', 'noopener');
+  });
+
+  // ============ EMBERS / FIRE PARTICLES ============
+  var canvas = document.getElementById('embers');
+  var ctx = canvas.getContext('2d');
+  var DPR = Math.min(2, window.devicePixelRatio || 1);
+  var W = 0, H = 0;
+  function resize(){
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.scale(DPR, DPR);
+  }
+  resize();
+  window.addEventListener('resize', function(){
+    canvas.width = 0; canvas.height = 0;
+    resize();
+  });
+
+  var particles = [];
+  function spawn(){
+    var p = {
+      x: Math.random() * W,
+      y: H + Math.random() * 30,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: -0.4 - Math.random() * 1.6,
+      life: 0,
+      maxLife: 120 + Math.random() * 180,
+      size: 0.8 + Math.random() * 2.6,
+      hue: 18 + Math.random() * 24, // 18-42 = orange/gold
+      wobble: Math.random() * Math.PI * 2,
+    };
+    particles.push(p);
+  }
+
+  function frame(){
+    ctx.clearRect(0, 0, W, H);
+    // Spawn
+    var spawnRate = window.innerWidth < 600 ? 2 : 4;
+    for (var i = 0; i < spawnRate; i++) spawn();
+
+    for (var j = particles.length - 1; j >= 0; j--) {
+      var p = particles[j];
+      p.life++;
+      p.wobble += 0.04;
+      p.x += p.vx + Math.sin(p.wobble) * 0.3;
+      p.y += p.vy;
+      p.vy -= 0.005; // accelerate up
+      var t = p.life / p.maxLife;
+      if (t >= 1) { particles.splice(j, 1); continue; }
+      var alpha = (1 - t) * 0.85;
+      // Hue shifts: low life = white-hot, mid = orange, late = red
+      var lightness = 60 - t * 35; // 60→25
+      var saturation = 100;
+      var hue = p.hue + t * 6;
+      // glow
+      ctx.beginPath();
+      var glowSize = p.size * (3 - t * 1.6);
+      var grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowSize);
+      grad.addColorStop(0, 'hsla(' + hue + ',' + saturation + '%,' + lightness + '%,' + alpha + ')');
+      grad.addColorStop(0.4, 'hsla(' + hue + ',' + saturation + '%,' + (lightness - 10) + '%,' + (alpha * 0.4) + ')');
+      grad.addColorStop(1, 'hsla(' + hue + ',' + saturation + '%,' + (lightness - 20) + '%,0)');
+      ctx.fillStyle = grad;
+      ctx.arc(p.x, p.y, glowSize, 0, Math.PI * 2);
+      ctx.fill();
+      // core
+      ctx.beginPath();
+      ctx.fillStyle = 'hsla(' + hue + ',' + saturation + '%,' + (lightness + 15) + '%,' + alpha + ')';
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  }
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    frame();
+  }
+})();
+</script>
+</body>
+</html>
