@@ -112,16 +112,16 @@ exports.handler = async (event) => {
   // (apply AHS-Processed + remove AHS-Processing). On any failure path,
   // remove the AHS-Processing claim so the message retries next cycle.
   for (const id of claimed) {
-    let xml;
+    let msgData;
     try {
-      xml = await fetchDispatchXml(gmail, id);
+      msgData = await fetchDispatchXml(gmail, id);
     } catch (e) {
       console.error(`[ahs-gmail-poller] message ${id} fetch failed:`, e.message);
       results.skipped_fetch_error.push({ id, error: e.message });
       await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
-    if (!xml) {
+    if (!msgData) {
       console.log(`[ahs-gmail-poller] message ${id} has no dispatch.xml attachment, skipping`);
       results.skipped_no_attachment.push(id);
       await releaseClaim(gmail, id, inProgressLabelId);
@@ -131,7 +131,13 @@ exports.handler = async (event) => {
     let xanoStatus;
     let xanoBody;
     try {
-      const r = await postToXano(xml);
+      const r = await postToXano({
+        rawXml: msgData.xml,
+        gmail_message_id: id,
+        gmail_thread_id: msgData.threadId,
+        sender: msgData.sender,
+        subject: msgData.subject,
+      });
       xanoStatus = r.status;
       xanoBody = r.body;
     } catch (e) {
@@ -227,7 +233,19 @@ async function fetchDispatchXml(gmail, messageId) {
   });
   // Gmail returns base64url-encoded data. Buffer.from('...', 'base64url') decodes natively.
   const xml = Buffer.from(att.data.data, 'base64url').toString('utf8');
-  return xml;
+
+  // Extract headers for the Xano-side idempotency anchor + audit row.
+  // Backward-port of ServicePower smart-dedup pattern (2026-05-13).
+  const headers = ((msg.data.payload || {}).headers || []).reduce((acc, h) => {
+    acc[h.name.toLowerCase()] = h.value;
+    return acc;
+  }, {});
+  return {
+    xml,
+    threadId: msg.data.threadId || '',
+    sender: headers.from || '',
+    subject: headers.subject || '',
+  };
 }
 
 function findXmlAttachment(payload) {
@@ -252,11 +270,15 @@ function collectParts(payload, acc = []) {
   return acc;
 }
 
-async function postToXano(rawXml) {
+async function postToXano(payload) {
+  // payload: { rawXml, gmail_message_id, gmail_thread_id, sender, subject }
+  // gmail_message_id is the idempotency anchor — backward-port of the
+  // ServicePower smart-dedup pattern. Xano endpoint short-circuits if a
+  // job_email_event row already exists for this gmail_message_id.
   const resp = await fetch(XANO_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rawXml }),
+    body: JSON.stringify(payload),
   });
   const body = await resp.text();
   return { status: resp.status, body };
