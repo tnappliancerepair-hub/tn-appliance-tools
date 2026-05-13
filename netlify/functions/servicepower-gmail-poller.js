@@ -157,7 +157,12 @@ exports.handler = async (event) => {
         sender,
         subject,
         email_type: parsed.email_type,
-        dispatches: parsed.dispatches,
+        // dispatches_json: XanoScript can't declare an `object` input type
+        // without a schema block, and our dispatch shape is too rich to
+        // template inline. Caller (this poller) stringifies; Xano endpoint
+        // json_decodes. Pattern matches warranty_job_intake_POST.xs and
+        // ahs_email_intake_POST.xs (they use raw_request / raw_xml the same way).
+        dispatches_json: JSON.stringify(parsed.dispatches),
         body_excerpt: body.slice(0, 500),
       });
       xanoStatus = r.status;
