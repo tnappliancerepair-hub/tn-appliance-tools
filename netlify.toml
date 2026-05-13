@@ -17,3 +17,18 @@
 # morning to observe one cron boundary with ZERO manual interference.
 [functions."ahs-gmail-poller"]
   schedule = "*/15 * * * *"
+
+# Scheduled function: ServicePower dispatch email poller (every 15 minutes).
+# Phase A1 step 13 cleared 2026-05-13. Reads tnappliancerepair@gmail.com via
+# Gmail API, parses ServicePower plaintext emails, POSTs structured dispatches
+# to Xano servicepower_email_intake. Smart-dedup model: first email per Call #
+# creates job; subsequent emails log to job_email_event and may update parent.
+# DEDUP_FAILED triggers SES alert to danielle.tnappliance@gmail.com (live).
+# Two-phase Gmail label claim mirrors AHS commit 69fbd22 to narrow parallel-
+# fire race window.
+#
+# Per Teddy 2026-05-13: running in parallel with AHS poller + existing HCP
+# system. NO cutover yet — parallel running + validation phase until both
+# pollers are stable and warranty intake automation is proven.
+[functions."servicepower-gmail-poller"]
+  schedule = "*/15 * * * *"
