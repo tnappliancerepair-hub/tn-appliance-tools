@@ -9,14 +9,26 @@
 # attachments from Frontdoor emails, POSTs to Xano ahs_email_intake.
 # See docs/gmail-oauth-setup.md for one-time OAuth setup.
 #
-# Schedule was DISABLED 2026-05-12 (commit c707df4) pending clean-data
-# investigation. Earlier diagnostic suggested ~3 parallel invocations per
-# cron boundary, but the 7:01 PM 2026-05-11 parallel pair (request IDs
-# cd08e69f + a46731eb) is now suspected to have been a manual Run-now
-# double-click rather than automated retry behavior. RE-ENABLED 2026-05-12
-# morning to observe one cron boundary with ZERO manual interference.
-[functions."ahs-gmail-poller"]
-  schedule = "*/15 * * * *"
+# RE-DISABLED 2026-05-13 (commit-pending) — emergency stop.
+#
+# Pulse check at ~10:09 AM CDT 2026-05-13 found the same 75-jobs-per-cron
+# duplicate pattern that triggered the original 2026-05-11 disable. 16
+# consecutive cron windows each created exactly 75 jobs (25 messages × 3
+# invocations per cron boundary). 1200 ahs_email_intake_created rows in
+# 4 hours, 456 unique claim_numbers, 310 with duplicates, 744 extra rows.
+# Re-enable 2026-05-12 (commit c5fe9db) re-opened the bleed; ~28 hours of
+# accumulated dupes pre-disable today.
+#
+# Hypothesis (from step 9 of Phase A1 ServicePower work): Netlify
+# scheduled-function timeout-retry. Default 10s timeout cuts the function
+# off mid-loop; Netlify retries up to 3 times; each retry sees the same
+# unprocessed messages and re-processes. ServicePower poller has the
+# same bug but is currently masked by low message volume.
+#
+# Schedule stays commented until root cause confirmed via function logs +
+# fix tested.
+# [functions."ahs-gmail-poller"]
+#   schedule = "*/15 * * * *"
 
 # Scheduled function: ServicePower dispatch email poller (every 15 minutes).
 # Phase A1 step 13 cleared 2026-05-13. Reads tnappliancerepair@gmail.com via
