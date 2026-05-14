@@ -1,4 +1,10 @@
 User-agent: *
 Allow: /
 
+# Block transient/internal-tool JSON snapshots and admin endpoints.
+Disallow: /*.tmp.json$
+Disallow: /xano%20proxy/
+Disallow: /xano-workspace/
+Disallow: /netlify/functions/
+
 Sitemap: https://tnapplianceexchange.net/sitemap.xml
