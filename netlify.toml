@@ -9,26 +9,20 @@
 # attachments from Frontdoor emails, POSTs to Xano ahs_email_intake.
 # See docs/gmail-oauth-setup.md for one-time OAuth setup.
 #
-# RE-DISABLED 2026-05-13 (commit-pending) — emergency stop.
-#
-# Pulse check at ~10:09 AM CDT 2026-05-13 found the same 75-jobs-per-cron
-# duplicate pattern that triggered the original 2026-05-11 disable. 16
-# consecutive cron windows each created exactly 75 jobs (25 messages × 3
-# invocations per cron boundary). 1200 ahs_email_intake_created rows in
-# 4 hours, 456 unique claim_numbers, 310 with duplicates, 744 extra rows.
-# Re-enable 2026-05-12 (commit c5fe9db) re-opened the bleed; ~28 hours of
-# accumulated dupes pre-disable today.
-#
-# Hypothesis (from step 9 of Phase A1 ServicePower work): Netlify
-# scheduled-function timeout-retry. Default 10s timeout cuts the function
-# off mid-loop; Netlify retries up to 3 times; each retry sees the same
-# unprocessed messages and re-processes. ServicePower poller has the
-# same bug but is currently masked by low message volume.
-#
-# Schedule stays commented until root cause confirmed via function logs +
-# fix tested.
-# [functions."ahs-gmail-poller"]
-#   schedule = "*/15 * * * *"
+# RE-ENABLED 2026-05-14 — root cause was missing idempotency at the Xano
+# endpoint, NOT timeout-retry as originally hypothesized. The 75-jobs-per-
+# cron pattern (25 msgs × 3 parallel invocations) was bleeding because the
+# AHS endpoint had no gmail_message_id dedup check; each of the 3 parallel
+# invocations saw the same unprocessed messages and re-processed them. Fix
+# (commit-pending): backward-ported ServicePower's smart-dedup pattern to
+# the AHS endpoint — job_email_event table with gmail_message_id as the
+# idempotency anchor, lookup at top of stack, audit write after job create.
+# Verified via 3-step synthetic test 2026-05-14 05:08 UTC (existing id →
+# duplicate:true; fresh id → created; repeat fresh id → duplicate:true).
+# Netlify poller (commit bb269ad) forwards gmail_message_id + headers in
+# the Xano POST payload.
+[functions."ahs-gmail-poller"]
+  schedule = "*/15 * * * *"
 
 # Scheduled function: ServicePower dispatch email poller (every 15 minutes).
 # Phase A1 step 13 cleared 2026-05-13. Reads tnappliancerepair@gmail.com via
