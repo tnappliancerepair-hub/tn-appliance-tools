@@ -77,7 +77,7 @@ h3{font-family:var(--block);font-size:18px;letter-spacing:.04em;color:var(--whit
 .pricing-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:20px}
 .price-row{background:var(--surface);border:1px solid var(--bord2);border-radius:10px;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .price-row-label{font-size:12px;color:var(--white);letter-spacing:.03em}
-.price-row-amt{font-family:var(--block);font-size:18px;color:var(--orange);letter-spacing:.04em;white-space:nowrap}
+.price-row-amt{font-family:var(--block);font-size:18px;color:var(--orange);letter-spacing:.04em;text-align:right}
 .credit-note{margin-top:18px;padding:18px 22px;background:rgba(57,255,20,.04);border:1px solid rgba(57,255,20,.15);border-radius:10px;font-size:13px;color:#e8e8e8;line-height:1.7;letter-spacing:.01em}
 .credit-note b{color:var(--green);font-weight:500}
 .faq{display:flex;flex-direction:column;gap:10px;margin-top:20px}
@@ -209,7 +209,7 @@ function schemaLocalBusiness() {
     description: "Family-owned appliance repair serving Middle Tennessee and Louisiana. Honest 4-option Technician Decision Report. Diagnostic fee credited to your repair.",
     url: SITE,
     telephone: PHONE_TN,
-    priceRange: "$50-$2000",
+    priceRange: "$50-$600",
     image: `${SITE}/og-default.png`,
     address: {
       "@type": "PostalAddress",
@@ -291,7 +291,7 @@ function renderPricingBlock() {
 <div class="price-row"><span class="price-row-label">Most dryer repairs</span><span class="price-row-amt">$150-$300</span></div>
 <div class="price-row"><span class="price-row-label">Most washer repairs</span><span class="price-row-amt">$200-$350</span></div>
 <div class="price-row"><span class="price-row-label">Most refrigerator repairs</span><span class="price-row-amt">$200-$600</span></div>
-<div class="price-row"><span class="price-row-label">Sealed-system &amp; specialty</span><span class="price-row-amt">$2,000+</span></div>
+<div class="price-row"><span class="price-row-label">Sealed-system &amp; specialty</span><span class="price-row-amt">starting at $200</span></div>
 </div>
 <div class="credit-note"><b>Your diagnostic fee is never wasted.</b> Every dollar you spend on the Quick Check ($50) or in-home diagnostic ($100) goes directly toward your repair labor if you decide to move forward. You're not paying for a diagnosis AND a repair — you're paying for a diagnosis that becomes a credit toward your repair. No double paying, ever.</div>`;
 }
