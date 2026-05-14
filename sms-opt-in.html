@@ -54,7 +54,7 @@ a:hover{text-decoration:underline}
 .gate-mockup h3{font-size:17px;font-weight:600;color:#fff;line-height:1.35;margin:0}
 .gate-mockup .gate-body{font-size:13px;color:#b8b8b8;line-height:1.6;margin:0}
 .gate-mockup .gate-buttons{display:flex;gap:10px;flex-wrap:nowrap}
-.gate-mockup .gate-buttons span{
+.gate-mockup .gate-buttons button{
   flex:1 1 50%;
   min-height:48px;
   padding:13px 14px;
@@ -64,9 +64,33 @@ a:hover{text-decoration:underline}
   text-align:center;
   display:flex;align-items:center;justify-content:center;
   font-family:'Geist Mono',monospace;
+  cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  appearance:none;
+  -webkit-appearance:none;
+  outline:none;
 }
-.gate-mockup .gate-buttons span.gate-yes{background:#ff6200;border:1.5px solid #ff6200;color:#000}
-.gate-mockup .gate-buttons span.gate-no{background:transparent;border:1.5px solid #555;color:#e8e8e8}
+.gate-mockup .gate-buttons button.gate-yes{background:#ff6200;border:1.5px solid #ff6200;color:#000}
+.gate-mockup .gate-buttons button.gate-no{background:transparent;border:1.5px solid #555;color:#e8e8e8}
+.gate-mockup .gate-buttons button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 14px rgba(255,98,0,.25)}
+.gate-mockup .gate-buttons button.gate-no:hover:not(:disabled){box-shadow:0 6px 14px rgba(255,255,255,.05);border-color:#777}
+.gate-mockup .gate-buttons button:active:not(:disabled){transform:translateY(0)}
+.gate-mockup .gate-buttons button:focus-visible{box-shadow:0 0 0 3px rgba(57,255,20,.35)}
+.gate-mockup .gate-buttons button:disabled{cursor:default;opacity:.45;transform:none;box-shadow:none}
+.gate-response{
+  margin-top:6px;
+  padding:14px 16px;
+  border-radius:10px;
+  font-size:13px;
+  line-height:1.6;
+  font-weight:500;
+  letter-spacing:.01em;
+  display:none;
+}
+.gate-response.show{display:block;animation:gate-fade .25s ease}
+.gate-response.yes{background:rgba(57,255,20,.08);border:1px solid rgba(57,255,20,.35);color:#39ff14}
+.gate-response.no{background:rgba(200,200,200,.04);border:1px solid rgba(200,200,200,.18);color:#cfcfcf}
+@keyframes gate-fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .gate-mockup .gate-fine{font-size:11px;color:#7a7a7a;line-height:1.6;display:flex;flex-wrap:wrap;gap:4px 14px}
 .gate-mockup .gate-fine span{color:#bbb;text-decoration:underline;text-decoration-color:#555;text-underline-offset:3px}
 .gate-caption{font-size:12px;color:#888;margin-top:14px;line-height:1.7;font-style:italic;border-left:2px solid #2a2a2a;padding-left:14px}
@@ -128,15 +152,26 @@ footer a:hover{color:#ff6200}
       <h3>Before we continue, we need your permission to text you.</h3>
       <p class="gate-body">TN Appliance Exchange LLC sends transactional SMS messages only — appointment confirmations, technician arrival times, parts updates, diagnostic results, and a quick check-in after your service. We never send marketing or promotional messages. You can reply STOP at any time to unsubscribe. Message and data rates may apply. Message frequency varies based on your service activity.</p>
       <div class="gate-buttons">
-        <span class="gate-yes">Yes, text me about my service</span>
-        <span class="gate-no">No, call me only</span>
+        <button type="button" class="gate-yes" onclick="gateAccept()">Yes, text me about my service</button>
+        <button type="button" class="gate-no" onclick="gateDecline()">No, call me only</button>
       </div>
+      <div id="gate-response" class="gate-response" role="status" aria-live="polite"></div>
       <div class="gate-fine">
         <span>Privacy Policy</span>
         <span>SMS Terms</span>
         <span>Learn more about how we handle SMS consent</span>
       </div>
     </div>
+    <script>
+    function gateAccept(){gateShow('yes','✓ Consent recorded. You’re opted in to receive SMS updates from TN Appliance Exchange.');}
+    function gateDecline(){gateShow('no','Understood — we’ll reach you by phone only. No SMS will be sent.');}
+    function gateShow(type,msg){
+      var el=document.getElementById('gate-response');
+      el.className='gate-response show '+type;
+      el.textContent=msg;
+      document.querySelectorAll('.gate-buttons button').forEach(function(b){b.disabled=true;});
+    }
+    </script>
     <div class="gate-caption">This is the exact consent step every customer sees before any phone number is collected. The customer must affirmatively click "Yes, text me about my service" to receive SMS. Customers who click "No, call me only" are never sent SMS — only voice contact.</div>
   </div>
 
