@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial Dashboard · TN Appliance Exchange</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#050505">
+<style>html{background:#050505 !important}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --black:#050505;--surface:#0c0c0c;--surf2:#111;--surf3:#161616;--border:#1a1a1a;--bord2:#252525;
+  --orange:#ff6200;--oran2:#ff7c28;--green:#39ff14;--red:#ff3344;--yellow:#ffc107;
+  --white:#f0f0f0;--gray:#888;--gray2:#444;
+  --mono:'Geist Mono',monospace;--block:'Bebas Neue',sans-serif;
+}
+html,body{background:#050505;color:#f0f0f0;font-family:var(--mono);overflow-x:hidden;min-height:100vh}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 4px)}
+.bg{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.bg::after{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(255,98,0,.01) 1px,transparent 1px),linear-gradient(90deg,rgba(255,98,0,.01) 1px,transparent 1px);background-size:72px 72px}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(160px)}
+.orb1{width:600px;height:600px;background:radial-gradient(circle,rgba(255,98,0,.06),transparent 70%);top:-200px;left:-100px}
+
+/* PIN overlay */
+.pin-overlay{position:fixed;inset:0;background:rgba(5,5,5,.97);z-index:9000;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(8px)}
+.pin-overlay.hidden{display:none}
+.pin-card{background:var(--surface);border:1px solid var(--bord2);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;text-align:center}
+.pin-card .ant{font-size:36px;animation:glow 3s ease-in-out infinite;display:inline-block;margin-bottom:14px}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 8px rgba(255,98,0,.5))}50%{filter:drop-shadow(0 0 22px rgba(255,98,0,.95))}}
+.pin-card h2{font-family:var(--block);font-size:22px;letter-spacing:.04em;margin-bottom:8px}
+.pin-card .sub{font-size:12px;color:var(--gray);letter-spacing:.06em;text-transform:uppercase;margin-bottom:22px}
+.pin-input{width:100%;background:#000;border:1px solid var(--bord2);border-radius:10px;padding:16px;font-family:var(--mono);font-size:24px;letter-spacing:.5em;color:var(--white);text-align:center;outline:none;-webkit-text-security:disc}
+.pin-input:focus{border-color:var(--orange)}
+.pin-error{font-size:12px;color:var(--red);margin-top:12px;min-height:18px;letter-spacing:.04em}
+
+.shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+nav{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:rgba(5,5,5,.95);backdrop-filter:blur(24px);position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-ant{font-size:22px;animation:glow 3s ease-in-out infinite}
+.nav-name{font-family:var(--block);font-size:15px;letter-spacing:.06em;color:var(--white)}
+.nav-tag{font-size:9px;color:var(--orange);letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
+.nav-right{display:flex;align-items:center;gap:14px;font-size:11px;color:var(--gray);letter-spacing:.04em}
+.refresh-btn{background:transparent;border:1px solid var(--bord2);border-radius:8px;padding:8px 14px;color:var(--white);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .15s}
+.refresh-btn:hover:not(:disabled){border-color:var(--orange);color:var(--orange)}
+.refresh-btn:disabled{opacity:.5;cursor:wait}
+
+.wrap{max-width:1340px;margin:0 auto;padding:28px 28px 80px;width:100%}
+.page-head{margin-bottom:24px}
+.page-head h1{font-family:var(--block);font-size:clamp(34px,5vw,46px);letter-spacing:.04em;line-height:1.05}
+.page-head h1 em{color:var(--orange);font-style:normal}
+.page-head .as-of{font-size:11px;color:var(--gray);letter-spacing:.06em;margin-top:8px;text-transform:uppercase}
+
+/* KPI strip */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:var(--surface);border:1px solid var(--bord2);border-radius:12px;padding:18px 20px}
+.kpi .label{font-size:10px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.kpi .value{font-family:var(--block);font-size:30px;color:var(--white);letter-spacing:.03em;line-height:1}
+.kpi .value.orange{color:var(--orange)}
+.kpi .value.green{color:var(--green)}
+.kpi .value.red{color:var(--red)}
+.kpi .value.yellow{color:var(--yellow)}
+.kpi .sub{font-size:10px;color:var(--gray);margin-top:5px;letter-spacing:.04em}
+
+/* Section card */
+.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px}
+.grid-three{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.grid-half{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:1024px){.grid,.grid-half,.grid-three{grid-template-columns:1fr}}
+
+.card{background:var(--surface);border:1px solid var(--bord2);border-radius:14px;padding:20px 22px}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.card-head h2{font-family:var(--block);font-size:18px;letter-spacing:.06em;color:var(--white)}
+.card-head .tag{font-size:10px;color:var(--orange);letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(255,98,0,.3);background:rgba(255,98,0,.05);padding:4px 10px;border-radius:14px}
+.card-head .tag.green{color:var(--green);border-color:rgba(57,255,20,.3);background:rgba(57,255,20,.05)}
+.card-head .tag.red{color:var(--red);border-color:rgba(255,51,68,.3);background:rgba(255,51,68,.05)}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:12px}
+table th{text-align:left;font-weight:500;color:var(--gray);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:10px 8px;border-bottom:1px solid var(--border)}
+table td{padding:12px 8px;border-bottom:1px solid rgba(26,26,26,.6);color:var(--white);vertical-align:middle}
+table td.muted{color:var(--gray)}
+table td.right{text-align:right;font-feature-settings:"tnum"}
+table tr:hover{background:var(--surf2)}
+table .num{font-family:var(--mono);font-feature-settings:"tnum";color:var(--orange)}
+table .status-pill{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:14px;font-weight:500}
+.status-parsed{background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.25);color:var(--yellow)}
+.status-reconciled{background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.25);color:var(--green)}
+.status-approved{background:rgba(120,120,120,.07);border:1px solid rgba(180,180,180,.18);color:#ccc}
+.status-needs_review{background:rgba(255,98,0,.08);border:1px solid rgba(255,98,0,.3);color:var(--orange)}
+
+.empty{font-size:13px;color:var(--gray);text-align:center;padding:28px 0;font-style:italic;letter-spacing:.04em}
+.loading{font-size:12px;color:var(--gray);text-align:center;padding:24px 0;letter-spacing:.06em;text-transform:uppercase}
+
+/* Tech commission rows */
+.tech-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid rgba(26,26,26,.7)}
+.tech-row:last-child{border-bottom:none}
+.tech-name{font-family:var(--block);font-size:16px;letter-spacing:.04em;color:var(--white)}
+.tech-meta{font-size:10px;color:var(--gray);letter-spacing:.04em;margin-top:3px;text-transform:uppercase}
+.tech-amount{font-family:var(--block);font-size:22px;color:var(--orange);letter-spacing:.03em;text-align:right;line-height:1}
+.tech-lines{font-size:10px;color:var(--gray);margin-top:3px;text-align:right}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:11px 18px;border-radius:8px;text-decoration:none;cursor:pointer;border:1px solid transparent;transition:all .15s}
+.btn-primary{background:var(--orange);color:#000;border-color:var(--orange)}
+.btn-primary:hover:not(:disabled){background:var(--oran2);border-color:var(--oran2);transform:translateY(-1px);box-shadow:0 6px 14px rgba(255,98,0,.25)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-ghost{background:transparent;color:var(--white);border-color:var(--bord2)}
+.btn-ghost:hover{border-color:var(--orange);color:var(--orange)}
+.btn-small{font-size:10px;padding:7px 12px;letter-spacing:.04em}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+
+.payroll-foot{margin-top:14px;padding:14px 16px;background:#000;border:1px solid var(--bord2);border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.payroll-foot .ttl{font-size:11px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase}
+.payroll-foot .val{font-family:var(--block);font-size:26px;color:var(--orange);letter-spacing:.04em}
+.payroll-foot .warn{font-size:11px;color:var(--yellow);font-style:italic}
+
+/* Dispute resolve modal */
+.modal{position:fixed;inset:0;background:rgba(5,5,5,.85);backdrop-filter:blur(8px);z-index:8000;display:flex;align-items:center;justify-content:center;padding:24px}
+.modal.hidden{display:none}
+.modal-card{background:var(--surface);border:1px solid var(--bord2);border-radius:14px;padding:28px 28px 24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.modal-card h3{font-family:var(--block);font-size:20px;letter-spacing:.04em;margin-bottom:6px}
+.modal-card .modal-sub{font-size:12px;color:var(--gray);margin-bottom:18px;letter-spacing:.04em}
+.modal-card label{display:block;font-size:11px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;margin-top:14px}
+.modal-card textarea, .modal-card input, .modal-card select{width:100%;background:#000;border:1px solid var(--bord2);border-radius:8px;padding:11px 13px;color:var(--white);font-family:var(--mono);font-size:13px;outline:none}
+.modal-card textarea:focus, .modal-card input:focus, .modal-card select:focus{border-color:var(--orange)}
+.modal-card textarea{min-height:80px;resize:vertical}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:22px}
+
+/* Manual entry / markup calc form */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:14px}
+.form-field label{display:block;font-size:10px;color:var(--gray);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.form-field input{width:100%;background:#000;border:1px solid var(--bord2);border-radius:8px;padding:10px 12px;color:var(--white);font-family:var(--mono);font-size:13px;outline:none}
+.form-field input:focus{border-color:var(--orange)}
+.form-lines{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
+.form-lines h4{font-size:11px;color:var(--orange);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px}
+.line-row{display:grid;grid-template-columns:1.5fr 1.5fr 1fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.line-row input{padding:8px 10px;font-size:12px}
+.line-row .rm{background:transparent;border:1px solid rgba(255,51,68,.4);color:var(--red);padding:8px 10px;border-radius:6px;cursor:pointer;font-size:11px}
+.line-row .rm:hover{background:rgba(255,51,68,.08)}
+
+.markup-output{margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.markup-tier{background:#000;border:1px solid var(--bord2);border-radius:10px;padding:14px}
+.markup-tier .tier-name{font-size:10px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+.markup-tier .tier-sell{font-family:var(--block);font-size:22px;color:var(--orange);letter-spacing:.03em}
+.markup-tier .tier-profit{font-size:11px;color:var(--green);margin-top:4px}
+@media(max-width:600px){.markup-output{grid-template-columns:1fr}}
+
+footer{margin-top:auto;padding:18px 28px;border-top:1px solid var(--border);text-align:center;font-size:10px;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="bg"><div class="bg-orb orb1"></div></div>
+
+<!-- PIN gate -->
+<div class="pin-overlay" id="pin-overlay">
+  <div class="pin-card">
+    <span class="ant">🐜</span>
+    <h2>Financial Dashboard</h2>
+    <div class="sub">Owner-only · Enter PIN</div>
+    <input id="pin-input" class="pin-input" type="tel" inputmode="numeric" maxlength="6" autocomplete="off">
+    <div id="pin-error" class="pin-error"></div>
+  </div>
+</div>
+
+<div class="shell">
+  <nav>
+    <a href="/" class="nav-brand">
+      <span class="nav-ant">🐜</span>
+      <div><div class="nav-name">TN Appliance Exchange</div><div class="nav-tag">Financial Operations</div></div>
+    </a>
+    <div class="nav-right">
+      <span id="last-refresh">—</span>
+      <button class="refresh-btn" id="refresh-btn">Refresh</button>
+    </div>
+  </nav>
+
+  <div class="wrap">
+
+    <div class="page-head">
+      <h1>Financial<em>Dashboard</em></h1>
+      <div class="as-of" id="as-of-line">Loading…</div>
+    </div>
+
+    <!-- KPI row -->
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi"><div class="label">Outstanding</div><div class="value orange" id="kpi-outstanding">$0</div><div class="sub" id="kpi-outstanding-count">0 jobs</div></div>
+      <div class="kpi"><div class="label">Paid This Period</div><div class="value green" id="kpi-paid">$0</div><div class="sub" id="kpi-paid-count">0 batches</div></div>
+      <div class="kpi"><div class="label">Commission Owed</div><div class="value orange" id="kpi-commission">$0</div><div class="sub" id="kpi-commission-count">this period</div></div>
+      <div class="kpi"><div class="label">Disputes Open</div><div class="value red" id="kpi-disputes">0</div><div class="sub" id="kpi-disputes-amount">$0 locked</div></div>
+      <div class="kpi"><div class="label">Tax Liability</div><div class="value yellow" id="kpi-tax">$0</div><div class="sub" id="kpi-tax-ytd">YTD: $0</div></div>
+      <div class="kpi"><div class="label">P&amp;L (Month)</div><div class="value green" id="kpi-pnl">$0</div><div class="sub" id="kpi-pnl-revenue">Rev: $0</div></div>
+    </div>
+
+    <!-- Row 1: payment inbox + current payroll -->
+    <div class="grid">
+      <div class="card" id="card-inbox">
+        <div class="card-head"><h2>Payment Inbox</h2><span class="tag">Recent 20 Batches</span></div>
+        <div id="inbox-body" class="loading">Loading…</div>
+      </div>
+
+      <div class="card" id="card-payroll">
+        <div class="card-head"><h2>Current Payroll</h2><span class="tag green" id="payroll-status-tag">Pending</span></div>
+        <div id="payroll-body" class="loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Row 2: outstanding + disputed -->
+    <div class="grid-half">
+      <div class="card" id="card-outstanding">
+        <div class="card-head"><h2>Outstanding by Company</h2><span class="tag" id="outstanding-tag">—</span></div>
+        <div id="outstanding-body" class="loading">Loading…</div>
+      </div>
+
+      <div class="card" id="card-disputed">
+        <div class="card-head"><h2>Disputed Jobs</h2><span class="tag red" id="disputed-tag">—</span></div>
+        <div id="disputed-body" class="loading">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Row 3: P&L breakdown + tax liability + parts analysis -->
+    <div class="grid-three">
+      <div class="card">
+        <div class="card-head"><h2>P&amp;L Summary</h2><span class="tag">Month + YTD</span></div>
+        <div id="pnl-body" class="loading">Loading…</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Tax Liability</h2><span class="tag yellow" style="color:var(--yellow);border-color:rgba(255,193,7,.3);background:rgba(255,193,7,.05)">TN 9.25%</span></div>
+        <div id="tax-body" class="loading">Loading…</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Parts Markup Calc</h2><span class="tag">Helper</span></div>
+        <div class="form-grid">
+          <div class="form-field"><label>Parts cost</label><input id="mc-cost" type="number" step="0.01" placeholder="0.00"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-primary btn-small" id="mc-go">Calculate</button></div>
+        <div id="mc-output"></div>
+      </div>
+    </div>
+
+    <!-- Row 4: Manual 210 entry form -->
+    <div class="card" id="card-manual">
+      <div class="card-head"><h2>Manual Entry — 210 Paper Check</h2><span class="tag">For non-email payments</span></div>
+      <p style="font-size:12px;color:var(--gray);line-height:1.7;margin-bottom:8px">Use this form for 210 paper-check remittances and any other payment that didn't arrive via email. The same reconciliation logic applies — matched lines populate commissions and tax automatically.</p>
+      <div class="form-grid">
+        <div class="form-field"><label>Vendor company</label><input id="m-company" type="text" value="210"></div>
+        <div class="form-field"><label>Vendor number (optional)</label><input id="m-vendor-num" type="text" placeholder="e.g. 210-001"></div>
+        <div class="form-field"><label>Check number</label><input id="m-check" type="text" placeholder="e.g. 4422"></div>
+        <div class="form-field"><label>Payment date</label><input id="m-date" type="date"></div>
+      </div>
+      <div class="form-lines">
+        <h4>Claim Lines</h4>
+        <div id="m-lines"></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-small" id="m-add-line">+ Add line</button>
+          <button class="btn btn-primary btn-small" id="m-submit">Submit Payment</button>
+        </div>
+        <div id="m-result" style="margin-top:14px;font-size:12px;color:var(--green);min-height:18px"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>TN Appliance Exchange · Financial Operations · Owner-only · 2026</footer>
+</div>
+
+<!-- Dispute modal -->
+<div class="modal hidden" id="dispute-modal">
+  <div class="modal-card">
+    <h3>Resolve Dispute</h3>
+    <div class="modal-sub" id="dm-summary">—</div>
+
+    <label>Resolution</label>
+    <select id="dm-resolution">
+      <option value="accept_partial">Accept partial — commission on net amount</option>
+      <option value="rebill">Rebill — leave open, expect true-up</option>
+      <option value="write_off">Write off — accept loss, commission $0</option>
+    </select>
+
+    <label>Notes (optional)</label>
+    <textarea id="dm-notes" placeholder="Why you chose this resolution…"></textarea>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-small" id="dm-cancel">Cancel</button>
+      <button class="btn btn-primary btn-small" id="dm-submit">Resolve</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const OWNER_TECH_ID = 1;                       // Teddy
+const API_VERIFY_PIN = '/.netlify/functions/verify-pin-proxy';
+const API_DASHBOARD  = XANO_BASE + '/get_financial_dashboard';
+const API_PAYROLL    = XANO_BASE + '/get_payroll_report';
+const API_APPROVE    = XANO_BASE + '/approve_payroll';
+const API_RESOLVE    = XANO_BASE + '/resolve_dispute';
+const API_MANUAL     = XANO_BASE + '/manual_payment_entry';
+const API_MARKUP     = XANO_BASE + '/parts_markup_calc';
+
+let dashboardData = null;
+let payrollData = null;
+
+// ─── PIN gate ─────────────────────────────────────────────────────────
+const pinInput = document.getElementById('pin-input');
+const pinError = document.getElementById('pin-error');
+pinInput.focus();
+pinInput.addEventListener('input', async (e) => {
+  const v = pinInput.value.replace(/\D/g, '');
+  if (v.length < 4) return;
+  pinError.textContent = 'Verifying…';
+  try {
+    const res = await fetch(API_VERIFY_PIN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ technician_id: OWNER_TECH_ID, pin: v }),
+    });
+    const data = await res.json();
+    if (data.success === true && Number(data.technician_id) === OWNER_TECH_ID) {
+      document.getElementById('pin-overlay').classList.add('hidden');
+      pinError.textContent = '';
+      boot();
+    } else {
+      pinError.textContent = 'Wrong PIN. Try again.';
+      pinInput.value = '';
+      pinInput.focus();
+    }
+  } catch (err) {
+    pinError.textContent = 'Connection error. Try again.';
+    pinInput.value = '';
+  }
+});
+
+// ─── Boot ─────────────────────────────────────────────────────────────
+async function boot() {
+  document.getElementById('refresh-btn').addEventListener('click', refreshAll);
+  document.getElementById('m-add-line').addEventListener('click', addLine);
+  document.getElementById('m-submit').addEventListener('click', submitManual);
+  document.getElementById('mc-go').addEventListener('click', runMarkup);
+  document.getElementById('dm-cancel').addEventListener('click', closeDisputeModal);
+  document.getElementById('dm-submit').addEventListener('click', submitDisputeResolve);
+  document.getElementById('m-date').value = new Date().toISOString().slice(0, 10);
+  addLine();
+  await refreshAll();
+}
+
+async function refreshAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = 'Refreshing…';
+  try {
+    const [dash, payroll] = await Promise.all([
+      fetch(API_DASHBOARD).then((r) => r.json()).catch(() => null),
+      fetch(API_PAYROLL + '?pay_date=' + nextPayDateISO()).then((r) => r.json()).catch(() => null),
+    ]);
+    dashboardData = dash;
+    payrollData = payroll;
+    renderAll();
+    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh';
+  }
+}
+
+function nextPayDateISO() {
+  const now = new Date();
+  const d = now.getDate();
+  const target = new Date(now);
+  if (d < 3) {
+    target.setDate(3);
+  } else if (d < 18) {
+    target.setDate(18);
+  } else {
+    target.setMonth(target.getMonth() + 1, 3);
+  }
+  return target.toISOString();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────
+function renderAll() {
+  renderKpis();
+  renderInbox();
+  renderPayroll();
+  renderOutstanding();
+  renderDisputed();
+  renderPnl();
+  renderTax();
+  document.getElementById('as-of-line').textContent =
+    'As of ' + (dashboardData?.as_of ? new Date(dashboardData.as_of).toLocaleString() : new Date().toLocaleString());
+}
+
+function fmtMoney(n) {
+  const v = Number(n || 0);
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtCount(n) { return String(Number(n || 0)); }
+
+function renderKpis() {
+  const d = dashboardData || {};
+  const outstandingTotal = (d.outstanding || []).reduce((s, x) => s + Number(x.total_expected || 0), 0);
+  const outstandingCount = (d.outstanding || []).reduce((s, x) => s + Number(x.count || 0), 0);
+  document.getElementById('kpi-outstanding').textContent = fmtMoney(outstandingTotal);
+  document.getElementById('kpi-outstanding-count').textContent = fmtCount(outstandingCount) + ' jobs';
+
+  const paidObj = d.paid_this_period || {};
+  let paidTotal = 0, paidCount = 0;
+  Object.values(paidObj).forEach((v) => { paidTotal += Number(v.total_paid || 0); paidCount += Number(v.count || 0); });
+  document.getElementById('kpi-paid').textContent = fmtMoney(paidTotal);
+  document.getElementById('kpi-paid-count').textContent = fmtCount(paidCount) + ' batches';
+
+  const commissionTotal = (d.commission_owed_this_period || []).reduce((s, x) => s + Number(x.total_owed || 0), 0);
+  document.getElementById('kpi-commission').textContent = fmtMoney(commissionTotal);
+
+  const disputedList = d.disputed || [];
+  const disputedAmount = disputedList.reduce((s, x) => s + Number(x.dispute_amount || 0), 0);
+  document.getElementById('kpi-disputes').textContent = fmtCount(disputedList.length);
+  document.getElementById('kpi-disputes-amount').textContent = fmtMoney(disputedAmount) + ' locked';
+
+  const tax = d.tax_liability || { this_period: 0, ytd: 0 };
+  document.getElementById('kpi-tax').textContent = fmtMoney(tax.this_period);
+  document.getElementById('kpi-tax-ytd').textContent = 'YTD: ' + fmtMoney(tax.ytd);
+
+  const pnl = d.pnl?.this_month || {};
+  document.getElementById('kpi-pnl').textContent = fmtMoney(pnl.net || 0);
+  document.getElementById('kpi-pnl-revenue').textContent = 'Rev: ' + fmtMoney(pnl.revenue || 0);
+}
+
+function renderInbox() {
+  const el = document.getElementById('inbox-body');
+  const rows = dashboardData?.recent_batches || [];
+  if (!rows.length) { el.innerHTML = '<div class="empty">No recent batches</div>'; return; }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Date</th><th>Company</th><th class="right">Total</th><th class="right">Matched / Unm. / Disp.</th><th>Status</th></tr></thead>
+      <tbody>
+      ${rows.map((b) => `
+        <tr>
+          <td class="muted">${b.payment_date ? new Date(b.payment_date).toLocaleDateString() : '—'}</td>
+          <td>${escapeHtml(b.company || '—')}</td>
+          <td class="right num">${fmtMoney(b.total)}</td>
+          <td class="right muted">${b.matched_count}/${b.unmatched_count}/${b.disputed_count}</td>
+          <td><span class="status-pill status-${escapeHtml(b.status || 'parsed')}">${escapeHtml(b.status || 'parsed')}</span></td>
+        </tr>
+      `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderPayroll() {
+  const el = document.getElementById('payroll-body');
+  if (!payrollData?.techs) { el.innerHTML = '<div class="empty">No payroll data for this period</div>'; return; }
+
+  const p = payrollData;
+  const tag = document.getElementById('payroll-status-tag');
+  tag.textContent = (p.period?.status || 'pending').toUpperCase();
+  tag.className = 'tag ' + (p.period?.status === 'approved' ? 'green' : '');
+
+  const disputeCount = Number(p.period_totals?.disputed_jobs_count || 0);
+  const totalOwed = Number(p.period_totals?.total_commission_owed || 0);
+
+  let rows = '';
+  for (const t of (p.techs || [])) {
+    if (!t.totals || t.totals.lines_count === 0) continue;
+    rows += `
+      <div class="tech-row">
+        <div>
+          <div class="tech-name">${escapeHtml(t.name || ('Tech ' + t.tech_id))}</div>
+          <div class="tech-meta">${t.commission_rate}% commission · ${t.totals.lines_count} jobs · Labor ${fmtMoney(t.totals.labor_paid)}</div>
+        </div>
+        <div>
+          <div class="tech-amount">${fmtMoney(t.totals.commission_owed)}</div>
+          <div class="tech-lines">+ ${fmtMoney(t.totals.parts_paid)} parts revenue</div>
+        </div>
+      </div>`;
+  }
+  if (!rows) rows = '<div class="empty">No matched lines this period</div>';
+
+  const disabled = disputeCount > 0 || p.period?.status === 'approved';
+  const reason = disputeCount > 0
+    ? `Cannot approve — ${disputeCount} unresolved dispute${disputeCount === 1 ? '' : 's'} blocking`
+    : (p.period?.status === 'approved' ? 'Already approved' : '');
+
+  el.innerHTML = `
+    ${rows}
+    <div class="payroll-foot">
+      <div>
+        <div class="ttl">Total commission owed</div>
+        <div class="val">${fmtMoney(totalOwed)}</div>
+      </div>
+      <div style="text-align:right">
+        ${reason ? `<div class="warn">${escapeHtml(reason)}</div>` : ''}
+        <button class="btn btn-primary" id="approve-btn" ${disabled ? 'disabled' : ''}>Approve Payroll</button>
+      </div>
+    </div>`;
+  if (!disabled) {
+    document.getElementById('approve-btn').addEventListener('click', approvePayroll);
+  }
+}
+
+async function approvePayroll() {
+  if (!payrollData?.period?.id) return;
+  if (!confirm('Approve this payroll period? This locks commission snapshots.')) return;
+  const btn = document.getElementById('approve-btn');
+  btn.disabled = true; btn.textContent = 'Approving…';
+  try {
+    const res = await fetch(API_APPROVE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period_id: payrollData.period.id, approved_by: OWNER_TECH_ID }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert('Payroll approved. ' + (data.snapshots_created || 0) + ' lines locked.');
+      await refreshAll();
+    } else {
+      alert('Approval failed: ' + (data.message || JSON.stringify(data)));
+      btn.disabled = false; btn.textContent = 'Approve Payroll';
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+    btn.disabled = false; btn.textContent = 'Approve Payroll';
+  }
+}
+
+function renderOutstanding() {
+  const el = document.getElementById('outstanding-body');
+  const rows = dashboardData?.outstanding || [];
+  document.getElementById('outstanding-tag').textContent = rows.length + ' companies';
+  if (!rows.length) { el.innerHTML = '<div class="empty">All caught up</div>'; return; }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Company</th><th>State</th><th class="right">Jobs</th><th class="right">Oldest</th><th class="right">Expected</th></tr></thead>
+      <tbody>
+      ${rows.map((r) => `
+        <tr>
+          <td>${escapeHtml(r.company || '—')}</td>
+          <td class="muted">${escapeHtml(r.state || '—')}</td>
+          <td class="right">${r.count}</td>
+          <td class="right muted">${r.oldest_age_days || 0}d</td>
+          <td class="right num">${fmtMoney(r.total_expected)}</td>
+        </tr>
+      `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderDisputed() {
+  const el = document.getElementById('disputed-body');
+  const rows = dashboardData?.disputed || [];
+  document.getElementById('disputed-tag').textContent = rows.length + ' open';
+  if (!rows.length) { el.innerHTML = '<div class="empty">No open disputes</div>'; return; }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Claim</th><th>Customer</th><th class="right">Gross / Net</th><th class="right">Shortfall</th><th>Age</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map((d) => `
+        <tr>
+          <td>${escapeHtml(d.claim_number || '—')}</td>
+          <td class="muted">${escapeHtml(d.customer_name || '')}</td>
+          <td class="right">${fmtMoney(d.gross_amount)} / ${fmtMoney(d.net_amount)}</td>
+          <td class="right num" style="color:var(--red)">${fmtMoney(d.dispute_amount)}</td>
+          <td class="muted">${d.age_days || 0}d</td>
+          <td><button class="btn btn-ghost btn-small" onclick="openDisputeModal(${d.line_id}, '${escapeJs(d.claim_number || '')}', ${Number(d.dispute_amount || 0)})">Resolve</button></td>
+        </tr>
+      `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderPnl() {
+  const el = document.getElementById('pnl-body');
+  const p = dashboardData?.pnl || { this_month: {}, ytd: {} };
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span class="muted" style="font-size:11px">This Month</span>
+      <span style="font-size:10px;color:var(--gray);letter-spacing:.06em;text-transform:uppercase">Rev / Cost / Net</span>
+    </div>
+    <div style="padding:10px 0;display:flex;justify-content:space-between"><span style="font-size:12px">Revenue</span><span class="num">${fmtMoney(p.this_month.revenue || 0)}</span></div>
+    <div style="padding:6px 0;display:flex;justify-content:space-between"><span style="font-size:12px" class="muted">Parts cost</span><span class="num">${fmtMoney(p.this_month.parts_cost_paid || 0)}</span></div>
+    <div style="padding:6px 0;display:flex;justify-content:space-between"><span style="font-size:12px" class="muted">Commission</span><span class="num">${fmtMoney(p.this_month.commission_paid || 0)}</span></div>
+    <div style="padding:10px 0;display:flex;justify-content:space-between;border-top:1px solid var(--border);margin-top:4px">
+      <span style="font-family:var(--block);font-size:14px;letter-spacing:.04em">NET</span>
+      <span class="num" style="font-family:var(--block);font-size:16px;color:var(--green)">${fmtMoney(p.this_month.net || 0)}</span>
+    </div>
+    <div style="padding:10px 0;display:flex;justify-content:space-between;border-top:1px solid var(--border);margin-top:14px">
+      <span class="muted" style="font-size:11px">YTD</span>
+      <span class="num" style="color:var(--green)">${fmtMoney(p.ytd.net || 0)}</span>
+    </div>
+    <div style="padding:6px 0;display:flex;justify-content:space-between"><span style="font-size:11px" class="muted">YTD revenue</span><span class="num">${fmtMoney(p.ytd.revenue || 0)}</span></div>`;
+}
+
+function renderTax() {
+  const el = document.getElementById('tax-body');
+  const t = dashboardData?.tax_liability || {};
+  el.innerHTML = `
+    <div style="padding:14px 0">
+      <div style="font-size:10px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase">This Period</div>
+      <div style="font-family:var(--block);font-size:30px;color:var(--yellow);margin-top:4px">${fmtMoney(t.this_period || 0)}</div>
+    </div>
+    <div style="padding:14px 0;border-top:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase">YTD</div>
+      <div style="font-family:var(--block);font-size:24px;color:var(--white);margin-top:4px">${fmtMoney(t.ytd || 0)}</div>
+    </div>
+    <div style="font-size:11px;color:var(--gray);line-height:1.6;margin-top:8px">Tax applies to parts only. TN rate 9.25% auto-calculated. LA rates manually entered per parish.</div>`;
+}
+
+// ─── Dispute modal ────────────────────────────────────────────────────
+let disputeContext = null;
+function openDisputeModal(lineId, claim, shortfall) {
+  disputeContext = { lineId };
+  document.getElementById('dm-summary').textContent = `Line ${lineId} · Claim ${claim} · Shortfall ${fmtMoney(shortfall)}`;
+  document.getElementById('dm-notes').value = '';
+  document.getElementById('dm-resolution').value = 'accept_partial';
+  document.getElementById('dispute-modal').classList.remove('hidden');
+}
+function closeDisputeModal() {
+  document.getElementById('dispute-modal').classList.add('hidden');
+  disputeContext = null;
+}
+async function submitDisputeResolve() {
+  if (!disputeContext) return;
+  const resolution = document.getElementById('dm-resolution').value;
+  const notes = document.getElementById('dm-notes').value;
+  const btn = document.getElementById('dm-submit');
+  btn.disabled = true; btn.textContent = 'Resolving…';
+  try {
+    const res = await fetch(API_RESOLVE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payment_line_id: disputeContext.lineId,
+        resolution,
+        notes,
+        resolved_by: OWNER_TECH_ID,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeDisputeModal();
+      await refreshAll();
+    } else {
+      alert('Resolve failed: ' + JSON.stringify(data));
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Resolve';
+  }
+}
+
+// ─── Manual entry ─────────────────────────────────────────────────────
+function addLine() {
+  const wrap = document.getElementById('m-lines');
+  const idx = wrap.children.length;
+  const row = document.createElement('div');
+  row.className = 'line-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Claim #" data-f="claim_number">
+    <input type="text" placeholder="Customer name" data-f="customer_name">
+    <input type="number" step="0.01" placeholder="Labor" data-f="labor_amount">
+    <input type="number" step="0.01" placeholder="Parts" data-f="parts_amount">
+    <input type="number" step="0.01" placeholder="Total" data-f="total_amount">
+    <button class="rm" type="button" onclick="this.parentElement.remove()">×</button>`;
+  wrap.appendChild(row);
+}
+
+async function submitManual() {
+  const company = document.getElementById('m-company').value.trim() || '210';
+  const vendorNum = document.getElementById('m-vendor-num').value.trim();
+  const checkNum = document.getElementById('m-check').value.trim();
+  const dateStr = document.getElementById('m-date').value;
+  if (!dateStr) { alert('Pick a payment date'); return; }
+
+  const rows = Array.from(document.querySelectorAll('#m-lines .line-row'));
+  const lines = rows.map((r) => {
+    const o = {};
+    r.querySelectorAll('input[data-f]').forEach((inp) => {
+      const f = inp.dataset.f;
+      const v = inp.value.trim();
+      if (v === '') return;
+      o[f] = (f.includes('amount') ? Number(v) : v);
+    });
+    return o;
+  }).filter((o) => o.claim_number);
+
+  if (!lines.length) { alert('Add at least one claim line'); return; }
+
+  const btn = document.getElementById('m-submit');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  document.getElementById('m-result').textContent = '';
+  try {
+    const res = await fetch(API_MANUAL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company,
+        vendor_number: vendorNum,
+        check_number: checkNum,
+        payment_date: new Date(dateStr).toISOString(),
+        payload_json: JSON.stringify({ lines }),
+        notes: 'Entered via dashboard',
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById('m-result').textContent =
+        `✓ Batch ${data.batch_id} created — ${data.matched_count} matched, ${data.unmatched_count} unmatched, ${data.disputed_count} disputed`;
+      document.getElementById('m-lines').innerHTML = '';
+      document.getElementById('m-check').value = '';
+      addLine();
+      await refreshAll();
+    } else {
+      alert('Submit failed: ' + JSON.stringify(data));
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit Payment';
+  }
+}
+
+// ─── Parts markup calculator ──────────────────────────────────────────
+async function runMarkup() {
+  const cost = Number(document.getElementById('mc-cost').value || 0);
+  if (cost <= 0) { document.getElementById('mc-output').innerHTML = '<div class="empty">Enter a parts cost first</div>'; return; }
+  try {
+    const res = await fetch(API_MARKUP + '?cost=' + encodeURIComponent(cost));
+    const data = await res.json();
+    const t = data.tiers || {};
+    document.getElementById('mc-output').innerHTML = `
+      <div class="markup-output">
+        <div class="markup-tier"><div class="tier-name">Conservative · 60%</div><div class="tier-sell">${fmtMoney(t.conservative?.sell || 0)}</div><div class="tier-profit">+${fmtMoney(t.conservative?.profit || 0)}</div></div>
+        <div class="markup-tier"><div class="tier-name">Standard · 85%</div><div class="tier-sell">${fmtMoney(t.standard?.sell || 0)}</div><div class="tier-profit">+${fmtMoney(t.standard?.profit || 0)}</div></div>
+        <div class="markup-tier"><div class="tier-name">Premium · 125%</div><div class="tier-sell">${fmtMoney(t.premium?.sell || 0)}</div><div class="tier-profit">+${fmtMoney(t.premium?.profit || 0)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-top:10px">Recommended: ${escapeHtml(data.recommended?.tier || 'standard')} → ${fmtMoney(data.recommended?.sell || 0)} (+ TN tax ${fmtMoney(data.recommended?.tn_tax || 0)})</div>`;
+  } catch (err) {
+    document.getElementById('mc-output').innerHTML = `<div class="empty">Calc failed: ${err.message}</div>`;
+  }
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+function escapeJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+// Expose modal opener globally for inline onclick.
+window.openDisputeModal = openDisputeModal;
+</script>
+</body>
+</html>
