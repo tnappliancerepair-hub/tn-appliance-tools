@@ -31,9 +31,16 @@
 //   (read messages + apply/remove labels; no send, no permanent delete).
 
 const { google } = require('googleapis');
+const { parseAhsPayment, classifyAhsSubject } = require('./_lib/parsers/ahs-payment');
 
-const XANO_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/ahs_email_intake';
-const GMAIL_QUERY = 'from:noreply@msg.frontdoor.com subject:"New Dispatch Notification" has:attachment -label:AHS-Processed -label:AHS-Processing';
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const XANO_ENDPOINT = `${XANO_BASE}/ahs_email_intake`;           // dispatch flow (legacy)
+const XANO_PAYMENT_ENDPOINT = `${XANO_BASE}/ahs_payment_intake`; // payment flow (2026-05-15)
+
+// 2026-05-15: widened from `subject:"New Dispatch Notification" has:attachment`
+// so payment / remittance emails (no attachment) also surface. Subject
+// classification routes per-message inside the loop.
+const GMAIL_QUERY = 'from:noreply@msg.frontdoor.com -label:AHS-Processed -label:AHS-Processing';
 const PROCESSED_LABEL_NAME = 'AHS-Processed';
 // Two-phase claim label introduced 2026-05-11 after parallel "Run now" double-click
 // created duplicate jobs in production (request ids cd08e69f + a46731eb both
@@ -111,37 +118,79 @@ exports.handler = async (event) => {
   // Phase 2: process each claimed message. On Xano success, swap labels
   // (apply AHS-Processed + remove AHS-Processing). On any failure path,
   // remove the AHS-Processing claim so the message retries next cycle.
+  //
+  // 2026-05-15: subject-classification router. Frontdoor/AHS sends
+  // dispatch emails AND payment remittance emails from the same address.
+  // Dispatch path uses the existing XML-attachment flow. Payment path
+  // reads the plaintext body and POSTs to ahs_payment_intake.
   for (const id of claimed) {
-    let msgData;
+    let baseMsg;
     try {
-      msgData = await fetchDispatchXml(gmail, id);
+      baseMsg = await fetchMessage(gmail, id);
     } catch (e) {
       console.error(`[ahs-gmail-poller] message ${id} fetch failed:`, e.message);
       results.skipped_fetch_error.push({ id, error: e.message });
       await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
-    if (!msgData) {
-      console.log(`[ahs-gmail-poller] message ${id} has no dispatch.xml attachment, skipping`);
-      results.skipped_no_attachment.push(id);
-      await releaseClaim(gmail, id, inProgressLabelId);
-      continue;
-    }
+
+    const subjectClass = classifyAhsSubject(baseMsg.subject);
+    const isPayment = subjectClass === 'payment';
 
     let xanoStatus;
     let xanoBody;
+    let xanoEndpoint;
+    let xanoPayload;
+
     try {
-      const r = await postToXano({
-        rawXml: msgData.xml,
-        gmail_message_id: id,
-        gmail_thread_id: msgData.threadId,
-        sender: msgData.sender,
-        subject: msgData.subject,
-      });
+      if (isPayment) {
+        // Payment branch — parse plaintext body, POST to payment intake.
+        const body = baseMsg.body || '';
+        if (!body) {
+          console.log(`[ahs-gmail-poller] message ${id} payment but no body, skipping`);
+          results.skipped_no_attachment.push(id);
+          await releaseClaim(gmail, id, inProgressLabelId);
+          continue;
+        }
+        const parsed = parseAhsPayment(body);
+        xanoEndpoint = XANO_PAYMENT_ENDPOINT;
+        xanoPayload = {
+          gmail_message_id: id,
+          gmail_thread_id: baseMsg.threadId,
+          sender: baseMsg.sender,
+          subject: baseMsg.subject,
+          payload_json: JSON.stringify(parsed),
+        };
+      } else {
+        // Dispatch branch — XML attachment required (legacy flow).
+        const att = findXmlAttachment(baseMsg.payload);
+        if (!att) {
+          console.log(`[ahs-gmail-poller] message ${id} class=${subjectClass} has no dispatch.xml attachment, skipping`);
+          results.skipped_no_attachment.push(id);
+          await releaseClaim(gmail, id, inProgressLabelId);
+          continue;
+        }
+        const attResp = await gmail.users.messages.attachments.get({
+          userId: 'me',
+          messageId: id,
+          id: att.attachmentId,
+        });
+        const xml = Buffer.from(attResp.data.data, 'base64url').toString('utf8');
+        xanoEndpoint = XANO_ENDPOINT;
+        xanoPayload = {
+          rawXml: xml,
+          gmail_message_id: id,
+          gmail_thread_id: baseMsg.threadId,
+          sender: baseMsg.sender,
+          subject: baseMsg.subject,
+        };
+      }
+
+      const r = await postToXano(xanoPayload, xanoEndpoint);
       xanoStatus = r.status;
       xanoBody = r.body;
     } catch (e) {
-      console.error(`[ahs-gmail-poller] message ${id} Xano POST threw:`, e.message);
+      console.error(`[ahs-gmail-poller] message ${id} processing threw (class=${subjectClass}):`, e.message);
       results.skipped_xano_error.push({ id, error: e.message });
       await releaseClaim(gmail, id, inProgressLabelId);
       continue;
@@ -221,31 +270,45 @@ async function listCandidateMessages(gmail) {
   return (resp.data.messages || []).map((m) => m.id);
 }
 
-async function fetchDispatchXml(gmail, messageId) {
+// Generic message fetcher — returns headers, plaintext body, and the
+// full payload (so the dispatch branch can search for the XML
+// attachment, while the payment branch reads body).
+async function fetchMessage(gmail, messageId) {
   const msg = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
-  const attachment = findXmlAttachment(msg.data.payload);
-  if (!attachment) return null;
-
-  const att = await gmail.users.messages.attachments.get({
-    userId: 'me',
-    messageId,
-    id: attachment.attachmentId,
-  });
-  // Gmail returns base64url-encoded data. Buffer.from('...', 'base64url') decodes natively.
-  const xml = Buffer.from(att.data.data, 'base64url').toString('utf8');
-
-  // Extract headers for the Xano-side idempotency anchor + audit row.
-  // Backward-port of ServicePower smart-dedup pattern (2026-05-13).
   const headers = ((msg.data.payload || {}).headers || []).reduce((acc, h) => {
     acc[h.name.toLowerCase()] = h.value;
     return acc;
   }, {});
   return {
-    xml,
+    payload: msg.data.payload,
     threadId: msg.data.threadId || '',
     sender: headers.from || '',
     subject: headers.subject || '',
+    body: extractTextBody(msg.data.payload),
   };
+}
+
+// Walk parts, prefer text/plain; fall back to text/html with tags stripped.
+function extractTextBody(payload) {
+  if (!payload) return '';
+  const parts = collectParts(payload);
+  let plain = '';
+  let html = '';
+  for (const p of parts) {
+    const mime = (p.mimeType || '').toLowerCase();
+    const data = p.body && p.body.data ? Buffer.from(p.body.data, 'base64url').toString('utf8') : '';
+    if (!data) continue;
+    if (mime === 'text/plain' && !plain) plain = data;
+    else if (mime === 'text/html' && !html) html = data;
+  }
+  if (plain) return plain;
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+\n/g, '\n')
+    .trim();
 }
 
 function findXmlAttachment(payload) {
@@ -270,12 +333,12 @@ function collectParts(payload, acc = []) {
   return acc;
 }
 
-async function postToXano(payload) {
+async function postToXano(payload, endpoint = XANO_ENDPOINT) {
   // payload: { rawXml, gmail_message_id, gmail_thread_id, sender, subject }
   // gmail_message_id is the idempotency anchor — backward-port of the
   // ServicePower smart-dedup pattern. Xano endpoint short-circuits if a
   // job_email_event row already exists for this gmail_message_id.
-  const resp = await fetch(XANO_ENDPOINT, {
+  const resp = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

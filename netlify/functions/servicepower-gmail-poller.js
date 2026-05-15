@@ -45,11 +45,19 @@
 
 const { google } = require('googleapis');
 const { parseServicePowerBody } = require('./_lib/parsers/servicepower');
+const {
+  parseServicePowerPayment,
+  classifyServicePowerSubject,
+} = require('./_lib/parsers/servicepower-payment');
 
-const XANO_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/servicepower_email_intake';
-// Gmail query — match ServicePower senders (lowercase + uppercase NOREPLY
-// variants both observed in the inbox). Excludes both labels to keep the
-// claim window narrow under parallel-invocation scenarios.
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const XANO_ENDPOINT = `${XANO_BASE}/servicepower_email_intake`;          // dispatch flow (legacy)
+const XANO_PAYMENT_ENDPOINT = `${XANO_BASE}/squaretrade_payment_intake`; // payment flow (2026-05-15)
+
+// Gmail query — broadened 2026-05-15 to also capture payment / remittance
+// emails. Both dispatch AND payment emails come from the same ServicePower
+// sender; classification happens inside the per-message loop based on the
+// Subject header. Excludes both labels to keep the claim window narrow.
 const GMAIL_QUERY = 'from:noreply@servicepower.com OR from:NOREPLY@servicepower.com -label:ServicePower-Processed -label:ServicePower-Processing';
 const PROCESSED_LABEL_NAME = 'ServicePower-Processed';
 const IN_PROGRESS_LABEL_NAME = 'ServicePower-Processing';
@@ -139,32 +147,55 @@ exports.handler = async (event) => {
       continue;
     }
 
+    // ─── CLASSIFY ─────────────────────────────────────────────────
+    // 2026-05-15: subject-based router. ServicePower sends dispatch
+    // emails AND payment remittance emails from the same address. The
+    // poller fans them out to two different Xano endpoints.
+    const subjectClass = classifyServicePowerSubject(subject);
+    const isPayment = subjectClass === 'payment';
+
     let parsed;
+    let xanoEndpoint;
+    let xanoPayload;
+
     try {
-      parsed = parseServicePowerBody(body, subject);
+      if (isPayment) {
+        // Payment / remittance flow → squaretrade_payment_intake.
+        parsed = parseServicePowerPayment(body);
+        xanoEndpoint = XANO_PAYMENT_ENDPOINT;
+        xanoPayload = {
+          gmail_message_id: id,
+          gmail_thread_id: threadId,
+          sender,
+          subject,
+          // payload_json: XanoScript requires schema blocks for object
+          // inputs; we stringify and json_decode on the Xano side.
+          payload_json: JSON.stringify(parsed),
+        };
+      } else {
+        // Dispatch flow (existing) → servicepower_email_intake.
+        parsed = parseServicePowerBody(body, subject);
+        xanoEndpoint = XANO_ENDPOINT;
+        xanoPayload = {
+          gmail_message_id: id,
+          gmail_thread_id: threadId,
+          sender,
+          subject,
+          email_type: parsed.email_type,
+          dispatches_json: JSON.stringify(parsed.dispatches),
+          body_excerpt: body.slice(0, 500),
+        };
+      }
     } catch (e) {
-      console.error(`[servicepower-gmail-poller] message ${id} parser threw:`, e.message);
-      results.skipped_parse_failed.push({ id, error: e.message });
+      console.error(`[servicepower-gmail-poller] message ${id} parser threw (class=${subjectClass}):`, e.message);
+      results.skipped_parse_failed.push({ id, error: e.message, class: subjectClass });
       await releaseClaim(gmail, id, inProgressLabelId);
       continue;
     }
 
     let xanoStatus, xanoBody;
     try {
-      const r = await postToXano({
-        gmail_message_id: id,
-        gmail_thread_id: threadId,
-        sender,
-        subject,
-        email_type: parsed.email_type,
-        // dispatches_json: XanoScript can't declare an `object` input type
-        // without a schema block, and our dispatch shape is too rich to
-        // template inline. Caller (this poller) stringifies; Xano endpoint
-        // json_decodes. Pattern matches warranty_job_intake_POST.xs and
-        // ahs_email_intake_POST.xs (they use raw_request / raw_xml the same way).
-        dispatches_json: JSON.stringify(parsed.dispatches),
-        body_excerpt: body.slice(0, 500),
-      });
+      const r = await postToXano(xanoPayload, xanoEndpoint);
       xanoStatus = r.status;
       xanoBody = r.body;
     } catch (e) {
@@ -193,10 +224,21 @@ exports.handler = async (event) => {
     let summary = xanoBody;
     try {
       const parsedResp = JSON.parse(xanoBody);
-      summary = `email_type=${parsed.email_type} dispatches=${parsed.dispatches.length} actions=${(parsedResp.actions || []).map(a => a.action).join(',')}`;
+      if (isPayment) {
+        summary = `class=payment batch=${parsedResp.batch_id ?? '?'} total=${parsedResp.total ?? '?'} matched=${parsedResp.matched_count ?? 0} unmatched=${parsedResp.unmatched_count ?? 0} disputed=${parsedResp.disputed_count ?? 0}`;
+      } else {
+        summary = `class=dispatch email_type=${parsed.email_type} dispatches=${parsed.dispatches.length} actions=${(parsedResp.actions || []).map(a => a.action).join(',')}`;
+      }
     } catch (_) {}
     console.log(`[servicepower-gmail-poller] message ${id} → Xano 200 (${summary}), labeled ServicePower-Processed`);
-    results.processed.push({ id, xano: summary, email_type: parsed.email_type, dispatch_count: parsed.dispatches.length });
+    results.processed.push({
+      id,
+      xano: summary,
+      class: isPayment ? 'payment' : 'dispatch',
+      ...(isPayment
+        ? { confidence: parsed.format_confidence, line_count: parsed.lines.length }
+        : { email_type: parsed.email_type, dispatch_count: parsed.dispatches.length }),
+    });
   }
 
   const elapsed = Date.now() - startedAt;
@@ -294,8 +336,8 @@ function htmlToText(s) {
     .trim();
 }
 
-async function postToXano(payload) {
-  const resp = await fetch(XANO_ENDPOINT, {
+async function postToXano(payload, endpoint = XANO_ENDPOINT) {
+  const resp = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
