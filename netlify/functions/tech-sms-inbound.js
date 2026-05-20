@@ -1,76 +1,204 @@
-// Twilio inbound SMS webhook for Ant Tech Scheduler.
-// Twilio POSTs urlencoded form data here when a tech texts the company number.
-// We forward to Xano, get the reply, return TwiML so Twilio sends the reply SMS.
+// Tech-side inbound SMS webhook for Ant Tech Scheduler.
+// Refactored 2026-05-20: dual-format (Twilio + Telnyx) auto-detection.
 //
-// Configured in Twilio Console:
-//   Phone Numbers → +16292840444 → Messaging → "A message comes in"
-//   Webhook URL: https://tnapplianceexchange.net/.netlify/functions/tech-sms-inbound
+// ─── Why dual format ───────────────────────────────────────────────
+// Original: Twilio-only (urlencoded body, From/Body/MessageSid fields,
+// TwiML reply XML returned inline).
+// Now: Telnyx is primary inbound (per docs/sms-architecture-2026-05-19.md).
+// Telnyx posts JSON with `data.payload.from.phone_number` / `data.payload.text`
+// and CANNOT reply inline — replies must be sent via a separate POST to
+// our existing /send_sms Xano endpoint (which itself routes via Telnyx).
+// We keep the Twilio path live for failover (Twilio number +17273508487
+// stays active for inbound per architecture doc section 8).
+//
+// ─── Format detection rules ────────────────────────────────────────
+//   1. Content-Type starts with "application/json"   -> Telnyx
+//   2. Content-Type starts with "application/x-www-form-urlencoded" -> Twilio
+//   3. Else: peek body, "{" start -> Telnyx, else Twilio (defensive)
+//
+// ─── Telnyx event types ────────────────────────────────────────────
+// Telnyx fires this webhook for THREE event types:
+//   message.received   -> a real inbound text from a tech; forward to Xano
+//   message.sent       -> our outbound was accepted by carrier (ack only)
+//   message.finalized  -> outbound delivery receipt (ack only)
+// We MUST ignore the non-received events or every outbound we send would
+// trigger a phantom inbound flow.
+//
+// ─── Webhook URLs to configure ─────────────────────────────────────
+// Telnyx portal -> Messaging Profile 40019e28-9488-4a86-aef9-764f7a8b2891
+//   Inbound Settings -> Webhook URL:
+//     https://tnapplianceexchange.net/.netlify/functions/tech-sms-inbound
+//   Webhook API Version: 2 (JSON, ed25519 signature)
+//   Failover URL: (optional, same URL or blank)
+//
+// Twilio Console -> Phone Numbers -> the tech inbound number ->
+//   Messaging -> "A message comes in" -> Webhook URL:
+//     https://tnapplianceexchange.net/.netlify/functions/tech-sms-inbound
 //   HTTP method: POST
 //
-// Reuses existing Twilio env vars on Netlify:
-//   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
-// (Webhook signature verification is deferred to pre-launch — see Phase 1 plan.)
+// ─── Signature verification ────────────────────────────────────────
+// Deferred to pre-launch hardening (matches the prior Twilio-only file's
+// deferred-to-pre-launch posture). When implemented:
+//   Telnyx -> verify Telnyx-Signature-Ed25519-Signature header against
+//     the public key from the messaging profile.
+//   Twilio -> verify X-Twilio-Signature against TWILIO_AUTH_TOKEN.
+// See docs/sms-architecture-2026-05-19.md section 6.
 
 const XANO_TECH_SMS_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:scheduling/tech_sms_inbound';
+const XANO_SEND_SMS         = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms';
 
-// Twilio webhook timeout is 10s. Cap Xano call at 9s to leave room for response assembly.
+// Xano call timeout. Twilio webhook timeout is ~10s; Telnyx is ~30s. Cap at 9s
+// to leave room for assembly + (Telnyx path) the follow-up send_sms call.
 const XANO_TIMEOUT_MS = 9000;
+const SEND_SMS_TIMEOUT_MS = 7000;
 
-// Apologetic fallback used when Xano errors or times out.
-// Tech still gets a reply — we don't leave them hanging.
 const FALLBACK_REPLY = "yo, my brain glitched for a sec. try that again in a min and i should be back. if it's urgent, text teddy at 615-485-5795.";
 
-exports.handler = async function(event) {
+exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // 1. Parse Twilio's urlencoded body.
-  let params;
+  // 1. Detect provider.
+  const provider = detectProvider(event);
+  console.log('[tech-sms-inbound] provider =', provider);
+
+  // 2. Parse + normalize. Returns null when this is an event we should ignore
+  //    (Telnyx delivery receipts, malformed payload, etc.) — in which case
+  //    we ack-200 and stop.
+  let parsed;
   try {
-    params = new URLSearchParams(event.body || '');
+    parsed = provider === 'telnyx' ? parseTelnyx(event) : parseTwilio(event);
   } catch (e) {
-    console.error('[tech-sms-inbound] body parse failed:', e);
-    return twiml(FALLBACK_REPLY);
+    console.error('[tech-sms-inbound] parse threw:', e.message);
+    return providerAck(provider, '');
   }
 
-  const from = params.get('From') || '';
-  const body = params.get('Body') || '';
-  const sid  = params.get('MessageSid') || '';
-  const to   = params.get('To') || '';
-
-  console.log('[tech-sms-inbound] inbound:', { from, sid, body_len: body.length, to });
-
-  if (!from) {
-    // Twilio always sends From; if missing the request is malformed.
-    console.warn('[tech-sms-inbound] missing From, returning empty TwiML');
-    return twiml(''); // empty response = no reply sent
+  if (!parsed) {
+    // Ignored-event path (e.g. Telnyx message.sent / message.finalized).
+    return providerAck(provider, '');
   }
 
-  // 2. Forward to Xano. Cap with abort timeout so Twilio never sees a hung request.
-  let replyText;
+  if (!parsed.from || !parsed.body) {
+    console.warn('[tech-sms-inbound] missing from or body after parse:', {
+      provider, from_present: !!parsed.from, body_len: (parsed.body || '').length,
+    });
+    return providerAck(provider, '');
+  }
+
+  console.log('[tech-sms-inbound] normalized:', {
+    provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
+  });
+
+  // 3. Forward to Xano (Ant Tech Scheduler brain). Same payload shape both providers.
+  const replyText = await fetchAntReply(parsed);
+
+  console.log('[tech-sms-inbound] reply length:', replyText.length, 'provider:', provider);
+
+  // 4. Provider-specific delivery of the reply.
+  if (provider === 'telnyx') {
+    // Telnyx: send the reply via send_sms (separate API call) and ack the webhook.
+    // Fire-and-await so we know the send result; even on send failure we still
+    // ack 200 so Telnyx doesn't retry the inbound webhook.
+    await sendTelnyxReply(parsed.from, replyText);
+    return { statusCode: 200, body: '' };
+  }
+
+  // Twilio: reply inline via TwiML.
+  return twiml(replyText);
+};
+
+// ─── PROVIDER DETECTION ───────────────────────────────────────────────
+function detectProvider(event) {
+  const ct = (
+    (event.headers && (event.headers['content-type'] || event.headers['Content-Type'])) || ''
+  ).toLowerCase();
+
+  if (ct.startsWith('application/json')) return 'telnyx';
+  if (ct.startsWith('application/x-www-form-urlencoded')) return 'twilio';
+
+  // Defensive: peek the body.
+  const body = (event.body || '').trim();
+  if (body.startsWith('{')) return 'telnyx';
+  return 'twilio';
+}
+
+// ─── TWILIO PARSER ────────────────────────────────────────────────────
+// Returns { from, body, sid, to } or null when malformed.
+function parseTwilio(event) {
+  const params = new URLSearchParams(event.body || '');
+  return {
+    from: params.get('From') || '',
+    body: params.get('Body') || '',
+    sid:  params.get('MessageSid') || '',
+    to:   params.get('To') || '',
+  };
+}
+
+// ─── TELNYX PARSER ────────────────────────────────────────────────────
+// Telnyx webhook v2 shape:
+// { data: { event_type, id, occurred_at, payload: { from: { phone_number },
+//   to: [{ phone_number }], text, id, ... } } }
+// Returns null for events we should ignore (sent / finalized / unknown).
+function parseTelnyx(event) {
+  let parsed;
+  try {
+    parsed = JSON.parse(event.body || '{}');
+  } catch (e) {
+    console.warn('[tech-sms-inbound] telnyx JSON parse failed:', e.message);
+    return null;
+  }
+
+  const data = (parsed && parsed.data) || {};
+  const eventType = data.event_type || '';
+
+  if (eventType !== 'message.received') {
+    // message.sent / message.finalized / anything else: ack-only.
+    console.log('[tech-sms-inbound] telnyx ignored event_type:', eventType);
+    return null;
+  }
+
+  const payload = data.payload || {};
+  const fromPhone = (payload.from && payload.from.phone_number) || '';
+  const toArr = Array.isArray(payload.to) ? payload.to : [];
+  const toPhone = (toArr[0] && toArr[0].phone_number) || '';
+
+  return {
+    from: fromPhone,
+    body: payload.text || '',
+    sid:  payload.id || data.id || '',
+    to:   toPhone,
+  };
+}
+
+// ─── FORWARD TO XANO ──────────────────────────────────────────────────
+async function fetchAntReply(parsed) {
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), XANO_TIMEOUT_MS);
-
   try {
-    const xanoRes = await fetch(XANO_TECH_SMS_INBOUND, {
+    const res = await fetch(XANO_TECH_SMS_INBOUND, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: from, body, sid, to }),
-      signal: controller.signal
+      body: JSON.stringify({
+        phone: parsed.from,
+        body:  parsed.body,
+        sid:   parsed.sid,
+        to:    parsed.to,
+      }),
+      signal: controller.signal,
     });
     clearTimeout(timeoutHandle);
 
-    if (!xanoRes.ok) {
-      const errText = await xanoRes.text().catch(() => '');
-      console.error('[tech-sms-inbound] Xano returned non-2xx:', xanoRes.status, errText.slice(0, 300));
-      replyText = FALLBACK_REPLY;
-    } else {
-      const data = await xanoRes.json().catch(() => ({}));
-      replyText = (data && typeof data.reply === 'string' && data.reply.trim())
-        ? data.reply
-        : FALLBACK_REPLY;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('[tech-sms-inbound] Xano returned non-2xx:', res.status, errText.slice(0, 300));
+      return FALLBACK_REPLY;
     }
+    const data = await res.json().catch(() => ({}));
+    if (data && typeof data.reply === 'string' && data.reply.trim()) {
+      return data.reply;
+    }
+    return FALLBACK_REPLY;
   } catch (err) {
     clearTimeout(timeoutHandle);
     if (err.name === 'AbortError') {
@@ -78,15 +206,58 @@ exports.handler = async function(event) {
     } else {
       console.error('[tech-sms-inbound] Xano fetch error:', err.message);
     }
-    replyText = FALLBACK_REPLY;
+    return FALLBACK_REPLY;
   }
+}
 
-  console.log('[tech-sms-inbound] replying with', replyText.length, 'chars');
-  return twiml(replyText);
-};
+// ─── TELNYX REPLY VIA send_sms ────────────────────────────────────────
+async function sendTelnyxReply(toPhone, text) {
+  if (!toPhone || !text) return;
 
-// Build TwiML XML response for Twilio. Always returns 200 with valid XML —
-// non-2xx responses make Twilio retry, which would duplicate fallback messages.
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), SEND_SMS_TIMEOUT_MS);
+  try {
+    const res = await fetch(XANO_SEND_SMS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to:          toPhone,
+        message:     text,
+        context_tag: 'tech_sms_inbound_reply',
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutHandle);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('[tech-sms-inbound] send_sms reply non-2xx:', res.status, errText.slice(0, 300));
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    console.log('[tech-sms-inbound] send_sms reply ok:', {
+      provider_message_id: data.provider_message_id || null,
+      success: data.success,
+    });
+  } catch (err) {
+    clearTimeout(timeoutHandle);
+    if (err.name === 'AbortError') {
+      console.error('[tech-sms-inbound] send_sms reply timed out');
+    } else {
+      console.error('[tech-sms-inbound] send_sms reply error:', err.message);
+    }
+  }
+}
+
+// ─── PROVIDER ACK ─────────────────────────────────────────────────────
+// Used on ignored/malformed events so we don't trigger provider retries.
+function providerAck(provider, replyText) {
+  if (provider === 'telnyx') {
+    return { statusCode: 200, body: '' };
+  }
+  return twiml(replyText || '');
+}
+
+// ─── TwiML BUILDER (Twilio path) ──────────────────────────────────────
 function twiml(replyText) {
   const safe = xmlEscape(String(replyText || ''));
   const xml = safe
@@ -95,12 +266,10 @@ function twiml(replyText) {
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: xml
+    body: xml,
   };
 }
 
-// Escape characters that have special meaning in XML so Ant's lowercase-with-quotes voice
-// doesn't break the TwiML response shape.
 function xmlEscape(s) {
   return s
     .replace(/&/g, '&amp;')
