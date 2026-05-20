@@ -17,8 +17,6 @@
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const crud = require('../xano/metadata-crud');
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
@@ -29,21 +27,19 @@ const HISTORY_LIMIT = 20;
 
 // ─── PROMPT LOADING ───────────────────────────────────────────────────
 // The onboarding system prompt is too large for Netlify env vars
-// (5000-char cap). We store it as a co-located file and read it ONCE at
-// module-load time. Fallback to env var if the file is missing/empty,
-// which keeps the option open if we ever land on a Netlify plan with
-// larger env var limits OR want to override the file value in a single
-// deploy context.
-const PROMPT_FILE_PATH = path.join(__dirname, 'onboarding-prompt.md');
-let PROMPT;
+// (5000-char cap). The .md file at onboarding-prompt.md is the human-
+// edited source of truth. After editing, run `node scripts/build-prompt.js`
+// to regenerate onboarding-prompt.js (a JS module that exports the
+// string). esbuild bundles JS imports natively; .md files do not bundle
+// reliably even with included_files config (verified failing 2026-05-20).
+let PROMPT = '';
 try {
-  PROMPT = fs.readFileSync(PROMPT_FILE_PATH, 'utf8').trim();
-  // Still the placeholder? Treat as empty so the fallback kicks in.
-  if (PROMPT.startsWith('<!--')) PROMPT = '';
+  PROMPT = String(require('./onboarding-prompt') || '').trim();
 } catch (e) {
-  PROMPT = '';
+  console.error('[brain.onboarding] prompt module load failed:', e.message);
 }
-if (!PROMPT) PROMPT = process.env.ANT_TECH_ONBOARDING_PROMPT || '';
+// Last-ditch fallback to env var. Only useful if we ever change strategy.
+if (!PROMPT) PROMPT = (process.env.ANT_TECH_ONBOARDING_PROMPT || '').trim();
 if (!PROMPT) {
   console.error('[brain.onboarding] NO PROMPT LOADED — Claude will get empty system');
 }

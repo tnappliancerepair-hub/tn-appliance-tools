@@ -3,11 +3,6 @@
 
 [functions]
   node_bundler = "esbuild"
-  # Include non-JS assets that fs.readFileSync needs at runtime. esbuild
-  # bundles JS but ignores .md/.txt/etc unless listed here. Currently used
-  # by netlify/functions/_lib/brain/onboarding.js to load the Ant onboarding
-  # system prompt (too large for env var, see docs/tech-sms-migration-design-onboarding-2026-05-20.md).
-  included_files = ["netlify/functions/_lib/brain/onboarding-prompt.md"]
 
 # Scheduled function: AHS dispatch email poller (every 15 minutes).
 # Reads tnappliancerepair@gmail.com via Gmail API, extracts dispatch.xml
