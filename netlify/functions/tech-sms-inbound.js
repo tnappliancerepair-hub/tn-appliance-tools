@@ -114,7 +114,15 @@ exports.handler = async function (event) {
   if (useBrain) {
     try {
       const { runOnboardingTurn } = require('./_lib/brain/onboarding');
-      const r = await runOnboardingTurn(parsed);
+      // Brain expects { phone, body, sid, to } (matches the legacy Xano
+      // endpoint input contract). Twilio/Telnyx parsing produces `from`
+      // — remap here so the brain doesn't see undefined phone.
+      const r = await runOnboardingTurn({
+        phone: parsed.from,
+        body:  parsed.body,
+        sid:   parsed.sid,
+        to:    parsed.to,
+      });
       if (r && r.fallthrough) {
         console.log('[tech-sms-inbound] v2 brain fell through (daily-mode tech), routing to legacy');
         replyText = await fetchAntReply(parsed);
