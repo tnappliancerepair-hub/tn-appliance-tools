@@ -50,6 +50,8 @@ const RETRY_REPLY = 'hey, signal hiccup on my end. text that again in a sec?';
 const EMPTY_GUARD_REPLY = 'got it.';
 const LOOKUP_FAIL_REPLY = 'having trouble looking you up. try in a min or text teddy 615-485-5795.';
 const CONV_FAIL_REPLY = 'having trouble starting our chat. try again in a sec?';
+const DAILY_MODE_STUB =
+  "hey — youre onboarded and in the system. daily mode (broadcasts, schedule changes, etc) launches tomorrow. if you need anything urgent right now, text teddy direct at 615-485-5795.";
 
 // ─── PUBLIC ENTRY ─────────────────────────────────────────────────────
 
@@ -71,12 +73,9 @@ async function runOnboardingTurn({ phone, body, sid, to }) {
     return { reply: UNKNOWN_PHONE_REPLY };
   }
 
-  // 2. Daily-mode techs fall through to the legacy path
-  if (tech.onboarding_completed_at) {
-    return { fallthrough: true };
-  }
-
-  // 3. Find or create conversation
+  // 2. Find or create conversation (moved before daily-mode check so we
+  //    still persist incoming messages from daily-mode techs — audit trail
+  //    of what they tried to say even when we can't respond intelligently).
   let conversation;
   try {
     conversation = await crud.findOrCreateTechConversation(tech.id, 'sms');
@@ -85,7 +84,7 @@ async function runOnboardingTurn({ phone, body, sid, to }) {
     return { reply: CONV_FAIL_REPLY };
   }
 
-  // 4. Persist user message (continue even if persist fails — reply still goes out)
+  // 3. Persist user message (continue even if persist fails — reply still goes out)
   try {
     await crud.addAgentMessage(conversation.id, 'user', body);
   } catch (e) {
@@ -96,6 +95,20 @@ async function runOnboardingTurn({ phone, body, sid, to }) {
       error: e.message,
       body_preview: body.slice(0, 200),
     });
+  }
+
+  // 4. Daily-mode techs — stub reply. Was: return { fallthrough: true }
+  //    which routed to the broken legacy Xano endpoint -> FALLBACK_REPLY
+  //    -> nothing persisted (caused Jimmy's "areas"/emoji glitch 2026-05-20).
+  //    Daily-mode brain is scoped for next sprint; this stub is safe and
+  //    routes urgent requests to Teddy.
+  if (tech.onboarding_completed_at) {
+    try {
+      await crud.addAgentMessage(conversation.id, 'assistant', DAILY_MODE_STUB);
+    } catch (e) {
+      console.warn('[brain.onboarding] daily-mode stub persist failed:', e.message);
+    }
+    return { reply: DAILY_MODE_STUB };
   }
 
   // 5. Pull recent history (cap 20). Empty rows filtered out so a prior

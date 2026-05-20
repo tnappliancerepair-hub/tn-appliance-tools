@@ -87,15 +87,38 @@ async function callXano(method, path, body, op) {
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// Xano Metadata API's `search` parameter SILENTLY IGNORES multi-field
+// filters — `{a: 1, b: 2}` returns up-to-per_page unfiltered rows instead
+// of narrowing. Single-field works correctly. Discovered 2026-05-20 during
+// v2 brain rollout (caused Andre's messages to persist into Jimmy's conv
+// because findOrCreateTechConversation searched with {tech_id, channel}
+// and got conv 673 back).
+function warnIfMultiField(filter, helper) {
+  if (
+    filter &&
+    typeof filter === 'object' &&
+    !Array.isArray(filter) &&
+    Object.keys(filter).length > 1
+  ) {
+    console.warn(
+      '[metadata-crud] ' + helper + ' called with multi-field filter [' +
+        Object.keys(filter).join(', ') +
+        ']. Xano silently ignores multi-field searches — only single-field works. Use one field at the API and filter the rest client-side.'
+    );
+  }
+}
+
 // ─── INTERNAL: shape helpers ──────────────────────────────────────────
 
 async function search(tableId, filter) {
+  warnIfMultiField(filter, 'search');
   const body = { search: filter };
   const r = await callXano('POST', `/table/${tableId}/content/search`, body, 'search');
   return (r && r.items) || [];
 }
 
 async function searchOne(tableId, filter, sort) {
+  warnIfMultiField(filter, 'searchOne');
   const body = { search: filter, per_page: 1 };
   if (sort) body.sort = sort;
   const r = await callXano('POST', `/table/${tableId}/content/search`, body, 'searchOne');
@@ -104,6 +127,7 @@ async function searchOne(tableId, filter, sort) {
 }
 
 async function searchPage(tableId, filter, sort, perPage) {
+  warnIfMultiField(filter, 'searchPage');
   const body = { search: filter, per_page: perPage, page: 1 };
   if (sort) body.sort = sort;
   const r = await callXano('POST', `/table/${tableId}/content/search`, body, 'searchPage');
@@ -137,14 +161,21 @@ async function getTechByPhone(phone) {
 
 // findOrCreateTechConversation — finds the latest sms conversation for a tech,
 // creates one if missing. Mirrors source lines 86–117.
+//
+// IMPORTANT: cannot use searchOne with {tech_id, channel} together — Xano
+// Metadata API silently ignores multi-field filters (see warnIfMultiField).
+// Single-field search on tech_id (the more selective field), then JS-filter
+// channel.
 async function findOrCreateTechConversation(techId, channel) {
   const ch = channel || 'sms';
 
-  const existing = await searchOne(
+  const candidates = await searchPage(
     TABLES.agent_conversation,
-    { tech_id: techId, channel: ch },
-    { created_at: 'desc' }
+    { tech_id: techId },
+    { created_at: 'desc' },
+    20
   );
+  const existing = candidates.find((c) => c.channel === ch);
   if (existing) return existing;
 
   const sessionId = 'tech_' + techId + '_' + Date.now();
