@@ -90,8 +90,45 @@ exports.handler = async function (event) {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
 
-  // 3. Forward to Xano (Ant Tech Scheduler brain). Same payload shape both providers.
-  const replyText = await fetchAntReply(parsed);
+  // 3. Forward to brain (v2) or legacy Xano endpoint (v1).
+  //
+  // 2026-05-20: feature-flag dispatch. The legacy Xano `tech_sms_inbound`
+  // endpoint is broken (unresolved-references corruption — see
+  // docs/xano-deploy-corruption-explained-2026-05-20.md). The v2 brain
+  // lives in _lib/brain/onboarding.js and talks directly to the Xano
+  // Metadata API.
+  //
+  // Flag semantics:
+  //   TECH_SMS_BRAIN_V2          "true"  -> v2 enabled
+  //   TECH_SMS_BRAIN_V2_PHONES   csv of bare-10-digit phones to restrict
+  //                              v2 to. Empty = all phones.
+  // Daily-mode techs (tech.onboarding_completed_at set) get { fallthrough: true }
+  // from the brain and we route them to the legacy path here.
+  const v2Enabled = process.env.TECH_SMS_BRAIN_V2 === 'true';
+  const v2Phones = (process.env.TECH_SMS_BRAIN_V2_PHONES || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  const bareDigits = (parsed.from || '').replace(/\D/g, '').slice(-10);
+  const useBrain = v2Enabled && (v2Phones.length === 0 || v2Phones.includes(bareDigits));
+
+  let replyText;
+  if (useBrain) {
+    try {
+      const { runOnboardingTurn } = require('./_lib/brain/onboarding');
+      const r = await runOnboardingTurn(parsed);
+      if (r && r.fallthrough) {
+        console.log('[tech-sms-inbound] v2 brain fell through (daily-mode tech), routing to legacy');
+        replyText = await fetchAntReply(parsed);
+      } else {
+        replyText = (r && r.reply) || FALLBACK_REPLY;
+        console.log('[tech-sms-inbound] v2 brain replied, length:', replyText.length);
+      }
+    } catch (e) {
+      console.error('[tech-sms-inbound] v2 brain threw, falling back to legacy:', e.message);
+      replyText = await fetchAntReply(parsed);
+    }
+  } else {
+    replyText = await fetchAntReply(parsed);
+  }
 
   console.log('[tech-sms-inbound] reply length:', replyText.length, 'provider:', provider);
 
