@@ -8,23 +8,37 @@ Today's focus: now that tech-side SMS infrastructure has shipped, T wants to kno
 
 ---
 
+> **STATUS UPDATE 2026-05-20 (end of day) — verification sweep results.**
+>
+> The customer feedback chain (Paths 5, 6, 10 below) was fired end-to-end against a disposable test customer + job (customer 3373, job 18089, cleaned up post-test). Full trace + four-bug fix chain documented at `docs/session-2026-05-20-feedback-chain-verification.md`.
+>
+> Status changes:
+> - **Path 5 (Waiver signed via Jotform)** → **GREEN.** Hostname swap to `tnapplianceexchange.net` deployed Xano-side. Verified live: `event_log id=40414 waiver_signed` + `id=40415 booking_sms_sent`.
+> - **Path 6 (Auto-scheduling SMS / booking_sms_sent)** → **GREEN.** Booking SMS body now contains `https://tnapplianceexchange.net/book.html?…` (verified verbatim in `event_log id=40415 metadata.book_url`).
+> - **Path 10 (Job complete + feedback SMS)** → **GREEN — end-to-end.** Reply classifier now actually works after four layered bugs were caught and fixed in `feedback_reply_webhook` + `feedback_classifier` agent (filter-vs-empty-string, `.response`→`.result`, markdown-fence strip; see footguns doc).
+> - **Path 2 (Teddy Tool pre-diagnosis)** → status unchanged. The `send-teddy-sms.js` hostname swap is committed locally (`effc85b`) but **Netlify deploy is DEFERRED** — `netlify deploy --prod` aborts on the AWS Lambda 4 KB env-var limit (`XANO_METADATA_TOKEN` is 78% of the budget by itself). Carried forward to `docs/tomorrow-2026-05-21.md` item 1 (token rotation) + item 2 (deploy).
+>
+> Real SMS to T during verification: 3 (waiver Jotform link, booking link with new hostname, review-link request).
+
+---
+
 ## Summary table
 
 | # | Path | Status | Trigger wired? | Blocker |
 |---|---|---|---|---|
 | 1a | Customer chat intake — self-pay | GREEN | yes (Netlify proxy → `chat/reply2`) | none — actively used today (3,774 agent_messages, latest 21:06 UTC) |
 | 1b | Customer chat intake — warranty | YELLOW | yes (same chat path) | warranty branch in `create_job_from_chat` exists but never proven; SquareTrade/AHS Jotform path is the historical entry (`warranty_job_intake`) |
-| 2 | Teddy Tool pre-diagnosis (Stage 2 TDR) | YELLOW | indirect (UI-driven) | `send-teddy-sms.js` Netlify function exists but is NEVER CALLED — no upstream trigger wired anywhere |
+| 2 | Teddy Tool pre-diagnosis (Stage 2 TDR) | YELLOW | indirect (UI-driven) | `send-teddy-sms.js` Netlify function exists but is NEVER CALLED — no upstream trigger wired anywhere. **2026-05-20 EOD: hostname fix in `send-teddy-sms.js` committed (`effc85b`) but Netlify deploy DEFERRED — `XANO_METADATA_TOKEN` puts env over the 4 KB Lambda limit. Token rotation queued in `tomorrow-2026-05-21.md` to unblock.** |
 | 3a | HCP job creation from chat | YELLOW | yes (`create_job_from_chat`) | code path exists; `intake_created` job_event last fired via Gmail poller 2026-05-18, never proven from chat |
 | 3b | HCP sync — webhook | RED | yes (HMAC-verify proxy) | DEGRADED since 2026-05-05; sparse `{event}`-only payloads |
 | 3c | HCP sync — polling fallback | GREEN (with override) | cron fires every 15 min | `HCP_POLL_ENABLED` unset — only fires when manually invoked with `override_enabled=true`; today inserted 50 jobs at 21:26 UTC |
 | 4 | Waiver SMS to customer | YELLOW | endpoint exists (`send_waiver_sms`) | NO upstream call site — nothing fires `send_waiver_sms`; uses Twilio direct (not the new `send_sms` Telnyx router) |
-| 5 | Waiver signed via Jotform | YELLOW | yes (Jotform webhook → `jotform_waiver_webhook`) | last fire 2026-04-20 (1 job ever); endpoint also uses Twilio direct, NOT `send_sms` |
-| 6 | Auto-scheduling SMS ("Pick your appointment time") | YELLOW | yes (chained off Jotform webhook) | only fires after Jotform; no `booking_sms_sent` ever in production event_log |
+| 5 | Waiver signed via Jotform | **GREEN** | yes (Jotform webhook → `jotform_waiver_webhook`) | **2026-05-20 EOD: verified end-to-end with synthetic webhook fire. Hostname swap LIVE.** Still uses Twilio direct (not `send_sms`) — Telnyx migration deferred. |
+| 6 | Auto-scheduling SMS ("Pick your appointment time") | **GREEN** | yes (chained off Jotform webhook) | **2026-05-20 EOD: `book_url` now contains `tnapplianceexchange.net` (verified `event_log id=40415`). Hostname fix LIVE.** Still uses Twilio direct. |
 | 7 | Customer reply handling (inbound SMS to +16155889500) | MISSING | NO inbound brain | tech-sms-inbound.js handles ONLY tech number +16158578800. No Netlify function nor Xano endpoint exists for customer inbound SMS |
 | 8 | "Tech on the way" / 30-min-out SMS | MISSING | none | The HCP `job.started` event sends SMS to the TECH (Tech Ant TDR link), not the customer. No customer-side "tech on the way" path in the codebase. |
 | 9 | "Parts ordered" SMS | MISSING | none | No `send_parts_ordered_sms` or equivalent. `parts_status` is a column read by daily summary and scheduling worker, but no SMS dispatch on transition. Vapi agent "Ant Parts ETA Update" exists in dashboard but has no Xano caller. |
-| 10 | Job complete + feedback SMS | GREEN | yes (queue + 5-min cron) | none — verified today (see `docs/feedback-flow-status-2026-05-20.md`). 0 customers got SMS, but plumbing complete. |
+| 10 | Job complete + feedback SMS | **GREEN — end-to-end** | yes (queue + 5-min cron) | **2026-05-20 EOD: reply classifier now actually works (4 layered bugs fixed: filter-vs-empty, `.response`→`.result`, markdown-fence strip).** See `docs/session-2026-05-20-feedback-chain-verification.md`. |
 | 11 | Vapi voice paths | 3 LIVE / 8 UNVERIFIED | partial | Only Vapi warranty followup cron has Xano-side dispatcher (`trigger_vapi_warranty_call`); 0 successful triggers in event_log to date |
 
 Status legend: **GREEN** built+wired+proven; **YELLOW** built+wired+never-proven; **RED** built but critical piece missing; **MISSING** described but no code.

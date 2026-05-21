@@ -1,0 +1,27 @@
+TN Appliance Exchange — Session Journal
+=======================================
+
+A chronological index of session-level work logs. One line per
+session, newest at top. Cross-references to detail docs and key
+commits.
+
+Format: YYYY-MM-DD | one-line summary | → detail-doc-path | key-commit
+
+----------------------------------------------------------------------
+
+2026-05-20 | Customer feedback chain shipped + 4 bugs found + Stripe key redacted | → docs/session-2026-05-20-feedback-chain-verification.md | 4e663ca
+2026-05-09 | TCR resubmission, consent gate rebuild, homepage rebalance | → docs/session-summary-2026-05-09.md | (multiple)
+
+----------------------------------------------------------------------
+
+NOTES
+-----
+- This journal was created 2026-05-20 EOD. Pre-existing session
+  records before that date are not back-filled here unless they
+  have an existing `docs/session-summary-*.md` or `docs/handoff-*.md`
+  artifact. See `docs/master-build-doc-foundation.md` and the
+  six-week-plan / system-blueprint chain for earlier phase context.
+- Add new sessions at the top. Keep summary to one line. Detail
+  goes in the linked doc.
+- Key-commit column: the most representative commit SHA for the
+  session's deliverable, or "(multiple)" if spread across many.
