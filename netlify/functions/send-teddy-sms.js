@@ -11,7 +11,7 @@ exports.handler = async function(event) {
     const fromNumber = "+16292840444";
     const teddyNumber = "+16154855795";
 
-    const teddyToolUrl = `https://superlative-naiad-233aa7.netlify.app/teddy-tdr-tool.html?job_id=${job_id}`;
+    const teddyToolUrl = `https://tnapplianceexchange.net/teddy-tdr-tool.html?job_id=${job_id}`;
 
     const message = `New job #${job_id} - ${customer_name}\n${appliance} | ${brand}\nIssue: ${problem}\n\nTeddy Tool: ${teddyToolUrl}`;
 
