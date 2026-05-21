@@ -192,7 +192,10 @@ let state = {
   sendResult: null,
   finalizeStatus: null,
   finalizeError: "",
-  error: ""
+  error: "",
+  parts_decision: "no_parts_needed",
+  parts_supplier: "",
+  parts_eta_days: ""
 };
 
 function getUrlJobId() {
@@ -307,6 +310,20 @@ async function submitTDR() {
   if (!state.cockpit) { state.error = "No job loaded."; render(); return; }
   if (!state.diagnosis.trim()) { state.error = "Please enter a diagnosis."; render(); return; }
 
+  // Wire 4 (Parts Decision): compute parts_eta_date if Ship to Customer.
+  let partsEtaDate = null;
+  if (state.parts_decision === "ship_to_customer") {
+    const days = parseInt(state.parts_eta_days, 10);
+    if (!Number.isFinite(days) || days < 1) { state.error = "Enter ETA days (whole number, 1 or more)."; render(); return; }
+    if (!state.parts_supplier) { state.error = "Pick a supplier for Ship to Customer."; render(); return; }
+    const eta = new Date();
+    eta.setDate(eta.getDate() + days);
+    const yyyy = eta.getFullYear();
+    const mm = String(eta.getMonth() + 1).padStart(2, "0");
+    const dd = String(eta.getDate()).padStart(2, "0");
+    partsEtaDate = yyyy + "-" + mm + "-" + dd;
+  }
+
   const oemCents = state.oemPrice.trim() === "" ? null : parseDollarsToCents(state.oemPrice);
   const amzCents = state.amazonPrice.trim() === "" ? null : parseDollarsToCents(state.amazonPrice);
   const laborCents = state.laborEstimate.trim() === "" ? null : parseDollarsToCents(state.laborEstimate);
@@ -345,7 +362,10 @@ async function submitTDR() {
     amazon_part_number: state.amazonPartNumber || null,
     oem_part_our_cost_cents: oemCents == null ? 0 : oemCents,
     amazon_part_our_cost_cents: amzCents == null ? 0 : amzCents,
-    labor_customer_cost_cents: laborCents
+    labor_customer_cost_cents: laborCents,
+    parts_decision: state.parts_decision,
+    parts_supplier: (state.parts_decision === "ship_to_customer") ? state.parts_supplier : null,
+    parts_eta_date: partsEtaDate
   };
 
   try {
@@ -362,6 +382,42 @@ async function submitTDR() {
   } catch(e) {
     state.finalizeStatus = "failed";
     state.finalizeError = "Could not create TDR. " + e.message;
+    render();
+    return;
+  }
+
+  // Wire 4 branch: if Ship to Customer, notify Danielle (regardless of cash/warranty).
+  if (state.parts_decision === "ship_to_customer") {
+    try {
+      const cust = state.cockpit.customer;
+      await fetch("/.netlify/functions/xano-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "notify_parts_ordered",
+          api_group: "intake",
+          payload: {
+            job_id: parseInt(state.jobId, 10),
+            part_number: state.oemPartNumber || state.amazonPartNumber || "",
+            supplier: state.parts_supplier,
+            eta_date: partsEtaDate,
+            customer_name: cust.full_name || "",
+            appliance_type: appliance.appliance_type || "",
+            brand: appliance.brand || ""
+          }
+        })
+      });
+    } catch(e) {
+      // Best-effort notify; TDR is already saved so do not block the flow.
+    }
+    state.finalizeStatus = "parts_ordered";
+    state.step = "done";
+    render();
+    return;
+  }
+  if (state.parts_decision === "parts_in_hand") {
+    state.finalizeStatus = "parts_in_hand";
+    state.step = "done";
     render();
     return;
   }
@@ -405,7 +461,10 @@ function reset() {
     amazonPartNumber: "", amazonPrice: "", laborEstimate: "",
     techNotes: "", aiLoading: false,
     submitResult: null, sendResult: null,
-    finalizeStatus: null, finalizeError: "", error: ""
+    finalizeStatus: null, finalizeError: "", error: "",
+    parts_decision: "no_parts_needed",
+    parts_supplier: "",
+    parts_eta_days: ""
   };
   render();
 }
@@ -641,6 +700,45 @@ function renderReview() {
       '</div>' +
     '</div>' +
 
+    '<div class="section-card">' +
+      '<div class="section-title">Parts Decision</div>' +
+      '<div class="field">' +
+        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;">' +
+          '<input type="radio" name="parts_decision" value="ship_to_customer"' +
+          (state.parts_decision === "ship_to_customer" ? ' checked' : '') +
+          ' onchange="state.parts_decision=this.value; togglePartsDetail();" />' +
+          '<span><strong>Ship to Customer</strong> - order and ship direct</span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;">' +
+          '<input type="radio" name="parts_decision" value="parts_in_hand"' +
+          (state.parts_decision === "parts_in_hand" ? ' checked' : '') +
+          ' onchange="state.parts_decision=this.value; togglePartsDetail();" />' +
+          '<span><strong>Parts In Hand</strong> - ready to schedule now</span>' +
+        '</label>' +
+        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 0;">' +
+          '<input type="radio" name="parts_decision" value="no_parts_needed"' +
+          (state.parts_decision === "no_parts_needed" ? ' checked' : '') +
+          ' onchange="state.parts_decision=this.value; togglePartsDetail();" />' +
+          '<span><strong>No Parts Needed</strong> - labor only</span>' +
+        '</label>' +
+      '</div>' +
+      '<div id="partsDetail" style="' + (state.parts_decision === "ship_to_customer" ? '' : 'display:none;') + 'border-top:1px solid var(--border);padding-top:14px;margin-top:10px;">' +
+        '<div class="field">' +
+          '<label>Supplier</label>' +
+          '<select id="partsSupplierInput" onchange="state.parts_supplier=this.value;" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;font-family:var(--sans);outline:none;">' +
+            '<option value="">- Select supplier -</option>' +
+            ['Amazon','Marcone','Tribles','Ideal','Reliable','Warranty Company Buying','Other'].map(s =>
+              '<option value="' + escapeAttr(s) + '"' + (state.parts_supplier === s ? ' selected' : '') + '>' + escapeHtml(s) + '</option>'
+            ).join('') +
+          '</select>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>ETA Days</label>' +
+          '<input type="number" id="partsEtaDaysInput" placeholder="Days until arrival e.g. 5" value="' + escapeAttr(state.parts_eta_days) + '" oninput="state.parts_eta_days=this.value;" min="1" />' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
     smsConsentNote +
     (finalizeError ? '<div class="error-box">' + escapeHtml(finalizeError) + '</div>' : "") +
 
@@ -674,6 +772,12 @@ function updateLaborHint() {
   wrap.innerHTML = '<div class="field-hint live">Customer pays ' + centsToDisplay(c) + ' directly (no markup)</div>';
 }
 
+function togglePartsDetail() {
+  const wrap = document.getElementById("partsDetail");
+  if (!wrap) return;
+  wrap.style.display = (state.parts_decision === "ship_to_customer") ? "" : "none";
+}
+
 function renderDone() {
   const tdr = state.submitResult && state.submitResult.tdr;
   const send = state.sendResult || {};
@@ -684,6 +788,14 @@ function renderDone() {
   let title = "TDR Saved";
   let subtitle = "";
   let extraRows = "";
+
+  if (state.finalizeStatus === "parts_ordered") {
+    title = "TDR Saved";
+    subtitle = "Parts order sent to Danielle.";
+  } else if (state.finalizeStatus === "parts_in_hand") {
+    title = "TDR Saved";
+    subtitle = "Job queued for scheduling.";
+  }
 
   if (isCash) {
     title = "Sent to Customer";
@@ -796,6 +908,10 @@ function saveReviewInputs() {
   if (ap) state.amazonPartNumber = ap.value;
   if (apr) state.amazonPrice = apr.value;
   if (l) state.laborEstimate = l.value;
+  const ps = document.getElementById("partsSupplierInput");
+  const ped = document.getElementById("partsEtaDaysInput");
+  if (ps) state.parts_supplier = ps.value;
+  if (ped) state.parts_eta_days = ped.value;
 }
 
 const urlJobId = getUrlJobId();
