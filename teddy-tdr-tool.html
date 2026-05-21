@@ -332,7 +332,7 @@ async function submitTDR() {
   if (state.amazonPrice.trim() !== "" && amzCents === null) { state.error = "Amazon cost looks off — use a number like $28 or 28.99."; render(); return; }
   if (state.laborEstimate.trim() !== "" && laborCents === null) { state.error = "Labor cost looks off — use a number like $215."; render(); return; }
 
-  if (oemCents == null && amzCents == null) { state.error = "Enter at least one part cost (OEM or Amazon)."; render(); return; }
+  if (state.parts_decision !== "no_parts_needed" && oemCents == null && amzCents == null) { state.error = "Enter at least one part cost (OEM or Amazon)."; render(); return; }
   if (laborCents == null) { state.error = "Labor customer cost is required."; render(); return; }
 
   const job = state.cockpit.job;
