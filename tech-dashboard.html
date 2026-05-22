@@ -350,7 +350,23 @@ async function init() {
   });
 
   try {
-    const res = await fetch(`${XANO_BASE}/get_jobs_for_dashboard?tech_id=${TECH_ID}&date_filter=today&per_page=50`);
+    // Route through xano-proxy so query params land correctly on the GET endpoint
+    // (direct fetch was getting page=0/per_page=0 because Xano GET optional ints
+    // default to 0, not null, so the ?? 1 fallback never fired).
+    const res = await fetch('/.netlify/functions/xano-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: 'get_jobs_for_dashboard',
+        payload: {
+          tech_id: parseInt(TECH_ID, 10),
+          date_filter: 'today',
+          page: 1,
+          per_page: 50
+        },
+        method: 'GET'
+      })
+    });
     if (!res.ok) throw new Error(`Could not load jobs (${res.status})`);
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'no success flag');
