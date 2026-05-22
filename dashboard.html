@@ -389,7 +389,15 @@ async function loadJob() {
 
   try {
     const [jobRes, attachRes] = await Promise.all([
-      fetch(`${XANO_BASE}/get_job_for_dashboard?job_id=${jobId}`),
+      fetch('/.netlify/functions/xano-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: 'get_job_for_dashboard',
+          payload: { job_id: parseInt(jobId, 10) },
+          method: 'POST'
+        })
+      }),
       fetch(`${XANO_BASE}/get_job_attachments?job_id=${jobId}`)
     ]);
 
