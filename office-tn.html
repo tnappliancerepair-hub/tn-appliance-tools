@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TN Office - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #0e1118, #131a2a);
+    border-bottom: 1px solid #2a3040;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header .icon { font-size: 24px; flex-shrink: 0; }
+  .header .text { flex: 1; min-width: 0; }
+  .header .title { font-size: 14px; font-weight: 700; }
+  .header .sub {
+    font-size: 11px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header .refresh-btn {
+    background: transparent;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    font-family: inherit;
+    -webkit-appearance: none;
+    transition: all 0.15s;
+  }
+  .header .refresh-btn:active { transform: scale(0.9); }
+  .header .refresh-btn:hover:not(:disabled) { background: #2a3040; border-color: #4a9eff; }
+  .header .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
+
+  .content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 4px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Folder (top-level section) */
+  .folder {
+    background: #131720;
+    border: 1px solid #2a3040;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .folder-header {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    color: #e8edf5;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    -webkit-appearance: none;
+  }
+  .folder-header:hover { background: rgba(74,158,255,0.05); }
+  .folder-header:active { background: rgba(74,158,255,0.1); }
+  .folder-name { flex: 1; }
+  .folder-count {
+    font-size: 12px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+  }
+  .chevron {
+    display: inline-block;
+    transition: transform 0.2s;
+    color: #8a93aa;
+    font-size: 11px;
+    width: 10px;
+  }
+  .folder.open > .folder-header > .chevron { transform: rotate(90deg); }
+  .folder-body { display: none; padding: 0 10px 10px 10px; }
+  .folder.open > .folder-body { display: flex; flex-direction: column; gap: 6px; }
+
+  /* Subsection */
+  .sub {
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .sub-header {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    color: #e8edf5;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    -webkit-appearance: none;
+  }
+  .sub-header:hover { background: rgba(74,158,255,0.05); }
+  .sub-name { flex: 1; }
+  .sub-count {
+    font-size: 11px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+  }
+  .sub.open > .sub-header > .chevron { transform: rotate(90deg); }
+  .sub-body { display: none; padding: 0 10px 10px 10px; }
+  .sub.open > .sub-body { display: flex; flex-direction: column; gap: 6px; }
+
+  .sub-loading, .sub-empty, .sub-error {
+    padding: 12px;
+    text-align: center;
+    color: #8a93aa;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .sub-error { color: #ff4757; }
+
+  /* Job card */
+  .job-card {
+    background: #0e1118;
+    border: 1px solid #2a3040;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .job-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .job-id {
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #e8edf5;
+    font-size: 12px;
+  }
+  .job-age {
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-left: auto;
+  }
+  .job-age.neutral { background: rgba(138,147,170,0.15); color: #8a93aa; border: 1px solid rgba(138,147,170,0.3); }
+  .job-age.aged    { background: rgba(255,71,87,0.15);   color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
+  .job-earnings {
+    font-weight: 700;
+    color: #00d68f;
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .job-customer { font-weight: 600; color: #e8edf5; margin-bottom: 2px; font-size: 13px; }
+  .job-meta { color: #8a93aa; margin-bottom: 2px; }
+  .job-meta-small { color: #5a6480; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .job-problem {
+    color: #8a93aa;
+    font-size: 11px;
+    background: #131720;
+    border: 1px solid #2a3040;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 6px 0;
+    font-style: italic;
+  }
+  .job-actions {
+    display: flex;
+    gap: 6px;
+    align-items: stretch;
+    margin-top: 6px;
+  }
+  .stage-select {
+    flex: 1;
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-appearance: none;
+    min-height: 32px;
+  }
+  .stage-select:disabled { opacity: 0.5; cursor: not-allowed; }
+  .open-btn {
+    background: linear-gradient(135deg, #4a9eff, #3a8eef);
+    color: white;
+    border: 1px solid #4a9eff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    min-height: 32px;
+  }
+  .open-btn:active { transform: scale(0.97); }
+  .job-feedback {
+    margin-top: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    display: none;
+  }
+  .job-feedback.show { display: block; }
+  .job-feedback.success { background: rgba(0,214,143,0.1); color: #00d68f; border: 1px solid rgba(0,214,143,0.3); }
+  .job-feedback.error   { background: rgba(255,71,87,0.1); color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
+
+  /* Auth */
+  .auth-overlay {
+    position: fixed; inset: 0; background: #0e1118;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding: 20px;
+  }
+  .auth-overlay.hidden { display: none; }
+  .auth-card {
+    background: #131720; border: 1px solid #2a3040;
+    border-radius: 16px; padding: 28px 22px; width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .auth-card h2 { font-size: 18px; margin-bottom: 6px; }
+  .auth-card .sub { color: #8a93aa; font-size: 13px; margin-bottom: 18px; }
+  .auth-card input {
+    width: 100%; background: #0e1118; border: 1px solid #2a3040;
+    border-radius: 10px; color: #e8edf5; padding: 14px;
+    font-size: 16px; text-align: center;
+    font-family: inherit; margin-bottom: 12px;
+    -webkit-appearance: none;
+  }
+  .auth-card input:focus { border-color: #4a9eff; outline: none; }
+  .auth-card button {
+    width: 100%; background: #4a9eff; color: white; border: 0;
+    border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+  .auth-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-card .err { color: #ff4757; font-size: 13px; margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-card">
+    <h2>🐜 TN Office</h2>
+    <div class="sub">enter office password</div>
+    <input id="auth-input" type="password" autocomplete="current-password">
+    <button id="auth-submit" onclick="submitAuth()">Unlock</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="icon">🐜</div>
+  <div class="text">
+    <div class="title">TN Office</div>
+    <div class="sub" id="header-sub">Loading...</div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="loadAll()" title="Refresh">↻</button>
+</div>
+
+<div class="content" id="content">
+  <!-- folders rendered by JS -->
+</div>
+
+<script>
+const OFFICE_PASSWORD = 'office2026';
+const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
+const FOLDER_STATE_KEY = 'tn_office_folders_v1';
+
+const STAGES = [
+  { value: '',                  label: 'Move to stage...' },
+  { value: 'scheduled',         label: 'Scheduled' },
+  { value: 'report',            label: 'Report' },
+  { value: 'upgrade',           label: 'Upgrade' },
+  { value: 'waiting_auth',      label: 'Waiting Auth' },
+  { value: 'completion_appt',   label: 'Completion Appt' },
+  { value: 'follow_up',         label: 'Follow Up' },
+  { value: 'needs_invoicing',   label: 'Needs Invoicing' }
+];
+
+// Sections defined declaratively. Each subsection has a "fetch" config used
+// by Promise.allSettled. Loaded results flow back keyed on subsection id.
+const SECTIONS = [
+  {
+    id: 'scheduling',
+    icon: '📅',
+    name: 'Scheduling',
+    tnFilter: true,  // apply client-side TN filter on these subs
+    subs: [
+      { id: 'sched-needs', name: 'Needs Scheduling', endpoint: 'get_jobs_for_dashboard',
+        payload: { date_filter: 'unscheduled', per_page: 200 } },
+      { id: 'sched-pre',   name: 'Pre-Diagnosis',    endpoint: 'get_jobs_for_dashboard',
+        payload: { status: 'prediagnosis_pending', date_filter: 'all', per_page: 200 } },
+      // Post-diagnosis = complete + parts_ordered merged
+      { id: 'sched-post',  name: 'Post-Diagnosis',   merge: ['sched-post-complete', 'sched-post-parts'] }
+    ],
+    extraFetches: [
+      { id: 'sched-post-complete', endpoint: 'get_jobs_for_dashboard',
+        payload: { status: 'complete', date_filter: 'all', per_page: 200 } },
+      { id: 'sched-post-parts', endpoint: 'get_jobs_for_dashboard',
+        payload: { status: 'parts_ordered', date_filter: 'all', per_page: 200 } }
+    ]
+  },
+  {
+    id: 'jimmy',
+    icon: '🔧',
+    name: "Jimmy's Jobs (tech 2)",
+    subs: [
+      { id: 'jimmy-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 2, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+      { id: 'jimmy-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 2, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+    ]
+  },
+  {
+    id: 'lee',
+    icon: '🔧',
+    name: "Lee's Jobs (tech 4)",
+    subs: [
+      { id: 'lee-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 4, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+      { id: 'lee-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 4, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+    ]
+  },
+  {
+    id: 'teddy',
+    icon: '🔧',
+    name: "Teddy's Jobs (tech 1)",
+    subs: [
+      { id: 'teddy-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 1, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+      { id: 'teddy-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 1, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+    ]
+  },
+  {
+    id: 'payment',
+    icon: '💰',
+    name: 'Waiting for Payment',
+    isEarnings: true,
+    subs: [
+      { id: 'pay-jimmy', name: 'Jimmy', endpoint: 'get_pending_earnings', payload: { tech_id: 2 } },
+      { id: 'pay-lee',   name: 'Lee',   endpoint: 'get_pending_earnings', payload: { tech_id: 4 } },
+      { id: 'pay-teddy', name: 'Teddy', endpoint: 'get_pending_earnings', payload: { tech_id: 1 } }
+    ]
+  }
+];
+
+// ── Folder open/closed state ───────────────────────────────────────
+function loadFolderState() {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDER_STATE_KEY) || '{}');
+  } catch (e) { return {}; }
+}
+function saveFolderState(state) {
+  try { localStorage.setItem(FOLDER_STATE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function isOpen(id, defaultVal) {
+  const s = loadFolderState();
+  if (id in s) return s[id];
+  return !!defaultVal;
+}
+function setOpen(id, val) {
+  const s = loadFolderState();
+  s[id] = val;
+  saveFolderState(s);
+}
+
+function toggleFolder(id) {
+  const el = document.querySelector(`.folder[data-folder="${id}"]`);
+  if (!el) return;
+  const nowOpen = !el.classList.contains('open');
+  el.classList.toggle('open', nowOpen);
+  setOpen(id, nowOpen);
+}
+function toggleSub(id) {
+  const el = document.querySelector(`.sub[data-sub="${id}"]`);
+  if (!el) return;
+  const nowOpen = !el.classList.contains('open');
+  el.classList.toggle('open', nowOpen);
+  setOpen(id, nowOpen);
+}
+
+// ── Render skeleton ────────────────────────────────────────────────
+function renderSkeleton() {
+  const content = document.getElementById('content');
+  content.innerHTML = SECTIONS.map(f => {
+    const folderOpen = isOpen(f.id, f.id === 'scheduling');
+    return `
+      <div class="folder ${folderOpen ? 'open' : ''}" data-folder="${f.id}">
+        <button class="folder-header" onclick="toggleFolder('${f.id}')">
+          <span class="chevron">▶</span>
+          <span class="folder-icon">${f.icon}</span>
+          <span class="folder-name">${escapeHtml(f.name)}</span>
+          <span class="folder-count" id="count-${f.id}">—</span>
+        </button>
+        <div class="folder-body">
+          ${f.subs.map(s => `
+            <div class="sub ${isOpen(s.id, false) ? 'open' : ''}" data-sub="${s.id}">
+              <button class="sub-header" onclick="toggleSub('${s.id}')">
+                <span class="chevron">▶</span>
+                <span class="sub-name">${escapeHtml(s.name)}</span>
+                <span class="sub-count" id="count-${s.id}">—</span>
+              </button>
+              <div class="sub-body" id="body-${s.id}">
+                <div class="sub-loading">loading...</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Data loading ───────────────────────────────────────────────────
+let isLoading = false;
+
+async function fetchProxy(endpoint, payload) {
+  const res = await fetch('/.netlify/functions/xano-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint, payload, method: 'POST' })
+  });
+  if (!res.ok) throw new Error(`(${res.status})`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'no success flag');
+  return data;
+}
+
+function isTN(item) {
+  const state = String((item.customer && item.customer.state) || '').toLowerCase();
+  const techId = item.tech && item.tech.id;
+  return state.includes('tn') || state.includes('tennessee') || [1, 2, 4].includes(techId);
+}
+
+async function loadAll() {
+  if (isLoading) return;
+  isLoading = true;
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.disabled = true;
+  refreshBtn.classList.add('spinning');
+
+  document.getElementById('header-sub').textContent = 'loading...';
+
+  // Build the full fetch plan.
+  const plan = [];
+  SECTIONS.forEach(f => {
+    if (f.extraFetches) f.extraFetches.forEach(x => plan.push(x));
+    f.subs.forEach(s => {
+      if (s.endpoint) plan.push({ id: s.id, endpoint: s.endpoint, payload: s.payload });
+    });
+  });
+
+  // Fire all in parallel.
+  const promises = plan.map(p => fetchProxy(p.endpoint, p.payload || {}).then(d => ({ id: p.id, data: d })).catch(e => ({ id: p.id, error: e.message })));
+  const results = await Promise.all(promises);
+
+  // Keyed dictionary of results.
+  const byId = {};
+  results.forEach(r => { byId[r.id] = r; });
+
+  // Build display data per subsection.
+  let totalCount = 0;
+  SECTIONS.forEach(f => {
+    let folderCount = 0;
+    f.subs.forEach(s => {
+      let items;
+      let error = null;
+
+      if (s.merge) {
+        // Combine multiple results.
+        const merged = [];
+        let anyError = null;
+        s.merge.forEach(mid => {
+          const r = byId[mid];
+          if (r && r.data && Array.isArray(r.data.items)) merged.push(...r.data.items);
+          else if (r && r.error) anyError = r.error;
+        });
+        items = merged;
+        error = anyError && merged.length === 0 ? anyError : null;
+      } else {
+        const r = byId[s.id];
+        if (r && r.error) error = r.error;
+        else if (r && r.data && Array.isArray(r.data.items)) items = r.data.items;
+        else items = [];
+      }
+
+      // Client-side TN filter for the Scheduling block.
+      if (items && f.tnFilter && !f.isEarnings) {
+        items = items.filter(isTN);
+      }
+
+      renderSubBody(s, items, error, f.isEarnings);
+      const count = items ? items.length : 0;
+      document.getElementById(`count-${s.id}`).textContent = error ? '⚠️' : `(${count})`;
+      folderCount += count;
+    });
+    document.getElementById(`count-${f.id}`).textContent = `(${folderCount})`;
+    totalCount += folderCount;
+  });
+
+  const today = new Date().toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric'
+  });
+  document.getElementById('header-sub').textContent = `${today} • ${totalCount} ${totalCount === 1 ? 'job' : 'jobs'}`;
+
+  isLoading = false;
+  refreshBtn.disabled = false;
+  refreshBtn.classList.remove('spinning');
+}
+
+function renderSubBody(sub, items, error, isEarnings) {
+  const body = document.getElementById(`body-${sub.id}`);
+  if (error) {
+    body.innerHTML = `<div class="sub-error">⚠️ ${escapeHtml(error)}</div>`;
+    return;
+  }
+  if (!items || items.length === 0) {
+    body.innerHTML = `<div class="sub-empty">no jobs in this stage</div>`;
+    return;
+  }
+  body.innerHTML = items.map(it => isEarnings ? buildEarningsCard(it) : buildJobCard(it)).join('');
+}
+
+function buildJobCard(it) {
+  const job = it.job || {};
+  const cust = it.customer || {};
+  const days = it.days_since_created || 0;
+  const ageClass = days > 7 ? 'aged' : 'neutral';
+  const custName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || cust.name || 'Customer';
+  const apl = [job.brand, job.appliance_type].filter(Boolean).join(' ') || 'Appliance';
+  const city = cust.city || '';
+  const problem = (job.problem_summary || '').slice(0, 60);
+
+  const stageOptions = STAGES.map(s =>
+    `<option value="${escapeAttr(s.value)}">${escapeHtml(s.label)}</option>`
+  ).join('');
+
+  return `
+    <div class="job-card" data-job-id="${job.id}">
+      <div class="job-top">
+        <div class="job-id">#${escapeHtml(String(job.id || '?'))}</div>
+        <div class="job-age ${ageClass}">${days}d</div>
+      </div>
+      <div class="job-customer">${escapeHtml(custName)}</div>
+      <div class="job-meta">${escapeHtml(apl)}${city ? ' • ' + escapeHtml(city) : ''}</div>
+      ${problem ? `<div class="job-problem">${escapeHtml(problem)}${(job.problem_summary || '').length > 60 ? '...' : ''}</div>` : ''}
+      <div class="job-actions">
+        <select class="stage-select" onchange="moveStage(${job.id}, this.value, this)">
+          ${stageOptions}
+        </select>
+        <a class="open-btn" href="job-detail.html?job_id=${job.id}&office=1">📋 Open</a>
+      </div>
+      <div class="job-feedback" id="feedback-${job.id}"></div>
+    </div>
+  `;
+}
+
+function buildEarningsCard(it) {
+  const earning = it.earning || {};
+  const job = it.job || {};
+  const cust = it.customer || {};
+  const commission = earning.commission_earned != null ? earning.commission_earned : 0;
+  const apl = [job.brand, job.appliance_type].filter(Boolean).join(' ') || 'Appliance';
+  const earnedAt = earning.earned_at ? formatDateCT(earning.earned_at) : '—';
+
+  return `
+    <div class="job-card" data-job-id="${job.id}">
+      <div class="job-top">
+        <div class="job-id">#${escapeHtml(String(job.id || '?'))}</div>
+        <div class="job-earnings">$${escapeHtml(String(commission))}</div>
+      </div>
+      <div class="job-customer">${escapeHtml(cust.name || 'Customer')}${cust.city ? ' • ' + escapeHtml(cust.city) : ''}</div>
+      <div class="job-meta">${escapeHtml(apl)}</div>
+      <div class="job-meta-small">earned: ${escapeHtml(earnedAt)}</div>
+      <div class="job-actions">
+        <a class="open-btn" style="flex:1; justify-content:center" href="job-detail.html?job_id=${job.id}&office=1">📋 Open</a>
+      </div>
+    </div>
+  `;
+}
+
+async function moveStage(jobId, newStage, selectEl) {
+  if (!newStage) return;
+  const card = selectEl.closest('.job-card');
+  const feedback = card ? card.querySelector('.job-feedback') : null;
+  selectEl.disabled = true;
+
+  try {
+    const data = await fetchProxy('update_job_office_stage', {
+      job_id: parseInt(jobId, 10),
+      office_stage: newStage
+    });
+    const stageLabel = (STAGES.find(s => s.value === newStage) || {}).label || newStage;
+    if (feedback) {
+      feedback.className = 'job-feedback show success';
+      feedback.textContent = '✓ moved to: ' + stageLabel;
+      setTimeout(() => { feedback.classList.remove('show'); }, 3000);
+    }
+  } catch (err) {
+    if (feedback) {
+      feedback.className = 'job-feedback show error';
+      feedback.textContent = '⚠️ move failed: ' + err.message;
+    }
+    selectEl.value = ''; // revert to default
+  } finally {
+    selectEl.disabled = false;
+  }
+}
+
+function formatDateCT(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric'
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/'/g, '%27');
+}
+
+// ── Auth ───────────────────────────────────────────────────────────
+function submitAuth() {
+  const errEl = document.getElementById('auth-err');
+  const btn = document.getElementById('auth-submit');
+  const inputEl = document.getElementById('auth-input');
+  const pw = (inputEl.value || '').trim();
+  errEl.textContent = '';
+  if (pw === '') { errEl.textContent = 'Enter password'; return; }
+  btn.disabled = true;
+  if (pw === OFFICE_PASSWORD) {
+    localStorage.setItem(OFFICE_AUTH_KEY, '1');
+    document.getElementById('auth-overlay').classList.add('hidden');
+    init();
+  } else {
+    errEl.textContent = 'Wrong password.';
+    inputEl.value = '';
+    inputEl.focus();
+    btn.disabled = false;
+  }
+}
+
+function init() {
+  renderSkeleton();
+  loadAll();
+}
+
+document.getElementById('auth-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') submitAuth();
+});
+
+if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
+  document.getElementById('auth-overlay').classList.add('hidden');
+  init();
+} else {
+  document.getElementById('auth-input').focus();
+}
+</script>
+</body>
+</html>
