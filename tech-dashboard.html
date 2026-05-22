@@ -364,7 +364,7 @@ async function init() {
           page: 1,
           per_page: 50
         },
-        method: 'GET'
+        method: 'POST'
       })
     });
     if (!res.ok) throw new Error(`Could not load jobs (${res.status})`);

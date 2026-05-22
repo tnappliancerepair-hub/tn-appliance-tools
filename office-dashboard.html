@@ -383,7 +383,7 @@ async function loadJobs() {
       body: JSON.stringify({
         endpoint: 'get_jobs_for_dashboard',
         payload,
-        method: 'GET'
+        method: 'POST'
       })
     });
     if (!res.ok) throw new Error(`Could not load jobs (${res.status})`);
