@@ -14,7 +14,7 @@
     height: 100vh;
     height: 100dvh;
     display: grid;
-    grid-template-rows: auto auto 1fr auto auto auto;
+    grid-template-rows: auto auto auto 1fr auto auto auto;
     overflow: hidden;
   }
 
@@ -60,6 +60,66 @@
   .job-bar .label { color: #8a93aa; font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; }
   .job-bar .value { color: #e8edf5; font-weight: 600; }
   .job-bar .sep { color: #2a3040; }
+
+  /* Action bar: navigate / on my way / call / start / complete */
+  .action-bar {
+    background: #131720;
+    border-bottom: 1px solid #2a3040;
+    padding: 8px 12px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .action-bar.show { display: flex; }
+
+  .action-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .action-btn {
+    flex: 1;
+    min-height: 44px;
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-family: inherit;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    white-space: nowrap;
+  }
+  .action-btn:active { transform: scale(0.97); }
+  .action-btn:hover:not(:disabled) { background: #2a3040; border-color: #4a9eff; }
+  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .action-btn.primary {
+    background: linear-gradient(135deg, #4a9eff, #3a8eef);
+    border-color: #4a9eff;
+    color: white;
+  }
+  .action-btn.primary.started {
+    background: linear-gradient(135deg, #00d68f, #00aa70);
+    border-color: #00d68f;
+    color: #080a0f;
+  }
+
+  .action-btn.complete {
+    background: linear-gradient(135deg, #00d68f, #00aa70);
+    border-color: #00d68f;
+    color: #080a0f;
+    text-align: center;
+    text-align-last: center;
+  }
 
   .main-area {
     overflow: hidden;
@@ -409,6 +469,25 @@
   <span class="value" id="job-appliance">—</span>
 </div>
 
+<div class="action-bar" id="action-bar">
+  <div class="action-row">
+    <button class="action-btn" onclick="onNavigate()">📍 Navigate</button>
+    <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()">🚗 On My Way</button>
+    <button class="action-btn" onclick="onCall()">📞 Call</button>
+  </div>
+  <div class="action-row">
+    <button class="action-btn primary" id="btn-start-job" onclick="onStartJob()">▶ Start Job</button>
+    <select class="action-btn complete" id="complete-select" onchange="onComplete(this.value)">
+      <option value="" disabled selected hidden>✅ Complete ▾</option>
+      <option value="repair_complete">Repair Complete</option>
+      <option value="parts_needed">Parts Needed</option>
+      <option value="warranty_auth_needed">Warranty Auth Needed</option>
+      <option value="no_repair">No Repair</option>
+      <option value="other">Other</option>
+    </select>
+  </div>
+</div>
+
 <div class="main-area" id="main-area">
   <div class="loading" id="loading">
     <div class="spinner"></div>
@@ -446,6 +525,10 @@ const API_VERIFY_PIN = '/.netlify/functions/verify-pin-proxy';
 let assistSessionId = SESSION_ID_URL ? parseInt(SESSION_ID_URL, 10) : null;
 let pinUnlocked = false;
 
+let jobAddress = '';
+let customerPhone = '';
+let jobStarted = false;
+
 let conversationHistory = [];
 let collectedData = {};
 let isSubmitting = false;
@@ -477,6 +560,14 @@ async function init() {
     document.getElementById('job-customer').textContent = (data.customer && data.customer.name) || 'Customer';
     document.getElementById('job-appliance').textContent = `${data.appliance.brand || ''} ${data.appliance.type || ''}`.trim() || 'Appliance';
     document.getElementById('job-bar').classList.add('show');
+
+    // Action bar: address + phone for tap-to-navigate / tap-to-call.
+    // get_job_for_dashboard already resolves job.service_X → customer.X fallback.
+    const c = data.customer || {};
+    const parts = [c.address, c.city, c.state, c.zip].filter(Boolean);
+    jobAddress = parts.join(', ');
+    customerPhone = c.phone || '';
+    document.getElementById('action-bar').classList.add('show');
 
     document.getElementById('main-area').innerHTML = '<div class="chat" id="chat"></div>';
     chatEl = document.getElementById('chat');
@@ -847,7 +938,7 @@ async function submitTDR() {
       verified_part_number: collectedData.verified_part_number || '',
       final_recommendation: collectedData.recommendation || '',
       technician_notes: collectedData.tech_notes || '',
-      tech_ant_session_id: SESSION_ID,
+      tech_ant_session_id: assistSessionId,
       status: 'submitted',
       report_date: new Date().toISOString()
     };
@@ -872,6 +963,100 @@ async function submitTDR() {
     banner.disabled = false;
     banner.textContent = '⚠️ Try Again';
     isSubmitting = false;
+  }
+}
+
+// ── Action bar handlers ───────────────────────────────────────
+function onNavigate() {
+  if (!jobAddress) {
+    addSystem('error', '⚠️ no address on file for this job');
+    return;
+  }
+  window.open('https://maps.google.com/?q=' + encodeURIComponent(jobAddress), '_blank');
+}
+
+function onCall() {
+  if (!customerPhone) {
+    addSystem('error', '⚠️ no customer phone on file');
+    return;
+  }
+  let phone = String(customerPhone).replace(/\D/g, '');
+  if (phone.length === 10) phone = '1' + phone;
+  window.location.href = 'tel:+' + phone;
+}
+
+async function onOnMyWay() {
+  const btn = document.getElementById('btn-on-my-way');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sending...';
+  try {
+    const res = await fetch(`${XANO_BASE}/tech_on_the_way`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: parseInt(JOB_ID, 10),
+        technician_id: parseInt(TECH_ID, 10)
+      })
+    });
+    if (!res.ok) throw new Error(`(${res.status})`);
+    addSystem('success', '✅ on-the-way message sent to customer');
+    btn.textContent = '✓ Sent';
+    // Permanent: stays disabled for this page load. Page reload resets.
+  } catch (err) {
+    addSystem('error', '⚠️ on-the-way send failed: ' + err.message);
+    btn.textContent = '🚗 On My Way';
+    btn.disabled = false;
+  }
+}
+
+async function onStartJob() {
+  const btn = document.getElementById('btn-start-job');
+  if (jobStarted) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting...';
+  try {
+    const res = await fetch(`${XANO_BASE}/tech_job_started`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: parseInt(JOB_ID, 10),
+        technician_id: parseInt(TECH_ID, 10)
+      })
+    });
+    if (!res.ok) throw new Error(`(${res.status})`);
+    jobStarted = true;
+    btn.classList.add('started');
+    btn.textContent = '✓ Job Started';
+    btn.disabled = false;
+    addSystem('success', '✅ job started');
+  } catch (err) {
+    addSystem('error', '⚠️ start failed: ' + err.message);
+    btn.textContent = '▶ Start Job';
+    btn.disabled = false;
+  }
+}
+
+async function onComplete(completionType) {
+  if (!completionType) return;
+  const sel = document.getElementById('complete-select');
+  sel.disabled = true;
+  try {
+    const res = await fetch(`${XANO_BASE}/tech_job_complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: parseInt(JOB_ID, 10),
+        technician_id: parseInt(TECH_ID, 10),
+        completion_type: completionType
+      })
+    });
+    if (!res.ok) throw new Error(`(${res.status})`);
+    addSystem('success', `✅ job marked: ${completionType.replace(/_/g, ' ')}`);
+    sel.disabled = false;
+  } catch (err) {
+    addSystem('error', '⚠️ complete failed: ' + err.message);
+    sel.value = '';
+    sel.disabled = false;
   }
 }
 
