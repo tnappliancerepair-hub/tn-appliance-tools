@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Job Detail - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #0e1118, #131a2a);
+    border-bottom: 1px solid #2a3040;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header .icon { font-size: 24px; flex-shrink: 0; }
+  .header .text { flex: 1; min-width: 0; }
+  .header .title { font-size: 14px; font-weight: 700; }
+  .header .sub {
+    font-size: 11px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .header .refresh-btn {
+    background: transparent;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    font-family: inherit;
+    -webkit-appearance: none;
+    transition: all 0.15s;
+  }
+  .header .refresh-btn:active { transform: scale(0.9); }
+  .header .refresh-btn:hover:not(:disabled) { background: #2a3040; border-color: #4a9eff; }
+  .header .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
+
+  .action-bar {
+    background: #131720;
+    border-bottom: 1px solid #2a3040;
+    padding: 8px 12px;
+    display: none;
+    gap: 6px;
+  }
+  .action-bar.show { display: flex; }
+  .action-bar button, .action-bar a {
+    flex: 1;
+    min-height: 44px;
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    color: #e8edf5;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    white-space: nowrap;
+  }
+  .action-bar button:active:not(:disabled), .action-bar a:active { transform: scale(0.97); }
+  .action-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .action-bar a.primary {
+    background: linear-gradient(135deg, #4a9eff, #3a8eef);
+    border-color: #4a9eff;
+    color: white;
+  }
+
+  .content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 4px; }
+
+  .loading {
+    padding: 40px 16px;
+    text-align: center;
+    color: #8a93aa;
+  }
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #2a3040;
+    border-top-color: #f5a623;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto 12px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .section {
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: #5a6480;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 10px;
+  }
+  .kv-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+  }
+  .kv-grid .k { color: #8a93aa; font-size: 11px; align-self: start; padding-top: 2px; }
+  .kv-grid .v { color: #e8edf5; font-weight: 500; word-break: break-word; }
+  .kv-grid .v.mono { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .kv-grid .v a { color: #4a9eff; text-decoration: none; }
+  .kv-grid .v.muted { color: #8a93aa; font-style: italic; }
+
+  .job-head {
+    background: #1e2433;
+    border: 1px solid #2a3040;
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .job-head .job-id {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8edf5;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .badge {
+    padding: 3px 9px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge.scheduled       { background: rgba(74,158,255,0.15);  color: #4a9eff; border: 1px solid rgba(74,158,255,0.3); }
+  .badge.in_progress     { background: rgba(245,166,35,0.15);  color: #f5a623; border: 1px solid rgba(245,166,35,0.3); }
+  .badge.completed,
+  .badge.complete        { background: rgba(0,214,143,0.15);   color: #00d68f; border: 1px solid rgba(0,214,143,0.3); }
+  .badge.canceled        { background: rgba(255,71,87,0.15);   color: #ff4757; border: 1px solid rgba(255,71,87,0.3); }
+  .badge.awaiting_parts,
+  .badge.parts_ordered,
+  .badge.broadcasting,
+  .badge.pending_auth    { background: rgba(245,166,35,0.15);  color: #f5a623; border: 1px solid rgba(245,166,35,0.3); }
+  .badge.submitted       { background: rgba(74,158,255,0.15);  color: #4a9eff; border: 1px solid rgba(74,158,255,0.3); }
+  .badge.ready,
+  .badge.pending,
+  .badge.closed,
+  .badge.prediagnosis_pending,
+  .badge.default         { background: rgba(138,147,170,0.15); color: #8a93aa; border: 1px solid rgba(138,147,170,0.3); }
+  .badge.aged {
+    background: rgba(255,71,87,0.15);
+    color: #ff4757;
+    border: 1px solid rgba(255,71,87,0.3);
+  }
+  .badge.neutral {
+    background: rgba(138,147,170,0.15);
+    color: #8a93aa;
+    border: 1px solid rgba(138,147,170,0.3);
+  }
+
+  .timeline {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    position: relative;
+  }
+  .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+  .step .dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #2a3040;
+    border: 2px solid #3a4050;
+    margin-bottom: 6px;
+  }
+  .step.done .dot {
+    background: #00d68f;
+    border-color: #00d68f;
+  }
+  .step .lbl {
+    font-size: 10px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+  .step.done .lbl { color: #00d68f; }
+  .step .ts {
+    font-size: 11px;
+    color: #e8edf5;
+    font-weight: 600;
+  }
+  .step:not(.done) .ts { color: #5a6480; font-style: italic; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    top: 9px;
+    left: 16.66%;
+    right: 16.66%;
+    height: 2px;
+    background: #2a3040;
+    z-index: 0;
+  }
+  .time-on-site {
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(0,214,143,0.08);
+    border: 1px solid rgba(0,214,143,0.2);
+    border-radius: 6px;
+    font-size: 12px;
+    color: #00d68f;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .event {
+    border-left: 2px solid #2a3040;
+    padding: 6px 0 6px 12px;
+    margin-left: 4px;
+    font-size: 12px;
+  }
+  .event .ev-action {
+    color: #e8edf5;
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    margin-bottom: 2px;
+  }
+  .event .ev-time { color: #5a6480; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .event .ev-meta {
+    color: #8a93aa;
+    font-size: 11px;
+    margin-top: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    word-break: break-all;
+    white-space: pre-wrap;
+  }
+
+  .auth-overlay {
+    position: fixed; inset: 0; background: #0e1118;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding: 20px;
+  }
+  .auth-overlay.hidden { display: none; }
+  .auth-card {
+    background: #131720; border: 1px solid #2a3040;
+    border-radius: 16px; padding: 28px 22px; width: 100%; max-width: 360px;
+    text-align: center;
+  }
+  .auth-card h2 { font-size: 18px; margin-bottom: 6px; }
+  .auth-card .sub { color: #8a93aa; font-size: 13px; margin-bottom: 18px; }
+  .auth-card input {
+    width: 100%; background: #0e1118; border: 1px solid #2a3040;
+    border-radius: 10px; color: #e8edf5; padding: 14px;
+    font-size: 16px; text-align: center;
+    font-family: inherit; margin-bottom: 12px;
+    -webkit-appearance: none;
+  }
+  .auth-card input.pin { font-size: 22px; letter-spacing: 0.4em; font-family: 'IBM Plex Mono', monospace; }
+  .auth-card input:focus { border-color: #4a9eff; outline: none; }
+  .auth-card button {
+    width: 100%; background: #4a9eff; color: white; border: 0;
+    border-radius: 10px; padding: 13px; font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+  .auth-card button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-card .err { color: #ff4757; font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  .empty-state {
+    padding: 24px;
+    text-align: center;
+    color: #8a93aa;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-card">
+    <h2 id="auth-title">🐜 Job Detail</h2>
+    <div class="sub" id="auth-sub">authenticating</div>
+    <input id="auth-input" type="password" autocomplete="current-password">
+    <button id="auth-submit" onclick="submitAuth()">Unlock</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="icon">🐜</div>
+  <div class="text">
+    <div class="title" id="header-title">Job Detail</div>
+    <div class="sub" id="header-sub">Loading...</div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="loadJob()" title="Refresh" aria-label="Refresh">↻</button>
+</div>
+
+<div class="action-bar" id="action-bar"></div>
+
+<div class="content" id="content">
+  <div class="loading">
+    <div class="spinner"></div>
+    <div>Loading job...</div>
+  </div>
+</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const OFFICE_PASSWORD = 'office2026'; // TODO: env var via proxy
+const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
+const API_VERIFY_PIN = '/.netlify/functions/verify-pin-proxy';
+
+const params = new URLSearchParams(window.location.search);
+const JOB_ID = params.get('job_id');
+const TECH_ID = params.get('tech_id');
+const OFFICE_FLAG = params.get('office') === '1';
+
+// Auth mode: office password OR tech PIN.
+// office=1 -> office. tech_id present (no office=1) -> tech PIN. Otherwise default office.
+const AUTH_MODE = OFFICE_FLAG ? 'office' : (TECH_ID ? 'tech' : 'office');
+const isOffice = AUTH_MODE === 'office';
+
+let isLoading = false;
+let jobData = null;
+
+function initAuth() {
+  const titleEl = document.getElementById('auth-title');
+  const subEl = document.getElementById('auth-sub');
+  const inputEl = document.getElementById('auth-input');
+
+  if (AUTH_MODE === 'office') {
+    titleEl.textContent = '🐜 Office Access';
+    subEl.textContent = 'enter office password to view this job';
+    inputEl.type = 'password';
+    inputEl.className = '';
+    inputEl.placeholder = '';
+    if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
+      document.getElementById('auth-overlay').classList.add('hidden');
+      loadJob();
+      return;
+    }
+  } else {
+    titleEl.textContent = '🐜 Tech Access';
+    subEl.textContent = 'enter your 4-digit PIN to view this job';
+    inputEl.type = 'tel';
+    inputEl.setAttribute('inputmode', 'numeric');
+    inputEl.setAttribute('maxlength', '4');
+    inputEl.className = 'pin';
+  }
+  inputEl.focus();
+}
+
+async function submitAuth() {
+  const errEl = document.getElementById('auth-err');
+  const btn = document.getElementById('auth-submit');
+  const inputEl = document.getElementById('auth-input');
+  const value = (inputEl.value || '').trim();
+  errEl.textContent = '';
+
+  if (value === '') {
+    errEl.textContent = 'Enter ' + (AUTH_MODE === 'office' ? 'password' : 'PIN');
+    return;
+  }
+  btn.disabled = true;
+
+  if (AUTH_MODE === 'office') {
+    if (value === OFFICE_PASSWORD) {
+      localStorage.setItem(OFFICE_AUTH_KEY, '1');
+      document.getElementById('auth-overlay').classList.add('hidden');
+      loadJob();
+    } else {
+      errEl.textContent = 'Wrong password.';
+      inputEl.value = '';
+      inputEl.focus();
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  // Tech PIN flow.
+  if (!/^\d{4}$/.test(value)) {
+    errEl.textContent = 'Enter your 4-digit PIN';
+    btn.disabled = false;
+    return;
+  }
+  if (!TECH_ID) {
+    errEl.textContent = 'Missing tech_id in URL';
+    btn.disabled = false;
+    return;
+  }
+  btn.textContent = 'Checking...';
+  try {
+    const res = await fetch(API_VERIFY_PIN, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin: value })
+    });
+    const data = await res.json();
+    if (data.success === true) {
+      document.getElementById('auth-overlay').classList.add('hidden');
+      loadJob();
+    } else {
+      errEl.textContent = 'Wrong PIN. Try again.';
+      inputEl.value = '';
+      inputEl.focus();
+    }
+  } catch (e) {
+    errEl.textContent = 'Connection error. Try again.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Unlock';
+  }
+}
+
+async function loadJob() {
+  if (isLoading) return;
+  if (!JOB_ID) {
+    renderError('Missing job_id', 'URL needs ?job_id=X');
+    return;
+  }
+  isLoading = true;
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.disabled = true;
+  refreshBtn.classList.add('spinning');
+
+  try {
+    const res = await fetch('/.netlify/functions/xano-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: 'get_job_for_dashboard',
+        payload: { job_id: parseInt(JOB_ID, 10) },
+        method: 'GET'
+      })
+    });
+    if (!res.ok) throw new Error(`Could not load job (${res.status})`);
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Job not found');
+    jobData = data;
+    render();
+  } catch (err) {
+    renderError('Could not load job', err.message);
+  } finally {
+    isLoading = false;
+    refreshBtn.disabled = false;
+    refreshBtn.classList.remove('spinning');
+  }
+}
+
+function render() {
+  if (!jobData) return;
+  const job = jobData.job || {};
+  const cust = jobData.customer || {};
+  const tech = jobData.tech || {};
+  const tdr = jobData.tdr || {};
+  const appliance = jobData.appliance || {};
+  const events = jobData.recent_events || [];
+  const earnings = jobData.earnings || [];
+
+  const custName = cust.name || 'Customer';
+  document.getElementById('header-sub').textContent = `Job #${job.id || '?'} • ${custName}`;
+
+  renderActionBar(job, cust, tech);
+
+  const sections = [];
+  sections.push(buildJobHead(job, cust));
+  sections.push(buildCustomerSection(cust));
+  sections.push(buildApplianceSection(appliance));
+  sections.push(buildTechSection(tech, job));
+  sections.push(buildTimelineSection(job));
+  if (job.parts_decision != null && String(job.parts_decision).trim() !== '') {
+    sections.push(buildPartsSection(job));
+  }
+  if (tdr && tdr.diagnosis != null && String(tdr.diagnosis).trim() !== '') {
+    sections.push(buildTdrSection(tdr));
+  }
+  if (isOffice && earnings.length > 0) {
+    sections.push(buildEarningsSection(earnings));
+  }
+  if (events.length > 0) {
+    sections.push(buildActivitySection(events));
+  }
+
+  document.getElementById('content').innerHTML = sections.join('');
+}
+
+function renderActionBar(job, cust, tech) {
+  const bar = document.getElementById('action-bar');
+  const phone = (cust.phone || '').toString().replace(/\D/g, '');
+  const phoneE164 = phone.length === 10 ? '+1' + phone : (phone.length === 11 ? '+' + phone : phone);
+  const fullAddr = [cust.address, cust.city, cust.state, cust.zip].filter(Boolean).join(', ');
+  const navUrl = fullAddr ? 'https://maps.google.com/?q=' + encodeURIComponent(fullAddr) : '';
+  const liveUrl = tech.id ? `tech-ant-live.html?job_id=${job.id}&tech_id=${tech.id}` : '';
+
+  const buttons = [
+    phoneE164
+      ? `<a href="tel:${escapeAttr(phoneE164)}">📞 Call</a>`
+      : `<button disabled title="no phone on file">📞 Call</button>`,
+    navUrl
+      ? `<a href="${escapeAttr(navUrl)}" target="_blank" rel="noopener noreferrer">🗺 Navigate</a>`
+      : `<button disabled title="no address on file">🗺 Navigate</button>`,
+    liveUrl
+      ? `<a class="primary" href="${escapeAttr(liveUrl)}">🐜 Open Tech Live</a>`
+      : `<button disabled title="no tech assigned">🐜 Open Tech Live</button>`
+  ];
+  bar.innerHTML = buttons.join('');
+  bar.classList.add('show');
+}
+
+const KNOWN_STATUSES = [
+  'scheduled', 'in_progress', 'completed', 'complete', 'canceled',
+  'awaiting_parts', 'parts_ordered', 'broadcasting', 'pending_auth',
+  'submitted', 'ready', 'pending', 'closed', 'prediagnosis_pending'
+];
+
+function buildJobHead(job, cust) {
+  const status = job.scheduling_status || job.current_status || 'default';
+  const badgeClass = KNOWN_STATUSES.includes(status) ? status : 'default';
+  const days = job.days_since_created || 0;
+  const daysClass = days > 7 ? 'aged' : 'neutral';
+  return `
+    <div class="job-head">
+      <div class="job-id">Job #${escapeHtml(String(job.id || '?'))}</div>
+      <div class="badge ${badgeClass}">${escapeHtml(String(status).replace(/_/g, ' '))}</div>
+      <div class="badge ${daysClass}">${days}d old</div>
+    </div>
+  `;
+}
+
+function buildCustomerSection(cust) {
+  const phone = (cust.phone || '').toString().replace(/\D/g, '');
+  const phoneFmt = phone.length === 10
+    ? `(${phone.slice(0,3)}) ${phone.slice(3,6)}-${phone.slice(6)}`
+    : (cust.phone || '—');
+  const phoneE164 = phone.length === 10 ? '+1' + phone : (phone.length === 11 ? '+' + phone : phone);
+  const fullAddr = [cust.address, cust.city, cust.state, cust.zip].filter(Boolean).join(', ') || '—';
+  return `
+    <div class="section">
+      <div class="section-title">Customer</div>
+      <div class="kv-grid">
+        <div class="k">Name</div>    <div class="v">${escapeHtml(cust.name || '—')}</div>
+        <div class="k">Phone</div>   <div class="v">${phoneE164 ? `<a href="tel:${escapeAttr(phoneE164)}">${escapeHtml(phoneFmt)}</a>` : '<span class="muted">—</span>'}</div>
+        <div class="k">Email</div>   <div class="v">${cust.email ? `<a href="mailto:${escapeAttr(cust.email)}">${escapeHtml(cust.email)}</a>` : '<span class="muted">—</span>'}</div>
+        <div class="k">Address</div> <div class="v">${escapeHtml(fullAddr)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildApplianceSection(appl) {
+  return `
+    <div class="section">
+      <div class="section-title">Appliance</div>
+      <div class="kv-grid">
+        <div class="k">Brand</div>   <div class="v">${escapeHtml(appl.brand || '—')}</div>
+        <div class="k">Type</div>    <div class="v">${escapeHtml(appl.type || '—')}</div>
+        <div class="k">Model</div>   <div class="v mono">${escapeHtml(appl.model_number || '—')}</div>
+        <div class="k">Serial</div>  <div class="v mono">${escapeHtml(appl.serial_number || '—')}</div>
+        <div class="k">Problem</div> <div class="v">${escapeHtml(appl.problem_summary || appl.problem_description || '—')}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildTechSection(tech, job) {
+  return `
+    <div class="section">
+      <div class="section-title">Tech</div>
+      <div class="kv-grid">
+        <div class="k">Name</div>      <div class="v">${escapeHtml(tech.name || 'Unassigned')}</div>
+        <div class="k">ID</div>        <div class="v mono">${tech.id ? escapeHtml(String(tech.id)) : '—'}</div>
+        <div class="k">Scheduled</div> <div class="v">${job.scheduled_start ? escapeHtml(formatDateTimeCT(job.scheduled_start)) : '<span class="muted">not scheduled</span>'}</div>
+        <div class="k">Window</div>    <div class="v">${escapeHtml(job.service_eta_window || '—')}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildTimelineSection(job) {
+  const en = job.tech_en_route_at;
+  const st = job.job_started_at;
+  const co = job.job_completed_at;
+  const tm = job.time_on_site_minutes;
+  const steps = [
+    { lbl: 'On Way',    ts: en },
+    { lbl: 'Started',   ts: st },
+    { lbl: 'Completed', ts: co }
+  ];
+  const stepsHtml = steps.map(s => `
+    <div class="step ${s.ts ? 'done' : ''}">
+      <div class="dot"></div>
+      <div class="lbl">${escapeHtml(s.lbl)}</div>
+      <div class="ts">${s.ts ? escapeHtml(formatTimeCT(s.ts)) : 'pending'}</div>
+    </div>
+  `).join('');
+  const tmBlock = (tm != null && tm > 0)
+    ? `<div class="time-on-site">${tm} minutes on site</div>`
+    : '';
+  return `
+    <div class="section">
+      <div class="section-title">Timeline</div>
+      <div class="timeline">${stepsHtml}</div>
+      ${tmBlock}
+    </div>
+  `;
+}
+
+function buildPartsSection(job) {
+  return `
+    <div class="section">
+      <div class="section-title">Parts</div>
+      <div class="kv-grid">
+        <div class="k">Decision</div>   <div class="v">${escapeHtml(String(job.parts_decision || '—').replace(/_/g, ' '))}</div>
+        <div class="k">Status</div>     <div class="v">${escapeHtml(String(job.parts_status || '—').replace(/_/g, ' '))}</div>
+        <div class="k">Supplier</div>   <div class="v">${escapeHtml(job.parts_supplier || '—')}</div>
+        <div class="k">ETA</div>        <div class="v">${escapeHtml(job.parts_eta_date || '—')}</div>
+        <div class="k">Ordered</div>    <div class="v">${job.parts_ordered_at ? escapeHtml(formatDateTimeCT(job.parts_ordered_at)) : '<span class="muted">not ordered</span>'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildTdrSection(tdr) {
+  return `
+    <div class="section">
+      <div class="section-title">Tech Decision Report</div>
+      <div class="kv-grid">
+        <div class="k">Status</div>           <div class="v">${escapeHtml(tdr.status || '—')}</div>
+        <div class="k">Date</div>             <div class="v">${escapeHtml(tdr.report_date || '—')}</div>
+        <div class="k">Diagnosis</div>        <div class="v">${escapeHtml(tdr.diagnosis || '—')}</div>
+        <div class="k">For Customer</div>     <div class="v">${tdr.customer_facing_diagnosis ? escapeHtml(tdr.customer_facing_diagnosis) : '<span class="muted">—</span>'}</div>
+        <div class="k">Part Number</div>      <div class="v mono">${escapeHtml(tdr.verified_part_number || '—')}</div>
+        <div class="k">Tech Notes</div>       <div class="v">${tdr.technician_notes ? escapeHtml(tdr.technician_notes) : '<span class="muted">—</span>'}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildEarningsSection(earnings) {
+  const rows = earnings.map(e => `
+    <div class="kv-grid" style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #2a3040">
+      <div class="k">Tech</div>           <div class="v">id ${escapeHtml(String(e.tech_id || '—'))}</div>
+      <div class="k">Status</div>         <div class="v">${escapeHtml(String(e.status || '—').replace(/_/g, ' '))}</div>
+      <div class="k">Rate</div>           <div class="v">${e.commission_rate != null ? escapeHtml(String(e.commission_rate) + '%') : '—'}</div>
+      <div class="k">Commission</div>     <div class="v">$${escapeHtml(String(e.commission_earned ?? 0))}</div>
+      <div class="k">Earned at</div>      <div class="v">${e.earned_at ? escapeHtml(formatDateTimeCT(e.earned_at)) : '—'}</div>
+    </div>
+  `).join('');
+  return `
+    <div class="section">
+      <div class="section-title">Earnings (office only)</div>
+      ${rows}
+    </div>
+  `;
+}
+
+function buildActivitySection(events) {
+  const items = events.map(ev => {
+    const meta = ev.metadata && typeof ev.metadata === 'object'
+      ? JSON.stringify(ev.metadata, null, 0)
+      : (ev.metadata != null ? String(ev.metadata) : '');
+    return `
+      <div class="event">
+        <div class="ev-action">${escapeHtml(String(ev.action || '—'))}</div>
+        <div class="ev-time">${ev.created_at ? escapeHtml(formatDateTimeCT(ev.created_at)) : ''}</div>
+        ${meta ? `<div class="ev-meta">${escapeHtml(meta)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+  return `
+    <div class="section">
+      <div class="section-title">Activity (last ${events.length})</div>
+      ${items || '<div class="empty-state">no events</div>'}
+    </div>
+  `;
+}
+
+function renderError(title, msg) {
+  document.getElementById('header-sub').textContent = title;
+  document.getElementById('content').innerHTML = `<div class="empty-state">⚠️ ${escapeHtml(msg || '')}</div>`;
+}
+
+function formatDateTimeCT(ms) {
+  if (!ms) return '—';
+  const d = new Date(ms);
+  const dateStr = d.toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+  const timeStr = d.toLocaleTimeString('en-US', {
+    timeZone: 'America/Chicago',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).toLowerCase().replace(/\s/g, '');
+  return `${dateStr} ${timeStr}`;
+}
+
+function formatTimeCT(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleTimeString('en-US', {
+    timeZone: 'America/Chicago',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  }).toLowerCase().replace(/\s/g, '');
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  })[c]);
+}
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/'/g, '%27');
+}
+
+document.getElementById('auth-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') submitAuth();
+});
+
+initAuth();
+</script>
+</body>
+</html>
