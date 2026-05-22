@@ -544,7 +544,15 @@ async function init() {
   }
 
   try {
-    const res = await fetch(`${XANO_BASE}/get_job_for_dashboard?job_id=${JOB_ID}`);
+    const res = await fetch('/.netlify/functions/xano-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: 'get_job_for_dashboard',
+        payload: { job_id: parseInt(JOB_ID, 10) },
+        method: 'POST'
+      })
+    });
     if (!res.ok) throw new Error(`Could not load job (${res.status})`);
     const data = await res.json();
     if (!data.success || !data.job) throw new Error('Job not found');
