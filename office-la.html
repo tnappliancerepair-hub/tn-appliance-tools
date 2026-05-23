@@ -356,10 +356,25 @@ const SECTIONS = [
     icon: '🔧',
     name: "Andre's Jobs (tech 3)",
     subs: [
-      { id: 'andre-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+      { id: 'andre-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 3, status: 'scheduled', date_filter: 'all', per_page: 200 } },
-      { id: 'andre-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 3, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+      { id: 'andre-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+      { id: 'andre-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'report' } },
+      { id: 'andre-waiting-auth',    name: 'Waiting Auth',     endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'waiting_auth' } },
+      { id: 'andre-completion-appt', name: 'Completion Appt',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'completion_appt' } },
+      { id: 'andre-follow-up',       name: 'Follow Up',        endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'follow_up' } },
+      { id: 'andre-needs-invoicing', name: 'Needs Invoicing',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 3, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'needs_invoicing' } }
     ]
   },
   {
@@ -367,10 +382,25 @@ const SECTIONS = [
     icon: '🔧',
     name: "Billy's Jobs (tech 5)",
     subs: [
-      { id: 'billy-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+      { id: 'billy-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 5, status: 'scheduled', date_filter: 'all', per_page: 200 } },
-      { id: 'billy-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 5, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+      { id: 'billy-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+      { id: 'billy-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'report' } },
+      { id: 'billy-waiting-auth',    name: 'Waiting Auth',     endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'waiting_auth' } },
+      { id: 'billy-completion-appt', name: 'Completion Appt',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'completion_appt' } },
+      { id: 'billy-follow-up',       name: 'Follow Up',        endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'follow_up' } },
+      { id: 'billy-needs-invoicing', name: 'Needs Invoicing',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 5, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'needs_invoicing' } }
     ]
   },
   {
@@ -378,10 +408,25 @@ const SECTIONS = [
     icon: '🔧',
     name: "John's Jobs (tech 6)",
     subs: [
-      { id: 'john-scheduled', name: 'Scheduled', endpoint: 'get_jobs_for_dashboard',
+      { id: 'john-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 6, status: 'scheduled', date_filter: 'all', per_page: 200 } },
-      { id: 'john-upgrade',   name: 'Upgrade',   endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 6, status: 'pending_auth', date_filter: 'all', per_page: 200 } }
+      { id: 'john-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+      { id: 'john-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'report' } },
+      { id: 'john-waiting-auth',    name: 'Waiting Auth',     endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'waiting_auth' } },
+      { id: 'john-completion-appt', name: 'Completion Appt',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'completion_appt' } },
+      { id: 'john-follow-up',       name: 'Follow Up',        endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'follow_up' } },
+      { id: 'john-needs-invoicing', name: 'Needs Invoicing',  endpoint: 'get_jobs_for_dashboard',
+        payload: { tech_id: 6, date_filter: 'all', per_page: 500 },
+        clientFilter: { field: 'office_stage', value: 'needs_invoicing' } }
     ]
   },
   {
@@ -535,6 +580,13 @@ async function loadAll() {
         if (r && r.error) error = r.error;
         else if (r && r.data && Array.isArray(r.data.items)) items = r.data.items;
         else items = [];
+      }
+
+      // Per-subsection clientFilter (e.g., office_stage === "report").
+      if (items && s.clientFilter) {
+        const field = s.clientFilter.field;
+        const value = s.clientFilter.value;
+        items = items.filter(it => (it.job && it.job[field]) === value);
       }
 
       // Client-side LA region filter for the Scheduling block.
