@@ -8,19 +8,18 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { height: 100%; }
   body {
+    margin: 0;
+    padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #0e1118;
     color: #e8edf5;
-    height: 100vh;
-    height: 100dvh;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    overflow: hidden;
   }
 
   .header {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 100;
     background: linear-gradient(135deg, #0e1118, #131a2a);
     border-bottom: 1px solid #2a3040;
@@ -65,11 +64,10 @@
   .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
 
   .content {
-    min-height: 0;
+    margin-top: 60px;
     overflow-y: auto;
-    overflow-x: hidden;
     padding: 10px;
-    -webkit-overflow-scrolling: touch;
+    min-height: calc(100vh - 60px);
     display: flex;
     flex-direction: column;
     gap: 8px;
