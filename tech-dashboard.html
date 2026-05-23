@@ -112,6 +112,35 @@
   }
   .map-panel .route-link:active { opacity: 0.85; }
 
+  /* Route summary panel (replaces multi-stop iframe). */
+  .map-panel .route-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 100%;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #131720, #1e2433);
+    text-decoration: none;
+    color: #e8edf5;
+    transition: background 0.15s;
+  }
+  .map-panel .route-summary:active {
+    background: linear-gradient(135deg, #1e2433, #2a3040);
+  }
+  .map-panel .route-icon { font-size: 36px; flex-shrink: 0; }
+  .map-panel .route-text { flex: 1; min-width: 0; }
+  .map-panel .route-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .map-panel .route-sub {
+    font-size: 12px;
+    color: #8a93aa;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .map-panel .route-arrow {
+    font-size: 28px;
+    color: #4a9eff;
+    flex-shrink: 0;
+  }
+
   /* Stop list */
   .stop-list {
     overflow-y: auto;
@@ -405,18 +434,24 @@ function renderMap(items) {
     return;
   }
 
-  // Iframe shows the FIRST stop only (multi-stop /dir/ URLs are blocked by
-  // Google's X-Frame-Options). The route-link button below opens the full
-  // multi-stop directions in a new tab via the Google Maps app.
-  const firstEnc = encodeURIComponent(addresses[0]);
-  const iframeSrc = `https://maps.google.com/maps?q=${firstEnc}&output=embed`;
+  // Clickable Route Summary panel. Drops the iframe entirely (multi-stop
+  // /dir/ URLs are X-Frame-blocked by Google, and single-stop embeds didn't
+  // visually represent the route). Tapping the panel opens the full route
+  // in Google Maps app / new tab. Per-stop Navigate buttons in the cards
+  // below handle the single-stop case.
   const routeUrl = 'https://www.google.com/maps/dir/' +
     addresses.map(encodeURIComponent).join('/');
   const stopWord = addresses.length === 1 ? 'stop' : 'stops';
 
   mapPanel.innerHTML = `
-    <iframe src="${escapeHtml(iframeSrc)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    <a class="route-link" href="${escapeHtml(routeUrl)}" target="_blank" rel="noopener noreferrer">📍 View Route (${addresses.length} ${stopWord})</a>
+    <a class="route-summary" href="${escapeHtml(routeUrl)}" target="_blank" rel="noopener noreferrer">
+      <div class="route-icon">🗺</div>
+      <div class="route-text">
+        <div class="route-title">View Route</div>
+        <div class="route-sub">${addresses.length} ${stopWord} · tap to open in Google Maps</div>
+      </div>
+      <div class="route-arrow">→</div>
+    </a>
   `;
 }
 

@@ -67,10 +67,11 @@
     padding: 8px 12px;
     display: none;
     gap: 6px;
+    flex-wrap: wrap;
   }
   .action-bar.show { display: flex; }
   .action-bar button, .action-bar a {
-    flex: 1;
+    flex: 1 1 calc(33.33% - 4px);
     min-height: 44px;
     background: #1e2433;
     border: 1px solid #2a3040;
@@ -95,6 +96,91 @@
     background: linear-gradient(135deg, #4a9eff, #3a8eef);
     border-color: #4a9eff;
     color: white;
+  }
+  .action-bar button.danger {
+    background: rgba(255,71,87,0.15);
+    border-color: rgba(255,71,87,0.4);
+    color: #ff4757;
+  }
+  .action-bar button.danger:active { background: rgba(255,71,87,0.25); }
+
+  /* Office-action modals */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+    padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-card {
+    background: #131720;
+    border: 1px solid #2a3040;
+    border-radius: 16px;
+    padding: 22px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .modal-sub {
+    color: #8a93aa;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .modal-input, .modal-card select, .modal-card textarea {
+    width: 100%;
+    background: #0e1118;
+    border: 1px solid #2a3040;
+    border-radius: 8px;
+    color: #e8edf5;
+    padding: 12px;
+    font-size: 15px;
+    font-family: inherit;
+    margin-bottom: 12px;
+    -webkit-appearance: none;
+  }
+  .modal-card textarea {
+    min-height: 70px;
+    resize: vertical;
+  }
+  .modal-input:focus, .modal-card select:focus, .modal-card textarea:focus {
+    border-color: #4a9eff;
+    outline: none;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .modal-btn {
+    flex: 1;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid;
+    font-family: inherit;
+    -webkit-appearance: none;
+  }
+  .modal-btn:active { transform: scale(0.97); }
+  .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal-btn.primary { background: #4a9eff; color: white; border-color: #4a9eff; }
+  .modal-btn.danger { background: #ff4757; color: white; border-color: #ff4757; }
+  .modal-btn.secondary { background: transparent; color: #8a93aa; border-color: #2a3040; }
+  .modal-err {
+    color: #ff4757;
+    font-size: 12px;
+    min-height: 16px;
+    margin-top: 8px;
+    font-family: 'IBM Plex Mono', monospace;
   }
 
   .content {
@@ -357,6 +443,54 @@
   </div>
 </div>
 
+<!-- Office-only action modals (Reschedule, Reassign, Cancel) -->
+<div class="modal-overlay" id="modal-reschedule">
+  <div class="modal-card">
+    <div class="modal-title">🗓 Reschedule Job</div>
+    <div class="modal-sub" id="reschedule-sub">pick a new date and time</div>
+    <input type="datetime-local" id="reschedule-input" class="modal-input">
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('reschedule')">Cancel</button>
+      <button class="modal-btn primary" id="reschedule-submit" onclick="submitReschedule()">Save</button>
+    </div>
+    <div class="modal-err" id="reschedule-err"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reassign">
+  <div class="modal-card">
+    <div class="modal-title">🔄 Reassign Tech</div>
+    <div class="modal-sub" id="reassign-sub">pick the new tech for this job</div>
+    <select id="reassign-input">
+      <option value="">Pick a tech...</option>
+      <option value="1">Teddy (id 1)</option>
+      <option value="2">Jimmy (id 2)</option>
+      <option value="3">Andre (id 3)</option>
+      <option value="4">Lee (id 4)</option>
+      <option value="5">Billy (id 5)</option>
+      <option value="6">John (id 6)</option>
+    </select>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('reassign')">Cancel</button>
+      <button class="modal-btn primary" id="reassign-submit" onclick="submitReassign()">Save</button>
+    </div>
+    <div class="modal-err" id="reassign-err"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-cancel">
+  <div class="modal-card">
+    <div class="modal-title">🚫 Cancel Job</div>
+    <div class="modal-sub" id="cancel-sub">this cannot be undone</div>
+    <textarea id="cancel-input" placeholder="Reason (optional)"></textarea>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('cancel')">Don't Cancel</button>
+      <button class="modal-btn danger" id="cancel-submit" onclick="submitCancel()">Cancel Job</button>
+    </div>
+    <div class="modal-err" id="cancel-err"></div>
+  </div>
+</div>
+
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OFFICE_PASSWORD = 'office2026'; // TODO: env var via proxy
@@ -556,8 +690,136 @@ function renderActionBar(job, cust, tech) {
       ? `<a class="primary" href="${escapeAttr(liveUrl)}">🐜 Open Tech Live</a>`
       : `<button disabled title="no tech assigned">🐜 Open Tech Live</button>`
   ];
+  if (isOffice) {
+    buttons.push('<button onclick="openReschedule()">🗓 Reschedule</button>');
+    buttons.push('<button onclick="openReassign()">🔄 Reassign</button>');
+    buttons.push('<button class="danger" onclick="openCancel()">🚫 Cancel Job</button>');
+  }
   bar.innerHTML = buttons.join('');
   bar.classList.add('show');
+}
+
+// ── Office-only action modals ─────────────────────────────────────
+async function fetchProxy(endpoint, payload) {
+  const res = await fetch('/.netlify/functions/xano-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint, payload, method: 'POST' })
+  });
+  if (!res.ok) throw new Error(`(${res.status})`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'no success flag');
+  return data;
+}
+
+function openModal(name) {
+  document.getElementById('modal-' + name).classList.add('show');
+  document.getElementById(name + '-err').textContent = '';
+}
+function closeModal(name) {
+  document.getElementById('modal-' + name).classList.remove('show');
+}
+
+function openReschedule() {
+  // Pre-fill datetime-local with current scheduled_start if present.
+  const job = (jobData && jobData.job) || {};
+  const input = document.getElementById('reschedule-input');
+  if (job.scheduled_start) {
+    const d = new Date(job.scheduled_start);
+    const pad = n => String(n).padStart(2, '0');
+    input.value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } else {
+    input.value = '';
+  }
+  document.getElementById('reschedule-sub').textContent =
+    job.scheduled_start ? 'change scheduled time' : 'set scheduled time';
+  openModal('reschedule');
+}
+
+async function submitReschedule() {
+  const input = document.getElementById('reschedule-input').value;
+  const errEl = document.getElementById('reschedule-err');
+  const btn = document.getElementById('reschedule-submit');
+  errEl.textContent = '';
+  if (!input) { errEl.textContent = 'Pick a date and time'; return; }
+  const ms = Date.parse(input);
+  if (isNaN(ms)) { errEl.textContent = 'Invalid date'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await fetchProxy('reschedule_job', { job_id: parseInt(JOB_ID, 10), new_start_ms: ms });
+    closeModal('reschedule');
+    loadJob();
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+function openReassign() {
+  // Pre-select current tech if present.
+  const tech = (jobData && jobData.tech) || {};
+  const sel = document.getElementById('reassign-input');
+  sel.value = tech.id ? String(tech.id) : '';
+  document.getElementById('reassign-sub').textContent =
+    tech.id ? `currently assigned to ${tech.name || 'tech ' + tech.id}` : 'currently unassigned';
+  openModal('reassign');
+}
+
+async function submitReassign() {
+  const sel = document.getElementById('reassign-input');
+  const errEl = document.getElementById('reassign-err');
+  const btn = document.getElementById('reassign-submit');
+  errEl.textContent = '';
+  if (!sel.value) { errEl.textContent = 'Pick a tech'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  try {
+    await fetchProxy('reassign_job', {
+      job_id: parseInt(JOB_ID, 10),
+      technician_id: parseInt(sel.value, 10)
+    });
+    closeModal('reassign');
+    loadJob();
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+}
+
+function openCancel() {
+  const job = (jobData && jobData.job) || {};
+  const cust = (jobData && jobData.customer) || {};
+  document.getElementById('cancel-input').value = '';
+  document.getElementById('cancel-sub').textContent =
+    `Cancel job #${job.id || '?'} for ${cust.name || 'this customer'}? This cannot be undone.`;
+  openModal('cancel');
+}
+
+async function submitCancel() {
+  const reason = document.getElementById('cancel-input').value;
+  const errEl = document.getElementById('cancel-err');
+  const btn = document.getElementById('cancel-submit');
+  errEl.textContent = '';
+  btn.disabled = true;
+  btn.textContent = 'Canceling...';
+  try {
+    await fetchProxy('cancel_job', {
+      job_id: parseInt(JOB_ID, 10),
+      reason: reason
+    });
+    closeModal('cancel');
+    loadJob();
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cancel Job';
+  }
 }
 
 const KNOWN_STATUSES = [
