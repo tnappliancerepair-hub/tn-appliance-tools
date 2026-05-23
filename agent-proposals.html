@@ -180,6 +180,43 @@
     color: #b5bcd0;
   }
 
+  .build-state {
+    background: rgba(74,158,255,0.08);
+    border: 1px solid rgba(74,158,255,0.35);
+    color: #4a9eff;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'IBM Plex Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .build-state .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(74,158,255,0.3);
+    border-top-color: #4a9eff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  .build-state.success {
+    background: rgba(0,214,143,0.1);
+    border-color: rgba(0,214,143,0.4);
+    color: #00d68f;
+  }
+  .build-state.warn {
+    background: rgba(255,165,0,0.1);
+    border-color: rgba(255,165,0,0.4);
+    color: #ffa500;
+  }
+  .build-state.error {
+    background: rgba(255,71,87,0.1);
+    border-color: rgba(255,71,87,0.3);
+    color: #ff4757;
+  }
+
   .empty {
     text-align: center;
     padding: 60px 20px;
@@ -365,32 +402,79 @@ async function loadAll() {
   }
 }
 
+function dismissCard(card) {
+  card.classList.add('dismissing');
+  setTimeout(() => {
+    card.remove();
+    const remaining = document.querySelectorAll('.proposal').length;
+    document.getElementById('header-sub').textContent = `${remaining} pending`;
+    if (remaining === 0) {
+      document.getElementById('content').innerHTML = renderEmpty();
+    }
+  }, 250);
+}
+
+function setBuildState(card, cls, html) {
+  const actions = card.querySelector('.actions');
+  if (!actions) return;
+  actions.innerHTML = `<div class="build-state ${cls}">${html}</div>`;
+}
+
 async function decide(proposalId, newStatus, btnEl) {
   const card = btnEl.closest('.proposal');
   const buttons = card.querySelectorAll('.btn');
   buttons.forEach(b => b.disabled = true);
 
+  // Skip path: just mark + animate out (unchanged behavior).
+  if (newStatus !== 'approved') {
+    try {
+      await fetchProxy('update_agent_proposal_status', {
+        proposal_id: proposalId,
+        new_status: newStatus
+      });
+      dismissCard(card);
+    } catch (err) {
+      buttons.forEach(b => b.disabled = false);
+      alert('Failed to update: ' + (err.message || err));
+    }
+    return;
+  }
+
+  // Approve path: mark approved, then call agent_builder to deploy.
   try {
     await fetchProxy('update_agent_proposal_status', {
       proposal_id: proposalId,
-      new_status: newStatus
+      new_status: 'approved'
     });
-
-    // Animate out then remove.
-    card.classList.add('dismissing');
-    setTimeout(() => {
-      card.remove();
-      // Update header count + check empty state.
-      const remaining = document.querySelectorAll('.proposal').length;
-      document.getElementById('header-sub').textContent = `${remaining} pending`;
-      if (remaining === 0) {
-        document.getElementById('content').innerHTML = renderEmpty();
-      }
-    }, 250);
   } catch (err) {
     buttons.forEach(b => b.disabled = false);
-    alert('Failed to update: ' + (err.message || err));
+    alert('Failed to mark approved: ' + (err.message || err));
+    return;
   }
+
+  setBuildState(card, '', '<span class="spinner"></span><span>Building... Claude is writing the endpoint (may take up to 2 minutes)</span>');
+
+  let buildResp;
+  try {
+    buildResp = await fetchProxy('agent_builder', { proposal_id: proposalId });
+  } catch (err) {
+    setBuildState(card, 'error', `❌ Build failed: ${escapeHtml(err.message || String(err))}`);
+    return;
+  }
+
+  const deployStatus = buildResp.deploy_status || 'unknown';
+  const endpointName = buildResp.endpoint_name || '(unknown)';
+  const queueId = buildResp.queue_id || '?';
+
+  if (deployStatus === 'deployed') {
+    setBuildState(card, 'success', `✅ Deployed! <strong>${escapeHtml(endpointName)}</strong> added to agent_queue (id=${queueId}) and live.`);
+  } else if (deployStatus === 'pending_paste') {
+    setBuildState(card, 'warn', `⚠️ Paste needed. Endpoint shell <strong>${escapeHtml(endpointName)}</strong> created but XS body did not persist via API. Paste manually in Xano UI, then flip queue id=${queueId} to enabled=true.`);
+  } else {
+    setBuildState(card, 'warn', `Built with status: <strong>${escapeHtml(deployStatus)}</strong> (endpoint ${escapeHtml(endpointName)}, queue ${queueId})`);
+  }
+
+  setTimeout(() => dismissCard(card), 4000);
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
