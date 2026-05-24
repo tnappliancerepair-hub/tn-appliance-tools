@@ -384,7 +384,16 @@ async function loadAll() {
 
   try {
     const data = await fetchProxy('get_agent_proposals', { status: 'approved', per_page: 200 });
-    const items = (data.items || []).filter(p => !p.built_at);
+    const seenDescriptions = new Set();
+    const items = (data.items || [])
+      .filter(p => !p.built_at)
+      .filter(p => p.description && p.description.trim())
+      .filter(p => {
+        const key = p.description.trim();
+        if (seenDescriptions.has(key)) return false;
+        seenDescriptions.add(key);
+        return true;
+      });
     headerSub.textContent = `${items.length} approved, unbuilt`;
 
     if (items.length === 0) {
