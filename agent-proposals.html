@@ -383,9 +383,9 @@ async function loadAll() {
   content.innerHTML = '<div class="loading">loading...</div>';
 
   try {
-    const data = await fetchProxy('get_agent_proposals', { status: 'pending', per_page: 200 });
-    const items = data.items || [];
-    headerSub.textContent = `${items.length} pending`;
+    const data = await fetchProxy('get_agent_proposals', { status: 'approved', per_page: 200 });
+    const items = (data.items || []).filter(p => !p.built_at);
+    headerSub.textContent = `${items.length} approved, unbuilt`;
 
     if (items.length === 0) {
       content.innerHTML = renderEmpty();
@@ -407,7 +407,7 @@ function dismissCard(card) {
   setTimeout(() => {
     card.remove();
     const remaining = document.querySelectorAll('.proposal').length;
-    document.getElementById('header-sub').textContent = `${remaining} pending`;
+    document.getElementById('header-sub').textContent = `${remaining} approved, unbuilt`;
     if (remaining === 0) {
       document.getElementById('content').innerHTML = renderEmpty();
     }
