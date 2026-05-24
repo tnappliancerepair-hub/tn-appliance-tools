@@ -12,3 +12,9 @@ xano-workspace/
 .tmp_smoke/
 .smoke_check.js
 node_modules/
+
+# Secrets — never commit. .env.example is the template; .env holds real keys.
+.env
+**/.env
+!.env.example
+!**/.env.example
