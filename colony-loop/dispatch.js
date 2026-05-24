@@ -15,7 +15,7 @@ export async function dispatch(signal, ctx) {
   if (!mod) {
     const path = join(AGENTS_DIR, `${type}.js`);
     if (!existsSync(path)) {
-      throw new Error(`no agent for signal_type=${signal.signal_type} (expected ${path})`);
+      return { success: false, action: 'no_agent_yet' };
     }
     mod = await import(path);
     agentCache.set(type, mod);
