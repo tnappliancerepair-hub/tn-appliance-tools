@@ -89,7 +89,7 @@ Full catalog: `docs/xanoscript-footguns.md`. The hard rules:
 - **`data = { ... }`** for `db.add` and `db.edit` (not `fields =`). Field name is `metadata` (a JSON column) on `event_log`.
 - **`??` and `|trim` only inside `value = (...)` assignments** — the UI parse-serialize round-trip silently strips them inside `if(...)` comparisons.
 - **Array index:** `|get:N` with literal integer (40+ proven usages). Object key: `|get:$str_var`.
-- **First row of paginated query:** `($rows|first ?? null)`. Paginated `db.query` returns `{items: [...]}`, not the array directly.
+- **First row of paginated query:** `(($rows.items|first) ?? null)`. Paginated `db.query` returns `{items: [...]}`, not the array directly. Do NOT write `($rows.items|first ?? null)` — parser reads `first ?? null` as one filter name and fails.
 - **Anthropic response path:** `$resp.response.result.content[0].text` — memorize. Partial paths produce silent empty strings.
 - **Strip Sonnet 4.5 markdown fences before `json_decode`:** `($raw|replace:"\`\`\`json":""|replace:"\`\`\`":"")|trim` — `|trim` is mandatory; without it `json_decode` throws on residual whitespace.
 
