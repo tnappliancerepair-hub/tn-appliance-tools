@@ -185,6 +185,75 @@ Only `/schema/type/{type}` works for incremental column adds. Discovered 2026-05
 
 ---
 
+## CLI push: five quoting / expression footguns from the colony-loop deploy (2026-05-24)
+
+Five distinct parser failures hit during a single `xano workspace push` session deploying the 5 colony-loop intake endpoints. All produce parse-time or run-time `ERROR_FATAL` with messages that don't point at the real fix. Memorize the working forms.
+
+### 1. `sort` direction must be a quoted string
+
+**Broken:**
+```xanoscript
+sort = {colony_signals.created_at: desc}
+```
+CLI rejects at parse: `Syntax error... 'db.query colony_signals {' - Invalid kind for sort - assign:expr`.
+
+**Working:**
+```xanoscript
+sort = {colony_signals.created_at: "desc"}
+```
+The direction is a string literal, not a bare identifier. Same for `"asc"`. Confirmed by grepping ~20 working examples in `api/` — all quoted.
+
+**Multi-key sort unproven:** `{a: "desc", b: "asc"}` was attempted with the same `Invalid kind for sort - assign:expr` error. Until a known-working multi-key example is found, use a single sort key.
+
+### 2. `return = {type: list}` must be `return = {type: "list"}`
+
+**Broken:** `return = {type: list, paging: {...}}` — same `Invalid kind for sort` parse error (the error message is misleading; the actual offender is the unquoted `type` value on the next line).
+
+**Working:** `return = {type: "list", paging: {page: 1, per_page: N}}`. Also `"single"` and `"count"`. Every working example in `api/` quotes the type. The pattern in `[[reference_xanoscript_gotchas]]` "treat all enum-like config values as strings" applies here.
+
+### 3. `|first ?? null` is parsed as a single filter name
+
+**Broken:**
+```xanoscript
+value = ($rows.items|first ?? null)
+```
+Run-time `ERROR_FATAL: Unable to locate func entry: first ?? null` — the parser concatenated `first ?? null` into one filter identifier and then failed to look it up.
+
+**Working — wrap the filter result in parens before `??`:**
+```xanoscript
+value = (($rows.items|first) ?? null)
+```
+Note this is the assignment-context safe form per `[[reference_xanoscript_serializer_bug]]`. The CLAUDE.md fast-reference line "First row of paginated query: `($rows|first ?? null)`" is **wrong** — keep this entry as the canonical form.
+
+### 4. `now` is a datetime; arithmetic needs `now|to_ms`
+
+**Broken:**
+```xanoscript
+value = (now - 86400000)
+```
+Run-time `ERROR_FATAL: Not numeric.` — `now` returns a datetime value, and subtracting an integer from it isn't defined.
+
+**Working — convert to ms first:**
+```xanoscript
+value = ((now|to_ms) - 86400000)
+```
+For "now minus N days" comparing against an ms-epoch column like `event_log.created_at` (stored as ms — verified: `1779655182506` came back from `get_pending_colony_signals`). The other valid form is `now|transform_timestamp:"-24 hours"` when comparing against a datetime column.
+
+### 5. CLI "table does not exist" warnings are stale-cache noise
+
+When `xano workspace push` prints:
+```
+=== Unresolved References ===
+  WARNING  query  my_endpoint  db.* → table "colony_signals" does not exist
+```
+…this is **the CLI's local schema cache being out of date**, not a real schema gap. The push proceeds and the endpoint runs fine against the live table.
+
+**How to confirm the table is actually live:** hit any endpoint that reads/writes it via the public API — a successful response (e.g., `{"success":true,"signal_id":1}`) proves the table exists server-side. Ignore the warning once confirmed.
+
+**Do not** chase these warnings by trying to re-create the table via Metadata API — you'll hit "table already exists" and waste a cycle. If the push itself succeeds (`Pushed N documents`), the deploy is real.
+
+---
+
 ## See also
 
 - Memory `[[reference_xanoscript_gotchas]]` — parser-level breakers, silent-drops, env-in-URL pitfall, no while-loop.

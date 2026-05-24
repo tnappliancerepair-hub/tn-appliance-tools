@@ -8,12 +8,12 @@ query get_daily_briefing_fired_today verb=GET {
   stack {
     db.query event_log {
       where = $db.event_log.action == "daily_briefing_fired" && $db.event_log.created_at >= $input.since_ts_ms
-      sort = {event_log.created_at: desc}
-      return = {type: list, paging: {page: 1, per_page: 1}}
+      sort = {event_log.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $rows
 
     var $first {
-      value = ($rows.items|first ?? null)
+      value = (($rows.items|first) ?? null)
     }
 
     var $fired_flag {
