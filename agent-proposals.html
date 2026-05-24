@@ -456,7 +456,7 @@ async function decide(proposalId, newStatus, btnEl) {
 
   let buildResp;
   try {
-    buildResp = await fetchProxy('agent_builder', { proposal_id: proposalId });
+    buildResp = await fetchProxy('agent_builder', { proposal_id: parseInt(proposalId, 10) });
   } catch (err) {
     setBuildState(card, 'error', `❌ Build failed: ${escapeHtml(err.message || String(err))}`);
     return;
