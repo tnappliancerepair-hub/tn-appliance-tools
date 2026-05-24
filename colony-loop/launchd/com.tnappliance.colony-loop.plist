@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.colony-loop</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/code/tn-appliance-tools/colony-loop/index.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/code/tn-appliance-tools/colony-loop</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>XANO_INTAKE_BASE</key>
+    <string>https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA</string>
+    <key>XANO_CASH_TDR_BASE</key>
+    <string>https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV</string>
+    <key>OWNER_PHONE_NUMBER</key>
+    <string>+16154855795</string>
+    <key>COLONY_NAME</key>
+    <string>mac-mini-tn</string>
+    <key>CLAUDE_MODEL</key>
+    <string>claude-sonnet-4-6</string>
+    <key>AUTO_FIRE_CONFIDENCE</key>
+    <string>0.7</string>
+    <key>ALWAYS_ESCALATE_FIRST_N</key>
+    <string>20</string>
+    <key>PUBLIC_SITE_BASE</key>
+    <string>https://tnapplianceexchange.net</string>
+    <key>NETLIFY_FUNCTIONS_BASE</key>
+    <string>https://superlative-naiad-233aa7.netlify.app/.netlify/functions</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/colony-loop.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/colony-loop.err.log</string>
+
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+</dict>
+</plist>

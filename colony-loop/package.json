@@ -1,0 +1,14 @@
+{
+  "name": "colony-loop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "smoke": "node scripts/smoke-test.js",
+    "inject": "node scripts/inject-signal.js"
+  }
+}

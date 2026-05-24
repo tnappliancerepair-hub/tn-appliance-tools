@@ -125,6 +125,33 @@ db.add event_log {
 
 ---
 
+## Metadata API: add-column endpoint is `/schema/type/{type}`, not the obvious alternatives
+
+**Pattern (working):**
+```bash
+curl -X POST \
+  "https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1/table/{table_id}/schema/type/text" \
+  -H "Authorization: Bearer $XANO_METADATA_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my_col","description":"...","nullable":false,"default":"","required":true}'
+```
+
+Replace `text` with `int`, `timestamp`, `bool`, `decimal`, `json`, `email`, `enum`, etc. — the data type goes in the URL path, the column metadata in the body. 200 returns `{"name":"my_col"}`.
+
+**The gotcha:** Three plausible-looking alternatives all 404:
+
+| Endpoint | Result |
+|---|---|
+| `POST /table/{id}/schema/text` (type as path segment, no `/type/`) | 404 `ERROR_CODE_NOT_FOUND` |
+| `POST /table/{id}/column` (REST-style) | 404 `ERROR_CODE_NOT_FOUND` |
+| `PUT /table/{id}/schema` (full-schema replace, body `{schema:[...]}`) | 400 `"First schema entry must be the Primary key."` — would need the full existing schema including auto-managed `id`/`created_at`, so it's effectively a foot-gun |
+
+Only `/schema/type/{type}` works for incremental column adds. Discovered 2026-05-24 while creating `colony_signals` (table id 38).
+
+**Table creation flow:** `POST /api:meta/workspace/{w}/table` with `{name, description, docs, auth, tag}` returns the table with auto-created `id` + `created_at`. Then loop the `/schema/type/{type}` endpoint once per custom column. Two-step is the documented path; there's no known one-shot "create with full schema" endpoint that works.
+
+---
+
 ## See also
 
 - Memory `[[reference_xanoscript_gotchas]]` — parser-level breakers, silent-drops, env-in-URL pitfall, no while-loop.
