@@ -14,13 +14,24 @@ const APPLIANCE_NICE = {
   microwave: 'microwave',
 };
 
-function composeGreeting({ first_name, appliance_type, job_id }) {
+const CASH_SOURCES = new Set(['cash_tdr', 'self_pay', 'cash', 'customer_pay', 'cash_customer']);
+
+function shouldIncludeWarrantyNote(source) {
+  const s = String(source || '').toLowerCase();
+  return !CASH_SOURCES.has(s);
+}
+
+function composeGreeting({ first_name, appliance_type, source }) {
   const name = (first_name || '').trim() || 'there';
   const applianceRaw = (appliance_type || '').trim().toLowerCase();
   const appliance = APPLIANCE_NICE[applianceRaw] || applianceRaw;
   const applianceClause = appliance ? `your ${appliance} repair` : 'your repair';
-  const link = `${config.publicSiteBase}/upload.html?job_id=${job_id}`;
-  return `Hi ${name}, this is TN Appliance Exchange! To get ${applianceClause} started, please tap here to share a quick photo and description: ${link}`;
+  const link = config.publicSiteBase.replace(/^https?:\/\//, '');
+  let body = `Hi ${name}, this is TN Appliance Exchange! To get ${applianceClause} started please tap here: ${link}`;
+  if (shouldIncludeWarrantyNote(source)) {
+    body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
+  }
+  return body;
 }
 
 export async function run(signal, ctx) {
@@ -78,7 +89,7 @@ export async function run(signal, ctx) {
   const body = composeGreeting({
     first_name: payload.customer_first_name,
     appliance_type: payload.appliance_type,
-    job_id: jobId,
+    source: payload.source,
   });
 
   const smsRes = await sms.toCustomer(phone, body, {
