@@ -111,15 +111,49 @@ Full catalog: `docs/xanoscript-footguns.md`. The hard rules:
 
 **Footgun catalog update:** `docs/xanoscript-footguns.md` now documents that the Metadata API column-add endpoint is `/schema/type/{type}` — three plausible alternatives (`/schema/{type}`, `/column`, `PUT /schema`) all 404 or reject.
 
-### Current priority — **TEST PHASE A**
+### Late update (16:13 CT) — Phase A verified live
 
-Nothing else gets built until Phase A is verified end-to-end. Order of operations:
+**Mac Mini runtime is real.** Homebrew Node v26 + Xano CLI both confirmed working on the local Mac Mini (`/opt/homebrew/bin/node`, `xano workspace pull` returned 201 docs). `xano workspace push --force` is the proven XS deploy path — verified against all 5 colony-loop endpoints in this session. The XS-via-Metadata-API trap stays dead; CLI push is canon now.
 
-1. **Paste the 5 XS files** into Xano UI (intake group). All 5 must return 200 OK on `npm run smoke` from `colony-loop/`.
-2. **Smoke test in DRY_RUN mode**: inject a fake `JOB_CREATED` signal with Teddy's own phone, watch stdout for `signal_dispatched` → `signal_processed`.
-3. **Flip DRY_RUN=false**, re-inject, confirm an actual SMS lands on +16154855795.
-4. **Deploy to Mac Mini** via launchd plist, verify the heartbeat in `~/Library/Logs/colony-loop.out.log`.
-5. **Only then** start Phase B (wiring `JOB_CREATED` emit into the 6 producer XS endpoints — see `docs/colony-loop-design.md` §16 Phase B).
+**All 5 colony-loop XS endpoints DEPLOYED via CLI (not UI paste).** This contradicts the deploy instruction one paragraph up — keep the CLI path as the default for new endpoints. The original "paste into Xano UI" step is now backup only. Deploy steps:
+1. `xano workspace push -i "**/<endpoint_name>*" --force`
+2. Ignore "table does not exist" warnings — they're stale CLI cache (see footgun doc).
+3. `curl` the new endpoint to confirm it returns 200.
+
+**5 new XS footguns added to `docs/xanoscript-footguns.md`** — section "CLI push: five quoting / expression footguns from the colony-loop deploy (2026-05-24)". Every one cost a real deploy cycle:
+1. `sort = {col: desc}` must be `sort = {col: "desc"}` — direction is a string.
+2. `return = {type: list}` must be `return = {type: "list"}` — type is a string.
+3. `($rows.items|first ?? null)` fails — parser reads `first ?? null` as one filter name. Use `(($rows.items|first) ?? null)`.
+4. `(now - 86400000)` fails — `now` is datetime, not ms. Use `((now|to_ms) - 86400000)` for ms arithmetic.
+5. CLI "table does not exist" warnings are stale-cache noise — ignore once the table is confirmed live via API.
+
+The CLAUDE.md fast-reference line for `|first ?? null` was also wrong (showed the broken form). Corrected in commit `2854284`.
+
+**Phase A smoke + live SMS verified:**
+- `npm run smoke` → 8/8 checks pass against all 5 endpoints.
+- DRY_RUN=true run dispatched `signal_id=3` cleanly, SMS to stdout only.
+- DRY_RUN=false run dispatched `signal_id=4` (dishwasher, old greeting) → real SMS landed on +16154855795.
+- DRY_RUN=false re-run with new code: `signal_id=5` (`source=ahs_email`, washer) → real SMS with new clean-domain link + warranty note. `errors=0`. Phase A is live.
+
+**Greeting refined (commit `cabeeb4`):**
+- Link in `composeGreeting` is now `config.publicSiteBase` with the `https?://` prefix stripped → SMS shows `tnapplianceexchange.net` (no protocol, no per-job URL params). Cleaner, phones still auto-linkify.
+- Warranty reassurance line appended **by default**: "Your repair is covered under your home warranty - no payment needed. Just mention warranty if asked." 99% of jobs are warranty per the owner — and customers regularly try to pay the tech at the door when they shouldn't.
+- Opt-out: `payload.source` in `{cash_tdr, self_pay, cash, customer_pay, cash_customer}` suppresses the warranty line. ahs_email, servicepower, unknown → all include it.
+
+**Dispatcher quiet-log for unknown signal types (commit `a935e0d`):** `dispatch.js` now returns `{success: false, action: 'no_agent_yet'}` instead of throwing when an agent file is missing. Same end state (signal marked processed by `tick.js`), but no 500-char stack trace in `event_log`. Critical for the 379-agent rollout where missing agents are an expected steady state.
+
+**Secrets hygiene (commit `fec5980`):** root `.gitignore` now covers `.env` / `**/.env` with a negation for `.env.example`. `colony-loop/.gitignore` already had local coverage — this is defense-in-depth so future subdirs' `.env` files don't leak.
+
+**Launchd deploy attempted, BLOCKED on env state:** `cp launchd/...plist ~/Library/LaunchAgents/` failed because that directory doesn't exist on this Mac Mini yet. Also discovered the plist had a stale path (`/Users/tpivacek/code/tn-appliance-tools/...`) — fixed in this commit to `/Users/tpivacek/tn-appliance-tools/...`. Plist does NOT carry `ANTHROPIC_API_KEY` (intentional — read from `colony-loop/.env` which `config.js` loads from the file's own dirname, cwd-independent).
+
+### Current priority — **GET LAUNCHD RUNNING, THEN PHASE B**
+
+Phase A (lines 1-3) is done. Remaining:
+
+4. **Deploy to launchd** — sequence the user runs in Terminal (commands documented at end of session). Verify heartbeat lands in `~/Library/Logs/colony-loop.out.log` within 1 tick (60s).
+5. **Phase B** — wire `JOB_CREATED` emit into the 6 producer XS endpoints (`hcp_job_webhook`, `hcp_poll_recent_jobs`, `ahs_email_intake`, `servicepower_email_intake`, `create_job_from_chat`, `warranty_job_intake`). Each one currently creates a job but doesn't emit the colony signal, so greetings only fire for manually-injected test signals. See `docs/colony-loop-design.md` §16 Phase B for the per-endpoint emit-point map.
+
+**Before Phase B starts**, the manually-spawned background `node index.js` from this session (`b00ybc0zf`) must be killed — launchd will spawn its own copy, and two competing loops will double-dispatch (the `get_greeting_sent_for_job` dedupe blocks double-SMS but it's wasteful and confusing).
 
 ### What NOT to do
 

@@ -8,11 +8,11 @@
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/tpivacek/code/tn-appliance-tools/colony-loop/index.js</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/index.js</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/Users/tpivacek/code/tn-appliance-tools/colony-loop</string>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop</string>
 
   <key>EnvironmentVariables</key>
   <dict>
