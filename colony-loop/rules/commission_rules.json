@@ -1,12 +1,12 @@
 {
   "default_pct": 0.5,
   "by_tech_id": {
-    "1": { "pct": 1.0, "note": "owner" },
-    "2": { "pct": 0.5 },
-    "3": { "pct": 0.5 },
-    "4": { "pct": 0.5 },
-    "5": { "pct": 0.5 },
-    "6": { "pct": 0.5 }
+    "1": { "pct": 1.0, "note": "Teddy (owner)" },
+    "2": { "pct": 0.45, "note": "Jimmy" },
+    "3": { "pct": 0.40, "note": "Andre" },
+    "4": { "pct": 0.50, "note": "Lee" },
+    "5": { "pct": 0.40, "note": "Billy" },
+    "6": { "pct": 0.40, "note": "John" }
   },
   "appliance_overrides": {}
 }
