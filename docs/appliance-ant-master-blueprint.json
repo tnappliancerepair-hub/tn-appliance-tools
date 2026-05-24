@@ -1,0 +1,1077 @@
+{
+  "meta": {
+    "platform": "Appliance Ant",
+    "version": "1.0",
+    "created": "2026-05-23",
+    "author": "James Teddy Pivacek",
+    "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
+    "total_colonies": 20,
+    "total_agents": 379,
+    "agents_live": 17,
+    "agents_to_build": 362,
+    "infrastructure": {
+      "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
+      "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
+      "ai_brain": "Anthropic Claude Sonnet",
+      "voice": "Vapi",
+      "sms": "Twilio + Telnyx",
+      "storage": "AWS S3 - tn-appliance-media-586117210123-us-east-2-an",
+      "colony_server": "Mac Mini 2024 M4",
+      "repo": "tnappliancerepair-hub/tn-appliance-tools"
+    },
+    "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
+    "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates."
+  },
+
+  "signal_architecture": {
+    "table": "colony_signals",
+    "fields": ["signal_type", "signal_strength", "source_colony", "target_colonies", "payload", "created_at", "processed_at"],
+    "strength_levels": {
+      "1-3": "Informational - batch processed",
+      "4-6": "Actionable - next orchestrator tick",
+      "7-8": "Urgent - immediate response",
+      "9-10": "Critical - colony-wide alert"
+    },
+    "core_signal_types": [
+      "JOB_CREATED", "JOB_COMPLETED", "JOB_CANCELLED", "JOB_DELAYED",
+      "PARTS_ORDERED", "PARTS_DELAYED", "PARTS_ARRIVED",
+      "TECH_AVAILABLE", "TECH_UNAVAILABLE", "TECH_ON_JOB", "TECH_COMPLETE",
+      "SCHEDULE_GAP_OPENED", "SCHEDULE_GAP_FILLED",
+      "WARRANTY_SUBMITTED", "WARRANTY_APPROVED", "WARRANTY_DENIED",
+      "CUSTOMER_CONFIRMED", "CUSTOMER_CANCELLED", "CUSTOMER_FLEXIBLE",
+      "REVIEW_RECEIVED", "REVIEW_RESPONDED",
+      "AGENT_BUILT", "AGENT_FAILED", "AGENT_RETIRED",
+      "PAYMENT_RECEIVED", "PAYMENT_LATE",
+      "TECH_DRAFTED", "TECH_ONBOARDED",
+      "CONTENT_PUBLISHED", "CONTENT_VIRAL"
+    ]
+  },
+
+  "colonies": [
+
+    {
+      "id": 1,
+      "name": "Diagnostic Intelligence Colony",
+      "purpose": "Pre-dispatch diagnostic intelligence for every job. Makes decent techs perform like great ones.",
+      "priority": "HIGH",
+      "agents_total": 11,
+      "agents_live": 0,
+      "agents": [
+        {
+          "id": "D001",
+          "name": "Washer Diagnostic Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Specialist in washer faults, failure patterns, test procedures across all brands",
+          "triggers": ["JOB_CREATED with appliance_type=washer"],
+          "outputs": ["DIAGNOSTIC_BRIEF signal to Research Platform Colony"],
+          "xano_endpoint": "washer_diagnostic_agent",
+          "dependencies": []
+        },
+        {
+          "id": "D002",
+          "name": "Dryer Diagnostic Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Specialist in dryer faults, thermal fuses, heating elements, drum bearing patterns",
+          "triggers": ["JOB_CREATED with appliance_type=dryer"],
+          "outputs": ["DIAGNOSTIC_BRIEF signal"],
+          "xano_endpoint": "dryer_diagnostic_agent",
+          "dependencies": []
+        },
+        {
+          "id": "D003",
+          "name": "Refrigerator Diagnostic Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Specialist in sealed systems, thermistors, compressor logic, ice maker faults",
+          "triggers": ["JOB_CREATED with appliance_type=refrigerator"],
+          "outputs": ["DIAGNOSTIC_BRIEF signal"],
+          "xano_endpoint": "refrigerator_diagnostic_agent",
+          "dependencies": []
+        },
+        {
+          "id": "D004",
+          "name": "Dishwasher Diagnostic Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Specialist in dishwasher pump, control board, spray arm, and drain faults",
+          "triggers": ["JOB_CREATED with appliance_type=dishwasher"],
+          "outputs": ["DIAGNOSTIC_BRIEF signal"],
+          "xano_endpoint": "dishwasher_diagnostic_agent",
+          "dependencies": []
+        },
+        {
+          "id": "D005",
+          "name": "Range Oven Diagnostic Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Specialist in range, oven, cooktop faults across gas and electric",
+          "triggers": ["JOB_CREATED with appliance_type=range"],
+          "outputs": ["DIAGNOSTIC_BRIEF signal"],
+          "xano_endpoint": "range_diagnostic_agent",
+          "dependencies": []
+        },
+        {
+          "id": "D006",
+          "name": "Whirlpool Family Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Brand specialist for Whirlpool, Maytag, KitchenAid, JennAir, Amana. Known quirks, model generation differences, common failure patterns.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=whirlpool_family"],
+          "outputs": ["BRAND_INTELLIGENCE signal"],
+          "xano_endpoint": "whirlpool_brand_agent",
+          "dependencies": ["D001","D002","D003","D004","D005"]
+        },
+        {
+          "id": "D007",
+          "name": "Samsung Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Brand specialist for Samsung appliances. Spider arm issues, control board patterns, error code expertise.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=samsung"],
+          "outputs": ["BRAND_INTELLIGENCE signal"],
+          "xano_endpoint": "samsung_brand_agent",
+          "dependencies": ["D001","D002","D003","D004","D005"]
+        },
+        {
+          "id": "D008",
+          "name": "LG Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Brand specialist for LG appliances. ThinQ platform, inverter motor patterns, compressor issues.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=lg"],
+          "outputs": ["BRAND_INTELLIGENCE signal"],
+          "xano_endpoint": "lg_brand_agent",
+          "dependencies": ["D001","D002","D003","D004","D005"]
+        },
+        {
+          "id": "D009",
+          "name": "GE Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for GE, GE Profile, Cafe, Monogram appliances.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=ge"],
+          "outputs": ["BRAND_INTELLIGENCE signal"],
+          "xano_endpoint": "ge_brand_agent",
+          "dependencies": ["D001","D002","D003","D004","D005"]
+        },
+        {
+          "id": "D010",
+          "name": "Electrolux Frigidaire Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Electrolux, Frigidaire, and related brands.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=electrolux_family"],
+          "outputs": ["BRAND_INTELLIGENCE signal"],
+          "xano_endpoint": "electrolux_brand_agent",
+          "dependencies": ["D001","D002","D003","D004","D005"]
+        },
+        {
+          "id": "D011",
+          "name": "Pre-Dispatch Brief Coordinator",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Receives outputs from all appliance type agents, brand agents, and research platform agents. Synthesizes into single clean pre-dispatch brief. Delivers to tech phone via SMS before job.",
+          "triggers": ["BRAND_INTELLIGENCE signal + RESEARCH_COMPLETE signal"],
+          "outputs": ["PRE_DISPATCH_BRIEF SMS to tech", "BRIEF_DELIVERED signal"],
+          "xano_endpoint": "predispatch_brief_coordinator",
+          "dependencies": ["D001","D002","D003","D004","D005","D006","D007","D008","D009","D010"]
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "name": "Research Platform Colony",
+      "purpose": "Multi-source technical research for every job. iFixit, Appliantology, Service Matters, MarconeAI, ApplianceAPI, internal TDR history.",
+      "priority": "HIGH",
+      "agents_total": 6,
+      "agents_live": 0,
+      "agents": [
+        {
+          "id": "R001",
+          "name": "iFixit Research Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries iFixit public API for repair guides, wiring diagrams, service manuals by model number. Free API - wire in immediately.",
+          "api": "https://www.ifixit.com/api/2.0/",
+          "triggers": ["DIAGNOSTIC_BRIEF signal"],
+          "outputs": ["RESEARCH_DATA signal"],
+          "xano_endpoint": "ifixit_research_agent",
+          "dependencies": []
+        },
+        {
+          "id": "R002",
+          "name": "Appliantology Research Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Authenticates with Appliantology subscription, searches by model number, retrieves community diagnostic knowledge and tech insights.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal"],
+          "outputs": ["RESEARCH_DATA signal"],
+          "xano_endpoint": "appliantology_research_agent",
+          "dependencies": []
+        },
+        {
+          "id": "R003",
+          "name": "Service Matters Research Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Retrieves Whirlpool Service Matters technical data for Whirlpool family brands. Covers Whirlpool, Maytag, KitchenAid, JennAir, Amana.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal with brand=whirlpool_family"],
+          "outputs": ["RESEARCH_DATA signal"],
+          "xano_endpoint": "service_matters_research_agent",
+          "dependencies": []
+        },
+        {
+          "id": "R004",
+          "name": "MarconeAI Research Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries MarconeAI diagnostic tool. Free for Marcone customers. Returns likely repair and parts required.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal"],
+          "outputs": ["RESEARCH_DATA signal + PARTS_RECOMMENDATION signal"],
+          "xano_endpoint": "marconeai_research_agent",
+          "dependencies": []
+        },
+        {
+          "id": "R005",
+          "name": "ApplianceAPI Research Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries ApplianceAPI.com for model specs, photos, dimensions, recall status, serial intelligence. Join waitlist at applianceapi.com immediately.",
+          "api": "https://www.applianceapi.com/",
+          "triggers": ["JOB_CREATED signal"],
+          "outputs": ["MODEL_INTELLIGENCE signal"],
+          "xano_endpoint": "applianceapi_research_agent",
+          "dependencies": []
+        },
+        {
+          "id": "R006",
+          "name": "Internal TDR History Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Searches internal TDR database for previous jobs on same model number or similar fault patterns. Returns historical fix data from own jobs.",
+          "triggers": ["DIAGNOSTIC_BRIEF signal"],
+          "outputs": ["HISTORICAL_INTELLIGENCE signal"],
+          "xano_endpoint": "tdr_history_research_agent",
+          "dependencies": []
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "name": "Parts Sourcing and Timing Colony",
+      "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
+      "priority": "HIGH",
+      "agents_total": 13,
+      "agents_live": 0,
+      "agents": [
+        {
+          "id": "P001",
+          "name": "Marcone Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries Marcone for part availability, price, and delivery ETA",
+          "xano_endpoint": "marcone_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P002",
+          "name": "RepairClinic Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries RepairClinic for part availability, price, and delivery ETA",
+          "xano_endpoint": "repairclinic_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P003",
+          "name": "PartSelect Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Queries PartSelect for part availability, price, and delivery ETA",
+          "xano_endpoint": "partselect_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P004",
+          "name": "Tribles Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Queries Tribles for part availability, price, and delivery ETA",
+          "xano_endpoint": "tribles_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P005",
+          "name": "Reliable Parts Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Queries Reliable Parts for part availability, price, and delivery ETA",
+          "xano_endpoint": "reliable_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P006",
+          "name": "Amazon Pricing Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Queries Amazon for part availability, price, and delivery ETA. Strong for same-day and next-day in most markets.",
+          "xano_endpoint": "amazon_pricing_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P007",
+          "name": "Supplier Speed Scoring Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Tracks historical delivery accuracy per supplier per zip code. Learns which suppliers are actually fastest to each tech location.",
+          "xano_endpoint": "supplier_speed_scorer",
+          "dependencies": ["P001","P002","P003","P004","P005","P006"]
+        },
+        {
+          "id": "P008",
+          "name": "Job Timeline Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Determines tech earliest availability date for job. Sets need-by date for parts. Parts must arrive by need-by date minus one day.",
+          "xano_endpoint": "job_timeline_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P009",
+          "name": "Supplier Window Matcher Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Filters all supplier options to those that can hit need-by date. Ranks remaining options by price not speed. Cheapest that fits the window wins.",
+          "xano_endpoint": "supplier_window_matcher",
+          "dependencies": ["P001","P002","P003","P004","P005","P006","P008"]
+        },
+        {
+          "id": "P010",
+          "name": "Delivery Risk Scorer Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Weights historical delivery accuracy into the decision. Prevents cutting it too close when a supplier historically runs late.",
+          "xano_endpoint": "delivery_risk_scorer",
+          "dependencies": ["P007","P009"]
+        },
+        {
+          "id": "P011",
+          "name": "Parts Tech Sync Coordinator",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Confirms winning supplier, proposes or places order, monitors delivery. If part delayed fires PARTS_DELAYED signal immediately so schedule adjusts before customer is affected.",
+          "xano_endpoint": "parts_tech_sync_coordinator",
+          "dependencies": ["P009","P010"]
+        },
+        {
+          "id": "P012",
+          "name": "Parts Availability Coordinator",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Master coordinator that synthesizes all supplier data and returns single best recommendation with justification.",
+          "xano_endpoint": "parts_availability_coordinator",
+          "dependencies": ["P001","P002","P003","P004","P005","P006","P007","P009","P010"]
+        },
+        {
+          "id": "P013",
+          "name": "Inventory Prediction Agent",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Forecasts what parts to stock based on seasonal patterns, job history, and upcoming scheduled jobs. Reduces same-day sourcing scrambles.",
+          "xano_endpoint": "inventory_prediction_agent",
+          "dependencies": ["P007","P012"]
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "name": "Intelligent Scheduling Colony",
+      "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
+      "priority": "HIGH",
+      "agents_total": 20,
+      "agents_live": 0,
+      "agents": [
+        {
+          "id": "S001",
+          "name": "Flexibility Intake Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "During booking asks customer flexibility questions. Not pick a window - how flexible are you? Captures flexibility score.",
+          "xano_endpoint": "flexibility_intake_agent",
+          "dependencies": []
+        },
+        {
+          "id": "S002",
+          "name": "Flexibility Scorer Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Converts intake answers to flexibility score 1-10. 10=completely open, 1=hard locked. Score drives all downstream scheduling decisions.",
+          "xano_endpoint": "flexibility_scorer_agent",
+          "dependencies": ["S001"]
+        },
+        {
+          "id": "S003",
+          "name": "Customer Urgency Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Captures urgency independently from flexibility. A customer can be flexible on timing but urgent due to situation. Newborn and broken dryer = high urgency.",
+          "xano_endpoint": "customer_urgency_agent",
+          "dependencies": ["S001"]
+        },
+        {
+          "id": "S004",
+          "name": "Customer Re-engagement Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Watches open flexible customers. When gap opens messages them immediately. Hey we had a cancellation tech can be there in 90 minutes does that work?",
+          "xano_endpoint": "customer_reengagement_agent",
+          "dependencies": ["S002","S003"]
+        },
+        {
+          "id": "S005",
+          "name": "Anchor Placement Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Takes all time-locked customers and places them as fixed skeleton points. These never move. SquareTrade jobs are always anchors.",
+          "xano_endpoint": "anchor_placement_agent",
+          "dependencies": ["S002"]
+        },
+        {
+          "id": "S006",
+          "name": "SquareTrade Anchor Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Auto-classifies every SquareTrade job as hard anchor the moment dispatch arrives Tuesday/Thursday. Changing SquareTrade dates is penalized - never move them.",
+          "xano_endpoint": "squaretrade_anchor_agent",
+          "dependencies": []
+        },
+        {
+          "id": "S007",
+          "name": "Pre-Batch Positioning Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Watches Tuesday/Thursday SquareTrade dispatch patterns. Pre-positions tech availability in likely zip codes before batch arrives. Zero lag on new dispatches.",
+          "xano_endpoint": "prebatch_positioning_agent",
+          "dependencies": ["S006"]
+        },
+        {
+          "id": "S008",
+          "name": "Cluster Geometry Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Finds flexible customers geographically closest to anchors and each other. Minimizes drive time between every stop.",
+          "xano_endpoint": "cluster_geometry_agent",
+          "dependencies": ["S005","S002"]
+        },
+        {
+          "id": "S009",
+          "name": "Gap Calculator Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Knows the skeleton and estimated job durations. Calculates real drive-time-aware gaps in the tech day. Not theoretical gaps - actual gaps.",
+          "xano_endpoint": "gap_calculator_agent",
+          "dependencies": ["S005","S008"]
+        },
+        {
+          "id": "S010",
+          "name": "Flexible Customer Inserter Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Takes gaps and fills them with best-fit flexible customers by location, urgency score, and job type. Tetris for tech schedules.",
+          "xano_endpoint": "flexible_customer_inserter",
+          "dependencies": ["S009","S002","S003"]
+        },
+        {
+          "id": "S011",
+          "name": "Route Optimizer Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Final pass on full proposed day. Checks if any reordering reduces total drive time without breaking anchor constraints.",
+          "xano_endpoint": "route_optimizer_agent",
+          "dependencies": ["S010"]
+        },
+        {
+          "id": "S012",
+          "name": "Real-Time Gap Watcher Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Monitors live day. Job runs long, job cancels, tech delayed - recalculates available gaps immediately. Never waits for orchestrator tick.",
+          "xano_endpoint": "realtime_gap_watcher",
+          "dependencies": ["S011"]
+        },
+        {
+          "id": "S013",
+          "name": "Same-Day Opportunity Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "The moment a real gap opens queries flexible customer pool for tech current location. Fires Ant to message best candidates immediately.",
+          "xano_endpoint": "sameday_opportunity_agent",
+          "dependencies": ["S012","S004"]
+        },
+        {
+          "id": "S014",
+          "name": "Multi-Customer Broadcast Agent",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Sends Ant messages to multiple flexible customers simultaneously when gap opens. First to confirm gets the slot. First-reply-wins broadcast.",
+          "xano_endpoint": "multicustomer_broadcast_agent",
+          "dependencies": ["S013"]
+        },
+        {
+          "id": "S015",
+          "name": "Schedule Ripple Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "If one job shifts checks every downstream job and customer for impact. Proactively notifies affected customers before they are left waiting.",
+          "xano_endpoint": "schedule_ripple_agent",
+          "dependencies": ["S012"]
+        },
+        {
+          "id": "S016",
+          "name": "Tech Buffer Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Protects the tech. Knows they need lunch. Knows they have been running hard. Prevents schedule from becoming inhuman. Burned out techs give worse service.",
+          "xano_endpoint": "tech_buffer_agent",
+          "dependencies": ["S011"]
+        },
+        {
+          "id": "S017",
+          "name": "Job Duration Learning Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Tracks actual vs estimated job time by appliance type, brand, repair type, and tech. Gets more accurate every week.",
+          "xano_endpoint": "job_duration_learning_agent",
+          "dependencies": []
+        },
+        {
+          "id": "S018",
+          "name": "Customer Flexibility Pattern Agent",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Learns that customers in certain zip codes or demographics tend to be more flexible. Informs how Ant asks intake questions.",
+          "xano_endpoint": "flexibility_pattern_agent",
+          "dependencies": ["S002"]
+        },
+        {
+          "id": "S019",
+          "name": "Route Efficiency Scorer Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Grades each completed day. Miles driven, jobs completed, gaps wasted. Feeds back into optimizer.",
+          "xano_endpoint": "route_efficiency_scorer",
+          "dependencies": ["S011","S017"]
+        },
+        {
+          "id": "S020",
+          "name": "Schedule Satisfaction Agent",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Correlates schedule efficiency with customer review scores. Proves faster scheduling equals better reviews.",
+          "xano_endpoint": "schedule_satisfaction_agent",
+          "dependencies": ["S019"]
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "name": "Warranty Processing Colony",
+      "purpose": "Automate warranty claim submission across AHS, SquareTrade, Frontdoor. Danielle reviews not builds.",
+      "priority": "HIGH",
+      "agents_total": 9,
+      "agents_live": 0,
+      "agents": [
+        {"id": "W001", "name": "AHS Claims Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Handles AHS claim submission automatically. Knows AHS portal requirements, documentation standards, and approval language.", "xano_endpoint": "ahs_claims_agent", "dependencies": []},
+        {"id": "W002", "name": "SquareTrade Claims Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Handles SquareTrade via ServicePower claim submission. Knows dispatch-to-completion workflow.", "xano_endpoint": "squaretrade_claims_agent", "dependencies": []},
+        {"id": "W003", "name": "Frontdoor Claims Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Handles Frontdoor platform claim submission.", "xano_endpoint": "frontdoor_claims_agent", "dependencies": []},
+        {"id": "W004", "name": "Claim Language Optimizer Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Mines historical claims for approval patterns. Certain language gets claims approved faster. Automatically coaches Tech Ant to collect right documentation.", "xano_endpoint": "claim_language_optimizer", "dependencies": []},
+        {"id": "W005", "name": "Authorization Request Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Handles warranty authorization requests automatically without Danielle touching them.", "xano_endpoint": "auth_request_agent", "dependencies": []},
+        {"id": "W006", "name": "Claims Status Watcher Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Knows where every submitted claim stands across all platforms at all times.", "xano_endpoint": "claims_status_watcher", "dependencies": ["W001","W002","W003"]},
+        {"id": "W007", "name": "Denial Pattern Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Tracks which claims get denied and why. Identifies patterns that lead to denial and adjusts submission approach.", "xano_endpoint": "denial_pattern_agent", "dependencies": ["W006"]},
+        {"id": "W008", "name": "Resubmission Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Handles denied claims automatically with corrected information based on denial reason.", "xano_endpoint": "resubmission_agent", "dependencies": ["W007"]},
+        {"id": "W009", "name": "Payment Reconciliation Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Matches warranty payments to jobs on 1st and 15th. Flags discrepancies. Alerts when payment is late.", "xano_endpoint": "payment_reconciliation_agent", "dependencies": []}
+      ]
+    },
+
+    {
+      "id": 6,
+      "name": "Voice and SMS Evolution Colony",
+      "purpose": "Self-improving voice and SMS systems. Every interaction makes Ant and Vapi smarter.",
+      "priority": "MEDIUM",
+      "agents_total": 5,
+      "agents_live": 0,
+      "agents": [
+        {"id": "V001", "name": "Vapi Transcript Analyzer Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Reads every Vapi call transcript. Scores call quality. Identifies where Vapi agent failed or confused caller.", "xano_endpoint": "vapi_transcript_analyzer", "dependencies": []},
+        {"id": "V002", "name": "Vapi Prompt Improvement Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Based on transcript analysis proposes prompt edits to specific Vapi agents. Pushes approved improvements via Vapi API automatically.", "xano_endpoint": "vapi_prompt_improvement", "dependencies": ["V001"]},
+        {"id": "V003", "name": "SMS Intent Gap Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Watches messages where customer asked something Ant deflected or answered poorly. Clusters similar unanswered question types.", "xano_endpoint": "sms_intent_gap_agent", "dependencies": []},
+        {"id": "V004", "name": "SMS Prompt Proposal Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Proposes new intent handlers or prompt additions based on gap analysis. Submitted to agent_proposals for approval.", "xano_endpoint": "sms_prompt_proposal_agent", "dependencies": ["V003"]},
+        {"id": "V005", "name": "New Vapi Agent Proposal Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Identifies communication scenarios not covered by existing Vapi agents and proposes building new ones.", "xano_endpoint": "new_vapi_agent_proposer", "dependencies": ["V001","V003"]}
+      ]
+    },
+
+    {
+      "id": 7,
+      "name": "Customer Intelligence Colony",
+      "purpose": "Build deep customer relationships. Turn one-time customers into lifetime relationships.",
+      "priority": "MEDIUM",
+      "agents_total": 4,
+      "agents_live": 0,
+      "agents": [
+        {"id": "CI001", "name": "Customer Lifetime Value Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Watches customer history, appliance inventory, call frequency. Identifies highest value customers for priority treatment.", "xano_endpoint": "customer_ltv_agent", "dependencies": []},
+        {"id": "CI002", "name": "Appliance Age Profile Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Builds appliance profile for every customer from job history. Tracks age and failure probability curves for each appliance.", "xano_endpoint": "appliance_age_profile_agent", "dependencies": []},
+        {"id": "CI003", "name": "Proactive Outreach Agent", "status": "TO_BUILD", "priority": 2, "purpose": "When appliance hits age range where failures are common sends genuinely helpful proactive outreach. Not spam - honest useful timing.", "xano_endpoint": "proactive_outreach_agent", "dependencies": ["CI002"]},
+        {"id": "CI004", "name": "Customer Satisfaction Scorer Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Scores every customer interaction for satisfaction signals. Flags at-risk customers before they leave a bad review.", "xano_endpoint": "customer_satisfaction_scorer", "dependencies": []}
+      ]
+    },
+
+    {
+      "id": 8,
+      "name": "Tech Performance and Coaching Colony",
+      "purpose": "Make every tech better every day. Knowledge that takes 10 years to accumulate delivered after job one.",
+      "priority": "HIGH",
+      "agents_total": 5,
+      "agents_live": 0,
+      "agents": [
+        {"id": "T001", "name": "Tech Performance Coach Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Watches each tech patterns. Job completion time, callback rate, parts accuracy, customer scores. Coaches privately not punitively.", "xano_endpoint": "tech_performance_coach", "dependencies": []},
+        {"id": "T002", "name": "First Visit Fix Rate Tracker Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Tracks first visit fix rate per tech per appliance type per brand. Core quality metric.", "xano_endpoint": "first_visit_fix_tracker", "dependencies": []},
+        {"id": "T003", "name": "Appliance TDR Tutor Agent", "status": "TO_BUILD", "priority": 1, "purpose": "After every completed job evaluates TDR diagnostic reasoning. Was there a faster path? Did tech miss a common secondary failure? Delivers private coaching note within minutes of job close.", "xano_endpoint": "appliance_tdr_tutor", "dependencies": []},
+        {"id": "T004", "name": "Tech Onboarding Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Quizzes new techs on appliance categories, builds their profile, assigns appropriate pre-dispatch brief detail level. Reduces detail as experience builds.", "xano_endpoint": "tech_onboarding_agent", "dependencies": []},
+        {"id": "T005", "name": "Tech Weakness Spotter Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Identifies patterns in tech performance data. This tech struggles with Samsung sealed systems. Adjusts pre-dispatch briefs and coaching accordingly.", "xano_endpoint": "tech_weakness_spotter", "dependencies": ["T001","T002","T003"]}
+      ]
+    },
+
+    {
+      "id": 9,
+      "name": "Business Intelligence Colony",
+      "purpose": "Strategic visibility. Know the business better than any competitor knows theirs.",
+      "priority": "MEDIUM",
+      "agents_total": 5,
+      "agents_live": 0,
+      "agents": [
+        {"id": "BI001", "name": "Seasonal Demand Forecaster Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Watches job history by month, appliance type, region. Builds seasonal forecast. Pre-position parts inventory and tech availability before waves hit.", "xano_endpoint": "seasonal_demand_forecaster", "dependencies": []},
+        {"id": "BI002", "name": "Competitor Gap Intelligence Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Watches Google reviews and market signals for competitor activity. Flags when competitor collapses in a market as opportunity.", "xano_endpoint": "competitor_gap_agent", "dependencies": []},
+        {"id": "BI003", "name": "Manufacturer Relationship Data Agent", "status": "TO_BUILD", "priority": 3, "purpose": "Compiles anonymized failure pattern reports by model. Data worth bringing to manufacturers as a partner not just a repair vendor.", "xano_endpoint": "manufacturer_data_agent", "dependencies": []},
+        {"id": "BI004", "name": "Revenue Correlation Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Connects scheduling efficiency to reviews to self-pay growth. Shows exactly what is driving revenue improvements.", "xano_endpoint": "revenue_correlation_agent", "dependencies": []},
+        {"id": "BI005", "name": "Market Expansion Scout Agent", "status": "TO_BUILD", "priority": 3, "purpose": "Watches new zip codes for opportunity. Demand signals, competitor weakness, population growth indicators.", "xano_endpoint": "market_expansion_scout", "dependencies": []}
+      ]
+    },
+
+    {
+      "id": 10,
+      "name": "Office Efficiency Colony",
+      "purpose": "Replace every manual office task. Dawn's role fully automated. Danielle governing not executing.",
+      "priority": "CRITICAL",
+      "agents_total": 80,
+      "agents_live": 11,
+      "note": "This is the largest colony. Detailed agent specs for remaining 69 agents to be generated by Office Efficiency Colony Builder Agent.",
+      "agent_categories": [
+        {"category": "Inbound Communication", "count": 6, "live": 5},
+        {"category": "Scheduling and Dispatch", "count": 20, "live": 0, "note": "See Colony 4"},
+        {"category": "Job Lifecycle Management", "count": 6, "live": 1},
+        {"category": "Warranty Processing", "count": 9, "live": 0, "note": "See Colony 5"},
+        {"category": "Financial and Payroll", "count": 8, "live": 0},
+        {"category": "Customer Communication", "count": 8, "live": 5},
+        {"category": "Parts and Inventory", "count": 13, "live": 0, "note": "See Colony 3"},
+        {"category": "Documentation and Compliance", "count": 5, "live": 0},
+        {"category": "Office Intelligence", "count": 5, "live": 0}
+      ],
+      "priority_builds": [
+        "Tech Payroll Calculator Agent - commission rates all 6 techs, calculates 3rd and 18th automatically",
+        "PayPal Payout Agent - Billy payments",
+        "Zelle Payout Reminder Agent - all others",
+        "Invoice Generation Agent",
+        "Late Payment Chaser Agent - warranty companies missing 1st and 15th",
+        "Daily Briefing Agent - Teddy morning summary",
+        "TDR Completeness Agent - every field filled before job closes",
+        "Photo Verification Agent - required photos attached",
+        "Stalled Job Agent - jobs sitting too long without movement"
+      ]
+    },
+
+    {
+      "id": 11,
+      "name": "Marketing and SEO Colony",
+      "purpose": "Reduce warranty dependency. Build organic customer pipeline. Every self-pay customer worth 2-3x a warranty job.",
+      "priority": "HIGH",
+      "agents_total": 37,
+      "agents_live": 0,
+      "agent_categories": [
+        {"category": "SEO Intelligence", "count": 6},
+        {"category": "Content Creation", "count": 7},
+        {"category": "Review Management", "count": 8},
+        {"category": "Backlink Building", "count": 7},
+        {"category": "Social Media", "count": 4},
+        {"category": "Cash Customer Acquisition", "count": 5}
+      ]
+    },
+
+    {
+      "id": 12,
+      "name": "Meta Colony - Builders and Governors",
+      "purpose": "The colony that builds and improves all other colonies. The brain of the brain.",
+      "priority": "CRITICAL",
+      "agents_total": 9,
+      "agents_live": 6,
+      "agents": [
+        {"id": "M001", "name": "Workflow Watcher", "status": "LIVE", "priority": 1, "purpose": "Finds automation opportunities overnight"},
+        {"id": "M002", "name": "Error Hunter", "status": "LIVE", "priority": 1, "purpose": "Finds issues overnight"},
+        {"id": "M003", "name": "Revenue Optimizer", "status": "LIVE", "priority": 1, "purpose": "Identifies revenue improvement opportunities"},
+        {"id": "M004", "name": "Customer Experience Builder", "status": "LIVE", "priority": 1, "purpose": "Improves customer experience touchpoints"},
+        {"id": "M005", "name": "Tech Performance Coach", "status": "LIVE", "priority": 1, "purpose": "Coaches tech performance"},
+        {"id": "M006", "name": "Orchestrator", "status": "LIVE", "priority": 1, "purpose": "Master tick every 5 minutes. Coordinates all colony activity.", "task_id": 18},
+        {
+          "id": "M007",
+          "name": "Colony Architect Agent",
+          "status": "ONE_FIX_AWAY",
+          "priority": 1,
+          "purpose": "THE MOST IMPORTANT AGENT. Reads this blueprint document. Identifies next priority unbuilt agent. Assigns to correct Colony Builder. Never stops building. This is the agent that builds all other agents.",
+          "xano_endpoint": "colony_architect_agent",
+          "blueprint_source": "appliance-ant-master-blueprint.json",
+          "build_order_logic": "Priority 1 agents first, within priority by colony criticality: Office Efficiency > Scheduling > Parts > Diagnostic > Warranty > Tech Performance > Research > Voice/SMS > Customer Intelligence > Business Intelligence > Marketing > Brand > Story > HVAC > Service Agreement > TCAT > Mentor > Recruiting > Customer Acquisition > Cross Platform",
+          "dependencies": ["M006", "agent_builder fix"]
+        },
+        {
+          "id": "M008",
+          "name": "Agent Fitness Scorer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Tracks every agent performance. Did proposals get approved? Did executed changes stick? Did the agent find real issues? Low scoring agents get coaching. Persistently low agents get retired.",
+          "xano_endpoint": "agent_fitness_scorer",
+          "dependencies": ["M007"]
+        },
+        {
+          "id": "M009",
+          "name": "Agent Cloner",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Replicates high-performing agents into new domains. Marcone pricing agent becomes RepairClinic pricing agent with minimal modification.",
+          "xano_endpoint": "agent_cloner",
+          "dependencies": ["M007","M008"]
+        }
+      ]
+    },
+
+    {
+      "id": 13,
+      "name": "Andre Personal Brand Colony",
+      "purpose": "Make Andre the King of Louisiana. The Ultimate Appliance Man. The face that changes how the world sees trades.",
+      "priority": "HIGH",
+      "agents_total": 26,
+      "agents_live": 0,
+      "key_assets": {
+        "visual_identity": "Ant face tattoo where sideburns should be - this IS the logo",
+        "vehicle": "Cybertruck wrapped in Appliance Ant branding",
+        "title": "The Ultimate Appliance Man",
+        "market": "New Orleans, Metairie, Kenner, Hammond, North Shore Louisiana"
+      },
+      "agent_categories": [
+        {"category": "Content Generation", "count": 5},
+        {"category": "Platform Distribution", "count": 6},
+        {"category": "Reputation Building", "count": 5},
+        {"category": "Community Building", "count": 4},
+        {"category": "Narrative Engine", "count": 1},
+        {"category": "Demand Creation", "count": 5}
+      ],
+      "demand_creation_agents": [
+        "Scarcity Signal Agent - signals Andre is busy and in demand",
+        "Results Showcase Agent - weekly most impressive fix post",
+        "Customer Voice Agent - finds passionate reviews requests video testimonials",
+        "Competitor Gap Agent - highlights what great service looks like without attacking",
+        "Waitlist Perception Agent - creates waitlist experience when Andre is busy"
+      ]
+    },
+
+    {
+      "id": 14,
+      "name": "Story and Why Colony",
+      "purpose": "Tell the truth about why Appliance Ant exists. Truth spreads faster than any ad. Built by a father. Named after a son. Carried by a brother.",
+      "priority": "HIGH",
+      "agents_total": 38,
+      "agents_live": 0,
+      "master_narrative": {
+        "core_story": "Teddy built a business with his hands across two states. Anthony - Ant - the wrestler, the lightest weight class, TCAT Murfreesboro grad, the son who inspired everything. The platform named in his honor. Andre carrying it forward - the ant tattoo on his face, the beast of a man who has been down since he lost his brother. The why - match need with know-how, automate to elevate not cut, give independent techs the resources to be great.",
+        "signature": "Long Live Ant",
+        "never_lose": "Every milestone connects back to why it was built"
+      },
+      "agent_categories": [
+        {"category": "Story Foundation", "count": 4},
+        {"category": "Platform Story", "count": 8},
+        {"category": "Content Format", "count": 5},
+        {"category": "Community and Engagement", "count": 5},
+        {"category": "Press and Media", "count": 5},
+        {"category": "Impact Storytelling", "count": 4},
+        {"category": "Content Production", "count": 7}
+      ]
+    },
+
+    {
+      "id": 15,
+      "name": "HVAC Specific Colony",
+      "purpose": "Extend the colony to HVAC. Jordan as Master Tech. Same architecture, new domain knowledge.",
+      "priority": "MEDIUM",
+      "agents_total": 13,
+      "agents_live": 0,
+      "key_person": "Jordan - lead HVAC tech, currently employed at $38/hour, TCAT trained, Teddy's good friend",
+      "agents": [
+        {"id": "H001", "name": "Model Number Intelligence Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Serial decode for HVAC equipment. Manufacturer, age, parts catalog, known failures.", "xano_endpoint": "hvac_model_intelligence"},
+        {"id": "H002", "name": "Warranty Status Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Queries all major HVAC manufacturer warranty portals simultaneously. Carrier, Lennox, Trane, Goodman, Rheem, York. Returns warranty status in seconds.", "xano_endpoint": "hvac_warranty_status"},
+        {"id": "H003", "name": "HVAC Parts Sourcing Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Queries Johnstone Supply, Winsupply, Ferguson, Grainger, Amazon Business, manufacturer direct simultaneously.", "xano_endpoint": "hvac_parts_sourcing"},
+        {"id": "H004", "name": "Refrigerant Compliance Agent", "status": "TO_BUILD", "priority": 1, "purpose": "EPA 608 refrigerant tracking. Tracks usage per job. Flags phase-out refrigerants. Protects tech license.", "xano_endpoint": "refrigerant_compliance_agent"},
+        {"id": "H005", "name": "Install Opportunity Agent", "status": "TO_BUILD", "priority": 1, "purpose": "On every service call evaluates unit age, efficiency, repair cost vs replacement cost. Prepares Jordan for honest replacement conversation. Warranty call becomes $8000 install opportunity.", "xano_endpoint": "install_opportunity_agent"},
+        {"id": "H006", "name": "Manufacturer Technical Data Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Pulls symptom-specific diagnostic guidance for exact model. Not just wiring diagrams - interprets them for the reported symptom.", "xano_endpoint": "hvac_technical_data_agent"},
+        {"id": "H007", "name": "HVAC Seasonal Demand Agent", "status": "TO_BUILD", "priority": 2, "purpose": "HVAC has most predictable seasonal demand. Pre-positions inventory and availability before summer AC wave and winter heating wave every year.", "xano_endpoint": "hvac_seasonal_demand"},
+        {"id": "H008", "name": "Permit and Licensing Agent", "status": "TO_BUILD", "priority": 2, "purpose": "HVAC installs require permits. Knows requirements by jurisdiction. Flags compliance requirements per job type.", "xano_endpoint": "permit_licensing_agent"},
+        {"id": "H009", "name": "Equipment Age Risk Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Proactive replacement conversations. Delivers information at right moment through Ant not through Jordan. Jordan never has to upsell.", "xano_endpoint": "equipment_age_risk_agent"},
+        {"id": "H010", "name": "Commissioning Checklist Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Install quality control. Every install step documented for warranty and liability protection.", "xano_endpoint": "commissioning_checklist_agent"},
+        {"id": "H011", "name": "HVAC TDR Tutor Agent", "status": "TO_BUILD", "priority": 1, "purpose": "After every HVAC job evaluates diagnostic reasoning. Coaches Jordan privately. Same concept as appliance TDR tutor but HVAC domain knowledge.", "xano_endpoint": "hvac_tdr_tutor"},
+        {"id": "H012", "name": "HVAC Diagnostic Reasoning Evaluator", "status": "TO_BUILD", "priority": 2, "purpose": "Was there a faster diagnostic path? Did Jordan miss a common secondary failure? Specific to HVAC fault patterns.", "xano_endpoint": "hvac_diagnostic_evaluator"},
+        {"id": "H013", "name": "Callback Prevention Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Flags when a common secondary failure was not checked. On this Carrier model the contactor fails at same time as capacitor 60 percent of the time. Checks both saves callbacks.", "xano_endpoint": "hvac_callback_prevention"}
+      ]
+    },
+
+    {
+      "id": 16,
+      "name": "Service Agreement and Upsell Colony",
+      "purpose": "Jordan and Andre never have to upsell. Ant handles all of it. Integrity intact. Revenue grows anyway.",
+      "priority": "MEDIUM",
+      "agents_total": 6,
+      "agents_live": 0,
+      "core_principle": "The best upsell is the one that never feels like an upsell. Delivered by Ant at the right moment. Never by the tech in the customer's home.",
+      "agents": [
+        {"id": "SA001", "name": "Equipment Age Alert Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Identifies every customer whose unit is approaching replacement age. Triggers information delivery at right time.", "xano_endpoint": "equipment_age_alert"},
+        {"id": "SA002", "name": "Maintenance Reminder Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Seasonal outreach before summer and winter peaks. AC tune-up before summer. Dryer vent cleaning before winter.", "xano_endpoint": "maintenance_reminder_agent"},
+        {"id": "SA003", "name": "Service Agreement Proposal Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Offers annual maintenance plans after every service call. Not the tech. Ant. Three days later when customer is calm.", "xano_endpoint": "service_agreement_proposal"},
+        {"id": "SA004", "name": "Agreement Renewal Agent", "status": "TO_BUILD", "priority": 3, "purpose": "Reminds customers when annual agreements are expiring. Automatic renewal conversation.", "xano_endpoint": "agreement_renewal_agent"},
+        {"id": "SA005", "name": "Upsell Intelligence Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Knows what each customer equipment needs. Delivers information at right moment through Ant. Never through tech.", "xano_endpoint": "upsell_intelligence_agent"},
+        {"id": "SA006", "name": "Post-Job Education Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Sends helpful equipment information after every job. Naturally surfaces upgrade conversations without pressure.", "xano_endpoint": "post_job_education_agent"}
+      ]
+    },
+
+    {
+      "id": 17,
+      "name": "TCAT and Tech Onboarding Colony",
+      "purpose": "Pipeline of trained techs from 26 TCAT campuses. Anthony Pivacek Memorial Scholarship. Partnership with Tennessee Board of Regents.",
+      "priority": "MEDIUM",
+      "agents_total": 5,
+      "agents_live": 0,
+      "tcat_facts": {
+        "campuses": 26,
+        "enrollment": 34486,
+        "employer_satisfaction": "96 percent rate graduates satisfactory or above",
+        "teddy_connection": "Teddy and Anthony both graduated TCAT Murfreesboro",
+        "scholarship": "Anthony Pivacek Memorial Scholarship - named in Ant's honor"
+      },
+      "agents": [
+        {"id": "TC001", "name": "New Tech Confidence Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Knows it is a new grad. Adjusts pre-dispatch briefs to be more detailed and step by step. Gradually reduces detail as experience builds.", "xano_endpoint": "new_tech_confidence_agent"},
+        {"id": "TC002", "name": "First 90 Days Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Intensive coaching mode for new techs. More frequent TDR tutor feedback. Flags patterns faster.", "xano_endpoint": "first_90_days_agent"},
+        {"id": "TC003", "name": "Mentor Matching Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Pairs new TCAT grads with right mentor based on geography, specialty, and fit.", "xano_endpoint": "mentor_matching_agent"},
+        {"id": "TC004", "name": "Certification Tracker Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Knows each tech certifications. What they have. What they need next. Continuing education reminders.", "xano_endpoint": "certification_tracker_agent"},
+        {"id": "TC005", "name": "Graduate Performance Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Tracks new tech performance in first 90 days. Identifies who is excelling. Flags who needs more support.", "xano_endpoint": "graduate_performance_agent"}
+      ]
+    },
+
+    {
+      "id": 18,
+      "name": "Mentor Equity and Development Colony",
+      "purpose": "Best techs profit from making other techs great. Knowledge sharing rewarded not punished.",
+      "priority": "MEDIUM",
+      "agents_total": 12,
+      "agents_live": 0,
+      "equity_structure": {
+        "apprentice_mentor": {"max_mentees": 2, "equity_percent": 3, "term_months": 24, "requirement": "6 months minimum before advancing"},
+        "journeyman_mentor": {"max_mentees": 4, "equity_percent": 5, "term_months": 36, "requirement": "At least one mentee hit 12 month milestones"},
+        "master_mentor": {"max_mentees": 8, "equity_percent": 5, "tree_equity_percent": 1, "requirement": "Produced at least one mentor"},
+        "colony_builder": {"direct_mentees": "6-8", "direct_equity": 7, "level2_equity": 2, "level3_equity": 0.5, "requirement": "Elite level - building markets not just mentoring"}
+      },
+      "agents": [
+        {"id": "ME001", "name": "Mentor Matching Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Pairs new techs with right mentor. Geography, specialty, personality fit.", "xano_endpoint": "mentor_matching_agent"},
+        {"id": "ME002", "name": "Mentorship Tracking Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Monitors health of every mentor relationship. Flags when engagement drops.", "xano_endpoint": "mentorship_tracking_agent"},
+        {"id": "ME003", "name": "Mentor Equity Calculator Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Calculates mentor earnings automatically based on mentee performance. Transparent to both parties. Pays correctly every time.", "xano_endpoint": "mentor_equity_calculator"},
+        {"id": "ME004", "name": "Mentor Performance Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Scores mentor effectiveness. Are mentees improving? Are TDR scores going up? Is mentee staying on platform?", "xano_endpoint": "mentor_performance_agent"},
+        {"id": "ME005", "name": "Mentee Progress Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Tracks new tech development milestones. Notifies mentor when milestones hit. Triggers equity tier reviews.", "xano_endpoint": "mentee_progress_agent"},
+        {"id": "ME006", "name": "Market Builder Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Identifies techs ready to move from individual contributor to market builder. Surfaces conversation at right moment.", "xano_endpoint": "market_builder_agent"},
+        {"id": "ME007", "name": "Mentor Recognition Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Manages status levels. Generates recognition content for story colony. Celebrates milestone moments publicly.", "xano_endpoint": "mentor_recognition_agent"},
+        {"id": "ME008", "name": "Mentor Capacity Agent", "status": "TO_BUILD", "priority": 1, "purpose": "HARD STOP. Prevents any mentor from exceeding their tier capacity. System literally will not allow it. Quality protection.", "xano_endpoint": "mentor_capacity_agent"},
+        {"id": "ME009", "name": "Mentorship Quality Scorer", "status": "TO_BUILD", "priority": 1, "purpose": "Weekly quality score per mentor. Score drops below threshold - private coaching note. Stays low 60 days - mentor drops a tier automatically.", "xano_endpoint": "mentorship_quality_scorer"},
+        {"id": "ME010", "name": "Mentor Demotion Agent", "status": "TO_BUILD", "priority": 2, "purpose": "If quality scores persistently low for 60 days mentor drops a tier. Automatic. No awkward human conversation.", "xano_endpoint": "mentor_demotion_agent"},
+        {"id": "ME011", "name": "Tree Health Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Monitors entire mentor tree per Colony Builder. Identifies weak branches before they break.", "xano_endpoint": "tree_health_agent"},
+        {"id": "ME012", "name": "Mentor Advancement Agent", "status": "TO_BUILD", "priority": 2, "purpose": "When mentor hits milestones for next tier surfaces advancement conversation automatically. Nobody gets missed.", "xano_endpoint": "mentor_advancement_agent"}
+      ]
+    },
+
+    {
+      "id": 19,
+      "name": "Recruiting Colony",
+      "purpose": "Find the Jordans of every market. Employed techs who are great at craft and tired of making someone else rich.",
+      "priority": "HIGH",
+      "agents_total": 14,
+      "agents_live": 0,
+      "recruiting_offer": {
+        "compensation": "40% commission",
+        "vehicle": "Cybertruck provided",
+        "bonus": "Up to 51% for top performers hitting all metrics",
+        "upsell": "Zero - Ant handles all of it",
+        "colony": "379 agents behind every tech",
+        "tagline": "Long Live Ant"
+      },
+      "performance_bonus_structure": {
+        "first_visit_fix_rate": {"75_80": "+2%", "80_85": "+4%", "above_85": "+5%"},
+        "review_score": {"4.5_4.7": "+1%", "4.7_4.9": "+2%", "4.9_5.0": "+3%"},
+        "volume": {"hit_target": "+1%", "exceed_20pct": "+2%", "exceed_40pct": "+3%"}
+      },
+      "draft_experience": {
+        "concept": "NFL Draft for trades people. Commissioner Teddy at podium. Tech walks the stage. Gets the Ant hat. Gets the hug. Family in the crowd.",
+        "first_pick": "With the first pick in the Appliance Ant Draft - the Tennessee Appliance Exchange selects Andre Pivacek",
+        "hat": "Quality fitted hat. Ant logo embroidered. Long Live Ant on back brim. Only way to get it is to be chosen."
+      },
+      "agents": [
+        {"id": "REC001", "name": "Platform Monitor Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Watches all recruiting channels simultaneously. Volume drops - flags and proposes budget reallocation.", "xano_endpoint": "platform_monitor_agent"},
+        {"id": "REC002", "name": "Indeed Listing Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Keeps Indeed listing current. Refreshes weekly. A/B tests copy. Tracks application quality.", "xano_endpoint": "indeed_listing_agent"},
+        {"id": "REC003", "name": "Facebook Ad Recruiting Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Manages Facebook recruiting campaigns targeting employed trades people. Adjusts targeting based on performance.", "xano_endpoint": "facebook_ad_recruiting"},
+        {"id": "REC004", "name": "TikTok Recruiting Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Identifies organic content attracting trades engagement. Boosts best performers. Monitors comments for recruiting signals.", "xano_endpoint": "tiktok_recruiting_agent"},
+        {"id": "REC005", "name": "LinkedIn Outreach Agent", "status": "TO_BUILD", "priority": 1, "purpose": "Identifies Master Tech profiles. Personalizes outreach. Manages follow-up sequences. Jordan-type recruiting.", "xano_endpoint": "linkedin_outreach_agent"},
+        {"id": "REC006", "name": "Application Qualifier Agent", "status": "TO_BUILD", "priority": 1, "purpose": "When tech applies through any channel Ant qualifies them in real time. Experience level, market, specialty, current situation. Routes qualified leads to Teddy.", "xano_endpoint": "application_qualifier_agent"},
+        {"id": "REC007", "name": "Candidate Nurture Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Techs interested but not ready get 14-day nurture sequence. Real stories. Real numbers. Andre journey. Jordan income model. Cybertruck.", "xano_endpoint": "candidate_nurture_agent"},
+        {"id": "REC008", "name": "Referral Recruiting Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Prompts existing techs monthly to refer techs they know. Tracks referrals. Rewards successful hires.", "xano_endpoint": "referral_recruiting_agent"},
+        {"id": "REC009", "name": "Competitive Intelligence Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Watches competitor job listings. ARS posts openings in a market - signals tech unhappiness. Run targeted ad immediately.", "xano_endpoint": "competitive_intel_agent"},
+        {"id": "REC010", "name": "Hiring Velocity Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Tracks tech addition rate vs plan. Behind on hiring - escalates budget and urgency across all channels automatically.", "xano_endpoint": "hiring_velocity_agent"},
+        {"id": "REC011", "name": "Draft Announcement Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Generates official draft announcement for each new tech. Posted across every platform the moment they are selected.", "xano_endpoint": "draft_announcement_agent"},
+        {"id": "REC012", "name": "Draft Hype Agent", "status": "TO_BUILD", "priority": 3, "purpose": "Builds anticipation before draft announcement. The Ant Platform is making a move in Louisiana HVAC. Announcement coming Thursday.", "xano_endpoint": "draft_hype_agent"},
+        {"id": "REC013", "name": "Draft Story Agent", "status": "TO_BUILD", "priority": 2, "purpose": "After each draft video tells the tech story. Where they came from. What they were doing before. Why they chose Appliance Ant.", "xano_endpoint": "draft_story_agent"},
+        {"id": "REC014", "name": "Draft Amplification Agent", "status": "TO_BUILD", "priority": 2, "purpose": "Takes each draft video and distributes across every platform simultaneously. Maximizes organic reach in first 24 hours.", "xano_endpoint": "draft_amplification_agent"}
+      ]
+    },
+
+    {
+      "id": 20,
+      "name": "Customer Acquisition Colony",
+      "purpose": "Build organic customer pipeline. Reduce warranty dependency. Every self-pay customer worth 2-3x a warranty job in margin.",
+      "priority": "HIGH",
+      "agents_total": 38,
+      "agents_live": 0,
+      "agent_categories": [
+        {"category": "Google Search SEO", "count": 10},
+        {"category": "Google Business Profile", "count": 6},
+        {"category": "YouTube", "count": 5},
+        {"category": "Nextdoor and Community", "count": 3},
+        {"category": "Review Velocity", "count": 5},
+        {"category": "Referral System", "count": 5},
+        {"category": "Seasonal and Proactive Outreach", "count": 4}
+      ]
+    }
+  ],
+
+  "stigmergy_infrastructure": {
+    "signal_router_agent": {
+      "id": "INFRA001",
+      "name": "Signal Router Agent",
+      "status": "TO_BUILD",
+      "priority": 1,
+      "purpose": "Reads every signal written to colony_signals. Determines which colonies receive it. Manages signal strength thresholds. Prevents signal flooding.",
+      "xano_endpoint": "signal_router_agent"
+    },
+    "reinforcement_learning_agent": {
+      "id": "INFRA002",
+      "name": "Reinforcement Learning Agent",
+      "status": "TO_BUILD",
+      "priority": 2,
+      "purpose": "Tracks outcomes against agent decisions. Writes reinforcement signals that strengthen successful patterns. The colony memory and learning system.",
+      "xano_endpoint": "reinforcement_learning_agent"
+    },
+    "colony_health_monitor": {
+      "id": "INFRA003",
+      "name": "Colony Health Monitor Agent",
+      "status": "TO_BUILD",
+      "priority": 1,
+      "purpose": "Watches overall health of signal architecture. Are signals being processed? Any colonies going silent? Is signal strength calibrated? The nervous system health check.",
+      "xano_endpoint": "colony_health_monitor"
+    },
+    "cross_platform_agents": {
+      "signal_translator": {"id": "INFRA004", "name": "Signal Translator Agent", "purpose": "Converts outputs from Vapi, Twilio, Telnyx, S3 into standardized colony_signals"},
+      "vapi_performance_bridge": {"id": "INFRA005", "name": "Vapi Performance Bridge", "purpose": "Reads transcripts, scores performance, pushes prompt improvements back to Vapi API"},
+      "s3_vision_agent": {"id": "INFRA006", "name": "S3 Vision Agent", "purpose": "Analyzes job photos for documentation completeness using Claude vision"},
+      "cross_platform_sync": {"id": "INFRA007", "name": "Cross Platform Sync Agent", "purpose": "Data consistency across Xano, Vapi, and communication platforms"},
+      "mcp_gateway": {"id": "INFRA008", "name": "MCP Gateway Agent", "purpose": "Manages new tool integrations through Model Context Protocol"},
+      "platform_health_monitor": {"id": "INFRA009", "name": "Platform Health Monitor", "purpose": "Watches all external API connections simultaneously. Twilio down, Vapi latency spiking, S3 permissions changed - all detected immediately"}
+    }
+  },
+
+  "immediate_action_items": [
+    {
+      "priority": 1,
+      "action": "Finish agent_builder fix",
+      "steps": ["Step 1 - Insert test row into agent_proposals table id 36 status=pending", "Step 2 - Paste latest agent_builder_POST.xs into Xano Notepad", "Step 3 - Go to tnapplianceexchange.net/agent-proposals.html click Build It", "Step 4 - Check Xano event_log for agent_builder_create_result action", "Step 5 - One more fix based on that log paste DONE"],
+      "timeline": "Tonight"
+    },
+    {
+      "priority": 2,
+      "action": "Build Colony Architect Agent",
+      "purpose": "Reads this blueprint. Identifies next priority unbuilt agent. Writes proposal. The engine that builds everything else.",
+      "timeline": "Tomorrow"
+    },
+    {
+      "priority": 3,
+      "action": "Get on ApplianceAPI.com waitlist",
+      "url": "https://www.applianceapi.com/",
+      "purpose": "Spring 2026 launch. Early pricing. Built exactly for repair dispatch.",
+      "timeline": "Tonight - 2 minutes"
+    },
+    {
+      "priority": 4,
+      "action": "Deploy 12 Colony Builder Agents",
+      "purpose": "One per colony. Each knows its domain. Generates 1-2 agent proposals per day.",
+      "timeline": "Week 1-2"
+    },
+    {
+      "priority": 5,
+      "action": "TCAT Murfreesboro meeting",
+      "purpose": "Begin partnership conversation. Anthony Pivacek Memorial Scholarship. Platform demonstration.",
+      "timeline": "Month 1"
+    }
+  ],
+
+  "financial_model": {
+    "revenue_per_tech_monthly": 16000,
+    "tech_commission": "40 percent",
+    "max_bonus": "51 percent for top performers hitting all metrics",
+    "vehicle": "Cybertruck provided - $1200/month payment covered by platform",
+    "insurance": "$350/month per truck",
+    "platform_fee": "60 percent of revenue after tech commission",
+    "gross_margin_6_techs": "36 percent",
+    "gross_margin_10_techs": "39 percent",
+    "gross_margin_25_techs": "42 percent",
+    "fixed_staff": {
+      "danielle": "Warranty portal coordinator - $5500 combined with Alyse",
+      "alyse": "Tax filings and financial recordkeeping"
+    },
+    "reinvestment": "$30000 per month at 25 techs",
+    "platform_licensing": {
+      "solo": "$299/month",
+      "growth": "$499/month",
+      "team": "$799/month"
+    }
+  },
+
+  "tech_roster": {
+    "teddy": {"id": 1, "name": "James Teddy Pivacek", "role": "Owner Commissioner", "market": "Antioch TN", "commission": "owner profit"},
+    "jimmy": {"id": 2, "name": "Jimmy", "role": "Tech", "market": "Antioch S Nashville Murfreesboro Hermitage Mt Juliet", "commission": "45 percent"},
+    "andre": {"id": 3, "name": "Andre Pivacek", "role": "Tech - Face of Louisiana - The Ultimate Appliance Man", "market": "Hammond NOLA Metairie Kenner", "commission": "40 percent", "brand": "Ant face tattoo where sideburns should be"},
+    "lee": {"id": 4, "name": "Lee Harding", "role": "Tech", "market": "Clarksville Cheatham Co West Nashville Bellevue", "commission": "50 percent"},
+    "billy": {"id": 5, "name": "Billy Savoy", "role": "Tech", "market": "Hammond LA North Shore", "commission": "40 percent", "payment": "PayPal"},
+    "john": {"id": 6, "name": "John Houk", "role": "Tech", "market": "Walker LA Baton Rouge Denham Springs Gonzales", "commission": "40 percent"},
+    "jordan": {"id": "FUTURE", "name": "Jordan", "role": "Master Tech HVAC", "market": "Tennessee HVAC", "status": "Currently employed $38/hour - recruiting in progress"}
+  },
+
+  "closing": {
+    "dedication": "This platform was built by a father in honor of his son Anthony - Ant - wrestler, TCAT graduate, the lightest weight class, the hardest worker in the room.",
+    "mission": "Match need with know-how. Automate to elevate not cut. Give every independent tradesperson the resources to be extraordinary.",
+    "promise": "Every job completed. Every agent built. Every tech drafted. Every customer helped. All of it carries his name forward.",
+    "signature": "LONG LIVE ANT 🐜"
+  }
+}

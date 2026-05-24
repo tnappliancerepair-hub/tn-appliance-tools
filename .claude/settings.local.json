@@ -32,7 +32,25 @@
       "Bash(xano profile:create --help)",
       "Read(//c/Users/jpiva/.xano/**)",
       "Bash(xano auth *)",
-      "mcp__xano__cli_docs"
+      "mcp__xano__cli_docs",
+      "Read(//private/tmp/**)",
+      "Bash(find / -name \"agent_builder_POST.xs\")",
+      "Bash(find / -name \"agent_proposals*\")",
+      "Bash(mdfind -name \"agent_builder\")",
+      "Bash(mdfind \"agent_proposals\")",
+      "Bash(gh auth *)",
+      "Bash(git remote *)",
+      "Bash(git config *)",
+      "Bash(curl *)",
+      "Bash(git -C /Users/tpivacek/tn-appliance-tools status --short)",
+      "Bash(git -C /Users/tpivacek/tn-appliance-tools diff --stat agent-proposals.html)",
+      "Bash(git -C /Users/tpivacek/tn-appliance-tools add agent-proposals.html)",
+      "Bash(git -C /Users/tpivacek/tn-appliance-tools commit -m ' *)",
+      "Bash(git -C /Users/tpivacek/tn-appliance-tools push)",
+      "Read(//Users/tpivacek/**)",
+      "Bash(netlify env:list --plain)",
+      "Bash(grep -rn \"~ \\\\$\\\\|~ \\\\\"\" /Users/tpivacek/tn-appliance-tools/docs/xano-schemas)",
+      "Bash(grep -rn \"\\\\.\\\\\\(items\\\\|content\\\\|result\\\\\\)\\\\[0\\\\]\\\\|\\\\$[a-z_]*\\\\[0\\\\]\" /Users/tpivacek/tn-appliance-tools/docs)"
     ]
   }
 }
