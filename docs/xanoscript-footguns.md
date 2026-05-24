@@ -125,6 +125,39 @@ db.add event_log {
 
 ---
 
+## CRITICAL: Metadata API cannot deploy XanoScript
+
+**The trap that consumed 3 days of `agent_builder` debugging.** The Xano Metadata API accepts an `xanoscript` field on endpoint creation, returns 200 OK, but **silently drops the field**. No error, no warning. The endpoint is created as an empty shell with `input: []`, no stack, and any call to it returns `null` with HTTP 200.
+
+**Confirmed broken (2026-05-24):** all 9 attempted paths to deploy XS via Metadata API:
+
+| # | Method | Path | Result |
+|---|---|---|---|
+| 1 | POST | `/apigroup/{ag}/api` with `{...xanoscript:"..."}` | 200, xs dropped |
+| 2 | PUT | `/apigroup/{ag}/api/{id}` with `{...xanoscript:"..."}` | 200, xs dropped |
+| 3 | PUT | `/apigroup/{ag}/api/{id}` with `{xanoscript:"..."}` only | 400 missing `name` |
+| 4 | PATCH | `/apigroup/{ag}/api/{id}` with `{xanoscript:"..."}` | 404 |
+| 5 | POST | `/apigroup/{ag}/api/{id}/xanoscript` | 404 |
+| 6 | POST | `/apigroup/{ag}/api/{id}/draft` | 404 |
+| 7 | POST | `/apigroup/{ag}/api/{id}/spec` | 404 |
+| 8 | POST | `/apigroup/{ag}/api/{id}/source` | 404 |
+| 9 | POST | `/apigroup/{ag}/api/{id}/publish` | 404 |
+
+Other tried-and-404'd: `/script`, `/yaml`, `PUT /script`, `POST /api-import`, `POST /workspace/1/xs/api`, `POST /workspace/1/import`, `POST /workspace/1/release`.
+
+**Read-side confirmation:** `GET /apigroup/{ag}/api/{id}` always returns `xanoscript: null` even for known-working endpoints like `qc_cockpit_load` (id 391). The XS source is **write-only** via Metadata API in the sense that it can't be read back — and apparently can't be written either.
+
+**The ONLY working XS-deploy paths:**
+
+1. **Xano UI paste.** Open Xano dashboard → API tab → endpoint → switch to XanoScript mode → paste → Save → Publish.
+2. **`xano workspace push <file>` via the Xano CLI** on the Mac Mini, against a local `xano-workspace/` mirror. Setup in `docs/mac-mini-setup-checklist.md` §3.5.
+
+**The agent_builder backstory:** `xano-workspace/api/intake/agent_builder_POST.xs` POSTs to `/apigroup/4/api` with the Claude-generated XS in the `xanoscript` field. Even when the XS is parseable and Claude emits clean output, the deploy is a no-op. Endpoints get created (`/agent_proposals → Build It` button claims success), but calling them returns null. The 500s from `mark_signal_processed` and similar were a downstream symptom of "XS body never made it to Xano." Per the architecture pivot, **retire `agent_builder` — do not try to fix it.**
+
+**Working rule** (also pinned in CLAUDE.md Working Rule 7): never attempt XS deploy via Metadata API. Use UI paste or CLI push.
+
+---
+
 ## Metadata API: add-column endpoint is `/schema/type/{type}`, not the obvious alternatives
 
 **Pattern (working):**

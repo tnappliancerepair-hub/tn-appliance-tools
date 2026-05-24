@@ -6,22 +6,30 @@ AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" P
 
 Every new session: read this whole file, then in your first reply report (a) **what's built**, (b) **what's next**, and (c) **what NOT to do**. The "Working rules" section below is load-bearing — violating it once costs more than re-reading it ten times.
 
+## Operational status (current)
+
+**Dawn is OUT (eye issue).** The manual warranty-submission workflow she usually runs is unstaffed. **Automation cutover is no longer optional — it is urgent.** Every day Phase A → Phase B → vision-step-5 (Danielle/warranty automation) slips is a day of warranty paperwork piling up. This changes the risk calculus: prefer shipping a slightly rough automation today over a perfect one next week.
+
 ## Infrastructure
 
 - **Xano API base:** `https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA`
 - **Netlify site:** `superlative-naiad-233aa7.netlify.app`
 - **Metadata API base:** `https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1` (bearer auth via `XANO_METADATA_TOKEN`)
+- **Telnyx outbound SMS:**
+  - **Customer-direction:** `+1 615-588-9500`
+  - **Tech-direction:** `+1 615-857-8800`
+- **Vanity inbound numbers (NOT YET WIRED to Vapi):** `1-888-ANT-8998` and `1-866-ANT-0111`. These are owned but currently unrouted — calls go nowhere. Wiring them to the existing Vapi inbound agent is open work. Until done, do **not** advertise these numbers in customer-facing materials.
 
 ## Tech roster
 
-| ID | Name              | Region |
-|----|-------------------|--------|
-| 1  | Teddy Pivacek     | TN (Antioch) — owner |
-| 2  | Jimmy Pivacek     | South Nashville |
-| 3  | Andre Pivacek     | Hammond, LA (dual-state) |
-| 4  | Lee Harding       | Clarksville, TN |
-| 5  | Billy Savoy       | Hammond, LA |
-| 6  | John Houk         | Walker, LA |
+| ID | Name              | Region                       | Phone           |
+|----|-------------------|------------------------------|-----------------|
+| 1  | Teddy Pivacek     | TN (Antioch) — owner         | 615-485-5795    |
+| 2  | Jimmy Pivacek     | South Nashville              | 615-967-1304    |
+| 3  | Andre Pivacek     | Hammond, LA (dual-state)     | 615-969-3115    |
+| 4  | Lee Harding       | Clarksville, TN              | 615-829-1654    |
+| 5  | Billy Savoy       | Hammond, LA                  | 731-504-9617    |
+| 6  | John Houk         | Walker, LA                   | 813-352-7686    |
 
 ## Agent platform
 
@@ -69,6 +77,7 @@ Every architectural decision should move at least one of these five steps closer
 4. **Take the most efficient path unless it hurts the long-term vision.** Default to the shortest implementation that works. Only spend extra effort when a quick fix would move the system *away* from the five-step vision above (pre-diagnosis → parts → waiver → tech-assist → warranty). If a shortcut is vision-neutral, take it.
 5. **New agents = Mac Mini loop functions, NOT Xano endpoints/tasks.** Restating Architecture rule because it's the most-violated default. If you catch yourself opening `agent_builder` to add a *new* agent, stop — add a function to the Mac Mini loop instead. `agent_builder` is only for legacy upkeep.
 6. **Start every session by reading this file.** Then in the first reply: report (a) **what's built**, (b) **what's next**, (c) **what NOT to do**. Skipping this is how stale assumptions creep back in.
+7. **Never attempt to deploy XanoScript via the Metadata API.** The `POST /api:meta/workspace/1/apigroup/{id}/api` endpoint accepts a `xanoscript` field, returns 200, but **silently drops the field** — the endpoint is created as an empty shell with no stack. PUT/PATCH likewise drop it; nine alternate paths (`/draft`, `/spec`, `/script`, `/yaml`, `/publish`, `/security`, `/api-import`, etc.) all 404. The ONLY working XS-deploy paths are: **(a) paste into the Xano UI**, or **(b) `xano workspace push <file>` via the Xano CLI on the Mac Mini**. Full diagnosis in `docs/xanoscript-footguns.md`.
 
 ## XanoScript rules (fast reference)
 
@@ -123,12 +132,16 @@ Nothing else gets built until Phase A is verified end-to-end. Order of operation
 
 - `countCompletedPreDiagnoses()` in `customer_intake_reply.js` is a stub returning 0 — intentionally keeps the first-20-always-escalate window permanent until after first live shake-down.
 - Customer-SMS inbound webhook not assumed; CUSTOMER_INTAKE_REPLY fires only via media upload (Q11).
-- `agent_builder` 500 still open as legacy-cleanup concern — `|trim` fix is in, but Claude-emitted XS still trips the Metadata API parser. Diagnostic path: pull most-recent `agent_builder_create_result` row from `event_log`. Low priority per pivot.
+- **`agent_builder` 500 root cause confirmed:** the endpoint POSTs to the Metadata API with the `xanoscript` field, which Xano silently drops. Even when Claude generates valid XS, deploy is a no-op. Fix is structural — `agent_builder` needs to be retired or rewritten to emit a colony_signal that a Mac-Mini-side function picks up and deploys via the Xano CLI. Per the pivot, retire.
+- **Vanity numbers `1-888-ANT-8998` and `1-866-ANT-0111` not wired to Vapi.** No timeline yet.
+- **Financial flags pending Alyse review:** `docs/financial-flags-open.md` is the running list (commission rates, broken `tech_earnings.commission_earned`, Stripe key rotation, warranty vendor activations, payout-batch UI gap).
 
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
+- **Colony loop design:** `docs/colony-loop-design.md`.
 - **Recent decisions:** `docs/session-2026-05-*.md`, `docs/handoff-2026-*.md`.
-- **XS gotchas:** `docs/xanoscript-footguns.md`.
+- **XS gotchas + Metadata-API-deploy footgun:** `docs/xanoscript-footguns.md`.
+- **Financial open items (for Alyse):** `docs/financial-flags-open.md`.
 - **Live XS schemas (sample):** `docs/xano-schemas/2026-05-15/`.
 - **Front-end pages:** root `.html` files; Netlify functions in `netlify/functions/`.
