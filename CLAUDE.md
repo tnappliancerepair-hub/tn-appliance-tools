@@ -80,9 +80,9 @@ Every architectural decision should move at least one of these five steps closer
 
 **Three prerequisites gate the cut:**
 
-1. **Calendar view in Ant Office** with capacity indicators. A real week + day calendar the office uses to see tech load and book new jobs. Today there is no such view in Ant — we still use HCP's calendar.
-2. **Scheduling owned by Ant.** Every scheduling action (book, reschedule, reassign, cancel, day-off, multi-tech) executes through Ant Office endpoints and writes directly to Xano. No HCP round-trip required.
-3. **Broadcast booking wired** (Phase 6 Gap 3). When a tech replies "yes" to a `broadcast` SMS — or Teddy replies `PICK1/PICK2/PICK3` to a `propose` SMS — the system actually books: sets `jobs.scheduled_start`, `technician_id`, and `scheduling_status="scheduled"`. Today the `book` handler in `scheduling_queue_worker.xs` is `"[STUB] would book job X"`.
+1. ✅ **Calendar view in Ant Office** with capacity indicators — **DONE 2026-05-25**. `office-calendar.html` live at `tnapplianceexchange.net/office-calendar.html`. Week grid with sticky tech header + day-label, big capacity numbers per cell (color-coded by load: green 0-2, yellow 3-4, red 5-6, gray day-off), today-row left-border, sticky footer totals row, "Needs Assignment" banner, prev/today/next week nav. Backed by `get_office_calendar_week_GET.xs`.
+2. **Scheduling owned by Ant** — **NOT DONE.** Office still triages via HCP for new email-intake jobs and uses HCP's calendar for reschedule/reassign/cancel actions. `office-calendar.html` is read-only today (job blocks deep-link to `job-detail.html`; `+ New Job` is a pass-through to `book.html`). The next set of writes — book/reschedule/reassign endpoints triggered from the calendar — is the last prereq.
+3. ✅ **Broadcast booking wired** — **DONE 2026-05-25**. Two halves in `api/scheduling/tech_sms_inbound_POST.xs`: (a) `__CLAIM_BROADCAST__` token now sets `jobs.scheduled_start` to tomorrow 08:00 CT as a default when a tech says yes to an open broadcast; (b) new pre-Claude `PICK1`/`PICK2`/`PICK3` keyword handler scoped to tech_id=1 (Teddy) reads the latest open `must_time_proposal`, applies the chosen option (technician_id + scheduled_start from option's date + window-start), marks the broadcast_attempt `status="booked"`, writes a `proposal_booked` event_log row, and SMSes Teddy a confirmation.
 
 Until all three are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
 
@@ -388,6 +388,35 @@ Phase A + B done. With Dawn still OUT and warranty submissions piling up, **visi
 4. **Book the broadcast winner (Gap 3).** Real implementation of `scheduling_queue_worker.book` STUB + reply-handler in `tech_sms_inbound_POST.xs` for tech "yes" replies and owner `PICK1/PICK2/PICK3` replies. HCP migration prerequisite #3.
 
 **Long live Ant.** 🐜
+
+### Late afternoon 2026-05-25 — HCP migration prereqs 1 + 3 done, only #2 remains
+
+**Shipped this afternoon (4 builds in one push, commit `85ff2fd` + `371506a`):**
+
+- **`office-calendar.html` live** — Ant Office nerve center. Week view × 6 techs, big capacity numbers, color-coded load, today highlight, sticky totals footer, "Needs Assignment" banner, deep-links to `job-detail.html`. Backed by `get_office_calendar_week_GET.xs`. (Commit `371506a`.) **→ HCP migration prereq #1 COMPLETE.**
+- **`daily_tech_briefing.js` agent live** — colony loop fires `DAILY_TECH_BRIEFING` once daily at 7am CT (7-10am grace window in `tick.js`), fans out across active techs via `getTechDailyDashboard`, SMSes those with ≥1 job linking to their personal dashboard. Smoke-tested with `signal_id=11`: ran clean in 1.4s, sent=0 / skipped_no_jobs=6 (no real jobs scheduled for today — plumbing verified).
+- **Broadcast booking wired** — `__CLAIM_BROADCAST__` now sets `scheduled_start` (tomorrow 08:00 CT default); new `PICK1/PICK2/PICK3` keyword handler in `tech_sms_inbound_POST.xs` short-circuits Claude for owner's pick replies. **→ HCP migration prereq #3 COMPLETE.**
+- **ServicePower date-shift fix** — `servicepower_email_intake_POST.xs` anchors date-only `Schedule Date` fields to CT 08:00 instead of UTC midnight. Both sites patched (SCHEDULE_CHANGE update branch + new-job insert branch). New SP DISPATCH_OFFERs land on the correct calendar day. ~20 existing SP jobs keep their old wrong times until backfilled.
+
+**HCP migration status:**
+| Prereq | State |
+|---|---|
+| 1. Calendar view in Ant Office | ✅ DONE |
+| 2. Scheduling owned by Ant | ⏳ remaining |
+| 3. Broadcast booking wired | ✅ DONE |
+
+**Only prereq #2 stands between us and migration day.** The calendar exists but is read-only; the scheduling-action endpoints (book / reschedule / reassign / cancel / day-off) need to be reachable from Ant Office and write directly to Xano without HCP round-trip. Once those are in, **pick a Saturday and cut HCP.**
+
+### Next session — close out prereq #2 (scheduling actions in Ant Office)
+
+1. **Wire the "+ New Job" button on `office-calendar.html`** to an Ant Office booking flow (not `book.html` pass-through). A modal that takes customer + appliance + tech + slot → writes the job + creates a corresponding HCP appointment (still — until migration day) — and reflects immediately on the calendar.
+2. **Click-empty-cell to book.** Reuse the same modal pre-filled with `tech_id` + `date`.
+3. **Job-detail.html reschedule / reassign / cancel actions** — replace whatever HCP-redirect logic lives there today with Ant-native endpoints (`reschedule_job_POST` exists; need to confirm it's wired). Calendar should reflect changes on next load.
+4. **Day-off toggle** — let the office mark a tech off for a date directly from the calendar cell. Writes `tech_availability` row with `full_day_off=true` + triggers the `sick_day_cascade` if today.
+
+Also queued but lower-priority: ~20-job SP `scheduled_start` backfill (after the date-shift fix); orphan `tech_id=8` cleanup; tech adoption push on the daily dashboard.
+
+**🐜 Long live Ant.**
 
 ## Where to look
 
