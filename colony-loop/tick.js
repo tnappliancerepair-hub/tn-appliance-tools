@@ -74,6 +74,32 @@ async function maybeEmitTimeSignals() {
   const hour = ctHour(nowTs);
   const sinceMs = ctMidnightMs(nowTs);
 
+  // COLONY_ARCHITECT — fires once per day at 6am CT (6-9am grace window).
+  // Before the tech briefings. Builds the next eligible TO_BUILD agent
+  // from docs/appliance-ant-master-blueprint.json. Default max_builds=1
+  // per scheduled run; on-demand injections can request more.
+  if (hour >= 6 && hour < 9) {
+    let archFired;
+    try {
+      archFired = await xano.getColonyArchitectFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('colony_architect_check_failed', { error: err.message });
+      archFired = null;
+    }
+    if (archFired && !archFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'COLONY_ARCHITECT',
+          signal_strength: 70,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 1 },
+        });
+        xano.logLocal('colony_architect_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('colony_architect_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
   // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
   if (hour >= 7 && hour < 10) {

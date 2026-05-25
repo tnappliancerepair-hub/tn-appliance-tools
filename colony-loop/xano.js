@@ -82,6 +82,10 @@ export async function getTechDailyDashboard(techId, date) {
   return getJSON(url);
 }
 
+export async function getColonyArchitectFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_colony_architect_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function getGreetingSentForJob(jobId) {
   return getJSON(`${INTAKE()}/get_greeting_sent_for_job?job_id=${jobId}`);
 }
