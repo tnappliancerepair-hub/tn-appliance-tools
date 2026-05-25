@@ -72,9 +72,35 @@ export async function tick() {
 async function maybeEmitTimeSignals() {
   const nowTs = Date.now();
   const hour = ctHour(nowTs);
+  const sinceMs = ctMidnightMs(nowTs);
+
+  // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
+  // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
+  if (hour >= 7 && hour < 10) {
+    let techFired;
+    try {
+      techFired = await xano.getDailyTechBriefingFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_tech_briefing_check_failed', { error: err.message });
+      techFired = null;
+    }
+    if (techFired && !techFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'DAILY_TECH_BRIEFING',
+          signal_strength: 80,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('daily_tech_briefing_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('daily_tech_briefing_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
   if (hour < 8 || hour >= 11) return;
 
-  const sinceMs = ctMidnightMs(nowTs);
   let fired;
   try {
     fired = await xano.getDailyBriefingFiredToday(sinceMs);

@@ -68,6 +68,20 @@ export async function getDailyBriefingFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_briefing_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getDailyTechBriefingFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_tech_briefing_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function getTechnicians() {
+  return getJSON(`${INTAKE()}/technicians`);
+}
+
+export async function getTechDailyDashboard(techId, date) {
+  let url = `${INTAKE()}/get_tech_daily_dashboard?tech_id=${encodeURIComponent(techId)}`;
+  if (date) url += `&date=${encodeURIComponent(date)}`;
+  return getJSON(url);
+}
+
 export async function getGreetingSentForJob(jobId) {
   return getJSON(`${INTAKE()}/get_greeting_sent_for_job?job_id=${jobId}`);
 }
