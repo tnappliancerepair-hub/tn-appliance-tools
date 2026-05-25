@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ant Office — Calendar</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    overflow: hidden;
+  }
+
+  :root {
+    --bg: #0e1118;
+    --bg-2: #131720;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --text: #e8edf5;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --green: #00d68f;
+    --green-bg: rgba(0,214,143,0.10);
+    --green-bg-strong: rgba(0,214,143,0.16);
+    --orange: #f5a623;
+    --orange-bg: rgba(245,166,35,0.12);
+    --orange-bg-strong: rgba(245,166,35,0.20);
+    --red: #ff6b6b;
+    --red-bg: rgba(255,107,107,0.10);
+    --red-bg-strong: rgba(255,107,107,0.18);
+    --blue: #5aa9ff;
+    --violet: #b48cff;
+    --gray: rgba(138,147,170,0.04);
+  }
+
+  /* ── Office password gate ───────────────────────────────────────── */
+  .auth-gate {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.97);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-gate.show { display: flex; }
+  .auth-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 30px 26px;
+    max-width: 380px; width: 100%;
+    text-align: center;
+  }
+  .auth-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .auth-card .title { font-size: 18px; font-weight: 700; }
+  .auth-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 22px; font-family: var(--mono); }
+  .auth-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: var(--mono);
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .auth-input:focus { border-color: var(--orange); }
+  .auth-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--orange);
+    color: #1a1208;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: opacity 0.15s, transform 0.05s;
+  }
+  .auth-submit:active { transform: scale(0.98); }
+  .auth-err {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--red);
+    min-height: 16px;
+  }
+
+  /* ── Header ────────────────────────────────────────────────────── */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: linear-gradient(180deg, #0e1118, #131720);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 14px;
+    z-index: 90;
+  }
+  .topbar .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .topbar .ant { font-size: 22px; }
+  .topbar .title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .topbar .title-sub {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 1px;
+  }
+
+  .topbar .week-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+  }
+  .week-range {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: var(--mono);
+    letter-spacing: -0.01em;
+    min-width: 200px;
+  }
+  .nav-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: border-color 0.15s, background 0.15s, transform 0.05s;
+  }
+  .nav-btn:hover { border-color: var(--orange); }
+  .nav-btn:active { transform: scale(0.97); }
+  .nav-btn.today-btn {
+    width: auto;
+    padding: 0 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .nav-btn.today-btn.active {
+    background: transparent;
+    color: var(--orange);
+    border-color: rgba(245,166,35,0.3);
+    pointer-events: none;
+  }
+
+  .topbar .spacer { flex: 1; }
+
+  .new-job-btn {
+    background: var(--green);
+    color: #082018;
+    border: none;
+    border-radius: 8px;
+    padding: 0 18px;
+    height: 36px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.15s, transform 0.05s;
+  }
+  .new-job-btn:hover { opacity: 0.92; }
+  .new-job-btn:active { transform: scale(0.98); }
+  .new-job-btn .plus { font-size: 16px; line-height: 1; }
+
+  /* ── Main scroll container ─────────────────────────────────────── */
+  .scroll {
+    position: fixed;
+    top: 60px;
+    left: 0; right: 0; bottom: 0;
+    overflow: auto;
+    padding: 14px;
+    background: var(--bg);
+  }
+
+  /* ── Unassigned banner ─────────────────────────────────────────── */
+  .unassigned {
+    background: rgba(180,140,255,0.06);
+    border: 1px solid rgba(180,140,255,0.25);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .unassigned.show { display: block; }
+  .unassigned .head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .unassigned .head .icon { font-size: 18px; }
+  .unassigned .head .label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--violet);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .unassigned .head .count {
+    background: var(--violet);
+    color: #1a0e2e;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: var(--mono);
+  }
+  .unassigned .list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .unassigned .item {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.05s;
+  }
+  .unassigned .item:hover { border-color: var(--violet); background: var(--panel-2); }
+  .unassigned .item:active { transform: scale(0.99); }
+  .unassigned .item .when {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .unassigned .item .cust {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 2px;
+  }
+  .unassigned .item .what {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── Calendar grid ─────────────────────────────────────────────── */
+  .calendar {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .cal-header,
+  .cal-row {
+    display: grid;
+    grid-template-columns: 96px repeat(var(--tech-count, 6), minmax(180px, 1fr));
+  }
+
+  .cal-header {
+    background: var(--panel-2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .cal-header .corner {
+    padding: 12px;
+    border-right: 1px solid var(--border-soft);
+  }
+  .cal-header .tech-cell {
+    padding: 12px 10px;
+    border-right: 1px solid var(--border-soft);
+    text-align: center;
+  }
+  .cal-header .tech-cell:last-child { border-right: 0; }
+  .cal-header .tech-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .cal-header .tech-id {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+
+  .cal-row {
+    border-top: 1px solid var(--border-soft);
+    min-height: 168px;
+  }
+  .cal-row.today {
+    background: linear-gradient(90deg, rgba(245,166,35,0.04), transparent 6%);
+    box-shadow: inset 4px 0 0 var(--orange);
+  }
+
+  .cal-day-label {
+    padding: 12px 10px;
+    border-right: 1px solid var(--border-soft);
+    background: var(--bg-2);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .cal-row.today .cal-day-label {
+    background: rgba(245,166,35,0.06);
+  }
+  .cal-day-label .dow {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+  .cal-row.today .cal-day-label .dow { color: var(--orange); }
+  .cal-day-label .date {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    margin-top: 4px;
+    letter-spacing: -0.02em;
+  }
+  .cal-day-label .month {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Cells ─────────────────────────────────────────────────────── */
+  .cell {
+    border-right: 1px solid var(--border-soft);
+    padding: 10px 8px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.15s;
+  }
+  .cell:last-child { border-right: 0; }
+
+  .cell.cap-green  { background: var(--green-bg); }
+  .cell.cap-yellow { background: var(--orange-bg); }
+  .cell.cap-red    { background: var(--red-bg); }
+  .cell.cap-off {
+    background: var(--gray);
+    background-image: repeating-linear-gradient(
+      135deg,
+      transparent 0 12px,
+      rgba(138,147,170,0.05) 12px 13px
+    );
+  }
+
+  .cap {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    line-height: 1;
+    user-select: none;
+    margin-bottom: 4px;
+  }
+  .cap .num {
+    font-size: 32px;
+    font-weight: 800;
+    font-family: var(--mono);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .cell.cap-green  .cap .num { color: var(--green); }
+  .cell.cap-yellow .cap .num { color: var(--orange); }
+  .cell.cap-red    .cap .num { color: var(--red); }
+  .cell.cap-off    .cap .num { color: var(--muted); }
+
+  .cap .denom {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+  .cap .label {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+  }
+  .cell.cap-off .cap .label { color: var(--muted); }
+
+  .blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+  }
+
+  .blk {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--blue);
+    border-radius: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
+    transition: background 0.12s, border-color 0.12s, transform 0.05s;
+    display: block;
+    min-height: 32px;
+  }
+  .blk:hover { background: var(--panel-2); border-left-color: var(--orange); }
+  .blk:active { transform: scale(0.99); }
+  .blk.bk-warranty { border-left-color: var(--violet); }
+  .blk.bk-self_pay { border-left-color: var(--green); }
+  .blk.bk-completed { opacity: 0.6; border-left-color: var(--muted); }
+  .blk .row1 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .blk .row1 .time {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .blk .row1 .name {
+    color: var(--text);
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .blk .row2 {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .blk .row2 .app { color: var(--muted); }
+  .blk .row2 .city { color: var(--muted); opacity: 0.7; }
+  .blk .row2 .city::before { content: "·"; margin-right: 4px; }
+
+  .off-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    opacity: 0.7;
+  }
+
+  /* ── Footer totals row ─────────────────────────────────────────── */
+  .cal-totals {
+    display: grid;
+    grid-template-columns: 96px repeat(var(--tech-count, 6), minmax(180px, 1fr));
+    border-top: 2px solid var(--border);
+    background: var(--bg-2);
+    position: sticky;
+    bottom: 0;
+  }
+  .cal-totals .tot-label {
+    padding: 14px 10px;
+    border-right: 1px solid var(--border-soft);
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cal-totals .tot-cell {
+    padding: 12px 10px;
+    border-right: 1px solid var(--border-soft);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: center;
+    justify-content: center;
+  }
+  .cal-totals .tot-cell:last-child { border-right: 0; }
+  .cal-totals .tot-num {
+    font-size: 22px;
+    font-weight: 800;
+    font-family: var(--mono);
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .cal-totals .tot-sub {
+    font-size: 9px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── States ────────────────────────────────────────────────────── */
+  .loading {
+    padding: 60px 24px;
+    text-align: center;
+  }
+  .loading .ant {
+    font-size: 36px;
+    animation: bob 1.2s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .loading .msg {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+
+  .err-banner {
+    margin: 12px 0;
+    padding: 14px 16px;
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--red);
+  }
+  .err-banner button {
+    margin-top: 8px;
+    background: var(--red);
+    color: #200a0a;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+
+  /* ── Responsive ────────────────────────────────────────────────── */
+  @media (max-width: 1100px) {
+    .cal-header,
+    .cal-row,
+    .cal-totals {
+      grid-template-columns: 80px repeat(var(--tech-count, 6), minmax(150px, 1fr));
+    }
+    .calendar { overflow-x: auto; }
+    .cal-header, .cal-row, .cal-totals { min-width: max-content; }
+    .cap .num { font-size: 26px; }
+  }
+  @media (max-width: 700px) {
+    .topbar { padding: 0 10px; gap: 8px; }
+    .topbar .title-sub { display: none; }
+    .week-range { min-width: 140px; font-size: 12px; }
+    .new-job-btn { padding: 0 12px; font-size: 11px; }
+    .cap .num { font-size: 22px; }
+    .blk .row1 { font-size: 10px; }
+    .blk .row2 { display: none; }
+    .cal-header,
+    .cal-row,
+    .cal-totals {
+      grid-template-columns: 60px repeat(var(--tech-count, 6), minmax(120px, 1fr));
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Office password gate -->
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Ant Office</div>
+    <div class="sub">enter office password</div>
+    <input type="password" class="auth-input" id="authInput" placeholder="••••••••" autocomplete="off">
+    <button class="auth-submit" id="authSubmit">Unlock</button>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" style="display: none;">
+  <div class="topbar">
+    <div class="brand">
+      <div class="ant">🐜</div>
+      <div>
+        <div class="title">Calendar</div>
+        <div class="title-sub">Ant Office</div>
+      </div>
+    </div>
+    <div class="week-display">
+      <button class="nav-btn" id="prevWeek" title="previous week">‹</button>
+      <button class="nav-btn today-btn" id="todayBtn">Today</button>
+      <button class="nav-btn" id="nextWeek" title="next week">›</button>
+      <span class="week-range" id="weekRange">—</span>
+    </div>
+    <div class="spacer"></div>
+    <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
+  </div>
+
+  <div class="scroll" id="scroll">
+    <div id="content"></div>
+  </div>
+</div>
+
+<!-- Initial loading state -->
+<div class="loading" id="loading" style="position: fixed; inset: 60px 0 0 0; display: none;">
+  <div class="ant">🐜</div>
+  <div class="msg">loading the week…</div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Config ─────────────────────────────────────────────────────
+  const OFFICE_PASSWORD = 'office2026';
+  const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const CAPACITY_MAX = 6;
+  const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // ── URL params ─────────────────────────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  let currentWeekStart = params.get('week') || null;  // YYYY-MM-DD (Monday)
+  let serverTodayCT = null;
+  let dashboardData = null;
+
+  // ── DOM refs ───────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const authGate = $('authGate');
+  const authInput = $('authInput');
+  const authSubmit = $('authSubmit');
+  const authErr = $('authErr');
+  const app = $('app');
+  const loading = $('loading');
+  const content = $('content');
+  const weekRange = $('weekRange');
+  const prevWeek = $('prevWeek');
+  const nextWeek = $('nextWeek');
+  const todayBtn = $('todayBtn');
+  const newJobBtn = $('newJobBtn');
+
+  // ── Auth ───────────────────────────────────────────────────────
+  function unlock() {
+    authGate.classList.remove('show');
+    app.style.display = 'block';
+    loading.style.display = 'block';
+    loadWeek();
+  }
+
+  function tryUnlock() {
+    if (localStorage.getItem(OFFICE_AUTH_KEY) === 'ok') {
+      unlock();
+    } else {
+      authGate.classList.add('show');
+      authInput.focus();
+    }
+  }
+
+  authSubmit.addEventListener('click', submitAuth);
+  authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+
+  function submitAuth() {
+    const val = authInput.value;
+    if (val === OFFICE_PASSWORD) {
+      localStorage.setItem(OFFICE_AUTH_KEY, 'ok');
+      authErr.textContent = '';
+      unlock();
+    } else {
+      authErr.textContent = 'wrong password.';
+      authInput.value = '';
+      authInput.focus();
+    }
+  }
+
+  // ── Data load ──────────────────────────────────────────────────
+  async function loadWeek() {
+    loading.style.display = 'block';
+    content.innerHTML = '';
+
+    let url = `${XANO_BASE}/get_office_calendar_week`;
+    if (currentWeekStart) url += `?week_start=${encodeURIComponent(currentWeekStart)}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        showError(data && data.error ? data.error : 'failed to load week');
+        return;
+      }
+      dashboardData = data;
+      serverTodayCT = data.today_ct;
+      currentWeekStart = data.week_start_ct;
+      render(data);
+    } catch (err) {
+      console.error(err);
+      showError('network error: ' + err.message);
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+
+  function showError(msg) {
+    content.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button onclick="location.reload()">retry</button></div>`;
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function render(data) {
+    renderHeader(data);
+
+    const techs = data.technicians || [];
+    const jobs = data.jobs || [];
+    const availability = data.availability || [];
+    const techCount = Math.max(techs.length, 1);
+
+    // Index data
+    // assigned[techId][dateStr] -> [jobs]
+    // unassigned -> jobs
+    const assigned = {};
+    const unassigned = [];
+    for (const t of techs) assigned[t.id] = {};
+    for (const j of jobs) {
+      const dateStr = ctDateForMs(j.scheduled_start);
+      if (!j.technician_id || j.technician_id === 0) {
+        unassigned.push(j);
+        continue;
+      }
+      if (!assigned[j.technician_id]) assigned[j.technician_id] = {};
+      if (!assigned[j.technician_id][dateStr]) assigned[j.technician_id][dateStr] = [];
+      assigned[j.technician_id][dateStr].push(j);
+    }
+
+    // dayOff[techId][dateStr] -> true
+    const dayOff = {};
+    // workWindow[techId][dateStr] -> {start, end}
+    const workWindow = {};
+    for (const a of availability) {
+      const tid = a.technician_id;
+      const date = a.blocked_date;
+      if (!tid || !date) continue;
+      if (a.full_day_off) {
+        if (!dayOff[tid]) dayOff[tid] = {};
+        dayOff[tid][date] = true;
+      } else if (a.start_time || a.end_time) {
+        if (!workWindow[tid]) workWindow[tid] = {};
+        workWindow[tid][date] = { start: a.start_time, end: a.end_time };
+      }
+    }
+
+    // Build the 7 day strings
+    const days = [];
+    const weekStart = parseYMD(data.week_start_ct);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      days.push({
+        dateStr: ymd(d),
+        d,
+        dowShort: DOW[d.getDay()],
+        monthShort: MONTHS[d.getMonth()],
+        dayNum: d.getDate(),
+        isToday: ymd(d) === serverTodayCT,
+      });
+    }
+
+    // Build markup
+    const parts = [];
+
+    if (unassigned.length > 0) {
+      parts.push(renderUnassigned(unassigned));
+    }
+
+    parts.push(`<div class="calendar" style="--tech-count:${techCount}">`);
+
+    // Tech header row
+    parts.push(`<div class="cal-header">`);
+    parts.push(`<div class="corner"></div>`);
+    for (const t of techs) {
+      parts.push(`
+        <div class="tech-cell">
+          <div class="tech-name">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim().slice(0,1) + (t.last_name ? '.' : ''))}</div>
+          <div class="tech-id">#${t.id}</div>
+        </div>
+      `);
+    }
+    parts.push(`</div>`);
+
+    // Day rows
+    for (const day of days) {
+      const todayClass = day.isToday ? ' today' : '';
+      parts.push(`<div class="cal-row${todayClass}">`);
+      parts.push(`
+        <div class="cal-day-label">
+          <div class="dow">${day.dowShort}</div>
+          <div class="date">${day.dayNum}</div>
+          <div class="month">${day.monthShort}</div>
+        </div>
+      `);
+
+      for (const t of techs) {
+        const cellJobs = (assigned[t.id] && assigned[t.id][day.dateStr]) || [];
+        const isOff = !!(dayOff[t.id] && dayOff[t.id][day.dateStr]);
+        parts.push(renderCell(t, day, cellJobs, isOff));
+      }
+
+      parts.push(`</div>`);
+    }
+
+    // Totals footer
+    parts.push(`<div class="cal-totals">`);
+    parts.push(`<div class="tot-label">Week</div>`);
+    for (const t of techs) {
+      let total = 0;
+      for (const dateStr in (assigned[t.id] || {})) {
+        total += assigned[t.id][dateStr].length;
+      }
+      parts.push(`
+        <div class="tot-cell">
+          <div class="tot-num">${total}</div>
+          <div class="tot-sub">${total === 1 ? 'job' : 'jobs'}</div>
+        </div>
+      `);
+    }
+    parts.push(`</div>`);
+
+    parts.push(`</div>`);  // close .calendar
+
+    content.innerHTML = parts.join('');
+    attachClickHandlers();
+  }
+
+  function renderUnassigned(list) {
+    const items = list.map((j) => {
+      const time = fmtTime(j.scheduled_start);
+      const date = fmtDayShort(j.scheduled_start);
+      const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no customer)';
+      const appl = (j.appliance_type || 'appliance').toLowerCase();
+      return `
+        <a class="item" href="job-detail.html?job_id=${j.id}">
+          <div class="when">${date} · ${time}</div>
+          <div class="cust">${escapeHtml(cust)}</div>
+          <div class="what">${escapeHtml(appl)} · ${escapeHtml(j.service_city || '')}</div>
+        </a>
+      `;
+    }).join('');
+    return `
+      <div class="unassigned show">
+        <div class="head">
+          <div class="icon">⚠️</div>
+          <div class="label">Needs Assignment</div>
+          <div class="count">${list.length}</div>
+        </div>
+        <div class="list">${items}</div>
+      </div>
+    `;
+  }
+
+  function renderCell(tech, day, jobs, isOff) {
+    if (isOff) {
+      return `
+        <div class="cell cap-off">
+          <div class="cap">
+            <span class="num">⛔</span>
+            <span class="label">day off</span>
+          </div>
+          <div class="off-label">off</div>
+        </div>
+      `;
+    }
+    const count = jobs.length;
+    const remaining = Math.max(0, CAPACITY_MAX - count);
+    let tier = 'green';
+    if (count >= 5) tier = 'red';
+    else if (count >= 3) tier = 'yellow';
+    const blocks = jobs.map((j) => renderBlock(j)).join('');
+    return `
+      <div class="cell cap-${tier}">
+        <div class="cap">
+          <span class="num">${remaining}</span>
+          <span class="denom">/${CAPACITY_MAX}</span>
+          <span class="label">${remaining === 1 ? 'slot' : 'slots'}</span>
+        </div>
+        <div class="blocks">${blocks}</div>
+      </div>
+    `;
+  }
+
+  function renderBlock(j) {
+    const time = fmtTimeShort(j.scheduled_start);
+    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim().slice(0,1)}${j.customer_last_name ? '.' : ''}`.trim() || '(no name)';
+    const appl = (j.appliance_type || '').toLowerCase();
+    const brand = (j.brand || '').trim();
+    const city = (j.service_city || '').trim();
+    const status = (j.scheduling_status || '').toLowerCase();
+    const ct = (j.customer_type || '').toLowerCase();
+
+    let bk = 'self_pay';
+    if (ct === 'warranty') bk = 'warranty';
+    if (status === 'completed') bk = 'completed';
+
+    const applLine = brand ? `${appl} · ${brand}` : appl;
+    return `
+      <a class="blk bk-${bk}" href="job-detail.html?job_id=${j.id}">
+        <div class="row1">
+          <span class="time">${time}</span>
+          <span class="name">${escapeHtml(cust)}</span>
+        </div>
+        <div class="row2">
+          <span class="app">${escapeHtml(applLine)}</span>
+          ${city ? `<span class="city">${escapeHtml(city)}</span>` : ''}
+        </div>
+      </a>
+    `;
+  }
+
+  function attachClickHandlers() {
+    // No-op for empty cell cells per Q2; job blocks use plain anchor hrefs
+    // and are handled by the browser.
+  }
+
+  function renderHeader(data) {
+    weekRange.textContent = fmtWeekRange(data.week_start_ct, data.week_end_ct);
+    const isCurrent = data.week_start_ct === currentWeekOfDateStr(data.today_ct);
+    todayBtn.classList.toggle('active', isCurrent);
+    todayBtn.textContent = isCurrent ? 'this week' : 'jump to today';
+  }
+
+  // ── Nav ────────────────────────────────────────────────────────
+  prevWeek.addEventListener('click', () => stepWeek(-7));
+  nextWeek.addEventListener('click', () => stepWeek(7));
+  todayBtn.addEventListener('click', () => {
+    if (!serverTodayCT) return;
+    currentWeekStart = currentWeekOfDateStr(serverTodayCT);
+    updateUrl();
+    loadWeek();
+  });
+
+  function stepWeek(deltaDays) {
+    const d = parseYMD(currentWeekStart);
+    d.setDate(d.getDate() + deltaDays);
+    currentWeekStart = ymd(d);
+    updateUrl();
+    loadWeek();
+  }
+
+  function updateUrl() {
+    const url = new URL(window.location.href);
+    if (currentWeekStart && currentWeekStart === currentWeekOfDateStr(serverTodayCT)) {
+      url.searchParams.delete('week');
+    } else if (currentWeekStart) {
+      url.searchParams.set('week', currentWeekStart);
+    }
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  function currentWeekOfDateStr(dateStr) {
+    if (!dateStr) return null;
+    const d = parseYMD(dateStr);
+    // Walk back to Monday (ISO: Mon=1..Sun=7)
+    const dow = d.getDay();  // 0=Sun..6=Sat
+    const daysBack = dow === 0 ? 6 : dow - 1;
+    d.setDate(d.getDate() - daysBack);
+    return ymd(d);
+  }
+
+  // ── Utilities ──────────────────────────────────────────────────
+  function ymd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function parseYMD(s) {
+    if (!s) return new Date();
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function ctDateForMs(ms) {
+    if (!ms) return null;
+    // Format the UTC ms in America/Chicago and extract Y-M-D
+    const f = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const parts = f.formatToParts(new Date(Number(ms)));
+    const m = {};
+    for (const p of parts) m[p.type] = p.value;
+    return `${m.year}-${m.month}-${m.day}`;
+  }
+
+  function fmtTime(ms) {
+    if (!ms) return '—';
+    return new Date(Number(ms)).toLocaleTimeString('en-US', {
+      timeZone: 'America/Chicago',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  function fmtTimeShort(ms) {
+    if (!ms) return '—';
+    return new Date(Number(ms)).toLocaleTimeString('en-US', {
+      timeZone: 'America/Chicago',
+      hour: 'numeric',
+      hour12: true,
+    }).replace(' ', '').toLowerCase();
+  }
+
+  function fmtDayShort(ms) {
+    if (!ms) return '—';
+    return new Date(Number(ms)).toLocaleDateString('en-US', {
+      timeZone: 'America/Chicago',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+
+  function fmtWeekRange(startStr, endStr) {
+    const s = parseYMD(startStr);
+    const e = parseYMD(endStr);
+    const sm = MONTHS[s.getMonth()];
+    const em = MONTHS[e.getMonth()];
+    if (sm === em) return `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`;
+    return `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
