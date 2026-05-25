@@ -21,19 +21,26 @@ const BLUEPRINT_PATH = join(REPO_ROOT, 'docs/appliance-ant-master-blueprint.json
 
 const MAX_BUILDS_HARD_CAP = 10;
 
+// launchd-spawned processes get a minimal PATH that excludes /opt/homebrew/bin.
+// Inject the homebrew + standard system paths so `node` and `git` resolve.
+// Also use the running Node's own absolute path for the --check call as a
+// belt-and-suspenders fallback.
+const RICH_PATH = `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${process.env.PATH || ''}`;
+const EXEC_ENV = { ...process.env, PATH: RICH_PATH };
+const EXEC_OPTS = { env: EXEC_ENV };
+
 async function nodeSyntaxCheck(filePath) {
-  await exec(`node --check "${filePath}"`);
+  await exec(`"${process.execPath}" --check "${filePath}"`, EXEC_OPTS);
 }
 
 async function gitCommitAndPush({ commitMsg, files }) {
   const addArgs = files.map((f) => `"${f}"`).join(' ');
-  await exec(`git -C "${REPO_ROOT}" add ${addArgs}`);
-  // commit-msg with HEREDOC-safe single line; multiline would need a temp file
+  await exec(`git -C "${REPO_ROOT}" add ${addArgs}`, EXEC_OPTS);
   const safeMsg = commitMsg.replace(/"/g, '\\"');
-  await exec(`git -C "${REPO_ROOT}" commit -m "${safeMsg}"`);
-  const { stdout } = await exec(`git -C "${REPO_ROOT}" rev-parse HEAD`);
+  await exec(`git -C "${REPO_ROOT}" commit -m "${safeMsg}"`, EXEC_OPTS);
+  const { stdout } = await exec(`git -C "${REPO_ROOT}" rev-parse HEAD`, EXEC_OPTS);
   const sha = stdout.trim().slice(0, 7);
-  await exec(`git -C "${REPO_ROOT}" push`);
+  await exec(`git -C "${REPO_ROOT}" push`, EXEC_OPTS);
   return sha;
 }
 

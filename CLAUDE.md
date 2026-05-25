@@ -103,6 +103,8 @@ Until all three are done, the HCP webhook + HCP poll endpoints stay as canonical
 6. **Start every session by reading this file.** Then in the first reply: report (a) **what's built**, (b) **what's next**, (c) **what NOT to do**. Skipping this is how stale assumptions creep back in.
 7. **Never attempt to deploy XanoScript via the Metadata API.** The `POST /api:meta/workspace/1/apigroup/{id}/api` endpoint accepts a `xanoscript` field, returns 200, but **silently drops the field** — the endpoint is created as an empty shell with no stack. PUT/PATCH likewise drop it; nine alternate paths (`/draft`, `/spec`, `/script`, `/yaml`, `/publish`, `/security`, `/api-import`, etc.) all 404. The ONLY working XS-deploy paths are: **(a) paste into the Xano UI**, or **(b) `xano workspace push <file>` via the Xano CLI on the Mac Mini**. Full diagnosis in `docs/xanoscript-footguns.md`.
 
+8. **Agent velocity rule.** Building agents is **always the highest priority after production issues and live customer-facing fixes.** The Colony Architect runs daily at 6am CT. Every session that doesn't have a critical fix should end with the architect having built at least 1–3 new agents. The goal is 379 agents as fast as possible. **There is no finish line — after 379 we build more.** Every agent makes every tech perform better. Every agent carries Ant's name forward. If you're choosing between polish on an existing agent and building a new one from the blueprint, build the new one. Polish later. Build now.
+
 ## XanoScript rules (fast reference)
 
 Full catalog: `docs/xanoscript-footguns.md`. The hard rules:
