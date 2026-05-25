@@ -263,6 +263,45 @@ Phase A + B done. With Dawn still OUT and warranty submissions piling up, **visi
 - **Do NOT use `action` as a key in metadata objects** passed to `log()` or `markSignalProcessed()`. Use `outcome` or similar. The spread will silently override the outer action name.
 - **Do NOT use `jobs.technician_decision_report_id` to find a job's TDR.** Column is unused; always query from the TDR side via `technician_decision_report.job_id == <id>`.
 
+### Late update (13:09 CT) — Phase 5.5A.1 live (Jimmy received SMS on +1-615-967-1304)
+
+**New `TECH_ASSIGNED` signal + agent.** When a job's `technician_id` is set or changed by an HCP-driven path, the loop SMSes the assigned tech with customer name, address, appliance, problem summary, scheduled time, and the `tech-ant-live.html?job_id=X&tech_id=Y` link.
+
+**Background on why this matters:** before today the only tech-direction SMS path was `hcp_job_webhook`'s `tech_arrival` branch — which fires when the tech taps "Start job" in HCP. Diagnostic earlier this session showed **zero `tech_assist_session_triggered_from_webhook` rows in 30 days** (the dormant Phase 1b/1c trigger has never fired in production despite the env var being documented as `true`). Techs were getting no proactive heads-up about assigned work. TECH_ASSIGNED fires at assignment time, not at job-start time — so techs see the job before they get on the road.
+
+**Files shipped this push (`4be6e3d`):**
+- `colony-loop/agents/tech_assigned.js` (~150 LOC).
+- `colony-loop/xano-endpoints/intake/get_tech_assignment_handled_GET.xs` — 6-hour dedup window (shorter than warranty's 7-day; legitimate same-day reassignment back to a tech should be allowed).
+- `colony-loop/xano-endpoints/intake/get_tech_assignment_context_GET.xs` — single round-trip `{job, customer, tech}`.
+- `colony-loop/xano-endpoints/intake/check_tech_assist_state_GET.xs` — diagnostic that counts `tech_assist_session_triggered_from_webhook` etc. over 30 days. Useful for any future "is the dormant Phase 1b/1c trigger firing?" check.
+- `colony-loop/xano.js` — `getTechAssignmentHandled`, `getTechAssignmentContext` clients.
+- `api/intake/hcp_job_webhook_POST.xs` — emit `TECH_ASSIGNED` in the `job.appointment.scheduled` create branch (`source: "hcp_appointment_scheduled"`, `prior_technician_id: null`).
+- `api/intake/hcp_poll_recent_jobs_POST.xs` — emit in the hybrid reassign-sync branch (`source: "hcp_poll_reassign"`, `prior_technician_id: $existing_job.technician_id`).
+- `api/intake/hcp_poll_recent_jobs_POST.xs` — emit in the new-job create branch (`source: "hcp_poll_create"`, `prior_technician_id: null`).
+
+**Agent gating per Q4:** skip when `technician_id == 1` (Teddy) AND `prior_technician_id == null` (initial routing fallback). Explicit reassignment TO Teddy still notifies. Also skips no-op reassigns where `prior_technician_id === technician_id`.
+
+**Time formatting:** agent-side via `time.js` `fmtCT()` (`Intl.DateTimeFormat`, `America/Chicago`). Producer just emits the raw `now|to_ms` timestamp.
+
+**End-to-end smoke test (signal_id=10, job_id=200, technician_id=2 / Jimmy Pivacek):**
+- 13:09:03 — manual `node colony-loop/scripts/inject-signal.js --type=TECH_ASSIGNED ...` → `signal_id: 10`.
+- 13:09:03.804 — `signal_dispatched signal_id=10`.
+- 13:09:05.467 — Agent log: `{"action":"tech_assignment_handled","job_id":200,"technician_id":2,"prior_technician_id":null,"outcome":"assign_notified","sms_result":"ok"}`. Note: outer `action` correctly preserved this time because we used `outcome:` (not `action:`) inside metadata, per the Phase 5A lesson.
+- 13:09:05.604 — `loop_tick errors=0`. Total agent runtime ~1.6s (context load + dedup write + SMS).
+- `get_tech_assignment_handled?job_id=200&technician_id=2` → `{handled: true, last_handled_at: 1779732545438}`. Dedup row durable.
+- **Jimmy physically confirmed receipt of the SMS on +1-615-967-1304.** `sms.toTech` → `send_sms` → Telnyx → real phone path verified end-to-end. **First live verification of the `sms.toTech` helper through a non-owner tech number** (prior smoke tests went to Teddy's +16154855795 which has owner-bypass).
+
+### Now-current priority
+
+1. **Phase 5.5A.2 — wire `job.appointment.appointment_pros_assigned` event in `hcp_job_webhook`.** Currently in the fast-ack ignored list (`hcp_job_webhook_POST.xs:149`). HCP sends this event when an office user reassigns a tech in HCP, but we don't process it. Carve it out, look up new tech, `db.edit jobs { technician_id }`, emit `TECH_ASSIGNED` with `prior_technician_id: $job.technician_id`. Adds the real-time HCP reassignment channel (vs. the ≤15-min poll-driven path that ships in 5.5A.1).
+2. **Phase 5.5B — wire office UI endpoints:** `assign_technician_PATCH`, `reassign_job_POST`, and `create_job_from_chat_POST` (gated to skip technician_id=1). Each needs an extra `db.get jobs` before the `db.edit` to capture `prior_technician_id`.
+3. **Push Tech Ant Assist adoption on the techs** so TDRs actually get filled in. Until that, every warranty completion will route through Phase 5A's BLOCKED branch.
+
+### Additional things NOT to do
+
+- **Do NOT wire `unassign_technician_PATCH` to emit TECH_ASSIGNED.** It nulls the assignment — there's no tech to notify. (Future v2 could emit a `TECH_UNASSIGNED` to the OLD tech, but not in this design.)
+- **Do NOT producer-side filter on `technician_id == 1`.** Agent handles the Teddy-fallback skip. Producer-side filter would duplicate logic across every assignment path.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
