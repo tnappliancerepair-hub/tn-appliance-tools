@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 21,
-    "agents_to_build": 358,
+    "agents_live": 22,
+    "agents_to_build": 357,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -79,7 +79,7 @@
       "purpose": "Pre-dispatch diagnostic intelligence for every job. Makes decent techs perform like great ones.",
       "priority": "HIGH",
       "agents_total": 11,
-      "agents_live": 4,
+      "agents_live": 5,
       "agents": [
         {
           "id": "D001",
@@ -144,7 +144,7 @@
         {
           "id": "D005",
           "name": "Range Oven Diagnostic Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Specialist in range, oven, cooktop faults across gas and electric",
           "triggers": [
