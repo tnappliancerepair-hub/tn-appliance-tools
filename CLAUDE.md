@@ -2,6 +2,15 @@
 
 AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" Pivacek (tech ID 1, `tnappliancerepair@gmail.com`, SMS **615-485-5795** for human-judgment escalations).
 
+## Platform name: ANT
+
+The product is **ANT** — the AI-native ops platform replacing HCP for TN Appliance Exchange. Two user-facing surfaces share the same Xano backend and the same Mac Mini colony loop:
+
+- **Ant Office** — the office dashboard (`dashboard.html`, `office-tn.html`, `office-la.html`, `job-detail.html`, `teddy-tdr-tool.html`, etc.). Used by Teddy / Danielle / Alyse for triage, scheduling, payouts, warranty submissions.
+- **Ant Field** — the tech mobile experience (`tech-daily-dashboard.html`, `tech-ant-live.html`, plus customer-facing `cash-tdr-customer.html`). The Ant-Field pages are what start to replace HCP for techs in the field.
+
+When deciding where new functionality belongs, ask: is this for the office desk, or for the truck? Place it accordingly.
+
 ## First — read this before doing anything
 
 Every new session: read this whole file, then in your first reply report (a) **what's built**, (b) **what's next**, and (c) **what NOT to do**. The "Working rules" section below is load-bearing — violating it once costs more than re-reading it ten times.
@@ -63,6 +72,20 @@ Every appliance-repair job, end-to-end, should flow through these five steps aut
 5. **Danielle submits warranty immediately after** — warranty paperwork goes out the moment the job closes, not in a Friday batch.
 
 Every architectural decision should move at least one of these five steps closer to "happens with zero human prompting." If a proposed change doesn't, ask why we're doing it.
+
+## HCP migration day (planned)
+
+**The end-state is: cut HCP entirely.** We're building toward a single migration day where all in-flight jobs move from Housecall Pro to Xano + Ant, and HCP is decommissioned. Two blockers gate that day:
+
+1. **Calendar + scheduling parity in Ant Office.** Every scheduling action HCP supports today — book, reschedule, reassign, cancel, day-off, week view, tech-day view — needs to exist in Ant Office. Phase 6 Gap 2 (email-intake → HCP auto-create) is technically an HCP-write integration that goes AWAY once HCP is cut; treat it as a temporary bridge, not long-term architecture.
+2. **Tech adoption of Ant Field.** Every active tech needs to be reliably using `tech-daily-dashboard.html` + `tech-ant-live.html` for arrivals, status updates, TDR capture, and completion. While techs still rely on HCP for "what's my day," we can't cut.
+
+Until those two are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
+
+**Implications for current decisions:**
+- AHS / ServicePower / Jotform jobs should ultimately land directly into Ant Office's scheduling pipeline without ever touching HCP. Today's Gap 2 stopgap (auto-create in HCP) is a 6-month bridge, not the destination.
+- Prefer building **Ant Field** features over patching HCP-webhook paths when they're functionally equivalent (e.g., we shipped TECH_ASSIGNED today rather than re-energizing the dormant Phase 1b/1c trigger).
+- New tech-facing flows go into Ant Field first; Ant Field is the surface the techs will use on migration day.
 
 ## Session commands
 
