@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Daily Dashboard - TN Appliance Exchange</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --text: #e8edf5;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --green: #00d68f;
+    --orange: #f5a623;
+    --blue: #5aa9ff;
+    --red: #ff6b6b;
+    --violet: #b48cff;
+  }
+
+  /* ── PIN gate overlay ───────────────────────────────────────────── */
+  .pin-overlay {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.96);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .pin-overlay.show { display: flex; }
+  .pin-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    max-width: 360px; width: 100%;
+    text-align: center;
+  }
+  .pin-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .pin-card .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .pin-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .pin-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 20px;
+    font-family: var(--mono);
+    text-align: center;
+    letter-spacing: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .pin-input:focus { border-color: var(--orange); }
+  .pin-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--orange);
+    color: #1a1208;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.05s;
+  }
+  .pin-submit:active { transform: scale(0.98); }
+  .pin-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pin-err {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--red);
+    min-height: 16px;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────── */
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: linear-gradient(180deg, #0e1118, rgba(14,17,24,0.95));
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header .ant { font-size: 22px; line-height: 1; }
+  .header .text { flex: 1; min-width: 0; }
+  .header .title {
+    font-size: 15px; font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .header .sub {
+    font-size: 11px; color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+  .header .tech-badge {
+    background: rgba(0,214,143,0.10);
+    border: 1px solid rgba(0,214,143,0.25);
+    color: var(--green);
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  /* ── Date nav ──────────────────────────────────────────────────── */
+  .date-nav {
+    position: sticky; top: 56px; z-index: 49;
+    background: rgba(14,17,24,0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .date-nav button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    min-height: 36px;
+  }
+  .date-nav button:active { transform: scale(0.97); }
+  .date-nav button:hover:not(:disabled) { border-color: var(--orange); }
+  .date-nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .date-nav .today-btn {
+    flex: 1;
+    background: var(--orange);
+    color: #1a1208;
+    border-color: var(--orange);
+    font-weight: 700;
+  }
+  .date-nav .today-btn.active {
+    background: transparent;
+    color: var(--orange);
+    pointer-events: none;
+  }
+
+  /* ── Map ────────────────────────────────────────────────────────── */
+  #map {
+    height: 220px;
+    width: 100%;
+    background: #1a1f2c;
+    z-index: 1;
+  }
+  .leaflet-container {
+    background: #1a1f2c;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .map-pin {
+    background: var(--orange);
+    color: #1a1208;
+    width: 28px; height: 28px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #1a1208;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-pin span {
+    transform: rotate(45deg);
+    font-weight: 800;
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+  .map-pin.active {
+    background: var(--green);
+    transform: rotate(-45deg) scale(1.15);
+  }
+  .map-empty {
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+    background: var(--panel);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  /* ── Summary strip ────────────────────────────────────────────── */
+  .summary {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .summary .count {
+    color: var(--text);
+    font-weight: 700;
+  }
+  .summary .sep { color: var(--border); }
+
+  /* ── Job cards ────────────────────────────────────────────────── */
+  .jobs {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 16px;
+    text-decoration: none;
+    color: var(--text);
+    display: block;
+    transition: border-color 0.2s, transform 0.05s, background 0.2s;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: card-in 0.4s ease-out forwards;
+  }
+  @keyframes card-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .card:active {
+    transform: scale(0.99);
+    background: var(--panel-2);
+  }
+  .card.highlight {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 3px rgba(245,166,35,0.18);
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .stop-num {
+    background: var(--orange);
+    color: #1a1208;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 12px;
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+  .time-window {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .status-pill {
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .status-scheduled    { background: rgba(90,169,255,0.12);  border: 1px solid rgba(90,169,255,0.25);  color: var(--blue); }
+  .status-in_progress  { background: rgba(0,214,143,0.12);   border: 1px solid rgba(0,214,143,0.25);   color: var(--green); }
+  .status-completed    { background: rgba(138,147,170,0.12); border: 1px solid rgba(138,147,170,0.25); color: var(--muted); }
+  .status-prediagnosis_pending { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.25); color: var(--orange); }
+  .status-needs_review { background: rgba(180,140,255,0.12); border: 1px solid rgba(180,140,255,0.25); color: var(--violet); }
+  .status-other        { background: rgba(138,147,170,0.10); border: 1px solid rgba(138,147,170,0.20); color: var(--muted); }
+
+  .customer-line {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 2px;
+  }
+  .appliance-line {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .appliance-line .dot { color: var(--border); margin: 0 6px; }
+
+  .address-line {
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .address-line .icon { color: var(--orange); flex-shrink: 0; }
+  .address-line .text { flex: 1; }
+
+  .problem-line {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+    line-height: 1.45;
+    margin-bottom: 10px;
+  }
+
+  .teddy-note {
+    background: rgba(245,166,35,0.06);
+    border-left: 3px solid var(--orange);
+    padding: 10px 12px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .teddy-note .label {
+    color: var(--orange);
+    font-weight: 700;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .teddy-note .text { color: var(--text); }
+  .teddy-note .meta { color: var(--muted); margin-top: 4px; font-size: 11px; }
+
+  .attachments-strip {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .att-thumb {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .att-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .att-thumb.video::after {
+    content: '▶';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 8px;
+  }
+  .att-thumb.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 18px;
+  }
+  .att-more {
+    width: 56px; height: 56px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+
+  .att-meta-line {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    font-family: var(--mono);
+  }
+
+  .card-cta {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .open-btn {
+    background: var(--green);
+    color: #082018;
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex: 1;
+    text-align: center;
+  }
+  .quick-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .quick-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .quick-btn:active { background: var(--panel-2); }
+
+  /* ── Empty / loading / error ──────────────────────────────────── */
+  .empty {
+    padding: 48px 24px;
+    text-align: center;
+  }
+  .empty .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty .msg { font-size: 15px; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+  .empty .sub { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  .loading {
+    padding: 48px 24px;
+    text-align: center;
+  }
+  .loading .ant {
+    font-size: 32px;
+    animation: bob 1.2s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  .loading .msg {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+
+  .err-banner {
+    margin: 12px;
+    padding: 14px 16px;
+    background: rgba(255,107,107,0.08);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--red);
+  }
+  .err-banner .retry {
+    margin-top: 8px;
+    background: var(--red);
+    color: #200a0a;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<!-- PIN gate -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-card">
+    <div class="ant">🐜</div>
+    <div class="title">tech pin</div>
+    <div class="sub">enter your pin to see today's jobs</div>
+    <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="pin-input" id="pinInput" placeholder="••••" autofocus>
+    <button class="pin-submit" id="pinSubmit">unlock</button>
+    <div class="pin-err" id="pinErr"></div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div id="app" style="display: none;">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div class="text">
+      <div class="title" id="dateLabel">Today</div>
+      <div class="sub" id="dateSub">—</div>
+    </div>
+    <div class="tech-badge" id="techBadge">—</div>
+  </div>
+
+  <div class="date-nav">
+    <button id="prevDay" aria-label="previous day">‹</button>
+    <button id="todayBtn" class="today-btn">today</button>
+    <button id="nextDay" aria-label="next day">›</button>
+  </div>
+
+  <div id="mapHost"></div>
+
+  <div class="summary" id="summary"></div>
+
+  <div id="jobsHost"></div>
+</div>
+
+<!-- Loading overlay shown until first render -->
+<div class="loading" id="loading">
+  <div class="ant">🐜</div>
+  <div class="msg">loading your day…</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function() {
+  'use strict';
+
+  // ── URL params + config ────────────────────────────────────────
+  const params = new URLSearchParams(window.location.search);
+  const TECH_ID = params.get('tech_id');
+  const URL_DATE = params.get('date');
+  const NETLIFY_BASE = '';  // same-origin
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const PIN_STORAGE_KEY = `tn_tech_pin_v1_${TECH_ID}`;
+  const GEO_PREFIX = 'tn_geo_v1:';
+  const GEO_TTL_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days
+
+  if (!TECH_ID) {
+    document.getElementById('loading').innerHTML = '<div class="err-banner">Missing tech_id in URL. Use the link Ant sent you.</div>';
+    return;
+  }
+
+  // ── DOM refs ───────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const pinOverlay = $('pinOverlay');
+  const pinInput = $('pinInput');
+  const pinSubmit = $('pinSubmit');
+  const pinErr = $('pinErr');
+  const app = $('app');
+  const loading = $('loading');
+  const dateLabel = $('dateLabel');
+  const dateSub = $('dateSub');
+  const techBadge = $('techBadge');
+  const prevDay = $('prevDay');
+  const nextDay = $('nextDay');
+  const todayBtn = $('todayBtn');
+  const summary = $('summary');
+  const mapHost = $('mapHost');
+  const jobsHost = $('jobsHost');
+
+  let mapInstance = null;
+  let mapMarkers = [];
+  let currentDateStr = URL_DATE || null;  // null = today (server-resolved)
+  let serverTodayCT = null;
+  let dashboardData = null;
+
+  // ── PIN auth ───────────────────────────────────────────────────
+  async function verifyPin(pin) {
+    try {
+      const res = await fetch('/.netlify/functions/verify-pin-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
+      });
+      const data = await res.json();
+      return data && data.success === true;
+    } catch (err) {
+      console.error('verify-pin error', err);
+      return false;
+    }
+  }
+
+  async function tryUnlock() {
+    const cached = localStorage.getItem(PIN_STORAGE_KEY);
+    if (cached) {
+      const ok = await verifyPin(cached);
+      if (ok) { unlock(); return; }
+      localStorage.removeItem(PIN_STORAGE_KEY);
+    }
+    loading.style.display = 'none';
+    pinOverlay.classList.add('show');
+    pinInput.focus();
+  }
+
+  pinSubmit.addEventListener('click', submitPin);
+  pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPin(); });
+
+  async function submitPin() {
+    const pin = pinInput.value.trim();
+    if (!pin) return;
+    pinSubmit.disabled = true;
+    pinErr.textContent = '';
+    const ok = await verifyPin(pin);
+    pinSubmit.disabled = false;
+    if (!ok) {
+      pinErr.textContent = 'wrong pin. try again.';
+      pinInput.value = '';
+      pinInput.focus();
+      return;
+    }
+    localStorage.setItem(PIN_STORAGE_KEY, pin);
+    unlock();
+  }
+
+  function unlock() {
+    pinOverlay.classList.remove('show');
+    app.style.display = 'block';
+    loading.style.display = 'block';
+    loadDashboard();
+  }
+
+  // ── Data load ──────────────────────────────────────────────────
+  async function loadDashboard() {
+    loading.style.display = 'block';
+    summary.innerHTML = '';
+    jobsHost.innerHTML = '';
+    mapHost.innerHTML = '';
+    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+    mapMarkers = [];
+
+    let url = `${XANO_BASE}/get_tech_daily_dashboard?tech_id=${encodeURIComponent(TECH_ID)}`;
+    if (currentDateStr) url += `&date=${encodeURIComponent(currentDateStr)}`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        showError(data && data.error ? data.error : 'failed to load');
+        return;
+      }
+      dashboardData = data;
+      serverTodayCT = data.today_ct;
+      currentDateStr = data.date_ct;
+      render(data);
+    } catch (err) {
+      console.error(err);
+      showError('network error');
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+
+  function showError(msg) {
+    jobsHost.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button class="retry" onclick="location.reload()">retry</button></div>`;
+  }
+
+  // ── Render ─────────────────────────────────────────────────────
+  function render(data) {
+    techBadge.textContent = `${data.tech.first_name || ''} #${data.tech.id}`;
+    renderDateHeader(data.date_ct, data.today_ct);
+    renderDateNav(data.date_ct, data.today_ct);
+    renderSummary(data);
+    renderJobs(data.jobs || []);
+    renderMap(data.jobs || []);
+  }
+
+  function renderDateHeader(dateCT, todayCT) {
+    const d = parseLocalDate(dateCT);
+    const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+    const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    let label;
+    if (dateCT === todayCT) {
+      label = `Today, ${dayName.slice(0,3)} ${monthDay}`;
+    } else if (isYesterday(dateCT, todayCT)) {
+      label = `Yesterday, ${monthDay}`;
+    } else if (isTomorrow(dateCT, todayCT)) {
+      label = `Tomorrow, ${monthDay}`;
+    } else {
+      label = `${dayName}, ${monthDay}`;
+    }
+    dateLabel.textContent = label;
+    dateSub.textContent = dateCT;
+  }
+
+  function renderDateNav(dateCT, todayCT) {
+    const isToday = dateCT === todayCT;
+    todayBtn.classList.toggle('active', isToday);
+    todayBtn.textContent = isToday ? 'today' : 'jump to today';
+  }
+
+  function renderSummary(data) {
+    const jobs = data.jobs || [];
+    if (jobs.length === 0) {
+      summary.innerHTML = `<span class="count">0 jobs</span>`;
+      return;
+    }
+    const first = jobs[0];
+    const firstStart = first.job.scheduled_start;
+    const firstTime = firstStart ? fmtTimeShort(firstStart) : '—';
+    let totalAtt = 0;
+    for (const it of jobs) totalAtt += (it.attachments_count || 0);
+    const parts = [
+      `<span class="count">${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}</span>`,
+      `<span class="sep">·</span>`,
+      `first at <span class="count">${firstTime}</span>`,
+    ];
+    if (totalAtt > 0) {
+      parts.push(`<span class="sep">·</span>`);
+      parts.push(`${totalAtt} <span class="count">media</span>`);
+    }
+    summary.innerHTML = parts.join(' ');
+  }
+
+  function renderJobs(jobs) {
+    if (jobs.length === 0) {
+      const isToday = currentDateStr === serverTodayCT;
+      const msg = isToday
+        ? 'No jobs scheduled today.'
+        : (parseLocalDate(currentDateStr) < parseLocalDate(serverTodayCT)
+           ? 'No jobs were scheduled this day.'
+           : 'Nothing scheduled yet for this day.');
+      const sub = isToday ? 'enjoy the day.' : '';
+      jobsHost.innerHTML = `<div class="empty"><div class="icon">🌿</div><div class="msg">${msg}</div><div class="sub">${sub}</div></div>`;
+      return;
+    }
+    jobsHost.className = 'jobs';
+    const html = jobs.map((it, i) => renderCard(it, i)).join('');
+    jobsHost.innerHTML = html;
+    // Hook up click handlers
+    jobs.forEach((it, i) => {
+      const card = $(`card-${i}`);
+      if (!card) return;
+      card.addEventListener('click', (e) => {
+        // Don't navigate if click was on a tel: or maps: link
+        if (e.target.closest('.quick-btn')) return;
+        const jobId = it.job.id;
+        window.location.href = `tech-ant-live.html?job_id=${jobId}&tech_id=${TECH_ID}`;
+      });
+    });
+    // Fetch attachment view URLs in batch and inject thumbnails
+    hydrateAttachmentThumbs(jobs);
+  }
+
+  function renderCard(item, index) {
+    const j = item.job || {};
+    const c = item.customer || {};
+    const t = item.teddy_pre_diagnosis;
+    const num = index + 1;
+    const start = j.scheduled_start;
+    const end = j.scheduled_end;
+    const timeStr = start
+      ? (end ? `${fmtTimeShort(start)} – ${fmtTimeShort(end)}` : fmtTimeShort(start))
+      : '(unscheduled)';
+    const status = (j.scheduling_status || j.current_status || 'other').toLowerCase();
+    const statusClass = ['scheduled','in_progress','completed','prediagnosis_pending','needs_review'].includes(status) ? `status-${status}` : 'status-other';
+    const statusLabel = status.replace(/_/g, ' ');
+
+    const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
+    const appliance = (j.appliance_type || 'appliance').toLowerCase();
+    const brand = (j.brand || '').trim();
+    const applianceLine = brand ? `${appliance} <span class="dot">·</span> ${escapeHtml(brand)}` : appliance;
+    const addressParts = [j.service_address, j.service_city, j.service_state].filter(Boolean);
+    const addressText = addressParts.length ? addressParts.join(', ') : '(no address)';
+    const addrForMaps = encodeURIComponent([j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', '));
+    const problem = (j.problem_summary || '').trim();
+
+    const attCount = item.attachments_count || 0;
+    const attPreview = item.attachments_preview || [];
+    const photoCount = attPreview.filter(a => (a.file_type||'').startsWith('image') || (a.mime_type||'').startsWith('image')).length + Math.max(0, attCount - attPreview.length);
+    const videoCount = attPreview.filter(a => (a.file_type||'').startsWith('video') || (a.mime_type||'').startsWith('video')).length;
+
+    let teddyHtml = '';
+    if (t && (t.diagnosis || t.problem_summary)) {
+      const summary = (t.diagnosis || t.problem_summary || '').trim();
+      const failed = (t.failed_component || '').trim();
+      const confidence = (t.confidence_level || '').trim();
+      teddyHtml = `
+        <div class="teddy-note">
+          <div class="label">🧠 Teddy's pre-diagnosis</div>
+          <div class="text">${escapeHtml(summary)}</div>
+          ${(failed || confidence) ? `<div class="meta">${failed ? `Failed: ${escapeHtml(failed)}` : ''}${(failed && confidence) ? ' · ' : ''}${confidence ? `confidence: ${escapeHtml(confidence)}` : ''}</div>` : ''}
+        </div>`;
+    }
+
+    let attHtml = '';
+    if (attCount > 0) {
+      const slots = attPreview.slice(0, 5).map((a, k) => {
+        const isVideo = (a.file_type||'').startsWith('video') || (a.mime_type||'').startsWith('video');
+        return `<div class="att-thumb ${isVideo ? 'video' : ''} placeholder" data-att-id="${a.id}" data-s3-key="${escapeHtml(a.s3_key || '')}">${isVideo ? '' : '🖼'}</div>`;
+      });
+      if (attCount > 5) slots.push(`<div class="att-more">+${attCount - 5}</div>`);
+      attHtml = `<div class="attachments-strip">${slots.join('')}</div>`;
+    }
+
+    const phone = (c.phone || '').replace(/[^\d+]/g, '');
+    const telHref = phone ? `tel:${phone.startsWith('+') ? phone : '+1' + phone.replace(/^1/, '')}` : null;
+
+    return `
+      <div class="card" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
+        <div class="card-top">
+          <div class="stop-num">${num}</div>
+          <div class="time-window">${timeStr}</div>
+          <div class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</div>
+        </div>
+        <div class="customer-line">${escapeHtml(custName)}</div>
+        <div class="appliance-line">${applianceLine}</div>
+        <div class="address-line">
+          <div class="icon">📍</div>
+          <div class="text">${escapeHtml(addressText)}</div>
+        </div>
+        ${problem ? `<div class="problem-line">"${escapeHtml(problem)}"</div>` : ''}
+        ${teddyHtml}
+        ${attHtml}
+        <div class="card-cta">
+          <div class="open-btn">Open Tech Ant →</div>
+          <div class="quick-actions">
+            ${telHref ? `<a href="${telHref}" class="quick-btn" title="call customer" onclick="event.stopPropagation()">📞</a>` : ''}
+            <a href="https://maps.apple.com/?q=${addrForMaps}" class="quick-btn" title="navigate" onclick="event.stopPropagation()">🧭</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function hydrateAttachmentThumbs(jobs) {
+    const allKeys = [];
+    jobs.forEach(it => (it.attachments_preview || []).forEach(a => {
+      if (a.s3_key && !((a.file_type||'').startsWith('video') || (a.mime_type||'').startsWith('video'))) {
+        allKeys.push(a.s3_key);
+      }
+    }));
+    if (allKeys.length === 0) return;
+    try {
+      const res = await fetch('/.netlify/functions/s3-view-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_keys: allKeys })
+      });
+      const data = await res.json();
+      if (!data || !data.success) return;
+      const map = {};
+      for (const r of (data.signed_urls || [])) map[r.s3_key] = r.view_url;
+      document.querySelectorAll('.att-thumb[data-s3-key]').forEach(el => {
+        const key = el.getAttribute('data-s3-key');
+        const url = map[key];
+        if (url && !el.classList.contains('video')) {
+          el.classList.remove('placeholder');
+          el.innerHTML = `<img loading="lazy" src="${url}" alt="">`;
+        }
+      });
+    } catch (err) {
+      console.warn('s3-view-url error', err);
+    }
+  }
+
+  // ── Map ────────────────────────────────────────────────────────
+  async function renderMap(jobs) {
+    if (jobs.length === 0) {
+      mapHost.innerHTML = '<div class="map-empty">No stops to plot.</div>';
+      return;
+    }
+    mapHost.innerHTML = '<div id="map"></div>';
+    mapInstance = L.map('map', { zoomControl: false, attributionControl: false })
+      .setView([36.0, -86.7], 8);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OSM',
+    }).addTo(mapInstance);
+
+    const coords = [];
+    for (let i = 0; i < jobs.length; i++) {
+      const j = jobs[i].job || {};
+      const parts = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean);
+      if (parts.length === 0) continue;
+      const addr = parts.join(', ');
+      const ll = await geocodeWithCache(addr);
+      if (!ll) continue;
+      const num = i + 1;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="map-pin"><span>${num}</span></div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+      });
+      const marker = L.marker([ll.lat, ll.lng], { icon }).addTo(mapInstance);
+      marker.on('click', () => {
+        const card = $(`card-${i}`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.classList.add('highlight');
+          setTimeout(() => card.classList.remove('highlight'), 1400);
+        }
+      });
+      mapMarkers.push(marker);
+      coords.push([ll.lat, ll.lng]);
+    }
+    if (coords.length === 1) {
+      mapInstance.setView(coords[0], 13);
+    } else if (coords.length > 1) {
+      mapInstance.fitBounds(coords, { padding: [30, 30] });
+    }
+  }
+
+  // ── Geocoding ──────────────────────────────────────────────────
+  async function geocodeWithCache(address) {
+    const key = GEO_PREFIX + simpleHash(address);
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && (Date.now() - parsed.ts) < GEO_TTL_MS) {
+          return { lat: parsed.lat, lng: parsed.lng };
+        }
+      }
+    } catch (_) {}
+    // Rate-limit-friendly: ~1.1s between hits
+    await sleep(geocodeCursor());
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=us`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return null;
+      const r = data[0];
+      const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+      if (!isFinite(lat) || !isFinite(lng)) return null;
+      localStorage.setItem(key, JSON.stringify({ lat, lng, ts: Date.now() }));
+      return { lat, lng };
+    } catch (err) {
+      console.warn('geocode error', err);
+      return null;
+    }
+  }
+
+  let _geocodeLastAt = 0;
+  function geocodeCursor() {
+    const since = Date.now() - _geocodeLastAt;
+    const wait = Math.max(0, 1100 - since);
+    _geocodeLastAt = Date.now() + wait;
+    return wait;
+  }
+
+  function simpleHash(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = (h * 31 + s.charCodeAt(i)) | 0;
+    }
+    return Math.abs(h).toString(36);
+  }
+
+  // ── Date nav ───────────────────────────────────────────────────
+  prevDay.addEventListener('click', () => goByDays(-1));
+  nextDay.addEventListener('click', () => goByDays(1));
+  todayBtn.addEventListener('click', () => {
+    if (currentDateStr === serverTodayCT) return;
+    currentDateStr = serverTodayCT;
+    updateURLDate();
+    loadDashboard();
+  });
+
+  function goByDays(delta) {
+    const d = parseLocalDate(currentDateStr);
+    d.setDate(d.getDate() + delta);
+    currentDateStr = fmtDateYMD(d);
+    updateURLDate();
+    loadDashboard();
+  }
+
+  function updateURLDate() {
+    const url = new URL(window.location.href);
+    if (currentDateStr === serverTodayCT) url.searchParams.delete('date');
+    else url.searchParams.set('date', currentDateStr);
+    window.history.replaceState({}, '', url.toString());
+  }
+
+  // ── Utilities ──────────────────────────────────────────────────
+  function fmtTimeShort(ts) {
+    if (!ts || ts <= 0) return '—';
+    return new Date(Number(ts)).toLocaleTimeString('en-US', {
+      timeZone: 'America/Chicago',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  function parseLocalDate(ymd) {
+    if (!ymd) return new Date();
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function fmtDateYMD(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function isYesterday(dateCT, todayCT) {
+    const d = parseLocalDate(dateCT);
+    const t = parseLocalDate(todayCT);
+    t.setDate(t.getDate() - 1);
+    return fmtDateYMD(d) === fmtDateYMD(t);
+  }
+
+  function isTomorrow(dateCT, todayCT) {
+    const d = parseLocalDate(dateCT);
+    const t = parseLocalDate(todayCT);
+    t.setDate(t.getDate() + 1);
+    return fmtDateYMD(d) === fmtDateYMD(t);
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ── Boot ───────────────────────────────────────────────────────
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
