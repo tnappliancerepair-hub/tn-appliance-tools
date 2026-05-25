@@ -91,7 +91,7 @@ async function maybeEmitTimeSignals() {
         await xano.emitSignal({
           signal_type: 'COLONY_ARCHITECT',
           signal_strength: 70,
-          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 1 },
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 50 },
         });
         xano.logLocal('colony_architect_emitted', { since_ts_ms: sinceMs });
       } catch (err) {

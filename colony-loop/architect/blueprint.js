@@ -22,8 +22,13 @@ function statusDone(status) {
  * whose dependencies are all met. Returns {colony, agent} or null.
  *
  * Sort key: colony.priority (HIGH > MED > LOW) then agent.priority (int, lower = higher).
+ *
+ * @param {object} blueprint
+ * @param {object} [opts]
+ * @param {Set<string>} [opts.excludeIds] - agent ids to skip (e.g. tried-and-failed in this run)
  */
-export function pickNextAgent(blueprint) {
+export function pickNextAgent(blueprint, opts = {}) {
+  const excludeIds = opts.excludeIds || new Set();
   const colonies = blueprint.colonies || [];
   const statusMap = {};
   for (const c of colonies) {
@@ -36,6 +41,7 @@ export function pickNextAgent(blueprint) {
   for (const colony of colonies) {
     for (const agent of colony.agents || []) {
       if (agent.status !== 'TO_BUILD') continue;
+      if (excludeIds.has(agent.id)) continue;
       const deps = agent.dependencies || [];
       const unmet = deps.filter((d) => !statusDone(statusMap[d]));
       if (unmet.length > 0) continue;

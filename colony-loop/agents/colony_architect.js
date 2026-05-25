@@ -19,7 +19,10 @@ const REPO_ROOT = resolve(HERE, '../..');
 const AGENTS_DIR = join(REPO_ROOT, 'colony-loop/agents');
 const BLUEPRINT_PATH = join(REPO_ROOT, 'docs/appliance-ant-master-blueprint.json');
 
-const MAX_BUILDS_HARD_CAP = 10;
+// Velocity rule: build as many agents as the architect can per run. Cap is
+// kept high as a safety rail (not a budget). Manual injects can pass
+// max_builds up to this value; scheduled 6am run uses 50 (see tick.js).
+const MAX_BUILDS_HARD_CAP = 500;
 
 // launchd-spawned processes get a minimal PATH that excludes /opt/homebrew/bin.
 // Inject the homebrew + standard system paths so `node` and `git` resolve.
@@ -53,6 +56,10 @@ export async function run(signal, ctx) {
   );
 
   const results = [];
+  // IDs we've tried this run and couldn't complete (no template, generation
+  // failure, syntax failure, git failure). Skip them so the picker advances
+  // to the next eligible agent rather than looping on the same one.
+  const triedAndFailedIds = new Set();
 
   for (let i = 0; i < maxBuilds; i++) {
     let bp;
@@ -64,7 +71,7 @@ export async function run(signal, ctx) {
       break;
     }
 
-    const next = pickNextAgent(bp);
+    const next = pickNextAgent(bp, { excludeIds: triedAndFailedIds });
     if (!next) {
       results.push({ outcome: 'nothing_to_build' });
       log('colony_architect_nothing_to_build', { iteration: i });
@@ -79,6 +86,11 @@ export async function run(signal, ctx) {
       colony_id: colony.id,
       colony_name: colony.name,
     });
+
+    // Mark as attempted so the next pick advances past this agent on any
+    // failure path. Successful builds flip its status to BUILT in the
+    // blueprint, which the picker also respects.
+    triedAndFailedIds.add(agent.id);
 
     let generated;
     try {
