@@ -80,6 +80,14 @@ export async function getWarrantySubmissionContext(jobId) {
   return getJSON(`${INTAKE()}/get_warranty_submission_context?job_id=${jobId}`);
 }
 
+export async function getTechAssignmentHandled(jobId, technicianId) {
+  return getJSON(`${INTAKE()}/get_tech_assignment_handled?job_id=${jobId}&technician_id=${technicianId}`);
+}
+
+export async function getTechAssignmentContext(jobId, technicianId) {
+  return getJSON(`${INTAKE()}/get_tech_assignment_context?job_id=${jobId}&technician_id=${technicianId}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
