@@ -72,6 +72,14 @@ export async function getGreetingSentForJob(jobId) {
   return getJSON(`${INTAKE()}/get_greeting_sent_for_job?job_id=${jobId}`);
 }
 
+export async function getWarrantySubmissionHandled(jobId) {
+  return getJSON(`${INTAKE()}/get_warranty_submission_handled?job_id=${jobId}`);
+}
+
+export async function getWarrantySubmissionContext(jobId) {
+  return getJSON(`${INTAKE()}/get_warranty_submission_context?job_id=${jobId}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

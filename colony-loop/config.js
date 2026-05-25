@@ -42,6 +42,7 @@ export const config = Object.freeze({
   xanoCashTdrBase: process.env.XANO_CASH_TDR_BASE.replace(/\/+$/, ''),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   ownerPhone: process.env.OWNER_PHONE_NUMBER,
+  daniellePhone: process.env.DANIELLE_PHONE_NUMBER || '+16154850713',
   colonyName: process.env.COLONY_NAME || 'mac-mini-tn',
   tickMs: Number(process.env.TICK_MS) || 60000,
   dryRun: process.env.DRY_RUN === 'true',

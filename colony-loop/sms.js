@@ -14,6 +14,10 @@ export async function toOwner(body, context = {}) {
   return xano.sendSms(config.ownerPhone, body, { ...context, recipient_role: 'owner' });
 }
 
+export async function toDanielle(body, context = {}) {
+  return xano.sendSms(config.daniellePhone, body, { ...context, recipient_role: 'warranty_handler' });
+}
+
 export async function toCustomer(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
