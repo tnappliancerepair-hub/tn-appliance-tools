@@ -4,12 +4,13 @@ AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" P
 
 ## Platform name: ANT
 
-The product is **ANT** — the AI-native ops platform replacing HCP for TN Appliance Exchange. Two user-facing surfaces share the same Xano backend and the same Mac Mini colony loop:
+The product is **ANT** — the AI-native ops platform replacing HCP for TN Appliance Exchange. **Three user-facing surfaces** share the same Xano backend and the same Mac Mini colony loop:
 
 - **Ant Office** — the office dashboard (`dashboard.html`, `office-tn.html`, `office-la.html`, `job-detail.html`, `teddy-tdr-tool.html`, etc.). Used by Teddy / Danielle / Alyse for triage, scheduling, payouts, warranty submissions.
-- **Ant Field** — the tech mobile experience (`tech-daily-dashboard.html`, `tech-ant-live.html`, plus customer-facing `cash-tdr-customer.html`). The Ant-Field pages are what start to replace HCP for techs in the field.
+- **Ant Field** — the tech mobile experience (`tech-daily-dashboard.html`, `tech-ant-live.html`). What replaces HCP for techs in the truck.
+- **Ant** — the customer-facing surface (`cash-tdr-customer.html`, `upload.html`, the public TDR view, future customer chat). The friendly conversational presence that customers see and interact with.
 
-When deciding where new functionality belongs, ask: is this for the office desk, or for the truck? Place it accordingly.
+**All future naming follows this convention.** When deciding where new functionality belongs, ask: office desk, truck, or customer? Place it accordingly.
 
 ## First — read this before doing anything
 
@@ -75,17 +76,17 @@ Every architectural decision should move at least one of these five steps closer
 
 ## HCP migration day (planned)
 
-**The end-state is: cut HCP entirely.** We're building toward a single migration day where all in-flight jobs move from Housecall Pro to Xano + Ant, and HCP is decommissioned. Two blockers gate that day:
+**Target date: TBD.** When the three prerequisites below are done, we **pick a Saturday and cut HCP** — Saturday because the live schedule is lightest, fewest jobs in flight to migrate. All open jobs move from Housecall Pro to Xano + Ant, and HCP is decommissioned.
 
-1. **Calendar + scheduling parity in Ant Office.** Every scheduling action HCP supports today — book, reschedule, reassign, cancel, day-off, week view, tech-day view — needs to exist in Ant Office. Phase 6 Gap 2 (email-intake → HCP auto-create) is technically an HCP-write integration that goes AWAY once HCP is cut; treat it as a temporary bridge, not long-term architecture.
-2. **Tech adoption of Ant Field.** Every active tech needs to be reliably using `tech-daily-dashboard.html` + `tech-ant-live.html` for arrivals, status updates, TDR capture, and completion. While techs still rely on HCP for "what's my day," we can't cut.
+**Three prerequisites gate the cut:**
 
-Until those two are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
+1. **Calendar view in Ant Office** with capacity indicators. A real week + day calendar the office uses to see tech load and book new jobs. Today there is no such view in Ant — we still use HCP's calendar.
+2. **Scheduling owned by Ant.** Every scheduling action (book, reschedule, reassign, cancel, day-off, multi-tech) executes through Ant Office endpoints and writes directly to Xano. No HCP round-trip required.
+3. **Broadcast booking wired** (Phase 6 Gap 3). When a tech replies "yes" to a `broadcast` SMS — or Teddy replies `PICK1/PICK2/PICK3` to a `propose` SMS — the system actually books: sets `jobs.scheduled_start`, `technician_id`, and `scheduling_status="scheduled"`. Today the `book` handler in `scheduling_queue_worker.xs` is `"[STUB] would book job X"`.
 
-**Implications for current decisions:**
-- AHS / ServicePower / Jotform jobs should ultimately land directly into Ant Office's scheduling pipeline without ever touching HCP. Today's Gap 2 stopgap (auto-create in HCP) is a 6-month bridge, not the destination.
-- Prefer building **Ant Field** features over patching HCP-webhook paths when they're functionally equivalent (e.g., we shipped TECH_ASSIGNED today rather than re-energizing the dormant Phase 1b/1c trigger).
-- New tech-facing flows go into Ant Field first; Ant Field is the surface the techs will use on migration day.
+Until all three are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
+
+**Strategic pivot decided 2026-05-25: stop building HCP sync, build Ant instead.** The TECH_ASSIGNED → tech-daily-dashboard path was the proof — we delivered a better tech experience by shipping Ant Field, not by reviving the dormant Phase 1b/1c HCP-webhook trigger. Going forward, when a feature can be implemented as HCP-write OR as Ant-native, pick Ant. Phase 6 Gap 2 (email-intake → HCP auto-create) is the explicit exception and is throwaway code that retires on migration day.
 
 ## Session commands
 
@@ -367,6 +368,26 @@ Phase A + B done. With Dawn still OUT and warranty submissions piling up, **visi
 - **Do NOT add scheduling_status writes via the hcp_poll endpoint outside the derivation block.** The Gap 1 fix is the canonical place. Other callers that need to set scheduling_status should use the explicit assign / book / cancel endpoints, not piggyback on the poll.
 - **Do NOT show Teddy's pre-diagnosis to the customer on the tech dashboard.** `tech-daily-dashboard.html` surfaces it for the tech only. The customer-facing TDR view (`cash-tdr-customer.html`) is a separate page with its own sanitized `customer_facing_diagnosis` field. Keep them distinct.
 - **Do NOT skip the 30-day Nominatim geocoding cache** on the dashboard. Nominatim is rate-limited (1 req/sec); without the cache, opening a 5-job dashboard takes 5+ seconds every time. The cache lives in `localStorage` keyed by `tn_geo_v1:<hash(address)>`.
+
+### End of day 2026-05-25 — strategic pivot to Ant
+
+**Today's shipped artifacts (consolidated):**
+- **Phase 5A** — `warranty_submission` agent live. Danielle gets a digest SMS on every completed warranty job, BLOCKED alert when the TDR is incomplete. SMS path verified through Telnyx gateway.
+- **Phase 5.5A.1** — `TECH_ASSIGNED` agent live. Techs get customer + address + appliance + problem + Tech Ant link the moment HCP assigns them. **Jimmy confirmed physical receipt on +1-615-967-1304.**
+- **`tech-daily-dashboard.html`** live at `https://tnapplianceexchange.net/tech-daily-dashboard.html` — first non-trivial Ant Field page. PIN gate, Leaflet/OSM map with numbered pins, date navigation, attachment thumbnails (via `s3-view-url`), Teddy pre-diagnosis surfacing, "Open Tech Ant →" CTA per card.
+- **`get_tech_daily_dashboard_GET.xs`** endpoint backing the dashboard (single round-trip {tech, date_ct, jobs[{job, customer, teddy_pre_diagnosis, attachments_preview, attachments_count}]}).
+- **Gap 1 fixed** — `hcp_poll_recent_jobs_POST.xs` now derives `scheduling_status` from HCP `work_status` in both update and insert branches. Dashboard status pills will read correctly on the next 15-min poll.
+
+**Strategic pivot decided today:** **stop building HCP sync, build Ant instead.** Today's win wasn't reviving a dormant HCP trigger — it was shipping an Ant Field page techs actually want to use. All future tech-facing and customer-facing functionality goes into Ant first, HCP integration second (and only if migration-bridge value justifies it).
+
+### Next session priorities
+
+1. **Ant Office calendar with capacity indicators.** Week + day views, color-coded slot density per tech, click-to-book. This is HCP migration prerequisite #1.
+2. **`DAILY_TECH_BRIEFING` morning SMS per tech.** New colony loop agent that fires once at 7am CT per active tech with ≥1 job today, sending: *"[ant] morning {first} — {N} jobs today, first at {time}. Open: tnapplianceexchange.net/tech-daily-dashboard.html?tech_id=Y"*. Mirrors the existing `daily_briefing` agent pattern but per-tech, gated on job count.
+3. **Wire ServicePower appointment date into `scheduled_start`.** Diagnostic showed many SP-source jobs land with null `scheduled_start` despite the email carrying an appointment. Investigate `servicepower_email_intake_POST.xs` (`$disp.schedule_date` → `$sched_ts` path) and the upstream `servicepower-gmail-poller.js` to see where the date is dropped.
+4. **Book the broadcast winner (Gap 3).** Real implementation of `scheduling_queue_worker.book` STUB + reply-handler in `tech_sms_inbound_POST.xs` for tech "yes" replies and owner `PICK1/PICK2/PICK3` replies. HCP migration prerequisite #3.
+
+**Long live Ant.** 🐜
 
 ## Where to look
 
