@@ -127,7 +127,7 @@ export async function run(signal, ctx) {
   if (!vendor || !HANDLED_VENDORS.has(vendor)) {
     const meta = {
       job_id: jobId,
-      action: 'skipped_not_warranty',
+      outcome: 'skipped_not_warranty',
       warranty_company: payload.warranty_company || null,
     };
     await xano.markSignalProcessed(signal.id, 'warranty_submission_handled', meta);
@@ -137,7 +137,7 @@ export async function run(signal, ctx) {
 
   const ctxData = await xano.getWarrantySubmissionContext(jobId);
   if (!ctxData || !ctxData.success || !ctxData.job) {
-    log('warranty_submission_handled', { job_id: jobId, action: 'context_load_failed' });
+    log('warranty_submission_handled', { job_id: jobId, outcome: 'context_load_failed' });
     return { success: false, action: 'context_load_failed', job_id: jobId };
   }
   const { job, customer, tdr, tdr_failures } = ctxData;
@@ -154,7 +154,7 @@ export async function run(signal, ctx) {
     });
     const meta = {
       job_id: jobId,
-      action: 'incomplete_tdr',
+      outcome: 'incomplete_tdr',
       missing,
       sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
     };
@@ -174,7 +174,7 @@ export async function run(signal, ctx) {
 
   const finalMeta = {
     job_id: jobId,
-    action: 'danielle_digest_sent',
+    outcome: 'danielle_digest_sent',
     vendor,
     claim_number: job.claim_number,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',

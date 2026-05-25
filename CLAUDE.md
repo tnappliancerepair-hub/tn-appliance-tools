@@ -220,6 +220,49 @@ Phase A + B done. With Dawn still OUT and warranty submissions piling up, **visi
 - **`web_chat` source gets the warranty note (low-priority bug, found during smoke test).** `colony-loop/agents/job_created.js` suppresses the warranty line via `CASH_SOURCES = {cash_tdr, self_pay, cash, customer_pay, cash_customer}`. The new `"web_chat"` literal is NOT in that set, so web-chat self-pay jobs receive "covered under your home warranty" — wrong but harmless (customers ignore it). Fix options: (a) emit `customer_type` in the chat producer's payload and have the agent suppress on `customer_type == "self_pay"`, or (b) add `"web_chat"` to `CASH_SOURCES` if chat is overwhelmingly self-pay. Decide before chat goes high-volume.
 - **Loop intermittent `fetch failed` errors** in `daily_briefing_check_failed` and occasional `loop_error` entries. Transient network blips against Xano, loop self-recovers, no signal loss observed. Worth adding retry+backoff before scaling toward 379 agents.
 
+### Late update (12:41 CT) — Phase 5A live (incomplete-path verified end-to-end)
+
+**Vision-step-5 / warranty automation v0 is live.** Agent receives `JOB_COMPLETED`, loads job + customer + latest TDR, runs completeness gate, SMS-es Danielle (+16154850713) either the warranty digest or the BLOCKED-with-missing-fields alert. No auto-submit per Q6 — every warranty job goes to Danielle for portal entry.
+
+**Files shipped this push:**
+- `colony-loop/agents/job_completed.js` (~170 LOC). NOTE filename: dispatch routes by `signal_type.toLowerCase()`, so a `JOB_COMPLETED` signal looks for `agents/job_completed.js`. I initially named it `warranty_submission.js` and dispatch hit the `no_agent_yet` fast-path silently (no error, just no work). **Convention rule: agent filename = lowercased signal_type, NOT the outcome name.**
+- `colony-loop/xano-endpoints/intake/get_warranty_submission_handled_GET.xs` — 7-day dedup guard.
+- `colony-loop/xano-endpoints/intake/get_warranty_submission_context_GET.xs` — single round-trip {job, customer, tdr, tdr_failures}.
+- `colony-loop/xano-endpoints/intake/find_recent_completed_warranty_jobs_GET.xs` — diagnostic lookup that joins from the TDR side (jobs side has unused `technician_decision_report_id` column; real TDR linkage is `tdr.job_id` FK). Useful for any future "find a job matching X" need.
+- `colony-loop/sms.js` — `toDanielle(body, ctx)` helper, routes through `send_sms` with `recipient_role: 'warranty_handler'`.
+- `colony-loop/config.js` — `daniellePhone` (env `DANIELLE_PHONE_NUMBER`, fallback `+16154850713`).
+- `colony-loop/xano.js` — `getWarrantySubmissionHandled`, `getWarrantySubmissionContext` clients.
+- `api/intake/hcp_job_webhook_POST.xs` — emit `JOB_COMPLETED` in `job.completed` branch, gated on `customer_type == "warranty"`.
+- `api/intake/hcp_poll_recent_jobs_POST.xs` — emit on completion transition (was-not-completed AND is-completed-now AND warranty).
+
+**Three bugs caught + fixed during smoke test (cost ~30 min):**
+1. **Agent filename mismatch.** See "convention rule" above.
+2. **Dedup wrote to local log, not Xano.** `log()` is `xano.logLocal` (stdout only). The dedup endpoint queries Xano `event_log` for rows that only `markSignalProcessed` writes. Pattern correction: agents must call `await xano.markSignalProcessed(signal.id, '<custom_action>', meta)` to write the durable Xano-side dedup row. The `log()` call is debugging convenience only.
+3. **`action:` key collision in log metadata.** `xano.logLocal(action, metadata)` does `{action, ...metadata}` — if metadata also has an `action` key, the spread overrides. Fixed by renaming metadata `action:` → `outcome:` in this agent. Convention rule for future agents: never use `action` as a key inside the metadata object you pass to `log()` or `markSignalProcessed()`.
+
+**End-to-end smoke test (signal_id=9, job_id=200, synthetic AHS payload):**
+- 12:40:56 — `node scripts/inject-signal.js JOB_COMPLETED ...` → `signal_id: 9`.
+- 12:41:09 — `signal_dispatched signal_id=9`.
+- 12:41:11 — Agent log: `{"action":"incomplete_tdr","job_id":200,"missing":["tdr.failed_component",...,"job.warranty_vendor_id"],"sms_result":"ok"}`. 7 missing fields detected as expected.
+- 12:41:11 — `loop_tick tick_ms=2015 signals_processed=1 errors=0`.
+- After: `get_warranty_submission_handled?job_id=200` → `{handled: true, last_handled_at: 1779730871285}`. Dedup row landed in Xano.
+- SMS to Danielle's phone (+16154850713) was accepted by `send_sms` (Telnyx); physical receipt to be confirmed by Danielle.
+
+**Reality finding for ops:** ZERO jobs in the production `jobs` table currently have `scheduling_status="completed"`, and only 5 TDRs in the entire system have non-null `diagnosis` — and ALL 5 have empty `failure_cause`, zero `labor_time_hours`, empty `repair_completed`. **Phase 5A will hit the `incomplete_tdr` BLOCKED branch on every real completion until the techs start filling TDR fields completely via Tech Ant Assist.** The agent is doing exactly what we want — refusing to send Danielle a useless half-submission and instead surfacing the gap.
+
+### Now-current priority
+
+- **Push Tech Ant Assist adoption on the techs** so TDR completeness rises. Until that, every warranty completion will route through the BLOCKED path. Danielle will get the SMS but still have to dig into Teddy Tool to complete the TDR before she can submit.
+- **Phase 5B (deferred):** AHS / ServicePower portal automation via `adapters/*.js`. Awaits Danielle/Alyse intel on what the actual submission flow looks like (web form, API, email).
+- **Phase 5C (deferred):** `warranty-review.html` page so the link in Danielle's SMS goes somewhere. Stub is sufficient v0.
+- **Confirm Danielle's phone (+16154850713) physically received the smoke-test SMS.** Last open piece of Q5.
+
+### Additional things NOT to do
+
+- **Do NOT rename `agents/job_completed.js`.** Dispatch routes by lowercased signal_type. Convention is now hard-coded in the agent layer.
+- **Do NOT use `action` as a key in metadata objects** passed to `log()` or `markSignalProcessed()`. Use `outcome` or similar. The spread will silently override the outer action name.
+- **Do NOT use `jobs.technician_decision_report_id` to find a job's TDR.** Column is unused; always query from the TDR side via `technician_decision_report.job_id == <id>`.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
