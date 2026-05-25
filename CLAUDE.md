@@ -420,6 +420,32 @@ Also queued but lower-priority: ~20-job SP `scheduled_start` backfill (after the
 
 **🐜 Long live Ant.**
 
+### Autopilot mode active — 2026-05-25 15:10 CT
+
+**The colony is now self-building overnight.**
+
+- **`COLONY_ARCHITECT` fires daily at 6am CT** via `tick.js maybeEmitTimeSignals()` (6-9am grace window). Payload `max_builds: 50`. Dedup via `get_colony_architect_fired_today`.
+- **MAX_BUILDS_HARD_CAP = 500** in `colony_architect.js`. Manual injects can request up to 500 builds in one run.
+- **Skip-set fix** (commit `8882209`): the architect tracks attempted agent IDs within a single run and excludes them from the next pickNextAgent call. This prevents the previous infinite-loop bug where un-templated agents (e.g. `BRAND_INTELLIGENCE` emitters) would be re-picked every iteration. Successful builds also get filtered via their new `BUILT` status in the blueprint.
+- **First production overnight run was injected at 15:09:44 CT (signal_id=14)** with `max_builds: 50` to seed the queue immediately. Expected outcome: D004 (Dishwasher) + D005 (Range/Oven) build via the diagnostic-specialist template; D006–D011 + Colony 2+ agents that don't match an existing template fast-skip via `no_template` until the architect runs out of eligible candidates or hits 50 iterations.
+
+**What Teddy comes back to tomorrow morning:**
+
+- New `colony-loop/agents/*.js` files for every TO_BUILD agent in the blueprint whose pattern matches a registered template. Each one is its own commit, authored by the architect, tagged `feat(colony): [architect] built <id> <name>`.
+- Updated `docs/appliance-ant-master-blueprint.json` with each newly-built agent flipped from `TO_BUILD` → `BUILT`, plus `meta.agents_live` and per-colony `agents_live` counters bumped.
+- A diagnostic trail in `event_log` (`colony_architect_fired` rows with `built` / `failed` / `attempted` counts per run).
+
+**What gets blocked until new templates land:**
+
+Today's template catalog (`colony-loop/architect/templates.js`) only knows `diagnostic_specialist` — agents whose `outputs[]` contain `DIAGNOSTIC_BRIEF`. The other 350+ agent types in the blueprint will fast-skip with `outcome: no_template` until templates are added. **Adding templates is the highest-leverage Phase 7 work** — every new template unlocks N agents the architect can produce on the next run. Likely next templates:
+
+- `brand_intelligence` (for D006–D010 + many other brand agents): meta-prompt yields brand-specific failure-rate / service-bulletin / parts-availability knowledge.
+- `coordinator` (for D011 Pre-Dispatch Brief Coordinator + similar): collects multiple signals, composes a digest, emits a delivery signal.
+- `sms_responder` (customer-facing reply agents)
+- `webhook_handler` (intake adapter agents)
+
+**Working rule #8 ("agent velocity") makes this explicit:** building agents is highest priority after production issues + customer-facing fixes. Add a template, build 5–10 more agents. Repeat.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
