@@ -15,20 +15,23 @@ const APPLIANCE_NICE = {
 };
 
 const CASH_SOURCES = new Set(['cash_tdr', 'self_pay', 'cash', 'customer_pay', 'cash_customer']);
+const CASH_CUSTOMER_TYPES = new Set(['self_pay', 'cash']);
 
-function shouldIncludeWarrantyNote(source) {
+function shouldIncludeWarrantyNote({ source, customer_type }) {
+  const ct = String(customer_type || '').toLowerCase();
+  if (CASH_CUSTOMER_TYPES.has(ct)) return false;
   const s = String(source || '').toLowerCase();
   return !CASH_SOURCES.has(s);
 }
 
-function composeGreeting({ first_name, appliance_type, source }) {
+function composeGreeting({ first_name, appliance_type, source, customer_type }) {
   const name = (first_name || '').trim() || 'there';
   const applianceRaw = (appliance_type || '').trim().toLowerCase();
   const appliance = APPLIANCE_NICE[applianceRaw] || applianceRaw;
   const applianceClause = appliance ? `your ${appliance} repair` : 'your repair';
   const link = config.publicSiteBase.replace(/^https?:\/\//, '');
   let body = `Hi ${name}, this is TN Appliance Exchange! To get ${applianceClause} started please tap here: ${link}`;
-  if (shouldIncludeWarrantyNote(source)) {
+  if (shouldIncludeWarrantyNote({ source, customer_type })) {
     body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
   }
   return body;
@@ -90,6 +93,7 @@ export async function run(signal, ctx) {
     first_name: payload.customer_first_name,
     appliance_type: payload.appliance_type,
     source: payload.source,
+    customer_type: payload.customer_type,
   });
 
   const smsRes = await sms.toCustomer(phone, body, {
