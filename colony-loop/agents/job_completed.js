@@ -125,11 +125,13 @@ export async function run(signal, ctx) {
 
   const vendor = vendorKey(payload.warranty_company);
   if (!vendor || !HANDLED_VENDORS.has(vendor)) {
-    log('warranty_submission_handled', {
+    const meta = {
       job_id: jobId,
       action: 'skipped_not_warranty',
       warranty_company: payload.warranty_company || null,
-    });
+    };
+    await xano.markSignalProcessed(signal.id, 'warranty_submission_handled', meta);
+    log('warranty_submission_handled', meta);
     return { success: true, action: 'skipped_not_warranty', job_id: jobId };
   }
 
@@ -150,12 +152,14 @@ export async function run(signal, ctx) {
       source_signal_id: signal.id,
       missing,
     });
-    log('warranty_submission_handled', {
+    const meta = {
       job_id: jobId,
       action: 'incomplete_tdr',
       missing,
       sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
-    });
+    };
+    await xano.markSignalProcessed(signal.id, 'warranty_submission_handled', meta);
+    log('warranty_submission_handled', meta);
     return { success: true, action: 'incomplete_tdr', job_id: jobId, missing };
   }
 
@@ -168,13 +172,15 @@ export async function run(signal, ctx) {
     claim_number: job.claim_number,
   });
 
-  log('warranty_submission_handled', {
+  const finalMeta = {
     job_id: jobId,
     action: 'danielle_digest_sent',
     vendor,
     claim_number: job.claim_number,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
-  });
+  };
+  await xano.markSignalProcessed(signal.id, 'warranty_submission_handled', finalMeta);
+  log('warranty_submission_handled', finalMeta);
 
   return {
     success: true,
