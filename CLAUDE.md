@@ -302,6 +302,49 @@ Phase A + B done. With Dawn still OUT and warranty submissions piling up, **visi
 - **Do NOT wire `unassign_technician_PATCH` to emit TECH_ASSIGNED.** It nulls the assignment — there's no tech to notify. (Future v2 could emit a `TECH_UNASSIGNED` to the OLD tech, but not in this design.)
 - **Do NOT producer-side filter on `technician_id == 1`.** Agent handles the Teddy-fallback skip. Producer-side filter would duplicate logic across every assignment path.
 
+### Late update (14:30 CT) — tech-daily-dashboard.html shipped + Gap 1 (scheduling_status) fixed
+
+**Three things shipped this block:**
+
+1. **`tech-daily-dashboard.html` is live** at `tnapplianceexchange.net/tech-daily-dashboard.html?tech_id=Y[&date=YYYY-MM-DD]`. The page that starts to replace HCP for the field experience. PIN gate, dark theme matching tech-ant-live, Leaflet/OSM map with numbered pins (geocoded via Nominatim with 30-day localStorage cache), date nav (back/forward + jump-to-today), job cards with stop number / time window / status pill / customer / appliance / address (tap to navigate) / problem summary / Teddy pre-diagnosis / attachment thumbnails (hydrated via `/.netlify/functions/s3-view-url`) / quick-action buttons / "Open Tech Ant →" CTA. Staggered card animations, empty state, loading state, error retry. Backed by new `get_tech_daily_dashboard_GET.xs` (single round-trip bundle: `{tech, date_ct, today_ct, date_window_start_ms/end_ms, job_count, jobs[{job, customer, teddy_pre_diagnosis, attachments_count, attachments_preview}]}`). Confirmed `s3-view-url.js` Netlify function already existed; no scaffold needed.
+
+2. **Gap 1 fix in `api/intake/hcp_poll_recent_jobs_POST.xs`** — both poll-update and poll-insert branches now derive `scheduling_status` from HCP `work_status`. Before this, every poll-sourced job stayed at `scheduling_status="prediagnosis_pending"` forever even when HCP marked the job scheduled / in_progress / completed. Mapping:
+   - `work_status ∈ {scheduled, in_progress, schedule_appointment}` → `"scheduled"`
+   - `work_status ∈ {completed, complete, complete unrated, complete rated}` → `"completed"`
+   - `work_status ∈ {canceled, cancelled, pro canceled, pro cancelled}` → `"canceled"`
+   - anything else → update branch keeps `$existing_job.scheduling_status`; insert branch defaults to `prediagnosis_pending`
+   - Handles both space-separated and underscore-separated forms (HCP uses spaces in practice, e.g. `"in progress"`, `"pro canceled"`)
+   - The dashboard status pills will now read correctly on the next poll cycle (every 15 min via the Xano task).
+
+3. **New diagnostic endpoints (kept for future reality checks):**
+   - `check_scheduling_state_GET` — dumps technicians + tech_availability + recent scheduling_queue activity over 30d. Used this session to confirm `SCHEDULING_QUEUE_ENABLED` is effectively `true` (worker has been processing queue rows) and to spot the orphan tech.
+   - `check_recent_jobs_GET` — dumps the N most-recent jobs with intake_source / customer_type / current_status / scheduling_status / scheduled_start / technician_id / hcp_assigned_to. Reusable for any "why is this job stuck?" investigation.
+
+**Reality findings worth keeping:**
+
+- **`SCHEDULING_QUEUE_ENABLED` is effectively `true`** in Xano. Earlier docs called it dormant; behavioral evidence (2 queue rows actually processed for job 18096 today: broadcast notified 3 TN-area techs, then a follow-on escalate STUB ran when nobody claimed it within 30 min). **Side effect:** today's Phase B smoke-test for job 18096 triggered a broadcast SMS to 3 TN techs (Jimmy / Lee / Teddy probably) at ~11:41 CT — separate from any other texts they got from us today.
+- **`scheduling_queue_worker.xs` action types:** `broadcast` REAL (cluster + tech qualification + "who wants it?" SMS, 30-min expiry); `propose` REAL (top-3 slot scoring, "Reply PICK1/2/3" to owner); `sick_day_cascade` REAL (silent reassign or customer SMS); `book` / `notify` / `escalate` STUB; `wait` no-op. Plus end-of-tick sweep that expires broadcast_attempt rows past expiry and queues an escalate.
+- **All 6 active techs (ids 1–6) match the CLAUDE.md roster phones exactly** (verified against `technicians` table).
+- **🚨 Orphan tech row at `id=8`** — `first_name=""`, `last_name=""`, `phone=""`, `hcp_id=""`, but **`active=true`**. Will match `WHERE active=true` queries, can cause `db.get` to return non-null when callers expect null, and would try to send SMS to `+1` (empty). Pre-existing — should be cleaned up (set `active=false` or delete row) before wiring anything that iterates active techs at scale.
+
+### Now-current priority (Phase 6)
+
+**Gap 2 — Email-intake jobs auto-create in HCP.** ~94% of production jobs come in via AHS / ServicePower / Jotform email and land in Xano with `scheduling_status="not_ready"`, no `technician_id`, no `scheduled_start`. Office workflow today is manual: someone creates the matching job in HCP, which then propagates back via webhook/poll. **A Mac Mini loop agent should pick up these email-intake jobs and create the HCP entry automatically** (via HCP API: customer + appointment + assigned employee). Once HCP has the job, the existing webhook/poll fills in `technician_id` and `scheduled_start` on the Xano side. This is the single highest-leverage automation left — fixes the warranty pipeline, fills the dashboard, and removes the Dawn-shaped hole. Substantial work (new HCP-write integration, customer-record matching, appointment slotting).
+
+**Gap 3 — `scheduling_queue_worker.book` STUB needs a real implementation.** When a tech replies "yes" to a broadcast SMS, `tech_sms_inbound_POST.xs` should set `jobs.scheduled_start`, `jobs.technician_id`, `jobs.scheduling_status="scheduled"`, optionally create the HCP appointment. Same on Teddy's PICK1/2/3 reply to a `propose`. Smaller than Gap 2 but still meaningful. Today, broadcast wins go nowhere because the book handler is `"[STUB] would book job X"`.
+
+**DAILY_TECH_BRIEFING morning SMS (deferred Phase 5.5 follow-on).** New colony loop agent that fires once at 7am CT per active tech with ≥1 job today, sending: *"[ant] morning {first} — {N} jobs today, first at {time}. Open: tnapplianceexchange.net/tech-daily-dashboard.html?tech_id=Y"*. Mirrors `daily_briefing` pattern but per-tech.
+
+**Orphan tech `id=8` cleanup.** One-line `db.edit technicians {id=8, data={active:false}}` or row delete. Should happen before any agent that broadcasts to all active techs.
+
+**Push Tech Ant Assist adoption** so TDR completeness rises. Until that, every warranty completion routes through Phase 5A's BLOCKED branch.
+
+### Additional things NOT to do
+
+- **Do NOT add scheduling_status writes via the hcp_poll endpoint outside the derivation block.** The Gap 1 fix is the canonical place. Other callers that need to set scheduling_status should use the explicit assign / book / cancel endpoints, not piggyback on the poll.
+- **Do NOT show Teddy's pre-diagnosis to the customer on the tech dashboard.** `tech-daily-dashboard.html` surfaces it for the tech only. The customer-facing TDR view (`cash-tdr-customer.html`) is a separate page with its own sanitized `customer_facing_diagnosis` field. Keep them distinct.
+- **Do NOT skip the 30-day Nominatim geocoding cache** on the dashboard. Nominatim is rate-limited (1 req/sec); without the cache, opening a 5-job dashboard takes 5+ seconds every time. The cache lives in `localStorage` keyed by `tn_geo_v1:<hash(address)>`.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
