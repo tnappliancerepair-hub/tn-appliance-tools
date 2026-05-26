@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 257,
-    "agents_to_build": 10,
+    "agents_live": 258,
+    "agents_to_build": 9,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3238,7 +3238,7 @@
       "purpose": "Jordan and Andre never have to upsell. Ant handles all of it. Integrity intact. Revenue grows anyway.",
       "priority": "MEDIUM",
       "agents_total": 11,
-      "agents_live": 9,
+      "agents_live": 10,
       "core_principle": "The best upsell is the one that never feels like an upsell. Delivered by Ant at the right moment. Never by the tech in the customer's home.",
       "agents": [
         {
@@ -3352,7 +3352,7 @@
         {
           "id": "SA011",
           "name": "Upsell Intelligence Coordinator",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Aggregates upsell signals across appliance age, customer LTV, technician notes, geographic clustering, and surfaces top 5 weekly upsell opportunities. Emits SERVICE_AGREEMENT_INTELLIGENCE.",
           "triggers": [
