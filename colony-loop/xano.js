@@ -3,6 +3,14 @@ import { config } from './config.js';
 // Retry transient network failures (TypeError: fetch failed, DNS blips,
 // TLS reset). HTTP errors (4xx/5xx response bodies) fall through to the
 // JSON parser unchanged. Backoff: 0, 250ms, 750ms.
+//
+// Each attempt is bounded by a 30-second AbortController timeout — without
+// this, a single fetch can hang for minutes when an underlying TCP
+// connection goes half-dead (observed multiple 15-minute hangs in the
+// 2026-05-26 overnight log). 30s is well above normal Xano latency (~200ms
+// p99) while keeping the worst-case tick at 90s (3 attempts × 30s).
+const FETCH_TIMEOUT_MS = 30 * 1000;
+
 async function fetchWithRetry(url, opts = {}) {
   const delays = [0, 250, 750];
   let lastErr;
@@ -10,13 +18,18 @@ async function fetchWithRetry(url, opts = {}) {
     if (delays[i] > 0) {
       await new Promise((r) => setTimeout(r, delays[i]));
     }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      return await fetch(url, opts);
+      return await fetch(url, { ...opts, signal: controller.signal });
     } catch (err) {
-      // Only retry on transient transport failures (TypeError).
-      // SyntaxError or other programming errors should propagate immediately.
-      if (!(err instanceof TypeError)) throw err;
+      // Treat aborts (DOMException AbortError) as retryable timeouts —
+      // same class of fault as a half-dead TCP connection.
+      const isAbort = err && (err.name === 'AbortError' || err.code === 'ABORT_ERR');
+      if (!isAbort && !(err instanceof TypeError)) throw err;
       lastErr = err;
+    } finally {
+      clearTimeout(timer);
     }
   }
   throw lastErr;
