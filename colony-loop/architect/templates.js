@@ -803,7 +803,8 @@ function renderPartsIntelligence({ agent, domainSlug, domainDisplay, systemPromp
     systemPromptText,
     signalIn: `PARTS_LOOKUP_${domainSlug.toUpperCase()}`,
     signalOut: 'PARTS_INTELLIGENCE',
-    filename: `parts_${domainSlug}.js`,
+    // Dispatch routes by lowercased signal_type. Filename must match.
+    filename: `parts_lookup_${domainSlug}.js`,
     templateName: 'parts_intelligence',
     outputKey: 'intel_text',
     promptVarName: 'PARTS_PROMPT',
@@ -826,7 +827,7 @@ function renderSchedulingOptimizer({ agent, scopeSlug, scopeDisplay, systemPromp
     systemPromptText,
     signalIn: `SCHEDULE_REQUEST_${scopeSlug.toUpperCase()}`,
     signalOut: 'SCHEDULING_DECISION',
-    filename: `schedule_${scopeSlug}.js`,
+    filename: `schedule_request_${scopeSlug}.js`,
     templateName: 'scheduling_optimizer',
     outputKey: 'decision_text',
     promptVarName: 'SCHEDULING_PROMPT',
@@ -851,7 +852,7 @@ function renderPerformanceCoach({ agent, scopeSlug, scopeDisplay, systemPromptTe
     systemPromptText,
     signalIn: `PERFORMANCE_REQUEST_${scopeSlug.toUpperCase()}`,
     signalOut: 'PERFORMANCE_INSIGHT',
-    filename: `performance_${scopeSlug}.js`,
+    filename: `performance_request_${scopeSlug}.js`,
     templateName: 'performance_coach',
     outputKey: 'insight_text',
     promptVarName: 'PERFORMANCE_PROMPT',
@@ -972,7 +973,7 @@ export async function run(signal, ctx) {
 
 function renderResearchAgent({ agent, sourceSlug, sourceDisplay, systemPromptText }) {
   const signalType = `RESEARCH_REQUEST_${sourceSlug.toUpperCase()}`;
-  const filename = `research_${sourceSlug}.js`;
+  const filename = `research_request_${sourceSlug}.js`;
   const safePrompt = escapeForBacktick(systemPromptText);
 
   const code =
@@ -1274,6 +1275,11 @@ export async function generateAgent(agent, claude, config) {
       throw new Error(`Claude returned empty/short system prompt for ${templateName} ${slug}`);
     }
 
+    // Dispatch routes by lowercased signal_type. Always derive the filename
+    // from signalInPrefix so they match (the per-template filenamePrefix
+    // override was the source of the 2026-05-26 systemic mismatch bug).
+    const derivedFilenamePrefix = signalInPrefix.toLowerCase();
+
     return renderGenericSpecialist({
       agent,
       slug,
@@ -1281,7 +1287,7 @@ export async function generateAgent(agent, claude, config) {
       systemPromptText: promptText,
       signalIn: `${signalInPrefix}${slug.toUpperCase()}`,
       signalOut: signalOutType,
-      filename: `${filenamePrefix}${slug}.js`,
+      filename: `${derivedFilenamePrefix}${slug}.js`,
       templateName,
       outputKey,
       promptVarName,
