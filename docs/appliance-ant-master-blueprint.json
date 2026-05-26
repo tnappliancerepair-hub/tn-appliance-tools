@@ -8,7 +8,7 @@
     "total_colonies": 20,
     "total_agents": 379,
     "agents_live": 264,
-    "agents_to_build": 3,
+    "agents_to_build": 48,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -21,7 +21,7 @@
     },
     "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
     "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates.",
-    "total_agents_enumerated": 267
+    "total_agents_enumerated": 312
   },
   "signal_architecture": {
     "table": "colony_signals",
@@ -398,7 +398,7 @@
       "name": "Parts Sourcing and Timing Colony",
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
-      "agents_total": 53,
+      "agents_total": 73,
       "agents_live": 53,
       "agents": [
         {
@@ -1151,6 +1151,306 @@
           ],
           "xano_endpoint": "parts_shipping_eta_predictor",
           "dependencies": []
+        },
+        {
+          "id": "P054",
+          "name": "Reliable Parts Washer Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for washer: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_WASHER.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_WASHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_washer_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P055",
+          "name": "Reliable Parts Dryer Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for dryer: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_DRYER.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_DRYER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_dryer_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P056",
+          "name": "Reliable Parts Dishwasher Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for dishwasher: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_DISHWASHER.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_DISHWASHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_dishwasher_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P057",
+          "name": "Reliable Parts Refrigerator Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for refrigerator: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_REFRIGERATOR.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_REFRIGERATOR"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_refrigerator_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P058",
+          "name": "Reliable Parts Range Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for range: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_RANGE.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_RANGE"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_range_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P059",
+          "name": "Reliable Parts Microwave Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for microwave: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_MICROWAVE.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_MICROWAVE"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_microwave_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P060",
+          "name": "Reliable Parts Hvac Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Reliable Parts sourcing for hvac: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_RELIABLE_PARTS_HVAC.",
+          "triggers": [
+            "PARTS_LOOKUP_RELIABLE_PARTS_HVAC"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "reliable_parts_hvac_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P061",
+          "name": "Genuine Replacement Parts Washer Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for washer: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_WASHER.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_WASHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_washer_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P062",
+          "name": "Genuine Replacement Parts Dryer Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for dryer: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_DRYER.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_DRYER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_dryer_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P063",
+          "name": "Genuine Replacement Parts Dishwasher Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for dishwasher: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_DISHWASHER.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_DISHWASHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_dishwasher_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P064",
+          "name": "Genuine Replacement Parts Refrigerator Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for refrigerator: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_REFRIGERATOR.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_REFRIGERATOR"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_refrigerator_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P065",
+          "name": "Genuine Replacement Parts Range Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for range: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_RANGE.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_RANGE"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_range_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P066",
+          "name": "Genuine Replacement Parts Microwave Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for microwave: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_MICROWAVE.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_MICROWAVE"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_microwave_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P067",
+          "name": "Genuine Replacement Parts Hvac Parts Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Genuine Replacement Parts sourcing for hvac: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_HVAC.",
+          "triggers": [
+            "PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_HVAC"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "genuine_replacement_parts_hvac_parts_agent",
+          "dependencies": []
+        },
+        {
+          "id": "P068",
+          "name": "Parts Lookup Reorder Pattern Detector",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Detects techs ordering the same part 3+ times in a month for different jobs, flags as candidate for truck-stock.",
+          "triggers": [
+            "PARTS_LOOKUP_REORDER_PATTERN_DETECTOR"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_reorder_pattern_detector",
+          "dependencies": []
+        },
+        {
+          "id": "P069",
+          "name": "Parts Lookup Truck Stock Recommender",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Recommends per-tech truck-stock additions based on 90-day usage patterns. Reduces parts-trip rescheduling.",
+          "triggers": [
+            "PARTS_LOOKUP_TRUCK_STOCK_RECOMMENDER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_truck_stock_recommender",
+          "dependencies": []
+        },
+        {
+          "id": "P070",
+          "name": "Parts Lookup Return Rate Tracker",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Tracks return rates per supplier per part category. Identifies counterfeit or low-quality supplier sources.",
+          "triggers": [
+            "PARTS_LOOKUP_RETURN_RATE_TRACKER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_return_rate_tracker",
+          "dependencies": []
+        },
+        {
+          "id": "P071",
+          "name": "Parts Lookup Warranty Eligibility Matcher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Matches OEM part numbers to manufacturer warranty programs (Whirlpool ServicePower, GE Direct, LG Direct).",
+          "triggers": [
+            "PARTS_LOOKUP_WARRANTY_ELIGIBILITY_MATCHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_warranty_eligibility_matcher",
+          "dependencies": []
+        },
+        {
+          "id": "P072",
+          "name": "Parts Lookup Discontinued Part Finder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "For older appliances where the OEM part is discontinued, finds equivalent or refurbished alternatives across suppliers.",
+          "triggers": [
+            "PARTS_LOOKUP_DISCONTINUED_PART_FINDER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_discontinued_part_finder",
+          "dependencies": []
+        },
+        {
+          "id": "P073",
+          "name": "Parts Lookup Universal Part Matcher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Identifies where universal/generic parts can substitute OEM (motor universals, control board flashes, generic timers).",
+          "triggers": [
+            "PARTS_LOOKUP_UNIVERSAL_PART_MATCHER"
+          ],
+          "outputs": [
+            "PARTS_INTELLIGENCE"
+          ],
+          "xano_endpoint": "parts_lookup_universal_part_matcher",
+          "dependencies": []
         }
       ]
     },
@@ -1789,7 +2089,7 @@
       "name": "Voice and SMS Evolution Colony",
       "purpose": "Self-improving voice and SMS systems. Every interaction makes Ant and Vapi smarter.",
       "priority": "MEDIUM",
-      "agents_total": 30,
+      "agents_total": 45,
       "agents_live": 30,
       "agents": [
         {
@@ -2218,6 +2518,231 @@
           ],
           "xano_endpoint": "sms_response_after_hours_response",
           "dependencies": []
+        },
+        {
+          "id": "V031",
+          "name": "Multi Appliance Inquiry SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for multi appliance inquiry. Receives SMS_RESPONSE_MULTI_APPLIANCE_INQUIRY payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_MULTI_APPLIANCE_INQUIRY"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_multi_appliance_inquiry",
+          "dependencies": []
+        },
+        {
+          "id": "V032",
+          "name": "Service Area Question SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for service area question. Receives SMS_RESPONSE_SERVICE_AREA_QUESTION payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_SERVICE_AREA_QUESTION"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_service_area_question",
+          "dependencies": []
+        },
+        {
+          "id": "V033",
+          "name": "Price Quote Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for price quote request. Receives SMS_RESPONSE_PRICE_QUOTE_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_PRICE_QUOTE_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_price_quote_request",
+          "dependencies": []
+        },
+        {
+          "id": "V034",
+          "name": "Warranty Eligibility Check SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for warranty eligibility check. Receives SMS_RESPONSE_WARRANTY_ELIGIBILITY_CHECK payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_WARRANTY_ELIGIBILITY_CHECK"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_warranty_eligibility_check",
+          "dependencies": []
+        },
+        {
+          "id": "V035",
+          "name": "Manual Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for manual request. Receives SMS_RESPONSE_MANUAL_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_MANUAL_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_manual_request",
+          "dependencies": []
+        },
+        {
+          "id": "V036",
+          "name": "Commercial Inquiry SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for commercial inquiry. Receives SMS_RESPONSE_COMMERCIAL_INQUIRY payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_COMMERCIAL_INQUIRY"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_commercial_inquiry",
+          "dependencies": []
+        },
+        {
+          "id": "V037",
+          "name": "Second Opinion Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for second opinion request. Receives SMS_RESPONSE_SECOND_OPINION_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_SECOND_OPINION_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_second_opinion_request",
+          "dependencies": []
+        },
+        {
+          "id": "V038",
+          "name": "Maintenance Question SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for maintenance question. Receives SMS_RESPONSE_MAINTENANCE_QUESTION payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_MAINTENANCE_QUESTION"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_maintenance_question",
+          "dependencies": []
+        },
+        {
+          "id": "V039",
+          "name": "Urgent Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for urgent request. Receives SMS_RESPONSE_URGENT_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_URGENT_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_urgent_request",
+          "dependencies": []
+        },
+        {
+          "id": "V040",
+          "name": "Language Help Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for language help request. Receives SMS_RESPONSE_LANGUAGE_HELP_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_LANGUAGE_HELP_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_language_help_request",
+          "dependencies": []
+        },
+        {
+          "id": "V041",
+          "name": "Accessibility Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for accessibility request. Receives SMS_RESPONSE_ACCESSIBILITY_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_ACCESSIBILITY_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_accessibility_request",
+          "dependencies": []
+        },
+        {
+          "id": "V042",
+          "name": "Gift Referral SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for gift referral. Receives SMS_RESPONSE_GIFT_REFERRAL payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_GIFT_REFERRAL"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_gift_referral",
+          "dependencies": []
+        },
+        {
+          "id": "V043",
+          "name": "Media Inquiry SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for media inquiry. Receives SMS_RESPONSE_MEDIA_INQUIRY payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_MEDIA_INQUIRY"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_media_inquiry",
+          "dependencies": []
+        },
+        {
+          "id": "V044",
+          "name": "Job Recommendation Request SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for job recommendation request. Receives SMS_RESPONSE_JOB_RECOMMENDATION_REQUEST payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_JOB_RECOMMENDATION_REQUEST"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_job_recommendation_request",
+          "dependencies": []
+        },
+        {
+          "id": "V045",
+          "name": "Permit Question SMS Responder",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Customer SMS responder for permit question. Receives SMS_RESPONSE_PERMIT_QUESTION payload with customer name + phone + job context + inbound body. Emits CUSTOMER_SMS_REPLY.",
+          "triggers": [
+            "SMS_RESPONSE_PERMIT_QUESTION"
+          ],
+          "outputs": [
+            "CUSTOMER_SMS_REPLY"
+          ],
+          "xano_endpoint": "sms_response_permit_question",
+          "dependencies": []
         }
       ]
     },
@@ -2633,7 +3158,7 @@
       "name": "Business Intelligence Colony",
       "purpose": "Strategic visibility. Know the business better than any competitor knows theirs.",
       "priority": "MEDIUM",
-      "agents_total": 5,
+      "agents_total": 15,
       "agents_live": 5,
       "agents": [
         {
@@ -2679,6 +3204,156 @@
           "priority": 3,
           "purpose": "Watches new zip codes for opportunity. Demand signals, competitor weakness, population growth indicators.",
           "xano_endpoint": "market_expansion_scout",
+          "dependencies": []
+        },
+        {
+          "id": "BI006",
+          "name": "Business Intel Daily Revenue Tracker",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Aggregates daily revenue across all techs from completed jobs + parts margin. Surfaces day-over-day deltas and weekly pace vs target. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_DAILY_REVENUE"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_daily_revenue_tracker",
+          "dependencies": []
+        },
+        {
+          "id": "BI007",
+          "name": "Business Intel AR Aging Reporter",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Tracks outstanding receivables from warranty companies + self-pay balances. Surfaces past-due over 30/60/90 days. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_AR_AGING_REPORTER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_ar_aging_reporter",
+          "dependencies": []
+        },
+        {
+          "id": "BI008",
+          "name": "Business Intel Cash Position Watcher",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Watches Stripe + bank balances vs expected payouts. Surfaces low-cash warnings before payroll. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_CASH_POSITION_WATCHER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_cash_position_watcher",
+          "dependencies": []
+        },
+        {
+          "id": "BI009",
+          "name": "Business Intel Margin Per Job Analyzer",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Calculates net margin per completed job (revenue - parts cost - labor cost - vehicle + tool cost). Flags consistently-low-margin patterns by appliance, brand, vendor. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_MARGIN_PER_JOB_ANALYZER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_margin_per_job_analyzer",
+          "dependencies": []
+        },
+        {
+          "id": "BI010",
+          "name": "Business Intel Warranty Reimbursement Lag",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Tracks lag between warranty job completion and reimbursement receipt per vendor. Surfaces slow-payers + flags claims stuck in portal. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_WARRANTY_REIMBURSEMENT_LAG"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_warranty_reimbursement_lag",
+          "dependencies": []
+        },
+        {
+          "id": "BI011",
+          "name": "Business Intel Tax Liability Forecaster",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Forecasts quarterly tax liability based on YTD net + projected. Surfaces estimated-payment alerts before deadlines. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_TAX_LIABILITY_FORECASTER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_tax_liability_forecaster",
+          "dependencies": []
+        },
+        {
+          "id": "BI012",
+          "name": "Business Intel Tech Earnings Reconciler",
+          "status": "TO_BUILD",
+          "priority": 1,
+          "purpose": "Compares each tech's tech_earnings rows vs jobs.completion_type + commission_rate. Surfaces unpaid commissions + double-pay risks before payroll runs. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_TECH_EARNINGS_RECONCILER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_tech_earnings_reconciler",
+          "dependencies": []
+        },
+        {
+          "id": "BI013",
+          "name": "Business Intel Fleet Cost Tracker",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Tracks fuel + maintenance + insurance per truck per month. Surfaces over-spec trucks for rotation/replacement. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_FLEET_COST_TRACKER"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_fleet_cost_tracker",
+          "dependencies": []
+        },
+        {
+          "id": "BI014",
+          "name": "Business Intel Customer Acquisition Cost",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Calculates CAC per acquisition channel (warranty network, web, referral, vehicle wrap) by dividing channel spend by jobs from that channel. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_CUSTOMER_ACQUISITION_COST"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_customer_acquisition_cost",
+          "dependencies": []
+        },
+        {
+          "id": "BI015",
+          "name": "Business Intel Profitability By Zone",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Net profit per service-zone cluster. Surfaces zones where windshield-time dominates margin so we can adjust pricing or retire. Emits BUSINESS_INTEL_INSIGHT.",
+          "triggers": [
+            "BUSINESS_INTEL_REQUEST_PROFITABILITY_BY_ZONE"
+          ],
+          "outputs": [
+            "BUSINESS_INTEL_INSIGHT"
+          ],
+          "xano_endpoint": "business_intel_profitability_by_zone",
           "dependencies": []
         }
       ]

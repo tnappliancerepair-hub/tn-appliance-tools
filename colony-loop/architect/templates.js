@@ -238,6 +238,14 @@ function isCustomerIntelligence(agent) {
   return /\bcustomer\s+lifetime\s+value\b|\bappliance\s+age\s+profile\b|\bproactive\s+outreach\b|\bcustomer\s+satisfaction\s+scor\w*/.test(c);
 }
 
+// 6b. business_intelligence (financial tracking colony)
+function isBusinessIntelligence(agent) {
+  const id = String(agent.id || '');
+  if (/^BI\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\brevenue\b|\bar\s+aging\b|\bcash\s+position\b|\bmargin\s+per\s+job\b|\breimbursement\s+lag\b|\btax\s+liability\b|\btech\s+earnings\b|\bfleet\s+cost\b|\bcustomer\s+acquisition\s+cost\b|\bprofitability\s+by\s+zone\b/.test(c);
+}
+
 // 7. voice_prompt_optimizer
 function isVoicePromptOptimizer(agent) {
   const id = String(agent.id || '');
@@ -486,6 +494,10 @@ function metaPromptForServiceAgreement(typeDisplay) {
 
 function metaPromptForCustomerIntelligence(scopeDisplay) {
   return `You are designing the Claude system prompt for a "${scopeDisplay}" customer-intelligence agent for TN Appliance Exchange. This agent builds and maintains the customer-centric data layer — lifetime value, appliance-age profile, satisfaction signals, proactive outreach triggers.\n\nThe agent receives: customer record + full job history + appliance inventory (model, age, last service, parts replaced) + recent feedback signals (ratings, free-text comments, reschedule/cancel rate). It must return structured customer intelligence in this exact shape:\n1. CLV TIER: high/medium/low/at-risk + reasoning, including the 12-month forward-look estimate.\n2. INVENTORY MAP: each appliance the customer owns, its estimated remaining life, and the next likely failure category.\n3. OUTREACH TRIGGERS: future moments (date + reason) the system should reach out proactively — capped at 3 to avoid spam.\n4. SATISFACTION SIGNAL: any patterns in feedback that flag a churn risk or a referral opportunity.\n5. NEXT-BEST-ACTION: the single most valuable thing the system could do for/about this customer this month.\n\nBe specific to ${scopeDisplay}. Never invent appliance ages — if model has no age data, mark "unknown". Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForBusinessIntelligence(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" business-intelligence agent for TN Appliance Exchange. This agent watches the financial heartbeat of the company — revenue, receivables, cash, margin, tax, reimbursements, fleet, acquisition cost, zone profitability — and surfaces actionable signals.\n\nThe agent receives: relevant data slice (e.g. for a Daily Revenue Tracker — yesterday's completed jobs, parts margin rows, prior 7-day baseline; for an AR Aging Reporter — outstanding warranty + self-pay invoices with age buckets; for a Cash Position Watcher — Stripe + bank balances with upcoming payout obligations).\n\nIt must return structured BI output in this exact shape:\n1. HEADLINE: a 1-line owner-facing number ("Yesterday: $4,820. 7-day avg: $4,100 (+18%)" or "AR > 60d: $12,400 across 8 jobs").\n2. CONTEXT: what changed vs the prior comparable period + the most likely driver (1-2 sentences max).\n3. ALERTS: any threshold breaches (low cash before payroll, large past-due, margin below 30%, tax-due window).\n4. RECOMMENDED ACTIONS: ordered list of moves Teddy can make this week to act on the signal.\n5. CONFIDENCE: how much of the signal is rock-solid (data we own) vs estimated (e.g. tax projection).\n\nBe specific to ${scopeDisplay}. Never invent dollar figures — if data is missing, flag it. Output ONLY the system prompt text — no preamble.`;
 }
 
 function metaPromptForVoicePrompt(scopeDisplay) {
@@ -1398,6 +1410,26 @@ export async function generateAgent(agent, claude, config) {
         `'Seasonal context: ' + (payload.season || 'unknown')`,
       ],
       nameSuffixRegex: /\s*(Service\s+Agreement|Agreement|Maintenance|Agent)$/gi,
+    });
+  }
+
+  if (isBusinessIntelligence(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForBusinessIntelligence,
+      signalOutType: 'BUSINESS_INTEL_INSIGHT',
+      signalInPrefix: 'BUSINESS_INTEL_REQUEST_',
+      filenamePrefix: 'business_intel_request_',
+      templateName: 'business_intelligence',
+      promptVarName: 'BUSINESS_INTEL_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Window: ' + (payload.window || 'daily')`,
+        `'Data slice (JSON): ' + JSON.stringify(payload.data || {})`,
+        `'Baseline (JSON): ' + JSON.stringify(payload.baseline || {})`,
+        `'Thresholds (JSON): ' + JSON.stringify(payload.thresholds || {})`,
+        `'Trigger event: ' + (payload.trigger_event || 'scheduled')`,
+      ],
+      nameSuffixRegex: /\s*(Business\s+Intel|Tracker|Reporter|Watcher|Analyzer|Forecaster|Reconciler|Agent)$/gi,
     });
   }
 
