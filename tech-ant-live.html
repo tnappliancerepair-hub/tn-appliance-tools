@@ -354,6 +354,106 @@
   .submit-banner:hover { opacity: 0.9; }
   .submit-banner:disabled { opacity: 0.6; cursor: not-allowed; }
 
+  /* ── TDR form (urgent field fix 2026-05-26) ── */
+  .tdr-form {
+    background: #161b26;
+    border: 1px solid #2a3040;
+    border-radius: 10px;
+    margin: 12px;
+    padding: 14px 14px 10px;
+  }
+  .tdr-form.highlight {
+    border-color: #f6cf45;
+    box-shadow: 0 0 0 3px rgba(246, 207, 69, 0.18);
+  }
+  .tdr-form .tdr-form-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .tdr-form .tdr-form-title {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.06em;
+    font-size: 16px;
+    color: #f6cf45;
+  }
+  .tdr-form .tdr-form-status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #8a93aa;
+  }
+  .tdr-form .tdr-form-status.done { color: #4cd2c0; }
+  .tdr-form .tdr-form-status.missing { color: #ff8a8a; }
+  .tdr-field {
+    margin-top: 10px;
+  }
+  .tdr-field label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a93aa;
+    margin-bottom: 5px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .tdr-field label .req { color: #ff8a8a; }
+  .tdr-field input,
+  .tdr-field select,
+  .tdr-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: #0c1018;
+    color: #e8edf5;
+    border: 1px solid #2a3040;
+    border-radius: 6px;
+    padding: 12px 12px;
+    font-family: inherit;
+    font-size: 16px; /* iOS Safari avoids zoom on focus when >= 16px */
+    min-height: 44px; /* mobile tap target */
+  }
+  .tdr-field textarea { min-height: 72px; resize: vertical; }
+  .tdr-field input:focus,
+  .tdr-field select:focus,
+  .tdr-field textarea:focus {
+    outline: none;
+    border-color: #f6cf45;
+  }
+  .tdr-field.has-value input,
+  .tdr-field.has-value select,
+  .tdr-field.has-value textarea {
+    border-color: #4cd2c0;
+  }
+  .tdr-save-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .tdr-save-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background: #f6cf45;
+    color: #080a0f;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    min-height: 48px;
+  }
+  .tdr-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .tdr-save-btn.ok { background: #4cd2c0; color: #080a0f; }
+  .tdr-save-msg {
+    font-size: 12px;
+    color: #8a93aa;
+    margin-top: 8px;
+    min-height: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .tdr-save-msg.error { color: #ff8a8a; }
+  .tdr-save-msg.success { color: #4cd2c0; }
+
   .input-wrap {
     background: #131720;
     border-top: 1px solid #2a3040;
@@ -501,6 +601,39 @@
   </div>
 </div>
 
+<!-- TDR form - urgent fix 2026-05-26. Visible + fillable directly in-page. -->
+<div class="tdr-form" id="tdr-form" style="display:none">
+  <div class="tdr-form-head">
+    <span class="tdr-form-title">TDR — Tech Decision Report</span>
+    <span class="tdr-form-status" id="tdr-form-status">0 / 4 fields</span>
+  </div>
+  <div class="tdr-field" id="tdr-field-diagnosis">
+    <label for="tdr-diagnosis">Diagnosis <span class="req">*</span></label>
+    <textarea id="tdr-diagnosis" placeholder="What's wrong with the appliance?" oninput="onTdrFieldInput()"></textarea>
+  </div>
+  <div class="tdr-field" id="tdr-field-failed-component">
+    <label for="tdr-failed-component">Failed component <span class="req">*</span></label>
+    <input id="tdr-failed-component" type="text" placeholder="e.g. evaporator fan motor, drain pump" oninput="onTdrFieldInput()">
+  </div>
+  <div class="tdr-field" id="tdr-field-labor-time">
+    <label for="tdr-labor-time">Labor time (hours) <span class="req">*</span></label>
+    <input id="tdr-labor-time" type="number" step="0.25" min="0" placeholder="0.75" inputmode="decimal" oninput="onTdrFieldInput()">
+  </div>
+  <div class="tdr-field" id="tdr-field-repair-completed">
+    <label for="tdr-repair-completed">Repair completed? <span class="req">*</span></label>
+    <select id="tdr-repair-completed" onchange="onTdrFieldInput()">
+      <option value="">— pick one —</option>
+      <option value="yes">Yes — fixed on this visit</option>
+      <option value="no">No — needs follow-up</option>
+      <option value="partial">Partial — temporary fix</option>
+    </select>
+  </div>
+  <div class="tdr-save-row">
+    <button class="tdr-save-btn" id="tdr-save-btn" onclick="saveTdrInline()" disabled>Save TDR</button>
+  </div>
+  <div class="tdr-save-msg" id="tdr-save-msg"></div>
+</div>
+
 <div class="main-area" id="main-area">
   <div class="loading" id="loading">
     <div class="spinner"></div>
@@ -549,6 +682,8 @@ let recognition = null;
 let isRecording = false;
 let appliancetype = 'other';
 let chatEl = null;
+let lastJobData = null;
+let techFirstName = '';
 
 async function init() {
   if (!JOB_ID || !TECH_ID) {
@@ -582,7 +717,11 @@ async function init() {
     document.getElementById('job-appliance').textContent = `${data.appliance.brand || ''} ${data.appliance.type || ''}`.trim() || 'Appliance';
     document.getElementById('job-bar').classList.add('show');
 
+    lastJobData = data;
+    techFirstName = pickTechFirstName(data);
     renderTdrStack(data.all_tdrs || []);
+    // Reveal the inline TDR form. Pre-fill if a TDR snapshot exists.
+    initInlineTdrForm(data.all_tdrs || []);
 
     // Action bar: address + phone for tap-to-navigate / tap-to-call.
     // get_job_for_dashboard already resolves job.service_X → customer.X fallback.
@@ -621,7 +760,17 @@ async function preloadHistory() {
     if (data.session_id) assistSessionId = data.session_id;
     const msgs = Array.isArray(data.messages) ? data.messages : [];
     if (msgs.length === 0) {
-      addSystem('', 'no prior messages - send your first finding to ant');
+      // Auto-greeting (urgent field fix 2026-05-26). When there's no prior
+      // chat, Ant introduces itself with customer + appliance + problem +
+      // Teddy's pre-diagnosis (when present) so the tech doesn't open to
+      // an empty chat.
+      const greeting = composeAntGreeting();
+      if (greeting) {
+        addMessage('assistant', greeting);
+        conversationHistory.push({ role: 'assistant', content: greeting });
+      } else {
+        addSystem('', 'no prior messages - send your first finding to ant');
+      }
       return;
     }
     for (const m of msgs) {
@@ -632,6 +781,71 @@ async function preloadHistory() {
   } catch (e) {
     console.warn('preloadHistory failed:', e);
   }
+}
+
+// ── Tech-name resolver + greeting composer (urgent fix 2026-05-26) ──
+function pickTechFirstName(jobData) {
+  // 1. Try the job's assigned tech metadata if get_job_for_dashboard returns it.
+  if (jobData && jobData.assigned_tech && jobData.assigned_tech.first_name) {
+    return String(jobData.assigned_tech.first_name).trim();
+  }
+  if (jobData && jobData.technician && jobData.technician.first_name) {
+    return String(jobData.technician.first_name).trim();
+  }
+  // 2. Walk all_tdrs for any TDR authored by this tech_id that carries the name.
+  const myTechId = parseInt(TECH_ID, 10);
+  const tdrs = (jobData && jobData.all_tdrs) || [];
+  for (const t of tdrs) {
+    if (Number(t.technician_id) === myTechId && t.technician_first_name) {
+      return String(t.technician_first_name).trim();
+    }
+  }
+  // 3. Hardcoded fallback per the CLAUDE.md roster (tech ids 1-6 are the
+  //    current TN/LA roster). Future tech additions either land in the
+  //    data above or fall through to 'tech'.
+  const roster = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+  if (roster[myTechId]) return roster[myTechId];
+  return 'tech';
+}
+
+function composeAntGreeting() {
+  if (!lastJobData) return null;
+  const data = lastJobData;
+  const customer = data.customer || {};
+  const appliance = data.appliance || {};
+  const job = data.job || {};
+
+  const techName = techFirstName || 'tech';
+  const custFirst = String(customer.first_name || (customer.name || '').split(' ')[0] || '').trim();
+  const custLast = String(customer.last_name || (customer.name || '').split(' ').slice(1).join(' ') || '').trim();
+  const custDisplay = [custFirst, custLast].filter(Boolean).join(' ') || 'the customer';
+
+  const brand = String(appliance.brand || '').trim();
+  const type = String(appliance.type || '').trim().toLowerCase();
+  const applPhrase = [brand, type].filter(Boolean).join(' ') || 'appliance';
+
+  const problem = String(job.problem_summary || appliance.problem_summary || '').trim();
+
+  // Teddy's pre-diagnosis: prefer tech_id=1 with non-empty diagnosis/failed_component.
+  const teddyTdr = ((data.all_tdrs || []).filter((t) => t && t.technician_id === 1 && (String(t.diagnosis || '').trim() || String(t.failed_component || '').trim()))).pop();
+  let teddyBlock = '';
+  if (teddyTdr) {
+    const lines = [];
+    if (teddyTdr.diagnosis) lines.push(String(teddyTdr.diagnosis).trim());
+    if (teddyTdr.failed_component) lines.push(`Likely component: ${String(teddyTdr.failed_component).trim()}`);
+    if (teddyTdr.verified_part_number) lines.push(`Part to check: ${String(teddyTdr.verified_part_number).trim()}`);
+    if (lines.length) {
+      teddyBlock = `\n\nTeddy's pre-diagnosis:\n${lines.join('\n')}`;
+    }
+  }
+
+  const opener = `Hey ${techName}, you're at ${custDisplay}'s place.`;
+  const what = applPhrase ? ` ${brand ? brand : ''} ${type ? type : ''}`.trim() + (problem ? ` — ${problem}.` : '.') : (problem ? ` Issue: ${problem}` : '');
+  const guidance = teddyBlock
+    ? `${teddyBlock}\n\nText me your findings as you check — I'll fill in the TDR as we go.`
+    : `\n\nNo pre-diagnosis yet. Walk me through what you see and I'll help narrow it down. Text findings as you go and I'll fill in the TDR as we work.`;
+
+  return `${opener}${what ? ' ' + what : ''}${guidance}`;
 }
 
 function showError(title, msg) {
@@ -680,7 +894,12 @@ async function sendToAnt(text, hideUserMsg) {
     if (!data.success) throw new Error(data.error || 'Ant returned no success');
 
     if (data.session_id) assistSessionId = data.session_id;
-    if (data.captured_data) collectedData = Object.assign({}, collectedData, data.captured_data);
+    if (data.captured_data) {
+      collectedData = Object.assign({}, collectedData, data.captured_data);
+      // Mirror Ant-captured TDR fields back into the visible form so the
+      // tech sees the form fill in as they chat.
+      syncCollectedDataIntoTdrForm();
+    }
 
     addMessage('assistant', data.reply);
 
@@ -1240,9 +1459,9 @@ function showTdrGateError(missingLabels) {
   div.id = 'tdrGateBanner';
   div.style.cssText = 'background:#3b1d1d;border:1px solid #ff6b6b;border-radius:8px;padding:12px 14px;margin:10px 0;color:#ffd6d6;font-size:14px;line-height:1.5;';
   div.innerHTML = `
-    <strong style="display:block;margin-bottom:6px;color:#ff8a8a">⚠️ Please complete the TDR before closing this job.</strong>
+    <strong style="display:block;margin-bottom:6px;color:#ff8a8a">⚠️ Fill the TDR form above before closing this job.</strong>
     <div style="margin-bottom:10px">Missing: <strong>${missingLabels.map((m) => escapeHtmlForGate(m)).join(', ')}</strong></div>
-    <button type="button" id="tdrGateScrollBtn" style="background:#f6cf45;color:#050505;border:none;border-radius:6px;padding:8px 14px;font-family:inherit;font-size:13px;cursor:pointer">Complete TDR first →</button>
+    <button type="button" id="tdrGateScrollBtn" style="background:#f6cf45;color:#050505;border:none;border-radius:6px;padding:8px 14px;font-family:inherit;font-size:13px;cursor:pointer">Jump to TDR form →</button>
   `;
   sys.appendChild(div);
   div.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1250,14 +1469,194 @@ function showTdrGateError(missingLabels) {
   const btn = document.getElementById('tdrGateScrollBtn');
   if (btn) {
     btn.addEventListener('click', () => {
-      // Scroll the Submit TDR banner into view + focus the chat input so
-      // the tech can immediately continue working with Ant Assist to fill
-      // the missing fields.
-      const banner = document.getElementById('submit-banner');
-      if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const txt = document.getElementById('chat-input') || document.querySelector('textarea');
-      if (txt) txt.focus();
+      const form = document.getElementById('tdr-form');
+      if (form) {
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        form.classList.add('highlight');
+        setTimeout(() => form.classList.remove('highlight'), 2400);
+        // Focus the first empty required field for instant input.
+        const fields = ['tdr-diagnosis','tdr-failed-component','tdr-labor-time','tdr-repair-completed'];
+        for (const id of fields) {
+          const el = document.getElementById(id);
+          if (el && !String(el.value || '').trim()) { el.focus(); break; }
+        }
+      }
     });
+  }
+}
+
+// ── Inline TDR form (urgent field fix 2026-05-26) ──
+let inlineTdrJustSaved = false;
+
+function initInlineTdrForm(allTdrs) {
+  const form = document.getElementById('tdr-form');
+  if (!form) return;
+  form.style.display = 'block';
+  // Pre-fill from the most recent tech-authored TDR (skip Teddy's tech_id=1).
+  const techTdrs = (allTdrs || []).filter((t) => t && t.technician_id && t.technician_id != 1);
+  const latest = techTdrs.length ? techTdrs[techTdrs.length - 1] : null;
+  if (latest) {
+    const setIfEmpty = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val != null && String(val).trim()) el.value = String(val);
+    };
+    setIfEmpty('tdr-diagnosis', latest.diagnosis);
+    setIfEmpty('tdr-failed-component', latest.failed_component);
+    if (Number(latest.labor_time_hours) > 0) {
+      const el = document.getElementById('tdr-labor-time');
+      if (el) el.value = String(latest.labor_time_hours);
+    }
+    const rc = (latest.repair_completed || '').toString().toLowerCase();
+    if (rc) {
+      const sel = document.getElementById('tdr-repair-completed');
+      if (sel) {
+        // Match yes/no/partial — strings stored on the row may differ slightly.
+        if (rc.startsWith('y')) sel.value = 'yes';
+        else if (rc.startsWith('n')) sel.value = 'no';
+        else if (rc.startsWith('p')) sel.value = 'partial';
+      }
+    }
+  }
+  refreshTdrFormStatus();
+}
+
+function readTdrInline() {
+  return {
+    diagnosis: (document.getElementById('tdr-diagnosis')?.value || '').trim(),
+    failed_component: (document.getElementById('tdr-failed-component')?.value || '').trim(),
+    labor_time_hours: parseFloat(document.getElementById('tdr-labor-time')?.value || '0') || 0,
+    repair_completed: (document.getElementById('tdr-repair-completed')?.value || '').trim(),
+  };
+}
+
+function refreshTdrFormStatus() {
+  const v = readTdrInline();
+  const checks = [
+    !!v.diagnosis,
+    !!v.failed_component,
+    v.labor_time_hours > 0,
+    !!v.repair_completed,
+  ];
+  const filled = checks.filter(Boolean).length;
+  const total = checks.length;
+
+  // Highlight per-field "has-value" border so techs see progress.
+  document.getElementById('tdr-field-diagnosis')?.classList.toggle('has-value', checks[0]);
+  document.getElementById('tdr-field-failed-component')?.classList.toggle('has-value', checks[1]);
+  document.getElementById('tdr-field-labor-time')?.classList.toggle('has-value', checks[2]);
+  document.getElementById('tdr-field-repair-completed')?.classList.toggle('has-value', checks[3]);
+
+  const status = document.getElementById('tdr-form-status');
+  if (status) {
+    status.textContent = `${filled} / ${total} fields`;
+    status.classList.toggle('done', filled === total);
+    status.classList.toggle('missing', filled < total);
+  }
+  const btn = document.getElementById('tdr-save-btn');
+  if (btn) {
+    btn.disabled = filled < total;
+    btn.classList.toggle('ok', inlineTdrJustSaved && filled === total);
+  }
+  return filled === total;
+}
+
+function onTdrFieldInput() {
+  inlineTdrJustSaved = false;
+  refreshTdrFormStatus();
+}
+
+// Mirror Ant-captured TDR fields back into the visible form (chat → form).
+// Only writes when the form field is empty so we don't clobber tech edits.
+function syncCollectedDataIntoTdrForm() {
+  const writeIfEmpty = (id, val) => {
+    if (val == null) return;
+    const s = (typeof val === 'number') ? String(val) : String(val).trim();
+    if (!s) return;
+    const el = document.getElementById(id);
+    if (el && !String(el.value || '').trim()) el.value = s;
+  };
+  writeIfEmpty('tdr-diagnosis', collectedData.diagnosis);
+  writeIfEmpty('tdr-failed-component', collectedData.failed_component);
+  if (Number(collectedData.labor_time_hours) > 0) {
+    writeIfEmpty('tdr-labor-time', collectedData.labor_time_hours);
+  }
+  // Normalize whatever Ant captured ("yes"/"completed"/"true") into the
+  // form's enum.
+  const rcRaw = (collectedData.repair_completed || '').toString().toLowerCase();
+  if (rcRaw) {
+    let mapped = '';
+    if (/^y|true|complete|done|fixed/.test(rcRaw)) mapped = 'yes';
+    else if (/^n|false|not|pending/.test(rcRaw)) mapped = 'no';
+    else if (/^p|partial|temp/.test(rcRaw)) mapped = 'partial';
+    if (mapped) {
+      const sel = document.getElementById('tdr-repair-completed');
+      if (sel && !sel.value) sel.value = mapped;
+    }
+  }
+  refreshTdrFormStatus();
+}
+
+async function saveTdrInline() {
+  const btn = document.getElementById('tdr-save-btn');
+  const msg = document.getElementById('tdr-save-msg');
+  if (!refreshTdrFormStatus()) return;
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  msg.classList.remove('error', 'success');
+  msg.textContent = '';
+
+  const v = readTdrInline();
+  // Merge form values into collectedData so existing submitTDR() and the
+  // chat-side captured_data logic stay coherent.
+  collectedData = Object.assign({}, collectedData, {
+    diagnosis: v.diagnosis,
+    failed_component: v.failed_component,
+    labor_time_hours: v.labor_time_hours,
+    repair_completed: v.repair_completed,
+  });
+
+  try {
+    const payload = {
+      job_id: parseInt(JOB_ID, 10),
+      technician_id: parseInt(TECH_ID, 10),
+      diagnosis: v.diagnosis,
+      failed_component: v.failed_component,
+      labor_time_hours: v.labor_time_hours,
+      repair_completed: v.repair_completed,
+      problem_summary: collectedData.symptom || collectedData.problem_summary || '',
+      diagnostic_test_performed: collectedData.diagnostic_test_performed || '',
+      failure_cause: collectedData.failure_cause || '',
+      failure_cause_notes: collectedData.failure_cause_notes || '',
+      verified_part_number: collectedData.verified_part_number || '',
+      final_recommendation: collectedData.recommendation || '',
+      technician_notes: collectedData.tech_notes || '',
+      tech_ant_session_id: assistSessionId,
+      status: 'submitted',
+      report_date: new Date().toISOString(),
+    };
+    const res = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'create_tdr', payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data && data.tdr && data.tdr.id) {
+      inlineTdrJustSaved = true;
+      btn.textContent = `✓ TDR #${data.tdr.id} saved`;
+      btn.classList.add('ok');
+      msg.classList.add('success');
+      msg.textContent = `Saved. You can now Complete the job.`;
+      // Remove any prior gate banner; the gate will re-validate on next click.
+      const prior = document.getElementById('tdrGateBanner');
+      if (prior) prior.remove();
+    } else {
+      throw new Error(data && (data.error || data.message) || 'Save returned no TDR id');
+    }
+  } catch (err) {
+    msg.classList.add('error');
+    msg.textContent = '⚠️ ' + (err.message || 'Save failed');
+    btn.textContent = 'Save TDR';
+    btn.disabled = false;
   }
 }
 
