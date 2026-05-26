@@ -37,10 +37,16 @@ async function nodeSyntaxCheck(filePath) {
 }
 
 async function gitCommitAndPush({ commitMsg, files }) {
+  // Defensive scoping: `git add <files>` stages our files, but a plain
+  // `git commit -m` would include anything ELSE that happens to be staged
+  // (e.g. concurrent operator/agent work). Appending `-- <paths>` scopes
+  // the commit to only our intended files regardless of index state.
+  // The bug this prevents was observed 2026-05-26 when operator-staged
+  // BUILD 1/2/3 files were swept into a "[architect] built ME002" commit.
   const addArgs = files.map((f) => `"${f}"`).join(' ');
   await exec(`git -C "${REPO_ROOT}" add ${addArgs}`, EXEC_OPTS);
   const safeMsg = commitMsg.replace(/"/g, '\\"');
-  await exec(`git -C "${REPO_ROOT}" commit -m "${safeMsg}"`, EXEC_OPTS);
+  await exec(`git -C "${REPO_ROOT}" commit -m "${safeMsg}" -- ${addArgs}`, EXEC_OPTS);
   const { stdout } = await exec(`git -C "${REPO_ROOT}" rev-parse HEAD`, EXEC_OPTS);
   const sha = stdout.trim().slice(0, 7);
   await exec(`git -C "${REPO_ROOT}" push`, EXEC_OPTS);
