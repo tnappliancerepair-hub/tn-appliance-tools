@@ -10,14 +10,20 @@
 // agents in the same family.
 //
 // Today the catalog supports:
-//   diagnostic_specialist — DIAGNOSTIC_BRIEF emitter, triggered by
-//                           DIAGNOSE_<APPLIANCE> signals
-//   brand_specialist      — BRAND_INTELLIGENCE emitter, triggered by
-//                           BRAND_LOOKUP_<BRAND> signals
-//   research_specialist   — RESEARCH_DATA emitter, triggered by
-//                           RESEARCH_REQUEST_<SOURCE> signals
-//   sms_responder         — CUSTOMER_SMS_REPLY emitter, triggered by
-//                           SMS_RESPONSE_<TYPE> signals
+//   diagnostic_specialist  — DIAGNOSTIC_BRIEF emitter, triggered by
+//                            DIAGNOSE_<APPLIANCE> signals
+//   brand_specialist       — BRAND_INTELLIGENCE emitter, triggered by
+//                            BRAND_LOOKUP_<BRAND> signals
+//   research_specialist    — RESEARCH_DATA emitter, triggered by
+//                            RESEARCH_REQUEST_<SOURCE> signals
+//   sms_responder          — CUSTOMER_SMS_REPLY emitter, triggered by
+//                            SMS_RESPONSE_<TYPE> signals
+//   parts_intelligence     — PARTS_INTELLIGENCE emitter, triggered by
+//                            PARTS_LOOKUP_<DOMAIN> signals
+//   scheduling_optimizer   — SCHEDULING_DECISION emitter, triggered by
+//                            SCHEDULE_REQUEST_<TYPE> signals
+//   performance_coach      — PERFORMANCE_INSIGHT emitter, triggered by
+//                            PERFORMANCE_REQUEST_<SCOPE> signals
 //
 // Dispatch convention: dispatch.js routes one handler per signal_type, so
 // each generated agent gets its own per-domain signal_type. A future
@@ -82,6 +88,106 @@ function smsTypeDisplayFromAgent(agent, slug) {
     .replace(/\s*SMS\s*Responder$/i, '')
     .replace(/\s*Customer\s*Reply\s*Agent$/i, '')
     .replace(/\s*Reply\s*Agent$/i, '')
+    .trim();
+  if (name) return name;
+  return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function isPartsIntelligence(agent) {
+  const outputs = (agent.outputs || []).join(' ');
+  if (/PARTS_INTELLIGENCE/i.test(outputs)) return true;
+
+  const purpose = String(agent.purpose || agent.description || '').toLowerCase();
+  const name = String(agent.name || '').toLowerCase();
+  const combined = purpose + ' ' + name;
+  // Word-boundary matches to avoid false positives (e.g. "departments").
+  return /\bparts?\b|\boem\b|\bmarcone\b|\bsupplier|\b(order|reorder|backorder)\b|\b(part[\- ]?number|sku)\b/.test(combined);
+}
+
+function partsDomainFromAgent(agent) {
+  const trig = (agent.triggers || []).join(' ');
+  const m = trig.match(/PARTS_LOOKUP_([A-Z0-9_]+)/);
+  if (m) return m[1].toLowerCase();
+  const m2 = trig.match(/(?:domain|category)\s*=\s*([a-z0-9_]+)/i);
+  if (m2) return m2[1].toLowerCase();
+  // Derive from name — strip common suffixes.
+  const name = String(agent.name || '')
+    .replace(/\s*(Parts|Agent|Intelligence|Specialist|Responder)$/gi, '')
+    .replace(/\s*(Parts|Agent|Intelligence|Specialist|Responder)\b/gi, '')
+    .trim();
+  if (!name) return null;
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function partsDomainDisplay(agent, slug) {
+  const name = String(agent.name || '')
+    .replace(/\s*(Parts|Agent|Intelligence|Specialist)\s*Agent?$/gi, '')
+    .trim();
+  if (name) return name;
+  return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function isSchedulingOptimizer(agent) {
+  const outputs = (agent.outputs || []).join(' ');
+  if (/SCHEDULING_DECISION|SCHEDULE_DECISION/i.test(outputs)) return true;
+
+  const purpose = String(agent.purpose || agent.description || '').toLowerCase();
+  const name = String(agent.name || '').toLowerCase();
+  const combined = purpose + ' ' + name;
+  return /\bschedul\w*|\brout(e|ing)\b|\bcapacit\w*|\bavailabilit\w*|\bdispatch|\bslot|\bcalendar|\bgap[\- ]?fill/.test(combined);
+}
+
+function schedulingScopeFromAgent(agent) {
+  const trig = (agent.triggers || []).join(' ');
+  const m = trig.match(/SCHEDULE_REQUEST_([A-Z0-9_]+)/);
+  if (m) return m[1].toLowerCase();
+  const m2 = trig.match(/(?:scope|type)\s*=\s*([a-z0-9_]+)/i);
+  if (m2) return m2[1].toLowerCase();
+  const name = String(agent.name || '')
+    .replace(/\s*(Scheduling|Schedule|Optimizer|Agent)$/gi, '')
+    .trim();
+  if (!name) return null;
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function schedulingScopeDisplay(agent, slug) {
+  const name = String(agent.name || '')
+    .replace(/\s*(Scheduling|Schedule|Optimizer)\s*Agent?$/gi, '')
+    .trim();
+  if (name) return name;
+  return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function isPerformanceCoach(agent) {
+  const outputs = (agent.outputs || []).join(' ');
+  if (/PERFORMANCE_INSIGHT|COACHING_RECOMMENDATION/i.test(outputs)) return true;
+
+  const purpose = String(agent.purpose || agent.description || '').toLowerCase();
+  const name = String(agent.name || '').toLowerCase();
+  const combined = purpose + ' ' + name;
+  // Keep narrow — "performance" only when tied to tech/coaching/metrics/TDR context.
+  return (
+    /\btech\s+performance\b|\bperformance\s+coach|\bcoach(ing)?\b|\bmetric\w*\s+coach|\btdr\s+quality|\bquality\s+of\s+(work|tdr|repair)/.test(combined)
+    || (/\bperformance\b/.test(combined) && /\b(tech|technician|metrics|coach|tdr)\b/.test(combined))
+  );
+}
+
+function performanceScopeFromAgent(agent) {
+  const trig = (agent.triggers || []).join(' ');
+  const m = trig.match(/PERFORMANCE_REQUEST_([A-Z0-9_]+)/);
+  if (m) return m[1].toLowerCase();
+  const m2 = trig.match(/(?:scope|focus)\s*=\s*([a-z0-9_]+)/i);
+  if (m2) return m2[1].toLowerCase();
+  const name = String(agent.name || '')
+    .replace(/\s*(Performance|Coach|Coaching|Agent)$/gi, '')
+    .trim();
+  if (!name) return null;
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function performanceScopeDisplay(agent, slug) {
+  const name = String(agent.name || '')
+    .replace(/\s*(Performance|Coach|Coaching)\s*Agent?$/gi, '')
     .trim();
   if (name) return name;
   return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -154,6 +260,80 @@ function metaPromptForBrand(brandDisplay) {
     `3. SERVICE BULLETINS / RECALLS: any documented service notices relevant to this model range.\n` +
     `4. PARTS NOTES: ${brandDisplay}-specific part-number conventions, cross-references, supersession warnings.\n\n` +
     `Be specific. If you do not know a fact, write "Not on file" rather than guessing. ` +
+    `Output ONLY the system prompt text — no preamble, no commentary, no meta-text.`
+  );
+}
+
+function metaPromptForParts(domainDisplay) {
+  return (
+    `You are designing the Claude system prompt for a "${domainDisplay}" appliance parts intelligence agent. ` +
+    `This agent specializes in identifying, sourcing, pricing, and validating compatibility of replacement parts for ` +
+    `home appliances (washers, dryers, dishwashers, refrigerators, ranges, ovens, microwaves).\n\n` +
+    `The agent receives: appliance type, brand, model number, the failed component or part description, ` +
+    `optionally a tech-supplied verified_part_number, and customer-reported symptom. It must return structured ` +
+    `parts intelligence in this exact shape:\n\n` +
+    `1. PART IDENTIFICATION: the most likely OEM part number(s) for this failure, with confidence (high/medium/low). ` +
+    `Include the manufacturer's canonical number AND any common supersession references.\n` +
+    `2. SOURCING: top 2-3 suppliers ranked by typical availability for ${domainDisplay}-relevant parts ` +
+    `(Marcone, Reliable Parts, AppliancePartsPros, RepairClinic, encompass, manufacturer-direct). ` +
+    `Mention any known stock issues or extended ETAs.\n` +
+    `3. PRICING: typical retail price range and any common warranty-discount paths.\n` +
+    `4. COMPATIBILITY NOTES: cross-model fitment, supersession history, and any known wrong-part traps (similar ` +
+    `numbers that fit but cause issues).\n` +
+    `5. INSTALL FLAGS: special tools needed, refrigerant handling, or proprietary fittings that change labor estimate.\n\n` +
+    `Be specific. If a fact is unknown, write "Not on file" rather than guessing. Never invent part numbers — ` +
+    `if you cannot identify the OEM number with reasonable confidence, say so and recommend a tech-side lookup.\n\n` +
+    `Output ONLY the system prompt text — no preamble, no commentary, no meta-text.`
+  );
+}
+
+function metaPromptForScheduling(scopeDisplay) {
+  return (
+    `You are designing the Claude system prompt for a "${scopeDisplay}" tech scheduling and routing optimizer agent. ` +
+    `This agent optimizes the placement of new appliance-repair jobs onto a fleet of techs working a daily route, ` +
+    `balancing geographic clustering, tech capacity, customer time-window constraints, and revenue-per-route.\n\n` +
+    `The agent receives a structured payload: the new job (job_id, customer location, appliance type, problem ` +
+    `summary, customer_preference_text such as "weekday mornings only", warranty_company, urgency), available ` +
+    `techs with their current day's job list and remaining capacity, and any constraints (sick-day cascades, ` +
+    `parts-arrival ETAs, prior assignments). It must return a structured scheduling decision in this exact shape:\n\n` +
+    `1. RECOMMENDED ASSIGNMENT: top tech + time-slot pick, with explicit reasoning ` +
+    `(distance from prior stop, tech specialty match, customer constraint satisfaction).\n` +
+    `2. ALTERNATIVES: 2 backup tech+slot pairs ranked by score, with what's worse about each.\n` +
+    `3. CAPACITY FLAGS: any techs running over 6 jobs already, or with route-distance > 60 miles for the day, ` +
+    `or sick-day risks for the target date.\n` +
+    `4. CUSTOMER FIT: how well the recommended slot matches customer_preference_text. If poor match, ` +
+    `flag a "propose 3 options" path rather than direct-book.\n` +
+    `5. REVENUE NOTE: whether this assignment helps fill a gap that would otherwise leave a tech idle, ` +
+    `or whether it stacks onto an already-full route.\n\n` +
+    `Be specific to ${scopeDisplay}-style optimization. Never assign work to techs not in the supplied tech list. ` +
+    `Never invent capacity numbers. If a key field is missing (e.g. customer zip), say so and recommend the ` +
+    `default "broadcast" fallback.\n\n` +
+    `Output ONLY the system prompt text — no preamble, no commentary, no meta-text.`
+  );
+}
+
+function metaPromptForPerformance(scopeDisplay) {
+  return (
+    `You are designing the Claude system prompt for a "${scopeDisplay}" tech performance and coaching agent. ` +
+    `This agent analyzes a technician's recent work to surface coaching opportunities, quality issues, and ` +
+    `performance trends. It runs against TN Appliance Exchange's TDR (technician decision report) data, job ` +
+    `completion records, and time-on-site signals.\n\n` +
+    `The agent receives a structured payload for one tech: tech_id, first_name, last 30-90 days of TDRs ` +
+    `(diagnosis text, failure_cause, repair_completed flag, labor_time_hours, customer_facing_diagnosis), ` +
+    `job completion outcomes (completed / awaiting_parts / no_fix_possible / held), recall/callback rate, and ` +
+    `customer feedback signals (1-5 ratings, free-text comments). It must return structured performance ` +
+    `intelligence in this exact shape:\n\n` +
+    `1. SUMMARY: one-line snapshot of this tech's recent trajectory (improving / steady / regressing) with ` +
+    `the single most important metric driving that label.\n` +
+    `2. STRENGTHS: top 2 things this tech is doing well, with specific examples from the data.\n` +
+    `3. GAPS: top 2 ${scopeDisplay} coaching opportunities, with specific evidence and what "better" looks like.\n` +
+    `4. TDR QUALITY: assessment of recent TDR completeness — are failed_component, labor_time_hours, ` +
+    `repair_completed, customer_facing_diagnosis being filled in fully? Flag the worst-offender field.\n` +
+    `5. NEXT STEP: one concrete coaching action Teddy could send via SMS this week (under 200 chars).\n\n` +
+    `Be respectful and direct — these techs are field professionals, not students. Never call out a single ` +
+    `customer complaint as proof; require a pattern of 3+ instances before flagging. Never compare techs to ` +
+    `each other in the output. If the data is too thin for a confident assessment, say "Not enough data" ` +
+    `rather than speculating.\n\n` +
     `Output ONLY the system prompt text — no preamble, no commentary, no meta-text.`
   );
 }
@@ -356,6 +536,162 @@ export async function run(signal, ctx) {
 `;
 
   return { code, filename, signal_type: signalType };
+}
+
+function renderGenericSpecialist({
+  agent,
+  slug,
+  display,
+  systemPromptText,
+  // wiring constants
+  signalIn,     // e.g. "PARTS_LOOKUP_REFRIGERATOR_PARTS"
+  signalOut,    // e.g. "PARTS_INTELLIGENCE"
+  filename,     // e.g. "parts_refrigerator_parts.js"
+  templateName, // e.g. "parts_intelligence"
+  outputKey,    // e.g. "intel_text"
+  signalStrength = 55,
+  promptVarName, // e.g. "PARTS_PROMPT"
+  userMessageLines, // function: (payloadVarName) => string[] (JS source lines)
+}) {
+  const safePrompt = escapeForBacktick(systemPromptText);
+  const userMsgLines = userMessageLines('payload');
+
+  const code =
+`// Auto-generated by colony_architect (${templateName}) on ${new Date().toISOString()}.
+// Agent ${agent.id} — ${escapeForBacktick(agent.name || '')}
+// Specialty: ${display}  (slug: ${slug})
+// Signal in:  ${signalIn}
+// Signal out: ${signalOut}
+//
+// Upstream wiring (a future router) is expected to emit ${signalIn} when a
+// job matches the "${slug}" specialty. Until then this agent sits dormant
+// but ready.
+
+import { config } from '../config.js';
+
+const SPECIALTY_SLUG = '${slug}';
+const SPECIALTY_DISPLAY = '${escapeForBacktick(display)}';
+const AGENT_ID = '${agent.id}';
+
+const ${promptVarName} = \`${safePrompt}\`;
+
+export async function run(signal, ctx) {
+  const { xano, claude, log } = ctx;
+  const payload = signal.payload || {};
+  const jobId = payload.job_id == null ? null : Number(payload.job_id);
+
+  const userMessage = [
+${userMsgLines.map((l) => '    ' + l).join(',\n')}
+  ].join('\\n');
+
+  const resp = await claude.callClaude({
+    system: ${promptVarName},
+    messages: [{ role: 'user', content: userMessage }],
+    model: config.claudeModel,
+  });
+  const outputText = (claude.textFromResponse ? claude.textFromResponse(resp) : '').trim();
+
+  await xano.emitSignal({
+    signal_type: '${signalOut}',
+    signal_strength: ${signalStrength},
+    payload: {
+      job_id: jobId,
+      specialty: SPECIALTY_SLUG,
+      specialty_display: SPECIALTY_DISPLAY,
+      ${outputKey}: outputText,
+      generated_by: AGENT_ID,
+      source_signal_id: signal.id,
+      generated_at_ms: Date.now(),
+    },
+  });
+
+  const meta = {
+    job_id: jobId,
+    specialty: SPECIALTY_SLUG,
+    agent_id: AGENT_ID,
+    output_chars: outputText.length,
+    outcome: '${signalOut.toLowerCase()}_emitted',
+  };
+  await xano.markSignalProcessed(signal.id, '${signalOut.toLowerCase()}_emitted', meta);
+  log('${signalOut.toLowerCase()}_emitted', meta);
+
+  return { success: true, action: meta.outcome, job_id: jobId, agent_id: AGENT_ID };
+}
+`;
+
+  return { code, filename, signal_type: signalIn };
+}
+
+function renderPartsIntelligence({ agent, domainSlug, domainDisplay, systemPromptText }) {
+  return renderGenericSpecialist({
+    agent,
+    slug: domainSlug,
+    display: domainDisplay,
+    systemPromptText,
+    signalIn: `PARTS_LOOKUP_${domainSlug.toUpperCase()}`,
+    signalOut: 'PARTS_INTELLIGENCE',
+    filename: `parts_${domainSlug}.js`,
+    templateName: 'parts_intelligence',
+    outputKey: 'intel_text',
+    promptVarName: 'PARTS_PROMPT',
+    userMessageLines: () => [
+      `'Appliance type: ' + (payload.appliance_type || 'unknown')`,
+      `'Brand: ' + (payload.brand || 'unknown')`,
+      `'Model number: ' + (payload.model_number || 'unknown')`,
+      `'Failed component: ' + (payload.failed_component || payload.problem_summary || '(none)')`,
+      `'Verified part number (if any): ' + (payload.verified_part_number || '(none)')`,
+      `'Symptom: ' + (payload.problem_summary || '(none)')`,
+    ],
+  });
+}
+
+function renderSchedulingOptimizer({ agent, scopeSlug, scopeDisplay, systemPromptText }) {
+  return renderGenericSpecialist({
+    agent,
+    slug: scopeSlug,
+    display: scopeDisplay,
+    systemPromptText,
+    signalIn: `SCHEDULE_REQUEST_${scopeSlug.toUpperCase()}`,
+    signalOut: 'SCHEDULING_DECISION',
+    filename: `schedule_${scopeSlug}.js`,
+    templateName: 'scheduling_optimizer',
+    outputKey: 'decision_text',
+    promptVarName: 'SCHEDULING_PROMPT',
+    userMessageLines: () => [
+      `'Job ID: ' + (jobId == null ? 'none' : jobId)`,
+      `'Appliance type: ' + (payload.appliance_type || 'unknown')`,
+      `'Customer zip: ' + (payload.customer_zip || payload.zip || 'unknown')`,
+      `'Customer preference: ' + (payload.customer_preference_text || '(none)')`,
+      `'Urgency: ' + (payload.scheduling_type || 'standard')`,
+      `'Warranty company: ' + (payload.warranty_company || 'self-pay')`,
+      `'Available techs (JSON): ' + JSON.stringify(payload.available_techs || [])`,
+      `'Constraints (JSON): ' + JSON.stringify(payload.constraints || {})`,
+    ],
+  });
+}
+
+function renderPerformanceCoach({ agent, scopeSlug, scopeDisplay, systemPromptText }) {
+  return renderGenericSpecialist({
+    agent,
+    slug: scopeSlug,
+    display: scopeDisplay,
+    systemPromptText,
+    signalIn: `PERFORMANCE_REQUEST_${scopeSlug.toUpperCase()}`,
+    signalOut: 'PERFORMANCE_INSIGHT',
+    filename: `performance_${scopeSlug}.js`,
+    templateName: 'performance_coach',
+    outputKey: 'insight_text',
+    promptVarName: 'PERFORMANCE_PROMPT',
+    userMessageLines: () => [
+      `'Tech ID: ' + (payload.tech_id || 'unknown')`,
+      `'Tech name: ' + (payload.tech_first_name || payload.tech_name || 'unknown')`,
+      `'Window (days): ' + (payload.window_days || 30)`,
+      `'Recent TDRs (JSON): ' + JSON.stringify(payload.recent_tdrs || [])`,
+      `'Recent jobs (JSON): ' + JSON.stringify(payload.recent_jobs || [])`,
+      `'Callback rate: ' + (payload.callback_rate || 'n/a')`,
+      `'Feedback signals (JSON): ' + JSON.stringify(payload.feedback || [])`,
+    ],
+  });
 }
 
 function renderSmsResponder({ agent, typeSlug, typeDisplay, systemPromptText }) {
@@ -650,6 +986,87 @@ export async function generateAgent(agent, claude, config) {
       agent,
       sourceSlug,
       sourceDisplay,
+      systemPromptText: promptText,
+    });
+  }
+
+  if (isPartsIntelligence(agent)) {
+    const domainSlug = partsDomainFromAgent(agent);
+    if (!domainSlug) {
+      throw new Error('parts-intelligence template requires a name or trigger to derive a domain slug');
+    }
+    const domainDisplay = partsDomainDisplay(agent, domainSlug);
+
+    const resp = await claude.callClaude({
+      system: 'You write Claude system prompts for specialist agents. Output only the prompt text — no commentary, no preamble.',
+      messages: [{ role: 'user', content: metaPromptForParts(domainDisplay) }],
+      model: config.claudeModel,
+      maxTokens: 2048,
+    });
+    const promptText = (claude.textFromResponse ? claude.textFromResponse(resp) : '').trim();
+
+    if (!promptText || promptText.length < 60) {
+      throw new Error('Claude returned empty/short system prompt for parts domain ' + domainSlug);
+    }
+
+    return renderPartsIntelligence({
+      agent,
+      domainSlug,
+      domainDisplay,
+      systemPromptText: promptText,
+    });
+  }
+
+  if (isSchedulingOptimizer(agent)) {
+    const scopeSlug = schedulingScopeFromAgent(agent);
+    if (!scopeSlug) {
+      throw new Error('scheduling-optimizer template requires a name or trigger to derive a scope slug');
+    }
+    const scopeDisplay = schedulingScopeDisplay(agent, scopeSlug);
+
+    const resp = await claude.callClaude({
+      system: 'You write Claude system prompts for specialist agents. Output only the prompt text — no commentary, no preamble.',
+      messages: [{ role: 'user', content: metaPromptForScheduling(scopeDisplay) }],
+      model: config.claudeModel,
+      maxTokens: 2048,
+    });
+    const promptText = (claude.textFromResponse ? claude.textFromResponse(resp) : '').trim();
+
+    if (!promptText || promptText.length < 60) {
+      throw new Error('Claude returned empty/short system prompt for scheduling scope ' + scopeSlug);
+    }
+
+    return renderSchedulingOptimizer({
+      agent,
+      scopeSlug,
+      scopeDisplay,
+      systemPromptText: promptText,
+    });
+  }
+
+  if (isPerformanceCoach(agent)) {
+    const scopeSlug = performanceScopeFromAgent(agent);
+    if (!scopeSlug) {
+      throw new Error('performance-coach template requires a name or trigger to derive a scope slug');
+    }
+    const scopeDisplay = performanceScopeDisplay(agent, scopeSlug);
+
+    const resp = await claude.callClaude({
+      system: 'You write Claude system prompts for specialist agents. Output only the prompt text — no commentary, no preamble.',
+      messages: [{ role: 'user', content: metaPromptForPerformance(scopeDisplay) }],
+      model: config.claudeModel,
+      maxTokens: 2048,
+    });
+    const promptText = (claude.textFromResponse ? claude.textFromResponse(resp) : '').trim();
+
+    if (!promptText || promptText.length < 60) {
+      throw new Error('Claude returned empty/short system prompt for performance scope ' + scopeSlug);
+    }
+
+    return renderPerformanceCoach({
+      agent,
+      scopeSlug,
+      scopeDisplay,
       systemPromptText: promptText,
     });
   }
