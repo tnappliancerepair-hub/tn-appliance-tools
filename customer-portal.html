@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Your Appointment - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f8fb;
+    color: #1a1f2c;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  :root {
+    --bg: #f7f8fb;
+    --card: #ffffff;
+    --border: #e2e6f0;
+    --border-soft: #eef0f6;
+    --text: #1a1f2c;
+    --muted: #6b7280;
+    --green: #00b377;
+    --orange: #e08b00;
+    --blue: #2e7dd6;
+    --red: #d94545;
+    --violet: #7b5fd6;
+    --brand: #ff8a00;
+  }
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header .ant { font-size: 22px; }
+  .header .text .title { font-size: 15px; font-weight: 700; }
+  .header .text .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Status hero */
+  .hero {
+    margin: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 20px;
+  }
+  .hero .badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .hero.scheduled .badge { background: rgba(46,125,214,0.1); color: var(--blue); }
+  .hero.on_way .badge { background: rgba(224,139,0,0.12); color: var(--orange); }
+  .hero.in_progress .badge { background: rgba(123,95,214,0.12); color: var(--violet); }
+  .hero.completed .badge { background: rgba(0,179,119,0.12); color: var(--green); }
+  .hero.canceled .badge { background: rgba(217,69,69,0.12); color: var(--red); }
+
+  .hero .headline {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.25;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .hero .detail {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* Info card */
+  .info-card {
+    margin: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .info-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .info-row .val { font-size: 14px; color: var(--text); font-weight: 600; text-align: right; max-width: 60%; }
+
+  /* Actions */
+  .actions {
+    padding: 4px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover { border-color: var(--brand); }
+  .btn.primary { background: var(--brand); color: white; border-color: var(--brand); text-align: center; }
+  .btn .sub { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 400; }
+  .btn.primary .sub { color: rgba(255,255,255,0.85); }
+
+  /* Action modal */
+  .action-form {
+    margin: 0 14px 14px;
+    background: var(--card);
+    border: 1px solid var(--brand);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: none;
+  }
+  .action-form.show { display: block; }
+  .action-form .title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .action-form textarea {
+    width: 100%;
+    min-height: 100px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+    resize: vertical;
+    outline: none;
+  }
+  .action-form textarea:focus { border-color: var(--brand); }
+  .action-form .row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .action-form .row button {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .action-form .submit { background: var(--brand); color: white; }
+  .action-form .cancel { background: transparent; color: var(--muted); border: 1px solid var(--border) !important; }
+  .action-form .msg { font-size: 12px; margin-top: 8px; min-height: 14px; }
+  .action-form .msg.ok { color: var(--green); }
+  .action-form .msg.err { color: var(--red); }
+
+  /* Footer */
+  .footer {
+    padding: 24px 18px 36px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .footer a { color: var(--brand); text-decoration: none; font-weight: 600; }
+
+  /* Auth gate */
+  .gate {
+    margin: 60px 18px 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 26px;
+    text-align: center;
+    max-width: 380px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .gate .ant { font-size: 36px; margin-bottom: 10px; }
+  .gate .title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .gate .sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .gate input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 22px;
+    font-family: 'IBM Plex Mono', monospace;
+    text-align: center;
+    letter-spacing: 8px;
+    outline: none;
+  }
+  .gate input:focus { border-color: var(--brand); }
+  .gate button {
+    margin-top: 12px;
+    width: 100%;
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .gate .err { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 14px; }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .loading .ant { font-size: 36px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div id="loading" class="loading">
+  <div class="ant">🐜</div>
+  <div>loading…</div>
+</div>
+
+<div id="gate" class="gate" style="display:none">
+  <div class="ant">🐜</div>
+  <div class="title">Your Appointment</div>
+  <div class="sub">Enter the last 4 digits of your phone number to view your job.</div>
+  <input id="gateInput" type="tel" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="off">
+  <button id="gateSubmit">View Appointment</button>
+  <div id="gateErr" class="err"></div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div class="text">
+      <div class="title">TN Appliance Exchange</div>
+      <div class="sub" id="hSub">Your appointment</div>
+    </div>
+  </div>
+
+  <div id="hero" class="hero scheduled">
+    <div class="badge" id="heroBadge">scheduled</div>
+    <div class="headline" id="heroHeadline">Loading…</div>
+    <div class="detail" id="heroDetail"></div>
+  </div>
+
+  <div id="infoCard" class="info-card"></div>
+
+  <div class="actions">
+    <button class="btn" id="btnReschedule">
+      Reschedule
+      <span class="sub">Need a different day/time? Let us know.</span>
+    </button>
+    <button class="btn" id="btnNotes">
+      Add gate code / pet / access notes
+      <span class="sub">So your tech is ready when they arrive.</span>
+    </button>
+    <a class="btn" href="tel:+16152802949" id="btnCall">
+      Call us · 615-280-2949
+      <span class="sub">Mon-Fri 8am-6pm CT</span>
+    </a>
+  </div>
+
+  <div id="rescheduleForm" class="action-form">
+    <div class="title">When would work better?</div>
+    <textarea id="rescheduleBody" placeholder="e.g. Wednesday afternoon, or any day next week before noon"></textarea>
+    <div class="row">
+      <button class="cancel" data-cancel="reschedule">Cancel</button>
+      <button class="submit" data-submit="reschedule">Send Request</button>
+    </div>
+    <div id="rescheduleMsg" class="msg"></div>
+  </div>
+
+  <div id="notesForm" class="action-form">
+    <div class="title">Notes for your tech</div>
+    <textarea id="notesBody" placeholder="e.g. Gate code 1234, large dog in backyard, doorbell broken"></textarea>
+    <div class="row">
+      <button class="cancel" data-cancel="notes">Cancel</button>
+      <button class="submit" data-submit="notes">Save Notes</button>
+    </div>
+    <div id="notesMsg" class="msg"></div>
+  </div>
+
+  <div class="footer">
+    Questions? <a href="tel:+16152802949">615-280-2949</a><br>
+    <span style="font-size:11px">🐜 ANT · TN Appliance Exchange LLC</span>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const params = new URLSearchParams(window.location.search);
+  const JOB_ID = params.get('job_id');
+  let LAST4 = (params.get('last4') || params.get('phone_last4') || '').replace(/\D/g, '').slice(-4);
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  if (!JOB_ID) {
+    document.getElementById('loading').innerHTML =
+      '<div style="color:#d94545">Missing job_id. Please use the link from your text.</div>';
+    return;
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const loading = $('loading');
+  const gate = $('gate');
+  const gateInput = $('gateInput');
+  const gateSubmit = $('gateSubmit');
+  const gateErr = $('gateErr');
+  const app = $('app');
+
+  let jobData = null;
+
+  // ── Auth flow ───────────────────────────────────────────────────
+  async function tryLoad(last4) {
+    try {
+      const res = await fetch(`${XANO_BASE}/get_customer_job_view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: Number(JOB_ID), phone_last4: last4 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data || data.success !== true) {
+        return { ok: false, err: (data && data.message) || 'unable to load' };
+      }
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, err: err.message || 'network error' };
+    }
+  }
+
+  async function init() {
+    if (LAST4 && LAST4.length === 4) {
+      const r = await tryLoad(LAST4);
+      if (r.ok) {
+        showApp(r.data);
+        return;
+      }
+      // last4 in URL was wrong — fall through to gate
+    }
+    loading.style.display = 'none';
+    gate.style.display = 'block';
+    gateInput.focus();
+  }
+
+  gateSubmit.addEventListener('click', submitGate);
+  gateInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitGate(); });
+
+  async function submitGate() {
+    const v = gateInput.value.replace(/\D/g, '').slice(-4);
+    if (v.length !== 4) { gateErr.textContent = 'Please enter 4 digits.'; return; }
+    gateSubmit.disabled = true;
+    gateErr.textContent = '';
+    const r = await tryLoad(v);
+    gateSubmit.disabled = false;
+    if (!r.ok) {
+      gateErr.textContent = r.err === 'phone_last4 does not match'
+        ? "That doesn't match our records. Try again or call us."
+        : r.err;
+      gateInput.select();
+      return;
+    }
+    LAST4 = v;
+    showApp(r.data);
+  }
+
+  function showApp(data) {
+    jobData = data;
+    gate.style.display = 'none';
+    loading.style.display = 'none';
+    app.style.display = 'block';
+    render(data);
+  }
+
+  // ── Rendering ───────────────────────────────────────────────────
+  function render(data) {
+    const job = data.job || {};
+    const customer = data.customer || {};
+    const tech = data.tech || {};
+    const viewState = data.view_state || 'scheduled';
+
+    const hero = $('hero');
+    hero.className = `hero ${viewState}`;
+    const techFirst = tech.first_name || 'your tech';
+    const appl = [job.brand, job.appliance].filter(Boolean).join(' ') || 'appliance';
+    const apptStr = job.scheduled_start ? fmtCT(job.scheduled_start) : '';
+
+    let badgeText = 'scheduled';
+    let headline = '';
+    let detail = '';
+
+    switch (viewState) {
+      case 'canceled':
+        badgeText = 'canceled';
+        headline = `Hi ${customer.first_name || ''}, your appointment was canceled.`;
+        detail = 'Reply RESCHEDULE to your text to set up a new one, or call 615-280-2949.';
+        break;
+      case 'completed':
+        badgeText = job.scheduling_status === 'completed' ? 'completed' :
+                    job.scheduling_status === 'awaiting_parts' ? 'awaiting parts' :
+                    job.scheduling_status === 'held' ? 'on hold' :
+                    job.scheduling_status === 'no_fix_possible' ? 'no fix possible' : 'completed';
+        if (job.scheduling_status === 'awaiting_parts') {
+          headline = `${techFirst} diagnosed your ${appl} — parts ordered.`;
+          detail = job.parts_eta_date
+            ? `Parts ETA: ${fmtDateOnly(job.parts_eta_date)}. We'll text you when they arrive to schedule the install.`
+            : `We'll text you when parts arrive to schedule the install.`;
+        } else if (job.scheduling_status === 'held') {
+          headline = `${techFirst} put your job on hold — we'll be in touch.`;
+          detail = 'We need more info or authorization before continuing.';
+        } else if (job.scheduling_status === 'no_fix_possible') {
+          headline = `${techFirst} determined the ${appl} can't be repaired.`;
+          detail = 'Check your text for next steps from us.';
+        } else {
+          headline = `${techFirst} completed your ${appl} repair.`;
+          detail = 'Thanks for trusting us. If anything comes up, reply ISSUE to your text or call us.';
+        }
+        break;
+      case 'in_progress':
+        badgeText = 'tech on site';
+        headline = `${techFirst} is working on your ${appl} now.`;
+        detail = '';
+        break;
+      case 'on_way':
+        badgeText = 'on the way';
+        if (job.eta_ms) {
+          headline = `${techFirst} is on the way — ETA ${fmtCT(job.eta_ms)}.`;
+        } else {
+          headline = `${techFirst} is on the way.`;
+        }
+        detail = 'They\'ll text or knock when they arrive.';
+        break;
+      default:
+        badgeText = 'scheduled';
+        headline = apptStr
+          ? `${techFirst} is coming ${apptStr} for your ${appl}.`
+          : `Your ${appl} repair with ${techFirst} is scheduled.`;
+        detail = 'You\'ll get a text when your tech is on the way.';
+    }
+
+    $('heroBadge').textContent = badgeText;
+    $('heroHeadline').textContent = headline;
+    $('heroDetail').textContent = detail;
+
+    // Info rows
+    const rows = [];
+    if (job.scheduled_start) {
+      rows.push({ lbl: 'Appointment', val: fmtCT(job.scheduled_start) });
+    }
+    if (tech.first_name) {
+      rows.push({ lbl: 'Tech', val: `${tech.first_name} ${tech.last_name || ''}`.trim() });
+    }
+    if (job.appliance || job.brand) {
+      rows.push({ lbl: 'Appliance', val: appl });
+    }
+    if (job.problem_summary) {
+      rows.push({ lbl: 'Issue', val: job.problem_summary });
+    }
+    if (job.parts_status && ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(job.parts_status)) {
+      const eta = job.parts_eta_date ? ` (ETA ${fmtDateOnly(job.parts_eta_date)})` : '';
+      rows.push({ lbl: 'Parts', val: `${job.parts_status.replace(/_/g, ' ')}${eta}` });
+    }
+    if (job.access_notes) {
+      rows.push({ lbl: 'Your notes', val: job.access_notes });
+    }
+    if (job.customer_preference_text) {
+      rows.push({ lbl: 'Time pref', val: job.customer_preference_text });
+    }
+    $('infoCard').innerHTML = rows.map(r =>
+      `<div class="info-row"><div class="lbl">${escapeHtml(r.lbl)}</div><div class="val">${escapeHtml(r.val)}</div></div>`
+    ).join('');
+
+    // Hide action buttons for terminal states
+    if (viewState === 'completed' || viewState === 'canceled') {
+      $('btnReschedule').style.display = 'none';
+    }
+  }
+
+  // ── Action handlers ─────────────────────────────────────────────
+  $('btnReschedule').addEventListener('click', () => toggle('rescheduleForm'));
+  $('btnNotes').addEventListener('click', () => toggle('notesForm'));
+
+  document.querySelectorAll('[data-cancel]').forEach(btn => {
+    btn.addEventListener('click', () => $(btn.getAttribute('data-cancel') + 'Form').classList.remove('show'));
+  });
+
+  document.querySelectorAll('[data-submit]').forEach(btn => {
+    btn.addEventListener('click', () => submitAction(btn.getAttribute('data-submit')));
+  });
+
+  function toggle(formId) {
+    const f = $(formId);
+    f.classList.toggle('show');
+    if (f.classList.contains('show')) {
+      f.querySelector('textarea').focus();
+    }
+  }
+
+  async function submitAction(kind) {
+    const form = $(kind + 'Form');
+    const ta = form.querySelector('textarea');
+    const msg = $(kind + 'Msg');
+    const body = (ta.value || '').trim();
+    if (!body) { msg.className = 'msg err'; msg.textContent = 'Please write something first.'; return; }
+    const submitBtn = form.querySelector('.submit');
+    submitBtn.disabled = true;
+    msg.className = 'msg'; msg.textContent = '';
+
+    const action = kind === 'reschedule' ? 'reschedule' : 'add_notes';
+    try {
+      const res = await fetch(`${XANO_BASE}/customer_portal_action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: Number(JOB_ID),
+          phone_last4: LAST4,
+          action,
+          body
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data || data.success !== true) {
+        throw new Error((data && data.message) || 'failed');
+      }
+      msg.className = 'msg ok';
+      msg.textContent = kind === 'reschedule'
+        ? 'Got it — our team will reach out shortly to set up a new time.'
+        : 'Saved. Your tech will see these notes.';
+      ta.value = '';
+      // Reload to reflect any saved-notes changes
+      if (kind === 'add_notes') {
+        setTimeout(async () => {
+          const r = await tryLoad(LAST4);
+          if (r.ok) render(r.data);
+          form.classList.remove('show');
+        }, 1200);
+      } else {
+        setTimeout(() => form.classList.remove('show'), 2000);
+      }
+    } catch (err) {
+      msg.className = 'msg err';
+      msg.textContent = (err && err.message) || 'something went wrong';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  }
+
+  // ── Formatters ──────────────────────────────────────────────────
+  function fmtCT(ms) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      }).format(new Date(Number(ms)));
+    } catch (err) {
+      return new Date(Number(ms)).toLocaleString();
+    }
+  }
+  function fmtDateOnly(d) {
+    if (!d) return '';
+    if (typeof d === 'string' && /\d{4}-\d{2}-\d{2}/.test(d)) {
+      const [y, m, day] = d.split('-');
+      const dt = new Date(Number(y), Number(m) - 1, Number(day));
+      return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(dt);
+    }
+    return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' }).format(new Date(Number(d)));
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
