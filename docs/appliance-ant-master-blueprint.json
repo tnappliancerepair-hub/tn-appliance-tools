@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 127,
-    "agents_to_build": 252,
+    "agents_live": 128,
+    "agents_to_build": 251,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -559,12 +559,12 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 20,
-      "agents_live": 2,
+      "agents_live": 3,
       "agents": [
         {
           "id": "S001",
           "name": "Flexibility Intake Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "During booking asks customer flexibility questions. Not pick a window - how flexible are you? Captures flexibility score.",
           "xano_endpoint": "flexibility_intake_agent",
