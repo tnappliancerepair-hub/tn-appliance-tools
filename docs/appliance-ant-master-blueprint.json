@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 275,
-    "agents_to_build": 37,
+    "agents_live": 276,
+    "agents_to_build": 36,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -399,7 +399,7 @@
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
       "agents_total": 73,
-      "agents_live": 64,
+      "agents_live": 65,
       "agents": [
         {
           "id": "P001",
@@ -1320,7 +1320,7 @@
         {
           "id": "P065",
           "name": "Genuine Replacement Parts Range Parts Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Genuine Replacement Parts sourcing for range: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_GENUINE_REPLACEMENT_PARTS_RANGE.",
           "triggers": [
