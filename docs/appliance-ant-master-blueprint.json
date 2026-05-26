@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 89,
-    "agents_to_build": 290,
+    "agents_live": 90,
+    "agents_to_build": 289,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1571,7 +1571,7 @@
       "purpose": "Pipeline of trained techs from 26 TCAT campuses. Anthony Pivacek Memorial Scholarship. Partnership with Tennessee Board of Regents.",
       "priority": "MEDIUM",
       "agents_total": 5,
-      "agents_live": 2,
+      "agents_live": 3,
       "tcat_facts": {
         "campuses": 26,
         "enrollment": 34486,
@@ -1599,7 +1599,7 @@
         {
           "id": "TC003",
           "name": "Mentor Matching Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Pairs new TCAT grads with right mentor based on geography, specialty, and fit.",
           "xano_endpoint": "mentor_matching_agent"
