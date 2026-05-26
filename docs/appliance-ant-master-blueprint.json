@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 286,
-    "agents_to_build": 26,
+    "agents_live": 287,
+    "agents_to_build": 25,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3159,7 +3159,7 @@
       "purpose": "Strategic visibility. Know the business better than any competitor knows theirs.",
       "priority": "MEDIUM",
       "agents_total": 15,
-      "agents_live": 7,
+      "agents_live": 8,
       "agents": [
         {
           "id": "BI001",
@@ -3239,7 +3239,7 @@
         {
           "id": "BI008",
           "name": "Business Intel Cash Position Watcher",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Watches Stripe + bank balances vs expected payouts. Surfaces low-cash warnings before payroll. Emits BUSINESS_INTEL_INSIGHT.",
           "triggers": [
