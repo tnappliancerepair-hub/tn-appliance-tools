@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 76,
-    "agents_to_build": 303,
+    "agents_live": 77,
+    "agents_to_build": 302,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -889,12 +889,12 @@
       "purpose": "Self-improving voice and SMS systems. Every interaction makes Ant and Vapi smarter.",
       "priority": "MEDIUM",
       "agents_total": 5,
-      "agents_live": 1,
+      "agents_live": 2,
       "agents": [
         {
           "id": "V001",
           "name": "Vapi Transcript Analyzer Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Reads every Vapi call transcript. Scores call quality. Identifies where Vapi agent failed or confused caller.",
           "xano_endpoint": "vapi_transcript_analyzer",
