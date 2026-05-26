@@ -76,15 +76,21 @@ Every architectural decision should move at least one of these five steps closer
 
 ## HCP migration day (planned)
 
-**Target date: TBD.** When the three prerequisites below are done, we **pick a Saturday and cut HCP** — Saturday because the live schedule is lightest, fewest jobs in flight to migrate. All open jobs move from Housecall Pro to Xano + Ant, and HCP is decommissioned.
+**Target date: TBD — pick a Saturday once prereq #5 lands.** Saturday because the live schedule is lightest, fewest jobs in flight to migrate. All open jobs move from Housecall Pro to Xano + Ant, and HCP is decommissioned.
 
-**Three prerequisites gate the cut:**
+**Five prerequisites gate the cut — 4 of 5 done as of 2026-05-25 evening:**
 
 1. ✅ **Calendar view in Ant Office** with capacity indicators — **DONE 2026-05-25**. `office-calendar.html` live at `tnapplianceexchange.net/office-calendar.html`. Week grid with sticky tech header + day-label, big capacity numbers per cell (color-coded by load: green 0-2, yellow 3-4, red 5-6, gray day-off), today-row left-border, sticky footer totals row, "Needs Assignment" banner, prev/today/next week nav. Backed by `get_office_calendar_week_GET.xs`.
-2. **Scheduling owned by Ant** — **NOT DONE.** Office still triages via HCP for new email-intake jobs and uses HCP's calendar for reschedule/reassign/cancel actions. `office-calendar.html` is read-only today (job blocks deep-link to `job-detail.html`; `+ New Job` is a pass-through to `book.html`). The next set of writes — book/reschedule/reassign endpoints triggered from the calendar — is the last prereq.
-3. ✅ **Broadcast booking wired** — **DONE 2026-05-25**. Two halves in `api/scheduling/tech_sms_inbound_POST.xs`: (a) `__CLAIM_BROADCAST__` token now sets `jobs.scheduled_start` to tomorrow 08:00 CT as a default when a tech says yes to an open broadcast; (b) new pre-Claude `PICK1`/`PICK2`/`PICK3` keyword handler scoped to tech_id=1 (Teddy) reads the latest open `must_time_proposal`, applies the chosen option (technician_id + scheduled_start from option's date + window-start), marks the broadcast_attempt `status="booked"`, writes a `proposal_booked` event_log row, and SMSes Teddy a confirmation.
 
-Until all three are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
+2. ✅ **Tech completes jobs without HCP** — **DONE 2026-05-25**. `tech-ant-live.html` Start Job + Complete (with completion-type dropdown) buttons write straight to Xano. `tech_job_started_POST.xs` flips `scheduling_status="in_progress"` + `current_status="in_progress"` + emits JOB_STARTED + SMSes Teddy. `tech_job_complete_POST.xs` flips both statuses via completion_type → enum mapping (was broken — invalid enum values pre-this-session; fixed) + creates tech_earnings stub + emits JOB_COMPLETED (triggers Phase 5A warranty digest for warranty jobs) + SMSes Teddy. Smoke test verified end-to-end with job 200 / tech 4.
+
+3. ✅ **Customers get auto-confirmation on every booking** — **DONE 2026-05-25**. New `appointment_scheduled` colony loop agent + 8 producer wirings across `hcp_job_webhook`, `hcp_poll` (update + create), `servicepower_email_intake` (reschedule + create), `tech_sms_inbound` (CLAIM + PICK + RESCHEDULE), and `reschedule_job_POST`. Every endpoint that writes `scheduled_start` emits an APPOINTMENT_SCHEDULED signal; agent dedupes on `(job_id, scheduled_start_ms)` and sends customer SMS ("Hi {name}, your {appliance} repair is confirmed for {date time}. Your tech will be {tech_first}.") + tech SMS ("[ant] job #X confirmed for {date time} — {customer}, {address}"). Source-aware gating skips customer SMS when source is `tech_claim` (placeholder time) and skips tech SMS for tech-driven sources.
+
+4. ✅ **Broadcast booking wired** — **DONE 2026-05-25**. `__CLAIM_BROADCAST__` sets `scheduled_start` to tomorrow 08:00 CT default; new `PICK1/2/3` keyword handler applies owner's chosen `must_time_proposal` option directly to the job.
+
+5. ⏳ **Ant Office booking flow** (the calendar's write-back) — **NOT DONE, last remaining prereq.** Today `office-calendar.html` is read-only — job blocks deep-link to `job-detail.html` and the `+ New Job` button is a pass-through to `book.html`. Need: click-empty-cell-to-book modal pre-filled with `tech_id` + `date`, calling a new `book_appointment_from_office_POST` that writes the job + sets technician_id + sets scheduled_start (firing the existing APPOINTMENT_SCHEDULED signal chain). Plus office-driven reschedule/reassign/cancel actions wired from the calendar. **Once this is done, pick a Saturday and cut HCP.**
+
+Until all five are done, the HCP webhook + HCP poll endpoints stay as canonical sources of truth for `scheduled_start`, `current_status`, `technician_id`. After migration day, those producers retire and Ant Office becomes the writer.
 
 **Strategic pivot decided 2026-05-25: stop building HCP sync, build Ant instead.** The TECH_ASSIGNED → tech-daily-dashboard path was the proof — we delivered a better tech experience by shipping Ant Field, not by reviving the dormant Phase 1b/1c HCP-webhook trigger. Going forward, when a feature can be implemented as HCP-write OR as Ant-native, pick Ant. Phase 6 Gap 2 (email-intake → HCP auto-create) is the explicit exception and is throwaway code that retires on migration day.
 
@@ -445,6 +451,36 @@ Today's template catalog (`colony-loop/architect/templates.js`) only knows `diag
 - `webhook_handler` (intake adapter agents)
 
 **Working rule #8 ("agent velocity") makes this explicit:** building agents is highest priority after production issues + customer-facing fixes. Add a template, build 5–10 more agents. Repeat.
+
+### Late evening 2026-05-25 — Steps 2 + 3 of the HCP cut sprint done
+
+Two more migration prereqs landed tonight. Five total prereqs, **4 of 5 done**.
+
+**Step 2 (HCP migration prereq #2): Start Job + Complete Job buttons on Ant Field.**
+- `tech_job_started_POST.xs` upgraded: now writes `scheduling_status="in_progress"` + `current_status="in_progress"` (alongside the pre-existing `job_started_at`), emits a JOB_STARTED colony signal (hook reserved — no agent yet), and SMSes Teddy "[ant] {tech} started job #X — {customer}, {appliance}".
+- `tech_job_complete_POST.xs` upgraded: now writes `current_status` alongside `scheduling_status`, emits a JOB_COMPLETED colony signal (which triggers Phase 5A's `warranty_submission` agent for warranty jobs, no HCP needed), and SMSes Teddy "[ant] {tech} completed job #X ({completion_type}) — {N}min — {customer}, {appliance}".
+- **Critical fix discovered in flight:** the existing completion_type → scheduling_status mapping used 5 invalid enum values (`complete`, `parts_ordered`, `pending_auth`, `closed`). Endpoint had never run cleanly in production. Replaced with valid enum members: `completed`, `awaiting_parts`, `held`, `no_fix_possible`.
+- Smoke-tested with job 200 / tech 4: Start → in_progress (status flip ok, JOB_STARTED dispatched as `no_agent_yet`), Complete (repair_complete) → completed (status flip ok, JOB_COMPLETED dispatched, agent ran `skipped_duplicate` because job 200 had a prior handled row from the morning's Phase 5A smoke).
+
+**Step 3 (HCP migration prereq #3): customer appointment confirmation SMS, auto-fired.**
+- New colony loop agent: `colony-loop/agents/appointment_scheduled.js`. Loads job + customer + tech via the existing `get_tech_assignment_context` endpoint, dedupes on `(job_id, scheduled_start_ms)`, sends a customer SMS ("Hi {first}, your {appliance} repair is confirmed for {date time}. Your tech will be {tech_first}. Reply STOP to cancel or call 615-280-2949.") and a tech SMS ("[ant] job #X confirmed for {date time} — {customer}, {address}"). Source-aware gating skips customer SMS for `tech_claim` (placeholder time) and skips tech SMS for tech-driven sources (`tech_claim`, `tech_pick`, `tech_reschedule`).
+- New XS endpoint: `get_appointment_confirmation_sent_GET.xs` for dedup. Matches on both `job_id` AND `scheduled_start_ms` — reschedules to a NEW time send a fresh confirmation; idempotent no-op edits skip.
+- **8 producer wirings across 5 XS files**, all deployed via Xano CLI: `hcp_job_webhook_POST.xs` (1 emit), `hcp_poll_recent_jobs_POST.xs` (2 emits — update + create branches), `servicepower_email_intake_POST.xs` (2 emits — SCHEDULE_CHANGE + create), `tech_sms_inbound_POST.xs` (3 emits — CLAIM + PICK + RESCHEDULE), and `reschedule_job_POST.xs` (1 emit). Each emit follows the same pattern: pre-bind vars → object-literal payload → `|json_encode` → `db.add colony_signals` → `db.add event_log "appointment_scheduled_signal_emitted"` audit row.
+
+**Bonus fix landed earlier in the same session:** `xano.js` `fetchWithRetry` wrapper — 3-attempt retry with 0/250/750ms backoff on transient `TypeError: fetch failed`. Silenced the noisy loop_error stream that was running ~1 every 6-8 minutes; loop is now quietly healthy.
+
+**End-of-day commit count for 2026-05-25: 30+ commits.** Most ambitious session of the build so far.
+
+### Tomorrow's priority — close out prereq #5
+
+**Build the Ant Office booking flow.** The calendar exists; it needs write actions:
+
+1. **Click empty cell → opens a "book new job" modal** pre-filled with `tech_id` (the column you clicked) and `date` (the row). Modal collects customer name + phone + zip + appliance + brand + model + problem summary + time window. Submits to a new `book_appointment_from_office_POST` endpoint that writes the customer (or matches existing), writes the job with the chosen `scheduled_start` (which fires APPOINTMENT_SCHEDULED → customer auto-confirmed). Calendar refreshes; new block appears in the cell.
+2. **Click job block → opens a "manage job" modal** with the existing options (reschedule, reassign, cancel, day-off-toggle). Each writes through Ant-native endpoints (`reschedule_job_POST` already exists and emits APPOINTMENT_SCHEDULED).
+
+When that's done, the office no longer touches HCP for scheduling. **Pick a Saturday and cut HCP.**
+
+**🐜 Long live Ant.**
 
 ## Where to look
 
