@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 50,
-    "agents_to_build": 329,
+    "agents_live": 51,
+    "agents_to_build": 328,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -999,7 +999,7 @@
       "purpose": "Make every tech better every day. Knowledge that takes 10 years to accumulate delivered after job one.",
       "priority": "HIGH",
       "agents_total": 5,
-      "agents_live": 2,
+      "agents_live": 3,
       "agents": [
         {
           "id": "T001",
@@ -1031,7 +1031,7 @@
         {
           "id": "T004",
           "name": "Tech Onboarding Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Quizzes new techs on appliance categories, builds their profile, assigns appropriate pre-dispatch brief detail level. Reduces detail as experience builds.",
           "xano_endpoint": "tech_onboarding_agent",
