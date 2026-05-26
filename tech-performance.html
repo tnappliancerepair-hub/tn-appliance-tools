@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>My Performance - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --text: #e8edf5;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --green: #00d68f;
+    --orange: #f5a623;
+    --blue: #5aa9ff;
+    --red: #ff6b6b;
+    --violet: #b48cff;
+  }
+
+  /* PIN overlay */
+  .pin-overlay {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.96);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .pin-overlay.show { display: flex; }
+  .pin-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    max-width: 360px; width: 100%;
+    text-align: center;
+  }
+  .pin-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .pin-card .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .pin-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .pin-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 20px;
+    font-family: var(--mono);
+    text-align: center;
+    letter-spacing: 4px;
+    outline: none;
+  }
+  .pin-input:focus { border-color: var(--orange); }
+  .pin-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--orange);
+    color: #1a1208;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .pin-submit:active { transform: scale(0.98); }
+  .pin-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pin-err { margin-top: 12px; font-size: 12px; color: var(--red); min-height: 16px; }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: linear-gradient(180deg, #0e1118, rgba(14,17,24,0.95));
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header .ant { font-size: 22px; line-height: 1; }
+  .header .text { flex: 1; min-width: 0; }
+  .header .title { font-size: 15px; font-weight: 700; }
+  .header .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .header .tech-badge {
+    background: rgba(0,214,143,0.10);
+    border: 1px solid rgba(0,214,143,0.25);
+    color: var(--green);
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--mono);
+    white-space: nowrap;
+  }
+
+  /* Period toggle */
+  .period-bar {
+    position: sticky; top: 56px; z-index: 49;
+    background: rgba(14,17,24,0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 8px 12px;
+    display: flex;
+    gap: 6px;
+  }
+  .period-bar button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .period-bar button.active {
+    background: var(--orange);
+    color: #1a1208;
+    border-color: var(--orange);
+    font-weight: 700;
+  }
+
+  .window-label {
+    padding: 10px 16px 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--mono);
+  }
+
+  /* KPI grid */
+  .kpis {
+    padding: 8px 12px 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-height: 84px;
+  }
+  .kpi .label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .kpi .value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+  }
+  .kpi .sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .kpi.green .value { color: var(--green); }
+  .kpi.orange .value { color: var(--orange); }
+  .kpi.blue .value { color: var(--blue); }
+  .kpi.red .value { color: var(--red); }
+  .kpi.violet .value { color: var(--violet); }
+  .kpi.wide { grid-column: 1 / -1; }
+
+  /* Section */
+  .section-title {
+    padding: 18px 16px 8px;
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Job rows */
+  .jobs {
+    padding: 0 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .row {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .row:hover { border-color: var(--border); }
+  .row .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .row .who { font-weight: 700; font-size: 14px; }
+  .row .ts { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .row .mid {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .row .mid .pill {
+    background: rgba(138,147,170,0.10);
+    border: 1px solid var(--border-soft);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-family: var(--mono);
+  }
+  .row .mid .pill.completed { color: var(--green); border-color: rgba(0,214,143,0.3); background: rgba(0,214,143,0.08); }
+  .row .mid .pill.awaiting_parts { color: var(--orange); border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.08); }
+  .row .mid .pill.held { color: var(--violet); border-color: rgba(180,140,255,0.3); background: rgba(180,140,255,0.08); }
+  .row .mid .pill.no_fix_possible { color: var(--red); border-color: rgba(255,107,107,0.3); background: rgba(255,107,107,0.08); }
+  .row .mid .pill.no_tdr { color: var(--red); border-color: rgba(255,107,107,0.3); background: rgba(255,107,107,0.08); }
+  .row .mid .pill.tdr_partial { color: var(--orange); border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.08); }
+  .row .mid .pill.tdr_full { color: var(--green); border-color: rgba(0,214,143,0.3); background: rgba(0,214,143,0.08); }
+
+  /* CTA */
+  .cta-bar {
+    padding: 12px 16px 28px;
+    display: flex;
+    justify-content: center;
+  }
+  .cta-bar a {
+    background: var(--orange);
+    color: #1a1208;
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  .empty, .err-banner {
+    padding: 18px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .err-banner { color: var(--red); }
+
+  .loading {
+    position: fixed; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg);
+    z-index: 500;
+  }
+  .loading .ant { font-size: 36px; }
+  .loading .msg { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-card">
+    <div class="ant">🐜</div>
+    <div class="title">enter your pin</div>
+    <div class="sub">your performance — for you</div>
+    <input id="pinInput" class="pin-input" type="tel" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
+    <button id="pinSubmit" class="pin-submit">Unlock</button>
+    <div id="pinErr" class="pin-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div class="text">
+      <div class="title" id="hTitle">My Performance</div>
+      <div class="sub" id="hSub"></div>
+    </div>
+    <div class="tech-badge" id="techBadge">—</div>
+  </div>
+
+  <div class="period-bar">
+    <button data-period="week" id="bWeek" class="active">Week</button>
+    <button data-period="month" id="bMonth">Month</button>
+    <button data-period="all" id="bAll">All Time</button>
+  </div>
+
+  <div class="window-label" id="windowLabel"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="section-title">Recent jobs</div>
+  <div class="jobs" id="jobsHost"></div>
+
+  <div class="cta-bar">
+    <a id="todayLink" href="#">→ Open today's dashboard</a>
+  </div>
+</div>
+
+<div class="loading" id="loading">
+  <div class="ant">🐜</div>
+  <div class="msg">loading your numbers…</div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const params = new URLSearchParams(window.location.search);
+  const TECH_ID = params.get('tech_id');
+  const INITIAL_PERIOD = (params.get('period') || 'week').toLowerCase();
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const PIN_STORAGE_KEY = `tn_tech_pin_v1_${TECH_ID}`;
+
+  if (!TECH_ID) {
+    document.getElementById('loading').innerHTML =
+      '<div class="err-banner">Missing tech_id in URL. Use the link Ant sent you.</div>';
+    return;
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const pinOverlay = $('pinOverlay');
+  const pinInput = $('pinInput');
+  const pinSubmit = $('pinSubmit');
+  const pinErr = $('pinErr');
+  const app = $('app');
+  const loading = $('loading');
+  const hTitle = $('hTitle');
+  const hSub = $('hSub');
+  const techBadge = $('techBadge');
+  const windowLabel = $('windowLabel');
+  const kpis = $('kpis');
+  const jobsHost = $('jobsHost');
+  const todayLink = $('todayLink');
+
+  let currentPeriod = ['week', 'month', 'all'].includes(INITIAL_PERIOD) ? INITIAL_PERIOD : 'week';
+
+  // ── PIN ────────────────────────────────────────────────────────
+  async function verifyPin(pin) {
+    try {
+      const res = await fetch('/.netlify/functions/verify-pin-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
+      });
+      const data = await res.json();
+      return data && data.success === true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function tryUnlock() {
+    const cached = localStorage.getItem(PIN_STORAGE_KEY);
+    if (cached) {
+      const ok = await verifyPin(cached);
+      if (ok) { unlock(); return; }
+      localStorage.removeItem(PIN_STORAGE_KEY);
+    }
+    loading.style.display = 'none';
+    pinOverlay.classList.add('show');
+    pinInput.focus();
+  }
+
+  pinSubmit.addEventListener('click', submitPin);
+  pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPin(); });
+
+  async function submitPin() {
+    const pin = pinInput.value.trim();
+    if (!pin) return;
+    pinSubmit.disabled = true;
+    pinErr.textContent = '';
+    const ok = await verifyPin(pin);
+    pinSubmit.disabled = false;
+    if (!ok) {
+      pinErr.textContent = 'wrong pin. try again.';
+      pinInput.value = '';
+      pinInput.focus();
+      return;
+    }
+    localStorage.setItem(PIN_STORAGE_KEY, pin);
+    unlock();
+  }
+
+  function unlock() {
+    pinOverlay.classList.remove('show');
+    app.style.display = 'block';
+    loading.style.display = 'block';
+    loadPerformance();
+  }
+
+  // ── Data load ──────────────────────────────────────────────────
+  async function loadPerformance() {
+    loading.style.display = 'block';
+    kpis.innerHTML = '';
+    jobsHost.innerHTML = '';
+
+    const url = `${XANO_BASE}/get_tech_performance?tech_id=${encodeURIComponent(TECH_ID)}&period=${encodeURIComponent(currentPeriod)}`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        showError(data && data.error ? data.error : 'failed to load');
+        return;
+      }
+      render(data);
+    } catch (err) {
+      showError(err && err.message ? err.message : 'network error');
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+
+  function showError(msg) {
+    kpis.innerHTML = `<div class="err-banner kpi wide">${escapeHtml(msg)}</div>`;
+  }
+
+  function render(data) {
+    const t = data.tech || {};
+    const m = data.metrics || {};
+    const techName = `${t.first_name || ''} ${t.last_name || ''}`.trim();
+    hTitle.textContent = `${techName || 'My'} Performance`;
+    hSub.textContent = `tech #${t.id}`;
+    techBadge.textContent = t.active ? 'active' : 'off';
+    windowLabel.textContent = data.period_label || '';
+    todayLink.href = `tech-daily-dashboard.html?tech_id=${encodeURIComponent(t.id || TECH_ID)}`;
+
+    const fixPct = Math.round((m.first_visit_fix_rate || 0) * 100);
+    const tdrPct = Math.round((m.tdr_completeness_pct || 0) * 100);
+    const earnings = Number(m.earnings_gross || 0).toFixed(2);
+    const perJob = Number(m.earnings_per_job_avg || 0).toFixed(2);
+    const avgMin = m.avg_minutes_per_job || 0;
+    const avgHrs = avgMin >= 60 ? `${Math.floor(avgMin / 60)}h ${avgMin % 60}m` : `${avgMin}m`;
+
+    kpis.innerHTML = `
+      <div class="kpi green">
+        <div class="label">Jobs completed</div>
+        <div class="value">${m.jobs_completed || 0}</div>
+        <div class="sub">${m.total_terminal_jobs || 0} terminal total</div>
+      </div>
+      <div class="kpi ${fixPct >= 80 ? 'green' : fixPct >= 60 ? 'orange' : 'red'}">
+        <div class="label">First-visit fix</div>
+        <div class="value">${fixPct}%</div>
+        <div class="sub">completed ÷ (completed+parts+held)</div>
+      </div>
+      <div class="kpi blue">
+        <div class="label">Avg time/job</div>
+        <div class="value">${avgHrs}</div>
+        <div class="sub">${avgMin} min mean</div>
+      </div>
+      <div class="kpi ${tdrPct >= 80 ? 'green' : tdrPct >= 50 ? 'orange' : 'red'}">
+        <div class="label">TDR completeness</div>
+        <div class="value">${tdrPct}%</div>
+        <div class="sub">avg of 5 fields filled</div>
+      </div>
+      <div class="kpi violet wide">
+        <div class="label">Gross earnings</div>
+        <div class="value">$${earnings}</div>
+        <div class="sub">${m.earnings_row_count || 0} payouts · $${perJob}/job avg</div>
+      </div>
+    `;
+
+    renderJobs(data.recent_jobs || []);
+  }
+
+  function renderJobs(rows) {
+    if (!rows.length) {
+      jobsHost.innerHTML = '<div class="empty">No jobs in this window yet.</div>';
+      return;
+    }
+    jobsHost.innerHTML = rows.map(r => {
+      const who = r.customer_first_name || 'customer';
+      const appl = [r.brand, r.appliance].filter(Boolean).join(' ') || 'appliance';
+      const ts = r.job_completed_at ? fmtDate(r.job_completed_at) : '—';
+      const tdrLabel = !r.has_tdr ? 'no TDR' : (r.tdr_filled_count >= 5 ? 'TDR full' : `TDR ${r.tdr_filled_count}/5`);
+      const tdrClass = !r.has_tdr ? 'no_tdr' : (r.tdr_filled_count >= 5 ? 'tdr_full' : 'tdr_partial');
+      const dur = r.duration_minutes > 0 ? `${r.duration_minutes}m` : '';
+      const earned = r.earnings && r.earnings.total_earned != null ? `$${Number(r.earnings.total_earned).toFixed(2)}` : '';
+      return `
+        <a class="row" href="job-detail.html?job_id=${r.id}">
+          <div class="top">
+            <div class="who">${escapeHtml(who)} · ${escapeHtml(appl)}</div>
+            <div class="ts">${escapeHtml(ts)}</div>
+          </div>
+          <div class="mid">
+            <span class="pill ${r.scheduling_status || ''}">${escapeHtml((r.scheduling_status || '').replace(/_/g, ' '))}</span>
+            <span class="pill ${tdrClass}">${escapeHtml(tdrLabel)}</span>
+            ${dur ? `<span class="pill">${escapeHtml(dur)}</span>` : ''}
+            ${earned ? `<span class="pill">${escapeHtml(earned)}</span>` : ''}
+          </div>
+        </a>
+      `;
+    }).join('');
+  }
+
+  function fmtDate(msOrTimestamp) {
+    const ms = typeof msOrTimestamp === 'number' ? msOrTimestamp : Number(msOrTimestamp);
+    if (!ms) return '';
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      }).format(new Date(ms));
+    } catch (err) {
+      return new Date(ms).toLocaleString();
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  // Period toggle wiring
+  document.querySelectorAll('.period-bar button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.getAttribute('data-period');
+      if (p === currentPeriod) return;
+      currentPeriod = p;
+      document.querySelectorAll('.period-bar button').forEach(b => b.classList.toggle('active', b === btn));
+      const url = new URL(window.location.href);
+      url.searchParams.set('period', p);
+      window.history.replaceState(null, '', url.toString());
+      loadPerformance();
+    });
+  });
+
+  // Reflect initial period in toggle
+  document.querySelectorAll('.period-bar button').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-period') === currentPeriod);
+  });
+
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
