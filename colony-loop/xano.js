@@ -185,6 +185,10 @@ export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_sc
   return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source, priority });
 }
 
+export async function listAhsBacklog(page = 1, perPage = 100) {
+  return getJSON(`${INTAKE()}/list_ahs_backlog?page=${page}&per_page=${perPage}`);
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',

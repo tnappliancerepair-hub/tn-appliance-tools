@@ -1,0 +1,16 @@
+{
+  "started_at": "2026-05-26T16:39:57.036Z",
+  "finished_at": "2026-05-26T16:40:47.976Z",
+  "dry_run": true,
+  "max_enqueue": null,
+  "per_page": 200,
+  "require_pref": true,
+  "pages_fetched": 84,
+  "jobs_examined": 16677,
+  "jobs_enqueued": 0,
+  "jobs_skipped_already_pending": 0,
+  "jobs_skipped_no_preference": 16677,
+  "jobs_failed": 0,
+  "errors": [],
+  "enqueued_ids": []
+}
