@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 51,
-    "agents_to_build": 328,
+    "agents_live": 52,
+    "agents_to_build": 327,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -790,12 +790,12 @@
       "purpose": "Automate warranty claim submission across AHS, SquareTrade, Frontdoor. Danielle reviews not builds.",
       "priority": "HIGH",
       "agents_total": 9,
-      "agents_live": 1,
+      "agents_live": 2,
       "agents": [
         {
           "id": "W001",
           "name": "AHS Claims Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Handles AHS claim submission automatically. Knows AHS portal requirements, documentation standards, and approval language.",
           "xano_endpoint": "ahs_claims_agent",
