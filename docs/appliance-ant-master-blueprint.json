@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 222,
-    "agents_to_build": 45,
+    "agents_live": 223,
+    "agents_to_build": 44,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1790,7 +1790,7 @@
       "purpose": "Self-improving voice and SMS systems. Every interaction makes Ant and Vapi smarter.",
       "priority": "MEDIUM",
       "agents_total": 30,
-      "agents_live": 16,
+      "agents_live": 17,
       "agents": [
         {
           "id": "V001",
@@ -2012,7 +2012,7 @@
         {
           "id": "V017",
           "name": "Refund Request SMS Responder",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Customer SMS responder for refund request conversations. Receives SMS_RESPONSE_REFUND_REQUEST payload with customer name + phone + job context + inbound body, emits CUSTOMER_SMS_REPLY with a single 1-2 segment reply matched to TN Appliance Exchange voice + tone.",
           "triggers": [
