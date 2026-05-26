@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 287,
-    "agents_to_build": 25,
+    "agents_live": 288,
+    "agents_to_build": 24,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3159,7 +3159,7 @@
       "purpose": "Strategic visibility. Know the business better than any competitor knows theirs.",
       "priority": "MEDIUM",
       "agents_total": 15,
-      "agents_live": 8,
+      "agents_live": 9,
       "agents": [
         {
           "id": "BI001",
@@ -3254,7 +3254,7 @@
         {
           "id": "BI009",
           "name": "Business Intel Margin Per Job Analyzer",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Calculates net margin per completed job (revenue - parts cost - labor cost - vehicle + tool cost). Flags consistently-low-margin patterns by appliance, brand, vendor. Emits BUSINESS_INTEL_INSIGHT.",
           "triggers": [
