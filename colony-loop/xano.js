@@ -189,6 +189,14 @@ export async function listAhsBacklog(page = 1, perPage = 100) {
   return getJSON(`${INTAKE()}/list_ahs_backlog?page=${page}&per_page=${perPage}`);
 }
 
+export async function sendFeedbackSms({ job_id, customer_phone, customer_first_name }) {
+  return postJSON(`${INTAKE()}/send_feedback_sms`, {
+    job_id,
+    customer_phone,
+    customer_first_name,
+  });
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',

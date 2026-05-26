@@ -113,6 +113,29 @@ export async function run(signal, ctx) {
   const jobId = Number(payload.job_id);
   if (!jobId) throw new Error('payload.job_id required');
 
+  // ── Chain: FOLLOWUP_DUE (24h) ──
+  // Fire for EVERY completed job (warranty + self-pay). followup_due.js
+  // holds via re-emit until the deadline, then sends the customer the
+  // existing send_feedback_sms (1-5 rating + ISSUE keyword). Independent
+  // of the warranty digest path below — a non-warranty job still triggers
+  // followup. Emit early so a later branch failure can't skip it.
+  try {
+    const deadlineMs = Date.now() + 24 * 60 * 60 * 1000;
+    await xano.emitSignal({
+      signal_type: 'FOLLOWUP_DUE',
+      signal_strength: 50,
+      payload: {
+        job_id: jobId,
+        deadline_ms: deadlineMs,
+        scheduled_for_ms: deadlineMs,
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('followup_due_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   const handled = await xano.getWarrantySubmissionHandled(jobId);
   if (handled && handled.handled) {
     return {
