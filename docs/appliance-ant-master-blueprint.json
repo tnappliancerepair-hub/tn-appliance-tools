@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 206,
-    "agents_to_build": 61,
+    "agents_live": 207,
+    "agents_to_build": 60,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3562,7 +3562,7 @@
       "purpose": "Find the Jordans of every market. Employed techs who are great at craft and tired of making someone else rich.",
       "priority": "HIGH",
       "agents_total": 24,
-      "agents_live": 19,
+      "agents_live": 20,
       "recruiting_offer": {
         "compensation": "40% commission",
         "vehicle": "Cybertruck provided",
@@ -3784,7 +3784,7 @@
         {
           "id": "REC020",
           "name": "Referral Program Manager",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Tracks employee referrals, eligibility, payout timing. Emits RECRUITING_INTELLIGENCE.",
           "triggers": [
