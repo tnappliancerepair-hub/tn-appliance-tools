@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 190,
-    "agents_to_build": 77,
+    "agents_live": 191,
+    "agents_to_build": 76,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1160,7 +1160,7 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 35,
-      "agents_live": 33,
+      "agents_live": 34,
       "agents": [
         {
           "id": "S001",
@@ -1596,7 +1596,7 @@
         {
           "id": "S035",
           "name": "Holiday Schedule Adjuster",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Detects upcoming federal/state/observed holidays + flexes capacity/availability accordingly. Emits SCHEDULING_DECISION.",
           "triggers": [
