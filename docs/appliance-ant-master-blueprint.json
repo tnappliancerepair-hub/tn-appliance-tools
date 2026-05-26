@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 88,
-    "agents_to_build": 291,
+    "agents_live": 89,
+    "agents_to_build": 290,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1571,7 +1571,7 @@
       "purpose": "Pipeline of trained techs from 26 TCAT campuses. Anthony Pivacek Memorial Scholarship. Partnership with Tennessee Board of Regents.",
       "priority": "MEDIUM",
       "agents_total": 5,
-      "agents_live": 1,
+      "agents_live": 2,
       "tcat_facts": {
         "campuses": 26,
         "enrollment": 34486,
@@ -1591,7 +1591,7 @@
         {
           "id": "TC002",
           "name": "First 90 Days Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Intensive coaching mode for new techs. More frequent TDR tutor feedback. Flags patterns faster.",
           "xano_endpoint": "first_90_days_agent"
