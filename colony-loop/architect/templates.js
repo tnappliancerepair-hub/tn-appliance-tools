@@ -634,7 +634,10 @@ export async function run(signal, ctx) {
 
 function renderBrandSpecialist({ agent, brandSlug, brandDisplay, systemPromptText }) {
   const signalType = `BRAND_LOOKUP_${brandSlug.toUpperCase()}`;
-  const filename = `brand_${brandSlug}.js`;
+  // dispatch.js routes by `${signal_type.toLowerCase()}.js` so the filename
+  // MUST be brand_lookup_<slug>.js (not brand_<slug>.js). Renaming fix
+  // pushed 2026-05-26 — earlier brand_<slug>.js files were never dispatched.
+  const filename = `brand_lookup_${brandSlug}.js`;
   const safePrompt = escapeForBacktick(systemPromptText);
 
   const code =
