@@ -209,6 +209,15 @@ export async function getWeeklyPerformanceFired(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_weekly_performance_fired?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getOfficeCalendarWeek(weekStartCt) {
+  const qs = weekStartCt ? `?week_start=${encodeURIComponent(weekStartCt)}` : '';
+  return getJSON(`${INTAKE()}/get_office_calendar_week${qs}`);
+}
+
+export async function getScheduleGapCheckFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_schedule_gap_check_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',

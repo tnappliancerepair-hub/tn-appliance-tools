@@ -166,6 +166,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // SCHEDULE_GAP_CHECK — fires once per day at 9am CT (9-11am grace window,
+  // after the briefings). Scans today's calendar for 2+ hour gaps per tech
+  // and SMSes Teddy with the opportunity list + AHS-backlog candidates.
+  if (hour >= 9 && hour < 11) {
+    let gapFired;
+    try {
+      gapFired = await xano.getScheduleGapCheckFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('schedule_gap_check_dedup_failed', { error: err.message });
+      gapFired = null;
+    }
+    if (gapFired && !gapFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'SCHEDULE_GAP_CHECK',
+          signal_strength: 60,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('schedule_gap_check_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('schedule_gap_check_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // WEEKLY_PERFORMANCE_SUMMARY — fires once per week on Sundays 8-11am CT.
   // Fans out PERFORMANCE_REQUEST_* signals per tech × per scope so each
   // tech's metrics get refreshed once per week. Uses since_ts_ms = start
