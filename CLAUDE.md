@@ -764,6 +764,90 @@ Live impact: every brand_*, parts_*, schedule_*, hvac_*, mentorship_*, etc. sign
 
 **🐜 Long Live Ant.**
 
+## Continuation 2026-05-26 evening — high-impact T1-T15 task list
+
+User came back asking for an 8-hour revenue/ops task list. Audited against the day's earlier work, hit the highest-impact remaining items:
+
+### What shipped (in order)
+
+**T3 — Customer 24h followup SMS** (commit `59cbcbb`)
+- New `colony-loop/agents/followup_due.js` — hold-and-re-emit pattern (same as tech_arrival_check). Every completed job (warranty + self-pay) gets a 24h-later customer SMS via the existing `send_feedback_sms` endpoint. The existing feedback_reply_webhook classifies 1-5 ratings + ISSUE keyword.
+- `job_completed.js` gains a FOLLOWUP_DUE emit at the top (fires for ALL completions, not just warranty).
+- `xano.sendFeedbackSms` helper added.
+
+**T1 — Warranty consumer (Danielle digest + escalation)** (commit `550628c`)
+- New `colony-loop/agents/warranty_claim_action.js` — consumes WARRANTY_CLAIM_ACTION (emitted by every vendor agent). Persists the full 5-section Claude output to event_log + SMSes Danielle one of three message variants:
+  - Escalate: "WARRANTY ESCALATION job #X (AHS). Reason: …"
+  - HIGH flags: "warranty claim package ready - N HIGH flags. Resolve: …"
+  - Clear: "warranty claim package ready - no flags, clear to submit"
+- Closes the JOB_COMPLETED → warranty_router → vendor_agent → DANIELLE chain end-to-end.
+
+**T2 — parts_decision_aggregator** (commit `0b72159`)
+- 2 new XS endpoints (`get_parts_intel_for_job`, `get_parts_decision_handled`) + 2 new agents (`parts_intelligence.js`, `parts_decision_due.js`).
+- Listens for PARTS_INTELLIGENCE from multiple parts_lookup_*_pricing supplier agents. After first response per job, emits PARTS_DECISION_DUE with 90s deadline. On deadline pulls all supplier responses, Claude picks cheapest-in-stock-fastest-ETA, SMSes Teddy + Danielle: `[ant] parts ready to order for job #X: <part> from <supplier> $XX ETA <date>. Reply ORDER to confirm.`
+
+**T4 — HCP full-export script** (commit `6220ea6`)
+- `colony-loop/scripts/hcp-full-export.js` — read-only paginated pull of all open HCP jobs + completed jobs from last 30 days. Writes `docs/hcp-full-export.json`. Used as a safety snapshot on migration Saturday.
+
+**T5 — Office calendar Today view** (commit `fc589d9`)
+- `office-calendar.html` gains a Week/Today view toggle. Today view replaces the 7-day × 6-tech grid with a chronological list of every job for today sorted by scheduled_start. URL persistence via `?view=today`. Existing click-to-manage modal still wired.
+
+**T7 + T8 — LTV refresh + weekly performance fan-out** (commit `6070187`)
+- `job_completed.js` emits CUSTOMER_INTELLIGENCE_REQUEST_CUSTOMER_LIFETIME_VALUE (consumer already exists from earlier architect runs).
+- `tick.js` gains a Sunday 8-11am CT block that emits WEEKLY_PERFORMANCE_SUMMARY (dedup via new `get_weekly_performance_fired` endpoint).
+- New `weekly_performance_summary.js` agent — fans out PERFORMANCE_REQUEST_FIRST_VISIT_FIX_RATE / _DIAGNOSTIC_ACCURACY / _TIME_PER_JOB / _CALLBACK_RATE / _TDR_COMPLETENESS per active tech (skips Teddy id=1 + orphan id=8), then SMSes Teddy a confirmation.
+
+**T11 + T12 — Tech UX: Next Job + parts banner** (commit `e7e3a9c`)
+- `tech-ant-live.html`: on successful Complete, shows "🚗 Head to next job →" green CTA deep-linking to `tech-daily-dashboard.html?tech_id=Y`.
+- Parts-status banner above the chat when `job.parts_status ∈ {awaiting_parts, ordered, on_order, pending, parts_needed}` — shows status + ETA (formatted CT) + "Do not schedule the next visit until parts arrive."
+
+**T14 + T15 — Blueprint +45 specs + business_intelligence template** (commit `19c3129`)
+- Round-2 blueprint expansion (`colony-loop/scripts/expand-blueprint-2.js`):
+  - Colony 2 Parts +20 (Reliable Parts + Genuine Replacement × 7 appliances + 6 quality agents)
+  - Colony 5 Voice/SMS +15 (multi_appliance_inquiry, service_area_question, price_quote_request, warranty_eligibility_check, manual_request, commercial_inquiry, second_opinion_request, maintenance_question, urgent_request, language_help_request, accessibility_request, gift_referral, media_inquiry, job_recommendation_request, permit_question)
+  - Colony 8 Business Intelligence +10 — NEW financial-tracking colony (daily_revenue_tracker, ar_aging_reporter, cash_position_watcher, margin_per_job_analyzer, warranty_reimbursement_lag, tax_liability_forecaster, tech_earnings_reconciler, fleet_cost_tracker, customer_acquisition_cost, profitability_by_zone)
+- New architect template `business_intelligence` registered with detector pattern + meta-prompt. Filename `business_intel_request_<slug>.js` matches dispatch convention.
+- Blueprint totals: 312 enumerated / 264 live / 48 to_build. Architect injected signal_id=131.
+
+### What shipped in PHASE 1+2 push (after the 100-task list arrived)
+
+**P1-7 — Danielle warranty dashboard** (commit `e0d038d`)
+- New `warranty-review.html` — sticky-header page with Week/Today filter chips (All / Escalate / Flags / Clear), per-job cards with expandable claim package text. Backed by new `list_warranty_claim_actions_GET.xs` (queries event_log for warranty_claim_action_persisted rows in the days_back window).
+- Danielle's existing digest SMS already links here ("Review: …/warranty-review.html?job_id=X").
+
+**P2-17 + P2-19 — Appointment reminders + no-show detection** (commit `3213431`)
+- `appointment_scheduled.js` gains an APPOINTMENT_REMINDER_DUE emit (deadline = scheduled_start − 24h).
+- New `appointment_reminder_due.js` — hold-and-re-emit, sends customer SMS "reminder: {tech} is coming tomorrow {day time} CT for your {appliance}. Reply RESCHEDULE if you need to move it." Reschedule-aware (drops stale signals).
+- New `job_started.js` — fires on JOB_STARTED (already emitted by tech_job_started_POST), arms a 4h NO_SHOW_CHECK timer.
+- New `no_show_check.js` — hold-and-re-emit, after 4h checks `jobs.job_completed_at`. If still null + not canceled, SMSes Teddy "[ant] ⚠️ {tech} still on job #X — Xh elapsed since Start. {customer}, {appliance}. Check in."
+
+### Items SKIPPED — already-shipped audit
+
+User's PHASE 1 list overlapped substantially with earlier session work. Items NOT rebuilt:
+
+| User asked | Already shipped in | Why skipped |
+|---|---|---|
+| P1-3 Next Job button | commit `e7e3a9c` (T11) | identical implementation |
+| P1-4 Parts status banner | commit `e7e3a9c` (T12) | identical implementation |
+| P1-6 Customer followup SMS | commit `59cbcbb` (T3) | identical implementation |
+| P1-10 parts_decision_aggregator | commit `0b72159` (T2) | identical implementation |
+| P1-8 Wire warranty_ahs_claims | commit `550628c` + `b22dc63` | consumer + signal-name alignment shipped earlier |
+| P1-9 Wire warranty_frontdoor_claims | same | same |
+
+PHASE 1 items 1 (Ant Office job detail page), 2 (tech-performance.html), 5 (customer portal) — NEW work, not yet built. PHASE 2-10 — mostly new work, not yet built.
+
+### Honest scope note
+
+User's full 100-task list is genuinely 40+ hours of work. Shipping 10 high-impact items in one session (this continuation block) plus 13 from earlier today = 23 substantive commits. That's a strong day. The remaining ~80 items are real backlog the architect will chip at + future sessions will pick up.
+
+### What NOT to do (additions)
+
+- **Do NOT skip the architect after the file rename.** The `edf4819` rename made every prior architect-built agent dispatchable. The module-cache fix only happens on loop restart or first-cache-miss — running `launchctl kickstart -k gui/$UID com.tnappliance.colony-loop` once forces fresh module loads for all agents.
+- **Do NOT add producers for signals when there's no agent.** Several user-requested signals in PHASE 3-10 (e.g. SAME_DAY_SLOT_AVAILABLE, MISSED_CALL, VOICEMAIL_TRANSCRIBED) need their CONSUMER agent first. Emitting into a void = wasted compute on hold-and-re-emit loops.
+- **Do NOT use the `--require-pref` AHS backfill blindly.** Re-running without filter on production traffic = scheduling_queue propose-row flood = thousands of slot-option SMS to Teddy.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
