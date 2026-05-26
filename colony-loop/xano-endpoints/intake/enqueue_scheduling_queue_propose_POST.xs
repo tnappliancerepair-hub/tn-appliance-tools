@@ -8,6 +8,7 @@ query enqueue_scheduling_queue_propose verb=POST {
   input {
     int job_id
     text? source?
+    int? priority?
   }
 
   stack {
@@ -30,11 +31,23 @@ query enqueue_scheduling_queue_propose verb=POST {
       value = (($input.source ?? "")|trim)
     }
 
+    var $priority_val {
+      value = ($input.priority ?? 1)
+    }
+
+    var $sq_meta_obj {
+      value = {
+        priority: $priority_val
+        source  : $source_str
+      }
+    }
+
     db.add scheduling_queue {
       data = {
         job_id     : $input.job_id
         action_type: "propose"
         status     : "pending"
+        metadata   : $sq_meta_obj
       }
     } as $row
 

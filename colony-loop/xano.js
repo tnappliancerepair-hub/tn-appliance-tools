@@ -168,6 +168,6 @@ export async function getAutoScheduleContext(jobId) {
   return getJSON(`${INTAKE()}/get_auto_schedule_context?job_id=${jobId}`);
 }
 
-export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_schedule') {
-  return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source });
+export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_schedule', priority = 1) {
+  return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source, priority });
 }

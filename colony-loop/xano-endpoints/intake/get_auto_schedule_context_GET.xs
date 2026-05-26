@@ -83,6 +83,14 @@ query get_auto_schedule_context verb=GET {
       first_name: ($customer.first_name ?? "")
       last_name : ($customer.last_name ?? "")
       phone     : ($customer.phone ?? "")
+      city      : ($customer.city ?? "")
+      state     : ($customer.state ?? "")
+      zip       : ($customer.zip ?? "")
+    }
+    job_address           : {
+      service_city : ($job.service_city ?? "")
+      service_state: ($job.service_state ?? "")
+      service_zip  : ($job.service_zip ?? "")
     }
     has_pre_diagnosis     : $has_pre_diagnosis
     pending_propose_count : $pending_propose_count
