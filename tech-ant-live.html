@@ -1124,11 +1124,96 @@ async function onStartJob() {
   }
 }
 
+// TDR completeness gate. Tech cannot mark a job complete unless the latest
+// TDR has the 4 minimum fields filled. This forces Phase 5A warranty digests
+// to fire on REAL data instead of hitting BLOCKED on every completion.
+// Fetches server-side TDR state at click time (not relying on stale
+// collectedData which is per-page-load).
+const REQUIRED_TDR_FIELDS = [
+  { key: 'diagnosis', label: 'diagnosis' },
+  { key: 'failed_component', label: 'failed component' },
+  { key: 'labor_time_hours', label: 'labor time' },
+  { key: 'repair_completed', label: 'repair completed status' },
+];
+
+function missingTdrFields(tdr) {
+  if (!tdr) return REQUIRED_TDR_FIELDS.map((f) => f.label);
+  const missing = [];
+  for (const f of REQUIRED_TDR_FIELDS) {
+    const v = tdr[f.key];
+    if (v == null) { missing.push(f.label); continue; }
+    if (typeof v === 'string' && v.trim() === '') { missing.push(f.label); continue; }
+    if (f.key === 'labor_time_hours' && Number(v) <= 0) { missing.push(f.label); continue; }
+  }
+  return missing;
+}
+
+async function fetchLatestTdrSnapshot() {
+  const res = await fetch('/.netlify/functions/xano-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      endpoint: 'get_job_for_dashboard',
+      payload: { job_id: parseInt(JOB_ID, 10) },
+      method: 'POST',
+    }),
+  });
+  if (!res.ok) throw new Error(`fetch tdr failed (${res.status})`);
+  const data = await res.json();
+  return (data && data.tdr) || null;
+}
+
+function showTdrGateError(missingLabels) {
+  const sys = document.getElementById('chat') || document.body;
+  // Remove any prior gate banner so we don't stack them on repeated clicks.
+  const prior = document.getElementById('tdrGateBanner');
+  if (prior) prior.remove();
+  const div = document.createElement('div');
+  div.id = 'tdrGateBanner';
+  div.style.cssText = 'background:#3b1d1d;border:1px solid #ff6b6b;border-radius:8px;padding:12px 14px;margin:10px 0;color:#ffd6d6;font-size:14px;line-height:1.5;';
+  div.innerHTML = `
+    <strong style="display:block;margin-bottom:6px;color:#ff8a8a">⚠️ Please complete the TDR before closing this job.</strong>
+    <div style="margin-bottom:10px">Missing: <strong>${missingLabels.map((m) => escapeHtmlForGate(m)).join(', ')}</strong></div>
+    <button type="button" id="tdrGateScrollBtn" style="background:#f6cf45;color:#050505;border:none;border-radius:6px;padding:8px 14px;font-family:inherit;font-size:13px;cursor:pointer">Complete TDR first →</button>
+  `;
+  sys.appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  const btn = document.getElementById('tdrGateScrollBtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      // Scroll the Submit TDR banner into view + focus the chat input so
+      // the tech can immediately continue working with Ant Assist to fill
+      // the missing fields.
+      const banner = document.getElementById('submit-banner');
+      if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const txt = document.getElementById('chat-input') || document.querySelector('textarea');
+      if (txt) txt.focus();
+    });
+  }
+}
+
+function escapeHtmlForGate(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
 async function onComplete(completionType) {
   if (!completionType) return;
   const sel = document.getElementById('complete-select');
   sel.disabled = true;
   try {
+    // ── TDR completeness gate ────────────────────────────────────
+    const tdr = await fetchLatestTdrSnapshot();
+    const missing = missingTdrFields(tdr);
+    if (missing.length > 0) {
+      showTdrGateError(missing);
+      sel.value = '';
+      sel.disabled = false;
+      return;
+    }
+
     const res = await fetch(`${XANO_BASE}/tech_job_complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

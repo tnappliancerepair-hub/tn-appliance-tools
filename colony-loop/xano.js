@@ -171,3 +171,11 @@ export async function getAutoScheduleContext(jobId) {
 export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_schedule', priority = 1) {
   return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source, priority });
 }
+
+export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
+  return postJSON(`${INTAKE()}/record_heartbeat`, {
+    colony: colony || '',
+    uptime_ms: uptime_ms || 0,
+    signals_processed_in_window: signals_processed_in_window || 0,
+  });
+}

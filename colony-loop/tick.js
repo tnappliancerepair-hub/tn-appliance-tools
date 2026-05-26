@@ -8,7 +8,8 @@ import { escalate } from './escalate.js';
 
 let running = false;
 let lastHeartbeat = 0;
-const HEARTBEAT_MS = 15 * 60 * 1000;
+const HEARTBEAT_MS = 5 * 60 * 1000;
+const LOOP_STARTED_AT = Date.now();
 
 export async function tick() {
   if (running) {
@@ -57,6 +58,22 @@ export async function tick() {
         colony: config.colonyName,
         ct: fmtCT(now),
       });
+
+      // Persist a heartbeat to Xano event_log so the standalone healthcheck
+      // script can detect liveness independently of the loop's own process.
+      // Throttled to once per HEARTBEAT_MS window (matches local log cadence).
+      if (now - lastHeartbeat > HEARTBEAT_MS || lastHeartbeat === 0) {
+        try {
+          await xano.recordHeartbeat({
+            colony: config.colonyName,
+            uptime_ms: now - LOOP_STARTED_AT,
+            signals_processed_in_window: processed,
+          });
+        } catch (err) {
+          xano.logLocal('heartbeat_write_failed', { error: err.message });
+        }
+      }
+
       lastHeartbeat = now;
     }
   } catch (err) {

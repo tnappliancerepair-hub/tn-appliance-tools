@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.colony-healthcheck</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/scripts/healthcheck.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop</string>
+
+  <key>StartInterval</key>
+  <integer>600</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/colony-healthcheck.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/colony-healthcheck.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>XANO_INTAKE_BASE</key>
+    <string>https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA</string>
+    <key>OWNER_PHONE_NUMBER</key>
+    <string>+16154855795</string>
+    <key>STALE_MINUTES</key>
+    <string>10</string>
+    <key>COOLDOWN_MINUTES</key>
+    <string>30</string>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
