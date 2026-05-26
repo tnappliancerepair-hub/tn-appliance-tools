@@ -62,6 +62,17 @@
   .job-bar .sep { color: #2a3040; }
 
   /* Action bar: navigate / on my way / call / start / complete */
+  .tdr-stack { display: none; flex-direction: column; gap: 8px; padding: 8px 12px 0; }
+  .tdr-stack.show { display: flex; }
+  .tdr-card { background: #161b26; border: 1px solid #2a3040; border-radius: 8px; padding: 10px 12px; }
+  .tdr-card.teddy { border-color: #f6cf45; }
+  .tdr-card.you { border-color: #4cd2c0; }
+  .tdr-card .author { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #f6cf45; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; }
+  .tdr-card.you .author { color: #4cd2c0; }
+  .tdr-card .diag { color: #e8edf5; font-size: 14px; line-height: 1.45; }
+  .tdr-card .meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; color: #8a93aa; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .tdr-card .meta-row .label { color: #5a627a; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px; }
+
   .action-bar {
     background: #131720;
     border-bottom: 1px solid #2a3040;
@@ -469,6 +480,8 @@
   <span class="value" id="job-appliance">—</span>
 </div>
 
+<div class="tdr-stack" id="tdr-stack"></div>
+
 <div class="action-bar" id="action-bar">
   <div class="action-row">
     <button class="action-btn" onclick="onNavigate()">📍 Navigate</button>
@@ -568,6 +581,8 @@ async function init() {
     document.getElementById('job-customer').textContent = (data.customer && data.customer.name) || 'Customer';
     document.getElementById('job-appliance').textContent = `${data.appliance.brand || ''} ${data.appliance.type || ''}`.trim() || 'Appliance';
     document.getElementById('job-bar').classList.add('show');
+
+    renderTdrStack(data.all_tdrs || []);
 
     // Action bar: address + phone for tap-to-navigate / tap-to-call.
     // get_job_for_dashboard already resolves job.service_X → customer.X fallback.
@@ -1122,6 +1137,59 @@ async function onStartJob() {
     btn.textContent = '▶ Start Job';
     btn.disabled = false;
   }
+}
+
+// Render every TDR for this job as a stacked card. Lets the tech read
+// Teddy's pre-diagnosis + their own prior diagnosis (if any) before
+// knocking on the door. Teddy's TDR gets a yellow border; the tech's own
+// gets a teal border; everyone else's gets the neutral border.
+function renderTdrStack(tdrs) {
+  const stack = document.getElementById('tdr-stack');
+  if (!stack) return;
+  stack.innerHTML = '';
+  const valid = (Array.isArray(tdrs) ? tdrs : []).filter((t) => {
+    const d = String(t.diagnosis || '').trim();
+    const f = String(t.failed_component || '').trim();
+    return d || f;
+  });
+  if (valid.length === 0) {
+    stack.classList.remove('show');
+    return;
+  }
+  const myTechId = parseInt(TECH_ID, 10);
+  for (const t of valid) {
+    const div = document.createElement('div');
+    let cls = 'tdr-card';
+    let label;
+    if (t.technician_id === 1) {
+      cls += ' teddy';
+      label = "Teddy's diagnosis";
+    } else if (Number(t.technician_id) === myTechId) {
+      cls += ' you';
+      label = 'Your diagnosis';
+    } else {
+      const first = (t.technician_first_name || '').trim() || 'Tech';
+      label = first + "'s diagnosis";
+    }
+    div.className = cls;
+    const meta = [];
+    if (t.failed_component) meta.push(`<span><span class="label">component</span>${escapeHtmlForTdr(t.failed_component)}</span>`);
+    if (t.labor_time_hours) meta.push(`<span><span class="label">labor</span>${escapeHtmlForTdr(String(t.labor_time_hours))}h</span>`);
+    if (t.repair_completed) meta.push(`<span><span class="label">status</span>${escapeHtmlForTdr(t.repair_completed)}</span>`);
+    if (t.report_date) meta.push(`<span><span class="label">date</span>${escapeHtmlForTdr(String(t.report_date).slice(0, 10))}</span>`);
+    div.innerHTML =
+      `<div class="author">${escapeHtmlForTdr(label)}</div>` +
+      `<div class="diag">${escapeHtmlForTdr(t.diagnosis || '(no diagnosis text — see component below)')}</div>` +
+      (meta.length ? `<div class="meta-row">${meta.join('')}</div>` : '');
+    stack.appendChild(div);
+  }
+  stack.classList.add('show');
+}
+
+function escapeHtmlForTdr(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
 }
 
 // TDR completeness gate. Tech cannot mark a job complete unless the latest

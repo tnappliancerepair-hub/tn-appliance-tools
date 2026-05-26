@@ -175,7 +175,54 @@ query get_job_for_dashboard verb=POST {
       sort = {technician_decision_report.created_at: "desc"}
       return = {type: "single"}
     } as $tdr_record
-  
+
+    // ALL TDRs for this job, oldest-first, with the author's first name
+    // attached. tech-ant-live.html stacks these so the tech sees Teddy's
+    // pre-diagnosis (technician_id=1) plus their own diagnosis side-by-side
+    // before knocking on the door.
+    db.query technician_decision_report {
+      where = $db.technician_decision_report.job_id == $input.job_id
+      sort = {technician_decision_report.created_at: "asc"}
+      return = {type: "list", paging: {page: 1, per_page: 20}}
+    } as $all_tdrs_query
+
+    var $all_tdrs {
+      value = []
+    }
+
+    foreach ($all_tdrs_query.items) {
+      each as $t {
+        var $author_first { value = "" }
+        conditional {
+          if ($t.technician_id != null && $t.technician_id > 0) {
+            db.get technicians {
+              field_name  = "id"
+              field_value = $t.technician_id
+            } as $tdr_author
+            var.update $author_first {
+              value = (($tdr_author.first_name ?? "")|trim)
+            }
+          }
+        }
+        array.push $all_tdrs {
+          value = {
+            id                       : $t.id
+            technician_id            : ($t.technician_id ?? null)
+            technician_first_name    : $author_first
+            diagnosis                : ($t.diagnosis ?? null)
+            customer_facing_diagnosis: ($t.customer_facing_diagnosis ?? null)
+            failed_component         : ($t.failed_component ?? null)
+            labor_time_hours         : ($t.labor_time_hours ?? null)
+            repair_completed         : ($t.repair_completed ?? null)
+            technician_notes         : ($t.technician_notes ?? null)
+            status                   : ($t.status ?? null)
+            created_at               : $t.created_at
+            report_date              : ($t.report_date ?? null)
+          }
+        }
+      }
+    }
+
     // Recent events for this job (filter on metadata.job_id JSON path).
     db.query event_log {
       where = $db.event_log.metadata.job_id == $input.job_id
@@ -293,6 +340,7 @@ query get_job_for_dashboard verb=POST {
         }
         recent_events: $events_trimmed
         earnings     : $earnings_trimmed
+        all_tdrs     : $all_tdrs
       }
     }
   }
