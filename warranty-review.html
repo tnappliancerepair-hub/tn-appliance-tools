@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Warranty Review — Ant Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0d12;
+      --panel: #131720;
+      --panel-2: #1a1e2a;
+      --border: #2a3040;
+      --border-soft: #1f2530;
+      --text: #e8edf5;
+      --muted: #8a93aa;
+      --accent: #f6cf45;
+      --green: #4cd2c0;
+      --red: #ff6b6b;
+      --orange: #ff9d4a;
+      --violet: #a48cf6;
+      --mono: 'IBM Plex Mono', monospace;
+      --display: 'Bebas Neue', sans-serif;
+      --body: 'Inter', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--body); }
+    .header {
+      position: sticky; top: 0; z-index: 5;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 10px 16px; gap: 12px;
+    }
+    .header .title { font-family: var(--display); letter-spacing: 0.06em; font-size: 20px; color: var(--text); }
+    .header .sub { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+    .filters { display: flex; gap: 8px; margin-left: auto; }
+    .filter-btn {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 12px; font-family: var(--mono); font-size: 12px;
+      cursor: pointer;
+    }
+    .filter-btn:hover { border-color: var(--accent); }
+    .filter-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .filter-btn .count { margin-left: 6px; font-weight: 600; opacity: 0.8; }
+    .auth-gate {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; z-index: 9000;
+    }
+    .auth-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 32px 28px; max-width: 360px; text-align: center;
+    }
+    .auth-card .ant { font-size: 48px; margin-bottom: 8px; }
+    .auth-card input {
+      width: 100%; box-sizing: border-box; padding: 12px;
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; font-family: var(--mono); margin-top: 14px;
+    }
+    .auth-card button {
+      width: 100%; padding: 12px; margin-top: 10px; background: var(--accent);
+      color: var(--bg); border: none; border-radius: 8px; cursor: pointer;
+      font-family: var(--display); letter-spacing: 0.05em; font-size: 16px;
+    }
+    .auth-err { color: var(--red); font-size: 12px; min-height: 14px; margin-top: 6px; }
+    .content { padding: 16px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 16px; margin-bottom: 12px;
+    }
+    .card.escalate { border-color: var(--red); box-shadow: 0 0 0 1px rgba(255,107,107,0.15); }
+    .card.flags { border-color: var(--orange); }
+    .card.clear { border-color: var(--green); }
+    .card .row1 { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .card .job-link {
+      color: var(--accent); font-family: var(--display); letter-spacing: 0.04em;
+      font-size: 16px; text-decoration: none;
+    }
+    .card .vendor {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      padding: 2px 8px; font-family: var(--mono); font-size: 11px; color: var(--text);
+    }
+    .card .pill {
+      font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+      border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .card .pill.escalate { background: rgba(255,107,107,0.15); color: var(--red); border: 1px solid var(--red); }
+    .card .pill.flags { background: rgba(255,157,74,0.15); color: var(--orange); border: 1px solid var(--orange); }
+    .card .pill.clear { background: rgba(76,210,192,0.15); color: var(--green); border: 1px solid var(--green); }
+    .card .meta { color: var(--muted); font-family: var(--mono); font-size: 11px; margin-top: 4px; }
+    .card pre {
+      background: var(--bg); border: 1px solid var(--border-soft); border-radius: 6px;
+      padding: 10px; margin-top: 10px;
+      color: var(--text); font-family: var(--mono); font-size: 12px;
+      white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto;
+    }
+    .card .expand {
+      margin-top: 6px; background: transparent; border: none; color: var(--accent);
+      cursor: pointer; font-family: var(--mono); font-size: 11px;
+    }
+    .empty {
+      padding: 60px 20px; text-align: center; color: var(--muted); font-family: var(--mono);
+    }
+    .empty .big { font-size: 48px; margin-bottom: 12px; }
+    .loading { color: var(--muted); font-family: var(--mono); padding: 30px; text-align: center; }
+    .err { color: var(--red); font-family: var(--mono); padding: 30px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div style="font-family:var(--display);font-size:24px;letter-spacing:0.06em">Warranty Review</div>
+    <div style="color:var(--muted);font-size:12px;margin-top:4px">Ant Office</div>
+    <input id="authInput" type="password" placeholder="Office password" autocomplete="off">
+    <button id="authSubmit">Unlock</button>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div>
+      <div class="title">Warranty Review</div>
+      <div class="sub" id="windowLabel">Last 30 days</div>
+    </div>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">All <span class="count" id="cAll">0</span></button>
+      <button class="filter-btn" data-filter="escalate">Escalate <span class="count" id="cEsc">0</span></button>
+      <button class="filter-btn" data-filter="flags">Flags <span class="count" id="cFlg">0</span></button>
+      <button class="filter-btn" data-filter="clear">Clear <span class="count" id="cClr">0</span></button>
+    </div>
+  </div>
+
+  <div class="content" id="content">
+    <div class="loading">Loading warranty claim packages…</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const OFFICE_PASSWORD = 'office2026';
+  const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  const params = new URLSearchParams(window.location.search);
+  const daysBack = parseInt(params.get('days') || '30', 10);
+  document.getElementById('windowLabel').textContent = `Last ${daysBack} days`;
+
+  // Auth
+  const authGate = document.getElementById('authGate');
+  const authInput = document.getElementById('authInput');
+  const authSubmit = document.getElementById('authSubmit');
+  const authErr = document.getElementById('authErr');
+  const app = document.getElementById('app');
+  const content = document.getElementById('content');
+
+  function tryUnlock() {
+    if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') return unlock();
+    authGate.style.display = 'flex';
+    setTimeout(() => authInput.focus(), 40);
+  }
+  function unlock() {
+    authGate.style.display = 'none';
+    app.style.display = 'block';
+    load();
+  }
+  authSubmit.addEventListener('click', () => {
+    if (authInput.value === OFFICE_PASSWORD) {
+      localStorage.setItem(OFFICE_AUTH_KEY, '1');
+      unlock();
+    } else {
+      authErr.textContent = 'Wrong password.';
+    }
+  });
+  authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') authSubmit.click(); });
+
+  let allRows = [];
+  let currentFilter = 'all';
+
+  async function load() {
+    try {
+      const res = await fetch(`${XANO_BASE}/list_warranty_claim_actions?days_back=${daysBack}&per_page=200`);
+      if (!res.ok) throw new Error(`Load failed (${res.status})`);
+      const data = await res.json();
+      if (!data.success) throw new Error('Server returned no success');
+      allRows = data.rows || [];
+      updateCounts();
+      render();
+    } catch (err) {
+      content.innerHTML = `<div class="err">⚠️ ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function statusOf(r) {
+    if (r.escalate) return 'escalate';
+    if (Number(r.high_flags) > 0) return 'flags';
+    return 'clear';
+  }
+
+  function updateCounts() {
+    let esc = 0, flg = 0, clr = 0;
+    for (const r of allRows) {
+      const s = statusOf(r);
+      if (s === 'escalate') esc += 1;
+      else if (s === 'flags') flg += 1;
+      else clr += 1;
+    }
+    document.getElementById('cAll').textContent = allRows.length;
+    document.getElementById('cEsc').textContent = esc;
+    document.getElementById('cFlg').textContent = flg;
+    document.getElementById('cClr').textContent = clr;
+  }
+
+  function render() {
+    const filtered = currentFilter === 'all'
+      ? allRows
+      : allRows.filter((r) => statusOf(r) === currentFilter);
+
+    if (filtered.length === 0) {
+      content.innerHTML = `
+        <div class="empty">
+          <div class="big">🐜</div>
+          <div>No warranty claim packages in this window.</div>
+          <div style="margin-top:6px;font-size:11px">Claims appear here when warranty_claim_request_*_claims agents fire on TDR_COMPLETE.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const parts = [];
+    for (const r of filtered) {
+      const s = statusOf(r);
+      const created = new Date(r.created_at);
+      const createdStr = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+      }).format(created);
+      const pill = s === 'escalate' ? '<span class="pill escalate">escalate</span>'
+        : s === 'flags' ? `<span class="pill flags">${r.high_flags} flag${r.high_flags === 1 ? '' : 's'}</span>`
+        : '<span class="pill clear">clear</span>';
+      parts.push(`
+        <div class="card ${s}">
+          <div class="row1">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <a class="job-link" href="job-detail.html?job_id=${r.job_id}">Job #${r.job_id}</a>
+              <span class="vendor">${escapeHtml(r.vendor || r.specialty || '?')}</span>
+              ${pill}
+            </div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${createdStr} CT</div>
+          </div>
+          <div class="meta">generated by ${escapeHtml(r.generated_by || 'unknown')} · #${r.id}</div>
+          <pre id="text-${r.id}" style="display:none">${escapeHtml(r.claim_action_text)}</pre>
+          <button class="expand" data-toggle="${r.id}">Show claim package ↓</button>
+        </div>
+      `);
+    }
+    content.innerHTML = parts.join('');
+
+    content.querySelectorAll('[data-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.toggle;
+        const pre = document.getElementById(`text-${id}`);
+        if (!pre) return;
+        const showing = pre.style.display !== 'none';
+        pre.style.display = showing ? 'none' : 'block';
+        btn.textContent = showing ? 'Show claim package ↓' : 'Hide ↑';
+      });
+    });
+  }
+
+  document.querySelectorAll('.filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    })[c]);
+  }
+
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
