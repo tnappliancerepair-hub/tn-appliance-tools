@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 182,
-    "agents_to_build": 85,
+    "agents_live": 183,
+    "agents_to_build": 84,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1160,7 +1160,7 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 35,
-      "agents_live": 25,
+      "agents_live": 26,
       "agents": [
         {
           "id": "S001",
@@ -1461,7 +1461,7 @@
         {
           "id": "S026",
           "name": "Recurring Job Anchor",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "For service agreements + repeat customers, anchors their next maintenance visit to optimal tech + slot. Emits SCHEDULING_DECISION.",
           "triggers": [
