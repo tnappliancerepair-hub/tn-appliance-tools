@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 185,
-    "agents_to_build": 82,
+    "agents_live": 186,
+    "agents_to_build": 81,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1160,7 +1160,7 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 35,
-      "agents_live": 28,
+      "agents_live": 29,
       "agents": [
         {
           "id": "S001",
@@ -1506,7 +1506,7 @@
         {
           "id": "S029",
           "name": "Schedule Health Scorer",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Daily metric: how packed, how clustered, how reschedule-prone is each tech's week? Emits SCHEDULING_HEALTH_SCORE.",
           "triggers": [
