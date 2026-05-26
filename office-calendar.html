@@ -659,6 +659,10 @@
       <button class="nav-btn" id="nextWeek" title="next week">›</button>
       <span class="week-range" id="weekRange">—</span>
     </div>
+    <div class="view-toggle" style="display:flex; gap:6px; margin-left:10px;">
+      <button class="nav-btn view-btn active" id="viewWeekBtn" title="Week grid view" data-view="week">Week</button>
+      <button class="nav-btn view-btn" id="viewTodayBtn" title="Today list view" data-view="today">Today</button>
+    </div>
     <div class="spacer"></div>
     <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
   </div>
@@ -708,6 +712,9 @@
   const nextWeek = $('nextWeek');
   const todayBtn = $('todayBtn');
   const newJobBtn = $('newJobBtn');
+  const viewWeekBtn = $('viewWeekBtn');
+  const viewTodayBtn = $('viewTodayBtn');
+  let currentView = (params.get('view') === 'today') ? 'today' : 'week';
 
   // ── Auth ───────────────────────────────────────────────────────
   function unlock() {
@@ -785,6 +792,13 @@
     lastTechs = techs;
     lastJobsById = {};
     for (const j of jobs) lastJobsById[j.id] = j;
+
+    // Branch on view mode. Today view replaces the week grid with a
+    // chronological list of all jobs scheduled for today across all techs.
+    if (currentView === 'today') {
+      renderTodayView(data, techs, jobs);
+      return;
+    }
 
     // Index data
     // assigned[techId][dateStr] -> [jobs]
@@ -1027,11 +1041,97 @@
     const isCurrent = data.week_start_ct === currentWeekOfDateStr(data.today_ct);
     todayBtn.classList.toggle('active', isCurrent);
     todayBtn.textContent = isCurrent ? 'this week' : 'jump to today';
+    // View toggle active state.
+    viewWeekBtn?.classList.toggle('active', currentView === 'week');
+    viewTodayBtn?.classList.toggle('active', currentView === 'today');
+  }
+
+  function renderTodayView(data, techs, jobs) {
+    const todayStr = data.today_ct;
+    // Today's jobs across all techs, sorted by scheduled_start ascending.
+    const todayJobs = jobs
+      .filter((j) => ctDateForMs(j.scheduled_start) === todayStr || (!j.scheduled_start && (j.unassigned || !j.technician_id)))
+      .sort((a, b) => {
+        const aMs = a.scheduled_start || 0;
+        const bMs = b.scheduled_start || 0;
+        if (!aMs && !bMs) return 0;
+        if (!aMs) return 1;
+        if (!bMs) return -1;
+        return aMs - bMs;
+      });
+
+    const techById = {};
+    for (const t of techs) techById[t.id] = t;
+
+    if (todayJobs.length === 0) {
+      content.innerHTML = `
+        <div class="today-empty" style="padding:60px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
+          <div style="font-size:48px;margin-bottom:12px">🐜</div>
+          <div style="font-size:16px">No jobs scheduled today (${todayStr}).</div>
+          <div style="margin-top:8px;font-size:13px">Click "Week" above to see the full week, or "+ New Job" to book one.</div>
+        </div>
+      `;
+      return;
+    }
+
+    const parts = [];
+    parts.push(`<div class="today-header" style="padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)">
+      <div style="font-family:var(--display);letter-spacing:0.06em;font-size:18px;color:var(--text)">Today — ${todayStr}</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${todayJobs.length} ${todayJobs.length === 1 ? 'job' : 'jobs'} across ${techs.length} techs</div>
+    </div>`);
+    parts.push(`<div class="today-list" style="padding:8px 12px">`);
+
+    for (const j of todayJobs) {
+      const time = j.scheduled_start ? fmtTimeShort(j.scheduled_start) : '—';
+      const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
+      const appl = (j.appliance_type || '').toLowerCase();
+      const brand = (j.brand || '').trim();
+      const city = (j.service_city || '').trim();
+      const status = (j.scheduling_status || '').toLowerCase();
+      const ct = (j.customer_type || '').toLowerCase();
+      const tech = techById[j.technician_id];
+      const techLabel = tech
+        ? `${(tech.first_name || '').trim()} ${(tech.last_name || '').trim().slice(0,1)}${tech.last_name ? '.' : ''}`.trim()
+        : 'unassigned';
+
+      let bk = 'self_pay';
+      if (ct === 'warranty') bk = 'warranty';
+      if (status === 'completed') bk = 'completed';
+
+      parts.push(`
+        <div class="today-row blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
+             style="display:grid;grid-template-columns:80px 1fr auto;gap:12px;align-items:center;padding:12px 14px;margin:8px 0;border-radius:8px;cursor:pointer;min-height:48px">
+          <div style="font-family:var(--mono);font-weight:700;color:var(--text);font-size:14px">${escapeHtml(time)}</div>
+          <div>
+            <div style="font-weight:700;color:var(--text);font-size:14px">${escapeHtml(cust)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
+            </div>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
+        </div>
+      `);
+    }
+    parts.push(`</div>`);
+    content.innerHTML = parts.join('');
+    attachClickHandlers();
   }
 
   // ── Nav ────────────────────────────────────────────────────────
   prevWeek.addEventListener('click', () => stepWeek(-7));
   nextWeek.addEventListener('click', () => stepWeek(7));
+
+  // View toggle. Today view re-renders the same loaded data — no extra fetch.
+  function setView(view) {
+    if (view !== 'week' && view !== 'today') return;
+    if (currentView === view) return;
+    currentView = view;
+    updateUrl();
+    if (dashboardData) render(dashboardData);
+    else loadWeek();
+  }
+  viewWeekBtn?.addEventListener('click', () => setView('week'));
+  viewTodayBtn?.addEventListener('click', () => setView('today'));
   todayBtn.addEventListener('click', () => {
     if (!serverTodayCT) return;
     currentWeekStart = currentWeekOfDateStr(serverTodayCT);
@@ -1054,6 +1154,8 @@
     } else if (currentWeekStart) {
       url.searchParams.set('week', currentWeekStart);
     }
+    if (currentView === 'today') url.searchParams.set('view', 'today');
+    else url.searchParams.delete('view');
     window.history.replaceState({}, '', url.toString());
   }
 
