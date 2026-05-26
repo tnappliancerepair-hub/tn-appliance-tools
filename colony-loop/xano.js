@@ -197,6 +197,14 @@ export async function sendFeedbackSms({ job_id, customer_phone, customer_first_n
   });
 }
 
+export async function getPartsIntelForJob(jobId) {
+  return getJSON(`${INTAKE()}/get_parts_intel_for_job?job_id=${jobId}`);
+}
+
+export async function getPartsDecisionHandled(jobId) {
+  return getJSON(`${INTAKE()}/get_parts_decision_handled?job_id=${jobId}`);
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',
