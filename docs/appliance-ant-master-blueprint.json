@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 94,
-    "agents_to_build": 285,
+    "agents_live": 95,
+    "agents_to_build": 284,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1628,7 +1628,7 @@
       "purpose": "Best techs profit from making other techs great. Knowledge sharing rewarded not punished.",
       "priority": "MEDIUM",
       "agents_total": 12,
-      "agents_live": 4,
+      "agents_live": 5,
       "equity_structure": {
         "apprentice_mentor": {
           "max_mentees": 2,
@@ -1716,7 +1716,7 @@
         {
           "id": "ME008",
           "name": "Mentor Capacity Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "HARD STOP. Prevents any mentor from exceeding their tier capacity. System literally will not allow it. Quality protection.",
           "xano_endpoint": "mentor_capacity_agent"
