@@ -182,6 +182,33 @@ export async function run(signal, ctx) {
   await xano.markSignalProcessed(signal.id, 'warranty_submission_handled', finalMeta);
   log('warranty_submission_handled', finalMeta);
 
+  // ── Chain: TDR_QUALITY_CHECK ──
+  // Hand off to tdr_quality_gate.js so it can SMS the assigned tech with
+  // any missing fields (separate channel from Danielle's digest) AND emit
+  // TDR_COMPLETE for the warranty_router agent (BUILD 3) to auto-submit
+  // the claim. Independent emit so a failure here doesn't back-propagate
+  // into the Danielle digest path.
+  try {
+    await xano.emitSignal({
+      signal_type: 'TDR_QUALITY_CHECK',
+      signal_strength: 65,
+      payload: {
+        job_id: jobId,
+        technician_id: job.technician_id || null,
+        customer_id: customer?.id || null,
+        warranty_company: job.warranty_company || '',
+        vendor,
+        claim_number: job.claim_number || '',
+        appliance_type: job.appliance_type || '',
+        customer_first_name: customer?.first_name || '',
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('tdr_quality_check_chain_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   return {
     success: true,
     action: 'danielle_digest_sent',
