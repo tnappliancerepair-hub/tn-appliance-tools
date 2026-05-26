@@ -199,20 +199,22 @@ async function main() {
   };
 
   // HCP paginates with ?page=N&per_page=M. The work_status filter must be
-  // an array, sent as PHP/Rails-style repeated params: work_status[]=A&work_status[]=B.
-  // A single comma-separated string returns HTTP 400 with "work_status filter
-  // must be an array of strings".
+  // sent as array params (PHP/Rails-style) — a single comma-separated string
+  // returns HTTP 400 "work_status filter must be an array of strings".
+  // URLSearchParams handles the encoding cleanly.
   const statusesArr = args.statuses
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  const workStatusParams = statusesArr
-    .map((s) => `work_status[]=${encodeURIComponent(s)}`)
-    .join('&');
   let page = 1;
 
   while (page <= args.maxPages) {
-    const url = `${baseUrl}/jobs?${workStatusParams}&page=${page}&per_page=${args.perPage}`;
+    const url = new URL(`${baseUrl}/jobs`);
+    for (const s of statusesArr) {
+      url.searchParams.append('work_status[]', s);
+    }
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('per_page', String(args.perPage));
     process.stdout.write(`page ${page}: fetching…`);
     let resp;
     try {
