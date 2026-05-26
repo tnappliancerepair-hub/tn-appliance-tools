@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 46,
-    "agents_to_build": 333,
+    "agents_live": 47,
+    "agents_to_build": 332,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -398,7 +398,7 @@
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
       "agents_total": 13,
-      "agents_live": 9,
+      "agents_live": 10,
       "agents": [
         {
           "id": "P001",
@@ -499,7 +499,7 @@
         {
           "id": "P010",
           "name": "Delivery Risk Scorer Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Weights historical delivery accuracy into the decision. Prevents cutting it too close when a supplier historically runs late.",
           "xano_endpoint": "delivery_risk_scorer",
