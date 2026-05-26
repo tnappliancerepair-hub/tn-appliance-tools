@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 173,
-    "agents_to_build": 94,
+    "agents_live": 174,
+    "agents_to_build": 93,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -399,7 +399,7 @@
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
       "agents_total": 53,
-      "agents_live": 49,
+      "agents_live": 50,
       "agents": [
         {
           "id": "P001",
@@ -1095,7 +1095,7 @@
         {
           "id": "P050",
           "name": "Parts Backorder Watcher",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Watches ordered parts with parts_status=on_order. When ETA slips past promised date, emits PARTS_DELAY_ALERT and SMSes Teddy with options.",
           "triggers": [
