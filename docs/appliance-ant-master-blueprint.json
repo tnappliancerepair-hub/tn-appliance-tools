@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 27,
-    "agents_to_build": 352,
+    "agents_live": 28,
+    "agents_to_build": 351,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -79,7 +79,7 @@
       "purpose": "Pre-dispatch diagnostic intelligence for every job. Makes decent techs perform like great ones.",
       "priority": "HIGH",
       "agents_total": 11,
-      "agents_live": 8,
+      "agents_live": 9,
       "agents": [
         {
           "id": "D001",
@@ -222,7 +222,7 @@
         {
           "id": "D009",
           "name": "GE Brand Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Brand specialist for GE, GE Profile, Cafe, Monogram appliances.",
           "triggers": [
