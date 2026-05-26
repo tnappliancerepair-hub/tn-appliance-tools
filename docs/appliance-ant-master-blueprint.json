@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 70,
-    "agents_to_build": 309,
+    "agents_live": 71,
+    "agents_to_build": 308,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1761,7 +1761,7 @@
       "purpose": "Find the Jordans of every market. Employed techs who are great at craft and tired of making someone else rich.",
       "priority": "HIGH",
       "agents_total": 14,
-      "agents_live": 9,
+      "agents_live": 10,
       "recruiting_offer": {
         "compensation": "40% commission",
         "vehicle": "Cybertruck provided",
@@ -1868,7 +1868,7 @@
         {
           "id": "REC010",
           "name": "Hiring Velocity Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Tracks tech addition rate vs plan. Behind on hiring - escalates budget and urgency across all channels automatically.",
           "xano_endpoint": "hiring_velocity_agent"
