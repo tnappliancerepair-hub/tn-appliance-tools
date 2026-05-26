@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 83,
-    "agents_to_build": 296,
+    "agents_live": 84,
+    "agents_to_build": 295,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1397,7 +1397,7 @@
       "purpose": "Extend the colony to HVAC. Jordan as Master Tech. Same architecture, new domain knowledge.",
       "priority": "MEDIUM",
       "agents_total": 13,
-      "agents_live": 4,
+      "agents_live": 5,
       "key_person": "Jordan - lead HVAC tech, currently employed at $38/hour, TCAT trained, Teddy's good friend",
       "agents": [
         {
@@ -1435,7 +1435,7 @@
         {
           "id": "H005",
           "name": "Install Opportunity Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "On every service call evaluates unit age, efficiency, repair cost vs replacement cost. Prepares Jordan for honest replacement conversation. Warranty call becomes $8000 install opportunity.",
           "xano_endpoint": "install_opportunity_agent"
