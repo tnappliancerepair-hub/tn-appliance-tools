@@ -624,6 +624,76 @@ Key findings still valid:
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-26 (field-day sprint, 5 builds)
+
+While Teddy was in the field for 5 hours, the agent shipped 5 ordered builds + final architect run. Every build was committed + pushed independently.
+
+### What shipped
+
+**HOUR 1 — AHS auto-enqueue + backfill tooling** (commit `22ee11c`)
+- `api/intake/ahs_email_intake_POST.xs` now inserts a `scheduling_queue` row (action_type=propose, status=pending, metadata={priority, source: "ahs_email_intake_auto", warranty_company, claim_number}) for every new AHS job. Existing `scheduling_queue_worker.xs` propose handler picks it up on next cycle.
+- New `colony-loop/xano-endpoints/intake/list_ahs_backlog_GET.xs` — paginated list of AHS jobs at scheduling_status=not_ready.
+- New `colony-loop/scripts/backfill-ahs-scheduling.js` — drains the backlog via `enqueue_scheduling_queue_propose`. Flags: `--dry-run`, `--max=N`, `--per-page=N`, `--require-pref`.
+- **Reality finding**: 16,677 AHS jobs at not_ready (3.4× the 4,898 estimated), but **zero have non-empty customer_preference_text**. That field is only set by `update_job_from_chat_POST` (resume-chat flow). User's `--require-pref` filter correctly excluded all of them; going-forward auto-enqueue at intake time means new AHS jobs get scheduling treatment automatically.
+
+**HOUR 2 — Office calendar action modal** (commit `48222f1`)
+- `office-calendar.html` — click any job block opens a manage modal with Reschedule (datetime picker), Reassign (tech selector excluding current assignee), Cancel (with reason textarea + confirm). On success closes + reloads week.
+- Wired to existing `reschedule_job_POST` (already emits APPOINTMENT_SCHEDULED), `reassign_job_POST`, `cancel_job_POST`.
+- "Open full detail ↗" link preserves the original deep-link to `job-detail.html`.
+- **Completes HCP migration prereq #5** — calendar's last write-action gap. The cutover Saturday is now unblocked from the UI side.
+
+**HOUR 3 — Inbound customer SMS router** (commit `a589a94`)
+- Customer-direction equivalent of tech_sms_inbound. End-to-end pipe:
+  `Telnyx webhook (message.received) → netlify/functions/customer-sms-inbound.js → POST /record_inbound_customer_sms → match customer + active job → emit INBOUND_CUSTOMER_SMS → inbound_customer_sms.js (keyword classify) → SMS_RESPONSE_<TYPE> → sms_response_*.js (Claude reply) → CUSTOMER_SMS_REPLY → customer_sms_reply.js → xano.sendSms → Telnyx`
+- New files: `api/intake/record_inbound_customer_sms_POST.xs`, `colony-loop/agents/inbound_customer_sms.js`, `colony-loop/agents/customer_sms_reply.js`, `netlify/functions/customer-sms-inbound.js`.
+- 7 keyword routes (reschedule/cancel/parts/payment/tech/complaint) + fallback to `sms_response_sms_intent_gap_agent`. Each route fast-skips no_agent_yet until that specific responder is built.
+- **Action required to activate inbound**: in Telnyx portal → Messaging Profile for `+16155889500` → Inbound Webhook URL: `https://tnapplianceexchange.net/.netlify/functions/customer-sms-inbound` (API version 2 JSON).
+- **Live verification**: synthetic POST to `record_inbound_customer_sms` returned `signal_id=115`; loop dispatched the new agent within the same minute.
+
+**HOUR 4 — Brand chain on DIAGNOSTIC_BRIEF (router pattern)** (commit `8ba73e9`)
+- `colony-loop/agents/diagnostic_brief.js` — new router that consumes DIAGNOSTIC_BRIEF + emits BRAND_LOOKUP_<SLUG>.
+- Brand mapping covers 5 architect-built brand agents: whirlpool_family (whirlpool/maytag/kitchenaid/amana/jenn-air), ge (ge/hotpoint/monogram/cafe/profile), lg, samsung, electrolux_family (electrolux/frigidaire).
+- Full chain now: `JOB_CREATED → DIAGNOSE_<APPLIANCE> → DIAGNOSTIC_BRIEF → diagnostic_brief.js → BRAND_LOOKUP_<SLUG> → brand_*.js → BRAND_INTELLIGENCE`.
+- Mirrors `tdr_complete.js` (WARRANTY_CLAIM_REQUEST_<VENDOR>) routing pattern. New brand agents register via one line in `BRAND_MAP`, no diagnose_* changes needed.
+
+**HOUR 5 — Blueprint enumeration (+130 TO_BUILD specs)** + architect run (this commit)
+- New `colony-loop/scripts/expand-blueprint.js` generates structured TO_BUILD specs:
+  - **Colony 2 Parts**: +40 (P014..P053) — 5 suppliers (Marcone/Triple S/AppliancePartsPros/RepairClinic/PartSelect) × 7 appliance categories (washer/dryer/dishwasher/refrigerator/range/microwave/hvac) + 5 cross-cutting (arbitrage, backorder watcher, cross-ref resolver, authenticity verifier, shipping ETA predictor).
+  - **Colony 5 Voice/SMS**: +25 (V006..V030) — 25 conversation types (appointment_confirmation, reschedule_request, cancel_request, parts_arrival_eta, parts_delay, payment_due/received, technician_eta/late, tech_no_show, complaint, refund_request, warranty_question, post_job_feedback, positive/negative_review_followup, opt_out, repeat_customer_greeting, photo_request, model_number_request, address_correction, gate_code_request, callback_request, escalation_acknowledgement, after_hours_response).
+  - **Colony 3 Scheduling**: +15 (S021..S035) — gap_filler, cluster_geometry_optimizer, traffic_aware_eta, tech_specialty_router, no_show_recovery, recurring_anchor, day_balancer, last_minute_filler, schedule_health_scorer, capacity_predictor, duration_learner, sick_day_cascade_refiner, weather_aware_rescheduler, preference_aligner, holiday_adjuster.
+  - **Colony 14 HVAC**: +10 (H014..H023) — recovery_compliance, heat_pump_diagnostic, furnace_combustion_analyzer, ac_charge_calculator, filter_reminder, duct_loss_estimator, sizing_validator, brand_bulletin_watcher, tax_credit_surfacer, iaq_specialist.
+  - **Colony 18 Recruiting**: +10 (REC015..REC024) — indeed_posting_generator, resume_quality_scorer, phone_screen_generator, onboarding_doc_builder, background_check_coordinator, referral_program_manager, comp_benchmarker, ghost_followup, jd_refresher, school_outreach.
+  - **Colony 6 Customer Intelligence**: +10 (CI005..CI014).
+  - **Colony 7 Tech Performance**: +10 (PC001..PC010).
+  - **Colony 4 Warranty**: +5 (W010..W014) — status pollers per vendor + denial pattern analyzer + authorization request builder.
+  - **Colony 15 Service Agreement**: +5 (SA007..SA011).
+- Total: blueprint now 267 enumerated / 137 live / 130 to_build. Up from 137 enumerated / 137 live / 0 to_build before the sprint.
+- COLONY_ARCHITECT injected with max_builds=999. Architect runs through the new specs against existing templates (parts_intelligence, sms_responder, scheduling_optimizer, hvac_specialist, recruiting_specialist, customer_intelligence, performance_coach, warranty_claims, service_agreement_specialist). Anything matching a template gets built overnight; anything not matching fast-skips no_template (logged in event_log).
+
+### Current state at end of sprint
+
+- 5 commits pushed in this sprint (`22ee11c`, `48222f1`, `a589a94`, `8ba73e9`, blueprint+architect)
+- Colony loop healthy throughout: tick errors=0 across the entire session (~70+ ticks observed via monitor)
+- TECH_ARRIVAL_CHECK hold-and-re-emit pattern firing as designed
+- One real TECH_ON_WAY + JOB_STARTED chain observed live mid-sprint (signals 49/63/68/77/84) — Phase 5.5A signals firing in production unchanged
+
+### What NOT to do (additions from this sprint)
+
+- **Do NOT run `backfill-ahs-scheduling.js` without `--require-pref`** unless prepared for thousands of propose-row enqueues. Each propose row triggers a worker run + owner SMS. Honor the customer_preference_text filter unless explicitly draining the backlog at a controlled pace via `--max=N`.
+- **Do NOT wire Twilio for the customer-direction `+16155889500`** unless explicitly intended. The new `customer-sms-inbound.js` supports both formats but the production wiring is Telnyx-only (Telnyx's failover Twilio path would be a redundancy decision, not a default).
+- **Do NOT add CUSTOMER_SMS_REPLY emit to sms_response_* agents that already emit it.** `customer_sms_reply.js` is the single send path now. Duplicate emits = duplicate SMS to the customer.
+- **Do NOT manually rebuild any of the 5 brand mappings in `diagnostic_brief.js` BRAND_MAP without first checking the architect-built brand_*.js list.** The 5 mapped slugs (whirlpool_family, ge, lg, samsung, electrolux_family) match existing agent files — adding a new key with no matching agent file would emit a BRAND_LOOKUP_X signal that nobody listens to.
+
+### Next session — what to look for
+
+1. **Monitor `event_log` for `inbound_customer_sms_handled` rows** once Telnyx webhook is wired — confirms HOUR 3 is live end-to-end with real customer traffic.
+2. **Check architect output** — how many of the 130 new TO_BUILD specs did the architect build? Look for the parts_*.js, schedule_*.js, sms_response_*.js, hvac_*.js, recruiting_*.js, performance_*.js, customer_intel_*.js, warranty_*.js files created since this commit.
+3. **Cancel-job signal emit** — `cancel_job_POST` is wired in the office calendar modal but doesn't yet emit a signal (no customer-facing cancel SMS). Adding `JOB_CANCELED` emit + an agent to SMS the customer is a clean follow-up.
+4. **Reassign signal emit** — `reassign_job_POST` doesn't currently emit TECH_ASSIGNED (Phase 5.5B follow-on noted in earlier session log). Now that the office modal triggers it, this gap is more visible.
+5. **brand_intelligence + diagnostic_brief → TDR suggestion** — both signals carry rich data per job_id. A future `tdr_suggestion.js` agent could post a pre-filled TDR draft into Teddy Tool, closing the diagnose → brand → TDR loop.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
