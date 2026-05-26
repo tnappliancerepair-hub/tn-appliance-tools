@@ -163,3 +163,11 @@ export async function getJobsForDashboard({ date_filter = 'all', page = 1, per_p
 export async function s3ViewUrl(s3Key) {
   return postJSON(`${config.netlifyFunctionsBase}/s3-view-url`, { s3_key: s3Key });
 }
+
+export async function getAutoScheduleContext(jobId) {
+  return getJSON(`${INTAKE()}/get_auto_schedule_context?job_id=${jobId}`);
+}
+
+export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_schedule') {
+  return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source });
+}
