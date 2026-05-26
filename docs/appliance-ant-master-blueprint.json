@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 98,
-    "agents_to_build": 281,
+    "agents_live": 99,
+    "agents_to_build": 280,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -951,7 +951,7 @@
       "purpose": "Build deep customer relationships. Turn one-time customers into lifetime relationships.",
       "priority": "MEDIUM",
       "agents_total": 4,
-      "agents_live": 1,
+      "agents_live": 2,
       "agents": [
         {
           "id": "CI001",
@@ -965,7 +965,7 @@
         {
           "id": "CI002",
           "name": "Appliance Age Profile Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Builds appliance profile for every customer from job history. Tracks age and failure probability curves for each appliance.",
           "xano_endpoint": "appliance_age_profile_agent",
