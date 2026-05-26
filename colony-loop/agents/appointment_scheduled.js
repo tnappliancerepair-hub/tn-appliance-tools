@@ -2,6 +2,9 @@ import { config } from '../config.js';
 import { fmtCT } from '../time.js';
 import { normalizeE164 } from '../sms.js';
 
+const REMINDER_LEAD_MS = 24 * 60 * 60 * 1000; // 24h before appointment
+const MIN_LEAD_MS = 60 * 60 * 1000; // don't bother if the appointment is <1h away
+
 // Sources that should NOT trigger a customer confirmation. tech_claim is
 // the open-broadcast "yes" path which defaults scheduled_start to tomorrow
 // 8am — that's a placeholder, not a real customer-facing appointment. The
@@ -172,6 +175,39 @@ export async function run(signal, ctx) {
       source,
     });
     techResult = res && res.success ? 'ok' : 'maybe_failed';
+  }
+
+  // ── Chain: APPOINTMENT_REMINDER_DUE (24h pre-appointment) ──
+  // Skip the reminder when:
+  //   - we have no scheduled_start, or
+  //   - the appointment is less than 1h away (no time for a useful reminder),
+  //   - the customer was the one driving the schedule action (tech_claim
+  //     placeholder time — same SKIP_CUSTOMER_SOURCES set as confirmation).
+  const now = Date.now();
+  const reminderDeadlineMs = Number(scheduledStartMs) - REMINDER_LEAD_MS;
+  const apptLeadMs = Number(scheduledStartMs) - now;
+  if (
+    scheduledStartMs &&
+    apptLeadMs >= MIN_LEAD_MS &&
+    !SKIP_CUSTOMER_SOURCES.has(source)
+  ) {
+    try {
+      await xano.emitSignal({
+        signal_type: 'APPOINTMENT_REMINDER_DUE',
+        signal_strength: 45,
+        payload: {
+          job_id: jobId,
+          scheduled_start_ms: scheduledStartMs,
+          deadline_ms: Math.max(reminderDeadlineMs, now + MIN_LEAD_MS),
+          scheduled_for_ms: Math.max(reminderDeadlineMs, now + MIN_LEAD_MS),
+          technician_id: technicianId,
+          source: 'appointment_scheduled_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('appointment_reminder_emit_failed', { job_id: jobId, error: String(err.message || err) });
+    }
   }
 
   const meta = {
