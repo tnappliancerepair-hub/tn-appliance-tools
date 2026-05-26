@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 194,
-    "agents_to_build": 73,
+    "agents_live": 195,
+    "agents_to_build": 72,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -2425,7 +2425,7 @@
       "purpose": "Make every tech better every day. Knowledge that takes 10 years to accumulate delivered after job one.",
       "priority": "HIGH",
       "agents_total": 15,
-      "agents_live": 6,
+      "agents_live": 7,
       "agents": [
         {
           "id": "T001",
@@ -2509,7 +2509,7 @@
         {
           "id": "PC003",
           "name": "Time Per Job Coach",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Coaches techs on jobs taking materially longer than learned baseline for that pattern. Emits PERFORMANCE_COACHING.",
           "triggers": [
