@@ -993,21 +993,101 @@ function onCall() {
   window.location.href = 'tel:+' + phone;
 }
 
+function formatEtaCT(ms) {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/Chicago'
+    }).format(new Date(ms)).toLowerCase().replace(/\s/g, '') + ' CT';
+  } catch {
+    const d = new Date(ms);
+    return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}${d.getHours() < 12 ? 'am' : 'pm'}`;
+  }
+}
+
 async function onOnMyWay() {
   const btn = document.getElementById('btn-on-my-way');
   btn.disabled = true;
-  btn.textContent = '⏳ Sending...';
+  btn.textContent = '⏳ Calculating ETA...';
+
   try {
+    // Step 1: Resolve the "next leg" geometry. Per spec: from = current job
+    // address (Sarah, the loaded job), to = the tech's next scheduled job
+    // for today. Drive time between them + tool_pack_minutes buffer is the
+    // ETA we promise the customer.
+    let driveMinutes = 25; // default if everything else fails
+    let toolPackMinutes = 8;
+    let driveSource = 'default';
+    let driveText = '25 min (default)';
+
+    const nextRes = await fetch(
+      `${XANO_BASE}/get_next_tech_job?tech_id=${encodeURIComponent(TECH_ID)}&current_job_id=${encodeURIComponent(JOB_ID)}`
+    );
+    let nextData = null;
+    if (nextRes.ok) {
+      nextData = await nextRes.json();
+      if (nextData && typeof nextData.tool_pack_minutes === 'number') {
+        toolPackMinutes = nextData.tool_pack_minutes;
+      }
+    }
+
+    if (nextData && nextData.has_next_job && nextData.next_address && jobAddress) {
+      const na = nextData.next_address;
+      const toAddr = [na.address, na.city, na.state, na.zip].filter(Boolean).join(', ');
+      if (toAddr) {
+        const driveRes = await fetch('/.netlify/functions/get-drive-time', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from_address: jobAddress, to_address: toAddr })
+        });
+        if (driveRes.ok) {
+          const dt = await driveRes.json();
+          if (dt && dt.success && typeof dt.minutes === 'number') {
+            driveMinutes = dt.minutes;
+            driveSource = dt.source || 'google';
+            driveText = dt.duration_text || `${driveMinutes} min`;
+          }
+        }
+      }
+    }
+
+    const totalMinutes = driveMinutes + toolPackMinutes;
+    const etaMs = Date.now() + totalMinutes * 60000;
+    const etaStr = formatEtaCT(etaMs);
+
+    // Step 2: confirm with the tech before sending the SMS.
+    const custName = (document.getElementById('job-customer').textContent || 'the customer').trim();
+    const firstName = custName.split(/\s+/)[0] || custName;
+    const confirmMsg =
+      `Sending ${firstName} your ETA of ${etaStr}\n\n` +
+      `(${driveText} drive + ${toolPackMinutes}min pack)\n` +
+      `Source: ${driveSource}\n\n` +
+      `Tap OK to confirm.`;
+    if (!window.confirm(confirmMsg)) {
+      btn.disabled = false;
+      btn.textContent = '🚗 On My Way';
+      addSystem('info', 'On My Way canceled');
+      return;
+    }
+
+    btn.textContent = '⏳ Sending...';
+
+    // Step 3: write status + send customer SMS via tech_on_the_way.
     const res = await fetch(`${XANO_BASE}/tech_on_the_way`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         job_id: parseInt(JOB_ID, 10),
-        technician_id: parseInt(TECH_ID, 10)
+        technician_id: parseInt(TECH_ID, 10),
+        eta_minutes: totalMinutes,
+        eta_timestamp_ms: etaMs,
+        eta_time_str: etaStr
       })
     });
     if (!res.ok) throw new Error(`(${res.status})`);
-    addSystem('success', '✅ on-the-way message sent to customer');
+    addSystem('success', `✅ ETA ${etaStr} sent to ${firstName}`);
     btn.textContent = '✓ Sent';
     // Permanent: stays disabled for this page load. Page reload resets.
   } catch (err) {

@@ -482,6 +482,50 @@ When that's done, the office no longer touches HCP for scheduling. **Pick a Satu
 
 **🐜 Long live Ant.**
 
+### Late night 2026-05-25 → 2026-05-26 — warranty resume flow, auto-schedule agent, On My Way ETA
+
+Three back-to-back builds this block. Each independently shipped + tested + pushed.
+
+**1. Warranty customer resume-chat flow (commit `e4fedc6`).** Greeting SMS for non-`web_chat` sources now carries `?job_id=X&mode=resume`. Landing customers see a minimal overlay form instead of the standard create-new-job chat. Fields: availability (textarea), access notes (textarea), confirm last 4 digits of phone (soft auth). On submit → `update_job_from_chat` patches the existing jobs row (no duplicate create) + emits `JOB_INTAKE_COMPLETE` colony signal. New `jobs.access_notes` text column. New XS: `get_job_resume_context_POST` (minimal-PII fetch: first_name, appliance, brand, phone_last4 — no full phone/address/email/diagnosis), `update_job_from_chat_POST` (validates phone_last4 match before write, emits signal). `colony-loop/agents/job_created.js` updated source-aware: web_chat keeps bare domain, all other sources get the resume URL. Smoke-tested: wrong last4 → 401 unauth (no write), correct last4 → 200 with merged fields + signal emitted.
+
+**2. `try_auto_schedule` agent on `JOB_INTAKE_COMPLETE` (commit `0fa6b7f`).** Closes the warranty workflow loop: when a customer finishes resume-chat, the loop evaluates whether the job is ready to schedule and, if so, enqueues a `scheduling_queue` propose row that the existing `scheduling_queue_worker` picks up + SMSes Teddy three slot options. Gates (any failure short-circuits with a logged outcome): `scheduling_status` ∈ {scheduled, in_progress, completed, canceled, no_fix_possible, booked} → already scheduled; `warranty_company` is SquareTrade → ServicePower pre-sets the date; no pre-diagnosis TDR from `technician_id=1` → awaiting prediag; `parts_status` ∈ {parts_needed, ordered, pending, on_order} → awaiting parts; already a pending propose row → already enqueued. Else: enqueue + SMS Teddy "[ant] Job #X ready to schedule - {customer}, {appliance}. Sending you options now." New XS: `get_auto_schedule_context_GET` (single round-trip: job, customer, has_pre_diagnosis, pending_propose_count), `enqueue_scheduling_queue_propose_POST` (insert + event_log audit). New xano.js helpers. Smoke-tested with `signal_id=19` against job 200: agent correctly identified `scheduling_status=completed` and hit `already_scheduled` gate. Logged in `event_log` row 41053.
+
+**3. On My Way ETA system (this commit).** Tech tapping "🚗 On My Way" on `tech-ant-live.html` now: (a) fetches the next scheduled job for the tech today via `get_next_tech_job_GET`; (b) calls a new `/.netlify/functions/get-drive-time` Netlify function (Google Distance Matrix API with `best_guess` traffic, haversine geocode-fallback, hard-fallback to 25min default if no `GOOGLE_MAPS_API_KEY`); (c) adds the tech's `tool_pack_minutes` buffer (new column, default 8); (d) computes a CT-formatted ETA timestamp; (e) shows a tech-side confirm dialog ("Sending Sarah your ETA of 2:47pm CT (12min drive + 8min pack) - tap to confirm"); (f) on confirm, calls upgraded `tech_on_the_way_POST` with `eta_minutes` + `eta_timestamp_ms` + `eta_time_str`.
+
+The upgraded `tech_on_the_way_POST` now stamps `jobs.eta_ms` (new int column) alongside `tech_en_route_at`, emits a `TECH_ON_WAY` colony_signal (currently `no_agent_yet` — hook reserved for downstream consumers like a future Ant Office "tech in transit" indicator), and includes the ETA in the customer SMS: "Hi {name} - {tech_first} is on the way to your {appliance} repair. Expected arrival: {eta_str}. Reply STOP to cancel." When `eta_time_str` is absent (older clients) it falls back to the original short form, so the endpoint is back-compat.
+
+**Customer arrival SMS on Start Job (same commit).** `tech_job_started_POST` now also SMSes the customer: "Hi {name} - {tech_first} has arrived and is ready to look at your {appliance}!" — alongside the existing owner-direction Teddy update. Customer-side full visibility into the appointment lifecycle: confirmation (Phase 5.5A) → resume-chat (today) → on the way + ETA (today) → arrived (today) → completed (Phase 5A digest to Danielle).
+
+**Schema deltas added via Metadata API today (cumulative):**
+- `jobs.access_notes` (text, nullable) — customer-supplied gate codes, pets, etc.
+- `jobs.eta_ms` (int, nullable) — tech-supplied arrival ETA in unix ms.
+- `technicians.tool_pack_minutes` (int, nullable, default 8) — buffer between leaving current job and arriving at next.
+
+**Skipped:** adding `in_transit` to the `scheduling_status` enum. The Metadata API enum-add path is hostile (no clean PUT/PATCH for enum values, schema-replace requires the full existing schema). The existing `tech_en_route_at != null && job_started_at == null` already signals "in transit" unambiguously — no enum needed. Future Ant Office UI can compute the badge from those two timestamps.
+
+**Two new XS footguns added to tomorrow's update of `docs/xanoscript-footguns.md`:**
+1. **Multi-line ternaries break the parser.** `value = cond \n ? a \n : b` fails with "Syntax error: unexpected '?'". Use single-line, or bind the branches to vars first and ternary-select between the vars on one line. The first deploy cycle of upgraded `tech_on_the_way` failed on this; second cycle (single-line) succeeded.
+2. **Metadata API content-PATCH silently drops enum-typed field writes.** `PATCH /table/{id}/content/{row}` with body `{scheduling_status: "intake_complete"}` returns 200 with `scheduling_status: null` in the response and the underlying row is NOT updated. Verified against job 200. Confirms that Metadata API content endpoints are best-effort for non-enum scalars; for enum or constrained columns, use a custom XS endpoint or the Xano UI directly.
+
+### Action item for Teddy — set `GOOGLE_MAPS_API_KEY` in Netlify env
+
+The drive-time function falls back to a 25-min default if the key is unset (no errors thrown, just less accurate ETAs). Until the key lands, the customer SMS will say "Expected arrival: {now+25min} CT" regardless of distance. Add the key at:
+> Netlify dashboard → site `superlative-naiad-233aa7` → Site settings → Environment variables → `GOOGLE_MAPS_API_KEY` = (key from Google Cloud Console, Distance Matrix + Geocoding APIs enabled, billing on, restricted to *.netlify.app referrer).
+
+### Next session priorities
+
+1. **HCP migration prereq #5 — Ant Office booking flow.** Still the only thing standing between today and migration day. Click-empty-cell modal on `office-calendar.html` → new `book_appointment_from_office_POST` writes job + APPOINTMENT_SCHEDULED. Click-job-block modal → reschedule/reassign/cancel via existing endpoints.
+2. **Set `GOOGLE_MAPS_API_KEY` in Netlify env** so the On My Way ETAs go from "25min default" to real traffic-aware times.
+3. **Verify the warranty resume flow live** — once `JOB_INTAKE_COMPLETE` fires from a real customer's resume submission, confirm Teddy gets the three-slot SMS via the propose handler. Smoke worked end-to-end at the unit level; first real customer journey is the proof.
+4. **Build `tech_arrived_customer_sms` agent** for `TECH_ON_WAY` — currently the signal dispatches as `no_agent_yet`. Future use: stash a record in `event_log` for analytics, or trigger an Ant Office "tech in transit" badge on the calendar.
+
+### Additional things NOT to do
+
+- **Do NOT add new agents as Xano endpoints/tasks.** Mac Mini loop functions only (Working rule 5). Today's three builds all honor this — the XS endpoints are pure data primitives, the agents are JS in `colony-loop/agents/`.
+- **Do NOT write multi-line ternaries in XS.** Single-line only, or pre-bind branches to vars (see footgun #1 above).
+- **Do NOT use Metadata API content-PATCH for enum field writes.** It silently no-ops (see footgun #2). Build a small XS endpoint or use the Xano UI.
+- **Do NOT advertise `1-888-ANT-8998` or `1-866-ANT-0111` in customer materials.** Still unwired.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
