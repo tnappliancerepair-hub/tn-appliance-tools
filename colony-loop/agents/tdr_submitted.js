@@ -72,6 +72,31 @@ export async function run(signal, ctx) {
     }
   }
 
+  // Catalog persistence — every TDR submission feeds the proprietary
+  // failure-mode → part-number database. Decoupled from the supplier
+  // fanout so the catalog accumulates even when no supplier responds.
+  try {
+    await xano.emitSignal({
+      signal_type: 'TDR_CATALOG_RECORD',
+      signal_strength: 40,
+      payload: {
+        job_id: jobId,
+        tdr_id: tdrId,
+        appliance_type: String(payload.appliance_type || '').toLowerCase(),
+        brand: String(payload.brand || '').toLowerCase(),
+        model_number: String(payload.model_number || '').trim(),
+        failed_component: failedComponent,
+        failure_cause: String(payload.failure_cause || '').trim(),
+        verified_part_number: verifiedPart,
+        diagnosis: String(payload.diagnosis || '').trim(),
+        source: 'tdr_submitted_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('tdr_catalog_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   const meta = {
     job_id: jobId,
     tdr_id: tdrId,
