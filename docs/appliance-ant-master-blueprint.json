@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 106,
-    "agents_to_build": 273,
+    "agents_live": 107,
+    "agents_to_build": 272,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1397,7 +1397,7 @@
       "purpose": "Extend the colony to HVAC. Jordan as Master Tech. Same architecture, new domain knowledge.",
       "priority": "MEDIUM",
       "agents_total": 13,
-      "agents_live": 10,
+      "agents_live": 11,
       "key_person": "Jordan - lead HVAC tech, currently employed at $38/hour, TCAT trained, Teddy's good friend",
       "agents": [
         {
@@ -1467,7 +1467,7 @@
         {
           "id": "H009",
           "name": "Equipment Age Risk Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Proactive replacement conversations. Delivers information at right moment through Ant not through Jordan. Jordan never has to upsell.",
           "xano_endpoint": "equipment_age_risk_agent"
