@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 298,
-    "agents_to_build": 14,
+    "agents_live": 299,
+    "agents_to_build": 13,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3159,7 +3159,7 @@
       "purpose": "Strategic visibility. Know the business better than any competitor knows theirs.",
       "priority": "MEDIUM",
       "agents_total": 15,
-      "agents_live": 11,
+      "agents_live": 12,
       "agents": [
         {
           "id": "BI001",
@@ -3329,7 +3329,7 @@
         {
           "id": "BI014",
           "name": "Business Intel Customer Acquisition Cost",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Calculates CAC per acquisition channel (warranty network, web, referral, vehicle wrap) by dividing channel spend by jobs from that channel. Emits BUSINESS_INTEL_INSIGHT.",
           "triggers": [
