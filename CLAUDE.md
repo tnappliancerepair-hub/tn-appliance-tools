@@ -624,6 +624,24 @@ Key findings still valid:
 
 **🐜 Long Live Ant.**
 
+## Pending external integrations — wire when delivered
+
+### Parts APIs (Marcone + Triple S) — expected within a few weeks
+
+Two upstream parts-data integrations are committed but not yet delivered:
+
+- **Marcone API** — OEM appliance parts distributor, broad catalog coverage.
+- **Triple S API** — secondary parts source.
+
+Currently the Teddy Tool parts-lookup flow uses a **Sears Parts Direct link** as a stopgap. When either API lands:
+
+1. **Wire into the `parts_intelligence` architect template** (currently the template generates parts agents that simulate sourcing via Claude — replace with real API calls). Generated agents in `colony-loop/agents/parts_*.js` are the wiring targets.
+2. **Replace the Sears Parts Direct link in `teddy-tdr-tool.html`** with a Marcone/Triple S lookup that pre-fills part numbers + live pricing for the diagnosed component.
+3. **Update the parts cost capture path** — currently Teddy enters OEM cost as a free-form dollar amount; with a real API it can auto-fill from the live catalog.
+4. **Track stock + ETA** — both APIs should expose inventory + arrival estimates, which the existing `parts_status` enum + `parts_eta_date` column can absorb without schema changes.
+
+Until then: the Sears Parts Direct link stays. Don't refactor the parts-lookup flow yet.
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
