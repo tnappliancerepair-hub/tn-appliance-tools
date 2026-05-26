@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 28,
-    "agents_to_build": 351,
+    "agents_live": 29,
+    "agents_to_build": 350,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -79,7 +79,7 @@
       "purpose": "Pre-dispatch diagnostic intelligence for every job. Makes decent techs perform like great ones.",
       "priority": "HIGH",
       "agents_total": 11,
-      "agents_live": 9,
+      "agents_live": 10,
       "agents": [
         {
           "id": "D001",
@@ -243,7 +243,7 @@
         {
           "id": "D010",
           "name": "Electrolux Frigidaire Brand Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Brand specialist for Electrolux, Frigidaire, and related brands.",
           "triggers": [
