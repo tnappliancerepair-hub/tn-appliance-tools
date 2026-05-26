@@ -2,6 +2,21 @@
 
 AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" Pivacek (tech ID 1, `tnappliancerepair@gmail.com`, SMS **615-485-5795** for human-judgment escalations).
 
+## COLONY BUILD MODE — ACTIVE (top priority above everything else)
+
+The Colony Architect must run continuously until all 379 agents are built. This is the top priority above everything except production emergencies and live customer-facing fixes.
+
+**Rules (in order of precedence):**
+1. **After every architect run, inject another immediately with `max_builds=50`.** No idle gaps between runs while TO_BUILD agents remain.
+2. **When the architect exhausts templated agents** (everything matching today's detectors is BUILT, and remaining TO_BUILD entries all fast-skip with `no_template`), **stop and build more templates before the next run.** Add a template — even a narrow one — rather than letting the architect sit idle.
+3. **Never let the architect sit idle if there are TO_BUILD agents remaining.** If a run finishes and the blueprint still has TO_BUILD entries, either re-inject (rule 1) or add templates (rule 2).
+4. **Every session must end with the architect running** (a fresh COLONY_ARCHITECT signal injected) or with a documented reason why not.
+5. **Target: wake up every morning to 50+ new agents committed overnight.** The daily 6am CT auto-fire in `tick.js` is the floor; manual injects during the day are the ceiling.
+
+**This rule overrides** the older "build new agents using `agent_builder`" pipeline and the "agent velocity rule" #8 (which it generalizes). When in doubt, the architect runs.
+
+**Operational lever**: when adding a template, batch as many as can be written in one editing pass — each new template can unlock 3-15 agents in the next architect run, so leverage compounds.
+
 ## Platform name: ANT
 
 The product is **ANT** — the AI-native ops platform replacing HCP for TN Appliance Exchange. **Three user-facing surfaces** share the same Xano backend and the same Mac Mini colony loop:

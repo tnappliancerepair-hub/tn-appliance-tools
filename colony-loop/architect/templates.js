@@ -10,20 +10,23 @@
 // agents in the same family.
 //
 // Today the catalog supports:
-//   diagnostic_specialist  — DIAGNOSTIC_BRIEF emitter, triggered by
-//                            DIAGNOSE_<APPLIANCE> signals
-//   brand_specialist       — BRAND_INTELLIGENCE emitter, triggered by
-//                            BRAND_LOOKUP_<BRAND> signals
-//   research_specialist    — RESEARCH_DATA emitter, triggered by
-//                            RESEARCH_REQUEST_<SOURCE> signals
-//   sms_responder          — CUSTOMER_SMS_REPLY emitter, triggered by
-//                            SMS_RESPONSE_<TYPE> signals
-//   parts_intelligence     — PARTS_INTELLIGENCE emitter, triggered by
-//                            PARTS_LOOKUP_<DOMAIN> signals
-//   scheduling_optimizer   — SCHEDULING_DECISION emitter, triggered by
-//                            SCHEDULE_REQUEST_<TYPE> signals
-//   performance_coach      — PERFORMANCE_INSIGHT emitter, triggered by
-//                            PERFORMANCE_REQUEST_<SCOPE> signals
+//   diagnostic_specialist          — DIAGNOSTIC_BRIEF emitter
+//   brand_specialist               — BRAND_INTELLIGENCE emitter
+//   research_specialist            — RESEARCH_DATA emitter
+//   sms_responder                  — CUSTOMER_SMS_REPLY emitter
+//   parts_intelligence             — PARTS_INTELLIGENCE emitter
+//   scheduling_optimizer           — SCHEDULING_DECISION emitter
+//   performance_coach              — PERFORMANCE_INSIGHT emitter
+//   recruiting_specialist          — RECRUITING_INSIGHT emitter
+//   hvac_specialist                — HVAC_INTELLIGENCE emitter
+//   mentorship_specialist          — MENTORSHIP_INSIGHT emitter
+//   warranty_claims                — WARRANTY_CLAIM_ACTION emitter
+//   service_agreement_specialist   — SERVICE_AGREEMENT_INSIGHT emitter
+//   customer_intelligence          — CUSTOMER_INTELLIGENCE emitter
+//   voice_prompt_optimizer         — VOICE_PROMPT_PROPOSAL emitter
+//   market_intelligence            — MARKET_INTELLIGENCE emitter
+//   infrastructure_monitor         — INFRASTRUCTURE_INSIGHT emitter
+//   tech_lifecycle                 — TECH_LIFECYCLE_INSIGHT emitter
 //
 // Dispatch convention: dispatch.js routes one handler per signal_type, so
 // each generated agent gets its own per-domain signal_type. A future
@@ -157,6 +160,108 @@ function schedulingScopeDisplay(agent, slug) {
   if (name) return name;
   return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
+
+// ── COLONY BUILD MODE: 10 high-leverage templates (added 2026-05-26) ──
+//
+// Each follows the same shape: detector function, slug extractor, and a
+// shared renderGenericSpecialist() call from the dispatch branch below.
+// Slugs default to agent id when no naming pattern fits.
+
+function _slugFromName(name, suffixRegex) {
+  let n = String(name || '').trim();
+  if (suffixRegex) n = n.replace(suffixRegex, '').trim();
+  if (!n) return null;
+  return n.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function _displayFromName(name, slug, suffixRegex) {
+  let n = String(name || '').trim();
+  if (suffixRegex) n = n.replace(suffixRegex, '').trim();
+  if (n) return n;
+  return slug.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+// 1. recruiting_specialist
+function isRecruitingSpecialist(agent) {
+  const id = String(agent.id || '');
+  if (/^REC\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\brecruit|\bhiring\b|\bcandidate\b|\bapplicant\b|\bindeed\b|\blinkedin\b|\bfacebook\s+ad|\btiktok\b|\breferral\b|\bdraft\s+(announcement|hype|story|amplification)\b/.test(c);
+}
+
+// 2. hvac_specialist
+function isHvacSpecialist(agent) {
+  const id = String(agent.id || '');
+  if (/^H\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bhvac\b|\brefrigerant\b|\bepa\s*608\b|\bcarrier\b|\blennox\b|\btrane\b|\bcommissioning\b|\binstall\s+opportunity/.test(c);
+}
+
+// 3. mentorship_specialist
+function isMentorshipSpecialist(agent) {
+  const id = String(agent.id || '');
+  if (/^ME\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bmentor\b|\bmentee\b|\bmentorship\b|\bmentor\s+tree\b|\bequity\s+calculator\b/.test(c);
+}
+
+// 4. warranty_claims
+function isWarrantyClaims(agent) {
+  const id = String(agent.id || '');
+  if (/^W\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bclaim\b|\bahs\s+claim|\bfrontdoor\b|\bauthorization\s+request|\bdenial\s+pattern|\bresubmission|\bpayment\s+reconciliation|\bwarranty\s+portal/.test(c);
+}
+
+// 5. service_agreement_specialist
+function isServiceAgreementSpecialist(agent) {
+  const id = String(agent.id || '');
+  if (/^SA\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bservice\s+agreement|\bmaintenance\s+(reminder|plan)|\bequipment\s+age|\bagreement\s+renewal|\bupsell\s+intelligence|\bpost[-\s]?job\s+education/.test(c);
+}
+
+// 6. customer_intelligence
+function isCustomerIntelligence(agent) {
+  const id = String(agent.id || '');
+  if (/^CI\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bcustomer\s+lifetime\s+value\b|\bappliance\s+age\s+profile\b|\bproactive\s+outreach\b|\bcustomer\s+satisfaction\s+scor\w*/.test(c);
+}
+
+// 7. voice_prompt_optimizer
+function isVoicePromptOptimizer(agent) {
+  const id = String(agent.id || '');
+  if (/^V\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bvapi\b|\bvoice\s+transcript|\btranscript\s+analyz|\bprompt\s+(improvement|proposal)|\bvoice\s+(agent|prompt)/.test(c);
+}
+
+// 8. market_intelligence
+function isMarketIntelligence(agent) {
+  const id = String(agent.id || '');
+  if (/^BI\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bcompetitor\s+gap|\bmanufacturer\s+relationship\b|\bmarket\s+expansion\b|\bseasonal\s+demand\b|\bcompetit(or|ive)\s+intel|\bmarket\s+scout\b/.test(c);
+}
+
+// 9. infrastructure_monitor
+function isInfrastructureMonitor(agent) {
+  const id = String(agent.id || '');
+  if (/^INFRA\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bsignal\s+router\b|\bcolony\s+health\b|\breinforcement\s+learning\b|\bcolony\s+architect\b|\binfrastructure\s+monitor\b/.test(c);
+}
+
+// 10. tech_lifecycle
+function isTechLifecycle(agent) {
+  const id = String(agent.id || '');
+  if (/^TC\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\btech\s+confidence\b|\bnew\s+tech\b|\bonboarding\b|\bcertification\s+tracker\b|\bfirst\s+90\s+days\b|\bfirst\s+visit\s+fix\s+rate\b|\btdr\s+tutor\b/.test(c);
+}
+
+// ── End of COLONY BUILD MODE template detectors ──
 
 function isPerformanceCoach(agent) {
   const outputs = (agent.outputs || []).join(' ');
@@ -336,6 +441,48 @@ function metaPromptForPerformance(scopeDisplay) {
     `rather than speculating.\n\n` +
     `Output ONLY the system prompt text — no preamble, no commentary, no meta-text.`
   );
+}
+
+// ── COLONY BUILD MODE meta-prompts ──
+
+function metaPromptForRecruiting(roleDisplay) {
+  return `You are designing the Claude system prompt for a "${roleDisplay}" recruiting agent for TN Appliance Exchange's tech-recruiting platform (ANT). This agent specializes in one slice of the recruiting funnel for appliance-repair techs.\n\nThe agent receives: channel context (Indeed/Facebook/TikTok/LinkedIn/referral), candidate signal (job posting performance, applicant data, market signals), and recent action history. It must return structured recruiting intelligence in this exact shape:\n1. SITUATION: one-line snapshot of current state in this channel/role.\n2. RECOMMENDATIONS: top 3 concrete actions (post X, adjust Y, message Z), ranked by expected hire impact.\n3. METRIC TO WATCH: the leading indicator that confirms whether action 1 is working.\n4. ESCALATIONS: anything Teddy needs to decide personally (budget changes, market exits, brand voice).\n\nBe specific to appliance-repair recruiting (not generic SaaS hiring). Never fabricate competitor data. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForHvac(domainDisplay) {
+  return `You are designing the Claude system prompt for an "${domainDisplay}" HVAC specialist agent. This agent operates inside TN Appliance Exchange's HVAC division (currently 1 dedicated HVAC tech, Jordan; expanding).\n\nThe agent receives: equipment context (brand, model, serial, age, refrigerant type), customer symptom, recent service history, and any applicable compliance constraints (EPA 608, local permits).\n\nIt must return structured HVAC intelligence in this exact shape:\n1. DIAGNOSIS or RECOMMENDATION: domain-specific finding (top failure mode, install opportunity, compliance flag, etc.).\n2. SAFETY / COMPLIANCE FLAGS: refrigerant phase-out, EPA reporting requirements, permit requirements, lockout-tagout concerns.\n3. PARTS / SOURCING: HVAC-specific OEM channels (manufacturer-direct, Johnstone, Baker, Carrier Enterprise) with typical ETAs.\n4. NEXT-VISIT CHECKLIST: 3-5 items the tech should verify or document on this job.\n\nBe specific to ${domainDisplay}. Never invent refrigerant compatibility or EPA rules — if uncertain, write "Tech must verify on-site". Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForMentorship(domainDisplay) {
+  return `You are designing the Claude system prompt for a "${domainDisplay}" mentorship specialist agent. This agent runs the mentor-tree economy of TN Appliance Exchange's tech roster — pairing, tracking, recognizing, advancing, and (when necessary) demoting mentors based on mentee outcomes.\n\nThe agent receives: mentor record (id, tier, current mentees, equity earned), mentee records (recent performance, milestones hit, time-since-onboard), historical pairing data, and any flag events (engagement drops, quality regressions, milestone hits).\n\nIt must return structured mentorship intelligence in this exact shape:\n1. STATUS: one-line snapshot of mentor/mentee relationship health.\n2. ACTION: concrete next step (recognize, pair, advance, demote, intervene), with reasoning.\n3. EQUITY IMPACT: how this affects mentor's earnings/tier and what the system should write to mentor_equity table.\n4. COMMUNICATION: the SMS / message the mentor or mentee should receive, written in their voice (200 chars max).\n\nBe specific to ${domainDisplay}. Never call out a mentor publicly for poor performance — frame coaching as private and private only. Never demote on a single bad data point; require ≥60 days of pattern. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForWarrantyClaims(vendorDisplay) {
+  return `You are designing the Claude system prompt for a "${vendorDisplay}" warranty-claims agent for TN Appliance Exchange. This agent handles warranty claim lifecycle automation for one warranty platform (AHS, SquareTrade, ServicePower, Frontdoor, Cinch, etc.).\n\nThe agent receives: completed job context (job_id, completion_type, TDR with failed_component / labor_time_hours / verified_part_number / repair_completed / customer_facing_diagnosis), warranty company portal requirements, prior claim outcomes for this vendor (approved/denied patterns), and the specific lifecycle action being requested (submit / authorize / status-check / resubmit / reconcile-payment).\n\nIt must return structured warranty-claim output in this exact shape:\n1. CLAIM PAYLOAD: the exact fields and values to submit to ${vendorDisplay}'s portal, formatted as the vendor expects (JSON if API, key-value list if web form).\n2. LANGUAGE OPTIMIZATION: any phrasing tweaks that historically improve approval rates for this vendor.\n3. DOCUMENTATION FLAGS: which TDR fields are incomplete and would risk denial — Danielle/Teddy should fill these before submission.\n4. EXPECTED OUTCOME: typical approval probability + ETA based on vendor history.\n5. ESCALATION: when human intervention is required (denial appeal, multi-step authorization, payment dispute) — the marker is "__ESCALATE_DANIELLE__".\n\nBe specific to ${vendorDisplay}'s known requirements. Never invent claim numbers or pre-authorization codes. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForServiceAgreement(typeDisplay) {
+  return `You are designing the Claude system prompt for a "${typeDisplay}" service-agreement and customer-retention agent. This agent runs TN Appliance Exchange's annual-maintenance-plan / proactive-outreach loop — identifying customers ready for an agreement, sending right-moment communications, and managing renewals.\n\nThe agent receives: customer record (history, appliance inventory, age of each unit, recent service interactions, current agreement status if any), seasonal context, and any trigger (e.g. equipment crossed age threshold, service call completed 3 days ago, agreement expiring in 30 days).\n\nIt must return structured service-agreement output in this exact shape:\n1. CUSTOMER FIT: high/medium/low based on appliance inventory + history; reasoning.\n2. RECOMMENDED OFFER: which agreement tier, what's included, target price.\n3. OUTREACH MESSAGE: the SMS or email the customer should receive — conversational, naturally helpful, never pushy (300 chars max).\n4. TIMING: when to send (now / wait N days / next seasonal window) with reasoning.\n5. UPSELL OPPORTUNITY: identify the single highest-value related service to mention next time, without overloading this touch.\n\nBe specific to ${typeDisplay}. Never invent pricing. Never make the message feel like a hard sale. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForCustomerIntelligence(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" customer-intelligence agent for TN Appliance Exchange. This agent builds and maintains the customer-centric data layer — lifetime value, appliance-age profile, satisfaction signals, proactive outreach triggers.\n\nThe agent receives: customer record + full job history + appliance inventory (model, age, last service, parts replaced) + recent feedback signals (ratings, free-text comments, reschedule/cancel rate). It must return structured customer intelligence in this exact shape:\n1. CLV TIER: high/medium/low/at-risk + reasoning, including the 12-month forward-look estimate.\n2. INVENTORY MAP: each appliance the customer owns, its estimated remaining life, and the next likely failure category.\n3. OUTREACH TRIGGERS: future moments (date + reason) the system should reach out proactively — capped at 3 to avoid spam.\n4. SATISFACTION SIGNAL: any patterns in feedback that flag a churn risk or a referral opportunity.\n5. NEXT-BEST-ACTION: the single most valuable thing the system could do for/about this customer this month.\n\nBe specific to ${scopeDisplay}. Never invent appliance ages — if model has no age data, mark "unknown". Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForVoicePrompt(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" voice/SMS prompt optimization agent. This agent improves the system prompts powering TN Appliance Exchange's Vapi voice agents and SMS conversational agents, based on real transcripts.\n\nThe agent receives: a transcript (or batch), the specific Vapi/SMS agent it came from, the agent's current system prompt, the outcome (successful intent capture / dropped / escalated / customer frustrated), and any tagged "failure points" from prior analysis.\n\nIt must return structured prompt-optimization output in this exact shape:\n1. FAILURE PATTERN: the single most important thing the current prompt is doing wrong, with 1-2 verbatim transcript excerpts as evidence.\n2. PROPOSED EDIT: the specific text addition/change to the system prompt, formatted as a diff (- old, + new) or a clear "add this section: ...".\n3. EXPECTED IMPROVEMENT: what behavior should change after the edit, with the measurable signal to confirm it (e.g. "drop rate at intent X falls below Y").\n4. RISKS: what could regress if this edit is applied.\n5. APPROVAL REQUEST: human-readable summary for Teddy to approve before the edit is pushed to the live agent (300 chars max).\n\nBe specific to ${scopeDisplay}. Never propose edits without transcript-level evidence. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForMarketIntelligence(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" market-intelligence agent for TN Appliance Exchange. This agent watches the broader market — competitors, manufacturers, geography, demand patterns — and surfaces strategic signals.\n\nThe agent receives: market signal payload (competitor listing, review feed, demand data, manufacturer pricing change, etc.), historical context for the metric/region, and current company position (active zip codes, tech count per region).\n\nIt must return structured market intelligence in this exact shape:\n1. SIGNAL: what changed in the market that matters.\n2. SO WHAT: how it affects TN Appliance Exchange in the next 30/90/365 days.\n3. ACTION RECOMMENDATION: top 1-2 moves to consider (enter market, exit, adjust pricing, deepen manufacturer relationship, etc.) with confidence.\n4. EVIDENCE: the specific data points / URLs / quotes that support the signal.\n5. WATCH LIST: which adjacent signals would confirm or refute this within 30 days.\n\nBe specific to ${scopeDisplay}. Never present a guess as a confirmed pattern — confidence labels are mandatory. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForInfrastructure(scopeDisplay) {
+  return `You are designing the Claude system prompt for an "${scopeDisplay}" infrastructure agent for TN Appliance Exchange's Mac Mini colony loop. This is platform-internal — the agent does NOT face customers or techs. It watches the loop's own health, routes signals, or feeds reinforcement learning from outcomes.\n\nThe agent receives: telemetry payload (signal volumes, processing latencies, error rates, agent-by-agent throughput, recent event_log activity, queue depths). It must return structured infrastructure output in this exact shape:\n1. HEALTH SNAPSHOT: green/yellow/red + the single most important metric driving the label.\n2. DETECTED ISSUES: each issue with severity, scope, and the specific signal/agent/table involved.\n3. RECOMMENDED ACTIONS: ordered list of remediations the loop or operator can take now.\n4. ESCALATIONS: when human (Teddy) intervention is required — the marker is "__ESCALATE_OPERATOR__".\n5. TREND OUTLOOK: where the system is heading on the current trajectory (next 24 hours).\n\nBe specific to ${scopeDisplay}. Never invent metric numbers. If telemetry is missing, say so and recommend the source to add. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForTechLifecycle(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" tech lifecycle agent for TN Appliance Exchange. This agent tracks technicians through their career stages — new-hire confidence-building, first-90-days, certifications, first-visit-fix-rate, TDR quality — and triggers right-moment coaching or recognition.\n\nThe agent receives: tech record (id, hire date, certifications, mentor, current performance metrics), recent activity (jobs, TDRs, customer feedback), and lifecycle stage (new / 30-day / 90-day / certified / veteran).\n\nIt must return structured lifecycle intelligence in this exact shape:\n1. STAGE: where this tech is in their lifecycle, with what milestone is next.\n2. CURRENT SIGNAL: strongest positive AND strongest negative pattern in recent activity.\n3. NEXT INTERVENTION: the single concrete action the system should take this week (certification reminder, mentor check-in, coaching SMS, recognition, etc.).\n4. SMS / MESSAGE: the actual outbound message if applicable (200 chars max), in a respectful direct tone — these are field professionals.\n5. METRIC TO WATCH: the leading indicator that confirms whether the intervention worked.\n\nBe specific to ${scopeDisplay}. Never compare techs to each other in output. Never escalate a single bad job to performance concern. Output ONLY the system prompt text — no preamble.`;
 }
 
 function metaPromptForSmsResponder(typeDisplay) {
@@ -1068,6 +1215,255 @@ export async function generateAgent(agent, claude, config) {
       scopeSlug,
       scopeDisplay,
       systemPromptText: promptText,
+    });
+  }
+
+  // ── COLONY BUILD MODE templates — 10 high-leverage detectors ──
+  // Each follows the same pattern: detect → derive slug → Claude meta-prompt
+  // → renderGenericSpecialist. Slugs default to agent.id when nothing else
+  // fits, so detection alone is enough to build.
+
+  async function generateFromGenericTemplate({
+    metaPrompt,
+    signalOutType,
+    signalInPrefix,
+    filenamePrefix,
+    templateName,
+    promptVarName,
+    outputKey,
+    payloadFields,
+    nameSuffixRegex,
+  }) {
+    const slug = _slugFromName(agent.name, nameSuffixRegex) || String(agent.id || '').toLowerCase();
+    const display = _displayFromName(agent.name, slug, nameSuffixRegex);
+
+    const resp = await claude.callClaude({
+      system: 'You write Claude system prompts for specialist agents. Output only the prompt text — no commentary, no preamble.',
+      messages: [{ role: 'user', content: metaPrompt(display) }],
+      model: config.claudeModel,
+      maxTokens: 2048,
+    });
+    const promptText = (claude.textFromResponse ? claude.textFromResponse(resp) : '').trim();
+    if (!promptText || promptText.length < 60) {
+      throw new Error(`Claude returned empty/short system prompt for ${templateName} ${slug}`);
+    }
+
+    return renderGenericSpecialist({
+      agent,
+      slug,
+      display,
+      systemPromptText: promptText,
+      signalIn: `${signalInPrefix}${slug.toUpperCase()}`,
+      signalOut: signalOutType,
+      filename: `${filenamePrefix}${slug}.js`,
+      templateName,
+      outputKey,
+      promptVarName,
+      userMessageLines: () => payloadFields,
+    });
+  }
+
+  if (isRecruitingSpecialist(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForRecruiting,
+      signalOutType: 'RECRUITING_INSIGHT',
+      signalInPrefix: 'RECRUITING_REQUEST_',
+      filenamePrefix: 'recruiting_',
+      templateName: 'recruiting_specialist',
+      promptVarName: 'RECRUITING_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Channel: ' + (payload.channel || 'unknown')`,
+        `'Role: ' + (payload.role || 'appliance tech')`,
+        `'Funnel snapshot (JSON): ' + JSON.stringify(payload.funnel || {})`,
+        `'Candidate (JSON): ' + JSON.stringify(payload.candidate || {})`,
+        `'Market signal: ' + (payload.market_signal || '(none)')`,
+        `'Recent actions (JSON): ' + JSON.stringify(payload.recent_actions || [])`,
+      ],
+      nameSuffixRegex: /\s*(Recruiting|Agent)$/gi,
+    });
+  }
+
+  if (isHvacSpecialist(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForHvac,
+      signalOutType: 'HVAC_INTELLIGENCE',
+      signalInPrefix: 'HVAC_REQUEST_',
+      filenamePrefix: 'hvac_',
+      templateName: 'hvac_specialist',
+      promptVarName: 'HVAC_PROMPT',
+      outputKey: 'intel_text',
+      payloadFields: [
+        `'Job ID: ' + (jobId == null ? 'none' : jobId)`,
+        `'Brand: ' + (payload.brand || 'unknown')`,
+        `'Model: ' + (payload.model_number || 'unknown')`,
+        `'Equipment age (years): ' + (payload.equipment_age_years || 'unknown')`,
+        `'Refrigerant type: ' + (payload.refrigerant_type || 'unknown')`,
+        `'Symptom: ' + (payload.problem_summary || '(none)')`,
+        `'Service history (JSON): ' + JSON.stringify(payload.service_history || [])`,
+      ],
+      nameSuffixRegex: /\s*(HVAC|Agent)$/gi,
+    });
+  }
+
+  if (isMentorshipSpecialist(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForMentorship,
+      signalOutType: 'MENTORSHIP_INSIGHT',
+      signalInPrefix: 'MENTORSHIP_REQUEST_',
+      filenamePrefix: 'mentorship_',
+      templateName: 'mentorship_specialist',
+      promptVarName: 'MENTORSHIP_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Mentor (JSON): ' + JSON.stringify(payload.mentor || {})`,
+        `'Mentees (JSON): ' + JSON.stringify(payload.mentees || [])`,
+        `'Pairing history (JSON): ' + JSON.stringify(payload.pairing_history || [])`,
+        `'Recent flags (JSON): ' + JSON.stringify(payload.flags || [])`,
+        `'Trigger event: ' + (payload.trigger_event || '(periodic check)')`,
+      ],
+      nameSuffixRegex: /\s*(Mentor|Mentorship|Agent)$/gi,
+    });
+  }
+
+  if (isWarrantyClaims(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForWarrantyClaims,
+      signalOutType: 'WARRANTY_CLAIM_ACTION',
+      signalInPrefix: 'WARRANTY_CLAIM_REQUEST_',
+      filenamePrefix: 'warranty_',
+      templateName: 'warranty_claims',
+      promptVarName: 'WARRANTY_PROMPT',
+      outputKey: 'claim_action_text',
+      payloadFields: [
+        `'Job ID: ' + (jobId == null ? 'none' : jobId)`,
+        `'Vendor: ' + (payload.warranty_company || payload.vendor || 'unknown')`,
+        `'Action: ' + (payload.action || 'submit')`,
+        `'TDR (JSON): ' + JSON.stringify(payload.tdr || {})`,
+        `'Completion type: ' + (payload.completion_type || 'unknown')`,
+        `'Prior outcomes (JSON): ' + JSON.stringify(payload.prior_outcomes || [])`,
+        `'Portal requirements (JSON): ' + JSON.stringify(payload.portal_requirements || {})`,
+      ],
+      nameSuffixRegex: /\s*(Claims|Claim|Warranty|Agent)$/gi,
+    });
+  }
+
+  if (isServiceAgreementSpecialist(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForServiceAgreement,
+      signalOutType: 'SERVICE_AGREEMENT_INSIGHT',
+      signalInPrefix: 'SERVICE_AGREEMENT_REQUEST_',
+      filenamePrefix: 'service_agreement_',
+      templateName: 'service_agreement_specialist',
+      promptVarName: 'SERVICE_AGREEMENT_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Customer ID: ' + (payload.customer_id || 'unknown')`,
+        `'Customer (JSON): ' + JSON.stringify(payload.customer || {})`,
+        `'Appliance inventory (JSON): ' + JSON.stringify(payload.appliance_inventory || [])`,
+        `'Current agreement: ' + (payload.current_agreement || '(none)')`,
+        `'Trigger event: ' + (payload.trigger_event || 'periodic')`,
+        `'Seasonal context: ' + (payload.season || 'unknown')`,
+      ],
+      nameSuffixRegex: /\s*(Service\s+Agreement|Agreement|Maintenance|Agent)$/gi,
+    });
+  }
+
+  if (isCustomerIntelligence(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForCustomerIntelligence,
+      signalOutType: 'CUSTOMER_INTELLIGENCE',
+      signalInPrefix: 'CUSTOMER_INTELLIGENCE_REQUEST_',
+      filenamePrefix: 'customer_intel_',
+      templateName: 'customer_intelligence',
+      promptVarName: 'CUSTOMER_INTEL_PROMPT',
+      outputKey: 'intel_text',
+      payloadFields: [
+        `'Customer ID: ' + (payload.customer_id || 'unknown')`,
+        `'Customer (JSON): ' + JSON.stringify(payload.customer || {})`,
+        `'Job history (JSON): ' + JSON.stringify(payload.job_history || [])`,
+        `'Appliance inventory (JSON): ' + JSON.stringify(payload.appliance_inventory || [])`,
+        `'Feedback signals (JSON): ' + JSON.stringify(payload.feedback || [])`,
+      ],
+      nameSuffixRegex: /\s*(Customer|Agent)$/gi,
+    });
+  }
+
+  if (isVoicePromptOptimizer(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForVoicePrompt,
+      signalOutType: 'VOICE_PROMPT_PROPOSAL',
+      signalInPrefix: 'VOICE_PROMPT_REQUEST_',
+      filenamePrefix: 'voice_prompt_',
+      templateName: 'voice_prompt_optimizer',
+      promptVarName: 'VOICE_PROMPT_PROMPT',
+      outputKey: 'proposal_text',
+      payloadFields: [
+        `'Vapi/SMS agent: ' + (payload.target_agent || 'unknown')`,
+        `'Current system prompt (JSON): ' + JSON.stringify(payload.current_system_prompt || '')`,
+        `'Transcript: ' + (payload.transcript || '(none)')`,
+        `'Outcome: ' + (payload.outcome || 'unknown')`,
+        `'Failure points (JSON): ' + JSON.stringify(payload.failure_points || [])`,
+      ],
+      nameSuffixRegex: /\s*(Vapi|Voice|Prompt|Agent)$/gi,
+    });
+  }
+
+  if (isMarketIntelligence(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForMarketIntelligence,
+      signalOutType: 'MARKET_INTELLIGENCE',
+      signalInPrefix: 'MARKET_INTELLIGENCE_REQUEST_',
+      filenamePrefix: 'market_',
+      templateName: 'market_intelligence',
+      promptVarName: 'MARKET_PROMPT',
+      outputKey: 'intel_text',
+      payloadFields: [
+        `'Signal payload (JSON): ' + JSON.stringify(payload.signal || {})`,
+        `'Historical context (JSON): ' + JSON.stringify(payload.history || [])`,
+        `'Current company position (JSON): ' + JSON.stringify(payload.company_position || {})`,
+        `'Geography: ' + (payload.region || 'unknown')`,
+      ],
+      nameSuffixRegex: /\s*(Intelligence|Scout|Forecaster|Agent)$/gi,
+    });
+  }
+
+  if (isInfrastructureMonitor(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForInfrastructure,
+      signalOutType: 'INFRASTRUCTURE_INSIGHT',
+      signalInPrefix: 'INFRASTRUCTURE_REQUEST_',
+      filenamePrefix: 'infrastructure_',
+      templateName: 'infrastructure_monitor',
+      promptVarName: 'INFRA_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Telemetry (JSON): ' + JSON.stringify(payload.telemetry || {})`,
+        `'Recent events (JSON): ' + JSON.stringify(payload.recent_events || [])`,
+        `'Queue depths (JSON): ' + JSON.stringify(payload.queues || {})`,
+        `'Error rates (JSON): ' + JSON.stringify(payload.error_rates || {})`,
+      ],
+      nameSuffixRegex: /\s*(Monitor|Agent|Infrastructure)$/gi,
+    });
+  }
+
+  if (isTechLifecycle(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForTechLifecycle,
+      signalOutType: 'TECH_LIFECYCLE_INSIGHT',
+      signalInPrefix: 'TECH_LIFECYCLE_REQUEST_',
+      filenamePrefix: 'tech_lifecycle_',
+      templateName: 'tech_lifecycle',
+      promptVarName: 'TECH_LIFECYCLE_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Tech ID: ' + (payload.tech_id || 'unknown')`,
+        `'Tech (JSON): ' + JSON.stringify(payload.tech || {})`,
+        `'Lifecycle stage: ' + (payload.lifecycle_stage || 'unknown')`,
+        `'Recent activity (JSON): ' + JSON.stringify(payload.recent_activity || [])`,
+        `'Certifications (JSON): ' + JSON.stringify(payload.certifications || [])`,
+      ],
+      nameSuffixRegex: /\s*(Tracker|Confidence|Coach|Agent)$/gi,
     });
   }
 
