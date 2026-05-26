@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 66,
-    "agents_to_build": 313,
+    "agents_live": 67,
+    "agents_to_build": 312,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1761,7 +1761,7 @@
       "purpose": "Find the Jordans of every market. Employed techs who are great at craft and tired of making someone else rich.",
       "priority": "HIGH",
       "agents_total": 14,
-      "agents_live": 5,
+      "agents_live": 6,
       "recruiting_offer": {
         "compensation": "40% commission",
         "vehicle": "Cybertruck provided",
@@ -1820,7 +1820,7 @@
         {
           "id": "REC004",
           "name": "TikTok Recruiting Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Identifies organic content attracting trades engagement. Boosts best performers. Monitors comments for recruiting signals.",
           "xano_endpoint": "tiktok_recruiting_agent"
