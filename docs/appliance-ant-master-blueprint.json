@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 145,
-    "agents_to_build": 234,
+    "agents_live": 146,
+    "agents_to_build": 233,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1217,7 +1217,7 @@
       "purpose": "The colony that builds and improves all other colonies. The brain of the brain.",
       "priority": "CRITICAL",
       "agents_total": 9,
-      "agents_live": 6,
+      "agents_live": 7,
       "agents": [
         {
           "id": "M001",
@@ -1279,7 +1279,7 @@
         {
           "id": "M008",
           "name": "Agent Fitness Scorer",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Tracks every agent performance. Did proposals get approved? Did executed changes stick? Did the agent find real issues? Low scoring agents get coaching. Persistently low agents get retired.",
           "xano_endpoint": "agent_fitness_scorer",
