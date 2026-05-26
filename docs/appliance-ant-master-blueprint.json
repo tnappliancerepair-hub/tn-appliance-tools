@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 189,
-    "agents_to_build": 78,
+    "agents_live": 190,
+    "agents_to_build": 77,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1160,7 +1160,7 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 35,
-      "agents_live": 32,
+      "agents_live": 33,
       "agents": [
         {
           "id": "S001",
@@ -1566,7 +1566,7 @@
         {
           "id": "S033",
           "name": "Weather Aware Rescheduler",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "When severe weather is forecast, proposes pre-emptive reschedules for outdoor (HVAC) jobs. Emits SCHEDULING_DECISION.",
           "triggers": [
