@@ -195,6 +195,33 @@ export async function run(signal, ctx) {
     log('prediag_request_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: REPEAT_VISIT_CHECK ──
+  // Hand off to repeat_visit_check.js which queries prior jobs for the
+  // same customer + appliance_type within 12 months and alerts Teddy if
+  // ≥2 prior visits exist. Independent of the prediag chain so failures
+  // don't compound.
+  try {
+    const customerId = Number(payload.customer_id || 0);
+    const applianceType = String(payload.appliance_type || '').trim();
+    if (customerId > 0 && applianceType) {
+      await xano.emitSignal({
+        signal_type: 'REPEAT_VISIT_CHECK',
+        signal_strength: 55,
+        payload: {
+          job_id: jobId,
+          customer_id: customerId,
+          appliance_type: applianceType,
+          customer_first_name: payload.customer_first_name || '',
+          customer_last_name: payload.customer_last_name || '',
+          source: 'job_created_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('repeat_visit_check_chain_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   return {
     success: true,
     action: 'greeting_sent',

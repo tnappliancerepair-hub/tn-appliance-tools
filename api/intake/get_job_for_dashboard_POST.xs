@@ -246,6 +246,45 @@ query get_job_for_dashboard verb=POST {
       }
     }
   
+    // Prior-visit count for this customer + appliance_type within 12 months,
+    // excluding the current job. Tech Ant Live renders a "Nth visit" badge
+    // so the tech walks in knowing the callback history.
+    var $prior_visit_count { value = 0 }
+    var $prior_visit_ids   { value = [] }
+
+    conditional {
+      if ($job.customer_id != null && $job.customer_id > 0) {
+        var $pv_cutoff {
+          value = ((now|to_ms) - (12 * 30 * 24 * 60 * 60 * 1000))
+        }
+        var $pv_appl {
+          value = (($job.appliance_type ?? "")|trim|to_lower)
+        }
+        db.query jobs {
+          where  = $db.jobs.customer_id == $job.customer_id && $db.jobs.id != $input.job_id && $db.jobs.created_at >= $pv_cutoff
+          sort   = {jobs.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 50}}
+        } as $pv_rows
+        foreach ($pv_rows.items) {
+          each as $pj {
+            var $pj_appl {
+              value = (($pj.appliance_type ?? "")|trim|to_lower)
+            }
+            conditional {
+              if ($pv_appl == "" || $pj_appl == $pv_appl) {
+                var.update $prior_visit_count {
+                  value = ($prior_visit_count + 1)
+                }
+                array.push $prior_visit_ids {
+                  value = $pj.id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Earnings for this job (one row per tech who worked it).
     db.query tech_earnings {
       where = $db.tech_earnings.job_id == $input.job_id
@@ -341,6 +380,8 @@ query get_job_for_dashboard verb=POST {
         recent_events: $events_trimmed
         earnings     : $earnings_trimmed
         all_tdrs     : $all_tdrs
+        prior_visit_count: $prior_visit_count
+        prior_visit_ids  : $prior_visit_ids
       }
     }
   }

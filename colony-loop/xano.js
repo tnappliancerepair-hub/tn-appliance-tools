@@ -211,3 +211,13 @@ export async function getDailyJobPrepFiredToday(sinceTsMs) {
 export async function getUndiagnosedJobsNext3Days(daysAhead = 3) {
   return getJSON(`${INTAKE()}/get_undiagnosed_jobs_next_3_days?days_ahead=${daysAhead}`);
 }
+
+export async function getPriorVisitsForCustomer(customerId, applianceType, excludeJobId, months = 12) {
+  const params = new URLSearchParams({
+    customer_id: String(customerId),
+    appliance_type: String(applianceType || ''),
+    exclude_job_id: String(excludeJobId || 0),
+    months: String(months),
+  });
+  return getJSON(`${INTAKE()}/get_prior_visits_for_customer?${params.toString()}`);
+}
