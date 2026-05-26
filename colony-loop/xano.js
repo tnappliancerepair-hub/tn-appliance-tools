@@ -108,6 +108,10 @@ export async function getColonyArchitectFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_colony_architect_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getAppointmentConfirmationSent(jobId, scheduledStartMs) {
+  return getJSON(`${INTAKE()}/get_appointment_confirmation_sent?job_id=${jobId}&scheduled_start_ms=${scheduledStartMs}`);
+}
+
 export async function getGreetingSentForJob(jobId) {
   return getJSON(`${INTAKE()}/get_greeting_sent_for_job?job_id=${jobId}`);
 }
