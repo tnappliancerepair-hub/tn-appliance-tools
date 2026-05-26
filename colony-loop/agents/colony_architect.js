@@ -19,10 +19,13 @@ const REPO_ROOT = resolve(HERE, '../..');
 const AGENTS_DIR = join(REPO_ROOT, 'colony-loop/agents');
 const BLUEPRINT_PATH = join(REPO_ROOT, 'docs/appliance-ant-master-blueprint.json');
 
-// Velocity rule: build as many agents as the architect can per run. Cap is
-// kept high as a safety rail (not a budget). Manual injects can pass
-// max_builds up to this value; scheduled 6am run uses 50 (see tick.js).
-const MAX_BUILDS_HARD_CAP = 500;
+// COLONY BUILD MODE: no upper limit on per-run builds. The architect runs
+// until pickNextAgent returns null (nothing left buildable). Cap kept at a
+// huge sentinel value purely to prevent a runaway-loop in pathological
+// blueprint corruption scenarios — practically, no real run ever approaches
+// it. Removed 2026-05-26 per operator directive: "the architect runs until
+// every single TO_BUILD agent is built".
+const MAX_BUILDS_HARD_CAP = 99999;
 
 // launchd-spawned processes get a minimal PATH that excludes /opt/homebrew/bin.
 // Inject the homebrew + standard system paths so `node` and `git` resolve.
