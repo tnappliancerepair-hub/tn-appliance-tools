@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 87,
-    "agents_to_build": 292,
+    "agents_live": 88,
+    "agents_to_build": 291,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1571,7 +1571,7 @@
       "purpose": "Pipeline of trained techs from 26 TCAT campuses. Anthony Pivacek Memorial Scholarship. Partnership with Tennessee Board of Regents.",
       "priority": "MEDIUM",
       "agents_total": 5,
-      "agents_live": 0,
+      "agents_live": 1,
       "tcat_facts": {
         "campuses": 26,
         "enrollment": 34486,
@@ -1583,7 +1583,7 @@
         {
           "id": "TC001",
           "name": "New Tech Confidence Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Knows it is a new grad. Adjusts pre-dispatch briefs to be more detailed and step by step. Gradually reduces detail as experience builds.",
           "xano_endpoint": "new_tech_confidence_agent"
