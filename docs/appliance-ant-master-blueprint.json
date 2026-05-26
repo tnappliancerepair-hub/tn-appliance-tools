@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 251,
-    "agents_to_build": 16,
+    "agents_live": 252,
+    "agents_to_build": 15,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -2973,7 +2973,7 @@
       "purpose": "Extend the colony to HVAC. Jordan as Master Tech. Same architecture, new domain knowledge.",
       "priority": "MEDIUM",
       "agents_total": 23,
-      "agents_live": 18,
+      "agents_live": 19,
       "key_person": "Jordan - lead HVAC tech, currently employed at $38/hour, TCAT trained, Teddy's good friend",
       "agents": [
         {
@@ -3188,7 +3188,7 @@
         {
           "id": "H021",
           "name": "HVAC Brand Bulletin Watcher",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Monitors carrier/trane/lennox/goodman service bulletins + recalls for installed equipment in our customer base. Emits HVAC_INTELLIGENCE on match.",
           "triggers": [
