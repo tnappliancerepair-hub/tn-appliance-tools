@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 71,
-    "agents_to_build": 308,
+    "agents_live": 72,
+    "agents_to_build": 307,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1761,7 +1761,7 @@
       "purpose": "Find the Jordans of every market. Employed techs who are great at craft and tired of making someone else rich.",
       "priority": "HIGH",
       "agents_total": 14,
-      "agents_live": 10,
+      "agents_live": 11,
       "recruiting_offer": {
         "compensation": "40% commission",
         "vehicle": "Cybertruck provided",
@@ -1876,7 +1876,7 @@
         {
           "id": "REC011",
           "name": "Draft Announcement Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Generates official draft announcement for each new tech. Posted across every platform the moment they are selected.",
           "xano_endpoint": "draft_announcement_agent"
