@@ -14,11 +14,15 @@
 // architect built.
 import { toDanielle } from '../sms.js';
 
+// Signal types must match architect-built agent filenames (dispatch routes
+// by lowercased signal_type). The architect named agents by their display
+// name → slug (e.g. "AHS Claims" → ahs_claims), so the actual signal types
+// carry the _CLAIMS suffix.
 const VENDOR_TO_SIGNAL = {
-  ahs: 'WARRANTY_CLAIM_REQUEST_AHS',
-  squaretrade: 'WARRANTY_CLAIM_REQUEST_SQUARETRADE',
-  frontdoor: 'WARRANTY_CLAIM_REQUEST_FRONTDOOR',
-  // servicepower handled by the vendor's own portal — no auto-submit yet
+  ahs: 'WARRANTY_CLAIM_REQUEST_AHS_CLAIMS',
+  frontdoor: 'WARRANTY_CLAIM_REQUEST_FRONTDOOR_CLAIMS',
+  // squaretrade — no agent built (ServicePower portal owns it)
+  // servicepower — handled by vendor portal directly
 };
 
 function vendorKey(s) {
