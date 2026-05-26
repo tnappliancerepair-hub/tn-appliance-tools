@@ -13,6 +13,14 @@
 import { config } from '../config.js';
 import { toOwner, toTech, normalizeE164 } from '../sms.js';
 
+// Telnyx default rate is ~1 SMS/sec per source number. Bursting 7+ SMS
+// in one agent run trips throttling and silent non-success responses
+// (observed 2026-05-26 — 30-job run delivered 0+1 SMS; 27-job run with
+// smaller scope delivered 1+1). 1.2s spacing keeps us safely under the
+// limit while finishing a full 7-recipient run in ~9 seconds.
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+const SMS_DELAY_MS = 1200;
+
 const TEDDY_TOOL_PATH = '/teddy-tdr-tool.html?job_id=';
 
 function fmtTimeCT(ms) {
@@ -48,9 +56,12 @@ function jobLine(idx, row) {
   return `${idx}. ${time} ${name}${where} - ${appl} - ${linkFor(row.job_id)}`;
 }
 
-function chunkLines(headerLine, lines, maxChars = 1400) {
-  // SMS providers (Telnyx) accept concatenated SMS up to ~1530 chars;
-  // 1400 leaves headroom for emoji + the header.
+function chunkLines(headerLine, lines, maxChars = 600) {
+  // Telnyx caps concatenated SMS at 10 segments per message. With the 🐜
+  // emoji the body is treated as Unicode (UCS-2) which limits each segment
+  // to ~67 chars → 670 chars max per outbound. 600 keeps us safely under
+  // the limit. Observed 2026-05-26: 1375-char chunks errored with "The SMS
+  // message would be divided into 21 parts. The maximum is 10."
   const out = [];
   let current = [headerLine];
   let len = headerLine.length;
@@ -103,17 +114,26 @@ export async function run(signal, ctx) {
   // ── 1. Teddy roll-up: every undiagnosed job, ordered by scheduled_start ──
   const teddyLines = items.map((r, i) => jobLine(i + 1, r));
   const teddyHeader = `🐜 ${items.length} undiagnosed job${items.length === 1 ? '' : 's'} in next ${daysAhead} days. Pre-diagnose so parts can be ordered:`;
-  const teddyChunks = chunkLines(teddyHeader, teddyLines, 1400);
+  const teddyChunks = chunkLines(teddyHeader, teddyLines, 600);
   let teddyOk = 0;
-  for (const body of teddyChunks) {
+  for (let i = 0; i < teddyChunks.length; i++) {
+    if (i > 0) await sleep(SMS_DELAY_MS);
     try {
-      const r = await toOwner(body, {
+      const r = await toOwner(teddyChunks[i], {
         action: 'daily_job_prep_owner_sms',
         source_signal_id: signal.id,
       });
+      log('daily_job_prep_owner_sms_response', {
+        chunk_idx: i,
+        chars: teddyChunks[i].length,
+        success: r && r.success ? true : false,
+        provider_status: r && r.provider_status,
+        provider_message_id: r && r.provider_message_id,
+        error: r && r.error,
+      });
       if (r && r.success) teddyOk += 1;
     } catch (err) {
-      log('daily_job_prep_owner_sms_failed', { error: String(err.message || err) });
+      log('daily_job_prep_owner_sms_failed', { chunk_idx: i, error: String(err.message || err) });
     }
   }
 
@@ -156,10 +176,11 @@ export async function run(signal, ctx) {
     const first = (tech.first_name || '').trim() || 'tech';
     const lines = techRows.map((r, i) => jobLine(i + 1, r));
     const header = `🐜 ${first} - ${techRows.length} undiagnosed job${techRows.length === 1 ? '' : 's'} in next ${daysAhead} days. Add your pre-diagnosis before arrival:`;
-    const chunks = chunkLines(header, lines, 1400);
-    for (const body of chunks) {
+    const chunks = chunkLines(header, lines, 600);
+    for (let i = 0; i < chunks.length; i++) {
+      await sleep(SMS_DELAY_MS); // spacing between every outbound (including across techs)
       try {
-        const r = await toTech(techPhone, body, {
+        const r = await toTech(techPhone, chunks[i], {
           action: 'daily_job_prep_tech_sms',
           technician_id: tid,
           source_signal_id: signal.id,

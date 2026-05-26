@@ -94,6 +94,18 @@
     .photo-thumb .type-tag { position: absolute; bottom: 2px; left: 2px; background: rgba(0,0,0,0.7); color: white; font-size: 8px; padding: 1px 4px; border-radius: 3px; font-family: var(--mono); text-transform: uppercase; }
 
     .section-card { background: var(--card); border: 1px solid var(--border2); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    .pa-section { margin-bottom: 16px; }
+    .pa-banner { background: rgba(246,207,69,0.10); border: 1px solid rgba(246,207,69,0.45); color: #f6cf45; border-radius: 10px; padding: 10px 14px; font-family: var(--mono); font-size: 13px; letter-spacing: 0.02em; margin-bottom: 8px; }
+    .pa-card { background: rgba(246,207,69,0.04); border: 1px solid rgba(246,207,69,0.30); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+    .pa-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(246,207,69,0.18); margin-bottom: 8px; }
+    .pa-date { color: #f6cf45; font-family: var(--mono); font-size: 12px; font-weight: 600; }
+    .pa-tech { color: #c0c8d8; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .pa-body { display: flex; flex-direction: column; gap: 4px; }
+    .pa-row { display: flex; gap: 10px; line-height: 1.5; }
+    .pa-label { flex: 0 0 110px; color: #8a93aa; font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; padding-top: 1px; }
+    .pa-value { color: #e8edf5; font-size: 13px; flex: 1; }
+    .pa-mono { font-family: var(--mono); }
+    .pa-outcome { color: #4cd2c0; font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
     .section-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; font-family: var(--mono); }
     .field { margin-bottom: 14px; }
     .field:last-child { margin-bottom: 0; }
@@ -613,6 +625,93 @@ function renderCockpitHeader() {
     '</div>';
 }
 
+// Previous Attempts timeline — every prior TDR on this job rendered as a
+// stacked yellow-bordered card. Eliminates duplicate parts ordering by
+// showing exactly what's been tried before. Empty when no prior TDRs.
+function renderPreviousAttempts() {
+  const all = (state.cockpit && state.cockpit.all_tdrs) || [];
+  if (all.length === 0) return '';
+
+  function fmtDate(ms) {
+    if (!ms) return '';
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+        timeZone: 'America/Chicago',
+      }).format(new Date(ms));
+    } catch { return ''; }
+  }
+
+  function fmtParts(p) {
+    if (!p) return '';
+    if (typeof p === 'string') return p.trim();
+    if (Array.isArray(p)) {
+      return p.map((x) => {
+        if (typeof x === 'string') return x;
+        if (x && typeof x === 'object') {
+          return [x.part_number, x.description, x.cost ? `$${x.cost}` : null]
+            .filter(Boolean).join(' · ');
+        }
+        return '';
+      }).filter(Boolean).join('; ');
+    }
+    if (typeof p === 'object') {
+      try { return JSON.stringify(p).slice(0, 200); } catch { return ''; }
+    }
+    return '';
+  }
+
+  const cards = all.map((t) => {
+    const techFirst = (t.technician_first_name || '').trim();
+    const techLast = (t.technician_last_name || '').trim();
+    const techName = [techFirst, techLast].filter(Boolean).join(' ') || `Tech #${t.technician_id || '?'}`;
+    const visitDate = fmtDate(t.report_date || t.created_at);
+    const partsStr = fmtParts(t.parts_used);
+
+    const rows = [];
+    if (t.diagnosis) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Diagnosis</span><span class="pa-value">${escapeHtml(t.diagnosis)}</span></div>`);
+    }
+    if (t.failure_cause) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Failure cause</span><span class="pa-value">${escapeHtml(t.failure_cause)}</span></div>`);
+    }
+    if (t.failed_component) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Failed component</span><span class="pa-value">${escapeHtml(t.failed_component)}</span></div>`);
+    }
+    if (t.verified_part_number) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Verified part #</span><span class="pa-value pa-mono">${escapeHtml(t.verified_part_number)}</span></div>`);
+    }
+    if (partsStr) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Parts used</span><span class="pa-value pa-mono">${escapeHtml(partsStr)}</span></div>`);
+    }
+    if (t.repair_completed) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Outcome</span><span class="pa-value pa-outcome">${escapeHtml(t.repair_completed)}</span></div>`);
+    }
+    if (t.labor_time_hours) {
+      rows.push(`<div class="pa-row"><span class="pa-label">Labor</span><span class="pa-value">${escapeHtml(String(t.labor_time_hours))}h</span></div>`);
+    }
+
+    return `
+      <div class="pa-card">
+        <div class="pa-head">
+          <span class="pa-date">${escapeHtml(visitDate || 'date unknown')}</span>
+          <span class="pa-tech">${escapeHtml(techName)}</span>
+        </div>
+        <div class="pa-body">
+          ${rows.join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="pa-section">
+      <div class="pa-banner">⚠️ Previous Attempts (${all.length} prior visit${all.length === 1 ? '' : 's'})</div>
+      ${cards}
+    </div>
+  `;
+}
+
 function renderReview() {
   const c = state.cockpit;
   if (!c) return renderIntake();
@@ -650,6 +749,7 @@ function renderReview() {
   return renderHeader() +
     '<a class="back-link" href="dashboard.html">← Back to dashboard</a>' +
     renderCockpitHeader() +
+    renderPreviousAttempts() +
 
     '<div class="section-card">' +
       '<div class="section-title">Diagnosis</div>' +
