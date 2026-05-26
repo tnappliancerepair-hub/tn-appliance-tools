@@ -620,7 +620,9 @@ function renderReview() {
   const customerType = (job.customer_type || "").toLowerCase();
   const isCash = customerType === "self_pay";
   const isWarranty = customerType === "warranty";
-  const submitLabel = isCash ? "📩 Submit and send to customer" : (isWarranty ? "📋 Submit to HCP notes" : "📋 Submit TDR");
+  // HCP retirement: warranty path now saves locally to Xano only; tech sees
+  // the pre-diagnosis in Ant Field on the loaded job.
+  const submitLabel = isCash ? "📩 Submit and send to customer" : (isWarranty ? "💾 Save Pre-Diagnosis" : "📋 Submit TDR");
   const submitClass = isCash ? "submit-btn" : "submit-btn warranty";
 
   const finalizing = state.finalizeStatus === "submitting";
@@ -806,10 +808,9 @@ function renderDone() {
     if (send.sent_to) extraRows += '<div class="done-row"><span>Sent to</span><span>' + escapeHtml(send.sent_to) + '</span></div>';
     if (send.expires_at) extraRows += '<div class="done-row"><span>Expires</span><span>' + escapeHtml(formatTime(send.expires_at)) + '</span></div>';
   } else if (isWarranty) {
-    title = "Saved to HCP";
-    subtitle = "Pre-diagnosis HCP note posted; job marked pre_diagnosis_complete.";
-    const hcpStatus = state.submitResult && state.submitResult.hcp_sync && state.submitResult.hcp_sync.response && state.submitResult.hcp_sync.response.status;
-    if (hcpStatus) extraRows += '<div class="done-row"><span>HCP status</span><span>' + escapeHtml(String(hcpStatus)) + '</span></div>';
+    title = "Pre-diagnosis saved ✓";
+    subtitle = "Tech will see this when they open the job in Ant Field.";
+    // HCP retirement: no HCP sync status to surface anymore.
   }
 
   return renderHeader() +
