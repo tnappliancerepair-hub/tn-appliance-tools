@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 176,
-    "agents_to_build": 91,
+    "agents_live": 177,
+    "agents_to_build": 90,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -399,7 +399,7 @@
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
       "agents_total": 53,
-      "agents_live": 52,
+      "agents_live": 53,
       "agents": [
         {
           "id": "P001",
@@ -1140,7 +1140,7 @@
         {
           "id": "P053",
           "name": "Parts Shipping ETA Predictor",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Predicts truck-on-site ETA for parts from each supplier given current zone, day of week, supplier shipping policies. Improves over time via PARTS_DELIVERY_OUTCOME feedback.",
           "triggers": [
