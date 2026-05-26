@@ -27,6 +27,8 @@
 //   market_intelligence            — MARKET_INTELLIGENCE emitter
 //   infrastructure_monitor         — INFRASTRUCTURE_INSIGHT emitter
 //   tech_lifecycle                 — TECH_LIFECYCLE_INSIGHT emitter
+//   meta_agent                     — META_AGENT_INSIGHT emitter (agents that
+//                                    evaluate/clone/refactor other agents)
 //
 // Dispatch convention: dispatch.js routes one handler per signal_type, so
 // each generated agent gets its own per-domain signal_type. A future
@@ -51,7 +53,10 @@ function isBrandSpecialist(agent) {
 
 function isResearchAgent(agent) {
   const outputs = (agent.outputs || []).join(' ');
-  return /RESEARCH_DATA/i.test(outputs);
+  // Broadened 2026-05-26: catch R005 (MODEL_INTELLIGENCE) and R006
+  // (HISTORICAL_INTELLIGENCE) which share the research-agent scaffolding
+  // (query source → simulated intel) but emit different output types.
+  return /RESEARCH_DATA|MODEL_INTELLIGENCE|HISTORICAL_INTELLIGENCE/i.test(outputs);
 }
 
 function isSmsResponder(agent) {
@@ -137,7 +142,11 @@ function isSchedulingOptimizer(agent) {
   const purpose = String(agent.purpose || agent.description || '').toLowerCase();
   const name = String(agent.name || '').toLowerCase();
   const combined = purpose + ' ' + name;
-  return /\bschedul\w*|\brout(e|ing)\b|\bcapacit\w*|\bavailabilit\w*|\bdispatch|\bslot|\bcalendar|\bgap[\- ]?fill/.test(combined);
+  // Broadened 2026-05-26: cover S001-S020 second-wave scheduling agents
+  // (flexibility intake, urgency scoring, anchor placement, cluster
+  // geometry, gap calculation, real-time gap watching, same-day
+  // opportunity, job duration learning, etc).
+  return /\bschedul\w*|\brout(e|ing)\b|\bcapacit\w*|\bavailabilit\w*|\bdispatch|\bslot|\bcalendar|\bgap[\- ]?fill|\bflexibilit\w*|\burgency\b|\banchor\b|\bcluster\s+geometry\b|\bgap\s+(calculator|watcher|optimizer)\b|\bduration\s+(learning|model)\b|\bre[\- ]?engagement\b|\bsame[\- ]?day\s+opportunity\b/.test(combined);
 }
 
 function schedulingScopeFromAgent(agent) {
@@ -251,6 +260,16 @@ function isInfrastructureMonitor(agent) {
   if (/^INFRA\d/i.test(id)) return true;
   const c = (agent.purpose + ' ' + agent.name).toLowerCase();
   return /\bsignal\s+router\b|\bcolony\s+health\b|\breinforcement\s+learning\b|\bcolony\s+architect\b|\binfrastructure\s+monitor\b/.test(c);
+}
+
+// 11. meta_agent — agents that evaluate, score, or generate other agents.
+//      Targets M008 Agent Fitness Scorer, M009 Agent Cloner. ID-prefix
+//      fallback so future M### entries are auto-detected.
+function isMetaAgent(agent) {
+  const id = String(agent.id || '');
+  if (/^M\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bfitness\s+scorer\b|\bagent\s+cloner\b|\bmeta\s+agent\b|\bagent\s+evaluator\b|\bagent\s+(fitness|quality|performance)\b|\bclone[rs]?\b\s+agent/.test(c);
 }
 
 // 10. tech_lifecycle
@@ -479,6 +498,10 @@ function metaPromptForMarketIntelligence(scopeDisplay) {
 
 function metaPromptForInfrastructure(scopeDisplay) {
   return `You are designing the Claude system prompt for an "${scopeDisplay}" infrastructure agent for TN Appliance Exchange's Mac Mini colony loop. This is platform-internal — the agent does NOT face customers or techs. It watches the loop's own health, routes signals, or feeds reinforcement learning from outcomes.\n\nThe agent receives: telemetry payload (signal volumes, processing latencies, error rates, agent-by-agent throughput, recent event_log activity, queue depths). It must return structured infrastructure output in this exact shape:\n1. HEALTH SNAPSHOT: green/yellow/red + the single most important metric driving the label.\n2. DETECTED ISSUES: each issue with severity, scope, and the specific signal/agent/table involved.\n3. RECOMMENDED ACTIONS: ordered list of remediations the loop or operator can take now.\n4. ESCALATIONS: when human (Teddy) intervention is required — the marker is "__ESCALATE_OPERATOR__".\n5. TREND OUTLOOK: where the system is heading on the current trajectory (next 24 hours).\n\nBe specific to ${scopeDisplay}. Never invent metric numbers. If telemetry is missing, say so and recommend the source to add. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForMetaAgent(scopeDisplay) {
+  return `You are designing the Claude system prompt for a "${scopeDisplay}" meta-agent — an agent that evaluates, scores, and improves OTHER agents within the Ant colony platform.\n\nThe agent receives: a target agent's record (id, name, purpose, signal_type, system prompt text), recent operational telemetry (successful invocations, failure rate, average output length, downstream signal pickup rate), human feedback signals (operator approvals/rejections), and optionally a population of similar agents for comparison.\n\nIt must return structured meta-intelligence in this exact shape:\n1. FITNESS SCORE: a 0-100 rating of the target agent's effectiveness, with the single most important driver of the score.\n2. STRENGTHS: top 2 things the target agent is doing well, with telemetry evidence.\n3. WEAKNESSES: top 2 underperformance patterns, with specific failure traces.\n4. REFACTOR PROPOSAL: concrete edits to the agent's system prompt that would improve fitness — formatted as a diff (- old, + new) or "add this section: ...".\n5. CLONE-WORTHINESS: whether this agent's successful patterns are general enough to seed a new agent for a different domain. If yes, the domain mapping (e.g. "the LG brand specialist's 'check PCB ground bond' diagnostic prompt would transfer to Samsung").\n6. APPROVAL GATE: human-readable summary for Teddy to approve before any refactor/clone is committed (300 chars max). When recommending an irreversible action, end with marker token "__OPERATOR_REVIEW__".\n\nBe specific to ${scopeDisplay}. Never recommend deleting or disabling an agent without a 14-day evidence window of poor performance. Never auto-commit refactors — the agent only produces proposals; commit gate is the operator. Output ONLY the system prompt text — no preamble, no commentary.`;
 }
 
 function metaPromptForTechLifecycle(scopeDisplay) {
@@ -1444,6 +1467,26 @@ export async function generateAgent(agent, claude, config) {
         `'Error rates (JSON): ' + JSON.stringify(payload.error_rates || {})`,
       ],
       nameSuffixRegex: /\s*(Monitor|Agent|Infrastructure)$/gi,
+    });
+  }
+
+  if (isMetaAgent(agent)) {
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForMetaAgent,
+      signalOutType: 'META_AGENT_INSIGHT',
+      signalInPrefix: 'META_AGENT_REQUEST_',
+      filenamePrefix: 'meta_agent_',
+      templateName: 'meta_agent',
+      promptVarName: 'META_AGENT_PROMPT',
+      outputKey: 'insight_text',
+      payloadFields: [
+        `'Target agent id: ' + (payload.target_agent_id || 'unknown')`,
+        `'Target agent record (JSON): ' + JSON.stringify(payload.target_agent || {})`,
+        `'Telemetry (JSON): ' + JSON.stringify(payload.telemetry || {})`,
+        `'Operator feedback (JSON): ' + JSON.stringify(payload.feedback || [])`,
+        `'Population (JSON): ' + JSON.stringify(payload.population || [])`,
+      ],
+      nameSuffixRegex: /\s*(Scorer|Cloner|Evaluator|Meta|Agent)$/gi,
     });
   }
 

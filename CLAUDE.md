@@ -541,6 +541,88 @@ The drive-time function falls back to a 25-min default if the key is unset (no e
 - **Do NOT use Metadata API content-PATCH for enum field writes.** It silently no-ops (see footgun #2). Build a small XS endpoint or use the Xano UI.
 - **Do NOT advertise `1-888-ANT-8998` or `1-866-ANT-0111` in customer materials.** Still unwired.
 
+### End of session 2026-05-26 — most ambitious session yet
+
+This session built more shipped functionality than any prior one. End-state numbers:
+
+| Metric | Start of session | End of session |
+|---|---|---|
+| BUILT agents in blueprint | 17 | **108** |
+| LIVE agents | 6 | 6 |
+| TO_BUILD agents | 116 | **25** (most dep-blocked behind S001 + M007) |
+| Architect commits | — | **~91 this session** |
+| Templates in catalog | 4 | **18** |
+
+### What shipped today (compressed)
+
+**Customer-facing pipeline (end-to-end SMS verified at multiple points):**
+- Warranty resume-chat flow: `?job_id=X&mode=resume` URL params open a minimal form for availability + access notes against an existing warranty job; no duplicate-create
+- `try_auto_schedule` agent on `JOB_INTAKE_COMPLETE`: SquareTrade/ServicePower vendor-locked skip, pre-diagnosis required, parts-pending skip with `WAITING_FOR_PARTS` emit, green-light enqueues `scheduling_queue` propose row with priority + city in SMS
+- On My Way ETA system: real Google Distance Matrix traffic-aware ETAs, tool_pack buffer, customer SMS includes formatted CT time, TECH_ON_WAY colony signal emitted, Start Job sends customer arrival SMS
+
+**Office surface:**
+- Click-to-book on `office-calendar.html`: every cell carries data attributes, modal collects customer/appliance/problem/time-window/customer-type, `book_appointment_from_office_POST` creates customer (or matches) + job + emits APPOINTMENT_SCHEDULED — **HCP migration prereq #5 done**
+
+**Vendor handling:**
+- `jobs.vendor_locked` boolean column added; ServicePower DISPATCH_OFFER + SCHEDULE_CHANGE write `scheduling_type="slot"` + `vendor_locked=true`; agent gate 2 prefers explicit flag over warranty_company string
+
+**HCP migration:**
+- `import_hcp_job_POST.xs` idempotent importer (insert-or-update by `housecall_pro_job_id`, customer match-by-phone, work_status→scheduling_status mapping, audit row, no double-text on migrate)
+- `colony-loop/scripts/hcp-migration-import.js` paginates HCP `/jobs`, shapes for the importer, writes `docs/migration-log.json`, supports `--dry-run`/`--max=N`/`--per-page=N`/`--statuses=A,B,C`
+- `get_hcp_migration_status_GET.xs` diagnostic + `docs/hcp-migration-plan.md` day-of playbook
+- **Diagnostic finding**: 5000 recent Xano jobs, ZERO with `housecall_pro_job_id`. Migration day = fresh import, not sync. 4898 AHS-email jobs accumulating at `not_ready`.
+
+**Colony architect:**
+- 14 new templates added: parts_intelligence, scheduling_optimizer, performance_coach, sms_responder, recruiting_specialist, hvac_specialist, mentorship_specialist, warranty_claims, service_agreement_specialist, customer_intelligence, voice_prompt_optimizer, market_intelligence, infrastructure_monitor, tech_lifecycle, meta_agent
+- `renderGenericSpecialist()` shared scaffold for the simpler templates
+- ~91 architect-built commits, mostly via the 14 new templates
+
+**Operational hygiene:**
+- **Architect commit-scope fix**: `git commit -m <msg> -- <paths>` scopes to listed paths only. Previously, plain `git commit -m` swept any operator-staged files into "[architect] built X" commits. Bug observed in `9bb95bc`; fix verified in `64eb46c` (BI005 commit, 2 files only).
+- **colony_signals GC endpoint** `cleanup_colony_signals_POST`: deletes processed rows older than N days (default 30, hard floor 7, max_delete 10k). Schedule as nightly Xano task to bound table growth.
+
+### Brutal-honesty assessment (delivered in chat mid-session)
+
+Key findings still valid:
+- **Architect output is mostly theater** — 91 newly-built agents but NONE are wired to real triggers. Building agents without signal producers = scaffolding.
+- **Mac Mini is a SPOF** — no DR, no backup. Power failure = ops platform dies.
+- **TDR completeness gap** — only 5 TDRs in the entire system have diagnosis, all incomplete. Phase 5A warranty digest hits BLOCKED on every real completion. **Single biggest unforced error blocking the Dawn-shaped automation goal.**
+- **AHS backlog**: 4898 `not_ready` jobs accumulating — no auto-enqueue from email intake to scheduling_queue.
+
+### Must ship before HCP cutover Saturday
+
+1. Set `HCP_API_KEY` in `colony-loop/.env` so `hcp-migration-import.js` can run
+2. Dry-run the migration script (`--dry-run --max=1`) to confirm shape
+3. Wire HCP-pro-id → Xano-technician-id mapping (currently left null in importer)
+4. Office reschedule/reassign/cancel from calendar (still NOT wired)
+5. Pre-cutover diff probe: run `get_hcp_migration_status` AND probe HCP API for canonical open-job count
+
+### New XS footguns surfaced 2026-05-26 (add to `docs/xanoscript-footguns.md`)
+
+1. **Multi-line ternaries break the parser** — `value = cond \n ? a \n : b` fails. Single-line only, or pre-bind branches to vars.
+2. **Metadata API content-PATCH silently drops enum-typed writes** — PATCH returns 200, response shows field as null, row unchanged.
+3. **`db.del`, NOT `db.delete`** — 3 letters, asymmetric with `db.add`/`db.edit`/`db.get`.
+4. **`|length` filter on arrays errors with "Unable to locate func entry: length"** — use a counter+foreach pattern instead.
+5. **`|trim != ""` outside `value = (...)` errors with "Invalid syntax. Please wrap your filter with parentheses."** — bind trimmed value to a var first.
+
+### Now-current priority for the next session
+
+1. **Add `HCP_API_KEY` + dry-run the migration import**. Single biggest unforced error if not done before Saturday.
+2. **AHS email → scheduling_queue auto-enqueue** — drain the 4898 backlog.
+3. **TDR completeness enforcement in tech-ant-live** — block Complete Job submission if key TDR fields empty.
+4. **Wire dormant agents** — pick 5-10 highest-value architect outputs and wire upstream signal producers.
+5. **Mac Mini hourly Xano backup to S3** — minimum-viable DR.
+6. **Mark M007 BUILT/LIVE in blueprint** — unblocks M008 + M009 dep chain for meta_agent template.
+7. **Investigate architect's pickNextAgent termination** — signals 24/26/27 only ran 5 iterations despite max_builds=500/50/50. Early-termination condition worth tracing.
+
+### Things NOT to do (additions from this session)
+
+- **Do NOT cut HCP Saturday without running the migration import script first.** Even a dry-run is mandatory.
+- **Do NOT extend `create_job_from_chat` for office flows.** Office uses `book_appointment_from_office_POST` (this session). Don't conflate.
+- **Do NOT mark agents BUILT in blueprint manually unless their JS file is on disk + deployed.** That breaks the architect's truth-check.
+
+**🐜 Long Live Ant.**
+
 ## Where to look
 
 - **Architecture + running status:** `docs/system-blueprint-v1.md` (canonical source of truth, two-layer format).
