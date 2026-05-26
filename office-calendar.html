@@ -691,6 +691,8 @@
   let currentWeekStart = params.get('week') || null;  // YYYY-MM-DD (Monday)
   let serverTodayCT = null;
   let dashboardData = null;
+  let lastTechs = [];
+  let lastJobsById = {};
 
   // ── DOM refs ───────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -779,6 +781,10 @@
     const jobs = data.jobs || [];
     const availability = data.availability || [];
     const techCount = Math.max(techs.length, 1);
+
+    lastTechs = techs;
+    lastJobsById = {};
+    for (const j of jobs) lastJobsById[j.id] = j;
 
     // Index data
     // assigned[techId][dateStr] -> [jobs]
@@ -973,7 +979,8 @@
 
     const applLine = brand ? `${appl} · ${brand}` : appl;
     return `
-      <a class="blk bk-${bk}" href="job-detail.html?job_id=${j.id}">
+      <div class="blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
+           title="Click to reschedule, reassign, or cancel">
         <div class="row1">
           <span class="time">${time}</span>
           <span class="name">${escapeHtml(cust)}</span>
@@ -982,16 +989,15 @@
           <span class="app">${escapeHtml(applLine)}</span>
           ${city ? `<span class="city">${escapeHtml(city)}</span>` : ''}
         </div>
-      </a>
+      </div>
     `;
   }
 
   function attachClickHandlers() {
     // Click on any empty cell space (NOT on a job block) opens the booking modal.
-    // Job blocks are <a class="blk"> and capture their own click via href.
     document.querySelectorAll('.book-cell').forEach((cell) => {
       cell.addEventListener('click', (e) => {
-        if (e.target.closest('a.blk')) return; // job block click — let it through
+        if (e.target.closest('.blk')) return; // job block click — handled below
         if (cell.classList.contains('cap-off')) return; // tech off — can't book
         openBookingModal({
           tech_id: cell.dataset.techId,
@@ -999,6 +1005,19 @@
           date: cell.dataset.date,
           day_label: cell.dataset.dayLabel,
         });
+      });
+    });
+    // Click on a job block opens the manage modal (Reschedule / Reassign / Cancel).
+    document.querySelectorAll('.blk[data-job-id]').forEach((blk) => {
+      blk.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openManageJobModal(Number(blk.dataset.jobId));
+      });
+      blk.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openManageJobModal(Number(blk.dataset.jobId));
+        }
       });
     });
   }
@@ -1249,6 +1268,162 @@
     }
   });
 
+  // ── Manage-job modal (Reschedule / Reassign / Cancel) ──────────
+  const manageModal = document.getElementById('manageModal');
+  const manageHeader = document.getElementById('manageHeader');
+  const manageSubhead = document.getElementById('manageSubhead');
+  const manageError = document.getElementById('manageError');
+  const manageActions = document.getElementById('manageActions');
+  const manageRescheduleForm = document.getElementById('manageRescheduleForm');
+  const manageReassignForm = document.getElementById('manageReassignForm');
+  const manageCancelForm = document.getElementById('manageCancelForm');
+  const manageOpenDetail = document.getElementById('manageOpenDetail');
+  const manageClose = document.getElementById('manageClose');
+  const manageBack = document.querySelectorAll('.manage-back');
+
+  let manageJobId = null;
+
+  function openManageJobModal(jobId) {
+    const j = lastJobsById[jobId];
+    if (!j) {
+      alert('Job not found in current calendar view.');
+      return;
+    }
+    manageJobId = jobId;
+    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
+    const time = j.scheduled_start ? fmtTime(j.scheduled_start) : 'no time';
+    const day = j.scheduled_start ? fmtDayShort(j.scheduled_start) : '';
+    manageHeader.textContent = `Job #${jobId} — ${cust}`;
+    manageSubhead.textContent = `${(j.appliance_type||'').toLowerCase()} · ${day} ${time}`;
+    manageError.textContent = '';
+    showManageView('actions');
+    manageOpenDetail.href = `job-detail.html?job_id=${jobId}`;
+    // Pre-fill reschedule with current scheduled_start (CT)
+    if (j.scheduled_start) {
+      const d = new Date(j.scheduled_start);
+      const parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'America/Chicago',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      }).formatToParts(d);
+      const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
+      const dtVal = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+      document.getElementById('rescheduleAt').value = dtVal;
+    }
+    // Populate the reassign tech selector
+    const sel = document.getElementById('reassignTech');
+    sel.innerHTML = lastTechs
+      .filter((t) => t.id !== j.technician_id)
+      .map((t) => `<option value="${t.id}">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
+      .join('') || '<option value="">No other techs</option>';
+    document.getElementById('cancelReason').value = '';
+    manageModal.classList.add('open');
+  }
+
+  function closeManageJobModal() {
+    manageModal.classList.remove('open');
+    manageJobId = null;
+  }
+
+  function showManageView(view) {
+    manageActions.style.display = view === 'actions' ? 'grid' : 'none';
+    manageRescheduleForm.style.display = view === 'reschedule' ? 'block' : 'none';
+    manageReassignForm.style.display = view === 'reassign' ? 'block' : 'none';
+    manageCancelForm.style.display = view === 'cancel' ? 'block' : 'none';
+    manageError.textContent = '';
+  }
+
+  manageClose.addEventListener('click', closeManageJobModal);
+  manageModal.addEventListener('click', (e) => {
+    if (e.target === manageModal) closeManageJobModal();
+  });
+  manageBack.forEach((btn) => btn.addEventListener('click', () => showManageView('actions')));
+
+  document.getElementById('manageBtnReschedule').addEventListener('click', () => showManageView('reschedule'));
+  document.getElementById('manageBtnReassign').addEventListener('click', () => showManageView('reassign'));
+  document.getElementById('manageBtnCancel').addEventListener('click', () => showManageView('cancel'));
+
+  function localDatetimeToMs(value) {
+    // value like "2026-05-26T14:30" — interpret as America/Chicago wall time.
+    const [datePart, timePart] = value.split('T');
+    const [h, m] = timePart.split(':').map(Number);
+    // Convert CT wall-time to ms using ctMs (defined above for booking modal).
+    return ctMs(datePart, h) + m * 60000;
+  }
+
+  manageRescheduleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!manageJobId) return;
+    const dtValue = document.getElementById('rescheduleAt').value;
+    if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
+    const newStartMs = localDatetimeToMs(dtValue);
+    const btn = e.submitter || document.getElementById('rescheduleSubmit');
+    btn.disabled = true; btn.textContent = 'Rescheduling...';
+    try {
+      const res = await fetch(`${XANO_BASE}/reschedule_job`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: manageJobId, new_start_ms: newStartMs }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
+      } else {
+        closeManageJobModal(); loadWeek(); return;
+      }
+    } catch (err) {
+      manageError.textContent = 'Network problem. Try again.';
+    }
+    btn.disabled = false; btn.textContent = 'Reschedule';
+  });
+
+  manageReassignForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!manageJobId) return;
+    const techId = Number(document.getElementById('reassignTech').value);
+    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
+    const btn = e.submitter || document.getElementById('reassignSubmit');
+    btn.disabled = true; btn.textContent = 'Reassigning...';
+    try {
+      const res = await fetch(`${XANO_BASE}/reassign_job`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: manageJobId, technician_id: techId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        manageError.textContent = (data && (data.error || data.message)) || `Reassign failed (${res.status})`;
+      } else {
+        closeManageJobModal(); loadWeek(); return;
+      }
+    } catch (err) {
+      manageError.textContent = 'Network problem. Try again.';
+    }
+    btn.disabled = false; btn.textContent = 'Reassign';
+  });
+
+  manageCancelForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!manageJobId) return;
+    if (!confirm('Cancel this job? This cannot be undone from here.')) return;
+    const reason = (document.getElementById('cancelReason').value || '').trim();
+    const btn = e.submitter || document.getElementById('cancelSubmit');
+    btn.disabled = true; btn.textContent = 'Canceling...';
+    try {
+      const res = await fetch(`${XANO_BASE}/cancel_job`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: manageJobId, reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        manageError.textContent = (data && (data.error || data.message)) || `Cancel failed (${res.status})`;
+      } else {
+        closeManageJobModal(); loadWeek(); return;
+      }
+    } catch (err) {
+      manageError.textContent = 'Network problem. Try again.';
+    }
+    btn.disabled = false; btn.textContent = 'Cancel job';
+  });
+
   // ── Boot ───────────────────────────────────────────────────────
   tryUnlock();
 })();
@@ -1310,7 +1485,129 @@
   #bookingSubmit[disabled] { opacity: 0.5; cursor: wait; }
   #bookingCancel { background: #2a2a2a; color: #f0f0f0; }
   #bookingError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
+
+  /* Job blocks behave as buttons now (not anchors) */
+  .blk[role="button"] { cursor: pointer; }
+  .blk[role="button"]:hover { outline: 1px solid #f6cf45; }
+  .blk[role="button"]:focus-visible { outline: 2px solid #f6cf45; }
+
+  /* Manage-job modal */
+  #manageModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 9000; overflow-y: auto; padding: 30px 16px;
+  }
+  #manageModal.open { display: flex; }
+  #manageCard {
+    width: 100%; max-width: 440px;
+    background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 10px;
+    padding: 22px 20px; color: #f0f0f0; font-family: 'Geist Mono', monospace;
+  }
+  #manageHeader {
+    font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em;
+    font-size: 18px; margin: 0 0 4px; color: #f6cf45;
+  }
+  #manageSubhead {
+    font-size: 12px; color: #999; margin: 0 0 16px;
+  }
+  #manageActions {
+    display: grid; gap: 8px;
+  }
+  .manage-action {
+    width: 100%; padding: 12px;
+    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
+    border-radius: 6px; cursor: pointer;
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.06em;
+    text-align: left;
+  }
+  .manage-action:hover { border-color: #f6cf45; color: #f6cf45; }
+  .manage-action.danger:hover { border-color: #ff6b6b; color: #ff6b6b; }
+  #manageActions .open-detail {
+    display: block; padding: 12px;
+    background: transparent; color: #999; border: 1px dashed #2a2a2a;
+    border-radius: 6px; text-decoration: none;
+    font-family: 'Bebas Neue', sans-serif; font-size: 13px; letter-spacing: 0.06em;
+    text-align: center;
+  }
+  #manageActions .open-detail:hover { color: #f0f0f0; border-color: #555; }
+
+  #manageRescheduleForm, #manageReassignForm, #manageCancelForm { display: none; }
+  #manageCard label {
+    display: block; font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #999; margin: 10px 0 4px;
+  }
+  #manageCard input, #manageCard select, #manageCard textarea {
+    width: 100%; box-sizing: border-box;
+    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
+    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
+  }
+  #manageCard textarea { resize: vertical; min-height: 60px; }
+  #manageCard input:focus, #manageCard select:focus, #manageCard textarea:focus {
+    outline: none; border-color: #f6cf45;
+  }
+  .manage-buttons { display: flex; gap: 8px; margin-top: 14px; }
+  .manage-buttons button {
+    flex: 1; padding: 10px; border: none; border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
+    letter-spacing: 0.06em; cursor: pointer;
+  }
+  .manage-buttons .primary { background: #f6cf45; color: #050505; }
+  .manage-buttons .primary[disabled] { opacity: 0.5; cursor: wait; }
+  .manage-buttons .primary.danger { background: #ff6b6b; color: #050505; }
+  .manage-buttons .back { background: #2a2a2a; color: #f0f0f0; }
+  #manageClose {
+    position: absolute; top: 36px; right: 28px;
+    background: transparent; color: #999; border: none; cursor: pointer;
+    font-size: 22px; line-height: 1;
+  }
+  #manageClose:hover { color: #f0f0f0; }
+  #manageCard { position: relative; }
+  #manageError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
 </style>
+
+<div id="manageModal" role="dialog" aria-modal="true">
+  <div id="manageCard">
+    <button id="manageClose" type="button" aria-label="close">×</button>
+    <h3 id="manageHeader">Job</h3>
+    <p id="manageSubhead"></p>
+
+    <div id="manageActions">
+      <button class="manage-action" id="manageBtnReschedule" type="button">Reschedule</button>
+      <button class="manage-action" id="manageBtnReassign" type="button">Reassign tech</button>
+      <button class="manage-action danger" id="manageBtnCancel" type="button">Cancel job</button>
+      <a id="manageOpenDetail" class="open-detail" href="#">Open full detail ↗</a>
+    </div>
+
+    <form id="manageRescheduleForm">
+      <label>New date + time (CT)</label>
+      <input type="datetime-local" id="rescheduleAt" required>
+      <div class="manage-buttons">
+        <button type="button" class="back manage-back">Back</button>
+        <button type="submit" class="primary" id="rescheduleSubmit">Reschedule</button>
+      </div>
+    </form>
+
+    <form id="manageReassignForm">
+      <label>New tech</label>
+      <select id="reassignTech" required></select>
+      <div class="manage-buttons">
+        <button type="button" class="back manage-back">Back</button>
+        <button type="submit" class="primary" id="reassignSubmit">Reassign</button>
+      </div>
+    </form>
+
+    <form id="manageCancelForm">
+      <label>Reason (optional)</label>
+      <textarea id="cancelReason" placeholder="e.g. customer rescheduled, duplicate, AHS pulled it"></textarea>
+      <div class="manage-buttons">
+        <button type="button" class="back manage-back">Back</button>
+        <button type="submit" class="primary danger" id="cancelSubmit">Cancel job</button>
+      </div>
+    </form>
+
+    <p id="manageError"></p>
+  </div>
+</div>
 
 <div id="bookingModal" role="dialog" aria-modal="true">
   <div id="bookingCard">
