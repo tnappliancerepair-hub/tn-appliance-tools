@@ -221,3 +221,7 @@ export async function getPriorVisitsForCustomer(customerId, applianceType, exclu
   });
   return getJSON(`${INTAKE()}/get_prior_visits_for_customer?${params.toString()}`);
 }
+
+export async function getJobArrivalStatus(jobId) {
+  return getJSON(`${INTAKE()}/get_job_arrival_status?job_id=${jobId}`);
+}
