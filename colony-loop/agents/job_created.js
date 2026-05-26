@@ -195,6 +195,35 @@ export async function run(signal, ctx) {
     log('prediag_request_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: DIAGNOSE_<APPLIANCE> ──
+  // Activates the dormant diagnose_* agents that emit DIAGNOSTIC_BRIEF.
+  // Within ~60 seconds Teddy/tech can see a Claude-generated pre-diagnosis
+  // for the appliance in question — top 3 failure modes ranked by
+  // probability, with "confirm with:" evidence + OEM part recommendations.
+  // Only fires for appliances we have a diagnose agent for (5 of 7 today).
+  const DIAGNOSE_AGENTS = new Set(['refrigerator', 'washer', 'dryer', 'dishwasher', 'range']);
+  try {
+    const applRaw = String(payload.appliance_type || '').trim().toLowerCase();
+    const applNorm = applRaw === 'fridge' ? 'refrigerator' : applRaw;
+    if (DIAGNOSE_AGENTS.has(applNorm)) {
+      await xano.emitSignal({
+        signal_type: `DIAGNOSE_${applNorm.toUpperCase()}`,
+        signal_strength: 55,
+        payload: {
+          job_id: jobId,
+          appliance_type: applNorm,
+          brand: payload.brand || null,
+          model_number: payload.model_number || null,
+          problem_summary: payload.problem_summary || null,
+          source: 'job_created_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('diagnose_chain_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: REPEAT_VISIT_CHECK ──
   // Hand off to repeat_visit_check.js which queries prior jobs for the
   // same customer + appliance_type within 12 months and alerts Teddy if
