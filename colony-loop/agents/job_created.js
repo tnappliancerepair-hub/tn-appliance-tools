@@ -24,12 +24,16 @@ function shouldIncludeWarrantyNote({ source, customer_type }) {
   return !CASH_SOURCES.has(s);
 }
 
-function composeGreeting({ first_name, appliance_type, source, customer_type }) {
+function composeGreeting({ first_name, appliance_type, source, customer_type, job_id }) {
   const name = (first_name || '').trim() || 'there';
   const applianceRaw = (appliance_type || '').trim().toLowerCase();
   const appliance = APPLIANCE_NICE[applianceRaw] || applianceRaw;
   const applianceClause = appliance ? `your ${appliance} repair` : 'your repair';
-  const link = config.publicSiteBase.replace(/^https?:\/\//, '');
+  const baseLink = config.publicSiteBase.replace(/^https?:\/\//, '');
+  const isWebChat = String(source || '').toLowerCase() === 'web_chat';
+  const link = isWebChat || !job_id
+    ? baseLink
+    : `${baseLink}/?job_id=${job_id}&mode=resume`;
   let body = `Hi ${name}, this is TN Appliance Exchange! To get ${applianceClause} started please tap here: ${link}`;
   if (shouldIncludeWarrantyNote({ source, customer_type })) {
     body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
@@ -94,6 +98,7 @@ export async function run(signal, ctx) {
     appliance_type: payload.appliance_type,
     source: payload.source,
     customer_type: payload.customer_type,
+    job_id: jobId,
   });
 
   const smsRes = await sms.toCustomer(phone, body, {

@@ -1661,6 +1661,113 @@ footer span { display:none; }
   </div>
 </div>
 
+<!-- RESUME MODE OVERLAY (warranty customers landing via ?job_id=X&mode=resume).
+     Hidden by default. Shown only when URL params match; covers the page so
+     the standard chat flow is bypassed. -->
+<style>
+  body.resume-mode .hero,
+  body.resume-mode .chat-wrap,
+  body.resume-mode .input-zone,
+  body.resume-mode .nav-strip,
+  body.resume-mode .service-strip { display: none !important; }
+  .resume-overlay {
+    position: fixed; inset: 0; background: #050505; color: #f0f0f0;
+    display: flex; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 40px 20px 80px; z-index: 9999;
+    font-family: 'Geist Mono', monospace;
+  }
+  .resume-card {
+    width: 100%; max-width: 520px;
+    background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 12px;
+    padding: 32px 24px; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .resume-brand {
+    font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em;
+    font-size: 20px; color: #f0f0f0; margin: 0 0 8px;
+  }
+  .resume-greeting {
+    font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1.3;
+    color: #f0f0f0; margin: 0 0 24px;
+  }
+  .resume-greeting em { color: #f6cf45; font-style: italic; }
+  .resume-label {
+    display: block; font-size: 11px; letter-spacing: 0.08em;
+    color: #a0a0a0; margin: 18px 0 6px; text-transform: uppercase;
+  }
+  .resume-hint { font-size: 11px; color: #707070; margin: -2px 0 6px; }
+  .resume-input, .resume-textarea {
+    width: 100%; box-sizing: border-box;
+    background: #050505; color: #f0f0f0;
+    border: 1px solid #333; border-radius: 8px;
+    padding: 10px 12px; font-family: inherit; font-size: 14px;
+    resize: vertical;
+  }
+  .resume-input:focus, .resume-textarea:focus {
+    outline: none; border-color: #f6cf45;
+  }
+  .resume-textarea { min-height: 70px; }
+  .resume-pin {
+    width: 120px; letter-spacing: 0.3em; text-align: center;
+    font-size: 18px;
+  }
+  .resume-submit {
+    margin-top: 24px; width: 100%; padding: 14px;
+    background: #f6cf45; color: #050505; border: none; border-radius: 8px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 0.06em; cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .resume-submit:hover { opacity: 0.88; }
+  .resume-submit:active { transform: translateY(1px); }
+  .resume-submit[disabled] { opacity: 0.45; cursor: wait; }
+  .resume-error {
+    margin-top: 12px; color: #ff6b6b; font-size: 13px; min-height: 18px;
+  }
+  .resume-success {
+    text-align: center; padding: 20px 0;
+  }
+  .resume-success-emoji { font-size: 48px; margin-bottom: 16px; }
+  .resume-success h3 {
+    font-family: 'Instrument Serif', serif; font-size: 22px; margin: 0 0 8px;
+    color: #f0f0f0;
+  }
+  .resume-success p { color: #a0a0a0; font-size: 14px; line-height: 1.5; }
+  .resume-loading {
+    text-align: center; color: #707070; padding: 40px 0; font-size: 13px;
+  }
+</style>
+<div class="resume-overlay" id="resumeOverlay" hidden>
+  <div class="resume-card">
+    <div id="resumeLoading" class="resume-loading">Loading your repair info...</div>
+
+    <div id="resumeForm" hidden>
+      <p class="resume-brand">TN APPLIANCE EXCHANGE</p>
+      <p class="resume-greeting" id="resumeGreeting"></p>
+
+      <label class="resume-label" for="resumeAvail">Availability</label>
+      <p class="resume-hint">What days/times work best for you? (e.g. weekday mornings, after 3pm, weekends)</p>
+      <textarea class="resume-textarea" id="resumeAvail" maxlength="500" placeholder="Weekday mornings before noon..."></textarea>
+
+      <label class="resume-label" for="resumeAccess">Access notes</label>
+      <p class="resume-hint">Gate codes, pets, parking, side door — anything our tech should know.</p>
+      <textarea class="resume-textarea" id="resumeAccess" maxlength="500" placeholder="Gate code 1234, friendly dog in the yard..."></textarea>
+
+      <label class="resume-label" for="resumePin">Confirm it's you</label>
+      <p class="resume-hint">Last 4 digits of your phone number.</p>
+      <input class="resume-input resume-pin" id="resumePin" type="tel" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="••••" autocomplete="off">
+
+      <button class="resume-submit" id="resumeSubmit" type="button">Save and confirm</button>
+      <div class="resume-error" id="resumeError" role="alert"></div>
+    </div>
+
+    <div id="resumeSuccess" class="resume-success" hidden>
+      <div class="resume-success-emoji">🐜</div>
+      <h3>Got it — thanks!</h3>
+      <p>Your repair is in our queue. We'll text you when we have a tech and time confirmed.</p>
+    </div>
+  </div>
+</div>
+
 </div><!-- /shell -->
 
 <script>
@@ -3347,6 +3454,143 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
     openVideoCapture: function(onComplete) { open('video', onComplete); },
     openPhotoCapture: function(onComplete) { open('photo', onComplete); }
   };
+})();
+</script>
+
+<!-- RESUME MODE — warranty customers landing via the SMS link. Intercepts
+     the page before the standard chat flow and shows a small form to capture
+     availability + access notes against an existing job. -->
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const mode   = (params.get('mode') || '').toLowerCase();
+  const jobId  = parseInt(params.get('job_id') || '', 10);
+  if (mode !== 'resume' || !jobId || jobId <= 0) return;
+
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const overlay   = document.getElementById('resumeOverlay');
+  const loading   = document.getElementById('resumeLoading');
+  const form      = document.getElementById('resumeForm');
+  const success   = document.getElementById('resumeSuccess');
+  const greeting  = document.getElementById('resumeGreeting');
+  const availEl   = document.getElementById('resumeAvail');
+  const accessEl  = document.getElementById('resumeAccess');
+  const pinEl     = document.getElementById('resumePin');
+  const submitBtn = document.getElementById('resumeSubmit');
+  const errorEl   = document.getElementById('resumeError');
+
+  document.body.classList.add('resume-mode');
+  overlay.hidden = false;
+
+  function applianceLabel(t) {
+    const s = String(t || '').toLowerCase().trim();
+    const nice = {
+      fridge: 'refrigerator',
+      refrigerator: 'refrigerator',
+      washer: 'washer',
+      dryer: 'dryer',
+      dishwasher: 'dishwasher',
+      range: 'range',
+      oven: 'oven',
+      stove: 'stove',
+      microwave: 'microwave'
+    };
+    return nice[s] || s || 'appliance';
+  }
+
+  fetch(XANO_BASE + '/get_job_resume_context', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: jobId })
+  })
+    .then(r => r.json().then(j => ({ ok: r.ok, body: j })))
+    .then(({ ok, body }) => {
+      if (!ok || !body.success) {
+        loading.textContent = 'We couldn’t find that repair request. Please reply STOP to the text or call 615-280-2949.';
+        return;
+      }
+      const firstName = (body.first_name || '').trim() || 'there';
+      const appliance = applianceLabel(body.appliance_type);
+      greeting.innerHTML =
+        'Hi ' + escapeHtml(firstName) + ', we already have your <em>' +
+        escapeHtml(appliance) + ' repair</em> request. I just need a couple more details.';
+      loading.hidden = true;
+      form.hidden = false;
+      availEl.focus();
+    })
+    .catch(() => {
+      loading.textContent = 'Connection problem. Please try again or call 615-280-2949.';
+    });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[c]);
+  }
+
+  submitBtn.addEventListener('click', function() {
+    errorEl.textContent = '';
+    const avail   = availEl.value.trim();
+    const access  = accessEl.value.trim();
+    const pin     = pinEl.value.trim();
+
+    if (!/^\d{4}$/.test(pin)) {
+      errorEl.textContent = 'Please enter the last 4 digits of your phone.';
+      pinEl.focus();
+      return;
+    }
+    if (!avail && !access) {
+      errorEl.textContent = 'Please share at least your availability or any access notes.';
+      availEl.focus();
+      return;
+    }
+
+    let schedulingType = '';
+    const a = avail.toLowerCase();
+    if (/\b(asap|emergency|right now|today|tonight|urgent)\b/.test(a)) schedulingType = 'asap';
+    else if (/\b(whenever|flexible|any time|anytime|no rush)\b/.test(a)) schedulingType = 'flexible';
+    else if (avail) schedulingType = 'schedule_later';
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+
+    fetch(XANO_BASE + '/update_job_from_chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: jobId,
+        phone_last4: pin,
+        customer_preference_text: avail,
+        scheduling_type: schedulingType,
+        access_notes: access
+      })
+    })
+      .then(r => r.json().then(j => ({ ok: r.ok, body: j })))
+      .then(({ ok, body }) => {
+        if (!ok || !body.success) {
+          const msg = (body && body.message) || '';
+          if (/phone_last4/i.test(msg)) {
+            errorEl.textContent = 'That doesn’t match the phone on file. Please double-check the last 4 digits.';
+            pinEl.focus(); pinEl.select();
+          } else {
+            errorEl.textContent = msg || 'Something went wrong. Please try again.';
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save and confirm';
+          return;
+        }
+        form.hidden = true;
+        success.hidden = false;
+      })
+      .catch(() => {
+        errorEl.textContent = 'Connection problem. Please try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save and confirm';
+      });
+  });
+
+  pinEl.addEventListener('input', function() {
+    pinEl.value = pinEl.value.replace(/\D/g, '').slice(0, 4);
+  });
 })();
 </script>
 </body>
