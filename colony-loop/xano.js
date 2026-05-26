@@ -1,7 +1,29 @@
 import { config } from './config.js';
 
+// Retry transient network failures (TypeError: fetch failed, DNS blips,
+// TLS reset). HTTP errors (4xx/5xx response bodies) fall through to the
+// JSON parser unchanged. Backoff: 0, 250ms, 750ms.
+async function fetchWithRetry(url, opts = {}) {
+  const delays = [0, 250, 750];
+  let lastErr;
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i] > 0) {
+      await new Promise((r) => setTimeout(r, delays[i]));
+    }
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      // Only retry on transient transport failures (TypeError).
+      // SyntaxError or other programming errors should propagate immediately.
+      if (!(err instanceof TypeError)) throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
 async function postJSON(url, body) {
-  const res = await fetch(url, {
+  const res = await fetchWithRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -19,7 +41,7 @@ async function postJSON(url, body) {
 }
 
 async function getJSON(url) {
-  const res = await fetch(url, { method: 'GET' });
+  const res = await fetchWithRetry(url, { method: 'GET' });
   const txt = await res.text();
   let data;
   try { data = txt ? JSON.parse(txt) : {}; } catch { data = { raw: txt }; }
