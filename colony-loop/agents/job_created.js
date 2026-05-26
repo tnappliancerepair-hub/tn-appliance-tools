@@ -132,6 +132,11 @@ export async function run(signal, ctx) {
       const prediagBody =
         `[ant] new job #${jobId} needs pre-diagnosis: ${custFirst} - ${brandAppl} - ${problem}. Diagnose now so parts can be ordered: ${link}`;
 
+      // Dashboard footer for the assigned tech: gives them one-tap access
+      // to their full day-view from any pre-diag SMS. Owner SMS keeps the
+      // prediag link only (owner uses dashboard.html, not the tech view).
+      const baseSite = config.publicSiteBase.replace(/^https?:\/\//, '');
+
       let teddyRes;
       try {
         teddyRes = await toOwner(prediagBody, {
@@ -148,8 +153,9 @@ export async function run(signal, ctx) {
       const assignedTechId = Number(payload.technician_id || 0);
       const assignedTechPhone = normalizeE164(payload.technician_phone);
       if (assignedTechId > 0 && assignedTechId !== 1 && assignedTechPhone) {
+        const techPrediagBody = `${prediagBody}\n\nYour dashboard: ${baseSite}/tech-daily-dashboard.html?tech_id=${assignedTechId}`;
         try {
-          techRes = await toTech(assignedTechPhone, prediagBody, {
+          techRes = await toTech(assignedTechPhone, techPrediagBody, {
             action: 'prediag_request_sent',
             job_id: jobId,
             technician_id: assignedTechId,

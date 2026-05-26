@@ -176,6 +176,10 @@ export async function run(signal, ctx) {
     const first = (tech.first_name || '').trim() || 'tech';
     const lines = techRows.map((r, i) => jobLine(i + 1, r));
     const header = `🐜 ${first} - ${techRows.length} undiagnosed job${techRows.length === 1 ? '' : 's'} in next ${daysAhead} days. Add your pre-diagnosis before arrival:`;
+    // Append dashboard link as the final line so the tech can jump to
+    // their full day view from any morning SMS.
+    const baseSite = config.publicSiteBase.replace(/^https?:\/\//, '');
+    lines.push(`\nYour dashboard: ${baseSite}/tech-daily-dashboard.html?tech_id=${tid}`);
     const chunks = chunkLines(header, lines, 600);
     for (let i = 0; i < chunks.length; i++) {
       await sleep(SMS_DELAY_MS); // spacing between every outbound (including across techs)
