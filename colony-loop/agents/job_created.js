@@ -1,6 +1,6 @@
 import { config } from '../config.js';
 import { isQuietHourCT, next8amCTMs, fmtCT } from '../time.js';
-import { normalizeE164 } from '../sms.js';
+import { normalizeE164, toOwner, toTech } from '../sms.js';
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator',
@@ -114,6 +114,80 @@ export async function run(signal, ctx) {
     source: payload.source,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
   });
+
+  // ── Pre-diagnosis-request SMS to Teddy + (optional) assigned tech ──
+  // Goal: parts ordered before the first visit, eliminating -2/-3/-4/-5
+  // repeat-visit cycles. Dedup on a 48h window per get_prediag_sent_for_job.
+  try {
+    const dedup = await xano.getPrediagSentForJob(jobId);
+    if (dedup && dedup.sent) {
+      // Already requested in the last 48h — skip silently.
+    } else {
+      const custFirst = (payload.customer_first_name || '').trim() || 'Customer';
+      const brand = (payload.brand || '').trim();
+      const appliance = (payload.appliance_type || '').trim() || 'appliance';
+      const problem = (payload.problem_summary || '').trim() || 'no complaint on file';
+      const brandAppl = brand ? `${brand} ${appliance}` : appliance;
+      const link = `${config.publicSiteBase.replace(/^https?:\/\//, '')}/teddy-tdr-tool.html?job_id=${jobId}`;
+      const prediagBody =
+        `[ant] new job #${jobId} needs pre-diagnosis: ${custFirst} - ${brandAppl} - ${problem}. Diagnose now so parts can be ordered: ${link}`;
+
+      let teddyRes;
+      try {
+        teddyRes = await toOwner(prediagBody, {
+          action: 'prediag_request_sent',
+          job_id: jobId,
+          recipient_role: 'owner',
+          source_signal_id: signal.id,
+        });
+      } catch (err) {
+        teddyRes = { success: false, error: String(err.message || err) };
+      }
+
+      let techRes = null;
+      const assignedTechId = Number(payload.technician_id || 0);
+      const assignedTechPhone = normalizeE164(payload.technician_phone);
+      if (assignedTechId > 0 && assignedTechId !== 1 && assignedTechPhone) {
+        try {
+          techRes = await toTech(assignedTechPhone, prediagBody, {
+            action: 'prediag_request_sent',
+            job_id: jobId,
+            technician_id: assignedTechId,
+            recipient_role: 'tech',
+            source_signal_id: signal.id,
+          });
+        } catch (err) {
+          techRes = { success: false, error: String(err.message || err) };
+        }
+      }
+
+      // Persist the prediag-request audit to event_log so the dedup query
+      // in get_prediag_sent_for_job can find it. send_sms's own event_log
+      // row uses action="sms_sent" without metadata.job_id, so we write
+      // our own structured row.
+      try {
+        await xano.recordEventLog('prediag_request_sent', {
+          job_id: jobId,
+          tech_id: assignedTechId || null,
+          teddy_sms_ok: teddyRes && teddyRes.success ? true : false,
+          tech_sms_ok: techRes && techRes.success ? true : (techRes === null ? null : false),
+          source_signal_id: signal.id,
+        });
+      } catch (err) {
+        // Best effort — if the event_log write fails, the dedup will allow
+        // a retry on the next JOB_CREATED for this job (acceptable noise).
+      }
+
+      log('prediag_request_sent', {
+        job_id: jobId,
+        teddy_sms_ok: teddyRes && teddyRes.success ? true : false,
+        tech_id: assignedTechId || null,
+        tech_sms_ok: techRes && techRes.success ? true : (techRes === null ? null : false),
+      });
+    }
+  } catch (err) {
+    log('prediag_request_failed', { job_id: jobId, error: String(err.message || err) });
+  }
 
   return {
     success: true,

@@ -192,3 +192,22 @@ export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_
     signals_processed_in_window: signals_processed_in_window || 0,
   });
 }
+
+export async function recordEventLog(action, metadata = {}) {
+  return postJSON(`${INTAKE()}/record_event_log`, {
+    action: String(action || ''),
+    metadata_json: JSON.stringify(metadata || {}),
+  });
+}
+
+export async function getPrediagSentForJob(jobId) {
+  return getJSON(`${INTAKE()}/get_prediag_sent_for_job?job_id=${jobId}`);
+}
+
+export async function getDailyJobPrepFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_job_prep_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function getUndiagnosedJobsNext3Days(daysAhead = 3) {
+  return getJSON(`${INTAKE()}/get_undiagnosed_jobs_next_3_days?days_ahead=${daysAhead}`);
+}

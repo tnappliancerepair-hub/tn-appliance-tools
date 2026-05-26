@@ -624,6 +624,18 @@ Key findings still valid:
 
 **🐜 Long Live Ant.**
 
+## Standing rule — pre-diagnosis before parts
+
+**Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
+
+Two automation paths enforce this:
+
+1. **Per-job immediate** — `colony-loop/agents/job_created.js` sends a `[ant] new job #X needs pre-diagnosis...` SMS to Teddy (always) + to the assigned tech (when `technician_id` + phone are set) the moment a JOB_CREATED signal lands. Dedup via `get_prediag_sent_for_job_GET.xs` on a 48-hour window so duplicate signals don't double-spam.
+
+2. **Daily roll-up** — `colony-loop/agents/daily_job_prep.js` fires once daily at 6:30am CT (via `tick.js` 6-9am grace window + `get_daily_job_prep_fired_today_GET.xs` dedup). Pulls every job scheduled in the next 3 days that has NO TDR from `technician_id=1`. SMSes Teddy the consolidated list + each tech their own undiagnosed jobs. Both lists are Teddy Tool deep-links (`?job_id=X`).
+
+Either path writes `action="prediag_request_sent"` or `action="daily_job_prep_fired"` to `event_log` so dedup queries can find them and downstream agents can audit the chain.
+
 ## Pending external integrations — wire when delivered
 
 ### Parts APIs (Marcone + Triple S) — expected within a few weeks

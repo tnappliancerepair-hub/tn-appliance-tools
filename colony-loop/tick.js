@@ -117,6 +117,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // DAILY_JOB_PREP — fires once per day at 6:30am CT (6-9am grace window).
+  // Sends Teddy a consolidated list of undiagnosed jobs in next 3 days +
+  // each tech their own. Goal: parts ordered before first visit.
+  if (hour >= 6 && hour < 9) {
+    let jobPrepFired;
+    try {
+      jobPrepFired = await xano.getDailyJobPrepFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_job_prep_check_failed', { error: err.message });
+      jobPrepFired = null;
+    }
+    if (jobPrepFired && !jobPrepFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'DAILY_JOB_PREP',
+          signal_strength: 80,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), days_ahead: 3 },
+        });
+        xano.logLocal('daily_job_prep_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('daily_job_prep_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
   // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
   if (hour >= 7 && hour < 10) {
