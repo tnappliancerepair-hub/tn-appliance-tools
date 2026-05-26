@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 26,
-    "agents_to_build": 353,
+    "agents_live": 27,
+    "agents_to_build": 352,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -296,7 +296,7 @@
       "purpose": "Multi-source technical research for every job. iFixit, Appliantology, Service Matters, MarconeAI, ApplianceAPI, internal TDR history.",
       "priority": "HIGH",
       "agents_total": 6,
-      "agents_live": 1,
+      "agents_live": 2,
       "agents": [
         {
           "id": "R001",
@@ -347,7 +347,7 @@
         {
           "id": "R004",
           "name": "MarconeAI Research Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "Queries MarconeAI diagnostic tool. Free for Marcone customers. Returns likely repair and parts required.",
           "triggers": [
