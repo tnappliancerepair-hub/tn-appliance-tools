@@ -396,8 +396,6 @@ query create_tdr verb=POST {
         }
       }
     }
-  }
-
     // Emit TDR_SUBMITTED for the parts-pricing router (tdr_submitted.js).
     // The router fans out PARTS_LOOKUP_<SUPPLIER>_PRICING signals to the
     // dormant Marcone/RepairClinic/PartSelect agents so Teddy gets real
