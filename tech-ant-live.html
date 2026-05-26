@@ -722,6 +722,10 @@ async function init() {
     renderTdrStack(data.all_tdrs || []);
     // Reveal the inline TDR form. Pre-fill if a TDR snapshot exists.
     initInlineTdrForm(data.all_tdrs || []);
+    // Parts-status banner. When the job is awaiting parts or has parts on
+    // order, surface that to the tech so they don't roll up to a customer
+    // whose part hasn't arrived.
+    showPartsStatusBanner(data.job || {});
 
     // Action bar: address + phone for tap-to-navigate / tap-to-call.
     // get_job_for_dashboard already resolves job.service_X → customer.X fallback.
@@ -1565,6 +1569,56 @@ function onTdrFieldInput() {
   refreshTdrFormStatus();
 }
 
+// Parts-status banner (urgent field add 2026-05-26). When the job has
+// parts pending, surface that to the tech with the ETA so they don't show
+// up to a customer whose part hasn't arrived. Visible above the chat area,
+// dismissable but auto-rebuilt on page reload.
+function showPartsStatusBanner(job) {
+  const prior = document.getElementById('parts-status-banner');
+  if (prior) prior.remove();
+
+  const status = String(job.parts_status || '').toLowerCase();
+  const PENDING = new Set(['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed']);
+  if (!PENDING.has(status)) return;
+
+  // Format ETA — accept either ms timestamp or YYYY-MM-DD string.
+  let etaStr = '';
+  const eta = job.parts_eta_date || job.parts_eta || job.parts_eta_ms;
+  if (eta) {
+    if (typeof eta === 'number' || (/^\d+$/.test(String(eta)))) {
+      const ms = Number(eta);
+      try {
+        etaStr = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Chicago',
+          weekday: 'short', month: 'short', day: 'numeric',
+        }).format(new Date(ms));
+      } catch { /* fallback below */ }
+    } else {
+      etaStr = String(eta);
+    }
+  }
+
+  const div = document.createElement('div');
+  div.id = 'parts-status-banner';
+  div.style.cssText = [
+    'background:#3b2d1d', 'border:1px solid #f6cf45', 'color:#f6cf45',
+    'padding:12px 14px', 'margin:10px 12px', 'border-radius:8px',
+    'font-size:14px', 'line-height:1.4',
+  ].join(';');
+  const head = `⚠️ Parts ${status.replace(/_/g, ' ')}`;
+  const etaLine = etaStr ? `ETA: ${etaStr}` : 'ETA: unknown';
+  const guidance = 'Do not schedule the next visit until parts arrive.';
+  div.innerHTML = `
+    <strong style="display:block;margin-bottom:4px">${head}</strong>
+    <div>${etaLine}</div>
+    <div style="margin-top:4px;color:#e8d68a;font-size:13px">${guidance}</div>
+  `;
+  const mainArea = document.getElementById('main-area');
+  if (mainArea && mainArea.parentNode) {
+    mainArea.parentNode.insertBefore(div, mainArea);
+  }
+}
+
 // Mirror Ant-captured TDR fields back into the visible form (chat → form).
 // Only writes when the form field is empty so we don't clobber tech edits.
 function syncCollectedDataIntoTdrForm() {
@@ -1693,10 +1747,36 @@ async function onComplete(completionType) {
     if (!res.ok) throw new Error(`(${res.status})`);
     addSystem('success', `✅ job marked: ${completionType.replace(/_/g, ' ')}`);
     sel.disabled = false;
+    showNextJobBanner();
   } catch (err) {
     addSystem('error', '⚠️ complete failed: ' + err.message);
     sel.value = '';
     sel.disabled = false;
+  }
+}
+
+// "Head to next job →" — shown after the complete button succeeds. Deep-links
+// to the tech's daily dashboard filtered to today; the dashboard's job list
+// is already sorted by stop number / scheduled time so the next stop is
+// always at the top.
+function showNextJobBanner() {
+  // Remove any prior banner so consecutive completes don't stack.
+  const prior = document.getElementById('next-job-banner');
+  if (prior) prior.remove();
+  const link = document.createElement('a');
+  link.id = 'next-job-banner';
+  link.href = `tech-daily-dashboard.html?tech_id=${encodeURIComponent(TECH_ID || '')}`;
+  link.style.cssText = [
+    'display:block', 'background:linear-gradient(135deg,#00d68f,#00aa70)',
+    'color:#080a0f', 'padding:16px', 'text-align:center', 'font-weight:700',
+    'font-size:15px', 'text-decoration:none', 'border-radius:8px',
+    'margin:10px 12px', 'box-shadow:0 2px 8px rgba(0,214,143,0.3)',
+  ].join(';');
+  link.innerHTML = '🚗 Head to next job →';
+  const mainArea = document.getElementById('main-area');
+  if (mainArea && mainArea.parentNode) {
+    mainArea.parentNode.insertBefore(link, mainArea);
+    link.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
 
