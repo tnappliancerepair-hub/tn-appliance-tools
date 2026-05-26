@@ -166,6 +166,54 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // DAILY_REVENUE_SUMMARY — fires once per day at 6pm CT (6-9pm grace).
+  // EOD digest of completed-jobs volume + warranty/self-pay split + per-tech.
+  if (hour >= 18 && hour < 21) {
+    let revFired;
+    try {
+      revFired = await xano.getDailyRevenueFired(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_revenue_dedup_failed', { error: err.message });
+      revFired = null;
+    }
+    if (revFired && !revFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'DAILY_REVENUE_SUMMARY',
+          signal_strength: 65,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('daily_revenue_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('daily_revenue_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // CAPACITY_CHECK — fires once per day at 10am CT (10am-12pm grace).
+  // Alerts Teddy when any tech has >6 jobs (overload) or <2 jobs (idle).
+  if (hour >= 10 && hour < 12) {
+    let capFired;
+    try {
+      capFired = await xano.getCapacityCheckFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('capacity_check_dedup_failed', { error: err.message });
+      capFired = null;
+    }
+    if (capFired && !capFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'CAPACITY_CHECK',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('capacity_check_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('capacity_check_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // SCHEDULE_GAP_CHECK — fires once per day at 9am CT (9-11am grace window,
   // after the briefings). Scans today's calendar for 2+ hour gaps per tech
   // and SMSes Teddy with the opportunity list + AHS-backlog candidates.

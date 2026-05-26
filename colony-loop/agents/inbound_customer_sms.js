@@ -23,6 +23,10 @@
 // missing context gracefully.
 
 const KEYWORD_ROUTES = [
+  // Bare RESCHEDULE keyword (as prompted in appointment confirmation +
+  // reminder SMS) takes priority — exact-word match avoids false positives
+  // on conversational "reschedule" mentions.
+  { type: 'SMS_RESPONSE_RESCHEDULE_REQUEST', re: /^\s*RESCHEDULE\s*$/i },
   { type: 'SMS_RESPONSE_RESCHEDULE_REQUEST', re: /\b(reschedule|reschedul|new time|push back|move it|change the time)\b/i },
   { type: 'SMS_RESPONSE_CANCEL_REQUEST',     re: /\b(cancel|cancell|don't need|no longer|nevermind|never mind)\b/i },
   { type: 'SMS_RESPONSE_PARTS_INQUIRY',      re: /\b(part|parts|ordered|shipping|arrival|when will the part)\b/i },
@@ -55,6 +59,31 @@ export async function run(signal, ctx) {
   }
 
   const route = classify(body);
+
+  // RESCHEDULE keyword (or intent match) fires an additional owner alert
+  // signal in parallel — the existing sms_response_reschedule_request
+  // architect agent handles the customer reply; reschedule_request_alert
+  // handles the Teddy+Danielle alert.
+  if (route.type === 'SMS_RESPONSE_RESCHEDULE_REQUEST') {
+    try {
+      await xano.emitSignal({
+        signal_type: 'RESCHEDULE_REQUEST_ALERT',
+        signal_strength: 80,
+        payload: {
+          job_id: payload.job_id || null,
+          customer_id: payload.customer_id || null,
+          customer_phone: payload.customer_phone || payload.phone || null,
+          first_name: payload.first_name || '',
+          appliance_type: payload.appliance_type || '',
+          body,
+          source: 'inbound_customer_sms',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('reschedule_alert_emit_failed', { error: String(err.message || err) });
+    }
+  }
 
   // Emit the routed responder signal. Downstream agent generates a reply
   // and emits CUSTOMER_SMS_REPLY; customer_sms_reply.js then sends the

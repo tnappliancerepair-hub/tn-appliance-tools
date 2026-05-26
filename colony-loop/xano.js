@@ -218,6 +218,18 @@ export async function getScheduleGapCheckFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_schedule_gap_check_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getCapacityCheckFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_capacity_check_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function getDailyRevenueFired(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_revenue_fired?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function getDailyRevenueSummary(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_revenue_summary?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',
