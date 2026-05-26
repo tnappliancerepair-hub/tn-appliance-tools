@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 162,
-    "agents_to_build": 105,
+    "agents_live": 163,
+    "agents_to_build": 104,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -399,7 +399,7 @@
       "purpose": "Multi-supplier parts intelligence. Match delivery timing to tech availability. Never order faster than needed. Never order too slow.",
       "priority": "HIGH",
       "agents_total": 53,
-      "agents_live": 38,
+      "agents_live": 39,
       "agents": [
         {
           "id": "P001",
@@ -930,7 +930,7 @@
         {
           "id": "P039",
           "name": "RepairClinic Range Parts Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Source range OEM parts from RepairClinic: price, availability, ETA, cross-references. Listens for PARTS_LOOKUP_REPAIRCLINIC_RANGE signals carrying brand + model + failed_component, emits PARTS_INTELLIGENCE with structured pricing + stock data.",
           "triggers": [
