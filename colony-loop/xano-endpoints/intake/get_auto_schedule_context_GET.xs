@@ -74,6 +74,8 @@ query get_auto_schedule_context verb=GET {
       warranty_company : ($job.warranty_company ?? "")
       parts_status     : ($job.parts_status ?? "")
       scheduling_status: ($job.scheduling_status ?? "")
+      scheduling_type  : ($job.scheduling_type ?? "")
+      vendor_locked    : ($job.vendor_locked ?? false)
       appliance_type   : ($job.appliance_type ?? "")
       brand            : ($job.brand ?? "")
       customer_type    : ($job.customer_type ?? "")

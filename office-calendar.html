@@ -925,7 +925,7 @@
   function renderCell(tech, day, jobs, isOff) {
     if (isOff) {
       return `
-        <div class="cell cap-off">
+        <div class="cell cap-off" data-tech-id="${tech.id}" data-date="${day.dateStr}">
           <div class="cap">
             <span class="num">⛔</span>
             <span class="label">day off</span>
@@ -940,8 +940,14 @@
     if (count >= 5) tier = 'red';
     else if (count >= 3) tier = 'yellow';
     const blocks = jobs.map((j) => renderBlock(j)).join('');
+    const techName = ((tech.first_name || '') + ' ' + (tech.last_name || '')).trim() || ('Tech ' + tech.id);
     return `
-      <div class="cell cap-${tier}">
+      <div class="cell cap-${tier} book-cell"
+           data-tech-id="${tech.id}"
+           data-tech-name="${escapeHtml(techName)}"
+           data-date="${day.dateStr}"
+           data-day-label="${escapeHtml(day.dowShort + ' ' + day.monthShort + ' ' + day.dayNum)}"
+           title="Click empty space to book on this day">
         <div class="cap">
           <span class="num">${remaining}</span>
           <span class="denom">/${CAPACITY_MAX}</span>
@@ -981,8 +987,20 @@
   }
 
   function attachClickHandlers() {
-    // No-op for empty cell cells per Q2; job blocks use plain anchor hrefs
-    // and are handled by the browser.
+    // Click on any empty cell space (NOT on a job block) opens the booking modal.
+    // Job blocks are <a class="blk"> and capture their own click via href.
+    document.querySelectorAll('.book-cell').forEach((cell) => {
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('a.blk')) return; // job block click — let it through
+        if (cell.classList.contains('cap-off')) return; // tech off — can't book
+        openBookingModal({
+          tech_id: cell.dataset.techId,
+          tech_name: cell.dataset.techName,
+          date: cell.dataset.date,
+          day_label: cell.dataset.dayLabel,
+        });
+      });
+    });
   }
 
   function renderHeader(data) {
@@ -1104,9 +1122,293 @@
       .replace(/'/g, '&#39;');
   }
 
+  // ── Booking modal ──────────────────────────────────────────────
+  const bookingModal = document.getElementById('bookingModal');
+  const bookingForm = document.getElementById('bookingForm');
+  const bookingHeader = document.getElementById('bookingHeader');
+  const bookingError = document.getElementById('bookingError');
+  const bookingSubmit = document.getElementById('bookingSubmit');
+  const bookingCancel = document.getElementById('bookingCancel');
+
+  let bookingCtx = null;
+
+  function openBookingModal(ctx) {
+    bookingCtx = ctx;
+    bookingHeader.textContent = `Book — ${ctx.tech_name} · ${ctx.day_label}`;
+    bookingError.textContent = '';
+    bookingForm.reset();
+    bookingSubmit.disabled = false;
+    bookingSubmit.textContent = 'Book it';
+    bookingModal.classList.add('open');
+    setTimeout(() => document.getElementById('bookPhone').focus(), 40);
+  }
+
+  function closeBookingModal() {
+    bookingModal.classList.remove('open');
+    bookingCtx = null;
+  }
+
+  bookingCancel.addEventListener('click', closeBookingModal);
+  bookingModal.addEventListener('click', (e) => {
+    if (e.target === bookingModal) closeBookingModal();
+  });
+
+  function ctMs(dateStr, ctHour) {
+    // dateStr "YYYY-MM-DD"; ctHour 0-23 in America/Chicago.
+    // Use a UTC probe to find CT's current offset on that date (handles DST).
+    const probe = new Date(`${dateStr}T12:00:00Z`);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      timeZoneName: 'shortOffset',
+    }).formatToParts(probe);
+    const offsetStr = (parts.find((p) => p.type === 'timeZoneName') || {}).value || 'GMT-5';
+    const m = offsetStr.match(/GMT([+-]\d+)/);
+    const offsetHrs = m ? parseInt(m[1], 10) : -5;
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    return Date.UTC(y, mo - 1, d, ctHour - offsetHrs, 0, 0);
+  }
+
+  bookingForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!bookingCtx) return;
+    bookingError.textContent = '';
+
+    const fd = new FormData(bookingForm);
+    const window = fd.get('time_window') || '';
+    if (!window) {
+      bookingError.textContent = 'Pick a time window.';
+      return;
+    }
+    const windowHour = window === '8-11am' ? 8 : window === '11am-2pm' ? 11 : window === '2-5pm' ? 14 : 8;
+    const windowEndHour = window === '8-11am' ? 11 : window === '11am-2pm' ? 14 : 17;
+    const scheduled_start_ms = ctMs(bookingCtx.date, windowHour);
+    const scheduled_end_ms = ctMs(bookingCtx.date, windowEndHour);
+
+    const first_name = (fd.get('first_name') || '').toString().trim();
+    const last_name = (fd.get('last_name') || '').toString().trim();
+    const phone = (fd.get('phone') || '').toString().trim();
+    const zip = (fd.get('zip') || '').toString().trim();
+    const appliance_type = (fd.get('appliance_type') || '').toString().trim();
+    const brand = (fd.get('brand') || '').toString().trim();
+    const problem_summary = (fd.get('problem_summary') || '').toString().trim();
+    const service_address = (fd.get('service_address') || '').toString().trim();
+    const service_city = (fd.get('service_city') || '').toString().trim();
+    const service_state = (fd.get('service_state') || '').toString().trim();
+    const customer_type = (fd.get('customer_type') || 'self_pay').toString();
+    const warranty_company = (fd.get('warranty_company') || '').toString().trim();
+
+    if (!first_name || !phone) {
+      bookingError.textContent = 'First name + phone are required.';
+      return;
+    }
+    if (!appliance_type || !problem_summary) {
+      bookingError.textContent = 'Appliance type + problem summary are required.';
+      return;
+    }
+
+    bookingSubmit.disabled = true;
+    bookingSubmit.textContent = 'Booking...';
+    try {
+      const res = await fetch(`${XANO_BASE}/book_appointment_from_office`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name,
+          last_name,
+          phone,
+          zip,
+          email: '',
+          service_address,
+          service_city,
+          service_state,
+          appliance_type,
+          brand,
+          model_number: '',
+          problem_summary,
+          technician_id: parseInt(bookingCtx.tech_id, 10),
+          scheduled_start_ms,
+          scheduled_end_ms,
+          service_eta_window: window,
+          customer_type,
+          warranty_company,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        bookingError.textContent = (data && (data.error || data.message)) || `book failed (${res.status})`;
+        bookingSubmit.disabled = false;
+        bookingSubmit.textContent = 'Book it';
+        return;
+      }
+      closeBookingModal();
+      loadWeek();
+    } catch (err) {
+      bookingError.textContent = 'Network problem. Try again.';
+      bookingSubmit.disabled = false;
+      bookingSubmit.textContent = 'Book it';
+    }
+  });
+
   // ── Boot ───────────────────────────────────────────────────────
   tryUnlock();
 })();
 </script>
+
+<style>
+  .book-cell { cursor: pointer; }
+  .book-cell.cap-off { cursor: not-allowed; }
+  #bookingModal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: flex-start; justify-content: center;
+    z-index: 9000; overflow-y: auto; padding: 30px 16px;
+  }
+  #bookingModal.open { display: flex; }
+  #bookingCard {
+    width: 100%; max-width: 480px;
+    background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 10px;
+    padding: 22px 20px; color: #f0f0f0; font-family: 'Geist Mono', monospace;
+  }
+  #bookingHeader {
+    font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em;
+    font-size: 18px; margin: 0 0 14px; color: #f6cf45;
+  }
+  #bookingForm label {
+    display: block; font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #999; margin: 10px 0 4px;
+  }
+  #bookingForm input, #bookingForm select, #bookingForm textarea {
+    width: 100%; box-sizing: border-box;
+    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
+    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
+  }
+  #bookingForm textarea { resize: vertical; min-height: 60px; }
+  #bookingForm input:focus, #bookingForm select:focus, #bookingForm textarea:focus {
+    outline: none; border-color: #f6cf45;
+  }
+  .book-row { display: flex; gap: 8px; }
+  .book-row > div { flex: 1; }
+  .book-windows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .book-windows label {
+    display: block; padding: 8px 0; text-align: center;
+    background: #050505; border: 1px solid #2a2a2a; border-radius: 6px;
+    cursor: pointer; font-size: 12px; letter-spacing: 0.04em;
+    text-transform: none; color: #f0f0f0; margin: 0;
+  }
+  .book-windows input[type="radio"] { display: none; }
+  .book-windows input[type="radio"]:checked + label {
+    background: #f6cf45; color: #050505; border-color: #f6cf45;
+  }
+  #bookingButtons {
+    display: flex; gap: 8px; margin-top: 18px;
+  }
+  #bookingSubmit, #bookingCancel {
+    flex: 1; padding: 10px; border: none; border-radius: 6px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
+    letter-spacing: 0.06em; cursor: pointer;
+  }
+  #bookingSubmit { background: #f6cf45; color: #050505; }
+  #bookingSubmit[disabled] { opacity: 0.5; cursor: wait; }
+  #bookingCancel { background: #2a2a2a; color: #f0f0f0; }
+  #bookingError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
+</style>
+
+<div id="bookingModal" role="dialog" aria-modal="true">
+  <div id="bookingCard">
+    <h3 id="bookingHeader">Book</h3>
+    <form id="bookingForm">
+      <label>Time window</label>
+      <div class="book-windows">
+        <input type="radio" id="bw1" name="time_window" value="8-11am">
+        <label for="bw1">8-11am</label>
+        <input type="radio" id="bw2" name="time_window" value="11am-2pm">
+        <label for="bw2">11am-2pm</label>
+        <input type="radio" id="bw3" name="time_window" value="2-5pm">
+        <label for="bw3">2-5pm</label>
+      </div>
+
+      <label for="bookPhone">Customer phone</label>
+      <input type="tel" id="bookPhone" name="phone" autocomplete="off" placeholder="615-555-1234" required>
+
+      <div class="book-row">
+        <div>
+          <label for="bookFirst">First name</label>
+          <input type="text" id="bookFirst" name="first_name" autocomplete="off" required>
+        </div>
+        <div>
+          <label for="bookLast">Last name</label>
+          <input type="text" id="bookLast" name="last_name" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="book-row">
+        <div>
+          <label for="bookAppliance">Appliance</label>
+          <select id="bookAppliance" name="appliance_type" required>
+            <option value="">— pick one —</option>
+            <option value="refrigerator">Refrigerator</option>
+            <option value="washer">Washer</option>
+            <option value="dryer">Dryer</option>
+            <option value="dishwasher">Dishwasher</option>
+            <option value="range">Range</option>
+            <option value="oven">Oven</option>
+            <option value="microwave">Microwave</option>
+          </select>
+        </div>
+        <div>
+          <label for="bookBrand">Brand</label>
+          <input type="text" id="bookBrand" name="brand" autocomplete="off" placeholder="Whirlpool, LG, ...">
+        </div>
+      </div>
+
+      <label for="bookProblem">Problem summary</label>
+      <textarea id="bookProblem" name="problem_summary" required placeholder="not cooling, leaking, etc."></textarea>
+
+      <div class="book-row">
+        <div>
+          <label for="bookAddr">Service address</label>
+          <input type="text" id="bookAddr" name="service_address" autocomplete="off">
+        </div>
+        <div>
+          <label for="bookZip">Zip</label>
+          <input type="text" id="bookZip" name="zip" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="book-row">
+        <div>
+          <label for="bookCity">City</label>
+          <input type="text" id="bookCity" name="service_city" autocomplete="off">
+        </div>
+        <div>
+          <label for="bookState">State</label>
+          <input type="text" id="bookState" name="service_state" autocomplete="off" maxlength="2" placeholder="TN">
+        </div>
+      </div>
+
+      <div class="book-row">
+        <div>
+          <label for="bookCustType">Customer type</label>
+          <select id="bookCustType" name="customer_type">
+            <option value="self_pay">Self-pay</option>
+            <option value="warranty">Warranty</option>
+            <option value="cash">Cash</option>
+          </select>
+        </div>
+        <div>
+          <label for="bookWarranty">Warranty company</label>
+          <input type="text" id="bookWarranty" name="warranty_company" autocomplete="off" placeholder="AHS, SquareTrade, ...">
+        </div>
+      </div>
+
+      <div id="bookingError" role="alert"></div>
+
+      <div id="bookingButtons">
+        <button type="button" id="bookingCancel">Cancel</button>
+        <button type="submit" id="bookingSubmit">Book it</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 </body>
 </html>

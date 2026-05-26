@@ -44,8 +44,10 @@ const ALREADY_SCHEDULED_STATUSES = new Set([
   'booked',
 ]);
 
-// Warranty companies that get their appointment date set upstream (their
-// dispatch system locks the slot; we should not re-propose).
+// Warranty companies that get their appointment date set upstream — used
+// as a fallback when the new jobs.vendor_locked boolean isn't set on an
+// older job row. New writes (ServicePower DISPATCH_OFFER / SCHEDULE_CHANGE)
+// set vendor_locked=true directly, which is the canonical signal.
 const VENDOR_LOCKED_WARRANTIES = new Set([
   'squaretrade',
   'st',
@@ -115,14 +117,25 @@ export async function run(signal, ctx) {
     return { success: true, action: 'already_scheduled', job_id: jobId };
   }
 
-  // Gate 2: vendor-locked appointment (date pre-set by SquareTrade / ServicePower
-  // dispatch). Only skip when the lock is actually in effect — a vendor job
-  // landing without scheduled_start should still go through our scheduler.
-  if (isVendorLocked(job.warranty_company) && job.scheduled_start != null) {
+  // Gate 2: vendor-locked appointment (date pre-set by SquareTrade /
+  // ServicePower dispatch). Two ways to detect:
+  //   (a) vendor_locked column is true on the job (canonical, set by the
+  //       producer endpoint at write time)
+  //   (b) warranty_company matches a known vendor AND scheduled_start is
+  //       set (legacy / backstop for older rows written before the column
+  //       existed).
+  // Either path: skip without re-proposing.
+  const explicitVendorLocked = job.vendor_locked === true;
+  const legacyVendorLocked =
+    isVendorLocked(job.warranty_company) && job.scheduled_start != null;
+  if (explicitVendorLocked || legacyVendorLocked) {
     const meta = {
       job_id: jobId,
       outcome: 'skipped_vendor_locked_date',
       warranty_company: job.warranty_company || '',
+      scheduling_type: job.scheduling_type || '',
+      vendor_locked: job.vendor_locked === true,
+      detected_via: explicitVendorLocked ? 'vendor_locked_flag' : 'legacy_warranty_name',
       scheduled_start: job.scheduled_start,
     };
     await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
