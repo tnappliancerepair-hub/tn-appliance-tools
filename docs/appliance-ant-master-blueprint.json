@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 96,
-    "agents_to_build": 283,
+    "agents_live": 97,
+    "agents_to_build": 282,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -889,7 +889,7 @@
       "purpose": "Self-improving voice and SMS systems. Every interaction makes Ant and Vapi smarter.",
       "priority": "MEDIUM",
       "agents_total": 5,
-      "agents_live": 4,
+      "agents_live": 5,
       "agents": [
         {
           "id": "V001",
@@ -934,7 +934,7 @@
         {
           "id": "V005",
           "name": "New Vapi Agent Proposal Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Identifies communication scenarios not covered by existing Vapi agents and proposes building new ones.",
           "xano_endpoint": "new_vapi_agent_proposer",
