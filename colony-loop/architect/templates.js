@@ -326,10 +326,28 @@ function performanceScopeDisplay(agent, slug) {
 }
 
 function applianceFromTriggers(agent) {
-  // e.g. "JOB_CREATED with appliance_type=washer"
+  // Form 1: "JOB_CREATED with appliance_type=washer" (original D001-D005 form)
   const text = (agent.triggers || []).join(' ');
   const m = text.match(/appliance_type\s*=\s*([a-z_]+)/i);
-  return m ? m[1].toLowerCase() : null;
+  if (m) return m[1].toLowerCase();
+  // Form 2: bare DIAGNOSE_<APPLIANCE> signal (H015 DIAGNOSE_HVAC_HEAT_PUMP,
+  // H016 DIAGNOSE_HVAC_FURNACE, future DIAGNOSE_HVAC_AC, etc). The slug
+  // after DIAGNOSE_ is the appliance — works for compound terms.
+  const m2 = text.match(/\bDIAGNOSE_([A-Z][A-Z0-9_]+)\b/);
+  if (m2) return m2[1].toLowerCase();
+  return null;
+}
+
+// Humanize an appliance slug for the diagnostic prompt:
+//   washer → "washer"
+//   hvac_heat_pump → "HVAC heat pump"
+//   refrigerator → "refrigerator"
+function humanizeAppliance(slug) {
+  if (!slug) return slug;
+  return slug
+    .split('_')
+    .map((w) => (w === 'hvac' || w === 'ac' || w === 'epa' ? w.toUpperCase() : w))
+    .join(' ');
 }
 
 function brandFromAgent(agent) {
@@ -365,7 +383,12 @@ function sourceDisplayFromAgent(agent, slug) {
 
 // ── Meta-prompts ──────────────────────────────────────────────────
 
-function metaPromptForDiagnostic(appliance) {
+function metaPromptForDiagnostic(applianceSlug) {
+  const appliance = humanizeAppliance(applianceSlug);
+  const isHvac = /\bhvac\b/i.test(appliance);
+  const brandList = isHvac
+    ? 'Carrier, Trane, Lennox, Goodman, Rheem, York, American Standard, Bryant, Mitsubishi, Daikin'
+    : 'Whirlpool, GE, LG, Samsung, Maytag, Frigidaire, KitchenAid';
   return (
     `You are designing the Claude system prompt for a "${appliance} diagnostic specialist" agent. ` +
     `This agent receives one job: brand, model number, and customer-reported problem text. ` +
@@ -373,7 +396,7 @@ function metaPromptForDiagnostic(appliance) {
     `  - one-sentence "confirm with:" evidence the tech should look for to verify\n` +
     `  - common OEM part number(s) when known\n` +
     `  - typical labor time in minutes\n\n` +
-    `Write the system prompt now. Be specific to ${appliance}s across major brands (Whirlpool, GE, LG, Samsung, Maytag, Frigidaire, KitchenAid). ` +
+    `Write the system prompt now. Be specific to ${appliance} units across major brands (${brandList}). ` +
     `Use plain-English failure descriptions a journeyman tech would recognize. Format the agent's output as a numbered list. ` +
     `Output ONLY the system prompt text — no preamble, no commentary, no explanation of what you're doing.`
   );
