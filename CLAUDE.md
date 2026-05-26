@@ -848,6 +848,54 @@ User's full 100-task list is genuinely 40+ hours of work. Shipping 10 high-impac
 
 **🐜 Long Live Ant.**
 
+## Late session 2026-05-26 — round-3 high-impact bundle
+
+User re-pasted the 100-task list. Audit confirmed many items already done this session. Built the next 6 high-impact items in two pushes:
+
+**Round 3a — Schedule + catalog**
+
+`473ae6e` — **P2-11 schedule_gap_check** (daily 9am CT)
+Scans today's calendar for 2+ hour gaps per active tech. SMSes Teddy a digest with gap windows + 25 AHS-backlog candidate jobs as fill ideas. v1 detect-and-surface (no auto-customer-SMS — candidate matching is loose without zip-proximity filtering yet).
+
+`9ce928b` — **P3-23 + P3-27 parts catalog builder + common-failures query**
+Every TDR submission feeds a proprietary failure-mode → part-number database via new TDR_CATALOG_RECORD signal + tdr_catalog_record.js consumer. New `get_common_failures_GET.xs` endpoint filterable by appliance/brand/model. Unlocks future "for this exact brand+model, the top 3 historical failures are X/Y/Z with parts A/B/C" surfacing in diagnose_* agents + Teddy Tool.
+
+**Round 3b — Capacity, reschedule, revenue**
+
+`f5eb4b7` — **P2-14 + P2-18 + P5-41**
+
+- **capacity_check** (daily 10am CT): SMSes Teddy when any tech has >6 jobs (burnout) or <2 (idle).
+- **RESCHEDULE keyword + reschedule_request_alert**: exact-word route on inbound SMS (matches the RESCHEDULE prompt in our outbound confirmation/reminder SMS). Existing architect-built V007 owns the customer reply; new alert agent owns Teddy+Danielle notification + audit row.
+- **daily_revenue_summary** (daily 6pm CT): EOD digest with completed-job count + warranty/self-pay split + per-tech breakdown. Dollar amounts intentionally deferred (BI* agents own that layer).
+
+### Items SKIPPED — already-shipped audit (2nd 100-list paste)
+
+| Task | Already shipped |
+|---|---|
+| P1-3 Next Job button | `e7e3a9c` |
+| P1-4 Parts banner | `e7e3a9c` |
+| P1-6 Customer followup | `59cbcbb` |
+| P1-7 Danielle warranty dashboard | `e0d038d` |
+| P1-10 parts_decision_aggregator | `0b72159` |
+| P2-17 appointment_reminder | `3213431` |
+| P2-19 no_show_detector | `3213431` |
+| P1-8/9 warranty consumers | `550628c` + `b22dc63` |
+| P4-36 Google review request | feedback_reply_webhook line 959 (existing) |
+
+### Session totals (2026-05-26)
+
+37 commits today. Major systemic fix (181-agent rename + template patch) plus 9 new agents this evening + warranty dashboard + Today view + HCP export + brand chain wiring + customer 24h followup + tech UX (TDR form + auto-greeting + Next Job + parts banner). Architect signal_id=133 injected for the next overnight grind.
+
+Daily ops cadence now: 6am architect / 6:30am job prep / 7am tech briefing / 8am daily briefing / 9am gap check / 10am capacity check / 6pm revenue summary / Sunday 8am weekly performance.
+
+### What NOT to do (additions from this round)
+
+- **Do NOT add a second consumer for SMS_RESPONSE_RESCHEDULE_REQUEST.** The architect already built V007. Owner alerts ride a separate RESCHEDULE_REQUEST_ALERT signal — keep the two paths split.
+- **Do NOT add dollar amounts to daily_revenue_summary.** BI* agents own that layer. Mixing volume + dollars makes both surfaces less clear.
+- **Do NOT call get_common_failures from inside diagnose_*.js without a per-job dedup gate.** Lookups are cheap but Claude is expensive — noisy lookups amplify rate-limit pressure during busy intake hours.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
