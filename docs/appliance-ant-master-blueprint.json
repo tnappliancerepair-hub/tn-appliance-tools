@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 180,
-    "agents_to_build": 87,
+    "agents_live": 181,
+    "agents_to_build": 86,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -1160,7 +1160,7 @@
       "purpose": "Revolutionize the 3-hour window model. Capture customer flexibility. Build skeleton from anchors. Fill gaps dynamically. Respect everyone's time.",
       "priority": "HIGH",
       "agents_total": 35,
-      "agents_live": 23,
+      "agents_live": 24,
       "agents": [
         {
           "id": "S001",
@@ -1431,7 +1431,7 @@
         {
           "id": "S024",
           "name": "Tech Specialty Router",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "When a job has elevated complexity (rare brand, multi-appliance, HVAC), routes to the tech with the highest historical success rate on that pattern. Emits SCHEDULING_DECISION.",
           "triggers": [
