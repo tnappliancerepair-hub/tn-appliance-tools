@@ -1265,7 +1265,7 @@
         {
           "id": "M007",
           "name": "Colony Architect Agent",
-          "status": "ONE_FIX_AWAY",
+          "status": "BUILT",
           "priority": 1,
           "purpose": "THE MOST IMPORTANT AGENT. Reads this blueprint document. Identifies next priority unbuilt agent. Assigns to correct Colony Builder. Never stops building. This is the agent that builds all other agents.",
           "xano_endpoint": "colony_architect_agent",
@@ -1975,26 +1975,31 @@
       "signal_translator": {
         "id": "INFRA004",
         "name": "Signal Translator Agent",
+        "status": "TO_BUILD",
         "purpose": "Converts outputs from Vapi, Twilio, Telnyx, S3 into standardized colony_signals"
       },
       "vapi_performance_bridge": {
         "id": "INFRA005",
         "name": "Vapi Performance Bridge",
+        "status": "TO_BUILD",
         "purpose": "Reads transcripts, scores performance, pushes prompt improvements back to Vapi API"
       },
       "s3_vision_agent": {
         "id": "INFRA006",
         "name": "S3 Vision Agent",
+        "status": "TO_BUILD",
         "purpose": "Analyzes job photos for documentation completeness using Claude vision"
       },
       "cross_platform_sync": {
         "id": "INFRA007",
         "name": "Cross Platform Sync Agent",
+        "status": "TO_BUILD",
         "purpose": "Data consistency across Xano, Vapi, and communication platforms"
       },
       "mcp_gateway": {
         "id": "INFRA008",
         "name": "MCP Gateway Agent",
+        "status": "TO_BUILD",
         "purpose": "Manages new tool integrations through Model Context Protocol"
       },
       "platform_health_monitor": {
