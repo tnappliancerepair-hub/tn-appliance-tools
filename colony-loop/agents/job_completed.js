@@ -136,6 +136,26 @@ export async function run(signal, ctx) {
     log('followup_due_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: CUSTOMER_INTELLIGENCE_REQUEST_CUSTOMER_LIFETIME_VALUE ──
+  // Auto-refresh LTV score for the customer on every completed job. The
+  // customer_intelligence_request_customer_lifetime_value.js agent (CI002)
+  // already exists (architect-built) — wiring the producer side here.
+  try {
+    await xano.emitSignal({
+      signal_type: 'CUSTOMER_INTELLIGENCE_REQUEST_CUSTOMER_LIFETIME_VALUE',
+      signal_strength: 45,
+      payload: {
+        job_id: jobId,
+        customer_id: payload.customer_id || null,
+        trigger_event: 'job_completed',
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('ltv_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   const handled = await xano.getWarrantySubmissionHandled(jobId);
   if (handled && handled.handled) {
     return {

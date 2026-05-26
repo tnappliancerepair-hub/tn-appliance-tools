@@ -166,6 +166,39 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // WEEKLY_PERFORMANCE_SUMMARY — fires once per week on Sundays 8-11am CT.
+  // Fans out PERFORMANCE_REQUEST_* signals per tech × per scope so each
+  // tech's metrics get refreshed once per week. Uses since_ts_ms = start
+  // of current week (Sunday CT midnight) for dedup.
+  try {
+    const dayOfWeekCT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (dayOfWeekCT === 'Sun' && hour >= 8 && hour < 11) {
+      // Use today's CT midnight as the week start (Sunday midnight) since
+      // we only fire on Sundays.
+      let weeklyFired;
+      try {
+        weeklyFired = await xano.getWeeklyPerformanceFired(sinceMs);
+      } catch (err) {
+        xano.logLocal('weekly_performance_check_failed', { error: err.message });
+        weeklyFired = null;
+      }
+      if (weeklyFired && !weeklyFired.fired) {
+        try {
+          await xano.emitSignal({
+            signal_type: 'WEEKLY_PERFORMANCE_SUMMARY',
+            signal_strength: 70,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+          xano.logLocal('weekly_performance_emitted', { since_ts_ms: sinceMs });
+        } catch (err) {
+          xano.logLocal('weekly_performance_emit_failed', { error: err.message });
+        }
+      }
+    }
+  } catch (err) {
+    xano.logLocal('weekly_performance_dow_check_failed', { error: err.message });
+  }
+
   // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
   if (hour < 8 || hour >= 11) return;
 

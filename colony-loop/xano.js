@@ -205,6 +205,10 @@ export async function getPartsDecisionHandled(jobId) {
   return getJSON(`${INTAKE()}/get_parts_decision_handled?job_id=${jobId}`);
 }
 
+export async function getWeeklyPerformanceFired(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_weekly_performance_fired?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_window } = {}) {
   return postJSON(`${INTAKE()}/record_heartbeat`, {
     colony: colony || '',
