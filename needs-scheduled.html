@@ -307,15 +307,27 @@
 
   async function verifyOfficePassword(pw) {
     if (!pw) return false;
+    // 10s timeout — prevents the infinite-spinner bug Danielle hit on
+    // weak networks (cell-tower handoff, Wi-Fi flap). Throws AbortError
+    // on timeout; caught below to surface a clear retry message.
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
     try {
       const r = await fetch(XANO_BASE + '/verify_office_password', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({password: pw})
+        body: JSON.stringify({password: pw}),
+        signal: ctrl.signal
       });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('server ' + r.status);
       const d = await r.json();
       return d && d.success === true;
-    } catch { return false; }
+    } catch (e) {
+      clearTimeout(t);
+      if (e && e.name === 'AbortError') throw new Error('timeout');
+      throw e;
+    }
   }
 
   const $ = (id) => document.getElementById(id);
@@ -349,9 +361,21 @@
   else authGate.classList.add('show');
 
   $('authBtn').addEventListener('click', async () => {
-    const ok = await verifyOfficePassword(authInput.value);
-    if (ok) { localStorage.setItem(AUTH_KEY, 'ok'); unlock(); }
-    else { $('authErr').textContent = 'Wrong password.'; authInput.value = ''; }
+    const btn = $('authBtn');
+    btn.disabled = true;
+    btn.textContent = 'Authenticating…';
+    $('authErr').textContent = '';
+    try {
+      const ok = await verifyOfficePassword(authInput.value);
+      if (ok) { localStorage.setItem(AUTH_KEY, 'ok'); unlock(); }
+      else { $('authErr').textContent = 'Wrong password.'; authInput.value = ''; }
+    } catch (e) {
+      const msg = e && e.message === 'timeout' ? 'Server timeout — try again, or text Teddy at 615-485-5795 if it keeps happening.' : ('Error: ' + (e && e.message || 'unknown'));
+      $('authErr').textContent = msg;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
+    }
   });
   authInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('authBtn').click(); });
 

@@ -317,6 +317,30 @@
 <script>
 const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
 const FOLDER_STATE_KEY = 'la_office_folders_v1';
+const XANO_BASE_AUTH = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Office password verify — was missing, causing infinite spinner.
+async function __verifyOfficePassword(pw) {
+  if (!pw) return false;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const r = await fetch(XANO_BASE_AUTH + '/verify_office_password', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw}),
+      signal: ctrl.signal
+    });
+    clearTimeout(t);
+    if (!r.ok) throw new Error('server ' + r.status);
+    const d = await r.json();
+    return d && d.success === true;
+  } catch (e) {
+    clearTimeout(t);
+    if (e && e.name === 'AbortError') throw new Error('timeout');
+    throw e;
+  }
+}
 
 const STAGES = [
   { value: '',                  label: 'Move to stage...' },
@@ -736,15 +760,22 @@ async function submitAuth() {
   errEl.textContent = '';
   if (pw === '') { errEl.textContent = 'Enter password'; return; }
   btn.disabled = true;
-  if ((await __verifyOfficePassword(pw))) {
-    localStorage.setItem(OFFICE_AUTH_KEY, '1');
-    document.getElementById('auth-overlay').classList.add('hidden');
-    init();
-  } else {
+  btn.textContent = 'Authenticating…';
+  try {
+    if ((await __verifyOfficePassword(pw))) {
+      localStorage.setItem(OFFICE_AUTH_KEY, '1');
+      document.getElementById('auth-overlay').classList.add('hidden');
+      init();
+      return;
+    }
     errEl.textContent = 'Wrong password.';
     inputEl.value = '';
     inputEl.focus();
+  } catch (e) {
+    errEl.textContent = (e && e.message === 'timeout') ? 'Server timeout — try again, or text Teddy 615-485-5795.' : ('Error: ' + (e && e.message || 'unknown'));
+  } finally {
     btn.disabled = false;
+    btn.textContent = 'Unlock';
   }
 }
 
