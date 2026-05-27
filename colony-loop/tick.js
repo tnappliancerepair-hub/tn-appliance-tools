@@ -374,6 +374,32 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // REACTIVATION_CAMPAIGN — Monday 11am CT (11-13 grace). Pulls dormant
+  // customer candidates (>2y since first contact + no job in 6mo) and
+  // SMSes up to 10/week with a re-engagement message.
+  try {
+    const dayMon = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (dayMon === 'Mon' && hour >= 11 && hour < 13) {
+      const dedupKey = `reactivation_campaign_emitted_${new Date(nowTs).toISOString().slice(0, 10)}`;
+      let prior;
+      try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
+      if (!prior || !prior.exists) {
+        try {
+          await xano.emitSignal({
+            signal_type: 'REACTIVATION_CAMPAIGN',
+            signal_strength: 30,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+          await xano.recordEventLog(dedupKey, { since_ts_ms: sinceMs });
+        } catch (err) {
+          xano.logLocal('reactivation_campaign_emit_failed', { error: err.message });
+        }
+      }
+    }
+  } catch (err) {
+    xano.logLocal('reactivation_campaign_check_failed', { error: err.message });
+  }
+
   // WEEKLY_PERFORMANCE_SUMMARY — fires once per week on Sundays 8-11am CT.
   // Fans out PERFORMANCE_REQUEST_* signals per tech × per scope so each
   // tech's metrics get refreshed once per week. Uses since_ts_ms = start
