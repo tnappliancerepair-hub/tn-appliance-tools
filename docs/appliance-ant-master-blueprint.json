@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 36,
-    "agents_to_build": 5,
+    "agents_live": 6,
+    "agents_to_build": 21,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -22,8 +22,8 @@
     "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
     "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates.",
     "total_agents_enumerated": 312,
-    "agents_total": 344,
-    "agents_built": 303
+    "agents_total": 360,
+    "agents_built": 333
   },
   "signal_architecture": {
     "table": "colony_signals",
@@ -3805,7 +3805,7 @@
       "name": "Andre Personal Brand Colony",
       "purpose": "Make Andre the King of Louisiana. The Ultimate Appliance Man. The face that changes how the world sees trades.",
       "priority": "HIGH",
-      "agents_total": 26,
+      "agents_total": 8,
       "agents_live": 0,
       "key_assets": {
         "visual_identity": "Ant face tattoo where sideburns should be - this IS the logo",
@@ -3845,6 +3845,96 @@
         "Customer Voice Agent - finds passionate reviews requests video testimonials",
         "Competitor Gap Agent - highlights what great service looks like without attacking",
         "Waitlist Perception Agent - creates waitlist experience when Andre is busy"
+      ],
+      "agents": [
+        {
+          "id": "AB001",
+          "name": "Andre Weekly Story Writer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Generates a weekly LinkedIn/blog post about Andre's tech work in Hammond LA. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_WEEKLY_STORY.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_weekly_story_writer",
+          "dependencies": []
+        },
+        {
+          "id": "AB002",
+          "name": "Andre LinkedIn Headline Refresher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Suggests fresh LinkedIn headlines monthly for Andre. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_LINKEDIN_HEADLINE.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_linkedin_headline_refresher",
+          "dependencies": []
+        },
+        {
+          "id": "AB003",
+          "name": "Andre Case Study Generator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Picks a high-complexity recent job + writes a case study post for Andre. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_CASE_STUDY.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_case_study_generator",
+          "dependencies": []
+        },
+        {
+          "id": "AB004",
+          "name": "Andre Tech Tip Snippet",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Generates short tech-tip social posts in Andre's voice. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_TECH_TIP.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_tech_tip_snippet",
+          "dependencies": []
+        },
+        {
+          "id": "AB005",
+          "name": "Andre Customer Testimonial Curator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Pulls Andre-job feedback rated 5 + drafts a testimonial post. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_TESTIMONIAL.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_customer_testimonial_curator",
+          "dependencies": []
+        },
+        {
+          "id": "AB006",
+          "name": "Andre Local Network Outreach",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Drafts outreach messages to Hammond/Walker local FB groups + Nextdoor. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_LOCAL_OUTREACH.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_local_network_outreach",
+          "dependencies": []
+        },
+        {
+          "id": "AB007",
+          "name": "Andre Year-In-Review",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "End-of-year recap of Andre's jobs + wins. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_YEAR_REVIEW.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_year_in_review",
+          "dependencies": []
+        },
+        {
+          "id": "AB008",
+          "name": "Andre Branded Cross-Post Rewriter",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Rewrites a TN-Appliance post in Andre's personal voice. Listens for CONTENT_GENERATOR_REQUEST_ANDRE_CROSS_POST.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "andre_branded_cross_post_rewriter",
+          "dependencies": []
+        }
       ]
     },
     {
@@ -3852,7 +3942,7 @@
       "name": "Story and Why Colony",
       "purpose": "Tell the truth about why Appliance Ant exists. Truth spreads faster than any ad. Built by a father. Named after a son. Carried by a brother.",
       "priority": "HIGH",
-      "agents_total": 38,
+      "agents_total": 8,
       "agents_live": 0,
       "master_narrative": {
         "core_story": "Teddy built a business with his hands across two states. Anthony - Ant - the wrestler, the lightest weight class, TCAT Murfreesboro grad, the son who inspired everything. The platform named in his honor. Andre carrying it forward - the ant tattoo on his face, the beast of a man who has been down since he lost his brother. The why - match need with know-how, automate to elevate not cut, give independent techs the resources to be great.",
@@ -3887,6 +3977,96 @@
         {
           "category": "Content Production",
           "count": 7
+        }
+      ],
+      "agents": [
+        {
+          "id": "SW001",
+          "name": "Origin Story Refresher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Quarterly rewrite of the TN Appliance origin story for SEO + social. Listens for CONTENT_GENERATOR_REQUEST_ORIGIN_STORY_REFRESH.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "origin_story_refresher",
+          "dependencies": []
+        },
+        {
+          "id": "SW002",
+          "name": "Why We Built Ant Post",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Generates posts explaining the Ant platform story for prospective customers + new hires. Listens for CONTENT_GENERATOR_REQUEST_WHY_ANT_POST.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "why_we_built_ant_post",
+          "dependencies": []
+        },
+        {
+          "id": "SW003",
+          "name": "Founder Voice Manifesto",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Drafts Teddy-voiced manifesto posts on appliance repair values + ethics. Listens for CONTENT_GENERATOR_REQUEST_FOUNDER_MANIFESTO.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "founder_voice_manifesto",
+          "dependencies": []
+        },
+        {
+          "id": "SW004",
+          "name": "Customer Save Stories",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Pulls jobs where we saved a customer significant money + writes the story. Listens for CONTENT_GENERATOR_REQUEST_SAVE_STORY.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "customer_save_stories",
+          "dependencies": []
+        },
+        {
+          "id": "SW005",
+          "name": "Tech Hero Spotlight",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Monthly spotlight post on a tech's standout job. Listens for CONTENT_GENERATOR_REQUEST_TECH_HERO_SPOTLIGHT.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "tech_hero_spotlight",
+          "dependencies": []
+        },
+        {
+          "id": "SW006",
+          "name": "Community Impact Recap",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Quarterly recap of community work + sponsorships. Listens for CONTENT_GENERATOR_REQUEST_COMMUNITY_IMPACT.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "community_impact_recap",
+          "dependencies": []
+        },
+        {
+          "id": "SW007",
+          "name": "Industry Trend Commentary",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Generates Teddy-voice commentary on industry news (new appliance models, regulations, etc). Listens for CONTENT_GENERATOR_REQUEST_INDUSTRY_TREND.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "industry_trend_commentary",
+          "dependencies": []
+        },
+        {
+          "id": "SW008",
+          "name": "Recruitment Story Post",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Drafts recruitment-narrative posts that double as employer-brand content. Listens for CONTENT_GENERATOR_REQUEST_RECRUITMENT_STORY.",
+          "triggers": [],
+          "outputs": [],
+          "xano_endpoint": "recruitment_story_post",
+          "dependencies": []
         }
       ]
     },

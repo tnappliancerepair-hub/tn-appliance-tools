@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant Dispatch TV</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; padding: 30px; overflow: hidden; }
+  :root { --green:#00d68f; --orange:#f5a623; --blue:#5aa9ff; --red:#ff6b6b; --muted:#8a93aa; --panel:#131720; --border:#2a3040; }
+  .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 30px; }
+  .header h1 { font-size: 42px; font-weight: 900; }
+  .header .time { font-family: monospace; font-size: 28px; color: var(--orange); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
+  .stat { background: var(--panel); border: 2px solid var(--border); border-radius: 14px; padding: 24px; text-align: center; }
+  .stat .lbl { font-size: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .stat .val { font-size: 64px; font-weight: 900; }
+  .stat.green .val { color: var(--green); }
+  .stat.orange .val { color: var(--orange); }
+  .stat.blue .val { color: var(--blue); }
+  .stat.red .val { color: var(--red); }
+  .feed { background: var(--panel); border: 2px solid var(--border); border-radius: 14px; padding: 24px; max-height: 50vh; overflow: hidden; }
+  .feed h2 { font-size: 20px; margin-bottom: 14px; color: var(--muted); }
+  .feed .row { font-family: monospace; font-size: 16px; padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; gap: 16px; }
+  .feed .row .ts { color: var(--muted); min-width: 90px; }
+  .feed .row .action { font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐜 Ant Dispatch</h1>
+  <div class="time" id="time">--:--:--</div>
+</div>
+
+<div class="grid">
+  <div class="stat green"><div class="lbl">Today scheduled</div><div class="val" id="sScheduled">—</div></div>
+  <div class="stat orange"><div class="lbl">In progress</div><div class="val" id="sProgress">—</div></div>
+  <div class="stat blue"><div class="lbl">Completed today</div><div class="val" id="sCompleted">—</div></div>
+  <div class="stat red"><div class="lbl">Awaiting parts</div><div class="val" id="sParts">—</div></div>
+</div>
+
+<div class="feed">
+  <h2>Live activity</h2>
+  <div id="feed"></div>
+</div>
+
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+function tick() {
+  document.getElementById('time').textContent = new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date());
+}
+setInterval(tick, 1000); tick();
+
+async function refresh() {
+  try {
+    const res = await fetch(`${XANO}/get_office_pulse?limit=10`);
+    const d = await res.json();
+    const h = d.headline || {};
+    document.getElementById('sScheduled').textContent = h.scheduled_today || 0;
+    document.getElementById('sProgress').textContent = h.in_progress || 0;
+    document.getElementById('sCompleted').textContent = h.completed_today || 0;
+    document.getElementById('sParts').textContent = h.awaiting_parts || 0;
+
+    const rows = (d.events || []).slice(0, 12).map(e => {
+      const ts = new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(Number(e.created_at)));
+      return `<div class="row"><div class="ts">${ts}</div><div class="action">${(e.action||'').replace(/_/g,' ')}</div></div>`;
+    });
+    document.getElementById('feed').innerHTML = rows.join('');
+  } catch (err) { /* keep last */ }
+}
+setInterval(refresh, 15000); refresh();
+</script>
+</body>
+</html>
