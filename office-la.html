@@ -761,21 +761,26 @@ async function submitAuth() {
   if (pw === '') { errEl.textContent = 'Enter password'; return; }
   btn.disabled = true;
   btn.textContent = 'Authenticating…';
+  let ok = false;
   try {
-    if ((await __verifyOfficePassword(pw))) {
-      localStorage.setItem(OFFICE_AUTH_KEY, '1');
-      document.getElementById('auth-overlay').classList.add('hidden');
-      init();
-      return;
-    }
-    errEl.textContent = 'Wrong password.';
-    inputEl.value = '';
-    inputEl.focus();
+    ok = await __verifyOfficePassword(pw);
   } catch (e) {
     errEl.textContent = (e && e.message === 'timeout') ? 'Server timeout — try again, or text Teddy 615-485-5795.' : ('Error: ' + (e && e.message || 'unknown'));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Unlock';
+    btn.disabled = false; btn.textContent = 'Unlock';
+    return;
+  }
+  if (!ok) {
+    errEl.textContent = 'Wrong password. (Default is "antlives" — text Teddy if that doesn\'t work)';
+    inputEl.value = ''; inputEl.focus();
+    btn.disabled = false; btn.textContent = 'Unlock';
+    return;
+  }
+  localStorage.setItem(OFFICE_AUTH_KEY, '1');
+  document.getElementById('auth-overlay').classList.add('hidden');
+  try {
+    init();
+  } catch (e) {
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0e1118;min-height:100vh"><h2>Logged in ✓ — page failed to load.</h2><p>Reload. If it still fails, text Teddy 615-485-5795 — error: ' + String(e && e.message || 'unknown') + '</p></div>';
   }
 }
 
@@ -795,6 +800,6 @@ if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
   document.getElementById('auth-input').focus();
 }
 </script>
-<script src="/office-search.js"></script>
+<script src="/office-search.js?v=20260527-2"></script>
 </body>
 </html>
