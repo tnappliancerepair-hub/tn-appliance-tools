@@ -258,6 +258,18 @@ const WRITE_TOOLS = [
       required: ['job_id', 'minutes_early'],
     },
   },
+  {
+    name: 'draft_warranty_submission',
+    description: 'Draft a formatted warranty claim submission for the given completed job, ready to paste into the vendor portal (AHS / ServicePower / Frontdoor / etc). Returns a 5-section text package: customer info, appliance info, diagnosis, parts replaced, labor + recommendation. Office reviews + pastes into the actual vendor portal. Does NOT submit anywhere — paste-only. Highlights any missing TDR fields.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer' },
+        vendor: { type: 'string', description: 'Vendor name (AHS, ServicePower, Frontdoor, Allstate, etc.) — used to flavor the formatting' },
+      },
+      required: ['job_id'],
+    },
+  },
 ];
 
 // ─── Tool execution dispatch ────────────────────────────────────────
@@ -540,6 +552,84 @@ async function executeTool(toolName, toolInput, ctx) {
         sent: false,
         draft_message: draft,
         note: 'This is a DRAFT only. Office reviews + sends manually via the SMS interface. Ant cannot send customer SMS directly.',
+      };
+    }
+
+    case 'draft_warranty_submission': {
+      if (!ti.job_id) return { error: 'job_id required' };
+      const vendor = (ti.vendor || '').trim();
+      // Pull job + customer + TDR
+      const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
+      if (job.error) return job;
+      // TDR lives in technician_decision_report keyed by job_id. We don't
+      // have a direct endpoint; reuse the customer history endpoint which
+      // returns TDR fields per job.
+      let tdr = {};
+      if (job.customer_id) {
+        const hist = await timedFetch(`${XANO_BASE}/assist_get_customer_history?customer_id=${job.customer_id}&limit=20`, { method: 'GET' });
+        if (hist && Array.isArray(hist.items)) {
+          const match = hist.items.find((j) => j.job_id === ti.job_id);
+          if (match) tdr = match;
+        }
+      }
+
+      // Highlight missing fields for the operator
+      const missing = [];
+      if (!tdr.tdr_diagnosis) missing.push('diagnosis');
+      if (!tdr.tdr_failed_component) missing.push('failed_component');
+      if (!tdr.tdr_repair) missing.push('repair_completed');
+      if (!(tdr.tdr_part_number || tdr.tdr_repair)) missing.push('part_number_or_repair_detail');
+
+      // Compose the formatted submission
+      const dt = job.scheduled_start ? new Date(job.scheduled_start).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }) : '(date not set)';
+      const lines = [
+        `WARRANTY CLAIM SUBMISSION${vendor ? ` — ${vendor.toUpperCase()}` : ''}`,
+        ``,
+        `=== CUSTOMER INFO ===`,
+        `Name: ${(job.customer_first_name || '')} ${(job.customer_last_name || '')}`.trim() || '(missing)',
+        `Phone: ${job.customer_phone || '(missing)'}`,
+        `Address: ${job.service_address || ''}, ${job.service_city || ''}, ${job.service_state || ''} ${job.service_zip || ''}`,
+        ``,
+        `=== APPLIANCE INFO ===`,
+        `Brand: ${job.brand || '(missing)'}`,
+        `Appliance: ${job.appliance_type || '(missing)'}`,
+        `Model #: ${job.model || job.model_number || '(missing)'}`,
+        `Serial #: ${job.serial_number || '(not captured)'}`,
+        ``,
+        `=== SERVICE DATE ===`,
+        `Visit date: ${dt} CT`,
+        `Technician: ${tdr.tech_first_name || '(unknown)'}`,
+        ``,
+        `=== DIAGNOSIS ===`,
+        tdr.tdr_diagnosis || '(NO DIAGNOSIS IN TDR — fill in via Teddy TDR Tool before submitting)',
+        ``,
+        `=== FAILED COMPONENT ===`,
+        tdr.tdr_failed_component || '(NO FAILED COMPONENT IN TDR — required for warranty)',
+        ``,
+        `=== REPAIR PERFORMED ===`,
+        tdr.tdr_repair || '(NO REPAIR DETAIL IN TDR — required for warranty)',
+        ``,
+        `=== PARTS ===`,
+        `Verified part #: ${tdr.tdr_part_number || '(not captured)'}`,
+        `Labor hours: ${tdr.tdr_labor_hours || '(not captured)'}`,
+        ``,
+        `=== CLAIM NUMBER ===`,
+        job.claim_number || '(no claim # on file — verify with vendor)',
+      ];
+      const submission = lines.join('\n');
+
+      return {
+        success: true,
+        is_draft: true,
+        sent: false,
+        vendor: vendor || 'GENERIC',
+        job_id: ti.job_id,
+        missing_fields: missing,
+        ready_to_submit: missing.length === 0,
+        submission_text: submission,
+        note: missing.length > 0
+          ? `DRAFT INCOMPLETE — ${missing.length} required fields missing (${missing.join(', ')}). Have the tech fill these before submitting.`
+          : 'DRAFT COMPLETE. Copy + paste into the vendor portal.',
       };
     }
 
