@@ -56,12 +56,18 @@ function applianceLabel(raw) {
   return APPLIANCE_NICE[k] || k || 'appliance';
 }
 
-function customerBody({ first, appliance, apptStr, techFirst }) {
+function bareDomain() {
+  return (config.publicSiteBase || '').replace(/^https?:\/\//, '');
+}
+
+function customerBody({ first, appliance, apptStr, techFirst, portalUrl }) {
   const name = (first || '').trim() || 'there';
   const techClause = techFirst ? `Your tech will be ${techFirst}.` : '';
+  const portalClause = portalUrl ? `View/reschedule: ${portalUrl}` : '';
   return [
     `Hi ${name}, your ${appliance} repair is confirmed for ${apptStr}.`,
     techClause,
+    portalClause,
     `Reply STOP to cancel or call 615-280-2949.`,
   ].filter(Boolean).join(' ');
 }
@@ -150,7 +156,11 @@ export async function run(signal, ctx) {
   } else if (!custPhone) {
     custResult = 'skipped_invalid_phone';
   } else {
-    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst });
+    const last4 = String(custPhone).replace(/\D/g, '').slice(-4);
+    const portalUrl = last4
+      ? `${bareDomain()}/customer-portal.html?job_id=${jobId}&last4=${last4}`
+      : '';
+    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, portalUrl });
     const res = await sms.toCustomer(custPhone, body, {
       action: 'appointment_confirmation',
       job_id: jobId,

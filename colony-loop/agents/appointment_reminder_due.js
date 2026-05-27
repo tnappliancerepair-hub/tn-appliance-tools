@@ -113,9 +113,14 @@ export async function run(signal, ctx) {
   const appliance = APPLIANCE_NICE[String(job.appliance_type || '').toLowerCase()] || (job.appliance_type || 'appliance').toLowerCase();
   const apptStr = fmtWindowCT(scheduledStartMs);
   const techName = tech && tech.first_name ? String(tech.first_name).trim() : 'our tech';
+  const bareDomain = (config.publicSiteBase || '').replace(/^https?:\/\//, '');
+  const last4 = String(phone).replace(/\D/g, '').slice(-4);
+  const portalClause = (bareDomain && last4)
+    ? ` Notes/reschedule: ${bareDomain}/customer-portal.html?job_id=${jobId}&last4=${last4}`
+    : '';
   const body =
     `Hi ${firstName} - reminder: ${techName} is coming tomorrow ${apptStr} CT for your ${appliance}. ` +
-    `Reply RESCHEDULE if you need to move it.`;
+    `Reply RESCHEDULE if you need to move it.${portalClause}`;
 
   let smsRes = null;
   try {

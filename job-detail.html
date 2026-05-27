@@ -678,6 +678,9 @@ function renderActionBar(job, cust, tech) {
   const fullAddr = [cust.address, cust.city, cust.state, cust.zip].filter(Boolean).join(', ');
   const navUrl = fullAddr ? 'https://maps.google.com/?q=' + encodeURIComponent(fullAddr) : '';
   const liveUrl = tech.id ? `tech-ant-live.html?job_id=${job.id}&tech_id=${tech.id}` : '';
+  const perfUrl = tech.id ? `tech-performance.html?tech_id=${tech.id}` : '';
+  const last4Digits = phone.length >= 4 ? phone.slice(-4) : '';
+  const portalUrl = last4Digits ? `customer-portal.html?job_id=${job.id}&last4=${last4Digits}` : '';
 
   const buttons = [
     phoneE164
@@ -691,6 +694,12 @@ function renderActionBar(job, cust, tech) {
       : `<button disabled title="no tech assigned">🐜 Open Tech Live</button>`
   ];
   if (isOffice) {
+    if (portalUrl) {
+      buttons.push(`<a href="${escapeAttr(portalUrl)}" target="_blank" rel="noopener noreferrer" title="preview what the customer sees">👤 Customer View</a>`);
+    }
+    if (perfUrl) {
+      buttons.push(`<a href="${escapeAttr(perfUrl)}" target="_blank" rel="noopener noreferrer" title="tech performance dashboard">📊 Tech Perf</a>`);
+    }
     buttons.push('<button onclick="openReschedule()">🗓 Reschedule</button>');
     buttons.push('<button onclick="openReassign()">🔄 Reassign</button>');
     buttons.push('<button class="danger" onclick="openCancel()">🚫 Cancel Job</button>');
