@@ -54,4 +54,9 @@ export const config = Object.freeze({
   quietEndHourCT: 8,
   publicSiteBase: process.env.PUBLIC_SITE_BASE || 'https://tnapplianceexchange.net',
   netlifyFunctionsBase: process.env.NETLIFY_FUNCTIONS_BASE || 'https://superlative-naiad-233aa7.netlify.app/.netlify/functions',
+  // SaaS multi-tenant: the company_id this loop process operates as.
+  // For TN Appliance Mac Mini, this stays 1. Future per-tenant loops
+  // would set COMPANY_ID env. Most agents read this when querying
+  // company-scoped data.
+  companyId: Number(process.env.COMPANY_ID) || 1,
 });
