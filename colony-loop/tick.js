@@ -29,10 +29,19 @@ export async function tick() {
       try {
         xano.logLocal('signal_dispatched', { signal_id: sig.id, signal_type: sig.signal_type });
         const result = await dispatch(sig, makeCtx());
-        await xano.markSignalProcessed(sig.id, 'signal_processed', {
-          signal_type: sig.signal_type,
-          ...summarize(result),
-        });
+        // Carve out the no-agent-yet case so dead-letter analysis can
+        // query event_log.action == 'signal_no_agent_yet' directly (no
+        // JSON-decode of metadata needed). Everything else still lands
+        // as 'signal_processed'.
+        const isNoAgent = result && result.action === 'no_agent_yet';
+        await xano.markSignalProcessed(
+          sig.id,
+          isNoAgent ? 'signal_no_agent_yet' : 'signal_processed',
+          {
+            signal_type: sig.signal_type,
+            ...summarize(result),
+          }
+        );
         processed++;
       } catch (err) {
         errors++;
