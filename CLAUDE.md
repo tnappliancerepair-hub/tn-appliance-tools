@@ -1220,6 +1220,43 @@ System sleep was already 0 (Never); display sleep is 10min but actively prevente
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-27 afternoon: Tech Assist scribe-mode emergency refactor
+
+**Stakes:** Jimmy got stuck in a 12-message interrogation loop this morning on Job #18195 (Magic Chef control board). System asked for labor hours after he provided '1.5' three times. He gave up + filled the web form manually. Andre refused to test the system at all because "too busy." This was the last reasonable shot before techs wrote it off.
+
+**Root causes (3 bugs):**
+1. Legacy `tech_assist_chat` uses `__CAPTURE_FIELD__` token emission scheme — Claude doesn't always emit perfectly + fields stay unset → re-asks.
+2. Persistence read/write mismatch: legacy wrote to `captured_data + required_fields_remaining`. New SMS path wrote only to `captured_data`. In-browser form writes directly to `technician_decision_report`. **Three sources of truth.**
+3. Photo+caption (most common tech workflow) not handled atomically. No MMS support yet.
+
+**Refactor — scribe-mode tech_sms_assist:**
+- Prompt rewritten as silent scribe. Parses EVERY message for ALL 9 TDR fields at once.
+- Recognizes tech shorthand: 'Nwt' = needs_quote, 'replaced by #X', standalone '1.5' = labor_hours when context establishes, 'all done'/'fixed', etc.
+- Empty Claude reply → silent mode (no SMS). Cut the chatty filler.
+- **AUTO-FINALIZE**: when all 4 core fields populated, calls create_tdr automatically (2-hr dedup via event_log scan). One-line confirmation: "TDR saved. <summary>." No SAVE keyword required.
+- Smoke test PASSED: Jimmy's exact 1-message dump → chat_status=200, auto_saved=true, reply 49 chars. ONE turn, done.
+
+**Owner-only PAUSE/RESUME shortcuts** in tech_preference_inbound:
+- `PAUSE TECH ASSIST FOR <tech_id>` writes tech_assist_paused event_log → tech_sms_assist routes that tech's messages to legacy
+- `RESUME TECH ASSIST FOR <tech_id>` clears
+
+**Watch monitor** `tech_assist_loop_watch.js` fires every 5 min (7am-10pm CT):
+- Scans active techs for sessions older than 15min with >5 messages + no saved TDR
+- Alerts Teddy per loop with deep-link
+- Auto-pauses techs hitting 2+ loops/day
+
+**EOD report** `tech_assist_eod_report.js` fires at 6pm CT:
+- Per-tech: sessions / saved / loops / paused state
+- Total fleet stats
+
+**Pre-rollout outreach:** Sent personal SMSes from Teddy's voice to all 5 active techs explaining the fix + offering instant kill if it hassles them. All 5 sent OK.
+
+**Debug logging:** every SMS-driven TDR write now writes an event_log row (action="tdr_write_from_sms") with each extracted field for the 2-week triage window.
+
+**Operator todo:** Set `TECH_ASSIST_ENABLED=true` in Xano env vars to flip the legacy `tech_sms_inbound` chat-routing flag (the SMS-assist path doesn't depend on it, but enabling it lets in-browser chat work too).
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.

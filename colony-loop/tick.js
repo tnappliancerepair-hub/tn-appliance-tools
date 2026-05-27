@@ -599,6 +599,26 @@ async function maybeEmitTimeSignals() {
       }
     }
   }
+
+  // TECH_ASSIST_EOD_REPORT — Teddy at 6pm CT (18:00-18:30 grace window)
+  if (hour === 18) {
+    try {
+      const eodFired = await xano.getEventLogByAction('tech_assist_eod_handled');
+      const items = (eodFired && eodFired.items) || [];
+      const todayStartMs = nowTs - (12 * 3600 * 1000);
+      const firedToday = items.some(r => Number(r.created_at) > todayStartMs);
+      if (!firedToday) {
+        await xano.emitSignal({
+          signal_type: 'TECH_ASSIST_EOD_REPORT',
+          signal_strength: 70,
+          payload: { now_ms: nowTs },
+        });
+        await xano.recordEventLog('tech_assist_eod_emitted', { now_ms: nowTs });
+      }
+    } catch (err) {
+      xano.logLocal('tech_assist_eod_emit_failed', { error: err.message });
+    }
+  }
 }
 
 function summarize(result) {
