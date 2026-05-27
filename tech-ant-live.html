@@ -698,6 +698,15 @@ async function init() {
     return;
   }
 
+  // FIX 2026-05-27: show the chat input + composer FIRST, before the job-data
+  // load. If the data fetch is slow / hangs / errors, the tech can still
+  // see the input and type. Jimmy reported "couldn't see area to type until
+  // I completed the job" — was the init throwing silently before line 748.
+  // Independent: also seed an empty chat container so addMessage doesn't fail.
+  document.getElementById('main-area').innerHTML = '<div class="chat" id="chat"></div>';
+  chatEl = document.getElementById('chat');
+  document.getElementById('input-wrap').classList.add('show');
+
   try {
     const res = await fetch('/.netlify/functions/xano-proxy', {
       method: 'POST',
@@ -742,10 +751,8 @@ async function init() {
     customerPhone = c.phone || '';
     document.getElementById('action-bar').classList.add('show');
 
-    document.getElementById('main-area').innerHTML = '<div class="chat" id="chat"></div>';
-    chatEl = document.getElementById('chat');
-
-    document.getElementById('input-wrap').classList.add('show');
+    // chat container + input-wrap already set up at top of init() so they
+    // show even on data-load failure. Only quick actions wait for data.
     showQuickActions();
 
     setupSpeechRecognition();
@@ -900,6 +907,11 @@ async function sendToAnt(text, hideUserMsg) {
   if (!hideUserMsg) addMessage('user', text);
   showTyping();
 
+  // FIX 2026-05-27: 20-sec timeout. Previously no timeout — if Xano hung,
+  // typing indicator stayed forever. Teddy reported "typed but no response".
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
   try {
     const res = await fetch(`${XANO_BASE}/tech_assist_chat`, {
       method: 'POST',
@@ -910,8 +922,10 @@ async function sendToAnt(text, hideUserMsg) {
         user_message: text,
         session_id: assistSessionId,
         attachment_ids: []
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     hideTyping();
 
@@ -936,8 +950,13 @@ async function sendToAnt(text, hideUserMsg) {
     conversationHistory.push({ role: 'user', content: text });
     conversationHistory.push({ role: 'assistant', content: data.reply });
   } catch (err) {
+    clearTimeout(timeoutId);
     hideTyping();
-    addSystem('error', '⚠️ ' + err.message);
+    if (err.name === 'AbortError') {
+      addSystem('error', '⚠️ Ant took too long to respond (20s). Tap the message again or text Teddy at 615-485-5795 if this keeps happening.');
+    } else {
+      addSystem('error', '⚠️ ' + err.message);
+    }
   }
 }
 
@@ -1830,6 +1849,18 @@ async function saveTdrInline() {
       // Remove any prior gate banner; the gate will re-validate on next click.
       const prior = document.getElementById('tdrGateBanner');
       if (prior) prior.remove();
+      // FIX 2026-05-27: scroll the Complete button into view so the tech
+      // doesn't have to manually scroll down after Save. The action-bar
+      // (which contains the Complete dropdown) is fixed at the top of
+      // the page so we scroll the page top into view.
+      try {
+        const completeSel = document.getElementById('complete-select');
+        if (completeSel) {
+          completeSel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      } catch (_e) {}
     } else {
       throw new Error(data && (data.error || data.message) || 'Save returned no TDR id');
     }
