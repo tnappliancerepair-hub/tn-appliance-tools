@@ -374,6 +374,22 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // MONTHLY_TECH_WINNER — 1st of month, 9am CT.
+  try {
+    const dayCT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', day: 'numeric' }).format(new Date(nowTs));
+    if (dayCT === '1' && hour >= 9 && hour < 12) {
+      const dedupKey = `monthly_tech_winner_emitted_${new Date(nowTs).toISOString().slice(0, 7)}`;
+      let prior;
+      try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
+      if (!prior || !prior.exists) {
+        try {
+          await xano.emitSignal({ signal_type: 'MONTHLY_TECH_WINNER', signal_strength: 40, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
+          await xano.recordEventLog(dedupKey, { since_ts_ms: sinceMs });
+        } catch (err) { xano.logLocal('monthly_tech_winner_emit_failed', { error: err.message }); }
+      }
+    }
+  } catch (err) { xano.logLocal('monthly_tech_winner_check_failed', { error: err.message }); }
+
   // REACTIVATION_CAMPAIGN — Monday 11am CT (11-13 grace). Pulls dormant
   // customer candidates (>2y since first contact + no job in 6mo) and
   // SMSes up to 10/week with a re-engagement message.
