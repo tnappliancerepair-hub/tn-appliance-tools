@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reviews - TN Appliance Exchange</title>
+<meta name="description" content="Customer reviews of TN Appliance Exchange. Real ratings from real repair jobs in Middle TN + Southeast LA.">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fb; color: #1a1f2c; padding: 24px 18px; max-width: 720px; margin: 0 auto; }
+  .header { text-align: center; padding: 12px 0 22px; }
+  .header .ant { font-size: 36px; }
+  .header h1 { font-size: 28px; font-weight: 800; }
+  .header .sub { color: #6b7280; margin-top: 6px; }
+  .review { background: white; border: 1px solid #e2e6f0; border-radius: 12px; padding: 18px; margin-bottom: 12px; }
+  .stars { color: #ff8a00; font-size: 18px; margin-bottom: 6px; }
+  .body { font-size: 14px; line-height: 1.5; margin-bottom: 6px; }
+  .meta { font-size: 12px; color: #6b7280; }
+  .empty { padding: 30px; text-align: center; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>Reviews</h1>
+  <p class="sub">Real ratings from real repair jobs · TN Appliance Exchange LLC</p>
+</div>
+
+<div id="list"></div>
+
+<div style="text-align:center;padding:30px;color:#6b7280;font-size:12px">🐜 ANT · <a href="quote.html" style="color:#ff8a00;font-weight:600">Get a quote</a></div>
+
+<script>
+(function() {
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  async function load() {
+    try {
+      const res = await fetch(`${XANO}/list_public_reviews?min_rating=4&limit=50`);
+      const d = await res.json();
+      render((d && d.reviews) || []);
+    } catch (err) {
+      document.getElementById('list').innerHTML = `<div class="empty">Reviews loading… (${err.message})</div>`;
+    }
+  }
+
+  function render(rows) {
+    if (rows.length === 0) {
+      document.getElementById('list').innerHTML = '<div class="empty">Be the first to leave a review!</div>';
+      return;
+    }
+    document.getElementById('list').innerHTML = rows.map(r => {
+      const stars = '★'.repeat(Math.min(5, r.rating || 0)) + '☆'.repeat(5 - Math.min(5, r.rating || 0));
+      const when = r.created_at ? new Date(Number(r.created_at)).toLocaleDateString() : '';
+      return `<div class="review">
+        <div class="stars">${stars}</div>
+        <div class="body">${escapeHtml(r.comment || '(no comment)')}</div>
+        <div class="meta">${escapeHtml(when)}</div>
+      </div>`;
+    }).join('');
+  }
+  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  load();
+})();
+</script>
+</body>
+</html>
