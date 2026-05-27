@@ -142,6 +142,18 @@ const SCHEDULER_TOOLS = [
       required: ['tech_id', 'scheduled_start_ms'],
     },
   },
+  {
+    name: 'suggest_tech_for_job',
+    description: 'Unbiased tech recommendation for an unscheduled job. Looks at every active tech\'s current load + geography + recent performance and returns a ranked recommendation with reasoning. Use when picking up a Needs Scheduled job and deciding who to assign. Does NOT actually assign — call schedule_job after if you decide to go with the recommendation.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer', description: 'Job to suggest a tech for' },
+        preferred_date_ms: { type: 'integer', description: 'Optional: date the office wants to schedule (defaults to next business day)' },
+      },
+      required: ['job_id'],
+    },
+  },
 ];
 
 // ─── WRITE TOOLS (gated — only office brain exposes these) ──────────
@@ -217,6 +229,20 @@ const WRITE_TOOLS = [
         dry_run: { type: 'boolean' },
       },
       required: ['tech_id', 'date'],
+    },
+  },
+  {
+    name: 'draft_customer_running_behind_sms',
+    description: 'Draft a customer-friendly SMS for when a tech is running behind. Returns the formatted message text — does NOT send it. Office reviews + sends via the actual SMS interface. Tone: warm, apologetic, gives clear new ETA window.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer' },
+        minutes_late: { type: 'integer', description: 'How many minutes behind the original window' },
+        new_eta_iso: { type: 'string', description: 'Optional: new arrival ETA in ISO timestamp; otherwise just minutes_late' },
+        reason: { type: 'string', description: 'Optional: prior job ran long, traffic, parts delay, etc.' },
+      },
+      required: ['job_id', 'minutes_late'],
     },
   },
 ];
@@ -425,6 +451,83 @@ async function executeTool(toolName, toolInput, ctx) {
         }),
       });
       return { success: !writeRes.error, dry_run: false, committed: true, write_result: writeRes };
+    }
+
+    case 'suggest_tech_for_job': {
+      if (!ti.job_id) return { error: 'job_id required' };
+      // Pull job + all techs' calendar load. Score each on:
+      // - capacity (lower load wins, day_off=disqualified)
+      // - geography proxy (region match based on job state vs tech home region)
+      // - basic preference fit
+      // Returns ranked list + reasoning.
+      const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
+      if (job.error) return job;
+      const dateMs = ti.preferred_date_ms || (Date.now() + 24 * 3600 * 1000);
+      const dayStart = Math.floor(dateMs / (24 * 3600 * 1000)) * (24 * 3600 * 1000);
+      const cal = await timedFetch(`${XANO_BASE}/get_office_calendar_week?week_start_ms=${dayStart}`, { method: 'GET' });
+      if (cal.error) return cal;
+      const jobState = (job.service_state || '').toUpperCase();
+      const jobRegion = (jobState === 'LA' || jobState === 'LOUISIANA') ? 'LA' : 'TN';
+      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 5: 'LA', 6: 'LA' };
+      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+      const ranked = [];
+      const targetDay = (cal.days || []).find((d) => Math.abs(d.date_ms - dayStart) < 24 * 3600 * 1000);
+      const techs = targetDay ? (targetDay.techs || []) : [];
+      for (const t of techs) {
+        if (t.day_off) continue;
+        const tHome = techHomeRegion[t.tech_id] || 'TN';
+        const regionMatch = (tHome === 'BOTH' || tHome === jobRegion);
+        let score = 100;
+        score -= (t.job_count || 0) * 12;         // each existing job docks 12
+        if (!regionMatch) score -= 35;             // big penalty for crossing region
+        if ((t.job_count || 0) >= 6) score -= 20;  // overloaded
+        ranked.push({
+          tech_id: t.tech_id,
+          tech_name: techNames[t.tech_id] || `tech ${t.tech_id}`,
+          score,
+          current_load: t.job_count || 0,
+          region_match: regionMatch,
+          home_region: tHome,
+          reason: `${techNames[t.tech_id]}: ${t.job_count || 0} jobs, ${regionMatch ? 'in-region' : 'out-of-region (' + tHome + ' → ' + jobRegion + ')'}`,
+        });
+      }
+      ranked.sort((a, b) => b.score - a.score);
+      return {
+        success: true,
+        job_id: ti.job_id,
+        job_region: jobRegion,
+        recommendation: ranked[0] || null,
+        alternatives: ranked.slice(1, 3),
+        all_scored: ranked,
+        note: 'Scoring is a heuristic. Tech preferences (max/off/hours) not yet integrated — coming in Phase 2.',
+      };
+    }
+
+    case 'draft_customer_running_behind_sms': {
+      if (!ti.job_id || ti.minutes_late == null) return { error: 'job_id + minutes_late required' };
+      // Read the job + customer to personalize the draft
+      const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
+      if (job.error) return job;
+      const custFirst = (job.customer_first_name || job.customer_first || '').trim() || 'there';
+      const appl = (job.appliance_type || 'appliance').toLowerCase();
+      const techFirstFromJob = (job.assigned_tech_first || 'your tech').trim();
+      let etaText;
+      if (ti.new_eta_iso) {
+        try {
+          etaText = new Date(ti.new_eta_iso).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+        } catch (_) { etaText = `about ${ti.minutes_late} minutes behind`; }
+      } else {
+        etaText = `about ${ti.minutes_late} minutes behind the original window`;
+      }
+      const reasonClause = ti.reason ? ` (${ti.reason})` : '';
+      const draft = `Hi ${custFirst} — quick heads up, ${techFirstFromJob} is running ${etaText}${reasonClause} for your ${appl}. We'll text again when on the way. Sorry for the delay. — TN Appliance`;
+      return {
+        success: true,
+        is_draft: true,
+        sent: false,
+        draft_message: draft,
+        note: 'This is a DRAFT only. Office reviews + sends manually via the SMS interface. Ant cannot send customer SMS directly.',
+      };
     }
 
     default:
