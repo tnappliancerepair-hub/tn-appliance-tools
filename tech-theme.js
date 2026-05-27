@@ -38,6 +38,51 @@
   // ── Theme definitions ────────────────────────────────────────────
 
   const THEMES = {
+    // ── TEDDY (id 1) — Hogwarts (matches office overlay) ──
+    1: {
+      name: 'Hogwarts',
+      tagline: 'Mischief managed.',
+      mark: '🦉',
+      accent: '#d4af37',
+      fonts: ['https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:wght@400;700&display=swap'],
+      css: `
+        body {
+          background:
+            radial-gradient(ellipse at top, rgba(108,80,40,0.18), transparent 60%),
+            linear-gradient(180deg, #1a0a05, #2c1810) !important;
+          color: #f4e8d0 !important;
+          font-family: 'Cormorant Garamond', Georgia, serif !important;
+        }
+        h1, h2, h3, .title, .header h1, .topbar h1, .nav-pill, .quick-action {
+          font-family: 'Cinzel', Georgia, serif !important;
+          letter-spacing: 0.05em !important;
+          color: #d4af37 !important;
+        }
+        .job-card, .stat-card, .auth-card, .modal-card, .tdr-form, .chat-msg, .pill, .nav-pill {
+          background: linear-gradient(135deg, #fdf6e3, #e8d8b0) !important;
+          border: 1px solid #d4af37 !important;
+          color: #2c1810 !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(212,175,55,0.4) !important;
+        }
+        button, .btn, .save-btn, .start-btn, .complete-btn, .submit, .schedule, .send-btn {
+          background: linear-gradient(135deg, #722f37, #4a1c1c) !important;
+          color: #d4af37 !important;
+          border: 1px solid #d4af37 !important;
+          font-family: 'Cinzel', serif !important;
+          letter-spacing: 0.04em !important;
+        }
+        input, select, textarea {
+          background: #fdf6e3 !important;
+          color: #2c1810 !important;
+          border: 1px solid #8b6914 !important;
+          font-family: 'Cormorant Garamond', serif !important;
+        }
+        input:focus, select:focus, textarea:focus { border-color: #d4af37 !important; outline: none !important; }
+        a { color: #d4af37 !important; }
+        .header, .topbar { background: linear-gradient(135deg, #1a0a05, #3d1e0f) !important; border-bottom: 2px solid #d4af37 !important; }
+      `,
+    },
+
     // ── JIMMY (id 2) — Custom Truck: matte black + safety orange + diamond plate ──
     2: {
       name: 'Custom Truck',
