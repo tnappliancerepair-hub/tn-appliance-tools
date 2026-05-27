@@ -337,6 +337,12 @@
     <div class="title">TN Office</div>
     <div class="sub" id="header-sub">Loading...</div>
   </div>
+  <!-- TN/LA region toggle. Persists the choice in localStorage so the
+       hub (office.html) + any direct link respects last selection. -->
+  <div class="region-toggle" style="display:flex;gap:4px;background:#e8ecf2;padding:3px;border-radius:8px;margin-right:6px;">
+    <button onclick="(function(){localStorage.setItem('office_region','tn');})()" style="background:#fff;color:#1a1f2c;border:1px solid #d4d8e0;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:700;cursor:default;">TN</button>
+    <a href="/office-la.html" style="background:transparent;color:#6b7280;border:1px solid transparent;padding:5px 11px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;" onclick="localStorage.setItem('office_region','la');">LA</a>
+  </div>
   <button class="refresh-btn" id="refresh-btn" onclick="loadAll()" title="Refresh">↻</button>
 </div>
 
