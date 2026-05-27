@@ -913,6 +913,95 @@ Daily ops cadence now: 6am architect / 6:30am job prep / 7am tech briefing / 8am
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-27 overnight V3 sweep (SaaS + intel + security)
+
+Continuation of the late-night V3 sweep. ~36 commits across the three
+strategic moves Teddy + I aligned on: SaaS multi-tenant foundation,
+vector store + intelligence, security hardening, tech-side polish.
+
+8 COLONY_ARCHITECT injects, loop healthy throughout.
+
+### Section A — SaaS multi-tenant foundation (Tasks 1-21)
+
+- **Tables**: `company` (id 39, with name/slug/owner/Telnyx/timezone/
+  branding), `company_settings` (id 40, flexible KV)
+- **company_id column added (default 1) to**: customer, jobs,
+  technicians, tech_earnings, technician_decision_report,
+  tech_assist_session. event_log deferred (high-churn).
+- **Endpoints**: `get_company_settings`, `set_company_setting`,
+  `onboard_company`, `get_active_techs_count`
+- **Pages**: `signup.html` (free-trial landing), `company-admin.html`
+  (per-tenant dashboard)
+- **Netlify fn**: `create-tenant-subscription` (Stripe per-tenant)
+- **Runtime**: `colony-loop/config.companyId` + `sms.js` passes
+  company_id in all SMS context
+- **Agent**: `company_onboarded.js` (welcomes new tenant + alerts Teddy)
+- **Doc**: `docs/multi-tenant-migration.md` (~6h focused work to
+  complete the remaining producer/consumer endpoint scoping)
+
+### Section B — Vector store + intelligence (Tasks 31-55)
+
+- **Tables**: `embeddings` (id 41, vector storage as JSON text),
+  `claude_call_log` (id 42, every Claude call audited)
+- **Endpoints**: `save_embedding` (upsert), `list_embeddings`,
+  `log_claude_call`, `predict_next_failure` (typical-lifespan
+  heuristic per appliance category)
+- **Netlify fns**: `embed-text` (OpenAI text-embedding-3-small with
+  dummy fallback), `ask-ant-semantic` (cosine sim retrieval),
+  `find-similar-jobs` (per-job semantic match)
+- **Pages**: `ask-ant.html` (search-anything bar over indexed data)
+- **Script**: `backfill-embeddings.js` (one-time bulk ingestion)
+- **Agent**: `proactive_failure_warning.js` (SMS customer when
+  appliance enters predicted-failure window)
+- **Operator todo**: set OPENAI_API_KEY in Netlify → run backfill →
+  every search/similar-jobs lookup goes live
+
+### Section C — Security hardening (Tasks 56-80)
+
+- **CRITICAL FIX**: 14 office pages had OFFICE_PASSWORD in client-side
+  JS (anyone could view-source and steal it). All migrated to
+  `verify_office_password_POST` which reads from $env.OFFICE_PASSWORD.
+- **Rate limit**: `check_rate_limit` + `record_rate_limit_hit`
+  endpoints. Pattern documented for callers (quote / portal-action
+  / inbound-call) to wire next session.
+- **Doc**: `docs/security-sprint-plan.md` (per-user accounts, 2FA,
+  PII masking, CORS, CSP all deferred with operator next-steps)
+
+### Section D — Tech-side polish (Tasks 81+82+87)
+
+- `tech-ant-live.html` — '🧠 Similar' quick-action button → opens
+  slide-down panel with top-5 semantically similar prior jobs
+- `appointment-ics.js` Netlify fn — customer downloads .ics for
+  Apple/Google Calendar with 1h reminder
+- `customer-portal.html` — wires '📅 Add to my calendar' button
+  for scheduled appointments
+
+### Deferred (V3 Tasks 83-100, will pick up next session)
+
+Pure polish/scaffolding that doesn't block morning demo:
+- Tech: voice-to-text verification, sticky "on the way" button,
+  next-stop countdown, knowledge-base UI, vehicle/tool tracking pages
+- Customer: spouse-share link, more language templates
+- Office: drag-to-reschedule, keyboard shortcuts, bulk pre-diagnosis,
+  pulse filter chips, leaderboard SMS, 1-click warranty resubmit
+- SMS: link shortener, multi-language templates
+
+### Operator todos surfacing from V3
+
+1. Set `$env.OFFICE_PASSWORD` (Xano) — strong password, rotate quarterly
+2. Set `OPENAI_API_KEY` (Netlify) — unlocks embeddings + semantic search
+3. Set `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID_PER_TECH_MONTHLY` (Netlify)
+   — unlocks real per-tenant billing
+4. After 2nd tenant signs up via signup.html: validate isolation with
+   the multi-tenant migration plan steps
+5. Run `node colony-loop/scripts/backfill-embeddings.js` once OPENAI key
+   is live — indexes all TDRs + customer notes
+6. The big morning-critical fixes from earlier tonight are unchanged
+   and still live: tech-ant-live session auto-bootstrap, ✨ TDR auto-fill,
+   🔧 Parts lookup, camera-direct iOS capture
+
+**🐜 Long Live Ant.**
+
 ## Session log — 2026-05-27 overnight (100-task list V2 sweep)
 
 49+ commits, 8 COLONY_ARCHITECT injects (signal_id 145-152), full sweep through docs/100-task-list-v2-2026-05-27.md. Many tasks shipped as full code; many shipped as scaffold + operator note where blocked on external (Stripe keys, Vapi config, schema add).
