@@ -220,6 +220,37 @@ export async function run(signal, ctx) {
     }
   }
 
+  // ── Chain: PRE_APPOINTMENT_CHECK (30min pre-appointment) ──
+  // Verifies the tech has tapped 🚗 On My Way. If not, SMS them a nudge
+  // + Teddy a heads-up. Skip for appointments <2h away (less than 1h
+  // lead between now and deadline makes the nudge less useful).
+  const PRE_APPT_LEAD_MS = 30 * 60 * 1000;
+  if (
+    scheduledStartMs &&
+    apptLeadMs >= 2 * 60 * 60 * 1000 &&
+    !SKIP_CUSTOMER_SOURCES.has(source) &&
+    technicianId > 0
+  ) {
+    const preApptDeadlineMs = Math.max(Number(scheduledStartMs) - PRE_APPT_LEAD_MS, now + MIN_LEAD_MS);
+    try {
+      await xano.emitSignal({
+        signal_type: 'PRE_APPOINTMENT_CHECK',
+        signal_strength: 60,
+        payload: {
+          job_id: jobId,
+          technician_id: technicianId,
+          scheduled_start_ms: scheduledStartMs,
+          deadline_ms: preApptDeadlineMs,
+          scheduled_for_ms: preApptDeadlineMs,
+          source: 'appointment_scheduled_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('pre_appointment_check_emit_failed', { job_id: jobId, error: String(err.message || err) });
+    }
+  }
+
   // ── Chain: WAIVER_DUE (4h pre-appointment) ──
   // Vision step 3: every appointment gets a waiver SMS automatically
   // 4h before tech rolls (or immediately if appointment is <4h away).
