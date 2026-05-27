@@ -300,6 +300,68 @@ query tech_preference_inbound verb=POST {
       }
     }
 
+    // ─── OWNER-ONLY: PAUSE / RESUME TECH ASSIST FOR <tech_id> ────────
+    // Only Teddy (id=1) can flip the per-tech assist pause flag.
+    conditional {
+      if ($tech_id == 1) {
+        var $is_pause_cmd { value = ($body_upper|substr:0:21) == "PAUSE TECH ASSIST FOR" }
+        var $is_resume_cmd { value = ($body_upper|substr:0:22) == "RESUME TECH ASSIST FOR" }
+
+        conditional {
+          if ($is_pause_cmd) {
+            var $pause_arg { value = ($body_upper|substr:21)|trim }
+            var $pause_tech_id { value = $pause_arg|to_int }
+            conditional {
+              if ($pause_tech_id > 0) {
+                db.add event_log {
+                  data = {
+                    action  : "tech_assist_paused"
+                    metadata: {
+                      tech_id   : $pause_tech_id
+                      paused_by : 1
+                      raw_msg   : $body_raw
+                    }
+                  }
+                } as $pause_log
+
+                return {
+                  value = {matched: true, reply: ("Tech assist paused for tech_id " ~ ($pause_tech_id|to_text) ~ ". Their messages route to legacy handler until you RESUME TECH ASSIST FOR " ~ ($pause_tech_id|to_text))}
+                }
+              }
+            }
+            return {
+              value = {matched: true, reply: "Usage: PAUSE TECH ASSIST FOR <tech_id>"}
+            }
+          }
+          elseif ($is_resume_cmd) {
+            var $resume_arg { value = ($body_upper|substr:22)|trim }
+            var $resume_tech_id { value = $resume_arg|to_int }
+            conditional {
+              if ($resume_tech_id > 0) {
+                db.add event_log {
+                  data = {
+                    action  : "tech_assist_resumed"
+                    metadata: {
+                      tech_id    : $resume_tech_id
+                      resumed_by : 1
+                      raw_msg    : $body_raw
+                    }
+                  }
+                } as $resume_log
+
+                return {
+                  value = {matched: true, reply: ("Tech assist resumed for tech_id " ~ ($resume_tech_id|to_text) ~ ".")}
+                }
+              }
+            }
+            return {
+              value = {matched: true, reply: "Usage: RESUME TECH ASSIST FOR <tech_id>"}
+            }
+          }
+        }
+      }
+    }
+
     // ─── SHORTCUT: STATUS ────────────────────────────────────────────
     conditional {
       if ($body_upper == "STATUS" || $body_upper == "MY SCHEDULE" || $body_upper == "SCHEDULE") {

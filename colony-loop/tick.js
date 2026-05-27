@@ -579,6 +579,26 @@ async function maybeEmitTimeSignals() {
     payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
   });
   try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+
+  // TECH_ASSIST_LOOP_WATCH — every 5 min during 7am-10pm CT. Detects
+  // interrogation loops in the new SMS Tech Assist flow + auto-pauses
+  // techs hitting 2+ loops/day. Fired by tick.js (not by tick scheduler)
+  // since the loop runs every 60s; this gate fires only every 5 min.
+  if (hour >= 7 && hour < 22) {
+    // Modulo-5 check on minute
+    const minuteCT = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCT) && (minuteCT % 5) === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TECH_ASSIST_LOOP_WATCH',
+          signal_strength: 60,
+          payload: { now_ms: nowTs },
+        });
+      } catch (err) {
+        xano.logLocal('tech_assist_loop_watch_emit_failed', { error: err.message });
+      }
+    }
+  }
 }
 
 function summarize(result) {

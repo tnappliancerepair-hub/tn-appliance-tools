@@ -69,9 +69,35 @@ query tech_sms_assist verb=POST {
     // and call create_tdr. For v1, simpler: pull tech_assist_session
     // captured_data if present; else ask the tech to text findings first.
     // Per-tech opt-out check — Teddy can PAUSE TECH ASSIST FOR <tech_id>
-    // to flag tech.tech_assist_paused_at. If set, route to legacy handler.
+    // via the preference inbound. Look up most recent pause/resume event
+    // for this tech; if last action was a pause, route to legacy.
+    db.query event_log {
+      where  = $db.event_log.action == "tech_assist_paused" || $db.event_log.action == "tech_assist_resumed"
+      sort   = {event_log.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 50}}
+    } as $pause_events
+
+    var $latest_pause_state { value = "" }
+    var $tech_marker { value = "\"tech_id\":" ~ ($tech_id|to_text) }
+
+    foreach ($pause_events.items) {
+      each as $pe {
+        conditional {
+          if ($latest_pause_state == "") {
+            var $pe_meta_raw { value = ($pe.metadata ?? "") }
+            var $pe_strip { value = $pe_meta_raw|replace:$tech_marker:"" }
+            conditional {
+              if (($pe_meta_raw|strlen) > ($pe_strip|strlen)) {
+                var.update $latest_pause_state { value = ($pe.action ?? "") }
+              }
+            }
+          }
+        }
+      }
+    }
+
     conditional {
-      if ((($tech.tech_assist_paused_at ?? 0)|to_int) > 0) {
+      if ($latest_pause_state == "tech_assist_paused") {
         return {
           value = {matched: false, reason: "tech_assist_paused_for_tech"}
         }

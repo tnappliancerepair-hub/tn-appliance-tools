@@ -287,6 +287,10 @@ export async function getTechWeeklyRecapSent({ tech_id, week_start_ms }) {
   return getJSON(`${INTAKE()}/get_tech_weekly_recap_sent?tech_id=${tech_id}&week_start_ms=${week_start_ms}`);
 }
 
+export async function getTechSessionsForLoopWatch(tech_id, now_ms) {
+  return getJSON(`${INTAKE()}/get_tech_sessions_for_loop_watch?technician_id=${tech_id}&now_ms=${now_ms}`);
+}
+
 export async function autoBookExistingJob({ job_id, technician_id, scheduled_start_ms, scheduled_end_ms, source = 'auto_scheduler' }) {
   return postJSON(`${INTAKE()}/auto_book_existing_job`, {
     job_id,
