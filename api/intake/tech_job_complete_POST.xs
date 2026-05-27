@@ -43,6 +43,40 @@ query tech_job_complete verb=POST {
       }
     }
 
+    // Completion-photo gate: warranty + repair_complete must have ≥1
+    // attachment. Insurance + audit safeguard.
+    conditional {
+      if ($input.completion_type == "repair_complete" && ($job.customer_type ?? "") == "warranty") {
+        db.query job_attachments {
+          where  = $db.job_attachments.job_id == $input.job_id && $db.job_attachments.upload_complete_at != null
+          return = {type: "count"}
+        } as $att_count
+
+        conditional {
+          if (($att_count ?? 0) == 0) {
+            db.add event_log {
+              data = {
+                action  : "tech_job_complete_blocked_no_photos"
+                metadata: {
+                  job_id        : $input.job_id
+                  technician_id : $input.technician_id
+                  customer_type : ($job.customer_type ?? "")
+                }
+              }
+            } as $block_log
+
+            return {
+              value = {
+                success        : false
+                error          : "no_completion_photos"
+                error_message  : "Need at least 1 photo before completing this warranty job."
+              }
+            }
+          }
+        }
+      }
+    }
+
     // TDR completeness gate. ONLY applies when completion_type=repair_complete
     // AND customer_type=warranty — warranty submission requires a full TDR
     // (5 fields: diagnosis, failure_cause, failed_component, repair_completed,
