@@ -257,9 +257,14 @@ function isVoicePromptOptimizer(agent) {
 // 8. market_intelligence
 function isMarketIntelligence(agent) {
   const id = String(agent.id || '');
+  // M### IDs go to market_intelligence (Marketing colony) — NOT meta_agent.
+  // The meta_agent detector was originally given M### too, which mis-routed
+  // every Marketing colony agent. Marketing wins because its ID prefix is
+  // semantically marketing, not meta.
   if (/^BI\d/i.test(id)) return true;
+  if (/^M\d/i.test(id)) return true;
   const c = (agent.purpose + ' ' + agent.name).toLowerCase();
-  return /\bcompetitor\s+gap|\bmanufacturer\s+relationship\b|\bmarket\s+expansion\b|\bseasonal\s+demand\b|\bcompetit(or|ive)\s+intel|\bmarket\s+scout\b/.test(c);
+  return /\bcompetitor\s+gap|\bmanufacturer\s+relationship\b|\bmarket\s+expansion\b|\bseasonal\s+demand\b|\bcompetit(or|ive)\s+intel|\bmarket\s+scout\b|\bgmb\b|\bseo\b|\byelp\b|\bnextdoor\b|\bbacklink\b|\blocal\s+pack\b|\bbrand\s+mention\b|\bprofile\s+watcher\b|\bkeyword\s+tracker\b|\breview\s+watcher\b/.test(c);
 }
 
 // 9. infrastructure_monitor
@@ -271,11 +276,9 @@ function isInfrastructureMonitor(agent) {
 }
 
 // 11. meta_agent — agents that evaluate, score, or generate other agents.
-//      Targets M008 Agent Fitness Scorer, M009 Agent Cloner. ID-prefix
-//      fallback so future M### entries are auto-detected.
+//      Keyword-only match (the previous M### shortcut collided with the
+//      Marketing colony's M### IDs and misrouted them all to meta_agent).
 function isMetaAgent(agent) {
-  const id = String(agent.id || '');
-  if (/^M\d/i.test(id)) return true;
   const c = (agent.purpose + ' ' + agent.name).toLowerCase();
   return /\bfitness\s+scorer\b|\bagent\s+cloner\b|\bmeta\s+agent\b|\bagent\s+evaluator\b|\bagent\s+(fitness|quality|performance)\b|\bclone[rs]?\b\s+agent/.test(c);
 }
