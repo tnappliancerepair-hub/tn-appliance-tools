@@ -156,6 +156,29 @@ export async function run(signal, ctx) {
     log('ltv_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: MAINTENANCE_REMINDER_DUE (6mo post-completion) ──
+  try {
+    const sixMonthsMs = 180 * 24 * 60 * 60 * 1000;
+    const reminderDeadline = Date.now() + sixMonthsMs;
+    await xano.emitSignal({
+      signal_type: 'MAINTENANCE_REMINDER_DUE',
+      signal_strength: 30,
+      payload: {
+        job_id: jobId,
+        customer_id: payload.customer_id || null,
+        customer_phone: payload.customer_phone || '',
+        first_name: payload.customer_first_name || '',
+        appliance_type: payload.appliance_type || '',
+        deadline_ms: reminderDeadline,
+        scheduled_for_ms: reminderDeadline,
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('maintenance_reminder_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: SAME_DAY_SLOT_OFFER (gap-detection, reactive) ──
   try {
     const techId = Number(payload.technician_id || 0);
