@@ -203,6 +203,7 @@
     <div class="hint">Phone: any format (digits, +1, dashes). Name: exact first or last. Email: exact match.</div>
   </div>
 
+  <div style="display:flex;justify-content:flex-end;padding:4px 18px 0"><button id="exportBtn" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:11px;font-family:monospace;cursor:pointer;display:none">⬇ Export CSV</button></div>
   <div id="results" class="results"></div>
 </div>
 
@@ -278,7 +279,31 @@ const $ = (id) => document.getElementById(id);
     }
   }
 
+  let lastRows = [];
+
+  // CSV export
+  const exportBtn = $('exportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      if (lastRows.length === 0) return;
+      const head = ['customer_id','first_name','last_name','phone','email','job_count','latest_job_id'];
+      const csv = [head.join(',')].concat(lastRows.map(r => {
+        const c = r.customer || {};
+        const j = r.latest_job || {};
+        return [c.id, c.first_name, c.last_name, c.phone, c.email, r.job_count, j.id || '']
+          .map(v => `"${String(v||'').replace(/"/g, '""')}"`).join(',');
+      })).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `customers-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
   function render(rows) {
+    lastRows = rows || [];
+    if (exportBtn) exportBtn.style.display = lastRows.length > 0 ? '' : 'none';
     if (!rows.length) {
       results.innerHTML = '<div class="empty">No matches.</div>';
       return;
