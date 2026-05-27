@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Day Off - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; min-height: 100dvh; padding: 24px 18px; max-width: 540px; margin: 0 auto; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --border-soft:#1f2533; --muted:#8a93aa; --orange:#f5a623; --green:#00d68f; --red:#ff6b6b; }
+  .header { text-align: center; padding: 6px 0 24px; }
+  .header .ant { font-size: 36px; margin-bottom: 8px; }
+  .header h1 { font-size: 22px; font-weight: 800; }
+  .header p { color: var(--muted); font-size: 12px; margin-top: 4px; font-family: monospace; }
+
+  .auth-card, .form-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  input[type=date], input[type=tel], textarea {
+    width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: #e8edf5; font-size: 16px; outline: none;
+    font-family: -apple-system, monospace;
+  }
+  input:focus, textarea:focus { border-color: var(--orange); }
+  textarea { min-height: 80px; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 14px; }
+  .btn { flex: 1; padding: 14px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .btn.primary { background: var(--orange); color: #1a1208; }
+  .btn.danger { background: var(--red); color: white; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .msg { margin-top: 12px; min-height: 16px; font-size: 13px; }
+  .msg.ok { color: var(--green); }
+  .msg.err { color: var(--red); }
+  .pin-input { letter-spacing: 4px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>Day Off</h1>
+  <p id="tdaSub">mark a date as off</p>
+</div>
+
+<div id="auth" class="auth-card">
+  <label>Your PIN</label>
+  <input id="pinInput" class="pin-input" type="tel" inputmode="numeric" maxlength="6" placeholder="••••">
+  <div class="row">
+    <button id="pinBtn" class="btn primary">Unlock</button>
+  </div>
+  <div id="pinErr" class="msg err"></div>
+</div>
+
+<div id="app" class="form-card" style="display:none">
+  <label>Date</label>
+  <input id="date" type="date">
+  <div style="margin-top:14px"></div>
+  <label>Reason (optional)</label>
+  <textarea id="reason" placeholder="e.g. doctor appointment, family commitment"></textarea>
+  <div class="row">
+    <button id="offBtn" class="btn primary">🛑 Set Day Off</button>
+    <button id="clearBtn" class="btn ghost">↩ Clear</button>
+  </div>
+  <div id="actionMsg" class="msg"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const params = new URLSearchParams(window.location.search);
+  const TECH_ID = params.get('tech_id');
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const PIN_KEY = `tn_tech_pin_v1_${TECH_ID}`;
+  const $ = (id) => document.getElementById(id);
+
+  if (!TECH_ID) {
+    document.body.innerHTML = '<div style="text-align:center;padding:60px;color:#ff6b6b">Missing tech_id in URL.</div>';
+    return;
+  }
+  $('tdaSub').textContent = `tech_id=${TECH_ID}`;
+
+  // Default date to tomorrow
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  $('date').value = tomorrow.toISOString().slice(0, 10);
+
+  async function verifyPin(pin) {
+    try {
+      const res = await fetch('/.netlify/functions/verify-pin-proxy', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
+      });
+      const d = await res.json();
+      return d && d.success === true;
+    } catch { return false; }
+  }
+
+  async function tryUnlock() {
+    const cached = localStorage.getItem(PIN_KEY);
+    if (cached && await verifyPin(cached)) { unlock(); return; }
+    localStorage.removeItem(PIN_KEY);
+  }
+
+  $('pinBtn').addEventListener('click', submitPin);
+  $('pinInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPin(); });
+
+  async function submitPin() {
+    const pin = $('pinInput').value.trim();
+    if (!pin) return;
+    $('pinBtn').disabled = true;
+    if (await verifyPin(pin)) {
+      localStorage.setItem(PIN_KEY, pin);
+      unlock();
+    } else {
+      $('pinErr').textContent = 'wrong pin'; $('pinInput').select();
+    }
+    $('pinBtn').disabled = false;
+  }
+
+  function unlock() {
+    $('auth').style.display = 'none';
+    $('app').style.display = 'block';
+  }
+
+  async function callDayOff(off) {
+    const date = $('date').value;
+    const reason = $('reason').value.trim();
+    if (!date) { $('actionMsg').className = 'msg err'; $('actionMsg').textContent = 'Pick a date.'; return; }
+    $('offBtn').disabled = true; $('clearBtn').disabled = true;
+    $('actionMsg').className = 'msg'; $('actionMsg').textContent = 'Saving…';
+    try {
+      const res = await fetch(`${XANO}/tech_set_day_off`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), date, off, reason })
+      });
+      const d = await res.json();
+      if (!d || !d.success) throw new Error((d && d.message) || 'failed');
+      $('actionMsg').className = 'msg ok';
+      $('actionMsg').textContent = off ? `✓ ${date} marked as day off.` : `✓ ${date} cleared.`;
+    } catch (err) {
+      $('actionMsg').className = 'msg err';
+      $('actionMsg').textContent = 'failed: ' + (err.message || err);
+    } finally {
+      $('offBtn').disabled = false; $('clearBtn').disabled = false;
+    }
+  }
+
+  $('offBtn').addEventListener('click', () => callDayOff(true));
+  $('clearBtn').addEventListener('click', () => callDayOff(false));
+
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
