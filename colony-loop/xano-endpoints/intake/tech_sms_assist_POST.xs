@@ -3,16 +3,21 @@ query tech_sms_assist verb=POST {
 
   input {
     text phone
-    text body
+    text? body?
+    json? media_urls?
   }
 
   stack {
     var $phone_in { value = (($input.phone ?? "")|trim) }
     var $body_in { value = (($input.body ?? "")|trim) }
+    var $media_urls_in { value = ($input.media_urls ?? []) }
+    var $media_count { value = ($media_urls_in|count) }
 
-    precondition ($phone_in != "" && $body_in != "") {
+    // Allow body-only OR media-only inbound. Tech might send just a
+    // photo of a model label with no caption.
+    precondition ($phone_in != "" && ($body_in != "" || $media_count > 0)) {
       error_type = "inputerror"
-      error      = "phone and body required"
+      error      = "phone + (body or media_urls) required"
     }
 
     var $digits_only { value = $phone_in|replace:"+":""|replace:"-":""|replace:"(":""|replace:")":""|replace:" ":"" }
@@ -301,10 +306,43 @@ query tech_sms_assist verb=POST {
     // Ant is a SILENT SCRIBE that extracts ALL fields from anything sent.
     // NEVER an interviewer.
     var $sys_prompt {
-      value = "You are Ant, the silent scribe for an appliance-repair tech texting you mid-job. Hands dirty, on the road. NOT a chatbot. Your job: extract TDR fields from anything they send and write the TDR. Reply only when you must.\n\nOUTPUT ONLY valid JSON, no prose, no markdown fence. Schema:\n{\"reply\":\"<under-200-char plain text>\",\"captured\":{\"diagnosis\":string?,\"failed_component\":string?,\"verified_part_number\":string?,\"replaced_by_part_number\":string?,\"labor_hours\":string?,\"repair_completed\":string?,\"parts_status\":string?,\"second_visit_needed\":boolean?,\"recommendation\":string?}}\n\nEXTRACTION RULES (every turn):\n- Parse the LATEST message for ALL fields, not just one. If they dump everything at once, capture all of it.\n- '1.5', '45 min', '1 hr', '2hrs' → labor_hours as decimal string ('1.5', '0.75', '1', '2')\n- 'Nwt' or 'NWT' = needs work / quote → parts_status='needs_quote', recommendation='quote'\n- 'replaced by #X' or 'sub X' or 'crossed to X' → replaced_by_part_number=X\n- Part numbers like 'WPW10310240', '316455400' → verified_part_number\n- 'all done', 'fixed', 'swapped' → recommendation='repair_complete' + repair_completed describing what they did\n- 'parts ordered', 'on order' → parts_status='ordered', recommendation='2nd_visit'\n- A standalone numeric reply right after asking labor → labor_hours\n- Tech repeating a value already captured → ACCEPT, don't re-ask, don't comment on the repeat.\n\nREPLY RULES:\n- After extracting + given the merged TDR state (you'll see it in 'Already captured'), if ALL 4 core fields (diagnosis, failed_component, labor_hours, repair_completed) are present → reply: \"TDR saved. <one-sentence summary>.\"\n- If EXACTLY ONE core field missing → ask for ONLY that one, briefly. e.g. \"Still need labor hours.\"\n- If TWO+ core fields missing → list them in one message. e.g. \"Still need: failed part, labor hours.\"\n- If tech asks for a part lookup → respond IMMEDIATELY with the searspartsdirect.com/model/<MODEL>/parts link. NEVER say 'I'll grab it', 'I'll look it up', or 'send the model and I'll find it' — you do not have parts-API access. If they haven't given a model yet, ask for the model in the SAME reply that includes the link template. The link IS the deliverable. Then check what's still missing for the TDR.\n- NEVER say 'keep going' or 'text more findings' or 'got it.' (alone). If you have nothing to add or ask, set reply to empty string \"\".\n- NEVER ask for a field that's already filled in 'Already captured'.\n- Photos: if they mention an error code, model, or unusual part, suggest tnapplianceexchange.net/upload.html?job_id=" ~ ($job_id|to_text) ~ " in passing. Don't repeat the suggestion.\n\nJob: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem ~ "\nAlready captured: " ~ $existing_captured_json
+      value = "You are Ant, the silent scribe for an appliance-repair tech texting you mid-job. Hands dirty, on the road. NOT a chatbot. Your job: extract TDR fields from anything they send and write the TDR. Reply only when you must.\n\nOUTPUT ONLY valid JSON, no prose, no markdown fence. Schema:\n{\"reply\":\"<under-200-char plain text>\",\"captured\":{\"diagnosis\":string?,\"failed_component\":string?,\"verified_part_number\":string?,\"replaced_by_part_number\":string?,\"labor_hours\":string?,\"repair_completed\":string?,\"parts_status\":string?,\"second_visit_needed\":boolean?,\"recommendation\":string?}}\n\nEXTRACTION RULES (every turn):\n- Parse the LATEST message for ALL fields, not just one. If they dump everything at once, capture all of it.\n- '1.5', '45 min', '1 hr', '2hrs' → labor_hours as decimal string ('1.5', '0.75', '1', '2')\n- 'Nwt' or 'NWT' = needs work / quote → parts_status='needs_quote', recommendation='quote'\n- 'replaced by #X' or 'sub X' or 'crossed to X' → replaced_by_part_number=X\n- Part numbers like 'WPW10310240', '316455400' → verified_part_number\n- 'all done', 'fixed', 'swapped' → recommendation='repair_complete' + repair_completed describing what they did\n- 'parts ordered', 'on order' → parts_status='ordered', recommendation='2nd_visit'\n- A standalone numeric reply right after asking labor → labor_hours\n- Tech repeating a value already captured → ACCEPT, don't re-ask, don't comment on the repeat.\n\nREPLY RULES:\n- After extracting + given the merged TDR state (you'll see it in 'Already captured'), if ALL 4 core fields (diagnosis, failed_component, labor_hours, repair_completed) are present → reply: \"TDR saved. <one-sentence summary>.\"\n- If EXACTLY ONE core field missing → ask for ONLY that one, briefly. e.g. \"Still need labor hours.\"\n- If TWO+ core fields missing → list them in one message. e.g. \"Still need: failed part, labor hours.\"\n- If tech asks for a part lookup → respond IMMEDIATELY with the searspartsdirect.com/model/<MODEL>/parts link. NEVER say 'I'll grab it', 'I'll look it up', or 'send the model and I'll find it' — you do not have parts-API access. If they haven't given a model yet, ask for the model in the SAME reply that includes the link template. The link IS the deliverable. Then check what's still missing for the TDR.\n- NEVER say 'keep going' or 'text more findings' or 'got it.' (alone). If you have nothing to add or ask, set reply to empty string \"\".\n- NEVER ask for a field that's already filled in 'Already captured'.\n- Photos: when the tech sends an image (model label, error code on display, part number, serial sticker), READ IT. Extract any visible text — model number, serial, part number, error code — and treat each as a TDR field (verified_part_number / diagnosis details). NEVER say 'I can't see pics' — you can. If the image is unreadable, ask for a clearer shot.\n\nJob: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem ~ "\nAlready captured: " ~ $existing_captured_json
     }
 
+    // When media URLs are present, build content as a multi-part array
+    // (Claude vision: image blocks + optional text block). Otherwise
+    // use the simple string form.
     var $user_msg_obj { value = {role: "user", content: $body_in} }
+
+    conditional {
+      if ($media_count > 0) {
+        var $content_arr { value = [] }
+        foreach ($media_urls_in) {
+          each as $u {
+            var $u_clean { value = (($u ?? "")|trim) }
+            conditional {
+              if ($u_clean != "") {
+                var $img_block { value = {type: "image", source: {type: "url", url: $u_clean}} }
+                var.update $content_arr { value = $content_arr|push:$img_block }
+              }
+            }
+          }
+        }
+        conditional {
+          if ($body_in != "") {
+            var $text_block { value = {type: "text", text: $body_in} }
+            var.update $content_arr { value = $content_arr|push:$text_block }
+          }
+          else {
+            // Pure-image inbound — give Claude a nudge text so it parses
+            // the image as a tech finding rather than a question.
+            var $nudge_block { value = {type: "text", text: "(Tech sent a photo with no caption — likely a model label, error code, or part. Extract any text visible and any TDR fields it implies.)"} }
+            var.update $content_arr { value = $content_arr|push:$nudge_block }
+          }
+        }
+        var.update $user_msg_obj { value = {role: "user", content: $content_arr} }
+      }
+    }
 
     api.request {
       url = "https://api.anthropic.com/v1/messages"

@@ -91,9 +91,12 @@ exports.handler = async function (event) {
     return providerAck(provider, '');
   }
 
-  if (!parsed.from || !parsed.body) {
-    console.warn('[tech-sms-inbound] missing from or body after parse:', {
-      provider, from_present: !!parsed.from, body_len: (parsed.body || '').length,
+  // Media-only inbound is valid (tech texts a photo of a model label with no
+  // caption). Only ack-and-stop if BOTH body AND media are empty.
+  const hasMedia = Array.isArray(parsed.media_urls) && parsed.media_urls.length > 0;
+  if (!parsed.from || (!parsed.body && !hasMedia)) {
+    console.warn('[tech-sms-inbound] missing from or (body + media) after parse:', {
+      provider, from_present: !!parsed.from, body_len: (parsed.body || '').length, media_count: hasMedia ? parsed.media_urls.length : 0,
     });
     return providerAck(provider, '');
   }
@@ -198,14 +201,21 @@ function detectProvider(event) {
 }
 
 // ─── TWILIO PARSER ────────────────────────────────────────────────────
-// Returns { from, body, sid, to } or null when malformed.
+// Returns { from, body, sid, to, media_urls } or null when malformed.
 function parseTwilio(event) {
   const params = new URLSearchParams(event.body || '');
+  const numMedia = parseInt(params.get('NumMedia') || '0', 10) || 0;
+  const mediaUrls = [];
+  for (let i = 0; i < numMedia && i < 10; i++) {
+    const u = params.get(`MediaUrl${i}`);
+    if (u && /^https?:\/\//i.test(u)) mediaUrls.push(u);
+  }
   return {
     from: params.get('From') || '',
     body: params.get('Body') || '',
     sid:  params.get('MessageSid') || '',
     to:   params.get('To') || '',
+    media_urls: mediaUrls,
   };
 }
 
@@ -237,11 +247,20 @@ function parseTelnyx(event) {
   const toArr = Array.isArray(payload.to) ? payload.to : [];
   const toPhone = (toArr[0] && toArr[0].phone_number) || '';
 
+  // Telnyx MMS: payload.media is an array of {url, content_type, hash_sha256}.
+  // URLs are time-limited but valid for ~hours — long enough for Claude vision
+  // to fetch them via URL form (no need to download + base64 ourselves).
+  const mediaArr = Array.isArray(payload.media) ? payload.media : [];
+  const mediaUrls = mediaArr
+    .map((m) => (m && typeof m.url === 'string') ? m.url : '')
+    .filter((u) => u && /^https?:\/\//i.test(u));
+
   return {
     from: fromPhone,
     body: payload.text || '',
     sid:  payload.id || data.id || '',
     to:   toPhone,
+    media_urls: mediaUrls,
   };
 }
 
@@ -293,8 +312,9 @@ async function tryTechSmsAssist(parsed) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phone: parsed.from,
-        body:  parsed.body,
+        phone:      parsed.from,
+        body:       parsed.body,
+        media_urls: parsed.media_urls || [],
       }),
       signal: controller.signal,
     });
