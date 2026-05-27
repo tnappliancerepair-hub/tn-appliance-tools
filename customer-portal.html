@@ -278,6 +278,10 @@
       📷 Send photos of the appliance
       <span class="sub">Helps your tech show up with the right parts.</span>
     </a>
+    <a class="btn" id="btnIcs" href="#" style="display:none">
+      📅 Add to my calendar
+      <span class="sub">Apple / Google with 1-hour reminder.</span>
+    </a>
     <a class="btn" href="tel:+16152802949" id="btnCall">
       Call us · 615-280-2949
       <span class="sub">Mon-Fri 8am-6pm CT</span>
@@ -507,6 +511,18 @@
         btnUpload.href = `upload.html?job_id=${job.id}`;
       } else {
         btnUpload.style.display = 'none';
+      }
+    }
+
+    // Add-to-calendar link for scheduled appointments
+    const btnIcs = $('btnIcs');
+    if (btnIcs) {
+      if (viewState === 'scheduled' && job.scheduled_start && LAST4) {
+        btnIcs.style.display = '';
+        btnIcs.href = `/.netlify/functions/appointment-ics?job_id=${job.id}&last4=${LAST4}`;
+        btnIcs.setAttribute('download', `tn-appliance-job-${job.id}.ics`);
+      } else {
+        btnIcs.style.display = 'none';
       }
     }
   }
