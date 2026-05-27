@@ -177,6 +177,16 @@ export async function getTdrReminderFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_tdr_reminder_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getUnpaidSelfPayJobs(daysBack) {
+  let url = `${INTAKE()}/get_unpaid_self_pay_jobs`;
+  if (daysBack) url += `?days_back=${daysBack}`;
+  return getJSON(url);
+}
+
+export async function getUnpaidDigestFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_unpaid_digest_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

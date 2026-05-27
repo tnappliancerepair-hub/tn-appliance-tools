@@ -214,6 +214,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // UNPAID_SELF_PAY_DIGEST — fires once per day at 10:30am CT (10-13 grace).
+  // Sends Teddy a digest of self-pay jobs completed in the last 14 days
+  // where payment_collected is still false. Silent skip when all paid.
+  if (hour >= 10 && hour < 13) {
+    let unpaidFired;
+    try {
+      unpaidFired = await xano.getUnpaidDigestFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('unpaid_digest_dedup_failed', { error: err.message });
+      unpaidFired = null;
+    }
+    if (unpaidFired && !unpaidFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'UNPAID_SELF_PAY_DIGEST',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('unpaid_self_pay_digest_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('unpaid_self_pay_digest_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // TDR_REMINDER — fires once per day at 4pm CT (4-7pm grace). For each
   // tech with at least one job completed today missing a full TDR, SMS
   // the tech with the open-job list + a deep link to tech-daily-dashboard.
