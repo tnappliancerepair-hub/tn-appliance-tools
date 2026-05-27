@@ -390,6 +390,23 @@ async function maybeEmitTimeSignals() {
     }
   } catch (err) { xano.logLocal('monthly_tech_winner_check_failed', { error: err.message }); }
 
+  // GHOST_INTAKE_SWEEP — Sun 5am CT. Auto-cancels stale not_ready jobs
+  // (>14d, no customer engagement). Caps at 20/run.
+  try {
+    const dayCT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (dayCT === 'Sun' && hour >= 5 && hour < 8) {
+      const dedupKey = `ghost_intake_sweep_emitted_${new Date(nowTs).toISOString().slice(0, 10)}`;
+      let prior;
+      try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
+      if (!prior || !prior.exists) {
+        try {
+          await xano.emitSignal({ signal_type: 'GHOST_INTAKE_SWEEP', signal_strength: 35, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
+          await xano.recordEventLog(dedupKey, { since_ts_ms: sinceMs });
+        } catch (err) { xano.logLocal('ghost_intake_sweep_emit_failed', { error: err.message }); }
+      }
+    }
+  } catch (err) { xano.logLocal('ghost_intake_sweep_check_failed', { error: err.message }); }
+
   // REACTIVATION_CAMPAIGN — Monday 11am CT (11-13 grace). Pulls dormant
   // customer candidates (>2y since first contact + no job in 6mo) and
   // SMSes up to 10/week with a re-engagement message.
