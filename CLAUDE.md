@@ -1303,6 +1303,29 @@ System sleep was already 0 (Never); display sleep is 10min but actively prevente
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-27 late PM: Danielle unblock + universal search
+
+**Urgent pivot mid-cleanup-task:** Danielle reported office portal login stuck on infinite spinner. She also had no way to search customers by name/phone/address — was getting blocked on basic ops.
+
+**Auth fix (root cause found):**
+- `office-tn.html` and `office-la.html` BOTH call `__verifyOfficePassword()` but neither defines the function. Other office pages (office-pulse, office-todo, office.html) inline it. The two TN/LA pages were missed in an earlier refactor.
+- Calling an undefined function throws ReferenceError. The existing `submitAuth` used `if (await ...)` which silently caught the rejection — button stayed disabled forever with no error shown. → infinite spinner.
+- Fix: added the function definition to both pages with a 10s `AbortController` timeout. Upgraded `submitAuth` UX: button shows "Authenticating…" during wait, re-enables on failure via `finally{}`, surfaces specific timeout/server-error messages.
+- Same UX upgrade applied to `needs-scheduled.html` for consistency.
+- Verified backend works via direct curl. Default password is `antlives` (env.OFFICE_PASSWORD).
+- Danielle SMSed the moment the fix shipped.
+
+**Universal search bar:**
+- New `office_universal_search_GET` endpoint: accepts `q`, auto-detects intent (phone/address/name), returns up to 25 matched customers with their most-recent job context. Substring-matches first+last+address+city against query.
+- New `office-search.js` widget: self-injecting at the top of `<body>` via a single `<script src="/office-search.js">` tag. Sticky search bar + dropdown with 300ms debounce, 8s timeout, click result → `/job-detail.html?job_id=X`.
+- Added the script tag to ALL 9 office pages: office.html, office-tn, office-la, office-pulse, office-todo, office-calendar, needs-scheduled, needs-scheduling, office-dashboard.
+- Smoke verified: q='Teddy' returns the test customer.
+- Danielle SMSed again when search shipped.
+
+**Cleanup tasks deferred** (from the prior brief): killing `get_hcp_cutover_readiness`, disabling `hcp_poll_recent_jobs` task, purging backfilled AHS jobs, deferring Phase 2b/auto-assignment docs, full-lifecycle validation. These remain in the queue and will be picked up next session.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
