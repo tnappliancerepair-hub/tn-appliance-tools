@@ -102,6 +102,36 @@ export async function run(signal, ctx) {
     }
   }
 
+  // ── Chain: CANCEL_FOLLOWUP (24h later, rescue outreach) ──
+  // Hand off to cancel_followup.js — when we cancel a customer's
+  // appointment they usually find another tech. Following up 24h later
+  // catches the ones who haven't ("are you still looking?") and gives
+  // us a second chance to recover the job.
+  const FOLLOWUP_LEAD_MS = 24 * 60 * 60 * 1000;
+  const followupCustomerPhone = normalizeE164(customer && customer.phone);
+  if (followupCustomerPhone) {
+    const followupDeadlineMs = Date.now() + FOLLOWUP_LEAD_MS;
+    try {
+      await xano.emitSignal({
+        signal_type: 'CANCEL_FOLLOWUP',
+        signal_strength: 45,
+        payload: {
+          job_id: jobId,
+          customer_id: (customer && customer.id) || null,
+          customer_phone: followupCustomerPhone,
+          first_name: (customer && customer.first_name) || '',
+          appliance_type: (job && job.appliance_type) || '',
+          deadline_ms: followupDeadlineMs,
+          scheduled_for_ms: followupDeadlineMs,
+          source: 'job_canceled_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('cancel_followup_emit_failed', { job_id: jobId, error: String(err.message || err) });
+    }
+  }
+
   const meta = {
     job_id: jobId,
     outcome: 'cancel_sms_sent',
