@@ -261,6 +261,25 @@ export async function run(signal, ctx) {
     log('stripe_payment_link_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: EMBED_TDR (immediate, closed-loop intelligence) ──
+  // Every completed job's TDR text becomes searchable in the vector
+  // store. Once enough rows accumulate, find-similar-jobs + ask-ant
+  // return meaningful matches.
+  try {
+    await xano.emitSignal({
+      signal_type: 'EMBED_TDR',
+      signal_strength: 25,
+      payload: {
+        job_id: jobId,
+        technician_id: payload.technician_id || null,
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('embed_tdr_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: GOOGLE_REVIEW_REQUEST (7d) ──
   // 7 days post-completion, ask the customer for a Google review.
   // google_review_request.js holds-and-re-emits until deadline, then
