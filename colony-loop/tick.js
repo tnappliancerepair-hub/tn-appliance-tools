@@ -398,6 +398,30 @@ async function maybeEmitTimeSignals() {
     xano.logLocal('weekly_performance_dow_check_failed', { error: err.message });
   }
 
+  // OFFICE_MORNING_BRIEFING — fires once per day at 8am CT (8-11 grace).
+  // Sends Danielle + Teddy a summary of the day's todo counts.
+  if (hour >= 8 && hour < 11) {
+    let omFired;
+    try {
+      omFired = await xano.getOfficeMorningBriefingFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('office_morning_briefing_dedup_failed', { error: err.message });
+      omFired = null;
+    }
+    if (omFired && !omFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'OFFICE_MORNING_BRIEFING',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('office_morning_briefing_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('office_morning_briefing_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
   if (hour < 8 || hour >= 11) return;
 

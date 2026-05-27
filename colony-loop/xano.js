@@ -209,6 +209,14 @@ export async function getTechLateCheckFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_tech_late_check_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getOfficeTodo() {
+  return getJSON(`${INTAKE()}/get_office_todo`);
+}
+
+export async function getOfficeMorningBriefingFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_office_morning_briefing_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
