@@ -896,6 +896,101 @@ Daily ops cadence now: 6am architect / 6:30am job prep / 7am tech briefing / 8am
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-26 (continuation: ~25 substantive builds in one push)
+
+User asked to "continue the 100 task list, no stopping, push after every task, inject COLONY_ARCHITECT max_builds=999 every 10 tasks." This session delivered 39 commits (25 substantive + 14 architect-built) including 2 architect injects (signal_id=136 + signal_id=138).
+
+### What shipped this session (chronological)
+
+**Block 1 (tasks 1-10) — closed long-open P1 gaps:**
+1. `tech-performance.html` + `get_tech_performance_GET.xs` (P1-2 — per-tech weekly/monthly/all-time metrics with KPIs + recent jobs)
+2. `customer-portal.html` + `get_customer_job_view_POST.xs` + `customer_portal_action_POST.xs` (P1-5 — self-serve customer status + reschedule + add notes)
+3. `job-detail.html` cross-links to Customer View + Tech Perf + SMS wiring to inject portal URL into appointment_scheduled + appointment_reminder_due SMS (P1-1 polish)
+4. Server-side TDR completeness gate in `tech_job_complete_POST` — blocks warranty + repair_complete completions without all 5 TDR fields (closes the "biggest unforced error" gap per CLAUDE.md)
+5. `colony-loop/scripts/xano-backup.js` + launchd plist — daily 3:15am CT table snapshot to ~/backups/xano-YYYY-MM-DD/, optional S3 upload (minimum-viable DR)
+6. `parts_arrival_check.js` agent — daily 11am sweep of awaiting_parts jobs with parts_eta_date <= today, SMS customer for re-visit time
+7. `waiver_due.js` agent — chain off APPOINTMENT_SCHEDULED, 4h pre-appointment Telnyx SMS with prefilled Jotform URL (closes vision step 3)
+8. `tdr_reminder.js` agent — daily 4pm CT push to techs with open TDRs from today (soft nudge alongside the hard server gate)
+9. `customer-search.html` + `search_customers_POST.xs` — office customer search by phone/name/email with quick links
+10. `callback_check.js` agent — JOB_CREATED chain, 30-day callback-risk alert (complements REPEAT_VISIT_CHECK's 12-month chronic pattern)
+
+**COLONY_ARCHITECT injected at task 10 — signal_id=136 with max_builds=999.**
+
+**Block 2 (tasks 11-20):**
+11. customer-search.html URL deep-link support (`?q=` / `?phone=` / `?caller=` auto-loads — caller-ID deep-link surface)
+12. `inbound_call.js` agent + `record_inbound_call_POST.xs` + `netlify/functions/inbound-call-webhook.js` — Telnyx voice webhook handler, real-time caller-context SMS to office with deep-link
+13. `office-pulse.html` + `get_office_pulse_GET.xs` — live activity feed for office, 20s polling, 5 headline stats + filterable event_log stream
+14. `pre_appointment_check.js` agent — 30min pre-appointment tech-not-acknowledged nudge to tech + Teddy
+15. `cancel_followup.js` agent — JOB_CANCELED chain, 24h rescue outreach SMS (with customer-rebooked-skip detection)
+16. `unpaid_self_pay_digest.js` agent — daily 10:30am AR-hygiene SMS to Teddy listing unpaid self-pay jobs sorted by oldest
+17. `resume_nudge.js` agent — daily 9:30am AHS/ServicePower no-resume-chat-completion nudge with portal + chat URLs (per-job dedup, single nudge ever)
+18. `expand-blueprint-3.js` — populated 3 empty colonies (Office Efficiency +12, Marketing/SEO +10, Customer Acquisition +10), blueprint went from 312 / 3 to_build → 344 / 35 to_build
+19. `tech-payouts.html` — tech-facing pending earnings page backed by existing `get_pending_earnings`
+20. `tech-daily-dashboard.html` sub-nav to Performance + Payouts (closes discoverability gap for the new tech pages)
+
+**COLONY_ARCHITECT injected at task 20 — signal_id=138 with max_builds=999.** Architect built 14 of the new TO_BUILD specs (M001-M010, CA002-CA007 visible in commit log) in parallel with continued building.
+
+**Block 3 (tasks 21-25):**
+21. `google_review_request.js` agent — 7d-after-completion review ask chained off JOB_COMPLETED, per-customer dedup with 60-day window
+22. `office-todo.html` + `get_office_todo_GET.xs` — single "needs human action" dashboard with 5 sections (stale intake, held, parts arrived, TDR-blocked, callbacks)
+23. `tech_late_check.js` agent — daily 10:15am CT, SMS techs (+Teddy) when first job today started <= 10am but no job_started_at yet
+24. `office_morning_briefing.js` agent — daily 8am summary to Danielle + Teddy with todo counts (uses getOfficeTodo)
+25. This session log update
+
+### Daily ops cadence (now)
+
+After this session the loop has 11 daily/weekly scheduled signal emits:
+- 6am: COLONY_ARCHITECT auto-fire
+- 6:30am: DAILY_JOB_PREP
+- 7am: DAILY_TECH_BRIEFING
+- 8am: OFFICE_MORNING_BRIEFING + DAILY_BRIEFING
+- 9am: SCHEDULE_GAP_CHECK
+- 9:30am: RESUME_NUDGE
+- 10am: CAPACITY_CHECK
+- 10:15am: TECH_LATE_CHECK (NEW)
+- 10:30am: UNPAID_SELF_PAY_DIGEST (NEW)
+- 11am: PARTS_ARRIVAL_CHECK (NEW)
+- 4pm: TDR_REMINDER (NEW)
+- 6pm: DAILY_REVENUE_SUMMARY
+- 3:15am: XANO_BACKUP launchd-driven (NEW)
+- Sunday 8am: WEEKLY_PERFORMANCE_SUMMARY
+
+### Hold-and-re-emit chains off APPOINTMENT_SCHEDULED
+
+Now 4 distinct chains:
+- APPOINTMENT_REMINDER_DUE — 24h pre, customer-direction
+- WAIVER_DUE — 4h pre, customer-direction (NEW this session)
+- PRE_APPOINTMENT_CHECK — 30min pre, tech + owner (NEW this session)
+- (after appt) FOLLOWUP_DUE chained off JOB_COMPLETED (existed pre-session)
+
+All 4 are reschedule-aware via getTechAssignmentContext + currentStart != scheduledStartMs drop logic.
+
+### Producer signal additions
+
+- JOB_COMPLETED → GOOGLE_REVIEW_REQUEST (7d)
+- JOB_CANCELED → CANCEL_FOLLOWUP (24h)
+- JOB_CREATED → CALLBACK_CHECK (30-day window) — added alongside existing REPEAT_VISIT_CHECK (12-month window)
+- APPOINTMENT_SCHEDULED → WAIVER_DUE + PRE_APPOINTMENT_CHECK (alongside existing APPOINTMENT_REMINDER_DUE)
+
+### What NOT to do (additions from this session)
+
+- **Do NOT remove the server-side TDR gate in `tech_job_complete_POST` without a replacement.** The gate is the only thing preventing tech-side workarounds to the warranty completeness requirement. The client-side gate exists too but is bypassable.
+- **Do NOT call `customer-search.html?q=<query>` without the office password local-storage cookie set.** The URL deep-link auto-runs the search but only after the gate clears. For unauth users this still requires a password entry first.
+- **Do NOT add new GOOGLE_REVIEW_REQUEST emit points without checking the 60-day per-customer dedup.** The agent dedups per customer, not per job, intentionally — same customer with 2 jobs shouldn't get 2 asks.
+- **Do NOT use json_decode on metadata in dedup endpoints.** Use compound action keys instead (e.g. `parts_arrival_followup_sent_<job>_<eta>`, `waiver_due_sent_<job>_<ts>`, `cancel_followup_sent_<job>`). json_decode on null/malformed throws ERROR_FATAL per XS footgun.
+- **Do NOT advertise the office-pulse / office-todo / office-morning-briefing surfaces to customers.** Office-only password-gated.
+- **Do NOT run `expand-blueprint-3.js` again without checking the existing IDs.** It's idempotent (uses max-numeric-suffix scan) but re-running adds duplicates of any new entries appended manually since.
+
+### Open after this session
+
+- **TECH_LATE_CHECK, PRE_APPOINTMENT_CHECK, WAIVER_DUE, etc. all unverified end-to-end** — they're structurally deployed but only fire on real production triggers (tomorrow morning's first real appointment will be the first verification).
+- **GOOGLE_REVIEW_REQUEST URL is hard-coded** — needs verification it points to the real TN Appliance Google Business Profile.
+- **Customer-side rating capture still not built.** Feedback_reply_webhook handles PICK/ORDERED but not 1-5 ratings. A future LOW_RATING_ALERT agent depends on this.
+- **inbound-call-webhook.js** is structurally complete but waiting on Telnyx Voice Application setup (operator action).
+- **office-pulse + office-todo + office-morning-briefing** all use the same office-password — when rotated, all four pages need re-auth simultaneously.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
