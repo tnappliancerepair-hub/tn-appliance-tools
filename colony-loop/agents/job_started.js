@@ -1,15 +1,19 @@
 // Handles JOB_STARTED signals (emitted by api/intake/tech_job_started_POST.xs
 // when the tech taps Start Job on tech-ant-live).
 //
-// Side effect: emits NO_SHOW_CHECK with deadline_ms = now + 4h, so the
+// Side effect: emits NO_SHOW_CHECK with deadline_ms = now + 6h, so the
 // no-show detector can verify the tech actually completed (or made
-// observable progress) within that window. If 4h passes without a
+// observable progress) within that window. If 6h passes without a
 // JOB_COMPLETED, the no_show_check.js agent SMSes Teddy.
+//
+// Window bumped from 4h → 6h on 2026-05-27 after live testing showed
+// real repairs (compressor swaps, hard disassembly) legitimately take
+// 4h+ and were triggering false-positive alerts to Teddy.
 //
 // This agent doesn't send any SMS itself — JOB_STARTED already triggers
 // customer arrival SMS in tech_job_started_POST.xs and Teddy gets the
-// internal alert there too. This file's only job is the 4h timer.
-const NO_SHOW_WINDOW_MS = 4 * 60 * 60 * 1000;
+// internal alert there too. This file's only job is the timer.
+const NO_SHOW_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 export async function run(signal, ctx) {
   const { xano, log } = ctx;

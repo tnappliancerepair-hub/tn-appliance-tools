@@ -1,12 +1,13 @@
 // Handles NO_SHOW_CHECK signals (emitted by job_started.js with
-// deadline_ms = job_started_at + 4h). Hold-and-re-emit until deadline.
+// deadline_ms = job_started_at + 6h). Hold-and-re-emit until deadline.
 // When deadline arrives, check whether the job has been completed. If
 // not, SMS Teddy so he can check on the tech.
 //
 // "No-show" here means the tech tapped Start Job but never tapped
-// Complete within 4 hours — typical jobs are 30-90 min, so 4h is a
-// strong signal something is off (tech got stuck, had a customer issue,
-// forgot to tap Complete, etc.).
+// Complete within 6 hours — most jobs are 30-90 min, but real repairs
+// (compressor swaps, hard disassembly) can legitimately go 4-5h, so
+// 6h is the threshold that meaningfully flags 'something is off'
+// (tech got stuck, had a customer issue, forgot to tap Complete, etc.).
 //
 // Skip when:
 //   - job has been completed (jobs.job_completed_at != null)

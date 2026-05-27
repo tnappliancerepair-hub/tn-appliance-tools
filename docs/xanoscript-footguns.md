@@ -261,3 +261,80 @@ When `xano workspace push` prints:
 - Memory `[[reference_xanoscript_db_query]]` — `$db.<table>.<col>` expressions in `where` clauses; SQL `?` placeholders and `params` arrays do NOT parse.
 - `docs/xano-deploy-corruption-explained-2026-05-20.md` — placeholder-on-unresolved-reference behavior in `xano workspace push`.
 - `docs/session-2026-05-20-feedback-chain-verification.md` — the 4-bug discovery session where the two top patterns in this file were validated live.
+
+---
+
+## `|replace` on `db.query` result fields silently no-ops — substring scans need the right encoding (2026-05-27)
+
+**Pattern (the BROKEN form that bit us 3 times in one day):**
+```xanoscript
+db.query event_log {
+  where  = $db.event_log.action == "tech_sms_tdr_saved"
+  return = {type: "list", paging: {page: 1, per_page: 50}}
+} as $rows
+
+foreach ($rows.items) {
+  each as $r {
+    var $meta_raw { value = ($r.metadata ?? "") }
+    var $needle { value = "\"job_id\":" ~ ($jid|to_text) }
+    var $strip { value = $meta_raw|replace:$needle:"" }
+    conditional {
+      if (($meta_raw|strlen) > ($strip|strlen)) {
+        // substring found → take action
+      }
+    }
+  }
+}
+```
+
+**The gotcha:** `db.query` returns object/json-type columns as *objects*, not strings. `|replace` on a raw object is a silent no-op — `$strip` is the same object as `$meta_raw`, so `strlen` is identical and the comparison NEVER trips true. Every job classifies as "no match" → false negative on every loop iteration.
+
+**The fix depends on how the column is stored:**
+
+| Column type | What `db.query` returns | Correct encoding |
+|---|---|---|
+| `json` column (e.g. `event_log.metadata`) | object | `\|json_encode` first, then `\|replace` |
+| `text` column holding JSON (e.g. `colony_signals.payload`) | text string already | use raw, do NOT `\|json_encode` (that wraps in outer quotes and breaks the needle) |
+
+**The CORRECT form for `event_log.metadata`:**
+```xanoscript
+var $meta_raw { value = ($r.metadata ?? "")|json_encode }
+var $strip { value = $meta_raw|replace:$needle:"" }
+```
+
+**The CORRECT form for `colony_signals.payload`:**
+```xanoscript
+var $payload_str { value = ($r.payload ?? "") }  // already a string
+var $strip { value = $payload_str|replace:$needle:"" }
+```
+
+**Where it bit us on 2026-05-27 (single session, three different endpoints):**
+1. `tech_sms_assist_POST.xs` parallel-mode scope guard (event_log.metadata) — caused 100% false negatives → tech_sms_assist returned `not_parallel_mode_job` on every legit job → fallthrough to broken legacy `tech_sms_inbound` → "yo, my brain glitched" fallback SMS to every tech. **Two-hour debug to find.**
+2. `count_pending_signals_for_job_GET.xs` (colony_signals.payload) — used wrong direction (added `|json_encode` when it shouldn't have) → endpoint returned `pending_count=0` for known-duplicate jobs → dedup never fired.
+3. `tech_sms_assist_POST.xs` TDR-already-saved dedup (event_log.metadata) — same root cause as #1, manifested as duplicate "TDR saved" SMSes to Teddy on every smoke test of an already-completed test job.
+
+**Why this is insidious:** the code reads fine. The query returns rows. The needle is constructed correctly. There's no error, no warning, just a silent false answer. The only way to catch it is to write a debug endpoint that returns the `|json_encode`-d value of the column AND your own substring check result on the same row, then compare.
+
+**Cardinal rule:** any substring scan against a column from `db.query`, write a smoke test that gives a KNOWN positive case. If the smoke returns 0 hits when you can see the substring in the column with your own eyes, you have this bug.
+
+---
+
+## XS input type for arrays is `json?`, NOT `list?` (2026-05-27)
+
+**Broken:**
+```xanoscript
+input {
+  text phone
+  list? media_urls?      // ← parser dies: "Syntax error: unexpected 'list?'"
+}
+```
+
+**Correct:**
+```xanoscript
+input {
+  text phone
+  json? media_urls?      // accepts both arrays and objects
+}
+```
+
+Referenced in: `tech_sms_assist_POST.xs` (MMS media URLs for Claude vision).
