@@ -295,107 +295,58 @@ query tech_sms_assist verb=POST {
       }
     }
 
-    var $existing_captured_json { value = $existing_captured|json_encode }
-
-    // Build the system prompt. CORE RULE: be the tech's most useful
-    // crew member first. Diagnose with them, give them part numbers,
-    // suggest tests. NEVER interrogate them for TDR fields — just
-    // capture what they mention in passing. The TDR fills itself from
-    // a natural working conversation.
-    // SCRIBE MODE prompt — under 2000 chars. Tech is mid-job, hands dirty.
-    // Ant is a SILENT SCRIBE that extracts ALL fields from anything sent.
-    // NEVER an interviewer.
-    var $sys_prompt {
-      value = "You are Ant, the silent scribe for an appliance-repair tech texting you mid-job. Hands dirty, on the road. NOT a chatbot. Your job: extract TDR fields from anything they send and write the TDR. Reply only when you must.\n\nOUTPUT ONLY valid JSON, no prose, no markdown fence. Schema:\n{\"reply\":\"<under-200-char plain text>\",\"captured\":{\"diagnosis\":string?,\"failed_component\":string?,\"verified_part_number\":string?,\"replaced_by_part_number\":string?,\"labor_hours\":string?,\"repair_completed\":string?,\"parts_status\":string?,\"second_visit_needed\":boolean?,\"recommendation\":string?}}\n\nEXTRACTION RULES (every turn):\n- Parse the LATEST message for ALL fields, not just one. If they dump everything at once, capture all of it.\n- '1.5', '45 min', '1 hr', '2hrs' → labor_hours as decimal string ('1.5', '0.75', '1', '2')\n- 'Nwt' or 'NWT' = needs work / quote → parts_status='needs_quote', recommendation='quote'\n- 'replaced by #X' or 'sub X' or 'crossed to X' → replaced_by_part_number=X\n- Part numbers like 'WPW10310240', '316455400' → verified_part_number\n- 'all done', 'fixed', 'swapped' → recommendation='repair_complete' + repair_completed describing what they did\n- 'parts ordered', 'on order' → parts_status='ordered', recommendation='2nd_visit'\n- A standalone numeric reply right after asking labor → labor_hours\n- Tech repeating a value already captured → ACCEPT, don't re-ask, don't comment on the repeat.\n\nREPLY RULES:\n- After extracting + given the merged TDR state (you'll see it in 'Already captured'), if ALL 4 core fields (diagnosis, failed_component, labor_hours, repair_completed) are present → reply: \"TDR saved. <one-sentence summary>.\"\n- If EXACTLY ONE core field missing → ask for ONLY that one, briefly. e.g. \"Still need labor hours.\"\n- If TWO+ core fields missing → list them in one message. e.g. \"Still need: failed part, labor hours.\"\n- If tech asks for a part lookup → respond IMMEDIATELY with the searspartsdirect.com/model/<MODEL>/parts link. NEVER say 'I'll grab it', 'I'll look it up', or 'send the model and I'll find it' — you do not have parts-API access. If they haven't given a model yet, ask for the model in the SAME reply that includes the link template. The link IS the deliverable. Then check what's still missing for the TDR.\n- NEVER say 'keep going' or 'text more findings' or 'got it.' (alone). If you have nothing to add or ask, set reply to empty string \"\".\n- NEVER ask for a field that's already filled in 'Already captured'.\n- Photos: when the tech sends an image (model label, error code on display, part number, serial sticker), READ IT. Extract any visible text — model number, serial, part number, error code — and treat each as a TDR field (verified_part_number / diagnosis details). NEVER say 'I can't see pics' — you can. If the image is unreadable, ask for a clearer shot.\n\nJob: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem ~ "\nAlready captured: " ~ $existing_captured_json
-    }
-
-    // When media URLs are present, build content as a multi-part array
-    // (Claude vision: image blocks + optional text block). Otherwise
-    // use the simple string form.
-    var $user_msg_obj { value = {role: "user", content: $body_in} }
-
-    conditional {
-      if ($media_count > 0) {
-        var $content_arr { value = [] }
-        foreach ($media_urls_in) {
-          each as $u {
-            var $u_clean { value = (($u ?? "")|trim) }
-            conditional {
-              if ($u_clean != "") {
-                var $img_block { value = {type: "image", source: {type: "url", url: $u_clean}} }
-                var.update $content_arr { value = $content_arr|push:$img_block }
-              }
-            }
-          }
-        }
-        conditional {
-          if ($body_in != "") {
-            var $text_block { value = {type: "text", text: $body_in} }
-            var.update $content_arr { value = $content_arr|push:$text_block }
-          }
-          else {
-            // Pure-image inbound — give Claude a nudge text so it parses
-            // the image as a tech finding rather than a question.
-            var $nudge_block { value = {type: "text", text: "(Tech sent a photo with no caption — likely a model label, error code, or part. Extract any text visible and any TDR fields it implies.)"} }
-            var.update $content_arr { value = $content_arr|push:$nudge_block }
-          }
-        }
-        var.update $user_msg_obj { value = {role: "user", content: $content_arr} }
-      }
-    }
-
+    // ─── Delegate to tech-assist-brain Netlify function ──────────────
+    // The brain handles multi-turn Claude tool-calling (Claude can fetch
+    // customer service history, common failures for the model, etc.
+    // before composing its reply). Same model (Sonnet 4.5) and same
+    // {reply, captured} contract — the swap is transparent here.
+    //
+    // Why Netlify not inline XS: tool-calling is multi-turn (call Claude
+    // → tool_use blocks → execute → tool_result → loop). XS has no clean
+    // way to do that without try/catch or while loops.
     api.request {
-      url = "https://api.anthropic.com/v1/messages"
+      url    = "https://tnapplianceexchange.net/.netlify/functions/tech-assist-brain"
       method = "POST"
-      params = {
-        model     : "claude-sonnet-4-5-20250929"
-        max_tokens: 600
-        system    : $sys_prompt
-        messages  : [$user_msg_obj]
-      }
       headers = [
-        "x-api-key: " ~ $env.ANTHROPIC_API_KEY
-        "anthropic-version: 2023-06-01"
         "content-type: application/json"
       ]
-      timeout = 8
-    } as $claude_resp
+      params = {
+        tech_id           : $tech_id
+        tech_first_name   : $tech_first
+        job_id            : $job_id
+        customer_id       : ($job.customer_id ?? 0)
+        brand             : $brand
+        appliance         : $appliance
+        problem           : $problem
+        message           : $body_in
+        media_urls        : $media_urls_in
+        existing_captured : $existing_captured
+      }
+      timeout = 30
+    } as $brain_resp
 
-    var $chat_status { value = ($claude_resp.response.status ?? 0) }
-    var $claude_result { value = ($claude_resp.response.result ?? {}) }
-    var $claude_content { value = ($claude_result.content ?? []) }
-    var $claude_content_count { value = ($claude_content|count) }
+    var $chat_status { value = ($brain_resp.response.status ?? 0) }
+    var $brain_result { value = ($brain_resp.response.result ?? {}) }
 
-    var $reply_text { value = "got it. keep going — text more findings or SAVE when done." }
-    var $new_captured { value = {} }
+    var $reply_text { value = (($brain_result.reply ?? "")|trim) }
+    var $new_captured { value = ($brain_result.captured ?? {}) }
 
-    conditional {
-      if ($claude_content_count > 0) {
-        var $first_block { value = $claude_content|get:0 }
-        var $raw_text { value = (($first_block.text ?? "")|trim) }
-        var $cleaned { value = ($raw_text|replace:"```json":""|replace:"```":"")|trim }
-        var $parsed { value = $cleaned|json_decode }
-        conditional {
-          if ($parsed != null) {
-            var $parsed_reply { value = (($parsed.reply ?? "")|trim) }
-            conditional {
-              if ($parsed_reply != "") {
-                var.update $reply_text { value = $parsed_reply }
-              }
-            }
-            var.update $new_captured { value = ($parsed.captured ?? {}) }
-          }
-          else {
-            // Claude didn't return JSON — fall back to using raw text as the reply
-            conditional {
-              if ($raw_text != "") {
-                var.update $reply_text { value = $raw_text }
-              }
-            }
-          }
+    // Audit row for every brain call — captures tool_calls log so we can
+    // see what Claude looked up + how often. Useful for tuning the tool
+    // descriptions over time.
+    db.add event_log {
+      data = {
+        action  : "tech_assist_brain_call"
+        metadata: {
+          job_id     : $job_id
+          tech_id    : $tech_id
+          chat_status: $chat_status
+          reply_len  : ($reply_text|strlen)
+          tool_calls : ($brain_result.tool_calls ?? [])
+          error      : ($brain_result.error ?? null)
         }
       }
-    }
+    } as $brain_audit
 
     // Merge new_captured onto existing_captured (only non-empty new fields win)
     var $merged_captured { value = $existing_captured }
