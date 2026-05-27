@@ -142,12 +142,47 @@ export async function run(signal, ctx) {
     is_reassignment: isReassignment,
   });
 
+  // Customer-direction SMS — ONLY on reassignment of an already-scheduled
+  // job (so the customer learns their tech changed). New assignments don't
+  // need this — the customer either hasn't been told yet or learns via
+  // appointment_scheduled confirmation. Skip if scheduled_start is null
+  // (no appointment locked in yet → no expectation to update).
+  let custReassignRes = null;
+  if (isReassignment && job.scheduled_start != null && Number(job.scheduled_start) > 0) {
+    const custPhone = normalizeE164(customer?.phone);
+    if (custPhone) {
+      const custFirst = String((customer && customer.first_name) || '').trim() || 'there';
+      const techFirst = String((tech && tech.first_name) || '').trim() || 'our tech';
+      const apptDate = new Date(Number(job.scheduled_start)).toLocaleString('en-US', {
+        timeZone: 'America/Chicago',
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      });
+      const apl = (job.appliance_type || 'appliance').toLowerCase();
+      const custBody =
+        `Hi ${custFirst} - quick update: ${techFirst} will now be the tech for your ${apl} appointment ` +
+        `on ${apptDate} CT. Same time, just a different tech. Questions? Call 615-280-2949.`;
+      try {
+        custReassignRes = await sms.toCustomer(custPhone, custBody, {
+          action: 'tech_reassign_customer_notice',
+          job_id: jobId,
+          technician_id: technicianId,
+          prior_technician_id: priorTechnicianId,
+          source_signal_id: signal.id,
+        });
+      } catch (err) {
+        custReassignRes = { success: false, error: String(err.message || err) };
+      }
+    }
+  }
+
   const finalMeta = {
     job_id: jobId,
     technician_id: technicianId,
     prior_technician_id: priorTechnicianId,
     outcome: isReassignment ? 'reassign_notified' : 'assign_notified',
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
+    customer_reassign_sms: custReassignRes ? (custReassignRes.success ? 'ok' : 'maybe_failed') : 'skipped',
   };
   await xano.markSignalProcessed(signal.id, 'tech_assignment_handled', finalMeta);
   log('tech_assignment_handled', finalMeta);
