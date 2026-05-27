@@ -65,6 +65,28 @@ export async function run(signal, ctx) {
     });
   } catch (e) { /* */ }
 
+  // Chain: SELF_WARRANTY_OFFER (1h delayed) — Ant's own warranty pitch
+  try {
+    const offerDeadline = Date.now() + 60 * 60 * 1000;
+    await xano.emitSignal({
+      signal_type: 'SELF_WARRANTY_OFFER',
+      signal_strength: 40,
+      payload: {
+        job_id: jobId,
+        vendor,
+        denial_reason: denialReason.slice(0, 300),
+        customer_phone: payload.customer_phone || '',
+        first_name: payload.first_name || '',
+        deadline_ms: offerDeadline,
+        scheduled_for_ms: offerDeadline,
+        source: 'warranty_denial_retry_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('self_warranty_offer_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   const meta = {
     job_id: jobId,
     outcome: smsRes && smsRes.success ? 'retry_alerted' : 'send_failed',
