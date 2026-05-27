@@ -29,13 +29,47 @@ export async function run(signal, ctx) {
     return { success: false, action: 'skipped_invalid_payload' };
   }
 
-  if (rating >= 3) {
+  if (rating >= 4) {
+    // High rating → fire Google review ask IMMEDIATELY (deadline=now)
+    // rather than waiting for the 7d post-completion timer. Higher
+    // conversion because the customer is engaged right now. Existing
+    // per-customer 60-day dedup in google_review_request prevents a
+    // duplicate ask if the JOB_COMPLETED chain also fires later.
+    try {
+      const nowDeadline = Date.now() - 1000; // already past → agent sends immediately
+      await xano.emitSignal({
+        signal_type: 'GOOGLE_REVIEW_REQUEST',
+        signal_strength: 50,
+        payload: {
+          job_id: jobId,
+          customer_id: customerId,
+          customer_phone: payload.customer_phone || '',
+          first_name: payload.first_name || '',
+          tech_first: payload.tech_first || '',
+          deadline_ms: nowDeadline,
+          scheduled_for_ms: nowDeadline,
+          source: 'customer_feedback_high_rating_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('high_rating_review_chain_failed', { job_id: jobId, error: String(err.message || err) });
+    }
     await xano.markSignalProcessed(signal.id, 'customer_feedback_handled', {
-      outcome: 'skipped_above_threshold',
+      outcome: 'high_rating_review_chained',
       rating,
     });
-    log('customer_feedback_handled', { outcome: 'skipped_above_threshold', rating });
-    return { success: true, action: 'skipped_above_threshold', rating };
+    log('customer_feedback_handled', { outcome: 'high_rating_review_chained', rating });
+    return { success: true, action: 'high_rating_review_chained', rating };
+  }
+
+  if (rating === 3) {
+    await xano.markSignalProcessed(signal.id, 'customer_feedback_handled', {
+      outcome: 'skipped_neutral',
+      rating,
+    });
+    log('customer_feedback_handled', { outcome: 'skipped_neutral', rating });
+    return { success: true, action: 'skipped_neutral', rating };
   }
 
   // Low rating (1-2) — urgent alert
