@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 15,
-    "agents_to_build": 26,
+    "agents_live": 16,
+    "agents_to_build": 25,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3570,7 +3570,7 @@
       "purpose": "Reduce warranty dependency. Build organic customer pipeline. Every self-pay customer worth 2-3x a warranty job.",
       "priority": "HIGH",
       "agents_total": 10,
-      "agents_live": 9,
+      "agents_live": 10,
       "agent_categories": [
         {
           "category": "SEO Intelligence",
@@ -3700,7 +3700,7 @@
         {
           "id": "M010",
           "name": "Brand Mention Watcher",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Tracks brand mentions of \"TN Appliance\" across the web. Listens for MARKET_INTELLIGENCE_REQUEST_BRAND_MENTION_WATCHER.",
           "triggers": [],
