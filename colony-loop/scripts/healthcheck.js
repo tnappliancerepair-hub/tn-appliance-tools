@@ -70,26 +70,17 @@ async function fetchMetadataToken() {
   return process.env.XANO_METADATA_TOKEN || '';
 }
 
-async function getLatestHeartbeat(metadataToken) {
-  // event_log table is id=3 per session memory.
-  const res = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1/table/3/content/search', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${metadataToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ search: { action: 'colony_loop_heartbeat' }, per_page: 50 }),
-  });
-  if (!res.ok) throw new Error(`metadata search HTTP ${res.status}`);
+async function getLatestHeartbeat(_metadataToken) {
+  // Route via dedicated XS endpoint that sorts by created_at desc and returns
+  // the single most-recent row. The Metadata API content/search endpoint
+  // doesn't sort reliably + per_page caps at 50, so with thousands of
+  // accumulated heartbeats the "latest" of those 50 was hours old → false
+  // "loop down" alerts. The XS endpoint here is server-side sorted.
+  const res = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_latest_heartbeat');
+  if (!res.ok) throw new Error(`get_latest_heartbeat HTTP ${res.status}`);
   const data = await res.json();
-  const items = (data && data.items) || [];
-  if (items.length === 0) return null;
-  // The search doesn't sort by recency by default; find max(created_at) ourselves.
-  let latest = items[0];
-  for (const it of items) {
-    if ((it.created_at || 0) > (latest.created_at || 0)) latest = it;
-  }
-  return latest;
+  if (!data || !data.found) return null;
+  return { id: data.id, created_at: data.created_at };
 }
 
 async function pageTeddy(message) {
