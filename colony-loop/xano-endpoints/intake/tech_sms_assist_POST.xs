@@ -76,7 +76,11 @@ query tech_sms_assist verb=POST {
       each as $pm {
         conditional {
           if (!$is_parallel) {
-            var $pm_meta { value = ($pm.metadata ?? "") }
+            // metadata is returned as an object — must json_encode before
+            // substring scanning for "job_id":<n>. Without json_encode,
+            // |replace on the object is a no-op and the strlen check
+            // always returns false (false negative for every job).
+            var $pm_meta { value = ($pm.metadata ?? "")|json_encode }
             var $pm_strip { value = $pm_meta|replace:$job_marker:"" }
             conditional {
               if (($pm_meta|strlen) > ($pm_strip|strlen)) {
@@ -122,7 +126,8 @@ query tech_sms_assist verb=POST {
       each as $pe {
         conditional {
           if ($latest_pause_state == "") {
-            var $pe_meta_raw { value = ($pe.metadata ?? "") }
+            // Same json_encode requirement as the parallel-mode scan above.
+            var $pe_meta_raw { value = ($pe.metadata ?? "")|json_encode }
             var $pe_strip { value = $pe_meta_raw|replace:$tech_marker:"" }
             conditional {
               if (($pe_meta_raw|strlen) > ($pe_strip|strlen)) {
