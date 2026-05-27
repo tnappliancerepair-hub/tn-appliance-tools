@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 12,
-    "agents_to_build": 15,
+    "agents_live": 13,
+    "agents_to_build": 14,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -4967,7 +4967,7 @@
       "purpose": "Build organic customer pipeline. Reduce warranty dependency. Every self-pay customer worth 2-3x a warranty job in margin.",
       "priority": "HIGH",
       "agents_total": 10,
-      "agents_live": 6,
+      "agents_live": 7,
       "agent_categories": [
         {
           "category": "Google Search SEO",
@@ -5002,7 +5002,7 @@
         {
           "id": "CA001",
           "name": "New Subdivision Detector",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Detects new residential subdivisions in our service zones (high-acquisition-value zip code clusters). Listens for CUSTOMER_INTELLIGENCE_REQUEST_NEW_SUBDIVISION_DETECTOR.",
           "triggers": [],
