@@ -156,6 +156,32 @@ export async function run(signal, ctx) {
     log('ltv_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: STRIPE_PAYMENT_LINK_DUE (immediate, self-pay only) ──
+  // For self-pay completions, send the customer a Stripe Checkout link
+  // to pay their balance. Skip warranty / cash_tdr — those have other
+  // payment flows.
+  try {
+    const customerType = String(payload.customer_type || '').toLowerCase();
+    if (customerType === 'self_pay' || customerType === 'cash' || customerType === 'customer_pay') {
+      await xano.emitSignal({
+        signal_type: 'STRIPE_PAYMENT_LINK_DUE',
+        signal_strength: 65,
+        payload: {
+          job_id: jobId,
+          customer_id: payload.customer_id || null,
+          customer_phone: payload.customer_phone || '',
+          customer_email: payload.customer_email || '',
+          first_name: payload.customer_first_name || '',
+          amount_cents: payload.invoice_amount_cents || 0,
+          source: 'job_completed_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('stripe_payment_link_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: GOOGLE_REVIEW_REQUEST (7d) ──
   // 7 days post-completion, ask the customer for a Google review.
   // google_review_request.js holds-and-re-emits until deadline, then
