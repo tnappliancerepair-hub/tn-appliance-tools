@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Search - Ant Office</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    min-height: 100vh;
+  }
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --muted: #8a93aa;
+    --green: #00d68f;
+    --orange: #f5a623;
+    --blue: #5aa9ff;
+    --red: #ff6b6b;
+  }
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: linear-gradient(180deg, #0e1118, rgba(14,17,24,0.95));
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header .ant { font-size: 22px; }
+  .header .title { font-size: 15px; font-weight: 700; }
+  .header .sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: monospace; }
+
+  .search-bar {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--panel);
+  }
+  .search-bar input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: #e8edf5;
+    font-size: 16px;
+    outline: none;
+  }
+  .search-bar input:focus { border-color: var(--orange); }
+  .hint {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: monospace;
+  }
+
+  .results { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .empty, .err {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .err { color: var(--red); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: border-color 0.15s;
+  }
+  .card:hover { border-color: var(--border); }
+  .card .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .card .name { font-size: 15px; font-weight: 700; }
+  .card .phone {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: monospace;
+  }
+  .card .meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .card .meta .pill {
+    background: rgba(138,147,170,0.10);
+    border: 1px solid var(--border-soft);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-family: monospace;
+  }
+  .card .meta .pill.completed { color: var(--green); border-color: rgba(0,214,143,0.3); }
+  .card .meta .pill.scheduled { color: var(--blue); border-color: rgba(90,169,255,0.3); }
+  .card .meta .pill.awaiting_parts { color: var(--orange); border-color: rgba(245,166,35,0.3); }
+  .card .meta .pill.canceled { color: var(--red); border-color: rgba(255,107,107,0.3); }
+  .card .latest {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .quick-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+  }
+  .quick-actions a {
+    background: rgba(245,166,35,0.10);
+    border: 1px solid rgba(245,166,35,0.25);
+    color: var(--orange);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    text-decoration: none;
+    font-family: monospace;
+  }
+
+  .auth-overlay {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.96);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 1000;
+  }
+  .auth-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    max-width: 360px;
+    text-align: center;
+  }
+  .auth-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .auth-card .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .auth-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .auth-card input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #e8edf5;
+    font-size: 16px;
+  }
+  .auth-card button {
+    margin-top: 12px;
+    width: 100%;
+    background: var(--orange);
+    color: #1a1208;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .auth-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 14px; }
+</style>
+</head>
+<body>
+
+<div id="auth" class="auth-overlay">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Office Access</div>
+    <div class="sub">Customer Search</div>
+    <input id="pw" type="password" placeholder="office password">
+    <button id="pwBtn">Unlock</button>
+    <div id="pwErr" class="auth-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div>
+      <div class="title">Customer Search</div>
+      <div class="sub">phone · name · email</div>
+    </div>
+  </div>
+
+  <div class="search-bar">
+    <input id="q" type="search" placeholder="615-555-0002 or Sarah or sarah@…" autocomplete="off">
+    <div class="hint">Phone: any format (digits, +1, dashes). Name: exact first or last. Email: exact match.</div>
+  </div>
+
+  <div id="results" class="results"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const OFFICE_PASSWORD = 'antlives';
+
+  const $ = (id) => document.getElementById(id);
+  const auth = $('auth');
+  const app = $('app');
+  const pwInput = $('pw');
+  const pwBtn = $('pwBtn');
+  const pwErr = $('pwErr');
+
+  if (localStorage.getItem(AUTH_KEY) === '1') unlock();
+  pwBtn.addEventListener('click', tryAuth);
+  pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
+
+  function tryAuth() {
+    if (pwInput.value === OFFICE_PASSWORD) {
+      localStorage.setItem(AUTH_KEY, '1');
+      unlock();
+    } else {
+      pwErr.textContent = 'wrong password';
+      pwInput.select();
+    }
+  }
+
+  function unlock() {
+    auth.style.display = 'none';
+    app.style.display = 'block';
+    $('q').focus();
+  }
+
+  const q = $('q');
+  const results = $('results');
+  let debounce = null;
+
+  q.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const v = q.value.trim();
+    if (v.length < 2) { results.innerHTML = '<div class="empty">Type at least 2 characters to search.</div>'; return; }
+    debounce = setTimeout(() => doSearch(v), 280);
+  });
+
+  async function doSearch(query) {
+    results.innerHTML = '<div class="empty">searching…</div>';
+    try {
+      const res = await fetch(`${XANO}/search_customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        results.innerHTML = `<div class="err">error: ${escapeHtml((data && data.message) || 'failed')}</div>`;
+        return;
+      }
+      render(data.results || []);
+    } catch (err) {
+      results.innerHTML = `<div class="err">network: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function render(rows) {
+    if (!rows.length) {
+      results.innerHTML = '<div class="empty">No matches.</div>';
+      return;
+    }
+    results.innerHTML = rows.map(r => {
+      const c = r.customer || {};
+      const j = r.latest_job;
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)';
+      const phone = c.phone || '';
+      const digits = String(phone).replace(/\D/g, '');
+      const phoneE164 = digits.length === 10 ? '+1' + digits : (digits.length === 11 ? '+' + digits : digits);
+      const tel = phoneE164 ? `<a href="tel:${escapeAttr(phoneE164)}">${escapeHtml(phone)}</a>` : escapeHtml(phone || '—');
+      const last4 = digits.slice(-4);
+
+      let latest = '';
+      let pills = `<span class="pill">${r.job_count} job${r.job_count === 1 ? '' : 's'}</span>`;
+      let actions = '';
+      if (j) {
+        const status = j.scheduling_status || j.current_status || '—';
+        pills += ` <span class="pill ${status}">${escapeHtml(status.replace(/_/g, ' '))}</span>`;
+        if (j.appliance_type) pills += ` <span class="pill">${escapeHtml(j.appliance_type)}</span>`;
+        const when = j.created_at ? fmtCT(j.created_at) : '';
+        latest = `<div class="latest">latest: job #${j.id} ${when ? '· ' + escapeHtml(when) : ''}</div>`;
+        actions += ` <a href="job-detail.html?job_id=${j.id}&office=1">📋 Job</a>`;
+        if (last4) {
+          actions += ` <a href="customer-portal.html?job_id=${j.id}&last4=${last4}" target="_blank">👤 Portal</a>`;
+        }
+      }
+
+      return `
+        <div class="card">
+          <div class="top">
+            <div class="name">${escapeHtml(name)}</div>
+            <div class="phone">${tel}</div>
+          </div>
+          <div class="meta">${pills}</div>
+          ${latest}
+          <div class="quick-actions">${actions}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function fmtCT(ms) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago',
+        month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit'
+      }).format(new Date(Number(ms)));
+    } catch { return ''; }
+  }
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+})();
+</script>
+</body>
+</html>
