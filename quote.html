@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get a Quote - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fb; color: #1a1f2c; min-height: 100vh; padding: 24px 18px; max-width: 540px; margin: 0 auto; }
+  :root { --brand:#ff8a00; --green:#00b377; --muted:#6b7280; --border:#e2e6f0; --panel:#fff; --bg:#f7f8fb; }
+  .header { text-align: center; padding: 12px 0 22px; }
+  .header .ant { font-size: 36px; margin-bottom: 8px; }
+  .header h1 { font-size: 24px; font-weight: 800; }
+  .header p { color: var(--muted); margin-top: 6px; font-size: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  select, input, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; outline: none; font-family: inherit; background: white; }
+  select:focus, input:focus, textarea:focus { border-color: var(--brand); }
+  textarea { min-height: 100px; resize: vertical; }
+  button { width: 100%; padding: 16px; background: var(--brand); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 18px; }
+  .result { margin-top: 18px; padding: 18px; border-radius: 10px; background: rgba(0,179,119,0.06); border: 1px solid var(--green); display: none; }
+  .result.show { display: block; }
+  .result .range { font-size: 26px; font-weight: 800; color: var(--green); margin-bottom: 8px; }
+  .result .fee { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .result .cta { font-weight: 700; }
+  .err { color: #d94545; margin-top: 12px; font-size: 13px; }
+  .footer { text-align: center; padding: 24px 0 12px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>Get a Quote</h1>
+  <p>Quick estimate before we roll a truck.</p>
+</div>
+
+<div class="card">
+  <label>Appliance</label>
+  <select id="appliance">
+    <option value="">Pick one</option>
+    <option value="refrigerator">Refrigerator / Freezer</option>
+    <option value="washer">Washer</option>
+    <option value="dryer">Dryer</option>
+    <option value="dishwasher">Dishwasher</option>
+    <option value="range">Range / Oven / Stove</option>
+    <option value="microwave">Microwave</option>
+    <option value="hvac">HVAC</option>
+  </select>
+
+  <label>Brand (optional)</label>
+  <input id="brand" type="text" placeholder="Whirlpool, GE, LG, Samsung...">
+
+  <label>Model number (optional)</label>
+  <input id="model" type="text" placeholder="If you can find it on the appliance label">
+
+  <label>What's wrong? *</label>
+  <textarea id="symptoms" placeholder="e.g. Fridge stopped cooling Tuesday morning. Freezer still works. Hear a clicking sound from the back."></textarea>
+
+  <label>Your phone (so we can follow up)</label>
+  <input id="phone" type="tel" inputmode="numeric" placeholder="615-555-0123">
+
+  <button id="goBtn">Get Estimate</button>
+  <div id="err" class="err"></div>
+
+  <div id="result" class="result">
+    <div class="range" id="resRange">$—</div>
+    <div class="fee" id="resFee"></div>
+    <div class="cta" id="resCta"></div>
+  </div>
+</div>
+
+<div class="footer">Questions? <a href="tel:+16152802949" style="color:var(--brand);text-decoration:none;font-weight:600">615-280-2949</a><br><span style="font-size:11px">🐜 TN Appliance Exchange LLC</span></div>
+
+<script>
+(function() {
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const $ = (id) => document.getElementById(id);
+
+  $('goBtn').addEventListener('click', async () => {
+    const appl = $('appliance').value;
+    const symp = $('symptoms').value.trim();
+    if (!appl || !symp) { $('err').textContent = 'Please pick an appliance and describe the problem.'; return; }
+    $('err').textContent = '';
+    $('goBtn').disabled = true; $('goBtn').textContent = 'Calculating…';
+    try {
+      const res = await fetch(`${XANO}/generate_quote`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          appliance_type: appl, brand: $('brand').value.trim(), model_number: $('model').value.trim(),
+          symptoms: symp, customer_phone: $('phone').value.trim()
+        })
+      });
+      const d = await res.json();
+      if (!d || !d.success) throw new Error((d && d.message) || 'failed');
+      const low = (d.est_low_cents / 100).toFixed(0);
+      const high = (d.est_high_cents / 100).toFixed(0);
+      $('resRange').textContent = `$${low} – $${high}`;
+      $('resFee').textContent = d.disclaimer;
+      $('resCta').textContent = d.next_step;
+      $('result').classList.add('show');
+    } catch (e) { $('err').textContent = 'Failed: ' + (e.message || e); }
+    $('goBtn').disabled = false; $('goBtn').textContent = 'Get Estimate';
+  });
+})();
+</script>
+</body>
+</html>
