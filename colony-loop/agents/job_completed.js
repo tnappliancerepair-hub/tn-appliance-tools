@@ -179,6 +179,30 @@ export async function run(signal, ctx) {
     log('maintenance_reminder_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: SERVICE_AGREEMENT_OFFER (1h post-completion, self-pay) ──
+  try {
+    const ct = String(payload.customer_type || '').toLowerCase();
+    if (ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay') {
+      const deadline = Date.now() + 60 * 60 * 1000;
+      await xano.emitSignal({
+        signal_type: 'SERVICE_AGREEMENT_OFFER',
+        signal_strength: 30,
+        payload: {
+          job_id: jobId,
+          customer_id: payload.customer_id || null,
+          customer_phone: payload.customer_phone || '',
+          first_name: payload.customer_first_name || '',
+          deadline_ms: deadline,
+          scheduled_for_ms: deadline,
+          source: 'job_completed_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('service_agreement_offer_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: SAME_DAY_SLOT_OFFER (gap-detection, reactive) ──
   try {
     const techId = Number(payload.technician_id || 0);
