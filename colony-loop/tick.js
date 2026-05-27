@@ -431,6 +431,30 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // OFFICE_EOD_SUMMARY — fires once per day at 8pm CT (20-22 grace). EOD
+  // digest to Teddy + Danielle summarizing today's activity.
+  if (hour >= 20 && hour < 22) {
+    let eodFired;
+    try {
+      eodFired = await xano.getOfficeEodSummaryFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('office_eod_summary_dedup_failed', { error: err.message });
+      eodFired = null;
+    }
+    if (eodFired && !eodFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'OFFICE_EOD_SUMMARY',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('office_eod_summary_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('office_eod_summary_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // TDR_COMPLETENESS_REPORT — fires once per day at 6:30pm CT (18:30-21 grace).
   // Right after daily_revenue_summary at 6pm. Sends Teddy the EOD digest of
   // techs with open TDRs from today.

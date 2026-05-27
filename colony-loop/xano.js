@@ -221,6 +221,14 @@ export async function getTdrCompletenessReportFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_tdr_completeness_report_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getOfficeEodSummary() {
+  return getJSON(`${INTAKE()}/get_office_eod_summary`);
+}
+
+export async function getOfficeEodSummaryFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_office_eod_summary_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
