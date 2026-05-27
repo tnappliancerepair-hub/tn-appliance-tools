@@ -251,6 +251,14 @@
     debounce = setTimeout(() => doSearch(v), 280);
   });
 
+  // URL-param auto-search — supports ?q= or ?phone= (caller-ID deep-link)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlQ = urlParams.get('q') || urlParams.get('phone') || urlParams.get('caller');
+  if (urlQ) {
+    q.value = urlQ;
+    setTimeout(() => doSearch(urlQ.trim()), 50);
+  }
+
   async function doSearch(query) {
     results.innerHTML = '<div class="empty">searching…</div>';
     try {
