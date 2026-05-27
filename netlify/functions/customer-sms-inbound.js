@@ -21,6 +21,12 @@
 // handle it automatically.
 
 const XANO_RECORD_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_inbound_customer_sms';
+// Phase 2d EXTRA/BLAST: try the extra-work YES/NO handler BEFORE
+// the generic inbound recorder. If matched=true, the handler has
+// already sent the customer's reply + booked the job (or fanned out
+// to tech/loser depending on first-wins). Skip the generic flow.
+const XANO_EXTRA_YES = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/process_customer_extra_yes';
+const EXTRA_TIMEOUT_MS = 6000;
 const XANO_TIMEOUT_MS = 9000;
 
 exports.handler = async function (event) {
@@ -50,6 +56,34 @@ exports.handler = async function (event) {
   console.log('[customer-sms-inbound] normalized:', {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
+
+  // ─── EXTRA/BLAST YES/NO interceptor (Phase 2d) ─────────────────────
+  // Check if this is a response to an active extra-work offer. If so,
+  // the handler sends the customer reply itself + books/loser-routes
+  // synchronously. Return early — skip the generic recorder.
+  try {
+    const extraCtl = new AbortController();
+    const extraTimer = setTimeout(() => extraCtl.abort(), EXTRA_TIMEOUT_MS);
+    const extraRes = await fetch(XANO_EXTRA_YES, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: parsed.from, body: parsed.body }),
+      signal: extraCtl.signal,
+    });
+    clearTimeout(extraTimer);
+    if (extraRes.ok) {
+      const extraData = await extraRes.json().catch(() => ({}));
+      if (extraData && extraData.matched) {
+        console.log('[customer-sms-inbound] extra_yes matched:', extraData.action);
+        return providerAck(provider);
+      }
+    } else {
+      console.warn('[customer-sms-inbound] extra_yes non-2xx:', extraRes.status);
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') console.warn('[customer-sms-inbound] extra_yes timed out');
+    else console.warn('[customer-sms-inbound] extra_yes error:', e.message);
+  }
 
   // Forward to Xano. Fire-and-await so we can log the signal_id, but ack
   // 200 regardless (Telnyx must not retry inbound).

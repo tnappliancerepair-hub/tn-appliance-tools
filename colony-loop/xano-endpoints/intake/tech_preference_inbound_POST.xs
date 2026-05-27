@@ -82,6 +82,224 @@ query tech_preference_inbound verb=POST {
     var $tech_id { value = $tech.id }
     var $tech_first { value = ($tech.first_name ?? "tech") }
 
+    // ─── SHORTCUT: EXTRA / OPEN / WHO NEEDS HELP ─────────────────────
+    // Tech is asking for fill-in work near them. Pull top 3 candidates
+    // via find_extra_work_for_tech, format as numbered list, persist
+    // the offered job_ids in event_log so the BLAST handler can map
+    // numbers → job_ids.
+    var $is_extra_cmd { value = ($body_upper == "EXTRA" || $body_upper == "OPEN" || $body_upper == "WHO NEEDS HELP" || $body_upper == "MORE WORK") }
+
+    conditional {
+      if ($is_extra_cmd) {
+        api.request {
+          url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/find_extra_work_for_tech?tech_id=" ~ ($tech_id|to_text) ~ "&limit=3"
+          method  = "GET"
+          headers = []|push:"Content-Type: application/json"
+        } as $extra_resp
+
+        var $extra_body { value = ($extra_resp.response.result ?? {}) }
+        var $local_arr { value = ($extra_body.prediag_and_local ?? []) }
+        var $other_arr { value = ($extra_body.other_candidates ?? []) }
+        var $total { value = ($extra_body.total_in_pool ?? 0) }
+
+        conditional {
+          if ($total == 0) {
+            return {
+              value = {matched: true, reply: ("No extra work in your area right now. I'll keep watching and text you if something opens up.")}
+            }
+          }
+        }
+
+        // Combine local first, then other — cap 3 (find endpoint already limits)
+        var $combined { value = [] }
+
+        foreach ($local_arr) {
+          each as $lj { var.update $combined { value = $combined|push:$lj } }
+        }
+        foreach ($other_arr) {
+          each as $oj {
+            conditional {
+              if (($combined|count) < 3) {
+                var.update $combined { value = $combined|push:$oj }
+              }
+            }
+          }
+        }
+
+        // Build text reply + collect job_ids for the event_log audit
+        var $reply_lines { value = "" }
+        var $job_ids_csv { value = "" }
+        var $line_num { value = 0 }
+
+        foreach ($combined) {
+          each as $c {
+            var.update $line_num { value = $line_num + 1 }
+            var $prediag_mark { value = ($c.has_prediag == true) ? " ✓pre-diag" : " (no pre-diag yet)" }
+            var $line {
+              value = ($line_num|to_text) ~ ". " ~ (($c.customer_first ?? "")|trim) ~ " — " ~ (($c.appliance ?? "")|trim) ~ ", " ~ (($c.city ?? "")|trim) ~ " " ~ (($c.zip ?? "")|trim) ~ $prediag_mark
+            }
+            var.update $reply_lines { value = ($reply_lines == "" ? $line : ($reply_lines ~ "\n" ~ $line)) }
+            var.update $job_ids_csv { value = ($job_ids_csv == "" ? ($c.id|to_text) : ($job_ids_csv ~ "," ~ ($c.id|to_text))) }
+          }
+        }
+
+        // Persist offered list — BLAST will look up the most recent
+        db.add event_log {
+          data = {
+            action  : "tech_extra_offered"
+            metadata: {
+              tech_id      : $tech_id
+              job_ids_csv  : $job_ids_csv
+              candidate_count: ($combined|count)
+            }
+          }
+        } as $offered_log
+
+        var $reply_full {
+          value = (($combined|count)|to_text) ~ " candidates near you:\n" ~ $reply_lines ~ "\n\nReply BLAST 1 / BLAST 1 2 / BLAST ALL to text them. First YES wins (~15 min window)."
+        }
+
+        return {
+          value = {matched: true, reply: $reply_full}
+        }
+      }
+    }
+
+    // ─── SHORTCUT: BLAST <N> [N2 N3 ...] / BLAST ALL ────────────────
+    // Tech is responding to a prior EXTRA candidate list. Look up the
+    // most recent tech_extra_offered row for this tech (within 15 min),
+    // map the numbers to job_ids, fire offer_extra_work_to_customer
+    // for each. Customer replies are handled async by the customer-sms
+    // inbound webhook (Phase 2d.next).
+    var $is_blast_cmd { value = ($body_upper|substr:0:6) == "BLAST " }
+
+    conditional {
+      if ($is_blast_cmd) {
+        var $blast_arg { value = ($body_upper|substr:6)|trim }
+        var $now_ms_b { value = now|to_ms }
+        var $cutoff_ms_b { value = $now_ms_b - 900000 }
+
+        db.query event_log {
+          where  = $db.event_log.action == "tech_extra_offered" && $db.event_log.created_at >= $cutoff_ms_b
+          sort   = {event_log.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 20}}
+        } as $offered_rows
+
+        var $offered_for_tech { value = null }
+
+        foreach ($offered_rows.items) {
+          each as $or {
+            conditional {
+              if ($offered_for_tech == null) {
+                var $or_meta_raw { value = ($or.metadata ?? "") }
+                var $or_meta { value = $or_meta_raw|json_decode }
+                conditional {
+                  if (($or_meta.tech_id ?? 0) == $tech_id) {
+                    var.update $offered_for_tech { value = $or_meta }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        conditional {
+          if ($offered_for_tech == null) {
+            return {
+              value = {matched: true, reply: "No active candidate list. Text EXTRA to see open jobs near you."}
+            }
+          }
+        }
+
+        var $job_ids_csv { value = ($offered_for_tech.job_ids_csv ?? "") }
+        var $job_ids_arr { value = $job_ids_csv|split:"," }
+        var $job_count { value = $job_ids_arr|count }
+
+        // Determine which indices to blast
+        var $send_all { value = ($blast_arg == "ALL" || $blast_arg == "EVERYONE") }
+        var $idx_tokens_raw { value = $blast_arg|split:" " }
+        var $blast_count { value = 0 }
+        var $errors_count { value = 0 }
+
+        conditional {
+          if ($send_all) {
+            // Blast every job_id in the list
+            foreach ($job_ids_arr) {
+              each as $jid_str {
+                var $jid { value = $jid_str|to_int }
+                conditional {
+                  if ($jid > 0) {
+                    api.request {
+                      url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/offer_extra_work_to_customer"
+                      method  = "POST"
+                      headers = []|push:"Content-Type: application/json"
+                      params  = {job_id: $jid, tech_id: $tech_id}
+                    } as $offer_resp_a
+                    var $offer_status_a { value = ($offer_resp_a.response.status ?? 0) }
+                    conditional {
+                      if ($offer_status_a >= 200 && $offer_status_a < 300) {
+                        var.update $blast_count { value = $blast_count + 1 }
+                      }
+                      else {
+                        var.update $errors_count { value = $errors_count + 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          else {
+            // Parse number tokens and dispatch
+            foreach ($idx_tokens_raw) {
+              each as $tok {
+                var $tok_int { value = $tok|to_int }
+                conditional {
+                  if ($tok_int >= 1 && $tok_int <= $job_count) {
+                    var $target_idx { value = $tok_int - 1 }
+                    var $jid_b { value = ($job_ids_arr|get:$target_idx)|to_int }
+                    conditional {
+                      if ($jid_b > 0) {
+                        api.request {
+                          url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/offer_extra_work_to_customer"
+                          method  = "POST"
+                          headers = []|push:"Content-Type: application/json"
+                          params  = {job_id: $jid_b, tech_id: $tech_id}
+                        } as $offer_resp_b
+                        var $offer_status_b { value = ($offer_resp_b.response.status ?? 0) }
+                        conditional {
+                          if ($offer_status_b >= 200 && $offer_status_b < 300) {
+                            var.update $blast_count { value = $blast_count + 1 }
+                          }
+                          else {
+                            var.update $errors_count { value = $errors_count + 1 }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        var $blast_reply {
+          value = "Blasted " ~ ($blast_count|to_text) ~ " customer" ~ (($blast_count == 1) ? "" : "s") ~ ". First YES wins (~15 min window). I'll text you the moment someone accepts."
+        }
+
+        conditional {
+          if ($errors_count > 0) {
+            var.update $blast_reply { value = ($blast_reply ~ " (" ~ ($errors_count|to_text) ~ " failed to send)") }
+          }
+        }
+
+        return {
+          value = {matched: true, reply: $blast_reply}
+        }
+      }
+    }
+
     // ─── SHORTCUT: STATUS ────────────────────────────────────────────
     conditional {
       if ($body_upper == "STATUS" || $body_upper == "MY SCHEDULE" || $body_upper == "SCHEDULE") {
