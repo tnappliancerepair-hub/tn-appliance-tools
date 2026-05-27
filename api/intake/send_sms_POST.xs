@@ -196,19 +196,11 @@ query send_sms verb=POST {
           }
         } as $drop_log
 
-        // Owner gets a one-shot notice so this can't fail silently.
-        // Use direct api.request to send_sms-internal (with $is_owner=true
-        // bypass) so the alert IS delivered.
-        api.request {
-          url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
-          method  = "POST"
-          headers = []|push:"Content-Type: application/json"
-          params  = {
-            to              : ($env.OWNER_PHONE_NUMBER ?? "")
-            message         : ("[ant gate] dropped customer SMS — tag=" ~ ($input.context_tag ?? "?") ~ " to last4=" ~ (($p10 != "") ? ($p10|substr:6:4) : "?"))
-            context_tag     : "customer_facing_gate_drop_alert"
-          }
-        } as $gate_alert_send
+        // Drop is logged to event_log above. No SMS alert — that was
+        // causing per-drop spam to Teddy's phone (every gated customer
+        // outbound = 1 SMS). Visibility lives in office-pulse instead.
+        // If we ever want a daily digest of dropped counts, build it as
+        // a separate scheduled summary, not per-drop.
 
         return {
           value = {

@@ -540,7 +540,11 @@ query tech_sms_assist verb=POST {
           each as $sv {
             conditional {
               if (!$already_saved) {
-                var $sv_meta_raw { value = ($sv.metadata ?? "") }
+                // metadata from db.query is an object — must json_encode
+                // before substring scan. |replace on raw object is a silent
+                // no-op (same footgun fixed earlier in this file's
+                // parallel-mode scope guard).
+                var $sv_meta_raw { value = ($sv.metadata ?? "")|json_encode }
                 var $sv_marker { value = "\"job_id\":" ~ ($job_id|to_text) }
                 var $sv_strip { value = $sv_meta_raw|replace:$sv_marker:"" }
                 conditional {
@@ -595,6 +599,11 @@ query tech_sms_assist verb=POST {
             var.update $reply_text {
               value = "TDR saved. " ~ $m_comp ~ ", " ~ $m_labor ~ "h, " ~ $m_repair
             }
+          }
+          else {
+            // TDR already saved in last 2h — suppress Claude's "TDR saved..."
+            // reply so the tech doesn't get duplicate confirmations.
+            var.update $reply_text { value = "" }
           }
         }
       }
