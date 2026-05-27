@@ -212,6 +212,10 @@
     </div>
   </div>
 
+  <div style="padding:0 18px 8px">
+    <input id="pulseSearch" type="search" placeholder="🔍 filter by action / job_id / tech_id / customer..." style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);color:#e8edf5;border-radius:6px;font-size:12px;font-family:var(--mono);outline:none">
+  </div>
+
   <div id="events" class="events"></div>
 </div>
 
@@ -250,6 +254,16 @@ const $ = (id) => document.getElementById(id);
     bindFilter();
     refresh();
     pollTimer = setInterval(refresh, POLL_MS);
+  }
+
+  // Hook search input to re-filter on every keystroke
+  const searchInputEl = $('pulseSearch');
+  if (searchInputEl) {
+    let debounce;
+    searchInputEl.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(applyFilter, 180);
+    });
   }
 
   function bindFilter() {
@@ -299,6 +313,15 @@ const $ = (id) => document.getElementById(id);
       rows = rows.filter(r => /_sent|_alert|sms/i.test(String(r.action || '')));
     } else if (currentFilter === 'errors') {
       rows = rows.filter(r => /fail|error|blocked|gated/i.test(String(r.action || '')));
+    }
+    // Text search overlay
+    const searchInput = $('pulseSearch');
+    const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    if (q) {
+      rows = rows.filter(r => {
+        const blob = (r.action || '') + ' ' + (r.metadata || '');
+        return blob.toLowerCase().includes(q);
+      });
     }
     if (rows.length === 0) {
       $('events').innerHTML = '<div class="empty">No matching events.</div>';
