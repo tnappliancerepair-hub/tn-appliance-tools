@@ -1745,6 +1745,17 @@ async function onComplete(completionType) {
       })
     });
     if (!res.ok) throw new Error(`(${res.status})`);
+    const body = await res.json().catch(() => null);
+    if (!body || body.success !== true) {
+      if (body && body.error === 'tdr_incomplete' && Array.isArray(body.missing_fields)) {
+        showTdrGateError(body.missing_fields);
+      } else {
+        addSystem('error', '⚠️ complete failed: ' + ((body && (body.error_message || body.error)) || 'server rejected'));
+      }
+      sel.value = '';
+      sel.disabled = false;
+      return;
+    }
     addSystem('success', `✅ job marked: ${completionType.replace(/_/g, ' ')}`);
     sel.disabled = false;
     showNextJobBanner();
