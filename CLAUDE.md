@@ -913,6 +913,61 @@ Daily ops cadence now: 6am architect / 6:30am job prep / 7am tech briefing / 8am
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-27 V4 grind (after V3, before sleep)
+
+20 V4-tagged commits + ongoing architect grinding. Pivoted away from
+silent multi-tenant scoping (V4 Tasks 1-50) since no tenant #2 exists
+yet; reallocated to high-touch user-facing surfaces.
+
+### Shipped in V4
+
+- **Intelligence wiring**: JOB_COMPLETED auto-emits EMBED_TDR →
+  embed_tdr agent → vector store. Every future completed job
+  becomes searchable in find-similar-jobs + ask-ant.
+- **Server-side completion-photo gate**: warranty + repair_complete
+  now require ≥1 attachment.
+- **Customer-portal rate-this-visit**: 5-star + comment form on
+  completed jobs. Wires into low/high-rating chains.
+- **Office hub global search bar**: routes by shape — job# →
+  job-detail, question → ask-ant, else → customer-search.
+- **Stripe subscription webhook**: HMAC-verified Netlify fn flips
+  company.tenant_status on checkout/payment-failed/cancellation.
+- **customer-invoice Netlify fn**: printable HTML invoice (last4 gated).
+- **status.html**: public customer status page (green/yellow/red).
+- **pricing.html**: SaaS pricing page with HCP-vs-Ant FAQ.
+- **help.html**: customer help center with live search.
+- **record_payment_received**: cash/check/Venmo/Zelle logger with
+  commission backfill on tech_earnings row.
+- **AR aging by customer**: 0-30/31-60/61-90/90+ buckets.
+- **Cashflow forecast endpoint**: v0 heuristic — \$1,887.50 / 30d.
+- **operator-status.html**: private 8-stat dashboard.
+- **customer-search CSV export**.
+- **Onboarding guides**: docs/onboarding-guide-tenant.md +
+  docs/onboarding-guide-tech.md.
+- **office-pulse search + pause toggle**.
+
+### Operator todos surfacing from V4 (set these → big features unlock)
+
+- `$env.OFFICE_PASSWORD` on Xano (security)
+- `OPENAI_API_KEY` on Netlify (semantic search + similar-jobs)
+- `STRIPE_SECRET_KEY` + `STRIPE_PRICE_ID_PER_TECH_MONTHLY` on Netlify
+- `STRIPE_SUBSCRIPTION_WEBHOOK_SECRET` on Netlify
+- Register Stripe webhook: /.netlify/functions/stripe-subscription-webhook
+- Run `backfill-embeddings.js` once OPENAI key set
+- Multi-tenant V4 Tasks 1-50 deferred to ~6h focused sprint when
+  tenant #2 signs up
+
+### Critical morning-state for Teddy
+
+All earlier fixes still live:
+- ✅ tech-ant-live auto-creates chat session on open
+- ✅ ✨ Auto-fill TDR from chat
+- ✅ 🔧 Parts lookup quick-action
+- ✅ Camera-direct iOS capture
+- ✅ 🧠 Similar jobs panel (lights up once embeddings indexed)
+
+**🐜 Long Live Ant.**
+
 ## Session log — 2026-05-27 overnight V3 sweep (SaaS + intel + security)
 
 Continuation of the late-night V3 sweep. ~36 commits across the three
