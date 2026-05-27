@@ -249,16 +249,32 @@
         // 3. PUT to S3 (with progress via XHR — fetch lacks upload progress)
         await this._putToS3(presignData.upload_url, item, ac);
 
-        // 4. VERIFY via HEAD — the lawsuit-insurance step. Don't trust
-        //    PUT 200; confirm the bytes actually landed.
-        const headRes = await fetch(presignData.upload_url, {
-          method: 'HEAD',
-          signal: ac.signal,
-        });
-        if (!headRes.ok) throw new Error(`S3 HEAD verify failed ${headRes.status}`);
-        const contentLength = parseInt(headRes.headers.get('content-length') || '0', 10);
-        if (contentLength > 0 && contentLength !== item.file_size) {
-          throw new Error(`S3 size mismatch: got ${contentLength} expected ${item.file_size}`);
+        // 4. VERIFY via HEAD — best-effort. The presigned URL is signed
+        //    for PUT only, so a HEAD request often returns 403. That's
+        //    fine — S3 PUT returns 2xx ONLY when the object is fully
+        //    stored, so PUT success IS sufficient evidence of upload.
+        //    We only fail the whole upload if HEAD returns a meaningful
+        //    error AND a content-length mismatch — never on auth errors.
+        try {
+          const headRes = await fetch(presignData.upload_url, {
+            method: 'HEAD',
+            signal: ac.signal,
+          });
+          if (headRes.ok) {
+            const contentLength = parseInt(headRes.headers.get('content-length') || '0', 10);
+            if (contentLength > 0 && contentLength !== item.file_size) {
+              throw new Error(`S3 size mismatch: got ${contentLength} expected ${item.file_size}`);
+            }
+          }
+          // 401/403 from HEAD = presigned URL is PUT-only. PUT success is enough.
+          // 404 = bucket misconfigured but PUT 2xx already returned, edge case — trust PUT.
+        } catch (verifyErr) {
+          // Only re-throw if it's the size-mismatch (real corruption signal),
+          // otherwise swallow — HEAD verify is best-effort.
+          if (verifyErr.message && verifyErr.message.startsWith('S3 size mismatch')) {
+            throw verifyErr;
+          }
+          // network errors etc. — trust the PUT
         }
 
         // 5. save_attachment (Xano) — finalize record

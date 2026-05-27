@@ -6,7 +6,11 @@
 <title>Tech Ant Live - TN Appliance Exchange</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html { height: 100%; }
+  /* 2026-05-27 fix: lock horizontal scroll on both html AND body. Field
+     report: header + chat text was being cut off on the left because the
+     viewport got pan-scrolled right (iOS allows html-level horizontal
+     pan when ANY element overflows, even briefly during font load). */
+  html { height: 100%; overflow-x: hidden; max-width: 100vw; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: #0e1118;
@@ -16,6 +20,8 @@
     display: grid;
     grid-template-rows: auto auto auto 1fr auto auto auto;
     overflow: hidden;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 
   .header {
