@@ -57,6 +57,23 @@ export async function run(signal, ctx) {
 
   // 1. Hold-and-re-emit until deadline.
   if (Date.now() < deadlineMs) {
+  // Dedup: if multiple pending signals exist for this job, skip the
+  // re-emit and mark current processed. Collapses runaway dupes over a
+  // few ticks back to steady-state 1 pending per job. Prevents the
+  // duplicate-SMS-at-deadline bug.
+  try {
+    const counts = await xano.countPendingSignalsForJob('PARTS_DECISION_DUE', jobId);
+    if (counts && counts.pending_count > 1) {
+      log('dedup_skip_reemit', { job_id: jobId, pending_count: counts.pending_count, type: 'PARTS_DECISION_DUE' });
+      await xano.markSignalProcessed(signal.id, 'parts_decision_due_handled', {
+        job_id: jobId, outcome: 'dedup_skip_reemit', pending_count: counts.pending_count,
+      });
+      return { success: true, action: 'dedup_skip_reemit', job_id: jobId };
+    }
+  } catch (e) {
+    log('dedup_check_failed', { job_id: jobId, type: 'PARTS_DECISION_DUE', error: String(e.message || e) });
+  }
+
     try {
       await xano.emitSignal({
         signal_type: 'PARTS_DECISION_DUE',

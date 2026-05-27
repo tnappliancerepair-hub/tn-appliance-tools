@@ -94,6 +94,16 @@ export async function emitSignal({ signal_type, signal_strength = 50, source_col
   });
 }
 
+// Returns count of unprocessed colony_signals matching (signal_type, job_id).
+// Used by hold-and-re-emit agents to skip re-emit when a pending signal
+// already covers the same job → prevents per-tick churn.
+export async function countPendingSignalsForJob(signalType, jobId) {
+  const url = `${INTAKE()}/count_pending_signals_for_job?signal_type=${encodeURIComponent(signalType)}&job_id=${encodeURIComponent(jobId)}`;
+  const res = await fetchWithRetry(url, { method: 'GET' });
+  if (!res.ok) return { success: false, pending_count: 0 };
+  return res.json();
+}
+
 export function logLocal(action, metadata = {}) {
   const line = JSON.stringify({ t: new Date().toISOString(), action, ...metadata });
   console.log(line);

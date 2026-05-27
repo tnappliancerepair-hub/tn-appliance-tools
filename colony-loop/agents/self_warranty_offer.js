@@ -21,6 +21,23 @@ export async function run(signal, ctx) {
   }
 
   if (Date.now() < deadlineMs) {
+  // Dedup: if multiple pending signals exist for this job, skip the
+  // re-emit and mark current processed. Collapses runaway dupes over a
+  // few ticks back to steady-state 1 pending per job. Prevents the
+  // duplicate-SMS-at-deadline bug.
+  try {
+    const counts = await xano.countPendingSignalsForJob('SELF_WARRANTY_OFFER', jobId);
+    if (counts && counts.pending_count > 1) {
+      log('dedup_skip_reemit', { job_id: jobId, pending_count: counts.pending_count, type: 'SELF_WARRANTY_OFFER' });
+      await xano.markSignalProcessed(signal.id, 'self_warranty_offer_handled', {
+        job_id: jobId, outcome: 'dedup_skip_reemit', pending_count: counts.pending_count,
+      });
+      return { success: true, action: 'dedup_skip_reemit', job_id: jobId };
+    }
+  } catch (e) {
+    log('dedup_check_failed', { job_id: jobId, type: 'SELF_WARRANTY_OFFER', error: String(e.message || e) });
+  }
+
     try { await xano.emitSignal({ signal_type: 'SELF_WARRANTY_OFFER', signal_strength: 40, payload }); }
     catch (e) { /* */ }
     await xano.markSignalProcessed(signal.id, 'self_warranty_offer_handled', { outcome: 'held_until_deadline' });
