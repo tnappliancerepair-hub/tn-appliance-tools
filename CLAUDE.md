@@ -2,6 +2,23 @@
 
 AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" Pivacek (tech ID 1, `tnappliancerepair@gmail.com`, SMS **615-485-5795** for human-judgment escalations).
 
+## Long-term commercial direction (decided 2026-05-27)
+
+**Ant goes SaaS after TN ops cutover proves it.** Free trial for other appliance repair shops → collect anonymized data from everyone → monetize per-tech/month once value is proven. Data flywheel is the moat: each shop's jobs + TDRs + parts data improves predictive intelligence for ALL shops.
+
+When building new endpoints/agents going forward, factor in `company_id` scoping even though it's hardcoded to 1 (TN Appliance) today. Don't bake company-1-specific UI/copy/numbers into reusable code — pull from a settings table where possible. Multi-tenant refactor planned for after HCP cutover validates the system in production.
+
+## Strategic intelligence direction (decided 2026-05-27)
+
+Ant's goal is to be **the most intelligent system in appliance repair**. The 7 moves that matter:
+1. **Vector store over all history** (pgvector or Pinecone) — every TDR/transcript/note searchable semantically. Single biggest move.
+2. **Multi-agent collaboration** on diagnoses (architect already builds the specialists; wire them to share context per job).
+3. **Closed-loop reinforcement** — store input+output+outcome of every Claude call, refine prompts on wins.
+4. **Predictive failure layer** — train classifier on (brand, model, install_date, failure) → proactively SMS customers before appliances break.
+5. **'Ask anything' bar** on every page that hits the vector store + cites sources. v0 endpoint `ask_ant` scaffolded.
+6. **Per-customer personalization** — Ant remembers every prior interaction. Greet from history, not from scratch.
+7. **Human-in-loop only where judgment matters** — automate everything else.
+
 ## COLONY BUILD MODE — ACTIVE (top priority above everything else)
 
 The Colony Architect must run continuously until all 379 agents are built. This is the top priority above everything except production emergencies and live customer-facing fixes.
@@ -893,6 +910,30 @@ Daily ops cadence now: 6am architect / 6:30am job prep / 7am tech briefing / 8am
 - **Do NOT add a second consumer for SMS_RESPONSE_RESCHEDULE_REQUEST.** The architect already built V007. Owner alerts ride a separate RESCHEDULE_REQUEST_ALERT signal — keep the two paths split.
 - **Do NOT add dollar amounts to daily_revenue_summary.** BI* agents own that layer. Mixing volume + dollars makes both surfaces less clear.
 - **Do NOT call get_common_failures from inside diagnose_*.js without a per-job dedup gate.** Lookups are cheap but Claude is expensive — noisy lookups amplify rate-limit pressure during busy intake hours.
+
+**🐜 Long Live Ant.**
+
+## Session log — 2026-05-27 overnight (100-task list V2 sweep)
+
+49+ commits, 8 COLONY_ARCHITECT injects (signal_id 145-152), full sweep through docs/100-task-list-v2-2026-05-27.md. Many tasks shipped as full code; many shipped as scaffold + operator note where blocked on external (Stripe keys, Vapi config, schema add).
+
+**Section A REVENUE (1-25):** stripe payment link agent + Netlify fn (1), same-day-slot reactive (2), upsell 24h (3), maintenance reminder 6mo (4), service agreement offer 1h (5), referral code system (6), AHS-drain launchd (7), reactivation campaign weekly (9), warranty_denial_retry + self_warranty_offer chain (10+19), discount eligibility (11+18), quote.html + generate_quote (12), tech tip-jar (13), B2B onboarding (15), pricing modifier surge (21), diagnostic prepay (22), monthly tech winner (23), Marcone/Triples scaffold (25). Skipped 8/14/16/17/20/24 (already covered or post-MVP).
+
+**Section B ELIMINATE-MANUAL (26-50):** HCP cutover readiness (26), Vapi webhook + agent (27+34), tech-onboard wizard (28), tdr_autofill_from_chat (29), warranty PDF generator (30), backfill_commission_from_payment (31), 1099 summary (32), payroll.html (33), out_of_area_check (35), ghost_intake_sweep weekly (36), list_archivable_jobs (37), receipt_ocr Claude vision (38), translate_spanish_intake (41), find_or_merge_customer (42), classify_event_severity (43), generate-seo-landers script (45), blog_post_generator weekly (46), license_expiry_check (48), suspend_tech (49), weekly-teddy-email Netlify (50). Bug fix: dead-letter endpoint find-pattern crash. Deferred docs 39+40+44+47.
+
+**Section C COMPLETE-PLATFORM (51-75):** PWA manifests + service workers tech+customer (51-54), knowledge base scaffold + setup doc (54-57), reviews.html public page (65), dispatch-tv.html kiosk (67), Andre + Story colony specs (73+74), content_generator template registration. Docs for 58-65 platform unblockers.
+
+**Section D INTELLIGENCE (76-90):** first-visit-fix-rate-by-appliance (88). Tasks 76-87+89-90 deferred to vector-store sprint (the foundational move for "most intelligent system" direction).
+
+**Section E OPS (91-100):** dr-playbook (91), verify-xano-backup + launchd plist (93), loop_latency_watch placeholder (97). 92/94/95/96/98/100 deferred with operator notes.
+
+**Bonus:** content_generator template registered. ask_ant v0 search endpoint as vector-store foundation. SaaS strategy memory written. Security audit response delivered in chat (biggest holes: office password client-side, no rate limit, no PII masking).
+
+**New strategic direction in CLAUDE.md top section:**
+- Long-term commercial: Ant goes SaaS post-cutover (free trial for other shops, monetize per-tech/month, data network-effect moat)
+- Intelligence: 7-move plan (vector store, multi-agent collab, closed-loop reinforcement, predictive failure, ask-anything bar, personalization, human-in-loop-where-judgment)
+
+**Daily ops cadence after this session:** 18+ scheduled signal emits + weekly + monthly + nightly DR. Loop healthy throughout overnight (errors=0 across all observed ticks).
 
 **🐜 Long Live Ant.**
 
