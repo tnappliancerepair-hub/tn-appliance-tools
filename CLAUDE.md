@@ -989,6 +989,30 @@ All 4 are reschedule-aware via getTechAssignmentContext + currentStart != schedu
 - **inbound-call-webhook.js** is structurally complete but waiting on Telnyx Voice Application setup (operator action).
 - **office-pulse + office-todo + office-morning-briefing** all use the same office-password — when rotated, all four pages need re-auth simultaneously.
 
+### Late session tasks 26-34 (continuation extension)
+
+- **Task 26 — architect template misrouting fix.** M### IDs were colliding between Marketing colony (intended) and meta_agent ID-prefix shortcut. Tightened isMetaAgent to keyword-only, broadened isMarketIntelligence to match GMB/SEO/Yelp/etc keywords AND /^M\d/. Deleted 10 misclassified meta_agent_*.js files + reverted M001..M010 in blueprint to TO_BUILD for re-build with correct template.
+- **Task 27 — SMS Portal button on job-detail.** Office one-tap action that texts the customer the customer-portal link. New `send_customer_portal_link_POST` endpoint with confirm-dialog gate. Caught api.request `body =` vs `params =` footgun on deploy (the latter is correct).
+- **Task 28 — tech_assigned customer-side reassign SMS.** When isReassignment=true AND job already has scheduled_start, also SMS the customer "{new tech} will now be your tech for your {appliance} on {date} CT". Closes the friction where customer expected old tech name on the door.
+- **Task 29 — check_service_zone endpoint.** GET /check_service_zone?zip_code=X → {covered, accepting_new_jobs, market, zone, cluster, state, notes}. 5-digit normalization. Returns real production data (99 zones across TN+LA).
+- **Task 30 — office.html hub page.** Single-tap landing page tiling all office surfaces (Daily workflow: Calendar/Todo/Pulse/Search · Specialized: Warranty Review/Financials/TN/LA/Teddy TDR Tool/Agent Proposals · Quick links). Color-coded tile borders.
+- **COLONY_ARCHITECT injected at task 30 — signal_id=139 with max_builds=999.**
+- **Task 31 — dead-letter signal carve-out.** tick.js now writes event_log action='signal_no_agent_yet' (carved out from 'signal_processed') so dead-letter analysis can filter directly without JSON-decode of metadata. New get_dead_letter_signals_GET endpoint returns buckets of signal_type → count over the last N days (uses substring extraction to parse JSON metadata without json_decode — XS footgun-safe).
+- **Task 32 — service-area.html.** Customer-facing 'do you cover my area?' page. Interactive zip check + full coverage list grouped by market with per-zip pills (color-coded green=accepting, orange=zone full). Light theme matches customer-portal.
+- **Task 33 — tech-day-off.html + tech_set_day_off endpoint.** PIN-gated tech-facing page. Tech can mark a date as off OR clear an existing day-off, with optional reason. Endpoint uses upsert pattern (creates new or updates existing); clear path deletes all matching rows.
+- **Task 34 — tech-daily-dashboard adds Day Off nav button.** Third pill alongside Performance + Payouts. Tech suite now: Daily Dashboard → Performance / Payouts / Day Off.
+
+### Total this session (continuation + extension)
+
+- **49+ commits** (34 substantive + 15+ architect-built in parallel)
+- **3 COLONY_ARCHITECT injects** (signal_id=136, 138, 139)
+- **8 new office pages / surfaces**: tech-performance, customer-portal, customer-search, office-pulse, office-todo, office, service-area, tech-day-off, tech-payouts (+ existing office-calendar, warranty-review)
+- **15+ new agents**: parts_arrival_check, waiver_due, tdr_reminder, callback_check, inbound_call, pre_appointment_check, cancel_followup, unpaid_self_pay_digest, resume_nudge, tech_late_check, office_morning_briefing, google_review_request
+- **20+ new XS endpoints** backing the above + dead-letter / service-zone / day-off / portal-link
+- **Critical infrastructure**: server-side TDR completeness gate, Xano backup script + launchd, dead-letter carve-out
+- **Architect tuning**: round-3 blueprint expansion (+32 specs), template misrouting fix
+- **Daily ops cadence**: now 13 scheduled signal emits + Sunday weekly + 3:15am DR backup
+
 **🐜 Long Live Ant.**
 
 ## Standing rule — pre-diagnosis before parts
