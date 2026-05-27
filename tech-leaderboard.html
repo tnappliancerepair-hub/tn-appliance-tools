@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Leaderboard - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; padding: 24px 18px; max-width: 640px; margin: 0 auto; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --border-soft:#1f2533; --muted:#8a93aa; --orange:#f5a623; --green:#00d68f; --gold:#ffd700; --silver:#c0c0c0; --bronze:#cd7f32; }
+  .header { text-align: center; padding: 6px 0 18px; }
+  .header .ant { font-size: 32px; }
+  .header h1 { font-size: 22px; font-weight: 800; margin-top: 4px; }
+  .header p { color: var(--muted); font-size: 12px; font-family: monospace; margin-top: 2px; }
+  .month-nav { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 18px; }
+  .month-nav button { background: transparent; border: 1px solid var(--border); color: #e8edf5; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: monospace; font-size: 12px; }
+  .month-nav .label { font-weight: 700; font-size: 14px; padding: 0 12px; }
+  .lb { display: flex; flex-direction: column; gap: 10px; }
+  .row { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+  .row .rank { font-size: 22px; font-weight: 800; min-width: 32px; text-align: center; color: var(--muted); }
+  .row.r1 .rank { color: var(--gold); }
+  .row.r2 .rank { color: var(--silver); }
+  .row.r3 .rank { color: var(--bronze); }
+  .row .name { flex: 1; font-size: 15px; font-weight: 700; }
+  .row .stats { display: flex; gap: 14px; font-family: monospace; font-size: 12px; color: var(--muted); }
+  .row .stats .num { color: #e8edf5; font-weight: 700; font-size: 14px; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>Tech Leaderboard</h1>
+  <p>jobs completed · this month</p>
+</div>
+
+<div class="month-nav">
+  <button id="prev">‹ prev</button>
+  <span class="label" id="monthLabel">—</span>
+  <button id="next">next ›</button>
+</div>
+
+<div id="lb" class="lb"></div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const $ = (id) => document.getElementById(id);
+  let offset = 0;
+
+  $('prev').addEventListener('click', () => { offset -= 1; refresh(); });
+  $('next').addEventListener('click', () => { if (offset < 0) { offset += 1; refresh(); } });
+
+  async function refresh() {
+    $('lb').innerHTML = '<div class="empty">loading…</div>';
+    try {
+      const res = await fetch(`${XANO}/get_tech_leaderboard?month_offset=${offset}`);
+      const d = await res.json();
+      if (!d || !d.success) throw new Error((d && d.message) || 'load failed');
+      $('monthLabel').textContent = d.month_label || '—';
+      render(d.leaderboard || []);
+    } catch (err) {
+      $('lb').innerHTML = `<div class="empty" style="color:#ff6b6b">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function render(rows) {
+    if (!rows.length) {
+      $('lb').innerHTML = '<div class="empty">No techs.</div>';
+      return;
+    }
+    // Sort by jobs_completed desc, tiebreak by earnings_total desc
+    rows.sort((a, b) => (b.jobs_completed - a.jobs_completed) || (b.earnings_total - a.earnings_total));
+    $('lb').innerHTML = rows.map((t, i) => {
+      const rank = i + 1;
+      const cls = rank <= 3 ? `row r${rank}` : 'row';
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : String(rank);
+      const full = `${t.first_name || ''} ${t.last_name || ''}`.trim() || `tech #${t.tech_id}`;
+      const earn = Number(t.earnings_total || 0).toFixed(2);
+      return `<div class="${cls}">
+        <div class="rank">${escapeHtml(medal)}</div>
+        <div class="name">${escapeHtml(full)}</div>
+        <div class="stats">
+          <span><span class="num">${t.jobs_completed}</span> done</span>
+          <span><span class="num">${t.jobs_started}</span> started</span>
+          <span><span class="num">$${escapeHtml(earn)}</span></span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  refresh();
+})();
+</script>
+</body>
+</html>
