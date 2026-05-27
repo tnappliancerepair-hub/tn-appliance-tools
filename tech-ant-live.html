@@ -743,6 +743,25 @@ async function init() {
 
     setupSpeechRecognition();
 
+    // Bootstrap the tech_assist_session if it doesn't exist yet. Previously
+    // this was gated on the HCP webhook firing work_status=in_progress, but
+    // with HCP poll disabled (post-cutover prep), no session ever got
+    // created and every tech opening this page got 'no active session' on
+    // first chat. Fix 2026-05-27 overnight: auto-create on page open.
+    try {
+      await fetch(`${XANO_BASE}/start_tech_assist_session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: parseInt(JOB_ID, 10),
+          technician_id: parseInt(TECH_ID, 10),
+          session_start_event: 'tech_ant_live_open',
+        }),
+      });
+    } catch (err) {
+      console.warn('start_tech_assist_session failed (continuing):', err.message);
+    }
+
     // Pre-load existing tech_assist_session conversation transcript so the tech
     // sees the SMS opening message + any prior turns when they open this page.
     await preloadHistory();
