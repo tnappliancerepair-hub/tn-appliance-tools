@@ -486,12 +486,327 @@ query tech_preference_inbound verb=POST {
       }
     }
 
-    // No shortcut matched — fall through. Caller (Netlify webhook)
-    // routes to the legacy tech_sms_inbound for CLAIM/PICK/RESCHEDULE
-    // OR (Phase 2a v1) emits TECH_PREFERENCE_REQUEST signal for Claude
-    // classification of free-text preference statements.
+    // ─── FREE-TEXT CLAUDE CLASSIFICATION ─────────────────────────────
+    // No shortcut matched. Ask Claude Haiku to classify the message into
+    // one of the known intents + extract params, then dispatch. If Claude
+    // returns "unclear" or "not_a_preference" we return matched=false so
+    // the legacy CLAIM/PICK/RESCHEDULE/Claude flow can try.
+
+    var $sys_prompt {
+      value = "You classify SMS messages from appliance-repair technicians about their scheduling preferences. The tech is texting their dispatcher (ant scheduler). Output ONLY valid JSON, no prose, no markdown fences. Schema: {\"intent\": one of [day_off_weekly, day_off_specific, working_hours, max_jobs, appliance_decline, appliance_accept, zone_decline, zone_accept, status_query, undo, not_a_preference], \"params\": {\"day_of_week\": \"monday\"|...|\"sunday\"|null, \"date_ymd\": \"YYYY-MM-DD\"|null, \"start_time\": \"HH:MM\"|null, \"end_time\": \"HH:MM\"|null, \"max_jobs\": int|null, \"appliance\": \"refrigerator\"|\"washer\"|\"dryer\"|\"dishwasher\"|\"range\"|\"oven\"|\"microwave\"|\"hvac\"|null, \"zone\": string|null}, \"confidence\": 0.0-1.0, \"clarification\": string|null}. Examples: \"make me off sundays\" → {\"intent\":\"day_off_weekly\",\"params\":{\"day_of_week\":\"sunday\"},\"confidence\":0.95,\"clarification\":null}. \"i don't do microwaves\" → {\"intent\":\"appliance_decline\",\"params\":{\"appliance\":\"microwave\"},\"confidence\":0.9,\"clarification\":null}. \"start at 9 from now on\" → {\"intent\":\"working_hours\",\"params\":{\"start_time\":\"09:00\",\"end_time\":\"17:00\"},\"confidence\":0.8,\"clarification\":\"keeping end at 5pm — text HOURS 9-6 to change\"}. \"what jobs do i have\" → {\"intent\":\"not_a_preference\",\"params\":{},\"confidence\":0.95,\"clarification\":null}. \"cap me at 5\" → {\"intent\":\"max_jobs\",\"params\":{\"max_jobs\":5},\"confidence\":0.95,\"clarification\":null}. \"don't send me hammond\" → {\"intent\":\"zone_decline\",\"params\":{\"zone\":\"hammond\"},\"confidence\":0.9,\"clarification\":null}. If you cannot reliably extract params for the intent, use confidence<0.6."
+    }
+
+    var $user_payload {
+      value = $body_raw
+    }
+
+    var $msg_obj {
+      value = {role: "user", content: $user_payload}
+    }
+
+    api.request {
+      url = "https://api.anthropic.com/v1/messages"
+      method = "POST"
+      params = {
+        model     : "claude-haiku-4-5-20251001"
+        max_tokens: 300
+        system    : $sys_prompt
+        messages  : [$msg_obj]
+      }
+
+      headers = [
+        "x-api-key: " ~ $env.ANTHROPIC_API_KEY
+        "anthropic-version: 2023-06-01"
+        "content-type: application/json"
+      ]
+
+      timeout = 7
+    } as $claude_resp
+
+    var $claude_status {
+      value = ($claude_resp.response.status ?? 0)
+    }
+
+    conditional {
+      if ($claude_status < 200 || $claude_status >= 300) {
+        return {
+          value = {matched: false, reason: "claude_error", status: $claude_status}
+        }
+      }
+    }
+
+    var $claude_result {
+      value = ($claude_resp.response.result ?? {})
+    }
+
+    var $claude_content {
+      value = ($claude_result.content ?? [])
+    }
+
+    conditional {
+      if (($claude_content|count) == 0) {
+        return {
+          value = {matched: false, reason: "claude_empty_content"}
+        }
+      }
+    }
+
+    var $claude_first {
+      value = $claude_content|get:0
+    }
+
+    var $raw_text {
+      value = (($claude_first.text ?? "")|trim)
+    }
+
+    var $clean_text {
+      value = ($raw_text|replace:"```json":""|replace:"```":"")|trim
+    }
+
+    var $classified {
+      value = $clean_text|json_decode
+    }
+
+    conditional {
+      if ($classified == null) {
+        return {
+          value = {matched: false, reason: "claude_unparseable_json", raw: ($raw_text|substr:0:200)}
+        }
+      }
+    }
+
+    var $intent {
+      value = (($classified.intent ?? "not_a_preference")|trim|lower)
+    }
+
+    var $conf {
+      value = ($classified.confidence ?? 0)
+    }
+
+    // Low confidence or definitively-not-preference → bail to legacy
+    conditional {
+      if ($intent == "not_a_preference" || $conf < 0.6) {
+        return {
+          value = {matched: false, reason: "claude_low_confidence_or_not_pref", intent: $intent, confidence: $conf}
+        }
+      }
+    }
+
+    var $params {
+      value = ($classified.params ?? {})
+    }
+
+    var $clarif {
+      value = (($classified.clarification ?? "")|trim)
+    }
+
+    var $clarif_suffix {
+      value = ($clarif != "") ? (" " ~ $clarif ~ ".") : ""
+    }
+
+    // ── DISPATCH ON INTENT ──────────────────────────────────────────
+    conditional {
+      if ($intent == "day_off_weekly") {
+        var $dow_param {
+          value = (($params.day_of_week ?? "")|trim|lower)
+        }
+        conditional {
+          if ($dow_param != "") {
+            db.add tech_preferences {
+              data = {
+                tech_id           : $tech_id
+                preference_type   : "time"
+                day_of_week       : $dow_param
+                strength          : "hard"
+                source            : "explicit"
+                captured_via_text : $body_raw
+                active            : true
+              }
+            } as $pref_dow
+
+            db.add event_log {
+              data = {
+                action  : "tech_preference_changed"
+                metadata: {
+                  tech_id     : $tech_id
+                  change_type : "preference_row_added"
+                  pref_row_id : $pref_dow.id
+                  summary     : ("OFF " ~ $dow_param ~ " (free-text)")
+                  raw_message : $body_raw
+                  claude_conf : $conf
+                }
+              }
+            } as $log_dow
+
+            return {
+              value = {matched: true, reply: ("Got it — " ~ $dow_param ~ "s off going forward." ~ $clarif_suffix ~ " Text OOPS within 10 min to undo.")}
+            }
+          }
+        }
+      }
+
+      elseif ($intent == "working_hours") {
+        var $start_p { value = (($params.start_time ?? "")|trim) }
+        var $end_p { value = (($params.end_time ?? "")|trim) }
+        conditional {
+          if ($start_p != "" && $end_p != "") {
+            db.edit technicians {
+              field_name  = "id"
+              field_value = $tech_id
+              data        = {
+                preferred_hours_start: $start_p
+                preferred_hours_end  : $end_p
+              }
+            } as $u_h
+
+            db.add event_log {
+              data = {
+                action  : "tech_preference_changed"
+                metadata: {
+                  tech_id     : $tech_id
+                  change_type : "hours"
+                  prior_start : ($tech.preferred_hours_start ?? "08:00")
+                  prior_end   : ($tech.preferred_hours_end ?? "16:00")
+                  new_start   : $start_p
+                  new_end     : $end_p
+                  raw_message : $body_raw
+                  claude_conf : $conf
+                }
+              }
+            } as $log_h
+
+            return {
+              value = {matched: true, reply: ("Got it — hours set to " ~ $start_p ~ "-" ~ $end_p ~ "." ~ $clarif_suffix ~ " Text OOPS within 10 min to undo.")}
+            }
+          }
+        }
+      }
+
+      elseif ($intent == "max_jobs") {
+        var $mn { value = ($params.max_jobs ?? 0)|to_int }
+        conditional {
+          if ($mn >= 1 && $mn <= 12) {
+            db.add tech_preferences {
+              data = {
+                tech_id           : $tech_id
+                preference_type   : "time"
+                strength          : "hard"
+                source            : "explicit"
+                captured_via_text : $body_raw
+                notes             : ("max_jobs:" ~ ($mn|to_text))
+                active            : true
+              }
+            } as $pref_mn
+
+            db.add event_log {
+              data = {
+                action  : "tech_preference_changed"
+                metadata: {
+                  tech_id     : $tech_id
+                  change_type : "preference_row_added"
+                  pref_row_id : $pref_mn.id
+                  summary     : ("MAX " ~ ($mn|to_text) ~ " (free-text)")
+                  raw_message : $body_raw
+                  claude_conf : $conf
+                }
+              }
+            } as $log_mn
+
+            return {
+              value = {matched: true, reply: ("Got it — max " ~ ($mn|to_text) ~ " jobs per day." ~ $clarif_suffix ~ " Text OOPS within 10 min to undo.")}
+            }
+          }
+        }
+      }
+
+      elseif ($intent == "appliance_decline") {
+        var $app_p { value = (($params.appliance ?? "")|trim|lower) }
+        conditional {
+          if ($app_p != "") {
+            db.add tech_preferences {
+              data = {
+                tech_id           : $tech_id
+                preference_type   : "both"
+                strength          : "hard"
+                source            : "explicit"
+                captured_via_text : $body_raw
+                notes             : ("appliance_no:" ~ $app_p)
+                active            : true
+              }
+            } as $pref_app
+
+            db.add event_log {
+              data = {
+                action  : "tech_preference_changed"
+                metadata: {
+                  tech_id     : $tech_id
+                  change_type : "preference_row_added"
+                  pref_row_id : $pref_app.id
+                  summary     : ("NO " ~ $app_p ~ " (free-text)")
+                  raw_message : $body_raw
+                  claude_conf : $conf
+                }
+              }
+            } as $log_app
+
+            return {
+              value = {matched: true, reply: ("Got it — won't send you " ~ $app_p ~ " jobs." ~ $clarif_suffix ~ " Text OOPS within 10 min to undo.")}
+            }
+          }
+        }
+      }
+
+      elseif ($intent == "zone_decline") {
+        var $zn_p { value = (($params.zone ?? "")|trim|lower) }
+        conditional {
+          if ($zn_p != "") {
+            db.add tech_preferences {
+              data = {
+                tech_id           : $tech_id
+                preference_type   : "geographic"
+                zip_or_area       : $zn_p
+                strength          : "hard"
+                source            : "explicit"
+                captured_via_text : $body_raw
+                notes             : "zone_skip"
+                active            : true
+              }
+            } as $pref_zn
+
+            db.add event_log {
+              data = {
+                action  : "tech_preference_changed"
+                metadata: {
+                  tech_id     : $tech_id
+                  change_type : "preference_row_added"
+                  pref_row_id : $pref_zn.id
+                  summary     : ("SKIP " ~ $zn_p ~ " (free-text)")
+                  raw_message : $body_raw
+                  claude_conf : $conf
+                }
+              }
+            } as $log_zn
+
+            return {
+              value = {matched: true, reply: ("Got it — won't send you " ~ $zn_p ~ " jobs." ~ $clarif_suffix ~ " Text OOPS within 10 min to undo.")}
+            }
+          }
+        }
+      }
+    }
+
+    // Claude classified but couldn't extract usable params, OR an intent
+    // we don't have a write path for yet. Surface clarification or bail.
+    conditional {
+      if ($clarif != "") {
+        return {
+          value = {matched: true, reply: $clarif}
+        }
+      }
+    }
+
     return {
-      value = {matched: false, reason: "no_shortcut_match"}
+      value = {matched: false, reason: "claude_missing_params", intent: $intent}
     }
   }
 
