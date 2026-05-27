@@ -244,7 +244,22 @@ export async function sendSms(to, message, context = {}) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
     return { success: true, dry_run: true };
   }
-  return postJSON(`${INTAKE()}/send_sms`, { to, message, context });
+  const primary = postJSON(`${INTAKE()}/send_sms`, { to, message, context });
+  // Vacation backup: if backup phone is set AND this SMS is going to the
+  // owner, also send to the backup number (Danielle) so critical alerts
+  // are received while Teddy is away. Adds a "[bkup]" prefix so backup
+  // recipient knows it's a CC, not a primary.
+  const owner = (config.ownerPhone || '').replace(/\D/g, '').slice(-10);
+  const target = (to || '').replace(/\D/g, '').slice(-10);
+  const backup = (config.vacationBackupPhone || '').trim();
+  if (backup && owner && target && owner === target) {
+    const backupMsg = `[bkup] ${message}`;
+    // Fire-and-forget (don't block primary)
+    postJSON(`${INTAKE()}/send_sms`, { to: backup, message: backupMsg, context: { ...context, _backup_of: to } }).catch((err) => {
+      console.warn('[vacation-backup] secondary send failed:', err.message || err);
+    });
+  }
+  return primary;
 }
 
 export async function qcCockpitLoad(jobId) {
