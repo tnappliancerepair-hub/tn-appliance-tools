@@ -544,6 +544,11 @@
     <button id="nextDay" aria-label="next day">›</button>
   </div>
 
+  <div style="padding:6px 12px 0;display:flex;gap:6px;font-family:var(--mono);font-size:11px">
+    <a id="navPerf" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(180,140,255,0.10);border:1px solid rgba(180,140,255,0.25);color:#b48cff;border-radius:8px;text-decoration:none">📊 Performance</a>
+    <a id="navPayouts" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(0,214,143,0.10);border:1px solid rgba(0,214,143,0.25);color:#00d68f;border-radius:8px;text-decoration:none">💰 Payouts</a>
+  </div>
+
   <div id="mapHost"></div>
 
   <div class="summary" id="summary"></div>
@@ -653,6 +658,11 @@
     pinOverlay.classList.remove('show');
     app.style.display = 'block';
     loading.style.display = 'block';
+    // Wire sub-nav links to the same tech_id this dashboard is loading
+    const np = document.getElementById('navPerf');
+    const npay = document.getElementById('navPayouts');
+    if (np) np.href = `tech-performance.html?tech_id=${encodeURIComponent(TECH_ID)}`;
+    if (npay) npay.href = `tech-payouts.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     loadDashboard();
   }
 
