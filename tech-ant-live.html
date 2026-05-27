@@ -2220,18 +2220,92 @@ function setupSpeechRecognition() {
   };
 }
 
-function toggleRecording() {
-  if (!recognition) return;
-  if (isRecording) {
-    recognition.stop();
-  } else {
-    try {
-      recognition.start();
-      isRecording = true;
-      document.getElementById('btn-mic').classList.add('recording');
-    } catch (e) {
-      console.warn('Mic error:', e);
+// ─── Voice-to-text via MediaRecorder + OpenAI Whisper ────────────────
+// Replaces the unreliable webkitSpeechRecognition (which Teddy reported
+// failing 2026-05-27). MediaRecorder captures audio; on stop we POST it
+// to /.netlify/functions/whisper-transcribe; Whisper returns text; we
+// insert it into the input.
+let __mr = null;          // MediaRecorder instance
+let __mrChunks = [];      // recorded blob chunks
+let __mrStream = null;    // mic stream (to stop tracks)
+async function toggleRecording() {
+  const btn = document.getElementById('btn-mic');
+  if (!btn) return;
+  if (__mr && __mr.state === 'recording') {
+    // STOP — handler on stop will upload + transcribe
+    __mr.stop();
+    btn.classList.remove('recording');
+    btn.textContent = '⏳';
+    return;
+  }
+  // START
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      addSystem('error', 'Mic not supported on this browser');
+      return;
     }
+    __mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    __mrChunks = [];
+    // Pick the most compatible mime (iOS prefers mp4/aac; others webm/opus)
+    const candidates = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'];
+    let mimeType = '';
+    for (const c of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) {
+        mimeType = c; break;
+      }
+    }
+    __mr = mimeType ? new MediaRecorder(__mrStream, { mimeType }) : new MediaRecorder(__mrStream);
+    __mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) __mrChunks.push(e.data); };
+    __mr.onstop = async () => {
+      // Stop mic tracks (releases mic indicator)
+      if (__mrStream) { __mrStream.getTracks().forEach((t) => t.stop()); __mrStream = null; }
+      const audioBlob = new Blob(__mrChunks, { type: mimeType || 'audio/webm' });
+      __mrChunks = [];
+      if (audioBlob.size < 500) {
+        btn.textContent = '🎤';
+        addSystem('info', 'Recording too short, try again');
+        return;
+      }
+      await uploadAndTranscribe(audioBlob, mimeType, btn);
+    };
+    __mr.start();
+    btn.classList.add('recording');
+    btn.textContent = '⏺';
+  } catch (err) {
+    console.warn('voice start failed:', err);
+    addSystem('error', '⚠️ mic permission denied or unavailable');
+    btn.classList.remove('recording');
+    btn.textContent = '🎤';
+  }
+}
+
+async function uploadAndTranscribe(audioBlob, mimeType, btn) {
+  const fd = new FormData();
+  const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('webm') ? 'webm' : mimeType.includes('ogg') ? 'ogg' : 'webm';
+  fd.append('audio', audioBlob, `voice-${Date.now()}.${ext}`);
+  try {
+    const res = await fetch('/.netlify/functions/whisper-transcribe', {
+      method: 'POST',
+      body: fd,
+    });
+    const data = await res.json();
+    if (!data.ok || !data.text) {
+      addSystem('error', '⚠️ transcribe failed: ' + (data.error || 'no text returned'));
+      btn.textContent = '🎤';
+      return;
+    }
+    const inputEl = document.getElementById('input-msg');
+    if (inputEl) {
+      // Append to existing text rather than replacing — tech might have typed something already
+      const existing = (inputEl.value || '').trim();
+      inputEl.value = existing ? existing + ' ' + data.text : data.text;
+      autoGrow(inputEl);
+      inputEl.focus();
+    }
+    btn.textContent = '🎤';
+  } catch (err) {
+    addSystem('error', '⚠️ transcribe error: ' + (err.message || err));
+    btn.textContent = '🎤';
   }
 }
 
