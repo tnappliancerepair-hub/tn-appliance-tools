@@ -52,6 +52,12 @@ const XANO_SEND_SMS         = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/s
 // to the legacy CLAIM/PICK/RESCHEDULE/Claude flow.
 const XANO_PREFERENCE_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/tech_preference_inbound';
 const PREFERENCE_TIMEOUT_MS = 4000;
+// Phase 3: SMS-driven TDR assist. Runs AFTER preference shortcuts. If
+// the tech has an in_progress job, free-text routes through Claude here
+// to build the TDR conversationally over SMS. Returns matched=false
+// when no in_progress job exists (legacy handler takes over).
+const XANO_TECH_SMS_ASSIST = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/tech_sms_assist';
+const TECH_ASSIST_TIMEOUT_MS = 12000;
 
 // Xano call timeout. Twilio webhook timeout is ~10s; Telnyx is ~30s. Cap at 9s
 // to leave room for assembly + (Telnyx path) the follow-up send_sms call.
@@ -121,12 +127,19 @@ exports.handler = async function (event) {
   // ─── SMS-first ant scheduler: preference shortcuts FIRST ───────────
   // If the message matches a preference shortcut (OFF/MAX/HOURS/NO/SKIP/
   // STATUS/OOPS), tech_preference_inbound handles it atomically and
-  // returns the reply. Otherwise matched=false → fall through to v2 brain
-  // (onboarding) or legacy tech_sms_inbound (CLAIM/PICK/RESCHEDULE/Claude).
+  // returns the reply. Otherwise matched=false → fall through to tech
+  // SMS assist (Phase 3) for in_progress-job conversations.
   const prefResult = await tryPreferenceShortcut(parsed);
+  let smsAssistResult = null;
   if (prefResult && prefResult.matched) {
     replyText = prefResult.reply || FALLBACK_REPLY;
     console.log('[tech-sms-inbound] preference shortcut handled, reply length:', replyText.length);
+  } else if ((smsAssistResult = await tryTechSmsAssist(parsed)) && smsAssistResult.matched) {
+    // Phase 3 SMS-driven assist already sent the reply via send_sms;
+    // webhook just acks. Note: we don't set replyText here — Telnyx
+    // path ack-only is intended.
+    console.log('[tech-sms-inbound] sms_assist handled, action:', smsAssistResult.action);
+    return providerAck(provider);
   } else if (useBrain) {
     try {
       const { runOnboardingTurn } = require('./_lib/brain/onboarding');
@@ -260,6 +273,43 @@ async function tryPreferenceShortcut(parsed) {
       console.warn('[tech-sms-inbound] preference shortcut timed out');
     } else {
       console.warn('[tech-sms-inbound] preference shortcut error:', err.message);
+    }
+    return null;
+  }
+}
+
+// ─── PHASE 3 SMS-DRIVEN TDR ASSIST ────────────────────────────────────
+// Calls tech_sms_assist. The endpoint:
+//   - If tech has an in_progress job → handles the message via
+//     tech_assist_chat (Claude + TDR-field extraction), sends reply
+//     via send_sms, returns matched=true. Webhook just acks.
+//   - If no in_progress job → returns matched=false. Webhook falls
+//     through to the legacy v2 brain / tech_sms_inbound path.
+async function tryTechSmsAssist(parsed) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), TECH_ASSIST_TIMEOUT_MS);
+  try {
+    const res = await fetch(XANO_TECH_SMS_ASSIST, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: parsed.from,
+        body:  parsed.body,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutHandle);
+    if (!res.ok) {
+      console.warn('[tech-sms-inbound] sms_assist non-2xx:', res.status);
+      return null;
+    }
+    return await res.json().catch(() => null);
+  } catch (err) {
+    clearTimeout(timeoutHandle);
+    if (err.name === 'AbortError') {
+      console.warn('[tech-sms-inbound] sms_assist timed out');
+    } else {
+      console.warn('[tech-sms-inbound] sms_assist error:', err.message);
     }
     return null;
   }

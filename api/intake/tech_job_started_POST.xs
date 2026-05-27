@@ -214,6 +214,88 @@ query tech_job_started verb=POST {
         }
       }
     }
+
+    // Phase 3 — Ant kickoff SMS to the TECH. After Start Job, text
+    // them an opening so they know they can text findings back and
+    // build the TDR conversationally over SMS. The tech_sms_assist
+    // endpoint handles their replies (Claude classifies + extracts
+    // TDR fields + replies with next question). When they reply SAVE,
+    // the TDR is finalized.
+    var $tech_phone_raw {
+      value = (($tech.phone ?? "")|trim)
+    }
+
+    var $tech_phone_e164 {
+      value = ($tech_phone_raw != "" && (($tech_phone_raw|starts_with:"+") == false)) ? ("+1" ~ $tech_phone_raw) : $tech_phone_raw
+    }
+
+    conditional {
+      if ($tech_phone_e164 != "") {
+        // Pull Teddy's pre-diagnosis if present
+        db.query technician_decision_report {
+          where  = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == 1
+          sort   = {technician_decision_report.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 1}}
+        } as $prediag_rows
+
+        var $prediag { value = (($prediag_rows.items|first) ?? null) }
+
+        var $prediag_line { value = "" }
+        conditional {
+          if ($prediag != null) {
+            var $pd_diag { value = (($prediag.diagnosis ?? "")|trim) }
+            var $pd_comp { value = (($prediag.failed_component ?? "")|trim) }
+            var $pd_part { value = (($prediag.verified_part_number ?? "")|trim) }
+            conditional {
+              if ($pd_diag != "" || $pd_comp != "" || $pd_part != "") {
+                var.update $prediag_line {
+                  value = "\nTeddy's pre-diag: " ~ ($pd_diag != "" ? $pd_diag : "") ~ ($pd_comp != "" ? (" / failed=" ~ $pd_comp) : "") ~ ($pd_part != "" ? (" / part=" ~ $pd_part) : "")
+                }
+              }
+            }
+          }
+        }
+
+        // Re-resolve names locally (the customer-arrival block declared
+        // similar vars inside its own conditional scope, but they're not
+        // available out here).
+        var $tech_kickoff_first {
+          value = ($tech_first != "" && $tech_first != "tech") ? $tech_first : "there"
+        }
+
+        var $tech_appliance {
+          value = ($appliance_str != "") ? $appliance_str : "appliance"
+        }
+
+        var $tech_cust {
+          value = ($cust_name != "") ? $cust_name : "the customer"
+        }
+
+        var $kickoff_body {
+          value = "[ant] hey " ~ $tech_kickoff_first ~ " — you're at " ~ $tech_cust ~ "'s for the " ~ $tech_appliance ~ "." ~ $prediag_line ~ "\n\nText me findings as you check and I'll fill the TDR. When done text SAVE."
+        }
+
+        api.request {
+          url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+          method  = "POST"
+          params  = {to: $tech_phone_e164, message: $kickoff_body}
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $tech_kickoff_resp
+
+        db.add event_log {
+          data = {
+            action  : "tech_sms_kickoff_sent"
+            metadata: {
+              job_id        : $input.job_id
+              technician_id : $input.technician_id
+              tech_phone    : $tech_phone_e164
+              prediag_present: ($prediag != null)
+            }
+          }
+        } as $kickoff_log
+      }
+    }
   }
 
   response = {success: true}
