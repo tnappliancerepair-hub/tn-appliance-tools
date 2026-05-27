@@ -355,12 +355,19 @@
   .submit-banner:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* ── TDR form (urgent field fix 2026-05-26) ── */
+  /* 2026-05-27 fix: cap at 32vh and scroll INSIDE the form. Without this,
+     the form grew tall enough to push the input-wrap (mic + camera + send)
+     off the bottom of the viewport on smaller phones — and body's
+     overflow:hidden meant techs couldn't scroll to reach them. */
   .tdr-form {
     background: #161b26;
     border: 1px solid #2a3040;
     border-radius: 10px;
     margin: 12px;
     padding: 14px 14px 10px;
+    max-height: 32vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .tdr-form.highlight {
     border-color: #f6cf45;
@@ -650,18 +657,22 @@
 
 <div class="input-wrap" id="input-wrap">
   <div class="input-row">
-    <button class="btn btn-camera" onclick="document.getElementById('file-input').click()" title="Upload photo/video">📷</button>
+    <button class="btn btn-camera" onclick="document.getElementById('file-input-photos').click()" title="Upload photos (multi-select)">📷</button>
+    <button class="btn btn-camera" onclick="document.getElementById('file-input-video-camera').click()" title="Record one video">🎥</button>
     <button class="btn btn-mic" id="btn-mic" onclick="toggleRecording()" title="Voice input">🎤</button>
     <textarea id="input-msg" placeholder="Type or tap mic..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
     <button class="btn btn-send" onclick="sendMessage()">↑</button>
   </div>
 </div>
 
+<!-- iOS multi-select picker only behaves correctly when mime is image-only.
+     Mixed image+video collapses to single-pick on some iOS versions, which
+     is what Lee hit ('only one picture at a time'). 2026-05-27 fix.       -->
+<input type="file" id="file-input-photos" multiple accept="image/*" onchange="handleFiles(event)">
+<!-- Kept for backward compat with helpers that reference the old id.       -->
 <input type="file" id="file-input" multiple accept="image/*,video/*" onchange="handleFiles(event)">
 <!-- Camera-only inputs. iOS Safari opens straight to camera when
-     capture="environment" is set. Better UX than the "take photo or
-     choose library" dialog. Tech taps button → camera opens → shoot
-     → done → upload. Matches HCP's flow. -->
+     capture="environment" is set. Tech taps → camera → shoot → upload.    -->
 <input type="file" id="file-input-photo-camera" accept="image/*" capture="environment" onchange="handleFiles(event)">
 <input type="file" id="file-input-video-camera" accept="video/*" capture="environment" onchange="handleFiles(event)">
 
