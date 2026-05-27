@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office Pulse - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    min-height: 100vh;
+  }
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --green: #00d68f;
+    --orange: #f5a623;
+    --blue: #5aa9ff;
+    --red: #ff6b6b;
+    --violet: #b48cff;
+  }
+
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: linear-gradient(180deg, #0e1118, rgba(14,17,24,0.95));
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-soft);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header .ant { font-size: 22px; }
+  .header .title { font-size: 15px; font-weight: 700; }
+  .header .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .header .last-update { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-left: auto; }
+
+  .headline {
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat .lbl {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .stat .val {
+    font-size: 24px;
+    font-weight: 800;
+  }
+  .stat.blue .val { color: var(--blue); }
+  .stat.orange .val { color: var(--orange); }
+  .stat.green .val { color: var(--green); }
+  .stat.violet .val { color: var(--violet); }
+  .stat.red .val { color: var(--red); }
+
+  .section-title {
+    padding: 14px 18px 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .section-title .controls { display: flex; gap: 6px; }
+  .section-title .controls button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+  .section-title .controls button.active {
+    background: var(--orange);
+    color: #1a1208;
+    border-color: var(--orange);
+  }
+
+  .events {
+    padding: 0 14px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .event {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    display: grid;
+    grid-template-columns: 130px 220px 1fr;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .event .ts { color: var(--muted); }
+  .event .action {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .event.action_completed .action { color: var(--green); }
+  .event.action_warranty .action { color: var(--violet); }
+  .event.action_started .action { color: var(--blue); }
+  .event.action_callback .action { color: var(--red); }
+  .event.action_signal .action { color: var(--orange); }
+  .event .meta {
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .event .meta:hover { white-space: normal; overflow: visible; }
+
+  .empty, .err {
+    padding: 30px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .err { color: var(--red); }
+
+  .auth-overlay {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.96);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 1000;
+  }
+  .auth-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px 24px;
+    max-width: 360px; text-align: center;
+  }
+  .auth-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .auth-card .title { font-size: 18px; font-weight: 700; }
+  .auth-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+  .auth-card input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; color: #e8edf5; font-size: 16px;
+  }
+  .auth-card button {
+    margin-top: 12px; width: 100%; background: var(--orange);
+    color: #1a1208; border: none; border-radius: 10px; padding: 12px;
+    font-weight: 700; cursor: pointer;
+  }
+  .auth-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 14px; }
+
+  @media (max-width: 640px) {
+    .headline { grid-template-columns: repeat(2, 1fr); }
+    .event { grid-template-columns: 90px 1fr; }
+    .event .meta { grid-column: span 2; }
+  }
+</style>
+</head>
+<body>
+
+<div id="auth" class="auth-overlay">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Office Pulse</div>
+    <div class="sub">live activity feed</div>
+    <input id="pw" type="password" placeholder="office password">
+    <button id="pwBtn">Unlock</button>
+    <div id="pwErr" class="auth-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div>
+      <div class="title">Office Pulse</div>
+      <div class="sub">live · auto-refresh 20s</div>
+    </div>
+    <div class="last-update" id="lastUpdate">—</div>
+  </div>
+
+  <div id="headline" class="headline"></div>
+
+  <div class="section-title">
+    <span>Live activity</span>
+    <div class="controls">
+      <button data-filter="all" class="active">All</button>
+      <button data-filter="signal_dispatched">Signals</button>
+      <button data-filter="sent">SMS</button>
+      <button data-filter="errors">Errors</button>
+    </div>
+  </div>
+
+  <div id="events" class="events"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const OFFICE_PASSWORD = 'antlives';
+  const POLL_MS = 20000;
+
+  const $ = (id) => document.getElementById(id);
+  const auth = $('auth');
+  const app = $('app');
+  const pwInput = $('pw');
+  const pwBtn = $('pwBtn');
+  const pwErr = $('pwErr');
+
+  if (localStorage.getItem(AUTH_KEY) === '1') unlock();
+  pwBtn.addEventListener('click', tryAuth);
+  pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
+
+  function tryAuth() {
+    if (pwInput.value === OFFICE_PASSWORD) {
+      localStorage.setItem(AUTH_KEY, '1');
+      unlock();
+    } else { pwErr.textContent = 'wrong password'; pwInput.select(); }
+  }
+
+  let pollTimer = null;
+  let currentFilter = 'all';
+
+  function unlock() {
+    auth.style.display = 'none';
+    app.style.display = 'block';
+    bindFilter();
+    refresh();
+    pollTimer = setInterval(refresh, POLL_MS);
+  }
+
+  function bindFilter() {
+    document.querySelectorAll('[data-filter]').forEach(b => {
+      b.addEventListener('click', () => {
+        currentFilter = b.getAttribute('data-filter');
+        document.querySelectorAll('[data-filter]').forEach(x => x.classList.toggle('active', x === b));
+        applyFilter();
+      });
+    });
+  }
+
+  let lastEvents = [];
+
+  async function refresh() {
+    try {
+      const res = await fetch(`${XANO}/get_office_pulse?limit=80`);
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        $('events').innerHTML = `<div class="err">load failed: ${escapeHtml((data && data.message) || '')}</div>`;
+        return;
+      }
+      renderHeadline(data.headline || {});
+      lastEvents = data.events || [];
+      applyFilter();
+      $('lastUpdate').textContent = `updated ${new Intl.DateTimeFormat('en-US', {timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit'}).format(new Date())}`;
+    } catch (err) {
+      $('events').innerHTML = `<div class="err">network: ${escapeHtml(err.message || 'fail')}</div>`;
+    }
+  }
+
+  function renderHeadline(h) {
+    $('headline').innerHTML = [
+      `<div class="stat blue"><div class="lbl">Scheduled today</div><div class="val">${h.scheduled_today || 0}</div></div>`,
+      `<div class="stat orange"><div class="lbl">In progress</div><div class="val">${h.in_progress || 0}</div></div>`,
+      `<div class="stat green"><div class="lbl">Completed today</div><div class="val">${h.completed_today || 0}</div></div>`,
+      `<div class="stat violet"><div class="lbl">Awaiting parts</div><div class="val">${h.awaiting_parts || 0}</div></div>`,
+      `<div class="stat red"><div class="lbl">Not ready today</div><div class="val">${h.not_ready_today || 0}</div></div>`,
+    ].join('');
+  }
+
+  function applyFilter() {
+    let rows = lastEvents;
+    if (currentFilter === 'signal_dispatched') {
+      rows = rows.filter(r => /signal_dispatched|signal_emitted/i.test(String(r.action || '')));
+    } else if (currentFilter === 'sent') {
+      rows = rows.filter(r => /_sent|_alert|sms/i.test(String(r.action || '')));
+    } else if (currentFilter === 'errors') {
+      rows = rows.filter(r => /fail|error|blocked|gated/i.test(String(r.action || '')));
+    }
+    if (rows.length === 0) {
+      $('events').innerHTML = '<div class="empty">No matching events.</div>';
+      return;
+    }
+    $('events').innerHTML = rows.map(renderRow).join('');
+  }
+
+  function renderRow(r) {
+    const ts = fmtTs(r.created_at);
+    const action = r.action || '?';
+    const cls = action.includes('completed') ? 'action_completed' :
+                action.includes('warranty') ? 'action_warranty' :
+                action.includes('started') ? 'action_started' :
+                action.includes('callback') ? 'action_callback' :
+                action.includes('signal') ? 'action_signal' : '';
+    let metaSummary = '';
+    try {
+      if (r.metadata) {
+        const m = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+        const keys = ['job_id', 'technician_id', 'customer_id', 'signal_id', 'tech_id', 'outcome', 'signal_type'];
+        const bits = [];
+        for (const k of keys) {
+          if (m[k] != null && m[k] !== '' && m[k] !== 0) bits.push(`${k}=${m[k]}`);
+        }
+        metaSummary = bits.join(' · ');
+      }
+    } catch { metaSummary = String(r.metadata || '').slice(0, 80); }
+    return `<div class="event ${cls}">
+      <div class="ts">${escapeHtml(ts)}</div>
+      <div class="action">${escapeHtml(action)}</div>
+      <div class="meta">${escapeHtml(metaSummary)}</div>
+    </div>`;
+  }
+
+  function fmtTs(ms) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12: false
+      }).format(new Date(Number(ms)));
+    } catch { return ''; }
+  }
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+})();
+</script>
+</body>
+</html>
