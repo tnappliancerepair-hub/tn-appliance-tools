@@ -282,10 +282,31 @@
       📅 Add to my calendar
       <span class="sub">Apple / Google with 1-hour reminder.</span>
     </a>
+    <button class="btn" id="btnRate" style="display:none">
+      ⭐ Rate your visit
+      <span class="sub">30-second feedback. Helps us improve.</span>
+    </button>
     <a class="btn" href="tel:+16152802949" id="btnCall">
       Call us · 615-280-2949
       <span class="sub">Mon-Fri 8am-6pm CT</span>
     </a>
+  </div>
+
+  <div id="rateForm" class="action-form">
+    <div class="title">How was your visit?</div>
+    <div style="display:flex;justify-content:center;gap:10px;margin:10px 0">
+      <button class="rate-star" data-r="1">★</button>
+      <button class="rate-star" data-r="2">★</button>
+      <button class="rate-star" data-r="3">★</button>
+      <button class="rate-star" data-r="4">★</button>
+      <button class="rate-star" data-r="5">★</button>
+    </div>
+    <textarea id="rateComment" placeholder="Anything we should know? (optional)"></textarea>
+    <div class="row">
+      <button class="cancel" data-cancel="rate">Cancel</button>
+      <button class="submit" id="rateSubmit" disabled>Submit</button>
+    </div>
+    <div id="rateMsg" class="msg"></div>
   </div>
 
   <div id="rescheduleForm" class="action-form">
@@ -503,6 +524,12 @@
       $('btnReschedule').style.display = 'none';
     }
 
+    // Show rate-your-visit for completed jobs only
+    const btnRate = $('btnRate');
+    if (btnRate) {
+      btnRate.style.display = (viewState === 'completed') ? '' : 'none';
+    }
+
     // Show upload link for non-terminal jobs
     const btnUpload = $('btnUpload');
     if (btnUpload) {
@@ -530,6 +557,54 @@
   // ── Action handlers ─────────────────────────────────────────────
   $('btnReschedule').addEventListener('click', () => toggle('rescheduleForm'));
   $('btnNotes').addEventListener('click', () => toggle('notesForm'));
+  const btnRateRef = $('btnRate');
+  if (btnRateRef) btnRateRef.addEventListener('click', () => toggle('rateForm'));
+
+  // Rating stars
+  let pickedRating = 0;
+  document.querySelectorAll('.rate-star').forEach(b => {
+    b.style.cssText = 'background:#fff;border:1px solid #e2e6f0;color:#ccc;font-size:28px;padding:8px 12px;border-radius:8px;cursor:pointer;line-height:1';
+    b.addEventListener('click', () => {
+      pickedRating = Number(b.getAttribute('data-r'));
+      document.querySelectorAll('.rate-star').forEach(x => {
+        const r = Number(x.getAttribute('data-r'));
+        x.style.color = (r <= pickedRating) ? '#ff8a00' : '#ccc';
+      });
+      const sub = $('rateSubmit');
+      if (sub) sub.disabled = false;
+    });
+  });
+
+  const rateSubmitBtn = $('rateSubmit');
+  if (rateSubmitBtn) {
+    rateSubmitBtn.addEventListener('click', async () => {
+      if (!pickedRating || !jobData) return;
+      const comment = $('rateComment').value.trim();
+      rateSubmitBtn.disabled = true;
+      const msg = $('rateMsg');
+      msg.textContent = 'sending…'; msg.className = 'msg';
+      try {
+        const res = await fetch(`${XANO_BASE}/record_customer_feedback`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            job_id: Number(jobData.job.id),
+            rating: pickedRating,
+            comment,
+            source: 'customer_portal'
+          })
+        });
+        const d = await res.json();
+        if (!d || !d.success) throw new Error((d && d.message) || 'failed');
+        msg.textContent = '✓ Thank you for your feedback!';
+        msg.className = 'msg ok';
+        setTimeout(() => $('rateForm').classList.remove('show'), 1800);
+      } catch (err) {
+        msg.textContent = 'failed: ' + (err.message || err);
+        msg.className = 'msg err';
+        rateSubmitBtn.disabled = false;
+      }
+    });
+  }
 
   document.querySelectorAll('[data-cancel]').forEach(btn => {
     btn.addEventListener('click', () => $(btn.getAttribute('data-cancel') + 'Form').classList.remove('show'));
