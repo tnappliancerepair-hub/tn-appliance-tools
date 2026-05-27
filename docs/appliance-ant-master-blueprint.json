@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 34,
-    "agents_to_build": 7,
+    "agents_live": 35,
+    "agents_to_build": 6,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3896,7 +3896,7 @@
       "purpose": "Extend the colony to HVAC. Jordan as Master Tech. Same architecture, new domain knowledge.",
       "priority": "MEDIUM",
       "agents_total": 23,
-      "agents_live": 21,
+      "agents_live": 22,
       "key_person": "Jordan - lead HVAC tech, currently employed at $38/hour, TCAT trained, Teddy's good friend",
       "agents": [
         {
@@ -4021,7 +4021,7 @@
         {
           "id": "H015",
           "name": "Heat Pump Diagnostic Reasoning",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Specialist diagnostic agent for heat pump faults (reversing valve, charge issues, defrost board, expansion devices). Emits DIAGNOSTIC_BRIEF for HVAC jobs.",
           "triggers": [
