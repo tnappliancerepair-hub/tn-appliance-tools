@@ -245,6 +245,19 @@ const WRITE_TOOLS = [
       required: ['job_id', 'minutes_late'],
     },
   },
+  {
+    name: 'draft_customer_running_ahead_sms',
+    description: 'Draft a customer-friendly SMS for when a tech is running AHEAD of schedule and could arrive earlier. Tone is opposite of running_behind: friendly heads-up + asks if the earlier time works. Customer may not be home / may need the original window. Returns draft text, does NOT send.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer' },
+        minutes_early: { type: 'integer', description: 'How many minutes ahead of the original window the tech could arrive' },
+        new_eta_iso: { type: 'string', description: 'Optional: new (earlier) arrival ETA in ISO timestamp' },
+      },
+      required: ['job_id', 'minutes_early'],
+    },
+  },
 ];
 
 // ─── Tool execution dispatch ────────────────────────────────────────
@@ -527,6 +540,32 @@ async function executeTool(toolName, toolInput, ctx) {
         sent: false,
         draft_message: draft,
         note: 'This is a DRAFT only. Office reviews + sends manually via the SMS interface. Ant cannot send customer SMS directly.',
+      };
+    }
+
+    case 'draft_customer_running_ahead_sms': {
+      if (!ti.job_id || ti.minutes_early == null) return { error: 'job_id + minutes_early required' };
+      const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
+      if (job.error) return job;
+      const custFirst = (job.customer_first_name || job.customer_first || '').trim() || 'there';
+      const appl = (job.appliance_type || 'appliance').toLowerCase();
+      const techFirstFromJob = (job.assigned_tech_first || 'your tech').trim();
+      let etaText;
+      if (ti.new_eta_iso) {
+        try {
+          etaText = new Date(ti.new_eta_iso).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }) + ' CT';
+        } catch (_) { etaText = `about ${ti.minutes_early} minutes early`; }
+      } else {
+        etaText = `about ${ti.minutes_early} minutes early`;
+      }
+      // Tone is opposite of behind: friendly heads-up + checks if earlier works
+      const draft = `Hi ${custFirst} — good news, ${techFirstFromJob} is wrapping up early and could be at your place ${etaText} for your ${appl}. Does an earlier arrival work, or stick to the original time? Reply with what's easier for you. — TN Appliance`;
+      return {
+        success: true,
+        is_draft: true,
+        sent: false,
+        draft_message: draft,
+        note: 'This is a DRAFT only. Customer should confirm earlier-arrival works before tech reroutes — some customers can\'t accommodate an early arrival.',
       };
     }
 
