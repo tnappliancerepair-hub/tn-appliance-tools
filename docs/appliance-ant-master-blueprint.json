@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 11,
-    "agents_to_build": 16,
+    "agents_live": 12,
+    "agents_to_build": 15,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -2952,7 +2952,7 @@
       "purpose": "Make every tech better every day. Knowledge that takes 10 years to accumulate delivered after job one.",
       "priority": "HIGH",
       "agents_total": 15,
-      "agents_live": 14,
+      "agents_live": 15,
       "agents": [
         {
           "id": "T001",
@@ -3141,7 +3141,7 @@
         {
           "id": "PC010",
           "name": "Daily Reflection Prompter",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "End-of-day prompt to each tech (single SMS) asking what slowed them today + what worked. Captures + summarizes. Emits PERFORMANCE_COACHING.",
           "triggers": [
