@@ -1257,6 +1257,52 @@ System sleep was already 0 (Never); display sleep is 10min but actively prevente
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-05-27 PM: Parallel ANT Phase 1 launch — total HCP separation
+
+**Strategic context:** Completely separating from HCP. Phase 1 = intake-only. Parsers ingest warranty emails → "Needs Scheduled" queue → Danielle (Dawn's old role too — handles ALL customer-facing) manually reviews + schedules. NO auto-assignment, NO auto-scheduling, NO HCP integration in either direction.
+
+**Hard rules locked in:**
+1. `CUSTOMER_FACING_ENABLED=false` (default) — every customer-bound SMS gated through `send_sms_POST.xs`. Drops + alerts Teddy. Internal (techs/owner/Danielle) bypass cleanly.
+2. NO HCP writes ever. `HCP_PUSH_DISABLED=true` wired into all 5 HCP-writing endpoints.
+3. HCP webhook OFF. `HCP_WEBHOOK_DISABLED=true` → 200-noop. New system does not record HCP intake at all.
+4. NO backfill. `PARSER_ACTIVATION_TS_MS` env var rejects pre-activation emails.
+5. Tech Assist runs ONLY on parallel-mode jobs (via event_log scan until `jobs.parallel_mode` column lands).
+6. NO scheduling logic. Danielle manually schedules everything from the queue.
+
+**Shipped this session:**
+- `send_sms_POST.xs` — gating layer. Customer-bound + `CUSTOMER_FACING_ENABLED!=true` → drop + log + alert Teddy. Smoke verified.
+- `create_tdr_POST.xs` — both HCP push sites gated behind `HCP_PUSH_DISABLED`.
+- `hcp_job_webhook_POST.xs` — kill switch at top. Operator flips env var to disable HCP webhook intake entirely.
+- NEW `create_job_from_email_POST.xs` — single intake endpoint for ServicePower/AHS/Allstate/manual. Forward-only via `PARSER_ACTIVATION_TS_MS`. Dedupes by claim_number. Creates job + alerts Danielle. Gated behind `EMAIL_INTAKE_ENABLED`.
+- NEW `list_needs_scheduled_parallel_GET.xs` — powers Danielle's queue. Uses event_log scan to identify parallel-mode jobs (since `jobs.parallel_mode` column not yet added).
+- NEW `danielle_schedule_parallel_job_POST.xs` — Danielle's Schedule action. Writes tech_id + scheduled_start + audit row.
+- NEW `needs-scheduled.html` — Danielle's mobile-first queue view. Auto-refreshes, Schedule modal per row, "+ Add Manually" gap-catcher.
+- `tech_sms_assist_POST.xs` scope guard — only fires for parallel-mode jobs. HCP-origin jobs route to legacy.
+- `tech_assist_eod_report.js` extended with parallel-mode + dropped-customer-SMS metrics.
+- All 5 active techs SMSed with updated parallel-mode messaging.
+- Danielle onboarded with single SMS containing her new URL.
+
+**Operator todos (Xano UI, ~5 minutes):**
+1. Add column `jobs.parallel_mode` (bool, default false)
+2. Add column `jobs.intake_source` (enum: hcp / email_servicepower / email_ahs / email_allstate / web_chat / manual)
+3. Set env vars:
+   - `HCP_WEBHOOK_DISABLED=true`
+   - `HCP_PUSH_DISABLED=true`
+   - `CUSTOMER_FACING_ENABLED=false`
+   - `EMAIL_INTAKE_ENABLED=true` (after smoke test with one test email per source)
+   - `PARSER_ACTIVATION_TS_MS=<now-in-ms>` at the moment you flip parsers live
+
+**Deferred to next session:**
+- AHS parser refactor (existing `ahs-gmail-poller.js` works but needs to POST to new `create_job_from_email` endpoint)
+- ServicePower parser refactor (same — existing `servicepower-gmail-poller.js` needs to POST to new endpoint)
+- Allstate parser (NEW build, no existing scaffold)
+- Office UI parallel_mode filter additions
+- Once `jobs.parallel_mode` column exists, swap event_log scan for direct column queries (faster + cleaner)
+
+**Phase 1 bar:** Danielle stops manually adding missing jobs. When parsers catch every email + she scrolls through the queue without needing to "+ Add Manually" — that's milestone 1 of cutover criteria.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
