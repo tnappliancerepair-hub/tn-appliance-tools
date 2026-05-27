@@ -156,6 +156,33 @@ export async function run(signal, ctx) {
     log('ltv_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: GOOGLE_REVIEW_REQUEST (7d) ──
+  // 7 days post-completion, ask the customer for a Google review.
+  // google_review_request.js holds-and-re-emits until deadline, then
+  // dedups per-customer (60-day window) before sending. Fires for both
+  // warranty and self-pay — happy customers are happy regardless of
+  // who's paying.
+  try {
+    const reviewDeadlineMs = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    await xano.emitSignal({
+      signal_type: 'GOOGLE_REVIEW_REQUEST',
+      signal_strength: 35,
+      payload: {
+        job_id: jobId,
+        customer_id: payload.customer_id || null,
+        customer_phone: payload.customer_phone || '',
+        first_name: payload.customer_first_name || '',
+        tech_first: payload.tech_first_name || '',
+        deadline_ms: reviewDeadlineMs,
+        scheduled_for_ms: reviewDeadlineMs,
+        source: 'job_completed_chain',
+        source_signal_id: signal.id,
+      },
+    });
+  } catch (err) {
+    log('google_review_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   const handled = await xano.getWarrantySubmissionHandled(jobId);
   if (handled && handled.handled) {
     return {
