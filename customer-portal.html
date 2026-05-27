@@ -269,6 +269,10 @@
       Add gate code / pet / access notes
       <span class="sub">So your tech is ready when they arrive.</span>
     </button>
+    <a class="btn" id="btnUpload" href="#" style="display:none">
+      📷 Send photos of the appliance
+      <span class="sub">Helps your tech show up with the right parts.</span>
+    </a>
     <a class="btn" href="tel:+16152802949" id="btnCall">
       Call us · 615-280-2949
       <span class="sub">Mon-Fri 8am-6pm CT</span>
@@ -488,6 +492,17 @@
     // Hide action buttons for terminal states
     if (viewState === 'completed' || viewState === 'canceled') {
       $('btnReschedule').style.display = 'none';
+    }
+
+    // Show upload link for non-terminal jobs
+    const btnUpload = $('btnUpload');
+    if (btnUpload) {
+      if (viewState === 'scheduled' || viewState === 'on_way' || viewState === 'in_progress') {
+        btnUpload.style.display = '';
+        btnUpload.href = `upload.html?job_id=${job.id}`;
+      } else {
+        btnUpload.style.display = 'none';
+      }
     }
   }
 
