@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ant Office — Needs Scheduling</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    overflow-x: hidden;
+  }
+
+  :root {
+    --bg: #0e1118;
+    --bg-2: #131720;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --text: #e8edf5;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --green: #00d68f;
+    --green-bg: rgba(0,214,143,0.10);
+    --orange: #f5a623;
+    --orange-bg: rgba(245,166,35,0.12);
+    --red: #ff6b6b;
+    --red-bg: rgba(255,107,107,0.10);
+    --blue: #5aa9ff;
+    --blue-bg: rgba(90,169,255,0.10);
+    --violet: #b48cff;
+    --violet-bg: rgba(180,140,255,0.10);
+  }
+
+  .auth-gate {
+    position: fixed; inset: 0;
+    background: rgba(14,17,24,0.97);
+    backdrop-filter: blur(6px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .auth-gate.show { display: flex; }
+  .auth-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 30px 26px;
+    max-width: 380px; width: 100%;
+    text-align: center;
+  }
+  .auth-card .ant { font-size: 36px; margin-bottom: 8px; }
+  .auth-card .title { font-size: 18px; font-weight: 700; }
+  .auth-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 22px; font-family: var(--mono); }
+  .auth-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+    font-family: var(--mono);
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .auth-input:focus { border-color: var(--orange); }
+  .auth-submit {
+    margin-top: 14px;
+    width: 100%;
+    background: var(--orange);
+    color: #1a1208;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .auth-err { margin-top: 12px; font-size: 12px; color: var(--red); min-height: 16px; }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: 60px;
+    background: linear-gradient(180deg, #0e1118, #131720);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 14px;
+    z-index: 90;
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .topbar .brand .ant { font-size: 22px; }
+  .topbar .brand .title { font-weight: 700; font-size: 15px; }
+  .topbar .brand .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .topbar .spacer { flex: 1; }
+  .topbar .refresh {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+  .topbar .refresh:active { transform: scale(0.97); }
+  .topbar a.calbtn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    text-decoration: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+
+  .summary-bar {
+    display: flex;
+    gap: 12px;
+    padding: 14px 18px;
+    overflow-x: auto;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .summary-pill {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    white-space: nowrap;
+    display: flex; gap: 8px; align-items: baseline;
+  }
+  .summary-pill .n {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: var(--mono);
+    color: var(--text);
+  }
+
+  .funnel {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(280px, 1fr));
+    gap: 14px;
+    padding: 18px;
+    min-height: calc(100vh - 60px - 60px);
+  }
+  @media (max-width: 1200px) {
+    .funnel { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+  }
+  @media (max-width: 720px) {
+    .funnel { grid-template-columns: 1fr; }
+  }
+
+  .col {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    max-height: calc(100vh - 60px - 60px - 36px);
+  }
+  .col .head {
+    padding: 14px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .col .head .label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  .col .head .count {
+    font-size: 16px;
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+  .col[data-stage="needs_scheduled"] .head .label { color: var(--violet); }
+  .col[data-stage="needs_scheduled"] .head .count { color: var(--violet); }
+  .col[data-stage="awaiting_customer_info"] .head .label { color: var(--blue); }
+  .col[data-stage="awaiting_customer_info"] .head .count { color: var(--blue); }
+  .col[data-stage="awaiting_prediagnosis"] .head .label { color: var(--orange); }
+  .col[data-stage="awaiting_prediagnosis"] .head .count { color: var(--orange); }
+  .col[data-stage="awaiting_parts_eta"] .head .label { color: var(--red); }
+  .col[data-stage="awaiting_parts_eta"] .head .count { color: var(--red); }
+  .col[data-stage="ready_to_schedule"] .head .label { color: var(--green); }
+  .col[data-stage="ready_to_schedule"] .head .count { color: var(--green); }
+
+  .col .list {
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .col .empty {
+    padding: 30px 12px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .card .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card .who {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card .age {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+  .card .what {
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card .meta {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .card .meta .badge {
+    background: rgba(255,255,255,0.05);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+  .card .meta .badge.warranty { color: var(--orange); }
+  .card .meta .badge.self_pay { color: var(--green); }
+  .card .actions { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .card .actions button, .card .actions a {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    font-family: var(--mono);
+    min-width: 0;
+  }
+  .card .actions button.primary {
+    background: var(--orange);
+    color: #1a1208;
+    border-color: var(--orange);
+    font-weight: 700;
+  }
+  .card .actions button:active, .card .actions a:active { transform: scale(0.97); }
+  .card .actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .loading-screen {
+    position: fixed; inset: 60px 0 0 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: var(--muted);
+  }
+  .loading-screen.show { display: flex; }
+  .loading-screen .ant { font-size: 36px; margin-bottom: 8px; animation: bob 1.2s infinite ease-in-out; }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+  .toast {
+    position: fixed;
+    bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    z-index: 200;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { border-color: var(--red); color: var(--red); }
+  .toast.ok { border-color: var(--green); color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Ant Office</div>
+    <div class="sub">needs-scheduling</div>
+    <input type="password" class="auth-input" id="authInput" placeholder="••••••••" autocomplete="off">
+    <button class="auth-submit" id="authSubmit">unlock</button>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="topbar">
+    <div class="brand">
+      <div class="ant">🐜</div>
+      <div>
+        <div class="title">Needs Scheduling</div>
+        <div class="sub">5-stage funnel</div>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <a class="calbtn" href="office-calendar.html">📅 Calendar</a>
+    <button class="refresh" id="refreshBtn">↻ Refresh</button>
+  </div>
+
+  <div class="summary-bar" id="summaryBar"></div>
+
+  <div class="funnel" id="funnel"></div>
+</div>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="ant">🐜</div>
+  <div>loading funnel…</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch(XANO_BASE+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
+
+  const $ = (id) => document.getElementById(id);
+  const authGate = $('authGate');
+  const authInput = $('authInput');
+  const authSubmit = $('authSubmit');
+  const authErr = $('authErr');
+  const app = $('app');
+  const loadingScreen = $('loadingScreen');
+  const funnel = $('funnel');
+  const summaryBar = $('summaryBar');
+  const refreshBtn = $('refreshBtn');
+  const toast = $('toast');
+
+  function unlock() {
+    authGate.classList.remove('show');
+    app.style.display = 'block';
+    loadFunnel();
+  }
+  function tryUnlock() {
+    if (localStorage.getItem(AUTH_KEY) === 'ok') unlock();
+    else { authGate.classList.add('show'); authInput.focus(); }
+  }
+  authSubmit.addEventListener('click', submitAuth);
+  authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+  async function submitAuth() {
+    const v = authInput.value;
+    if (await __verifyOfficePassword(v)) {
+      localStorage.setItem(AUTH_KEY, 'ok');
+      authErr.textContent = '';
+      unlock();
+    } else {
+      authErr.textContent = 'wrong password.';
+      authInput.value = '';
+      authInput.focus();
+    }
+  }
+
+  refreshBtn.addEventListener('click', loadFunnel);
+
+  function showToast(msg, kind = '') {
+    toast.textContent = msg;
+    toast.className = 'toast show ' + kind;
+    setTimeout(() => { toast.className = 'toast ' + kind; }, 2800);
+  }
+
+  function fmtAge(hrs) {
+    if (hrs == null) return '';
+    if (hrs < 1) return Math.round(hrs * 60) + 'm';
+    if (hrs < 24) return hrs.toFixed(1) + 'h';
+    return Math.round(hrs / 24) + 'd';
+  }
+
+  async function loadFunnel() {
+    loadingScreen.classList.add('show');
+    funnel.innerHTML = '';
+    summaryBar.innerHTML = '';
+    try {
+      const r = await fetch(XANO_BASE + '/get_needs_scheduling?limit=100');
+      const data = await r.json();
+      if (!data.success) throw new Error('endpoint returned !success');
+      renderSummary(data);
+      renderFunnel(data.stages);
+    } catch (e) {
+      funnel.innerHTML = `<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--red)">load failed: ${e.message}</div>`;
+    } finally {
+      loadingScreen.classList.remove('show');
+    }
+  }
+
+  function renderSummary(data) {
+    const total = data.total_in_funnel || 0;
+    const stages = data.stages || [];
+    const ready = stages.find(s => s.key === 'ready_to_schedule')?.count || 0;
+    const stuckCustomer = (stages.find(s => s.key === 'needs_scheduled')?.count || 0)
+                       + (stages.find(s => s.key === 'awaiting_customer_info')?.count || 0);
+    summaryBar.innerHTML = `
+      <div class="summary-pill"><span class="n">${total}</span> total in funnel</div>
+      <div class="summary-pill"><span class="n">${stuckCustomer}</span> need customer response</div>
+      <div class="summary-pill"><span class="n">${ready}</span> ready to schedule</div>
+    `;
+  }
+
+  function renderFunnel(stages) {
+    funnel.innerHTML = stages.map(s => `
+      <div class="col" data-stage="${s.key}">
+        <div class="head">
+          <div class="label">${s.label}</div>
+          <div class="count">${s.count}</div>
+        </div>
+        <div class="list">
+          ${s.jobs.length === 0
+            ? `<div class="empty">— empty —</div>`
+            : s.jobs.map(j => renderCard(j, s.key)).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    funnel.querySelectorAll('button[data-action]').forEach(btn => {
+      btn.addEventListener('click', handleAction);
+    });
+  }
+
+  function renderCard(j, stage) {
+    const who = j.customer_name || '—';
+    const what = [j.appliance, j.brand].filter(Boolean).join(' · ') || '(no appliance info)';
+    const age = fmtAge(j.age_hours);
+    const sourceBadge = j.source ? `<span class="badge">${j.source}</span>` : '';
+    const typeBadge = j.customer_type
+      ? `<span class="badge ${j.customer_type}">${j.customer_type}</span>`
+      : '';
+    const zipBadge = j.zip ? `<span class="badge">${j.zip}</span>` : '';
+    const warrantyBadge = j.warranty_company
+      ? `<span class="badge warranty">${j.warranty_company}</span>` : '';
+    const partsETAbadge = j.parts_eta_date
+      ? `<span class="badge">eta ${j.parts_eta_date}</span>` : '';
+
+    const actions = actionsForStage(j, stage);
+    return `
+      <div class="card" data-job-id="${j.id}">
+        <div class="row">
+          <div class="who">${who}</div>
+          <div class="age">${age}</div>
+        </div>
+        <div class="what">${what}</div>
+        <div class="meta">
+          ${sourceBadge}${typeBadge}${zipBadge}${warrantyBadge}${partsETAbadge}
+        </div>
+        <div class="actions">${actions}</div>
+      </div>
+    `;
+  }
+
+  function actionsForStage(j, stage) {
+    const view = `<a href="job-detail.html?job_id=${j.id}" target="_blank">↗ View</a>`;
+    if (stage === 'needs_scheduled' || stage === 'awaiting_customer_info') {
+      const label = stage === 'needs_scheduled' ? 'Send Ant Link' : 'Resend Link';
+      return `<button class="primary" data-action="send_link" data-job-id="${j.id}">📲 ${label}</button>${view}`;
+    }
+    if (stage === 'awaiting_prediagnosis') {
+      return `<a class="primary" href="teddy-tdr-tool.html?job_id=${j.id}" target="_blank">🔧 Teddy Tool</a>${view}`;
+    }
+    if (stage === 'awaiting_parts_eta') {
+      return `<a class="primary" href="teddy-tdr-tool.html?job_id=${j.id}" target="_blank">📦 Set Parts ETA</a>${view}`;
+    }
+    if (stage === 'ready_to_schedule') {
+      return `<button class="primary" data-action="auto_schedule" data-job-id="${j.id}">📅 Auto-Schedule</button>${view}`;
+    }
+    return view;
+  }
+
+  async function handleAction(ev) {
+    const btn = ev.currentTarget;
+    const action = btn.dataset.action;
+    const jobId = parseInt(btn.dataset.jobId, 10);
+    btn.disabled = true;
+    try {
+      if (action === 'send_link') {
+        const r = await fetch(XANO_BASE + '/send_intake_link_sms', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({job_id: jobId, source: 'needs_scheduling_manual'})
+        });
+        const d = await r.json();
+        if (d && d.success) {
+          showToast('Ant link sent', 'ok');
+          setTimeout(loadFunnel, 800);
+        } else {
+          showToast(d?.error || 'send failed', 'err');
+          btn.disabled = false;
+        }
+      } else if (action === 'auto_schedule') {
+        const r = await fetch(XANO_BASE + '/emit_colony_signal', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            signal_type: 'JOB_INTAKE_COMPLETE',
+            signal_strength: 5,
+            payload: {job_id: jobId, source: 'needs_scheduling_manual_trigger'}
+          })
+        });
+        const d = await r.json();
+        if (d && (d.success || d.signal_id)) {
+          showToast('Auto-scheduler triggered', 'ok');
+          setTimeout(loadFunnel, 1200);
+        } else {
+          showToast(d?.error || 'trigger failed', 'err');
+          btn.disabled = false;
+        }
+      }
+    } catch (e) {
+      showToast('error: ' + e.message, 'err');
+      btn.disabled = false;
+    }
+  }
+
+  tryUnlock();
+})();
+</script>
+</body>
+</html>
