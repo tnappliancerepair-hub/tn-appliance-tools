@@ -35,11 +35,40 @@
 
 <div class="header">
   <div class="ant">🐜</div>
-  <div>
+  <div style="flex:1">
     <div class="title">Ant Office</div>
     <div class="sub">tnapplianceexchange.net · all your tools</div>
   </div>
 </div>
+
+<!-- Global search bar — routes to the right surface based on input shape -->
+<div style="padding: 4px 4px 16px">
+  <input id="globalSearch" type="search" placeholder="🔍 Search customer / job # / phone / Ant (try 'fridge LG not cooling')" style="width:100%;padding:14px 18px;background:var(--panel);border:1px solid var(--border);border-radius:10px;color:#e8edf5;font-size:15px;outline:none;font-family:inherit">
+  <div id="globalSearchHint" style="font-size:11px;color:var(--muted);margin-top:6px;padding-left:4px">enter = customer search · job #N = job detail · semantic question = ask ant</div>
+</div>
+<script>
+(function() {
+  const $ = (id) => document.getElementById(id);
+  const inp = $('globalSearch');
+  if (!inp) return;
+  inp.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const q = inp.value.trim();
+    if (!q) return;
+    // job #N → job-detail
+    const jobMatch = q.match(/^#?(\d{2,7})$/) || q.match(/^job\s*#?(\d{2,7})$/i);
+    if (jobMatch) { window.location.href = `job-detail.html?job_id=${jobMatch[1]}&office=1`; return; }
+    // looks like a question (≥4 words OR ends with ?) → ask-ant
+    const wordCount = q.split(/\s+/).length;
+    if (q.endsWith('?') || wordCount >= 4) {
+      window.location.href = `ask-ant.html?q=${encodeURIComponent(q)}`;
+      return;
+    }
+    // default: customer search
+    window.location.href = `customer-search.html?q=${encodeURIComponent(q)}`;
+  });
+})();
+</script>
 
 <div class="section-title">Daily workflow</div>
 <div class="grid">
