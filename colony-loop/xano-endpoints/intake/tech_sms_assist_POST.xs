@@ -68,8 +68,18 @@ query tech_sms_assist verb=POST {
     // recent conversation transcript (last 20 messages for this session)
     // and call create_tdr. For v1, simpler: pull tech_assist_session
     // captured_data if present; else ask the tech to text findings first.
-    var $body_u { value = $body_in|upper }
-    var $is_save_cmd { value = ($body_u == "SAVE" || $body_u == "DONE" || $body_u == "SUBMIT" || $body_u == "FINALIZE") }
+    // Per-tech opt-out check — Teddy can PAUSE TECH ASSIST FOR <tech_id>
+    // to flag tech.tech_assist_paused_at. If set, route to legacy handler.
+    conditional {
+      if ((($tech.tech_assist_paused_at ?? 0)|to_int) > 0) {
+        return {
+          value = {matched: false, reason: "tech_assist_paused_for_tech"}
+        }
+      }
+    }
+
+    var $body_u { value = $body_in|upper|trim }
+    var $is_save_cmd { value = ($body_u == "SAVE" || $body_u == "DONE" || $body_u == "SUBMIT" || $body_u == "FINALIZE" || $body_u == "COMPLETE" || $body_u == "THATS IT" || $body_u == "THAT'S IT") }
 
     conditional {
       if ($is_save_cmd) {
@@ -213,10 +223,16 @@ query tech_sms_assist verb=POST {
 
     var $existing_captured_json { value = $existing_captured|json_encode }
 
-    // Build the system prompt inline. Claude must output JSON so we can
-    // both reply AND upsert structured TDR fields each turn.
+    // Build the system prompt. CORE RULE: be the tech's most useful
+    // crew member first. Diagnose with them, give them part numbers,
+    // suggest tests. NEVER interrogate them for TDR fields — just
+    // capture what they mention in passing. The TDR fills itself from
+    // a natural working conversation.
+    // SCRIBE MODE prompt — under 2000 chars. Tech is mid-job, hands dirty.
+    // Ant is a SILENT SCRIBE that extracts ALL fields from anything sent.
+    // NEVER an interviewer.
     var $sys_prompt {
-      value = "You are Ant, an in-truck assistant for appliance-repair technicians via SMS. The tech is on-site working a job. Output ONLY valid JSON, no prose, no markdown fences. Schema: {\"reply\": \"your SMS reply under 160 chars\", \"captured\": {\"diagnosis\": string?, \"failed_component\": string?, \"labor_hours\": string?, \"repair_completed\": string?, \"verified_part_number\": string?}}. The 'captured' object should contain ONLY fields you can confidently extract from the tech's LATEST message — omit fields you don't have. Coaching style for 'reply': ask for ONE missing field at a time (the gaps after merging your extraction with what's already captured), under 160 chars, plain text. If all 4 core fields (diagnosis, failed_component, labor_hours, repair_completed) are present after this turn, reply with: \"TDR ready: diagnosis OK part OK labor OK repair done OK. Text SAVE when ready.\" Job context: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem ~ ". Already captured this session: " ~ $existing_captured_json
+      value = "You are Ant, the silent scribe for an appliance-repair tech texting you mid-job. Hands dirty, on the road. NOT a chatbot. Your job: extract TDR fields from anything they send and write the TDR. Reply only when you must.\n\nOUTPUT ONLY valid JSON, no prose, no markdown fence. Schema:\n{\"reply\":\"<under-200-char plain text>\",\"captured\":{\"diagnosis\":string?,\"failed_component\":string?,\"verified_part_number\":string?,\"replaced_by_part_number\":string?,\"labor_hours\":string?,\"repair_completed\":string?,\"parts_status\":string?,\"second_visit_needed\":boolean?,\"recommendation\":string?}}\n\nEXTRACTION RULES (every turn):\n- Parse the LATEST message for ALL fields, not just one. If they dump everything at once, capture all of it.\n- '1.5', '45 min', '1 hr', '2hrs' → labor_hours as decimal string ('1.5', '0.75', '1', '2')\n- 'Nwt' or 'NWT' = needs work / quote → parts_status='needs_quote', recommendation='quote'\n- 'replaced by #X' or 'sub X' or 'crossed to X' → replaced_by_part_number=X\n- Part numbers like 'WPW10310240', '316455400' → verified_part_number\n- 'all done', 'fixed', 'swapped' → recommendation='repair_complete' + repair_completed describing what they did\n- 'parts ordered', 'on order' → parts_status='ordered', recommendation='2nd_visit'\n- A standalone numeric reply right after asking labor → labor_hours\n- Tech repeating a value already captured → ACCEPT, don't re-ask, don't comment on the repeat.\n\nREPLY RULES:\n- After extracting + given the merged TDR state (you'll see it in 'Already captured'), if ALL 4 core fields (diagnosis, failed_component, labor_hours, repair_completed) are present → reply: \"TDR saved. <one-sentence summary>.\"\n- If EXACTLY ONE core field missing → ask for ONLY that one, briefly. e.g. \"Still need labor hours.\"\n- If TWO+ core fields missing → list them in one message. e.g. \"Still need: failed part, labor hours.\"\n- If tech asks a part-lookup question ('part # for water pump on model X?') → give the specific part number + searspartsdirect.com/model/X link. THEN check what's still missing.\n- NEVER say 'keep going' or 'text more findings' or 'got it.' (alone). If you have nothing to add or ask, set reply to empty string \"\".\n- NEVER ask for a field that's already filled in 'Already captured'.\n- Photos: if they mention an error code, model, or unusual part, suggest tnapplianceexchange.net/upload.html?job_id=" ~ ($job_id|to_text) ~ " in passing. Don't repeat the suggestion.\n\nJob: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem ~ "\nAlready captured: " ~ $existing_captured_json
     }
 
     var $user_msg_obj { value = {role: "user", content: $body_in} }
@@ -225,8 +241,8 @@ query tech_sms_assist verb=POST {
       url = "https://api.anthropic.com/v1/messages"
       method = "POST"
       params = {
-        model     : "claude-haiku-4-5-20251001"
-        max_tokens: 250
+        model     : "claude-sonnet-4-5-20250929"
+        max_tokens: 600
         system    : $sys_prompt
         messages  : [$user_msg_obj]
       }
@@ -312,6 +328,47 @@ query tech_sms_assist verb=POST {
       }
     }
 
+    var $nc_replaced_by { value = (($new_captured.replaced_by_part_number ?? "")|trim) }
+    conditional {
+      if ($nc_replaced_by != "") {
+        var.update $merged_captured { value = $merged_captured|set:"replaced_by_part_number":$nc_replaced_by }
+      }
+    }
+
+    var $nc_parts_status { value = (($new_captured.parts_status ?? "")|trim) }
+    conditional {
+      if ($nc_parts_status != "") {
+        var.update $merged_captured { value = $merged_captured|set:"parts_status":$nc_parts_status }
+      }
+    }
+
+    var $nc_recommend { value = (($new_captured.recommendation ?? "")|trim) }
+    conditional {
+      if ($nc_recommend != "") {
+        var.update $merged_captured { value = $merged_captured|set:"recommendation":$nc_recommend }
+      }
+    }
+
+    // Debug log every write — required for triage during rollout
+    db.add event_log {
+      data = {
+        action  : "tdr_write_from_sms"
+        metadata: {
+          job_id           : $job_id
+          tech_id          : $tech_id
+          diag_new         : $nc_diag
+          comp_new         : $nc_comp
+          part_new         : $nc_part
+          replaced_new     : $nc_replaced_by
+          labor_new        : $nc_labor
+          repair_new       : $nc_repair
+          parts_status_new : $nc_parts_status
+          recommend_new    : $nc_recommend
+          inbound          : ($body_in|substr:0:200)
+        }
+      }
+    } as $tdr_write_log_row
+
     // Upsert tech_assist_session.captured_data
     var $now_ms_upd { value = now|to_ms }
 
@@ -342,23 +399,123 @@ query tech_sms_assist verb=POST {
       }
     }
 
-    api.request {
-      url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
-      method  = "POST"
-      headers = []|push:"Content-Type: application/json"
-      params  = {
-        to              : $phone_in
-        message         : $reply_text
-        context_tag     : "sms_tdr_assist_reply"
+    // AUTO-FINALIZE: if merged_captured has all 4 core fields, save the TDR
+    // automatically (don't require explicit SAVE text from tech). This is
+    // the ONE-SHOT save path Teddy specified.
+    var $m_diag { value = (($merged_captured.diagnosis ?? "")|trim) }
+    var $m_comp { value = (($merged_captured.failed_component ?? "")|trim) }
+    var $m_labor { value = (($merged_captured.labor_hours ?? "")|to_text|trim) }
+    var $m_repair { value = (($merged_captured.repair_completed ?? "")|trim) }
+    var $m_part { value = (($merged_captured.verified_part_number ?? "")|trim) }
+    var $m_replaced { value = (($merged_captured.replaced_by_part_number ?? "")|trim) }
+
+    var $all_4_present {
+      value = ($m_diag != "") && ($m_comp != "") && ($m_labor != "" && $m_labor != "0") && ($m_repair != "")
+    }
+
+    conditional {
+      if ($all_4_present) {
+        // Check if a TDR was already saved for this tech+job in this session
+        // window to avoid duplicate creates. Look for tech_sms_tdr_saved
+        // event_log in last 2 hours.
+        var $now_ms_check { value = now|to_ms }
+        var $two_hr_ago { value = $now_ms_check - 7200000 }
+
+        db.query event_log {
+          where  = $db.event_log.action == "tech_sms_tdr_saved" && $db.event_log.created_at >= $two_hr_ago
+          sort   = {event_log.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 10}}
+        } as $recent_saves
+
+        var $already_saved { value = false }
+
+        foreach ($recent_saves.items) {
+          each as $sv {
+            conditional {
+              if (!$already_saved) {
+                var $sv_meta_raw { value = ($sv.metadata ?? "") }
+                var $sv_marker { value = "\"job_id\":" ~ ($job_id|to_text) }
+                var $sv_strip { value = $sv_meta_raw|replace:$sv_marker:"" }
+                conditional {
+                  if (($sv_meta_raw|strlen) > ($sv_strip|strlen)) {
+                    var.update $already_saved { value = true }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        conditional {
+          if (!$already_saved) {
+            var $labor_num { value = $m_labor|to_decimal }
+
+            api.request {
+              url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/create_tdr"
+              method  = "POST"
+              headers = []|push:"Content-Type: application/json"
+              params  = {
+                job_id                  : $job_id
+                technician_id           : $tech_id
+                technician_first_name   : $tech_first
+                diagnosis               : $m_diag
+                failed_component        : $m_comp
+                failure_description     : $m_diag
+                labor_time_hours        : $labor_num
+                repair_completed        : $m_repair
+                verified_part_number    : $m_part
+                final_recommendation    : "repair_complete"
+              }
+            } as $auto_tdr_resp
+
+            var $auto_tdr_status { value = ($auto_tdr_resp.response.status ?? 0) }
+
+            db.add event_log {
+              data = {
+                action  : "tech_sms_tdr_saved"
+                metadata: {
+                  job_id        : $job_id
+                  tech_id       : $tech_id
+                  tdr_status    : $auto_tdr_status
+                  auto          : true
+                  diag_len      : ($m_diag|strlen)
+                  labor         : $m_labor
+                }
+              }
+            } as $auto_save_log
+
+            // Override reply_text with one-shot save confirmation
+            var.update $reply_text {
+              value = "TDR saved. " ~ $m_comp ~ ", " ~ $m_labor ~ "h, " ~ $m_repair
+            }
+          }
+        }
       }
-    } as $reply_send
+    }
+
+    // SILENT MODE: if reply_text is empty, don't send. Saves tech attention.
+    conditional {
+      if (($reply_text|trim) != "") {
+        api.request {
+          url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+          method  = "POST"
+          headers = []|push:"Content-Type: application/json"
+          params  = {
+            to              : $phone_in
+            message         : $reply_text
+            context_tag     : "sms_tdr_assist_reply"
+          }
+        } as $reply_send
+      }
+    }
   }
 
   response = {
-    matched     : true
-    job_id      : $job_id
-    chat_status : $chat_status
-    reply_len   : ($reply_text|strlen)
+    matched      : true
+    job_id       : $job_id
+    chat_status  : $chat_status
+    reply_len    : ($reply_text|strlen)
+    auto_saved   : $all_4_present
   }
 
   guid = "tech-sms-assist-v1"
