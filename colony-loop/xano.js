@@ -187,6 +187,18 @@ export async function getUnpaidDigestFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_unpaid_digest_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getResumeChatPending(hoursSinceGreeting, limit) {
+  const params = new URLSearchParams();
+  if (hoursSinceGreeting) params.set('hours_since_greeting', String(hoursSinceGreeting));
+  if (limit) params.set('limit', String(limit));
+  const q = params.toString();
+  return getJSON(`${INTAKE()}/get_resume_chat_pending${q ? '?' + q : ''}`);
+}
+
+export async function getResumeNudgeFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_resume_nudge_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

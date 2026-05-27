@@ -214,6 +214,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // RESUME_NUDGE — fires once per day at 9:30am CT (9-12 grace). Sweeps
+  // AHS/ServicePower jobs with no resume-chat completion within 48h
+  // (single nudge per job, dedup'd via compound action key).
+  if (hour >= 9 && hour < 12) {
+    let resumeFired;
+    try {
+      resumeFired = await xano.getResumeNudgeFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('resume_nudge_dedup_failed', { error: err.message });
+      resumeFired = null;
+    }
+    if (resumeFired && !resumeFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'RESUME_NUDGE',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('resume_nudge_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('resume_nudge_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // UNPAID_SELF_PAY_DIGEST — fires once per day at 10:30am CT (10-13 grace).
   // Sends Teddy a digest of self-pay jobs completed in the last 14 days
   // where payment_collected is still false. Silent skip when all paid.
