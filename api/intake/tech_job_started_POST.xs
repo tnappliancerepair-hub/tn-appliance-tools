@@ -79,6 +79,20 @@ query tech_job_started verb=POST {
       }
     } as $js_signal
 
+    // Emit PRE_JOB_BRIEFING in parallel — pre_job_briefing agent picks
+    // this up, composes a smart SMS to the tech with model-specific
+    // failure data + customer history + parts link. Async, fires once
+    // per job (agent dedups via event_log).
+    db.add colony_signals {
+      data = {
+        signal_type    : "PRE_JOB_BRIEFING"
+        signal_strength: 70
+        source_colony  : ""
+        target_colonies: ""
+        payload        : $js_payload_str
+      }
+    } as $briefing_signal
+
     // SMS Teddy with the update. Composed from customer + tech name.
     var $cust_id_val {
       value = ($job.customer_id ?? 0)
