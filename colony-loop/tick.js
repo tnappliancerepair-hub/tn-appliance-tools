@@ -433,6 +433,28 @@ async function maybeEmitTimeSignals() {
     xano.logLocal('reactivation_campaign_check_failed', { error: err.message });
   }
 
+  // TECH_WEEKLY_RECAP — fires once per week on Sundays 6-8pm CT.
+  // Per-tech end-of-week SMS with stats + invitation to text any
+  // preference change for next week (Phase 2c of SMS-first ant scheduler).
+  // Dedup via tech_weekly_recap_sent event_log row keyed on (tech, week).
+  try {
+    const recapDow = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (recapDow === 'Sun' && hour >= 18 && hour < 20) {
+      // Use this Sunday's CT midnight as the week_start_ms (matches the
+      // weekly performance emit pattern). The agent dedups per tech, so
+      // even if the tick fires multiple times in the 6-8pm window the
+      // recap goes out at most once per tech.
+      await xano.emitSignal({
+        signal_type: 'TECH_WEEKLY_RECAP',
+        signal_strength: 60,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+      xano.logLocal('tech_weekly_recap_emitted', { since_ts_ms: sinceMs });
+    }
+  } catch (err) {
+    xano.logLocal('tech_weekly_recap_emit_failed', { error: err.message });
+  }
+
   // WEEKLY_PERFORMANCE_SUMMARY — fires once per week on Sundays 8-11am CT.
   // Fans out PERFORMANCE_REQUEST_* signals per tech × per scope so each
   // tech's metrics get refreshed once per week. Uses since_ts_ms = start
