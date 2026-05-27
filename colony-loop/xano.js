@@ -167,6 +167,16 @@ export async function getWaiverStatus(jobId) {
   return getJSON(`${INTAKE()}/get_waiver_status?job_id=${jobId}`);
 }
 
+export async function getTechsWithOpenTdr(todayCt) {
+  let url = `${INTAKE()}/get_techs_with_open_tdr`;
+  if (todayCt) url += `?today_ct=${encodeURIComponent(todayCt)}`;
+  return getJSON(url);
+}
+
+export async function getTdrReminderFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_tdr_reminder_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

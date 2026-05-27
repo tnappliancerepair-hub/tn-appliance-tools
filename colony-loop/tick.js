@@ -214,6 +214,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // TDR_REMINDER — fires once per day at 4pm CT (4-7pm grace). For each
+  // tech with at least one job completed today missing a full TDR, SMS
+  // the tech with the open-job list + a deep link to tech-daily-dashboard.
+  if (hour >= 16 && hour < 19) {
+    let tdrFired;
+    try {
+      tdrFired = await xano.getTdrReminderFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('tdr_reminder_dedup_failed', { error: err.message });
+      tdrFired = null;
+    }
+    if (tdrFired && !tdrFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TDR_REMINDER',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('tdr_reminder_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('tdr_reminder_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // PARTS_ARRIVAL_CHECK — fires once per day at 11am CT (11am-1pm grace).
   // Sweeps jobs in awaiting_parts status with parts_eta_date <= today and
   // SMSes each customer asking for a re-visit time. Per-job dedup handled
