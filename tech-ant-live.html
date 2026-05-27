@@ -658,6 +658,12 @@
 </div>
 
 <input type="file" id="file-input" multiple accept="image/*,video/*" onchange="handleFiles(event)">
+<!-- Camera-only inputs. iOS Safari opens straight to camera when
+     capture="environment" is set. Better UX than the "take photo or
+     choose library" dialog. Tech taps button → camera opens → shoot
+     → done → upload. Matches HCP's flow. -->
+<input type="file" id="file-input-photo-camera" accept="image/*" capture="environment" onchange="handleFiles(event)">
+<input type="file" id="file-input-video-camera" accept="video/*" capture="environment" onchange="handleFiles(event)">
 
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -1156,15 +1162,26 @@ function showQuickActions() {
   // CaptureOverlay-driven quick actions. Photo for everything except items
   // explicitly suggesting a video (e.g. running cycle). Falls back to native
   // file picker if CaptureOverlay isn't loaded.
-  qa.innerHTML = list.map(label => {
+  const captureButtons = list.map(label => {
     const isVideo = /video|cycle|running|cooktop on/i.test(label);
     const action = isVideo ? 'qaCaptureVideo' : 'qaCapturePhoto';
     return `<button class="quick-btn" onclick="${action}()">${escapeHtml(label)}</button>`;
   }).join('');
+  // Parts lookup quick-action — opens parts-lookup.html pre-filled with
+  // the job's brand + model so the tech can find part numbers fast.
+  const brand = (lastJobData?.appliance?.brand || lastJobData?.job?.brand || '').trim();
+  const model = (lastJobData?.appliance?.model_number || lastJobData?.job?.model_number || '').trim();
+  const partsUrl = `parts-lookup.html?brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`;
+  const partsButton = `<a class="quick-btn" href="${partsUrl}" target="_blank" style="text-decoration:none;background:rgba(245,166,35,0.15);border-color:rgba(245,166,35,0.4);color:#f5a623">🔧 Parts</a>`;
+  qa.innerHTML = captureButtons + partsButton;
   qa.classList.add('show');
 }
 
 function qaCapturePhoto() {
+  // Prefer native camera-direct (capture=environment) on iOS — matches
+  // HCP's UX. Falls back to CaptureOverlay then generic file picker.
+  const cameraInput = document.getElementById('file-input-photo-camera');
+  if (cameraInput) { cameraInput.click(); return; }
   if (typeof window.CaptureOverlay !== 'undefined' && window.CaptureOverlay.openPhotoCapture) {
     window.CaptureOverlay.openPhotoCapture((blob, mime) => {
       if (blob) uploadCapturedBlob(blob, mime, 'photo');
@@ -1175,6 +1192,9 @@ function qaCapturePhoto() {
 }
 
 function qaCaptureVideo() {
+  // Prefer native camera-direct (capture=environment) for video too.
+  const cameraInput = document.getElementById('file-input-video-camera');
+  if (cameraInput) { cameraInput.click(); return; }
   if (typeof window.CaptureOverlay !== 'undefined' && window.CaptureOverlay.openVideoCapture) {
     window.CaptureOverlay.openVideoCapture((blob, mime) => {
       if (blob) uploadCapturedBlob(blob, mime, 'video');

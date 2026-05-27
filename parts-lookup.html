@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Parts Lookup - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; min-height: 100dvh; padding: 18px 14px; }
+  :root { --orange:#f5a623; --green:#00d68f; --blue:#5aa9ff; --muted:#8a93aa; --panel:#131720; --border:#2a3040; --bg:#0e1118; }
+  .header { text-align: center; padding: 4px 0 18px; }
+  .header .ant { font-size: 30px; }
+  .header h1 { font-size: 20px; font-weight: 800; }
+  .header p { color: var(--muted); font-size: 11px; margin-top: 4px; font-family: monospace; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; margin-top: 12px; }
+  label:first-of-type { margin-top: 0; }
+  input { width: 100%; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: #e8edf5; font-size: 16px; outline: none; }
+  input:focus { border-color: var(--orange); }
+  button.primary { width: 100%; padding: 14px; background: var(--orange); color: #1a1208; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; margin-top: 16px; font-size: 15px; }
+  .source-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .source-btn { padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: #e8edf5; text-align: center; text-decoration: none; font-size: 13px; transition: border-color 0.15s; }
+  .source-btn:hover { border-color: var(--orange); }
+  .source-btn .name { font-weight: 700; }
+  .source-btn .desc { color: var(--muted); font-size: 10px; margin-top: 2px; }
+  .msg { margin-top: 14px; padding: 10px; border-radius: 6px; display: none; font-size: 12px; }
+  .msg.show { display: block; }
+  .msg.ok { background: rgba(0,214,143,0.10); color: var(--green); border: 1px solid var(--green); }
+  .msg.err { background: rgba(255,107,107,0.10); color: #ff6b6b; border: 1px solid #ff6b6b; }
+  .recent { font-family: monospace; font-size: 11px; color: var(--muted); margin-top: 8px; padding: 8px; background: var(--bg); border-radius: 6px; min-height: 32px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>Parts Lookup</h1>
+  <p>brand · model · symptom → part number</p>
+</div>
+
+<div class="card">
+  <label>Brand</label>
+  <input id="brand" type="text" placeholder="Whirlpool, GE, LG, Samsung..." autocomplete="off">
+
+  <label>Model number</label>
+  <input id="model" type="text" placeholder="On the appliance label, usually with letters + numbers" autocomplete="off">
+
+  <label>Part name / symptom</label>
+  <input id="part" type="text" placeholder="evaporator fan motor, drain pump, ice maker..." autocomplete="off">
+
+  <button class="primary" id="goBtn">Look up</button>
+
+  <div class="source-group" id="sources" style="display:none">
+    <a class="source-btn" id="sBtn1" href="#" target="_blank">
+      <div class="name">Sears Parts Direct</div>
+      <div class="desc">stopgap until Marcone API lands</div>
+    </a>
+    <a class="source-btn" id="sBtn2" href="#" target="_blank">
+      <div class="name">RepairClinic</div>
+      <div class="desc">parts + diagrams</div>
+    </a>
+    <a class="source-btn" id="sBtn3" href="#" target="_blank">
+      <div class="name">PartSelect</div>
+      <div class="desc">often has crowdsourced fixes</div>
+    </a>
+    <a class="source-btn" id="sBtn4" href="#" target="_blank">
+      <div class="name">AppliancePartsPros</div>
+      <div class="desc">photos + how-to videos</div>
+    </a>
+  </div>
+
+  <div id="msg" class="msg"></div>
+  <div class="recent" id="recent">— recent searches will appear here —</div>
+</div>
+
+<script>
+(function() {
+  const $ = (id) => document.getElementById(id);
+  const RECENT_KEY = 'tn_parts_recent_v1';
+
+  function loadRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); }
+    catch { return []; }
+  }
+  function saveRecent(list) { try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 5))); } catch (e) {} }
+  function renderRecent() {
+    const r = loadRecent();
+    if (r.length === 0) { $('recent').textContent = '— recent searches will appear here —'; return; }
+    $('recent').innerHTML = '<strong>recent:</strong><br>' + r.map(s => `• ${escapeHtml(s)}`).join('<br>');
+  }
+
+  $('goBtn').addEventListener('click', () => {
+    const brand = $('brand').value.trim();
+    const model = $('model').value.trim();
+    const part = $('part').value.trim();
+    if (!brand && !model && !part) {
+      showMsg('err', 'fill at least one field');
+      return;
+    }
+    const q = encodeURIComponent([brand, model, part].filter(Boolean).join(' '));
+    $('sBtn1').href = `https://www.searspartsdirect.com/search?q=${q}`;
+    $('sBtn2').href = `https://www.repairclinic.com/Shop-For-Parts?q=${q}`;
+    $('sBtn3').href = `https://www.partselect.com/Models/?SearchTerm=${q}`;
+    $('sBtn4').href = `https://www.appliancepartspros.com/search.aspx?q=${q}`;
+    $('sources').style.display = 'grid';
+    showMsg('ok', `4 sources open below — tap any to view results`);
+    const r = loadRecent();
+    const label = [brand, model, part].filter(Boolean).join(' / ');
+    if (label && !r.includes(label)) { r.unshift(label); saveRecent(r); renderRecent(); }
+  });
+
+  function showMsg(cls, txt) {
+    $('msg').className = 'msg show ' + cls;
+    $('msg').textContent = txt;
+  }
+  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // URL params autofill (from tech-ant-live quick-action)
+  const u = new URLSearchParams(window.location.search);
+  if (u.get('brand')) $('brand').value = u.get('brand');
+  if (u.get('model')) $('model').value = u.get('model');
+  if (u.get('part')) $('part').value = u.get('part');
+  if (u.get('brand') || u.get('model') || u.get('part')) $('goBtn').click();
+
+  renderRecent();
+})();
+</script>
+</body>
+</html>
