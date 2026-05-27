@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loop Health - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  :root { --green: #00d68f; --yellow: #f5a623; --red: #ff6b6b; --muted: #8a93aa; --panel: #131720; --border: #2a3040; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 30px 24px; text-align: center; max-width: 380px; width: 100%; }
+  .dot { display: inline-block; width: 80px; height: 80px; border-radius: 50%; margin-bottom: 16px; transition: background 0.2s; box-shadow: 0 0 24px currentColor; }
+  .dot.green { background: var(--green); color: rgba(0,214,143,0.5); }
+  .dot.yellow { background: var(--yellow); color: rgba(245,166,35,0.5); }
+  .dot.red { background: var(--red); color: rgba(255,107,107,0.5); }
+  .status { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
+  .status.green { color: var(--green); }
+  .status.yellow { color: var(--yellow); }
+  .status.red { color: var(--red); }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; font-family: monospace; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .stat .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .stat .val { font-size: 20px; font-weight: 700; font-family: monospace; }
+  .last-check { margin-top: 18px; font-size: 11px; color: var(--muted); font-family: monospace; }
+  .err { color: var(--red); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="dot" id="dot"></div>
+  <div class="status" id="status">checking…</div>
+  <div class="sub" id="sub">colony loop</div>
+  <div class="stats">
+    <div class="stat"><div class="lbl">Heartbeat age</div><div class="val" id="age">—</div></div>
+    <div class="stat"><div class="lbl">Signals / hr</div><div class="val" id="sig">—</div></div>
+  </div>
+  <div class="last-check" id="lastCheck">—</div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const POLL_MS = 30000;
+  const $ = (id) => document.getElementById(id);
+
+  async function refresh() {
+    try {
+      const res = await fetch(`${XANO}/get_loop_health`, { cache: 'no-store' });
+      const d = await res.json();
+      if (!d || !d.success) throw new Error((d && d.message) || 'failed');
+      const c = d.status_color || 'red';
+      $('dot').className = 'dot ' + c;
+      $('status').className = 'status ' + c;
+      $('status').textContent = c === 'green' ? 'HEALTHY' : (c === 'yellow' ? 'STALE' : 'DOWN');
+      $('sub').textContent = c === 'green' ? 'colony loop alive' : (c === 'yellow' ? 'heartbeat aging' : 'check the mac mini');
+      const age = d.last_heartbeat_age_secs || 0;
+      $('age').textContent = age < 60 ? `${age}s` : (age < 3600 ? `${Math.round(age/60)}m` : `${Math.round(age/3600)}h`);
+      $('sig').textContent = d.signals_last_hour || 0;
+      $('lastCheck').textContent = `last check ${new Intl.DateTimeFormat('en-US', {timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit'}).format(new Date())} CT`;
+    } catch (err) {
+      $('dot').className = 'dot red';
+      $('status').className = 'status red';
+      $('status').textContent = 'ERROR';
+      $('sub').innerHTML = `<span class="err">${escapeHtml(err.message || 'fetch failed')}</span>`;
+      $('age').textContent = '—';
+      $('sig').textContent = '—';
+    }
+  }
+
+  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+})();
+</script>
+</body>
+</html>
