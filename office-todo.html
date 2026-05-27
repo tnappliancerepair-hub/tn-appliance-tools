@@ -85,10 +85,10 @@
   'use strict';
   const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   const AUTH_KEY = 'tn_office_auth_v1';
-  const OFFICE_PASSWORD = 'antlives';
-  const POLL_MS = 60000;
+    const POLL_MS = 60000;
 
-  const $ = (id) => document.getElementById(id);
+  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
+const $ = (id) => document.getElementById(id);
   const auth = $('auth');
   const app = $('app');
   const pwInput = $('pw');
@@ -98,8 +98,8 @@
   if (localStorage.getItem(AUTH_KEY) === '1') unlock();
   pwBtn.addEventListener('click', tryAuth);
   pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
-  function tryAuth() {
-    if (pwInput.value === OFFICE_PASSWORD) { localStorage.setItem(AUTH_KEY,'1'); unlock(); }
+  async function tryAuth() {
+    if (await __verifyOfficePassword(pwInput.value)) { localStorage.setItem(AUTH_KEY,'1'); unlock(); }
     else { pwErr.textContent = 'wrong password'; pwInput.select(); }
   }
 

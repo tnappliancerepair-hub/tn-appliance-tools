@@ -318,7 +318,6 @@
 </div>
 
 <script>
-const OFFICE_PASSWORD = 'office2026';
 const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
 const FOLDER_STATE_KEY = 'tn_office_folders_v1';
 
@@ -734,7 +733,7 @@ function escapeAttr(s) {
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
-function submitAuth() {
+async function submitAuth() {
   const errEl = document.getElementById('auth-err');
   const btn = document.getElementById('auth-submit');
   const inputEl = document.getElementById('auth-input');
@@ -742,7 +741,7 @@ function submitAuth() {
   errEl.textContent = '';
   if (pw === '') { errEl.textContent = 'Enter password'; return; }
   btn.disabled = true;
-  if (pw === OFFICE_PASSWORD) {
+  if ((await __verifyOfficePassword(pw))) {
     localStorage.setItem(OFFICE_AUTH_KEY, '1');
     document.getElementById('auth-overlay').classList.add('hidden');
     init();

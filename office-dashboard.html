@@ -316,7 +316,6 @@
 
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const OFFICE_PASSWORD = 'office2026'; // TODO: move to Netlify env var via proxy
 const AUTH_KEY = 'tn_office_auth_v1';
 
 const TABS = [
@@ -500,7 +499,7 @@ function escapeAttr(s) {
 }
 
 // Password gate.
-function submitAuth() {
+async function submitAuth() {
   const errEl = document.getElementById('auth-err');
   const btn = document.getElementById('auth-submit');
   const inputEl = document.getElementById('auth-input');
@@ -508,7 +507,7 @@ function submitAuth() {
   errEl.textContent = '';
   if (pw === '') { errEl.textContent = 'Enter password'; return; }
   btn.disabled = true;
-  if (pw === OFFICE_PASSWORD) {
+  if ((await __verifyOfficePassword(pw))) {
     localStorage.setItem(AUTH_KEY, '1');
     document.getElementById('auth-overlay').classList.add('hidden');
     init();

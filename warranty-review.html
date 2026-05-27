@@ -141,8 +141,6 @@
 <script>
 (function() {
   'use strict';
-
-  const OFFICE_PASSWORD = 'office2026';
   const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
   const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 
@@ -169,7 +167,7 @@
     load();
   }
   authSubmit.addEventListener('click', () => {
-    if (authInput.value === OFFICE_PASSWORD) {
+    if (authInput.(await __verifyOfficePassword(value))) {
       localStorage.setItem(OFFICE_AUTH_KEY, '1');
       unlock();
     } else {

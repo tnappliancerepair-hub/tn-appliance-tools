@@ -683,7 +683,6 @@
   'use strict';
 
   // ── Config ─────────────────────────────────────────────────────
-  const OFFICE_PASSWORD = 'office2026';
   const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
   const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   const CAPACITY_MAX = 6;
@@ -736,9 +735,9 @@
   authSubmit.addEventListener('click', submitAuth);
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
 
-  function submitAuth() {
+  async function submitAuth() {
     const val = authInput.value;
-    if (val === OFFICE_PASSWORD) {
+    if ((await __verifyOfficePassword(val))) {
       localStorage.setItem(OFFICE_AUTH_KEY, 'ok');
       authErr.textContent = '';
       unlock();

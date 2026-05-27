@@ -493,7 +493,6 @@
 
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const OFFICE_PASSWORD = 'office2026'; // TODO: env var via proxy
 const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
 const API_VERIFY_PIN = '/.netlify/functions/verify-pin-proxy';
 
@@ -537,7 +536,7 @@ function initAuth() {
   inputEl.focus();
 }
 
-async function submitAuth() {
+async async function submitAuth() {
   const errEl = document.getElementById('auth-err');
   const btn = document.getElementById('auth-submit');
   const inputEl = document.getElementById('auth-input');
@@ -551,7 +550,7 @@ async function submitAuth() {
   btn.disabled = true;
 
   if (AUTH_MODE === 'office') {
-    if (value === OFFICE_PASSWORD) {
+    if ((await __verifyOfficePassword(value))) {
       localStorage.setItem(OFFICE_AUTH_KEY, '1');
       document.getElementById('auth-overlay').classList.add('hidden');
       loadJob();
