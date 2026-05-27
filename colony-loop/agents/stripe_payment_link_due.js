@@ -83,10 +83,14 @@ export async function run(signal, ctx) {
   }
 
   const dollars = (amountCents / 100).toFixed(2);
+  // Tech tip-jar: per-tech Venmo/Zelle handle from payload (operator can
+  // pre-fill technicians.tip_handle column). Falls back to no tip clause.
+  const tipHandle = String(payload.tech_tip_handle || '').trim();
+  const tipClause = tipHandle ? ` Want to tip ${payload.tech_first || 'your tech'}? ${tipHandle}` : '';
   const body =
     `Hi ${firstName} - thanks for trusting us with your repair! ` +
     `Pay your $${dollars} balance securely here: ${linkData.url} ` +
-    `Questions? Call 615-280-2949.`;
+    `Questions? Call 615-280-2949.${tipClause}`;
 
   let smsRes = null;
   try {
