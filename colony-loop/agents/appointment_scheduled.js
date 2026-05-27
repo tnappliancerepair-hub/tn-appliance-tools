@@ -220,6 +220,39 @@ export async function run(signal, ctx) {
     }
   }
 
+  // ── Chain: UPSELL_DUE (24h pre-appointment, multi-appliance upsell) ──
+  // Skip warranty jobs (already covered, no upsell pitch). Self-pay only.
+  const UPSELL_LEAD_MS = 24 * 60 * 60 * 1000;
+  const customerType = String(job.customer_type || '').toLowerCase();
+  if (
+    scheduledStartMs &&
+    apptLeadMs >= MIN_LEAD_MS &&
+    !SKIP_CUSTOMER_SOURCES.has(source) &&
+    (customerType === 'self_pay' || customerType === 'cash' || customerType === 'customer_pay')
+  ) {
+    const upsellDeadlineMs = Math.max(Number(scheduledStartMs) - UPSELL_LEAD_MS, now + MIN_LEAD_MS);
+    try {
+      await xano.emitSignal({
+        signal_type: 'UPSELL_DUE',
+        signal_strength: 35,
+        payload: {
+          job_id: jobId,
+          customer_phone: customer?.phone || '',
+          first_name: customer?.first_name || '',
+          tech_first: tech?.first_name || '',
+          appliance_type: job.appliance_type || '',
+          scheduled_start_ms: scheduledStartMs,
+          deadline_ms: upsellDeadlineMs,
+          scheduled_for_ms: upsellDeadlineMs,
+          source: 'appointment_scheduled_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('upsell_due_emit_failed', { job_id: jobId, error: String(err.message || err) });
+    }
+  }
+
   // ── Chain: PRE_APPOINTMENT_CHECK (30min pre-appointment) ──
   // Verifies the tech has tapped 🚗 On My Way. If not, SMS them a nudge
   // + Teddy a heads-up. Skip for appointments <2h away (less than 1h
