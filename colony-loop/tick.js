@@ -119,7 +119,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 70,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 999 },
         });
-        xano.logLocal('colony_architect_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('colony_architect_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('colony_architect_emit_failed', { error: err.message });
       }
@@ -144,7 +144,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), days_ahead: 3 },
         });
-        xano.logLocal('daily_job_prep_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('daily_job_prep_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_job_prep_emit_failed', { error: err.message });
       }
@@ -168,7 +168,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('daily_tech_briefing_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('daily_tech_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_tech_briefing_emit_failed', { error: err.message });
       }
@@ -192,7 +192,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 65,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('daily_revenue_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('daily_revenue_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_revenue_emit_failed', { error: err.message });
       }
@@ -216,7 +216,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('capacity_check_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('capacity_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('capacity_check_emit_failed', { error: err.message });
       }
@@ -241,7 +241,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 65,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('tech_late_check_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('tech_late_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('tech_late_check_emit_failed', { error: err.message });
       }
@@ -266,7 +266,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('resume_nudge_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('resume_nudge_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('resume_nudge_emit_failed', { error: err.message });
       }
@@ -291,7 +291,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('unpaid_self_pay_digest_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('unpaid_self_pay_digest_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('unpaid_self_pay_digest_emit_failed', { error: err.message });
       }
@@ -316,7 +316,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('tdr_reminder_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('tdr_reminder_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('tdr_reminder_emit_failed', { error: err.message });
       }
@@ -342,7 +342,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('parts_arrival_check_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('parts_arrival_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('parts_arrival_check_emit_failed', { error: err.message });
       }
@@ -367,7 +367,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('schedule_gap_check_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('schedule_gap_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('schedule_gap_check_emit_failed', { error: err.message });
       }
@@ -449,7 +449,7 @@ async function maybeEmitTimeSignals() {
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
       });
-      xano.logLocal('tech_weekly_recap_emitted', { since_ts_ms: sinceMs });
+      try { await xano.recordEventLog('tech_weekly_recap_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
     }
   } catch (err) {
     xano.logLocal('tech_weekly_recap_emit_failed', { error: err.message });
@@ -478,7 +478,7 @@ async function maybeEmitTimeSignals() {
             signal_strength: 70,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
           });
-          xano.logLocal('weekly_performance_emitted', { since_ts_ms: sinceMs });
+          try { await xano.recordEventLog('weekly_performance_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
         } catch (err) {
           xano.logLocal('weekly_performance_emit_failed', { error: err.message });
         }
@@ -505,7 +505,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('office_morning_briefing_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('office_morning_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('office_morning_briefing_emit_failed', { error: err.message });
       }
@@ -529,7 +529,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('office_eod_summary_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('office_eod_summary_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('office_eod_summary_emit_failed', { error: err.message });
       }
@@ -554,7 +554,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        xano.logLocal('tdr_completeness_report_emitted', { since_ts_ms: sinceMs });
+        try { await xano.recordEventLog('tdr_completeness_report_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('tdr_completeness_report_emit_failed', { error: err.message });
       }
@@ -578,7 +578,7 @@ async function maybeEmitTimeSignals() {
     signal_strength: 80,
     payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
   });
-  xano.logLocal('daily_briefing_emitted', { since_ts_ms: sinceMs });
+  try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
 }
 
 function summarize(result) {
