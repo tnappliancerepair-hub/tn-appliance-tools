@@ -46,6 +46,12 @@
 
 const XANO_TECH_SMS_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:scheduling/tech_sms_inbound';
 const XANO_SEND_SMS         = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms';
+// SMS-first ant scheduler — runs BEFORE the legacy handler. Catches
+// preference shortcuts (OFF/MAX/HOURS/NO/SKIP/STATUS/OOPS) atomically;
+// returns matched=false for anything else, in which case we fall through
+// to the legacy CLAIM/PICK/RESCHEDULE/Claude flow.
+const XANO_PREFERENCE_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/tech_preference_inbound';
+const PREFERENCE_TIMEOUT_MS = 4000;
 
 // Xano call timeout. Twilio webhook timeout is ~10s; Telnyx is ~30s. Cap at 9s
 // to leave room for assembly + (Telnyx path) the follow-up send_sms call.
@@ -111,7 +117,17 @@ exports.handler = async function (event) {
   const useBrain = v2Enabled && (v2Phones.length === 0 || v2Phones.includes(bareDigits));
 
   let replyText;
-  if (useBrain) {
+
+  // ─── SMS-first ant scheduler: preference shortcuts FIRST ───────────
+  // If the message matches a preference shortcut (OFF/MAX/HOURS/NO/SKIP/
+  // STATUS/OOPS), tech_preference_inbound handles it atomically and
+  // returns the reply. Otherwise matched=false → fall through to v2 brain
+  // (onboarding) or legacy tech_sms_inbound (CLAIM/PICK/RESCHEDULE/Claude).
+  const prefResult = await tryPreferenceShortcut(parsed);
+  if (prefResult && prefResult.matched) {
+    replyText = prefResult.reply || FALLBACK_REPLY;
+    console.log('[tech-sms-inbound] preference shortcut handled, reply length:', replyText.length);
+  } else if (useBrain) {
     try {
       const { runOnboardingTurn } = require('./_lib/brain/onboarding');
       // Brain expects { phone, body, sid, to } (matches the legacy Xano
@@ -214,6 +230,39 @@ function parseTelnyx(event) {
     sid:  payload.id || data.id || '',
     to:   toPhone,
   };
+}
+
+// ─── SMS-FIRST ANT SCHEDULER: SHORTCUT INTERCEPT ──────────────────────
+// Calls tech_preference_inbound. Returns {matched: bool, reply?: string}
+// or null on transport error (caller falls through to legacy path).
+async function tryPreferenceShortcut(parsed) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), PREFERENCE_TIMEOUT_MS);
+  try {
+    const res = await fetch(XANO_PREFERENCE_INBOUND, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: parsed.from,
+        body:  parsed.body,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutHandle);
+    if (!res.ok) {
+      console.warn('[tech-sms-inbound] preference shortcut non-2xx:', res.status);
+      return null;
+    }
+    return await res.json().catch(() => null);
+  } catch (err) {
+    clearTimeout(timeoutHandle);
+    if (err.name === 'AbortError') {
+      console.warn('[tech-sms-inbound] preference shortcut timed out');
+    } else {
+      console.warn('[tech-sms-inbound] preference shortcut error:', err.message);
+    }
+    return null;
+  }
 }
 
 // ─── FORWARD TO XANO ──────────────────────────────────────────────────

@@ -379,6 +379,11 @@ async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
       continue;
     }
 
+    const dowLower = candidate.toLocaleDateString('en-US', {
+      timeZone: 'America/Chicago',
+      weekday: 'long',
+    }).toLowerCase();
+
     let constraints;
     try {
       constraints = await xano.getTechConstraintsForDate({
@@ -386,6 +391,7 @@ async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
         date_ymd: ymd,
         day_start_ms: dayStartMs,
         day_end_ms: dayEndMs,
+        day_of_week_lower: dowLower,
       });
     } catch (err) {
       skipped.push({ ymd, why: 'constraints_call_failed', detail: String(err.message || err) });
@@ -397,15 +403,16 @@ async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
       continue;
     }
 
-    // Hard rule: explicit day-off
+    // Hard rule: explicit day-off (tech_availability or tech_preferences)
     if (constraints.full_day_off) {
       skipped.push({ ymd, why: 'day_off', reason: constraints.day_off_reason });
       continue;
     }
 
-    // Hard rule: capacity ceiling
-    if (constraints.existing_job_count >= SYSTEM_MAX_JOBS_PER_DAY) {
-      skipped.push({ ymd, why: 'at_capacity', count: constraints.existing_job_count });
+    // Hard rule: tech-set max jobs per day (defaults to system 6)
+    const maxJobs = constraints.max_jobs_per_day || SYSTEM_MAX_JOBS_PER_DAY;
+    if (constraints.existing_job_count >= maxJobs) {
+      skipped.push({ ymd, why: 'at_capacity', count: constraints.existing_job_count, max: maxJobs });
       continue;
     }
 

@@ -273,8 +273,9 @@ export async function getTechForZip(zip, waiverSigned = true) {
   return postJSON(`${INTAKE()}/get_tech_for_zip`, { zip_code: zip, waiver_signed: waiverSigned });
 }
 
-export async function getTechConstraintsForDate({ technician_id, date_ymd, day_start_ms, day_end_ms }) {
-  const q = `technician_id=${technician_id}&date_ymd=${encodeURIComponent(date_ymd)}&day_start_ms=${day_start_ms}&day_end_ms=${day_end_ms}`;
+export async function getTechConstraintsForDate({ technician_id, date_ymd, day_start_ms, day_end_ms, day_of_week_lower }) {
+  let q = `technician_id=${technician_id}&date_ymd=${encodeURIComponent(date_ymd)}&day_start_ms=${day_start_ms}&day_end_ms=${day_end_ms}`;
+  if (day_of_week_lower) q += `&day_of_week_lower=${encodeURIComponent(day_of_week_lower)}`;
   return getJSON(`${INTAKE()}/get_tech_constraints_for_date?${q}`);
 }
 

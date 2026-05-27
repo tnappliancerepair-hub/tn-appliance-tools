@@ -19,6 +19,10 @@ query get_tech_constraints_for_date verb=GET {
     text date_ymd
     int day_start_ms
     int day_end_ms
+    // Day-of-week name in lowercase (monday..sunday). Caller computes
+    // this from date_ymd. Used to match against tech_preferences hard
+    // weekly day-off rules captured via SMS shortcut.
+    text? day_of_week_lower?
   }
 
   stack {
@@ -98,19 +102,87 @@ query get_tech_constraints_for_date verb=GET {
     var $existing_count {
       value = ($existing_rows.items|count)
     }
+
+    // 5. tech_preferences: hard day-of-week off (SMS-captured "OFF SAT" etc)
+    var $dow_lower {
+      value = (($input.day_of_week_lower ?? "")|trim|lower)
+    }
+
+    var $hard_day_off_from_pref { value = false }
+
+    conditional {
+      if ($dow_lower != "" && !$is_day_off) {
+        db.query tech_preferences {
+          where  = $db.tech_preferences.tech_id == $input.technician_id && $db.tech_preferences.active == true && $db.tech_preferences.preference_type == "time" && $db.tech_preferences.day_of_week == $dow_lower && $db.tech_preferences.strength == "hard"
+          return = {type: "list", paging: {page: 1, per_page: 1}}
+        } as $dow_pref_rows
+
+        var $dow_pref_first {
+          value = (($dow_pref_rows.items|first) ?? null)
+        }
+
+        conditional {
+          if ($dow_pref_first != null) {
+            var.update $hard_day_off_from_pref { value = true }
+          }
+        }
+      }
+    }
+
+    var $final_day_off {
+      value = $is_day_off || $hard_day_off_from_pref
+    }
+
+    var $final_day_off_reason {
+      value = $is_day_off ? ($avail_row.reason ?? "tech_availability_full_day_off") : ($hard_day_off_from_pref ? "tech_preference_weekly_day_off" : "")
+    }
+
+    // 6. tech_preferences: max_jobs_per_day (captured via SMS "MAX 5")
+    // Latest active row wins. Notes format: "max_jobs:N".
+    db.query tech_preferences {
+      where  = $db.tech_preferences.tech_id == $input.technician_id && $db.tech_preferences.active == true && $db.tech_preferences.preference_type == "time" && $db.tech_preferences.day_of_week == null
+      sort   = {tech_preferences.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 20}}
+    } as $time_pref_rows
+
+    var $max_jobs { value = 6 }
+
+    foreach ($time_pref_rows.items) {
+      each as $pref_row {
+        var $notes_val {
+          value = (($pref_row.notes ?? "")|trim)
+        }
+        conditional {
+          if (($notes_val|substr:0:9) == "max_jobs:" && $max_jobs == 6) {
+            var $maxstr {
+              value = $notes_val|substr:9
+            }
+            var $maxnum {
+              value = $maxstr|to_int
+            }
+            conditional {
+              if ($maxnum >= 1 && $maxnum <= 12) {
+                var.update $max_jobs { value = $maxnum }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   response = {
-    success           : true
-    technician_id     : $input.technician_id
-    date_ymd          : $input.date_ymd
-    full_day_off      : $is_day_off
-    day_off_reason    : ($avail_row.reason ?? "")
-    working_start     : $window_start
-    working_end       : $window_end
-    window_source     : $window_source
-    existing_job_count: $existing_count
-    tech_first_name   : ($tech.first_name ?? "")
+    success            : true
+    technician_id      : $input.technician_id
+    date_ymd           : $input.date_ymd
+    full_day_off       : $final_day_off
+    day_off_reason     : $final_day_off_reason
+    working_start      : $window_start
+    working_end        : $window_end
+    window_source      : $window_source
+    existing_job_count : $existing_count
+    max_jobs_per_day   : $max_jobs
+    tech_first_name    : ($tech.first_name ?? "")
   }
 
   guid = "get-tech-constraints-for-date-v1"
