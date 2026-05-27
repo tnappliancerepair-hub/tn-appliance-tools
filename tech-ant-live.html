@@ -1173,8 +1173,46 @@ function showQuickActions() {
   const model = (lastJobData?.appliance?.model_number || lastJobData?.job?.model_number || '').trim();
   const partsUrl = `parts-lookup.html?brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`;
   const partsButton = `<a class="quick-btn" href="${partsUrl}" target="_blank" style="text-decoration:none;background:rgba(245,166,35,0.15);border-color:rgba(245,166,35,0.4);color:#f5a623">🔧 Parts</a>`;
-  qa.innerHTML = captureButtons + partsButton;
+  const similarButton = `<button class="quick-btn" onclick="showSimilarJobs()" style="background:rgba(90,169,255,0.15);border-color:rgba(90,169,255,0.4);color:#5aa9ff">🧠 Similar</button>`;
+  qa.innerHTML = captureButtons + partsButton + similarButton;
   qa.classList.add('show');
+}
+
+// Similar-jobs panel: pulls top-5 semantically similar prior jobs from
+// the embeddings index, shows in a slide-down panel.
+async function showSimilarJobs() {
+  let panel = document.getElementById('similar-jobs-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'similar-jobs-panel';
+    panel.style.cssText = 'position:fixed;top:10vh;left:5%;right:5%;max-height:70vh;overflow-y:auto;background:#131720;border:1px solid #5aa9ff;border-radius:12px;padding:18px;z-index:9999;box-shadow:0 6px 32px rgba(0,0,0,0.6);color:#e8edf5;font-family:inherit';
+    document.body.appendChild(panel);
+  }
+  panel.innerHTML = '<div style="text-align:center;color:#8a93aa">finding similar jobs…</div>';
+  panel.style.display = 'block';
+  try {
+    const res = await fetch('/.netlify/functions/find-similar-jobs', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ job_id: parseInt(JOB_ID, 10), top_k: 5 })
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'lookup failed');
+    const rows = (d.results || []);
+    const closeBtn = '<button onclick="document.getElementById(\'similar-jobs-panel\').style.display=\'none\'" style="float:right;background:transparent;border:1px solid #2a3040;color:#e8edf5;padding:4px 10px;border-radius:6px;cursor:pointer">✕</button>';
+    if (rows.length === 0) {
+      panel.innerHTML = closeBtn + '<h3 style="margin-bottom:10px">🧠 Similar prior jobs</h3><div style="color:#8a93aa">No matches yet — embeddings index empty. Once backfill-embeddings.js runs, prior fixes will surface here.</div>';
+      return;
+    }
+    panel.innerHTML = closeBtn + '<h3 style="margin-bottom:14px">🧠 Top ' + rows.length + ' similar prior jobs</h3>' +
+      rows.map(r => `<div style="margin-bottom:12px;padding:10px;background:#0e1118;border-radius:8px;font-size:13px">
+        <div style="display:flex;justify-content:space-between;color:#8a93aa;font-family:monospace;font-size:11px;margin-bottom:4px">
+          <span>job #${r.source_row_id}</span><span style="color:#00d68f">${(r.score||0).toFixed(3)} match</span>
+        </div>
+        <div style="line-height:1.5">${(r.preview||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</div>
+      </div>`).join('');
+  } catch (err) {
+    panel.innerHTML = `<button onclick="document.getElementById('similar-jobs-panel').style.display='none'" style="float:right">✕</button><div style="color:#ff6b6b">lookup failed: ${err.message}</div>`;
+  }
 }
 
 function qaCapturePhoto() {
