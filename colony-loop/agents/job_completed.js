@@ -156,6 +156,38 @@ export async function run(signal, ctx) {
     log('ltv_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: SAME_DAY_SLOT_OFFER (gap-detection, reactive) ──
+  try {
+    const techId = Number(payload.technician_id || 0);
+    if (techId > 0) {
+      const nextRes = await fetch(
+        `${config.xanoIntakeBase}/get_next_tech_job?tech_id=${techId}&exclude_job_id=${jobId}`
+      ).then(r => r.json()).catch(() => null);
+      const nextStartMs = nextRes && nextRes.next_job && Number(nextRes.next_job.scheduled_start || 0);
+      if (nextStartMs && nextStartMs > Date.now()) {
+        const gapMs = nextStartMs - Date.now();
+        const gapMinutes = Math.round(gapMs / 60000);
+        if (gapMinutes >= 120) {
+          await xano.emitSignal({
+            signal_type: 'SAME_DAY_SLOT_OFFER',
+            signal_strength: 55,
+            payload: {
+              job_id: jobId,
+              technician_id: techId,
+              gap_minutes: gapMinutes,
+              next_job_id: nextRes.next_job.id,
+              next_scheduled_start: nextStartMs,
+              source: 'job_completed_chain',
+              source_signal_id: signal.id,
+            },
+          });
+        }
+      }
+    }
+  } catch (err) {
+    log('same_day_slot_offer_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: STRIPE_PAYMENT_LINK_DUE (immediate, self-pay only) ──
   // For self-pay completions, send the customer a Stripe Checkout link
   // to pay their balance. Skip warranty / cash_tdr — those have other
