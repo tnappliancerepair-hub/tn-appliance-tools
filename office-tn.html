@@ -791,35 +791,60 @@ function escapeAttr(s) {
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
+// Client debug — every event POST'd to /log_client_debug so we can see
+// what Danielle hits server-side without bothering her for screenshots.
+window.__authDebug = window.__authDebug || [];
+function _dbg(msg, data) {
+  const entry = { t: new Date().toISOString(), msg, data: data || null, page: '/office-tn.html', ua: (navigator.userAgent || '').slice(0, 100) };
+  window.__authDebug.push(entry);
+  try { console.log('[AUTH]', msg, data); } catch (_e) {}
+  try {
+    fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/log_client_debug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+      keepalive: true
+    }).catch(() => {});
+  } catch (_e) {}
+}
+_dbg('page_loaded');
+
 async function submitAuth() {
   const errEl = document.getElementById('auth-err');
   const btn = document.getElementById('auth-submit');
   const inputEl = document.getElementById('auth-input');
   const pw = (inputEl.value || '').trim();
   errEl.textContent = '';
+  _dbg('submitAuth start', { pw_len: pw.length });
   if (pw === '') { errEl.textContent = 'Enter password'; return; }
   btn.disabled = true;
   btn.textContent = 'Authenticating…';
   let ok = false;
   try {
     ok = await __verifyOfficePassword(pw);
+    _dbg('verify returned', { ok });
   } catch (e) {
+    _dbg('verify threw', { msg: String(e && e.message) });
     errEl.textContent = (e && e.message === 'timeout') ? 'Server timeout — try again, or text Teddy 615-485-5795.' : ('Error: ' + (e && e.message || 'unknown'));
     btn.disabled = false; btn.textContent = 'Unlock';
     return;
   }
   if (!ok) {
-    errEl.textContent = 'Wrong password. (Default is "antlives" — text Teddy if that doesn\'t work)';
+    _dbg('wrong password');
+    errEl.textContent = 'Wrong password. Default is "antlives" (all lowercase, no spaces). Text Teddy 615-485-5795 if that fails.';
     inputEl.value = ''; inputEl.focus();
     btn.disabled = false; btn.textContent = 'Unlock';
     return;
   }
   localStorage.setItem(OFFICE_AUTH_KEY, '1');
   document.getElementById('auth-overlay').classList.add('hidden');
+  _dbg('auth ok, calling init');
   try {
     init();
+    _dbg('init returned');
   } catch (e) {
-    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0e1118;min-height:100vh"><h2>Logged in ✓ — page failed to load.</h2><p>Reload. If it still fails, text Teddy 615-485-5795 — error: ' + String(e && e.message || 'unknown') + '</p></div>';
+    _dbg('init threw', { msg: String(e && e.message) });
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#1a1f2c;background:#fff;min-height:100vh"><h2>Logged in ✓ — page failed to load.</h2><p>Reload the page. If it still fails, text Teddy 615-485-5795 with: ' + String(e && e.message || 'unknown') + '</p></div>';
   }
 }
 
