@@ -217,6 +217,10 @@ export async function getOfficeMorningBriefingFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_office_morning_briefing_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getTdrCompletenessReportFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_tdr_completeness_report_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

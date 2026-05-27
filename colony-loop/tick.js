@@ -431,6 +431,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // TDR_COMPLETENESS_REPORT — fires once per day at 6:30pm CT (18:30-21 grace).
+  // Right after daily_revenue_summary at 6pm. Sends Teddy the EOD digest of
+  // techs with open TDRs from today.
+  if (hour >= 18 && hour < 21) {
+    let tcrFired;
+    try {
+      tcrFired = await xano.getTdrCompletenessReportFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('tdr_completeness_report_dedup_failed', { error: err.message });
+      tcrFired = null;
+    }
+    if (tcrFired && !tcrFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TDR_COMPLETENESS_REPORT',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('tdr_completeness_report_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('tdr_completeness_report_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
   if (hour < 8 || hour >= 11) return;
 
