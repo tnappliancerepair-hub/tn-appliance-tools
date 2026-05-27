@@ -59,4 +59,9 @@ export const config = Object.freeze({
   // would set COMPANY_ID env. Most agents read this when querying
   // company-scoped data.
   companyId: Number(process.env.COMPANY_ID) || 1,
+  // Auto-booking kill-switch. When 'true', try_auto_schedule's
+  // green-light path will actually book the job (tech + slot derived
+  // from zip + parts_eta_date) instead of just sending Teddy three
+  // options to manually pick. Defaults OFF until smoke-verified live.
+  autoBookEnabled: process.env.AUTO_BOOK_ENABLED === 'true',
 });

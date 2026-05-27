@@ -269,6 +269,20 @@ export async function enqueueSchedulingQueuePropose(jobId, source = 'try_auto_sc
   return postJSON(`${INTAKE()}/enqueue_scheduling_queue_propose`, { job_id: jobId, source, priority });
 }
 
+export async function getTechForZip(zip, waiverSigned = true) {
+  return postJSON(`${INTAKE()}/get_tech_for_zip`, { zip_code: zip, waiver_signed: waiverSigned });
+}
+
+export async function autoBookExistingJob({ job_id, technician_id, scheduled_start_ms, scheduled_end_ms, source = 'auto_scheduler' }) {
+  return postJSON(`${INTAKE()}/auto_book_existing_job`, {
+    job_id,
+    technician_id,
+    scheduled_start_ms,
+    scheduled_end_ms: scheduled_end_ms || null,
+    source,
+  });
+}
+
 export async function listAhsBacklog(page = 1, perPage = 100) {
   return getJSON(`${INTAKE()}/list_ahs_backlog?page=${page}&per_page=${perPage}`);
 }

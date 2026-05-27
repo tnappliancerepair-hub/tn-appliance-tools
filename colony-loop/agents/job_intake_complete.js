@@ -15,6 +15,7 @@
 //   5. pending propose row already on queue for this job → silent skip
 //   6. green-light → enqueue propose w/ priority=1 + SMS Teddy w/ city
 import { toOwner } from '../sms.js';
+import { config } from '../config.js';
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator',
@@ -227,7 +228,49 @@ export async function run(signal, ctx) {
     return { success: true, action: 'already_enqueued', job_id: jobId };
   }
 
-  // Green-light path.
+  // Green-light path. Two modes:
+  //   AUTO_BOOK_ENABLED=true  → attempt true auto-book (zip → tech +
+  //                            earliest open slot at/after parts_eta).
+  //                            On any failure, fall through to propose.
+  //   default                 → enqueue propose (Teddy picks from 3).
+
+  if (config.autoBookEnabled) {
+    const autoBookResult = await tryAutoBook({ jobId, job, customer, job_address, ctx });
+    if (autoBookResult.success) {
+      const meta = {
+        job_id: jobId,
+        outcome: 'auto_booked',
+        technician_id: autoBookResult.technician_id,
+        scheduled_start_ms: autoBookResult.scheduled_start_ms,
+        appointment_signal_id: autoBookResult.appointment_signal_id,
+        warranty_company: job.warranty_company || '',
+        city,
+      };
+      await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+      log('try_auto_schedule_handled', meta);
+
+      const ymd = new Date(autoBookResult.scheduled_start_ms).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+      const tmStr = new Date(autoBookResult.scheduled_start_ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+      const body = `[ant] Job #${jobId} auto-booked: tech ${autoBookResult.technician_id}, ${ymd} ${tmStr} CT - ${custName}, ${appliance}, ${city}`;
+      await toOwner(body, {
+        action: 'try_auto_schedule_auto_booked',
+        job_id: jobId,
+        technician_id: autoBookResult.technician_id,
+        scheduled_start_ms: autoBookResult.scheduled_start_ms,
+        source_signal_id: signal.id,
+      });
+
+      return { success: true, action: 'auto_booked', job_id: jobId, ...autoBookResult };
+    }
+
+    log('try_auto_schedule_autobook_falling_back', {
+      job_id: jobId,
+      reason: autoBookResult.reason,
+      detail: autoBookResult.detail,
+    });
+    // fall through to the legacy propose path below
+  }
+
   let enqueueRes;
   try {
     enqueueRes = await xano.enqueueSchedulingQueuePropose(jobId, 'try_auto_schedule', 1);
@@ -263,5 +306,70 @@ export async function run(signal, ctx) {
     action: 'enqueued',
     job_id: jobId,
     scheduling_queue_id: enqueueRes && enqueueRes.scheduling_queue_id,
+  };
+}
+
+// Try to deterministically auto-book the job. Returns
+//   {success: true, technician_id, scheduled_start_ms, appointment_signal_id}
+//   or {success: false, reason, detail?}
+async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
+  const { xano } = ctx;
+
+  const zip = (job_address?.service_zip || customer?.zip || '').trim();
+  if (!zip) return { success: false, reason: 'no_zip' };
+
+  // Resolve tech by zip.
+  let routing;
+  try {
+    routing = await xano.getTechForZip(zip, true);
+  } catch (err) {
+    return { success: false, reason: 'tech_routing_failed', detail: String(err.message || err) };
+  }
+  const result = routing?.response?.result || routing?.result || routing;
+  if (!result || result.status !== 'assigned' || !result.technician_id) {
+    return { success: false, reason: 'no_tech_for_zip', detail: result?.status || 'unknown' };
+  }
+  const techId = Number(result.technician_id);
+  if (techId === 1) {
+    // Teddy = owner / fallback router. Don't auto-assign him as the
+    // working tech; fall through to manual propose so he can route.
+    return { success: false, reason: 'fallback_to_owner' };
+  }
+
+  // Pick earliest slot: tomorrow 9 AM CT (or parts_eta_date + 1 if set).
+  const partsEtaDate = job.parts_eta_date ? new Date(job.parts_eta_date) : null;
+  const baseDate = partsEtaDate && !isNaN(partsEtaDate) && partsEtaDate.getTime() > Date.now()
+    ? new Date(partsEtaDate.getTime() + 24 * 3600 * 1000)
+    : new Date(Date.now() + 24 * 3600 * 1000);
+
+  // Set to 9 AM CT (= 14:00 UTC, ignoring DST nuance for v1).
+  const ymd = baseDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+  const startMs = Date.parse(`${ymd}T14:00:00Z`);
+  if (!startMs || isNaN(startMs)) {
+    return { success: false, reason: 'date_parse_failed', detail: ymd };
+  }
+
+  let bookRes;
+  try {
+    bookRes = await xano.autoBookExistingJob({
+      job_id: jobId,
+      technician_id: techId,
+      scheduled_start_ms: startMs,
+      scheduled_end_ms: startMs + 2 * 3600 * 1000,
+      source: 'auto_scheduler',
+    });
+  } catch (err) {
+    return { success: false, reason: 'book_call_failed', detail: String(err.message || err) };
+  }
+
+  if (!bookRes || bookRes.success !== true) {
+    return { success: false, reason: 'book_returned_failure', detail: JSON.stringify(bookRes).slice(0, 200) };
+  }
+
+  return {
+    success: true,
+    technician_id: techId,
+    scheduled_start_ms: startMs,
+    appointment_signal_id: bookRes.appointment_signal_id,
   };
 }
