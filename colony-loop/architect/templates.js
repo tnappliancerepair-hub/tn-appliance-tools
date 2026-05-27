@@ -234,8 +234,10 @@ function isServiceAgreementSpecialist(agent) {
 function isCustomerIntelligence(agent) {
   const id = String(agent.id || '');
   if (/^CI\d/i.test(id)) return true;
+  // CA### = Customer Acquisition colony — same template family
+  if (/^CA\d/i.test(id)) return true;
   const c = (agent.purpose + ' ' + agent.name).toLowerCase();
-  return /\bcustomer\s+lifetime\s+value\b|\bappliance\s+age\s+profile\b|\bproactive\s+outreach\b|\bcustomer\s+satisfaction\s+scor\w*/.test(c);
+  return /\bcustomer\s+lifetime\s+value\b|\bappliance\s+age\s+profile\b|\bproactive\s+outreach\b|\bcustomer\s+satisfaction\s+scor\w*|\bsubdivision\s+detector\b|\breferral\s+program\b|\bcold\s+outreach\b|\bservice\s+zone\s+expansion\b|\bretention\s+cohort\b|\bdemand\s+heatmap\b|\bacquisition\s+cost\b/.test(c);
 }
 
 // 6b. business_intelligence (financial tracking colony)
@@ -305,14 +307,17 @@ function isContentGenerator(agent) {
 
 function isPerformanceCoach(agent) {
   const outputs = (agent.outputs || []).join(' ');
-  if (/PERFORMANCE_INSIGHT|COACHING_RECOMMENDATION/i.test(outputs)) return true;
+  if (/PERFORMANCE_INSIGHT|COACHING_RECOMMENDATION|PERFORMANCE_COACHING/i.test(outputs)) return true;
+
+  // PC### id-prefix shortcut (Tech Performance and Coaching colony)
+  const id = String(agent.id || '');
+  if (/^PC\d/i.test(id)) return true;
 
   const purpose = String(agent.purpose || agent.description || '').toLowerCase();
   const name = String(agent.name || '').toLowerCase();
   const combined = purpose + ' ' + name;
-  // Keep narrow — "performance" only when tied to tech/coaching/metrics/TDR context.
   return (
-    /\btech\s+performance\b|\bperformance\s+coach|\bcoach(ing)?\b|\bmetric\w*\s+coach|\btdr\s+quality|\bquality\s+of\s+(work|tdr|repair)/.test(combined)
+    /\btech\s+performance\b|\bperformance\s+coach|\bcoach(ing)?\b|\bmetric\w*\s+coach|\btdr\s+quality|\bquality\s+of\s+(work|tdr|repair)|\bdaily\s+reflection\b|\breflection\s+prompt/.test(combined)
     || (/\bperformance\b/.test(combined) && /\b(tech|technician|metrics|coach|tdr)\b/.test(combined))
   );
 }
@@ -546,6 +551,10 @@ function metaPromptForMarketIntelligence(scopeDisplay) {
 
 function metaPromptForInfrastructure(scopeDisplay) {
   return `You are designing the Claude system prompt for an "${scopeDisplay}" infrastructure agent for TN Appliance Exchange's Mac Mini colony loop. This is platform-internal — the agent does NOT face customers or techs. It watches the loop's own health, routes signals, or feeds reinforcement learning from outcomes.\n\nThe agent receives: telemetry payload (signal volumes, processing latencies, error rates, agent-by-agent throughput, recent event_log activity, queue depths). It must return structured infrastructure output in this exact shape:\n1. HEALTH SNAPSHOT: green/yellow/red + the single most important metric driving the label.\n2. DETECTED ISSUES: each issue with severity, scope, and the specific signal/agent/table involved.\n3. RECOMMENDED ACTIONS: ordered list of remediations the loop or operator can take now.\n4. ESCALATIONS: when human (Teddy) intervention is required — the marker is "__ESCALATE_OPERATOR__".\n5. TREND OUTLOOK: where the system is heading on the current trajectory (next 24 hours).\n\nBe specific to ${scopeDisplay}. Never invent metric numbers. If telemetry is missing, say so and recommend the source to add. Output ONLY the system prompt text — no preamble.`;
+}
+
+function metaPromptForContentGenerator(scopeDisplay) {
+  return `You are a content-generation specialist for "${scopeDisplay}" within the Ant platform for TN Appliance Exchange (an appliance repair company in Middle TN + Southeast LA).\n\nThe agent receives a content brief payload: {topic, persona, tone, length_words, context}. It writes the actual content — blog post, social post, email copy, testimonial summary, recap, manifesto, story.\n\nIt must return strict structured JSON in this exact shape:\n{\n  "content_text": "The full piece in markdown. Match length_words ± 20%. Match the requested persona voice precisely.",\n  "title": "A short title (under 70 chars) suitable for SEO + social",\n  "preview": "1-sentence summary for social previews",\n  "tags": ["...", "...", "..."],\n  "cta": "The single call-to-action embedded near the end"\n}\n\nRULES for the writing itself:\n- Be SPECIFIC. Use real appliance brands (Whirlpool / GE / LG / Samsung / Frigidaire / KitchenAid / Bosch), real Middle TN cities (Antioch, Nashville, Franklin, Brentwood, Clarksville), real Southeast LA cities (Hammond, Walker, Baton Rouge, Covington).\n- Avoid AI-tells: don't open with "In today's fast-paced world", don't use "tapestry" / "delve" / "moreover" / "embarking on a journey", don't end with "In conclusion".\n- Write like Teddy talks: direct, friendly, technical when needed, never corporate fluff. Short sentences. Real anecdotes.\n- Embed CTA naturally (call us, get a quote, schedule online) — never feel salesy.\n\nBe specific to ${scopeDisplay}. Output ONLY the JSON, no markdown fence.`;
 }
 
 function metaPromptForMetaAgent(scopeDisplay) {
@@ -1568,9 +1577,8 @@ export async function generateAgent(agent, claude, config) {
   }
 
   if (isContentGenerator(agent)) {
-    const metaPromptForContent = `You are a content-generation specialist for TN Appliance Exchange. You write authentic, engaging short-form content (blog posts, social posts, email copy, testimonials) in the voice of the company or specific people (Teddy, Andre). Your goal is content that's helpful to customers + believable to humans + good for SEO. Avoid AI-cliche phrasing. Use specifics whenever possible (real appliance brands, real cities in TN/LA, real customer scenarios).`;
     return generateFromGenericTemplate({
-      metaPrompt: metaPromptForContent,
+      metaPrompt: metaPromptForContentGenerator,
       signalOutType: 'CONTENT_GENERATED',
       signalInPrefix: 'CONTENT_GENERATOR_REQUEST_',
       filenamePrefix: 'content_',
