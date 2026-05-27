@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.ahs-drain</string>
+
+  <!-- Daily 4:30am CT (09:30 UTC) — well before 6am architect run.
+       Drain at most 50 AHS not_ready jobs/day via the existing
+       backfill script. require_pref=true filters to only jobs where
+       the customer has actually engaged (otherwise we'd flood the
+       owner with thousands of propose-row SMSes per CLAUDE.md). -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/scripts/backfill-ahs-scheduling.js</string>
+    <string>--max=50</string>
+    <string>--require-pref</string>
+    <string>--per-page=25</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/ahs-drain.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/ahs-drain.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
