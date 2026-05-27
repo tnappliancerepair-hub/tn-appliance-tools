@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help - TN Appliance Exchange</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7f8fb; color: #1a1f2c; padding: 30px 18px; max-width: 720px; margin: 0 auto; }
+  :root { --brand:#ff8a00; --muted:#666; }
+  .header { text-align: center; padding: 12px 0 24px; }
+  .header .ant { font-size: 40px; margin-bottom: 8px; }
+  .header h1 { font-size: 28px; font-weight: 800; }
+  .header p { color: var(--muted); margin-top: 6px; }
+  .search { margin: 18px 0; }
+  .search input { width: 100%; padding: 14px 18px; border: 2px solid #e2e6f0; border-radius: 12px; font-size: 15px; outline: none; }
+  .search input:focus { border-color: var(--brand); }
+  h2 { font-size: 18px; margin: 28px 0 10px; }
+  .faq { background: white; border: 1px solid #e2e6f0; border-radius: 10px; padding: 14px; margin-bottom: 8px; cursor: pointer; }
+  .faq.open { border-color: var(--brand); }
+  .faq .q { font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .faq .q::after { content: '+'; color: var(--brand); font-size: 18px; }
+  .faq.open .q::after { content: '−'; }
+  .faq .a { color: var(--muted); font-size: 14px; line-height: 1.6; margin-top: 8px; display: none; }
+  .faq.open .a { display: block; }
+  .contact { text-align: center; padding: 24px; background: white; border: 2px solid var(--brand); border-radius: 14px; margin-top: 28px; }
+  .contact h3 { font-size: 18px; margin-bottom: 10px; }
+  .contact a { display: inline-block; margin: 10px 6px; padding: 14px 24px; background: var(--brand); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; }
+  .footer { text-align: center; padding: 30px 0; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <h1>How can we help?</h1>
+  <p>Common questions about your appliance repair.</p>
+</div>
+
+<div class="search">
+  <input id="q" type="search" placeholder="Search help (e.g. reschedule, payment, warranty)">
+</div>
+
+<h2>Appointments</h2>
+
+<div class="faq"><div class="q">How do I reschedule my appointment?</div><div class="a">Open the link we texted you (it goes to your customer portal). Tap "Reschedule" and tell us when works better. We'll text you a confirmation.</div></div>
+
+<div class="faq"><div class="q">How do I cancel?</div><div class="a">Reply STOP to your text or call us at 615-280-2949. Cancellations more than 24h before don't have a fee.</div></div>
+
+<div class="faq"><div class="q">When will the tech arrive?</div><div class="a">We'll text you 24 hours before your appointment with a confirmation, and again when your tech is on the way with their ETA. You can also check your status anytime at the link we texted.</div></div>
+
+<div class="faq"><div class="q">Can I share the appointment with my spouse?</div><div class="a">Open your customer portal link → tap "Add to my calendar" → it downloads an .ics file that both phones can add. The 1-hour reminder is built in.</div></div>
+
+<h2>Photos + access</h2>
+
+<div class="faq"><div class="q">Should I send photos before the tech arrives?</div><div class="a">Yes! Photos of the model number tag + the problem help your tech show up with the right part. Open your customer portal → tap "Send photos of the appliance".</div></div>
+
+<div class="faq"><div class="q">How do I tell you my gate code?</div><div class="a">Open your customer portal → tap "Add gate code / pet / access notes" → your tech sees them when they arrive.</div></div>
+
+<h2>Payment + warranty</h2>
+
+<div class="faq"><div class="q">When do I pay?</div><div class="a">For self-pay jobs, we send you a Stripe payment link after the tech completes the repair. Most customers pay within an hour. For warranty jobs (AHS, Frontdoor, Choice), you pay your deductible direct and we bill the warranty company.</div></div>
+
+<div class="faq"><div class="q">Why didn't my home warranty cover this?</div><div class="a">Each warranty company has its own coverage rules. We submit the paperwork; they decide. If denied, we'll tell you why and offer alternatives.</div></div>
+
+<div class="faq"><div class="q">Do you warranty the repair?</div><div class="a">Yes. 90-day parts + labor on every job we complete. Some appliances have longer manufacturer-parts warranties through us — ask your tech.</div></div>
+
+<h2>Other</h2>
+
+<div class="faq"><div class="q">How do I leave a review?</div><div class="a">After we complete your job, we'll send you a link. Or open your customer portal → tap "Rate your visit".</div></div>
+
+<div class="faq"><div class="q">Do you cover my zip code?</div><div class="a">Check at tnapplianceexchange.net/service-area.html — enter your zip.</div></div>
+
+<div class="faq"><div class="q">Is my data safe?</div><div class="a">Yes. We use the same encryption banks use. Customer phone + address + email are protected; never sold or shared.</div></div>
+
+<div class="contact">
+  <h3>Still need help?</h3>
+  <a href="tel:+16152802949">📞 Call 615-280-2949</a>
+  <a href="sms:+16155889500">💬 Text us</a>
+</div>
+
+<div class="footer">
+  🐜 ANT · TN Appliance Exchange LLC<br>
+  Antioch, TN · Serving Middle TN + Southeast LA
+</div>
+
+<script>
+document.querySelectorAll('.faq').forEach(f => f.addEventListener('click', () => f.classList.toggle('open')));
+
+const q = document.getElementById('q');
+if (q) {
+  q.addEventListener('input', () => {
+    const v = q.value.trim().toLowerCase();
+    document.querySelectorAll('.faq').forEach(f => {
+      const t = f.textContent.toLowerCase();
+      f.style.display = (!v || t.includes(v)) ? '' : 'none';
+    });
+  });
+}
+</script>
+</body>
+</html>
