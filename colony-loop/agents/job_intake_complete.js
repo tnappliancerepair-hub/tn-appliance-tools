@@ -369,6 +369,16 @@ async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
     const dayStartMs = chicagoMidnightMs(ymd);
     const dayEndMs = dayStartMs + 24 * 3600 * 1000;
 
+    // Weekend default OFF — agreed rule (CLAUDE.md). Tech opts into
+    // Saturdays / Sundays explicitly via Phase 2 tech-preferences page.
+    // Until that opt-in mechanism is wired, auto-book never lands on
+    // Sat/Sun regardless of what tech_availability says.
+    const dowName = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' });
+    if (dowName === 'Sat' || dowName === 'Sun') {
+      skipped.push({ ymd, why: 'weekend_default_off', dow: dowName });
+      continue;
+    }
+
     let constraints;
     try {
       constraints = await xano.getTechConstraintsForDate({
