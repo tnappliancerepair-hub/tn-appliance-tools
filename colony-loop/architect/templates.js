@@ -291,6 +291,16 @@ function isTechLifecycle(agent) {
   return /\btech\s+confidence\b|\bnew\s+tech\b|\bonboarding\b|\bcertification\s+tracker\b|\bfirst\s+90\s+days\b|\bfirst\s+visit\s+fix\s+rate\b|\btdr\s+tutor\b/.test(c);
 }
 
+// 12. content_generator — Andre Personal Brand + Story and Why colonies.
+//      Content writing for blog/social/email use cases.
+function isContentGenerator(agent) {
+  const id = String(agent.id || '');
+  if (/^AB\d/i.test(id)) return true;
+  if (/^SW\d/i.test(id)) return true;
+  const c = (agent.purpose + ' ' + agent.name).toLowerCase();
+  return /\bcontent\s+generator\b|\bstory\s+writer\b|\bblog\b|\bsocial\s+post\b|\btestimonial\s+curator\b|\bmanifesto\b|\bnarrative\b/.test(c);
+}
+
 // ── End of COLONY BUILD MODE template detectors ──
 
 function isPerformanceCoach(agent) {
@@ -1554,6 +1564,27 @@ export async function generateAgent(agent, claude, config) {
         `'Population (JSON): ' + JSON.stringify(payload.population || [])`,
       ],
       nameSuffixRegex: /\s*(Scorer|Cloner|Evaluator|Meta|Agent)$/gi,
+    });
+  }
+
+  if (isContentGenerator(agent)) {
+    const metaPromptForContent = `You are a content-generation specialist for TN Appliance Exchange. You write authentic, engaging short-form content (blog posts, social posts, email copy, testimonials) in the voice of the company or specific people (Teddy, Andre). Your goal is content that's helpful to customers + believable to humans + good for SEO. Avoid AI-cliche phrasing. Use specifics whenever possible (real appliance brands, real cities in TN/LA, real customer scenarios).`;
+    return generateFromGenericTemplate({
+      metaPrompt: metaPromptForContent,
+      signalOutType: 'CONTENT_GENERATED',
+      signalInPrefix: 'CONTENT_GENERATOR_REQUEST_',
+      filenamePrefix: 'content_',
+      templateName: 'content_generator',
+      promptVarName: 'CONTENT_PROMPT',
+      outputKey: 'content_text',
+      payloadFields: [
+        `'Topic / brief: ' + (payload.topic || 'general')`,
+        `'Voice / persona: ' + (payload.persona || 'TN Appliance company voice')`,
+        `'Tone constraints: ' + (payload.tone || 'friendly, specific, helpful')`,
+        `'Length target words: ' + (payload.length_words || 400)`,
+        `'Extra context (JSON): ' + JSON.stringify(payload.context || {})`,
+      ],
+      nameSuffixRegex: /\s*(Writer|Generator|Post|Story|Recap|Spotlight|Refresher)$/gi,
     });
   }
 
