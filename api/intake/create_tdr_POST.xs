@@ -187,8 +187,15 @@ query create_tdr verb=POST {
           value = "PRE-DIAGNOSIS by Teddy\n\nFailure: " ~ $failure_disp ~ "\n\nOEM Part: " ~ $oem_pn_disp ~ "  Our cost: " ~ $oem_dollars_disp ~ "\nAmazon equivalent: " ~ $amz_pn_disp ~ "  Our cost: " ~ $amz_dollars_disp ~ "\nLabor estimate: " ~ $labor_dollars_disp ~ " (customer-facing)" ~ $notes_block
         }
       
+        // HCP write kill-switch — parallel ANT system rule: NO HCP WRITES.
+        // When env.HCP_PUSH_DISABLED=true (default for parallel mode) the
+        // HCP-side note push is skipped entirely. Local TDR row still saves.
+        var $hcp_disabled_tdr {
+          value = (($env.HCP_PUSH_DISABLED ?? "")|lower == "true")
+        }
+
         conditional {
-          if ($job.housecall_pro_job_id != null && $job.housecall_pro_job_id != "") {
+          if (!$hcp_disabled_tdr && $job.housecall_pro_job_id != null && $job.housecall_pro_job_id != "") {
             api.request {
               url = $env.HCP_BASE_URL ~ "/jobs/" ~ $job.housecall_pro_job_id ~ "/notes"
               method = "POST"
@@ -198,10 +205,10 @@ query create_tdr verb=POST {
                 "Content-Type: application/json"
                 "Accept: application/json"
               ]
-            
+
               timeout = 30
             } as $prediag_hcp_resp
-          
+
             var.update $hcp_note_response {
               value = $prediag_hcp_resp
             }
@@ -378,6 +385,13 @@ query create_tdr verb=POST {
           value = $sms_resp_completion
         }
       
+        // HCP write kill-switch (completion path mirror of pre-diag block above)
+        var $hcp_disabled_compl {
+          value = (($env.HCP_PUSH_DISABLED ?? "")|lower == "true")
+        }
+
+        conditional {
+          if (!$hcp_disabled_compl && $job.housecall_pro_job_id != null && $job.housecall_pro_job_id != "") {
         api.request {
           url = $env.HCP_BASE_URL ~ "/jobs/" ~ $job.housecall_pro_job_id ~ "/notes"
           method = "POST"
@@ -390,9 +404,11 @@ query create_tdr verb=POST {
         
           timeout = 30
         } as $hcp_resp_completion
-      
+
         var.update $hcp_note_response {
           value = $hcp_resp_completion
+        }
+          }
         }
       }
     }
