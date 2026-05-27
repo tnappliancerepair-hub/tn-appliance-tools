@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Feedback - Ant Office</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; padding: 24px 18px; max-width: 540px; margin: 0 auto; }
+  :root { --orange:#f5a623; --green:#00d68f; --red:#ff6b6b; --muted:#8a93aa; --panel:#131720; --border:#2a3040; --bg:#0e1118; }
+  .header { text-align: center; padding: 6px 0 22px; }
+  .header .ant { font-size: 32px; }
+  .header h1 { font-size: 22px; font-weight: 800; margin-top: 4px; }
+  .header p { color: var(--muted); font-size: 12px; font-family: monospace; margin-top: 2px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; margin-top: 14px; }
+  label:first-child { margin-top: 0; }
+  input, textarea, select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: #e8edf5; font-size: 16px; outline: none; font-family: inherit; }
+  input:focus, textarea:focus, select:focus { border-color: var(--orange); }
+  textarea { min-height: 80px; resize: vertical; }
+  .stars { display: flex; gap: 8px; margin-top: 8px; }
+  .star { flex: 1; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; text-align: center; font-size: 24px; transition: background 0.1s, border-color 0.1s; }
+  .star:hover { border-color: var(--orange); }
+  .star.active { background: var(--orange); color: #1a1208; border-color: var(--orange); }
+  .star.active.low { background: var(--red); border-color: var(--red); color: white; }
+  .row { display: flex; gap: 8px; margin-top: 18px; }
+  .btn { flex: 1; padding: 14px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .btn.primary { background: var(--orange); color: #1a1208; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .msg { margin-top: 14px; min-height: 16px; font-size: 13px; padding: 10px; border-radius: 6px; display: none; }
+  .msg.show { display: block; }
+  .msg.ok { background: rgba(0,214,143,0.10); color: var(--green); border: 1px solid var(--green); }
+  .msg.err { background: rgba(255,107,107,0.10); color: var(--red); border: 1px solid var(--red); }
+  .alert { background: rgba(255,107,107,0.10); color: var(--red); border: 1px solid var(--red); padding: 10px; border-radius: 6px; margin-top: 12px; font-size: 12px; display: none; }
+  .alert.show { display: block; }
+  .auth { position: fixed; inset: 0; background: rgba(14,17,24,0.96); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 1000; }
+  .auth-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px 24px; max-width: 360px; text-align: center; }
+  .auth-card input { margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<div id="auth" class="auth">
+  <div class="auth-card">
+    <div style="font-size:36px">🐜</div>
+    <div style="font-size:18px;font-weight:700">Office Access</div>
+    <input id="pw" type="password" placeholder="office password">
+    <button id="pwBtn" class="btn primary">Unlock</button>
+    <div id="pwErr" style="color:var(--red);font-size:12px;margin-top:8px;min-height:14px"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <h1>Log Customer Feedback</h1>
+    <p>capture rating from phone / email / in-person</p>
+  </div>
+  <div class="card">
+    <label>Job ID</label>
+    <input id="jobId" type="tel" inputmode="numeric" placeholder="18095">
+
+    <label>Rating</label>
+    <div class="stars" id="stars">
+      <button class="star" data-r="1">1</button>
+      <button class="star" data-r="2">2</button>
+      <button class="star" data-r="3">3</button>
+      <button class="star" data-r="4">4</button>
+      <button class="star" data-r="5">5</button>
+    </div>
+    <div class="alert" id="lowAlert">⚠️ Low rating — Teddy + Danielle will be alerted immediately on submit for save-the-customer call.</div>
+
+    <label>Comment (optional)</label>
+    <textarea id="comment" placeholder="What did the customer say?"></textarea>
+
+    <label>Source</label>
+    <select id="source">
+      <option value="office_phone">Phone call</option>
+      <option value="office_email">Email</option>
+      <option value="office_in_person">In person</option>
+      <option value="office_text">Text reply</option>
+      <option value="office_other">Other</option>
+    </select>
+
+    <div class="row">
+      <button id="submitBtn" class="btn primary" disabled>Submit Feedback</button>
+    </div>
+    <div id="msg" class="msg"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const OFFICE_PASSWORD = 'antlives';
+  const $ = (id) => document.getElementById(id);
+  let rating = 0;
+
+  if (localStorage.getItem(AUTH_KEY) === '1') unlock();
+  $('pwBtn').addEventListener('click', tryAuth);
+  $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
+  function tryAuth() {
+    if ($('pw').value === OFFICE_PASSWORD) { localStorage.setItem(AUTH_KEY, '1'); unlock(); }
+    else { $('pwErr').textContent = 'wrong password'; $('pw').select(); }
+  }
+  function unlock() { $('auth').style.display = 'none'; $('app').style.display = 'block'; }
+
+  document.querySelectorAll('.star').forEach(b => {
+    b.addEventListener('click', () => {
+      rating = Number(b.getAttribute('data-r'));
+      document.querySelectorAll('.star').forEach(x => {
+        const r = Number(x.getAttribute('data-r'));
+        x.classList.toggle('active', r <= rating);
+        x.classList.toggle('low', rating <= 2);
+      });
+      $('lowAlert').classList.toggle('show', rating > 0 && rating <= 2);
+      $('submitBtn').disabled = false;
+    });
+  });
+
+  $('submitBtn').addEventListener('click', async () => {
+    const jobId = parseInt($('jobId').value.trim(), 10);
+    if (!jobId || !rating) { showMsg('err', 'Need job_id + rating.'); return; }
+    $('submitBtn').disabled = true;
+    showMsg('', 'sending…');
+    try {
+      const res = await fetch(`${XANO}/record_customer_feedback`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          job_id: jobId,
+          rating,
+          comment: $('comment').value.trim(),
+          source: $('source').value
+        })
+      });
+      const d = await res.json();
+      if (!d || !d.success) throw new Error((d && d.message) || 'failed');
+      showMsg('ok', `✓ Recorded rating ${rating}/5 for job #${jobId}.${rating <= 2 ? ' Alert sent to Teddy + Danielle.' : ''}`);
+      $('jobId').value = ''; $('comment').value = ''; rating = 0;
+      document.querySelectorAll('.star').forEach(x => x.classList.remove('active', 'low'));
+      $('lowAlert').classList.remove('show');
+    } catch (err) {
+      showMsg('err', 'fail: ' + (err.message || err));
+    } finally {
+      $('submitBtn').disabled = !rating;
+    }
+  });
+
+  function showMsg(cls, txt) {
+    const m = $('msg');
+    m.className = 'msg show' + (cls ? ' ' + cls : '');
+    m.textContent = txt;
+  }
+})();
+</script>
+</body>
+</html>
