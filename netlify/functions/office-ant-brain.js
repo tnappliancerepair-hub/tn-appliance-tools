@@ -9,12 +9,12 @@
 // will later expose SCHEDULER_TOOLS + WRITE_TOOLS when those are wired.
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { READ_TOOLS } = require('./_lib/ant/tools');
+const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS } = require('./_lib/ant/tools');
 
-// Office exposes everything in READ_TOOLS — Teddy/Danielle/Alyse legit
-// need access to calendar, pulse, search, etc. Future SCHEDULER_TOOLS
-// and WRITE_TOOLS will be added here once they're built.
-const OFFICE_TOOLS = [...READ_TOOLS];
+// Office exposes READ + SCHEDULER + WRITE. Write tools all default to
+// dry_run=true so Claude previews the action and the user confirms in
+// chat before anything commits.
+const OFFICE_TOOLS = [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS];
 
 function buildSystemPrompt() {
   const todayCt = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'full', timeStyle: 'short' });
@@ -46,7 +46,16 @@ DO NOT:
 - Make up customer names, job IDs, or numbers
 - Apologize unless you actually made an error
 - Suggest features that don't exist
-- Recommend calling a phone number unless you got it from a tool result`;
+- Recommend calling a phone number unless you got it from a tool result
+
+WRITE TOOLS — TWO-STAGE COMMIT:
+When the user asks you to schedule / reschedule / reassign / cancel / set-day-off, follow this pattern:
+1. First call the relevant write tool with dry_run=true (or omit dry_run — it defaults true). The tool returns a preview string describing what WOULD happen.
+2. Show the user the preview and ask for explicit confirmation. Something like: "Will reschedule job #18250 to Thursday 2pm. Customer gets auto-SMS confirmation. Confirm? (yes / no)"
+3. Only after the user says yes/confirm/do it/etc., call the SAME tool again with dry_run=false to actually commit.
+4. Then call check_scheduling_conflict BEFORE any schedule/reschedule/reassign action so you can flag overlaps in the preview.
+
+NEVER call a write tool with dry_run=false on the first turn without explicit user confirmation. Even if the user sounds urgent ("just cancel it"), still preview first — one extra back-and-forth is cheap; a wrong write is expensive.`;
 }
 
 exports.handler = async (event) => {
