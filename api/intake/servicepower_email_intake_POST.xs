@@ -599,6 +599,36 @@ query servicepower_email_intake verb=POST {
                   }
                 } as $jc_log
 
+                // Parallel ANT Phase 1 marker — Danielle's needs-scheduled.html
+                // scans event_log for this action.
+                db.add event_log {
+                  data = {
+                    action  : "parallel_job_created_from_email"
+                    metadata: {
+                      job_id          : $new_job.id
+                      customer_id     : $customer_id_final
+                      intake_source   : "email_servicepower"
+                      warranty_company: $warranty_company
+                      claim_number    : $call_number
+                    }
+                  }
+                } as $parallel_marker_sp
+
+                // SMS Danielle on every new SP job (internal recipient)
+                var $dn_sp_city { value = ($raw_city ?? "") }
+                var $dn_sp_body { value = ("[ant] new ServicePower job in Needs Scheduled: " ~ ($customer_id_final|to_text) ~ ", " ~ $dn_sp_city ~ ". tnapplianceexchange.net/needs-scheduled.html") }
+
+                api.request {
+                  url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+                  method  = "POST"
+                  headers = []|push:"Content-Type: application/json"
+                  params  = {
+                    to          : "+16154850713"
+                    message     : $dn_sp_body
+                    context_tag : "parallel_sp_danielle_alert"
+                  }
+                } as $danielle_sp_alert
+
                 // Phase 5.5C: emit APPOINTMENT_SCHEDULED when SP intake lands
                 // a brand-new job with a real scheduled_start (gated to skip
                 // null/zero times from emails without "Schedule Date" set).

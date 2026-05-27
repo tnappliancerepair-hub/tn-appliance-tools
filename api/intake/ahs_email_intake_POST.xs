@@ -1045,6 +1045,38 @@ query ahs_email_intake verb=POST {
       }
     } as $jc_signal
 
+    // Parallel ANT Phase 1 marker — Danielle's needs-scheduled.html
+    // scans event_log for this action to find new email-parsed jobs.
+    db.add event_log {
+      data = {
+        action  : "parallel_job_created_from_email"
+        metadata: {
+          job_id          : $new_job.id
+          customer_id     : ($new_job.customer_id ?? 0)
+          intake_source   : "email_ahs"
+          warranty_company: "AHS"
+          claim_number    : ($jc_appliance ?? "")
+        }
+      }
+    } as $parallel_marker_ahs
+
+    // SMS Danielle on every new AHS job (internal recipient — bypasses
+    // CUSTOMER_FACING_ENABLED gate via the recipient_role check).
+    var $dn_first { value = (($new_job.customer_first_name ?? "")|trim) }
+    var $dn_city { value = (($new_job.service_city ?? "")|trim) }
+    var $dn_alert_body { value = ("[ant] new AHS job in Needs Scheduled: " ~ $dn_first ~ ", " ~ $dn_city ~ ". tnapplianceexchange.net/needs-scheduled.html") }
+
+    api.request {
+      url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+      method  = "POST"
+      headers = []|push:"Content-Type: application/json"
+      params  = {
+        to          : "+16154850713"
+        message     : $dn_alert_body
+        context_tag : "parallel_ahs_danielle_alert"
+      }
+    } as $danielle_ahs_alert
+
     db.add event_log {
       data = {
         action  : "job_created_signal_emitted"
