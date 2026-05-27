@@ -1744,9 +1744,29 @@ footer span { display:none; }
       <p class="resume-brand">TN APPLIANCE EXCHANGE</p>
       <p class="resume-greeting" id="resumeGreeting"></p>
 
-      <label class="resume-label" for="resumeAvail">Availability</label>
-      <p class="resume-hint">What days/times work best for you? (e.g. weekday mornings, after 3pm, weekends)</p>
+      <label class="resume-label" for="resumeAppliance">Appliance</label>
+      <p class="resume-hint">What needs to be repaired? (fridge, washer, dryer, dishwasher, oven, microwave)</p>
+      <input class="resume-input" id="resumeAppliance" type="text" maxlength="60" autocomplete="off">
+
+      <label class="resume-label" for="resumeBrand">Brand</label>
+      <p class="resume-hint">e.g. Whirlpool, LG, Samsung, GE, Frigidaire</p>
+      <input class="resume-input" id="resumeBrand" type="text" maxlength="60" autocomplete="off">
+
+      <label class="resume-label" for="resumeModel">Model number</label>
+      <p class="resume-hint">Usually a sticker inside the door, behind the kick plate, or on the back. Helps us bring the right part.</p>
+      <input class="resume-input" id="resumeModel" type="text" maxlength="60" autocomplete="off">
+
+      <label class="resume-label" for="resumeProblem">What's wrong</label>
+      <p class="resume-hint">Describe the issue in your own words. Any error codes? When did it start?</p>
+      <textarea class="resume-textarea" id="resumeProblem" maxlength="500" placeholder="Ice maker stopped, water still works..."></textarea>
+
+      <label class="resume-label" for="resumeAvail">When you ARE available</label>
+      <p class="resume-hint">Days/times that work best. (e.g. weekday mornings, after 3pm, Saturdays)</p>
       <textarea class="resume-textarea" id="resumeAvail" maxlength="500" placeholder="Weekday mornings before noon..."></textarea>
+
+      <label class="resume-label" for="resumeUnavail">When you are NOT available</label>
+      <p class="resume-hint">Days/times to avoid. (e.g. Wednesdays, after 5pm, work travel next week)</p>
+      <textarea class="resume-textarea" id="resumeUnavail" maxlength="500" placeholder="No Wednesdays, traveling June 3-7..."></textarea>
 
       <label class="resume-label" for="resumeAccess">Access notes</label>
       <p class="resume-hint">Gate codes, pets, parking, side door — anything our tech should know.</p>
@@ -3473,7 +3493,12 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
   const form      = document.getElementById('resumeForm');
   const success   = document.getElementById('resumeSuccess');
   const greeting  = document.getElementById('resumeGreeting');
+  const applianceEl = document.getElementById('resumeAppliance');
+  const brandEl   = document.getElementById('resumeBrand');
+  const modelEl   = document.getElementById('resumeModel');
+  const problemEl = document.getElementById('resumeProblem');
   const availEl   = document.getElementById('resumeAvail');
+  const unavailEl = document.getElementById('resumeUnavail');
   const accessEl  = document.getElementById('resumeAccess');
   const pinEl     = document.getElementById('resumePin');
   const submitBtn = document.getElementById('resumeSubmit');
@@ -3513,10 +3538,17 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
       const appliance = applianceLabel(body.appliance_type);
       greeting.innerHTML =
         'Hi ' + escapeHtml(firstName) + ', we already have your <em>' +
-        escapeHtml(appliance) + ' repair</em> request. I just need a couple more details.';
+        escapeHtml(appliance) + ' repair</em> request. Help us bring the right part and pick the right time:';
+      // Pre-fill any fields we already know from prior intake
+      if (body.appliance_type) applianceEl.value = body.appliance_type;
+      if (body.brand) brandEl.value = body.brand;
+      if (body.model_number) modelEl.value = body.model_number;
+      if (body.problem_summary) problemEl.value = body.problem_summary;
       loading.hidden = true;
       form.hidden = false;
-      availEl.focus();
+      // Focus the first empty field — usually model number since intake email rarely has it
+      const firstEmpty = [applianceEl, brandEl, modelEl, problemEl, availEl].find(el => !el.value.trim());
+      (firstEmpty || availEl).focus();
     })
     .catch(() => {
       loading.textContent = 'Connection problem. Please try again or call 615-280-2949.';
@@ -3529,7 +3561,12 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
 
   submitBtn.addEventListener('click', function() {
     errorEl.textContent = '';
+    const appliance = applianceEl.value.trim();
+    const brand   = brandEl.value.trim();
+    const model   = modelEl.value.trim();
+    const problem = problemEl.value.trim();
     const avail   = availEl.value.trim();
+    const unavail = unavailEl.value.trim();
     const access  = accessEl.value.trim();
     const pin     = pinEl.value.trim();
 
@@ -3538,8 +3575,8 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
       pinEl.focus();
       return;
     }
-    if (!avail && !access) {
-      errorEl.textContent = 'Please share at least your availability or any access notes.';
+    if (!avail && !unavail && !access && !problem && !appliance && !brand && !model) {
+      errorEl.textContent = 'Please fill in at least one field so we can help.';
       availEl.focus();
       return;
     }
@@ -3560,8 +3597,13 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
         job_id: jobId,
         phone_last4: pin,
         customer_preference_text: avail,
+        customer_unavailability_text: unavail,
         scheduling_type: schedulingType,
-        access_notes: access
+        access_notes: access,
+        appliance_type: appliance,
+        brand: brand,
+        model_number: model,
+        problem_summary: problem
       })
     })
       .then(r => r.json().then(j => ({ ok: r.ok, body: j })))

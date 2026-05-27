@@ -13,8 +13,13 @@ query update_job_from_chat verb=POST {
     int job_id
     text phone_last4
     text? customer_preference_text?
+    text? customer_unavailability_text?
     text? scheduling_type?
     text? access_notes?
+    text? appliance_type?
+    text? brand?
+    text? model_number?
+    text? problem_summary?
   }
 
   stack {
@@ -85,8 +90,23 @@ query update_job_from_chat verb=POST {
       error      = "phone_last4 does not match"
     }
 
-    var $new_pref {
+    var $new_avail {
       value = (($input.customer_preference_text ?? "")|trim)
+    }
+
+    var $new_unavail {
+      value = (($input.customer_unavailability_text ?? "")|trim)
+    }
+
+    // Pack availability + unavailability into the single
+    // customer_preference_text column with structured markers so the
+    // auto-scheduler can parse both halves. Schema-change-free.
+    var $combined_pref_raw {
+      value = ($new_avail != "" ? ("AVAIL: " ~ $new_avail) : "") ~ (($new_avail != "" && $new_unavail != "") ? "\n" : "") ~ ($new_unavail != "" ? ("UNAVAIL: " ~ $new_unavail) : "")
+    }
+
+    var $combined_pref {
+      value = $combined_pref_raw|trim
     }
 
     var $new_sched_type {
@@ -97,8 +117,24 @@ query update_job_from_chat verb=POST {
       value = (($input.access_notes ?? "")|trim)
     }
 
+    var $new_appliance {
+      value = (($input.appliance_type ?? "")|trim)
+    }
+
+    var $new_brand {
+      value = (($input.brand ?? "")|trim)
+    }
+
+    var $new_model {
+      value = (($input.model_number ?? "")|trim)
+    }
+
+    var $new_problem {
+      value = (($input.problem_summary ?? "")|trim)
+    }
+
     var $merged_pref {
-      value = $new_pref != "" ? $new_pref : ($job.customer_preference_text ?? "")
+      value = $combined_pref != "" ? $combined_pref : ($job.customer_preference_text ?? "")
     }
 
     var $merged_sched {
@@ -109,6 +145,22 @@ query update_job_from_chat verb=POST {
       value = $new_access != "" ? $new_access : ($job.access_notes ?? "")
     }
 
+    var $merged_appliance {
+      value = $new_appliance != "" ? $new_appliance : ($job.appliance_type ?? "")
+    }
+
+    var $merged_brand {
+      value = $new_brand != "" ? $new_brand : ($job.brand ?? "")
+    }
+
+    var $merged_model {
+      value = $new_model != "" ? $new_model : ($job.model_number ?? "")
+    }
+
+    var $merged_problem {
+      value = $new_problem != "" ? $new_problem : ($job.problem_summary ?? "")
+    }
+
     db.edit jobs {
       field_name  = "id"
       field_value = $input.job_id
@@ -116,6 +168,10 @@ query update_job_from_chat verb=POST {
         customer_preference_text: $merged_pref
         scheduling_type         : $merged_sched
         access_notes            : $merged_access
+        appliance_type          : $merged_appliance
+        brand                   : $merged_brand
+        model_number            : $merged_model
+        problem_summary         : $merged_problem
       }
     } as $updated
 
@@ -128,6 +184,10 @@ query update_job_from_chat verb=POST {
           customer_preference_text: $merged_pref
           scheduling_type         : $merged_sched
           access_notes_len        : ($merged_access|strlen)
+          appliance_type          : $merged_appliance
+          brand                   : $merged_brand
+          model_number            : $merged_model
+          problem_summary_len     : ($merged_problem|strlen)
         }
       }
     } as $log
@@ -138,7 +198,10 @@ query update_job_from_chat verb=POST {
         customer_id             : $customer.id
         customer_phone          : ($customer.phone ?? "")
         customer_first_name     : ($customer.first_name ?? "")
-        appliance_type          : ($job.appliance_type ?? "")
+        appliance_type          : $merged_appliance
+        brand                   : $merged_brand
+        model_number            : $merged_model
+        problem_summary         : $merged_problem
         source                  : "resume_chat"
         customer_preference_text: $merged_pref
         scheduling_type         : $merged_sched
@@ -168,6 +231,10 @@ query update_job_from_chat verb=POST {
     customer_preference_text: $merged_pref
     scheduling_type         : $merged_sched
     access_notes            : $merged_access
+    appliance_type          : $merged_appliance
+    brand                   : $merged_brand
+    model_number            : $merged_model
+    problem_summary         : $merged_problem
   }
 
   guid = "update-job-from-chat-v1"

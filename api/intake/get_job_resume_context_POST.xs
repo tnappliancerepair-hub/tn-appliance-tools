@@ -64,12 +64,14 @@ query get_job_resume_context verb=POST {
   }
 
   response = {
-    success       : true
-    job_id        : $job.id
-    first_name    : $first_name
-    appliance_type: ($job.appliance_type ?? "")
-    brand         : ($job.brand ?? "")
-    phone_last4   : $phone_last4
+    success        : true
+    job_id         : $job.id
+    first_name     : $first_name
+    appliance_type : ($job.appliance_type ?? "")
+    brand          : ($job.brand ?? "")
+    model_number   : ($job.model_number ?? "")
+    problem_summary: ($job.problem_summary ?? "")
+    phone_last4    : $phone_last4
   }
 
   guid = "get-job-resume-context-v1"
