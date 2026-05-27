@@ -4,7 +4,7 @@
 // their full job + TDR history. Defense-in-depth even though the
 // portal page already validated — we never want a customer to peek
 // at another customer's data via a tampered job_id.
-mutation get_my_repair_history verb=POST {
+query get_my_repair_history verb=POST {
   api_group = "intake"
 
   input {

@@ -1597,10 +1597,70 @@ async function onOnMyWay() {
     addSystem('success', `✅ ETA ${etaStr} sent to ${firstName}`);
     btn.textContent = '✓ Sent';
     // Permanent: stays disabled for this page load. Page reload resets.
+
+    // Start broadcasting GPS position so the customer can see the truck
+    // heading toward them on a live map (customer-portal). Stops when
+    // tech taps Start Job or after 2h safety timeout.
+    startTechPositionBroadcast();
   } catch (err) {
     addSystem('error', '⚠️ on-the-way send failed: ' + err.message);
     btn.textContent = '🚗 On My Way';
     btn.disabled = false;
+  }
+}
+
+// ─── Live position broadcaster (Uber-style customer truck-tracking) ──
+let __positionWatchId = null;
+let __positionSafetyTimer = null;
+function startTechPositionBroadcast() {
+  if (__positionWatchId != null) return;        // already running
+  if (!navigator.geolocation) {
+    console.warn('[position] geolocation not supported');
+    return;
+  }
+  // Single ping immediately, then watchPosition for continuous updates
+  navigator.geolocation.getCurrentPosition(sendPositionPing, (e) => {
+    console.warn('[position] initial getCurrent failed:', e.message);
+  }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 });
+  __positionWatchId = navigator.geolocation.watchPosition(sendPositionPing, (e) => {
+    console.warn('[position] watch error:', e.message);
+  }, { enableHighAccuracy: true, maximumAge: 25_000 });
+  // Safety: stop after 2h regardless (caps battery + privacy)
+  __positionSafetyTimer = setTimeout(stopTechPositionBroadcast, 2 * 60 * 60 * 1000);
+  console.log('[position] broadcasting started');
+}
+function stopTechPositionBroadcast() {
+  if (__positionWatchId != null) {
+    navigator.geolocation.clearWatch(__positionWatchId);
+    __positionWatchId = null;
+  }
+  if (__positionSafetyTimer) {
+    clearTimeout(__positionSafetyTimer);
+    __positionSafetyTimer = null;
+  }
+  console.log('[position] broadcasting stopped');
+}
+let __lastPingMs = 0;
+async function sendPositionPing(pos) {
+  // Rate-limit to once per 25s to keep payloads sane
+  if (Date.now() - __lastPingMs < 25_000) return;
+  __lastPingMs = Date.now();
+  try {
+    await fetch(`${XANO_BASE}/record_tech_position`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tech_id: parseInt(TECH_ID, 10),
+        job_id:  parseInt(JOB_ID, 10),
+        lat:     String(pos.coords.latitude),
+        lng:     String(pos.coords.longitude),
+        accuracy_m: String(Math.round(pos.coords.accuracy || 0)),
+        speed_mps:  pos.coords.speed != null ? String(pos.coords.speed) : '',
+        heading_deg: pos.coords.heading != null ? String(pos.coords.heading) : '',
+      }),
+    });
+  } catch (err) {
+    console.warn('[position] ping failed:', err.message);
   }
 }
 
@@ -1624,6 +1684,8 @@ async function onStartJob() {
     btn.textContent = '✓ Job Started';
     btn.disabled = false;
     addSystem('success', '✅ job started');
+    // Tech arrived — stop broadcasting position
+    if (typeof stopTechPositionBroadcast === 'function') stopTechPositionBroadcast();
   } catch (err) {
     addSystem('error', '⚠️ start failed: ' + err.message);
     btn.textContent = '▶ Start Job';
