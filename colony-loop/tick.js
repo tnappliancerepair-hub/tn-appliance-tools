@@ -600,6 +600,11 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // ASSIGN_PARALLEL_TEST_JOBS — REMOVED per revised brief. Phase 1 has
+  // NO auto-assignment. Danielle manually schedules every parallel job
+  // through needs-scheduled.html. Agent file kept dormant in case Phase 2
+  // revives auto-assignment.
+
   // TECH_ASSIST_EOD_REPORT — Teddy at 6pm CT (18:00-18:30 grace window)
   if (hour === 18) {
     try {

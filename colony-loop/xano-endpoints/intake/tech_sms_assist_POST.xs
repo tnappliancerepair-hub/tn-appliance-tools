@@ -58,6 +58,44 @@ query tech_sms_assist verb=POST {
     var $job { value = $active_rows.items|get:0 }
     var $job_id { value = $job.id }
 
+    // SCOPE GUARD (parallel ANT Phase 1): Tech Assist only runs on
+    // parallel-mode jobs. Once jobs.parallel_mode column is added by
+    // operator (Xano UI), this gate activates. Until then, soft-skip
+    // via event_log scan — if the job has a parallel_job_created_from_email
+    // marker, it's parallel-mode; else it's HCP-origin and routes to legacy.
+    db.query event_log {
+      where  = $db.event_log.action == "parallel_job_created_from_email"
+      sort   = {event_log.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 500}}
+    } as $par_markers
+
+    var $job_marker { value = ("\"job_id\":" ~ ($job_id|to_text)) }
+    var $is_parallel { value = false }
+
+    foreach ($par_markers.items) {
+      each as $pm {
+        conditional {
+          if (!$is_parallel) {
+            var $pm_meta { value = ($pm.metadata ?? "") }
+            var $pm_strip { value = $pm_meta|replace:$job_marker:"" }
+            conditional {
+              if (($pm_meta|strlen) > ($pm_strip|strlen)) {
+                var.update $is_parallel { value = true }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    conditional {
+      if (!$is_parallel) {
+        return {
+          value = {matched: false, reason: "not_parallel_mode_job"}
+        }
+      }
+    }
+
     var $tech_first { value = (($tech.first_name ?? "")|trim) }
     var $appliance { value = (($job.appliance_type ?? "appliance")|trim) }
     var $brand { value = (($job.brand ?? "")|trim) }

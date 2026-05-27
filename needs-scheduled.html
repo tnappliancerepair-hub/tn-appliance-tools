@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Needs Scheduled — Danielle</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6fa; color: #1a1a1a; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  :root {
+    --blue: #1e6fdb;
+    --green: #1aa05c;
+    --orange: #e67e22;
+    --red: #d93025;
+    --muted: #6b7280;
+    --border: #e1e5eb;
+    --card: #ffffff;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; flex: 1; }
+  .topbar .count {
+    background: var(--blue); color: #fff;
+    font-family: ui-monospace, Menlo, monospace;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+  }
+  .topbar button.refresh {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 12px; border-radius: 8px;
+    font-size: 13px; cursor: pointer;
+  }
+  .topbar button.add-manual {
+    background: var(--green); color: #fff; border: none;
+    padding: 6px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  .auth-gate {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(255,255,255,0.98);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .auth-gate.show { display: flex; }
+  .auth-card {
+    background: #fff; border-radius: 14px; padding: 30px 26px;
+    max-width: 360px; width: 100%; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  }
+  .auth-card h2 { font-size: 20px; margin-bottom: 6px; }
+  .auth-card p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .auth-card input {
+    width: 100%; padding: 14px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 16px; outline: none;
+    margin-bottom: 12px; font-family: ui-monospace, Menlo, monospace;
+    text-align: center;
+  }
+  .auth-card button {
+    width: 100%; padding: 14px; background: var(--blue); color: #fff;
+    border: none; border-radius: 10px; font-size: 14px;
+    font-weight: 600; cursor: pointer; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .auth-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+  .list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+  .row {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
+  }
+  .row .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .row .who {
+    font-size: 16px; font-weight: 600; color: #111;
+  }
+  .row .age {
+    font-size: 12px; color: var(--muted);
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .row .what {
+    font-size: 14px; color: var(--muted); margin-bottom: 4px;
+  }
+  .row .addr {
+    font-size: 13px; color: var(--muted); margin-bottom: 6px;
+  }
+  .row .meta {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .row .badge {
+    background: #eef2f7; color: #4b5563;
+    font-size: 11px; padding: 2px 8px; border-radius: 6px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .row .badge.source { background: #e1efff; color: var(--blue); }
+  .row .badge.warranty { background: #fef3e2; color: var(--orange); }
+  .row .actions { display: flex; gap: 8px; }
+  .row .actions button {
+    flex: 1; padding: 10px; border-radius: 8px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .row .actions .schedule { background: var(--green); color: #fff; }
+  .row .actions .edit { background: #f3f4f6; color: #374151; }
+  .row .actions .del { background: #fee2e2; color: var(--red); }
+
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--muted);
+  }
+  .empty h3 { font-size: 17px; margin-bottom: 6px; color: #374151; }
+  .empty p { font-size: 13px; }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(0,0,0,0.4);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; padding: 22px;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-card h2 { font-size: 18px; margin-bottom: 4px; }
+  .modal-card p.sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .modal-card label {
+    display: block; font-size: 12px; color: var(--muted);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 4px; margin-top: 10px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 15px; font-family: inherit;
+    outline: none;
+  }
+  .modal-card textarea { min-height: 70px; resize: vertical; }
+  .modal-card .row-2col { display: flex; gap: 8px; }
+  .modal-card .row-2col > div { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 8px; margin-top: 18px;
+  }
+  .modal-actions button {
+    flex: 1; padding: 12px; border-radius: 8px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .modal-actions .submit { background: var(--blue); color: #fff; }
+  .modal-actions .cancel { background: #f3f4f6; color: #374151; }
+  .modal-actions .submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1a1a1a; color: #fff;
+    padding: 12px 18px; border-radius: 10px; font-size: 13px;
+    z-index: 200; opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { background: var(--red); }
+  .toast.ok { background: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <h2>🐜 Ant Office</h2>
+    <p>Needs Scheduled — password</p>
+    <input type="password" id="authInput" placeholder="••••••••" autocomplete="off">
+    <button id="authBtn">Unlock</button>
+    <div class="auth-err" id="authErr"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="topbar">
+    <h1>Needs Scheduled</h1>
+    <span class="count" id="count">—</span>
+    <button class="refresh" id="refreshBtn">↻</button>
+    <button class="add-manual" id="addManualBtn">+ Add</button>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<!-- Schedule modal -->
+<div class="modal" id="schedModal">
+  <div class="modal-card">
+    <h2>Schedule job</h2>
+    <p class="sub" id="schedJobDesc"></p>
+
+    <label for="schedTech">Tech</label>
+    <select id="schedTech">
+      <option value="">— pick a tech —</option>
+      <option value="1">Teddy</option>
+      <option value="2">Jimmy</option>
+      <option value="3">Andre</option>
+      <option value="4">Lee</option>
+      <option value="5">Billy</option>
+      <option value="6">John</option>
+    </select>
+
+    <div class="row-2col">
+      <div>
+        <label for="schedDate">Date</label>
+        <input type="date" id="schedDate">
+      </div>
+      <div>
+        <label for="schedTime">Time</label>
+        <input type="time" id="schedTime" value="09:00">
+      </div>
+    </div>
+
+    <label for="schedWindow">Arrival window (optional)</label>
+    <input type="text" id="schedWindow" placeholder="9-12am / 1-4pm">
+
+    <div class="modal-actions">
+      <button class="cancel" id="schedCancelBtn">Cancel</button>
+      <button class="submit" id="schedSubmitBtn">Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add manual job modal -->
+<div class="modal" id="addModal">
+  <div class="modal-card">
+    <h2>Add job manually</h2>
+    <p class="sub">When an email didn't auto-parse, add the job here.</p>
+
+    <div class="row-2col">
+      <div>
+        <label for="addFirst">First name</label>
+        <input type="text" id="addFirst" autocapitalize="words">
+      </div>
+      <div>
+        <label for="addLast">Last name</label>
+        <input type="text" id="addLast" autocapitalize="words">
+      </div>
+    </div>
+
+    <label for="addPhone">Phone</label>
+    <input type="tel" id="addPhone" placeholder="+1...">
+
+    <label for="addAddress">Service address</label>
+    <input type="text" id="addAddress" autocapitalize="words">
+
+    <div class="row-2col">
+      <div>
+        <label for="addCity">City</label>
+        <input type="text" id="addCity" autocapitalize="words">
+      </div>
+      <div>
+        <label for="addZip">Zip</label>
+        <input type="text" id="addZip" inputmode="numeric">
+      </div>
+    </div>
+
+    <label for="addAppliance">Appliance</label>
+    <input type="text" id="addAppliance" placeholder="refrigerator / washer / dryer ...">
+
+    <div class="row-2col">
+      <div>
+        <label for="addBrand">Brand</label>
+        <input type="text" id="addBrand">
+      </div>
+      <div>
+        <label for="addModel">Model #</label>
+        <input type="text" id="addModel">
+      </div>
+    </div>
+
+    <label for="addProblem">Problem</label>
+    <textarea id="addProblem"></textarea>
+
+    <div class="row-2col">
+      <div>
+        <label for="addWarranty">Warranty company</label>
+        <input type="text" id="addWarranty" placeholder="AHS / SP / Allstate">
+      </div>
+      <div>
+        <label for="addClaim">Claim #</label>
+        <input type="text" id="addClaim">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="cancel" id="addCancelBtn">Cancel</button>
+      <button class="submit" id="addSubmitBtn">Add to queue</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  async function verifyOfficePassword(pw) {
+    if (!pw) return false;
+    try {
+      const r = await fetch(XANO_BASE + '/verify_office_password', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({password: pw})
+      });
+      const d = await r.json();
+      return d && d.success === true;
+    } catch { return false; }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const authGate = $('authGate'), authInput = $('authInput');
+  const app = $('app'), list = $('list'), count = $('count');
+  const schedModal = $('schedModal'), addModal = $('addModal'), toast = $('toast');
+
+  function showToast(msg, kind) {
+    toast.textContent = msg; toast.className = 'toast show ' + (kind || '');
+    setTimeout(() => { toast.className = 'toast ' + (kind || ''); }, 2400);
+  }
+  function fmtAge(createdMs) {
+    if (!createdMs) return '';
+    const hrs = (Date.now() - createdMs) / 3600000;
+    if (hrs < 1) return Math.round(hrs * 60) + 'm ago';
+    if (hrs < 24) return hrs.toFixed(1) + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+  function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+
+  let currentJob = null;
+
+  function unlock() {
+    authGate.classList.remove('show');
+    app.style.display = 'block';
+    load();
+  }
+  if (localStorage.getItem(AUTH_KEY) === 'ok') unlock();
+  else authGate.classList.add('show');
+
+  $('authBtn').addEventListener('click', async () => {
+    const ok = await verifyOfficePassword(authInput.value);
+    if (ok) { localStorage.setItem(AUTH_KEY, 'ok'); unlock(); }
+    else { $('authErr').textContent = 'Wrong password.'; authInput.value = ''; }
+  });
+  authInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('authBtn').click(); });
+
+  $('refreshBtn').addEventListener('click', load);
+  $('addManualBtn').addEventListener('click', () => addModal.classList.add('show'));
+  $('addCancelBtn').addEventListener('click', () => addModal.classList.remove('show'));
+  $('schedCancelBtn').addEventListener('click', () => schedModal.classList.remove('show'));
+
+  async function load() {
+    list.innerHTML = '<div class="empty"><p>Loading…</p></div>';
+    try {
+      const r = await fetch(XANO_BASE + '/list_needs_scheduled_parallel?limit=200');
+      const d = await r.json();
+      if (!d.success) throw new Error('failed');
+      render(d.items || []);
+      count.textContent = (d.count || 0);
+    } catch (e) {
+      list.innerHTML = '<div class="empty"><h3>Load failed</h3><p>' + escapeHtml(e.message) + '</p></div>';
+    }
+  }
+
+  function render(items) {
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty"><h3>Nothing waiting</h3><p>You\'re all caught up. New emails will land here automatically.</p></div>';
+      return;
+    }
+    list.innerHTML = items.map(j => {
+      const name = (j.customer_first + ' ' + j.customer_last).trim() || '(no name)';
+      const what = [j.appliance, j.brand].filter(Boolean).join(' • ') || '(no appliance)';
+      const addr = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', ');
+      return `<div class="row" data-id="${j.id}">
+        <div class="top">
+          <div class="who">${escapeHtml(name)}</div>
+          <div class="age">${fmtAge(j.created_at)}</div>
+        </div>
+        <div class="what">${escapeHtml(what)}</div>
+        <div class="addr">${escapeHtml(addr)}</div>
+        <div class="meta">
+          ${j.intake_source ? `<span class="badge source">${escapeHtml(j.intake_source)}</span>` : ''}
+          ${j.warranty_company ? `<span class="badge warranty">${escapeHtml(j.warranty_company)}</span>` : ''}
+          ${j.claim_number ? `<span class="badge">${escapeHtml(j.claim_number)}</span>` : ''}
+          ${j.customer_phone ? `<span class="badge">${escapeHtml(j.customer_phone)}</span>` : ''}
+        </div>
+        ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
+        <div class="actions">
+          <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}">Schedule</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('button.schedule').forEach(b => {
+      b.addEventListener('click', () => {
+        currentJob = { id: parseInt(b.dataset.id, 10), name: b.dataset.name, appl: b.dataset.appl };
+        $('schedJobDesc').textContent = `${currentJob.name} — ${currentJob.appl}`;
+        const today = new Date(); today.setDate(today.getDate() + 1);
+        $('schedDate').value = today.toISOString().slice(0, 10);
+        schedModal.classList.add('show');
+      });
+    });
+  }
+
+  $('schedSubmitBtn').addEventListener('click', async () => {
+    if (!currentJob) return;
+    const techId = parseInt($('schedTech').value, 10);
+    if (!techId) { showToast('Pick a tech', 'err'); return; }
+    const dateStr = $('schedDate').value;
+    const timeStr = $('schedTime').value;
+    if (!dateStr || !timeStr) { showToast('Pick date + time', 'err'); return; }
+    const startMs = new Date(dateStr + 'T' + timeStr + ':00').getTime();
+    const window = $('schedWindow').value.trim();
+    $('schedSubmitBtn').disabled = true;
+    try {
+      const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          job_id: currentJob.id,
+          technician_id: techId,
+          scheduled_start_ms: startMs,
+          service_eta_window: window
+        })
+      });
+      const d = await r.json();
+      if (d.success) {
+        showToast('Scheduled ✓', 'ok');
+        schedModal.classList.remove('show');
+        currentJob = null;
+        load();
+      } else {
+        showToast(d.error || 'Failed', 'err');
+      }
+    } catch (e) {
+      showToast('Network error', 'err');
+    } finally {
+      $('schedSubmitBtn').disabled = false;
+    }
+  });
+
+  $('addSubmitBtn').addEventListener('click', async () => {
+    const payload = {
+      intake_source: 'manual',
+      received_at_ms: Date.now(),
+      customer_first_name: $('addFirst').value.trim(),
+      customer_last_name: $('addLast').value.trim(),
+      customer_phone: $('addPhone').value.trim(),
+      service_address: $('addAddress').value.trim(),
+      service_city: $('addCity').value.trim(),
+      service_zip: $('addZip').value.trim(),
+      appliance_type: $('addAppliance').value.trim(),
+      brand: $('addBrand').value.trim(),
+      model_number: $('addModel').value.trim(),
+      problem_summary: $('addProblem').value.trim(),
+      warranty_company: $('addWarranty').value.trim(),
+      claim_number: $('addClaim').value.trim()
+    };
+    if (!payload.customer_first_name && !payload.customer_phone) { showToast('Name or phone required', 'err'); return; }
+    $('addSubmitBtn').disabled = true;
+    try {
+      const r = await fetch(XANO_BASE + '/create_job_from_email', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+      if (d.success) {
+        showToast('Added ✓', 'ok');
+        addModal.classList.remove('show');
+        ['addFirst','addLast','addPhone','addAddress','addCity','addZip','addAppliance','addBrand','addModel','addProblem','addWarranty','addClaim'].forEach(id => $(id).value = '');
+        load();
+      } else {
+        showToast(d.error || 'Failed', 'err');
+      }
+    } catch (e) {
+      showToast('Network error', 'err');
+    } finally {
+      $('addSubmitBtn').disabled = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -42,6 +42,21 @@ export async function run(signal, ctx) {
   lines.push(``);
   lines.push(`Total: ${totals.sessions} sess, ${totals.saved} saved, ${totals.loops} loops, ${totals.paused} paused`);
 
+  // Parallel-mode metrics — count today's parallel_test_assigned vs
+  // parallel_test_completed (tdr saved on that job by that tech)
+  try {
+    const assigns = await xano.getEventLogByAction('parallel_test_assigned');
+    const dayStart = Date.now() - 16 * 3600 * 1000;
+    const todayAssigns = ((assigns && assigns.items) || []).filter(r => Number(r.created_at) > dayStart);
+    const droppedCust = await xano.getEventLogByAction('dropped_customer_sms');
+    const todayDropped = ((droppedCust && droppedCust.items) || []).filter(r => Number(r.created_at) > dayStart);
+    lines.push(``);
+    lines.push(`Parallel tests assigned: ${todayAssigns.length}`);
+    lines.push(`Dropped customer SMSes (gate caught): ${todayDropped.length}`);
+  } catch (err) {
+    lines.push(`Parallel/gate metrics: lookup failed (${String(err.message || err).slice(0, 40)})`);
+  }
+
   const body = lines.join('\n');
   try {
     await toOwner(body, { action: 'tech_assist_eod_report', ...totals });

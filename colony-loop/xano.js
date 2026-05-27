@@ -295,6 +295,10 @@ export async function getTechAssistEodStats(tech_id) {
   return getJSON(`${INTAKE()}/get_tech_assist_eod_stats?technician_id=${tech_id}`);
 }
 
+export async function assignParallelTestJob(tech_id) {
+  return postJSON(`${INTAKE()}/assign_parallel_test_job`, { technician_id: tech_id });
+}
+
 export async function autoBookExistingJob({ job_id, technician_id, scheduled_start_ms, scheduled_end_ms, source = 'auto_scheduler' }) {
   return postJSON(`${INTAKE()}/auto_book_existing_job`, {
     job_id,
