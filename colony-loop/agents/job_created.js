@@ -251,6 +251,33 @@ export async function run(signal, ctx) {
     log('repeat_visit_check_chain_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: CALLBACK_CHECK ──
+  // 30-day callback-risk lookup. Distinct from REPEAT_VISIT_CHECK (which
+  // is the 12-month chronic pattern at ≥2 prior visits). This one fires
+  // when ANY prior completed job exists in the 30-day window — strong
+  // signal that the first fix didn't hold. Alerts Teddy so he can route
+  // to the original tech (or pre-brief the new one).
+  try {
+    const customerId = Number(payload.customer_id || 0);
+    const applianceType = String(payload.appliance_type || '').trim();
+    if (customerId > 0 && applianceType) {
+      await xano.emitSignal({
+        signal_type: 'CALLBACK_CHECK',
+        signal_strength: 70,
+        payload: {
+          job_id: jobId,
+          customer_id: customerId,
+          appliance_type: applianceType,
+          customer_first_name: payload.customer_first_name || '',
+          source: 'job_created_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('callback_check_chain_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   return {
     success: true,
     action: 'greeting_sent',
