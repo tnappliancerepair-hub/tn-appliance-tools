@@ -273,6 +273,11 @@ export async function getTechForZip(zip, waiverSigned = true) {
   return postJSON(`${INTAKE()}/get_tech_for_zip`, { zip_code: zip, waiver_signed: waiverSigned });
 }
 
+export async function getTechConstraintsForDate({ technician_id, date_ymd, day_start_ms, day_end_ms }) {
+  const q = `technician_id=${technician_id}&date_ymd=${encodeURIComponent(date_ymd)}&day_start_ms=${day_start_ms}&day_end_ms=${day_end_ms}`;
+  return getJSON(`${INTAKE()}/get_tech_constraints_for_date?${q}`);
+}
+
 export async function autoBookExistingJob({ job_id, technician_id, scheduled_start_ms, scheduled_end_ms, source = 'auto_scheduler' }) {
   return postJSON(`${INTAKE()}/auto_book_existing_job`, {
     job_id,

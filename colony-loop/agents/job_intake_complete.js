@@ -309,11 +309,25 @@ export async function run(signal, ctx) {
   };
 }
 
+// System cap on jobs per tech per day. Phase 2 will replace this with
+// per-tech technicians.max_jobs_per_day. Until then, 6 is the rule.
+const SYSTEM_MAX_JOBS_PER_DAY = 6;
+
+// Job duration default. Used to validate slot fits within working
+// window and to set scheduled_end_ms.
+const DEFAULT_JOB_DURATION_MS = 2 * 60 * 60 * 1000;
+
+// Earliest slot offset from working_start. Gives the tech a small
+// runway after starting their day instead of front-loading at 8 AM
+// every time. Phase 3 (resequencer) will replace this with route-aware
+// slot picking.
+const SLOT_OFFSET_FROM_START_MS = 60 * 60 * 1000;
+
 // Try to deterministically auto-book the job. Returns
 //   {success: true, technician_id, scheduled_start_ms, appointment_signal_id}
 //   or {success: false, reason, detail?}
 async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
-  const { xano } = ctx;
+  const { xano, log } = ctx;
 
   const zip = (job_address?.service_zip || customer?.zip || '').trim();
   if (!zip) return { success: false, reason: 'no_zip' };
@@ -336,40 +350,144 @@ async function tryAutoBook({ jobId, job, customer, job_address, ctx }) {
     return { success: false, reason: 'fallback_to_owner' };
   }
 
-  // Pick earliest slot: tomorrow 9 AM CT (or parts_eta_date + 1 if set).
+  // Determine base date — parts_eta_date+1 if known, else tomorrow.
   const partsEtaDate = job.parts_eta_date ? new Date(job.parts_eta_date) : null;
   const baseDate = partsEtaDate && !isNaN(partsEtaDate) && partsEtaDate.getTime() > Date.now()
     ? new Date(partsEtaDate.getTime() + 24 * 3600 * 1000)
     : new Date(Date.now() + 24 * 3600 * 1000);
 
-  // Set to 9 AM CT (= 14:00 UTC, ignoring DST nuance for v1).
-  const ymd = baseDate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  const startMs = Date.parse(`${ymd}T14:00:00Z`);
-  if (!startMs || isNaN(startMs)) {
-    return { success: false, reason: 'date_parse_failed', detail: ymd };
-  }
+  // Walk forward up to 14 days looking for the first date that passes
+  // all hard constraints. Default-Off weekends are honored implicitly:
+  // tech_availability bootstrap seeds rows only for working days, so
+  // Sat/Sun queries return empty → falls back to tech.preferred_hours
+  // which is also weekday-shaped. Phase 2 makes this explicit via
+  // per-tech day-of-week opt-in.
+  const skipped = [];
+  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    const candidate = new Date(baseDate.getTime() + dayOffset * 24 * 3600 * 1000);
+    const ymd = candidate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    const dayStartMs = chicagoMidnightMs(ymd);
+    const dayEndMs = dayStartMs + 24 * 3600 * 1000;
 
-  let bookRes;
-  try {
-    bookRes = await xano.autoBookExistingJob({
+    let constraints;
+    try {
+      constraints = await xano.getTechConstraintsForDate({
+        technician_id: techId,
+        date_ymd: ymd,
+        day_start_ms: dayStartMs,
+        day_end_ms: dayEndMs,
+      });
+    } catch (err) {
+      skipped.push({ ymd, why: 'constraints_call_failed', detail: String(err.message || err) });
+      continue;
+    }
+
+    if (!constraints || !constraints.success) {
+      skipped.push({ ymd, why: 'constraints_returned_failure' });
+      continue;
+    }
+
+    // Hard rule: explicit day-off
+    if (constraints.full_day_off) {
+      skipped.push({ ymd, why: 'day_off', reason: constraints.day_off_reason });
+      continue;
+    }
+
+    // Hard rule: capacity ceiling
+    if (constraints.existing_job_count >= SYSTEM_MAX_JOBS_PER_DAY) {
+      skipped.push({ ymd, why: 'at_capacity', count: constraints.existing_job_count });
+      continue;
+    }
+
+    // Compute slot from working window
+    const wStart = parseHHMM(constraints.working_start || '08:00');
+    const wEnd = parseHHMM(constraints.working_end || '16:00');
+    if (wStart == null || wEnd == null) {
+      skipped.push({ ymd, why: 'working_window_unparseable',
+        start: constraints.working_start, end: constraints.working_end });
+      continue;
+    }
+
+    // Slot start = working_start + 1 hour offset (tech runway).
+    // Cap so the job ends before working_end.
+    let slotOffsetMin = wStart + (SLOT_OFFSET_FROM_START_MS / 60000);
+    const jobDurationMin = DEFAULT_JOB_DURATION_MS / 60000;
+    const latestSlotStartMin = wEnd - jobDurationMin;
+    if (slotOffsetMin > latestSlotStartMin) {
+      // Window too narrow to fit a 2hr job comfortably — try earlier
+      slotOffsetMin = Math.max(wStart, latestSlotStartMin);
+    }
+    if (slotOffsetMin + jobDurationMin > wEnd) {
+      skipped.push({ ymd, why: 'window_too_narrow',
+        start: constraints.working_start, end: constraints.working_end });
+      continue;
+    }
+
+    const startMs = dayStartMs + slotOffsetMin * 60 * 1000;
+
+    let bookRes;
+    try {
+      bookRes = await xano.autoBookExistingJob({
+        job_id: jobId,
+        technician_id: techId,
+        scheduled_start_ms: startMs,
+        scheduled_end_ms: startMs + DEFAULT_JOB_DURATION_MS,
+        source: 'auto_scheduler',
+      });
+    } catch (err) {
+      return { success: false, reason: 'book_call_failed', detail: String(err.message || err), skipped_dates: skipped };
+    }
+
+    if (!bookRes || bookRes.success !== true) {
+      return { success: false, reason: 'book_returned_failure',
+        detail: JSON.stringify(bookRes).slice(0, 200), skipped_dates: skipped };
+    }
+
+    log('try_auto_schedule_date_search', {
       job_id: jobId,
       technician_id: techId,
-      scheduled_start_ms: startMs,
-      scheduled_end_ms: startMs + 2 * 3600 * 1000,
-      source: 'auto_scheduler',
+      chosen_date: ymd,
+      slot_minutes_from_midnight: slotOffsetMin,
+      window_source: constraints.window_source,
+      skipped_count: skipped.length,
     });
-  } catch (err) {
-    return { success: false, reason: 'book_call_failed', detail: String(err.message || err) };
+
+    return {
+      success: true,
+      technician_id: techId,
+      scheduled_start_ms: startMs,
+      appointment_signal_id: bookRes.appointment_signal_id,
+      window_source: constraints.window_source,
+      skipped_dates_count: skipped.length,
+    };
   }
 
-  if (!bookRes || bookRes.success !== true) {
-    return { success: false, reason: 'book_returned_failure', detail: JSON.stringify(bookRes).slice(0, 200) };
-  }
+  return { success: false, reason: 'no_open_day_in_14d', skipped_dates: skipped };
+}
 
-  return {
-    success: true,
-    technician_id: techId,
-    scheduled_start_ms: startMs,
-    appointment_signal_id: bookRes.appointment_signal_id,
-  };
+function parseHHMM(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || '').trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(mm)) return null;
+  if (h < 0 || h > 23 || mm < 0 || mm > 59) return null;
+  return h * 60 + mm;
+}
+
+// DST-correct conversion from a YMD string ("2026-05-28") to the unix
+// ms at midnight America/Chicago on that date. Works in both CDT
+// (UTC-5) and CST (UTC-6) because we discover the offset via Intl.
+function chicagoMidnightMs(ymd) {
+  const [y, mo, d] = ymd.split('-').map(Number);
+  // Probe at 6am UTC of YMD — guaranteed to fall on YMD in Chicago
+  // (Chicago is either 1am CDT or 12am CST at that moment).
+  const probeMs = Date.UTC(y, mo - 1, d, 6, 0, 0);
+  const hourFmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    hour: 'numeric', hourCycle: 'h23',
+  });
+  const chicagoHour = parseInt(hourFmt.format(new Date(probeMs)), 10);
+  // Subtract however many hours past midnight we are in Chicago time
+  return probeMs - chicagoHour * 60 * 60 * 1000;
 }
