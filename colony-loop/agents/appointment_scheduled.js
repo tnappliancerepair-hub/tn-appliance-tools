@@ -220,6 +220,37 @@ export async function run(signal, ctx) {
     }
   }
 
+  // ── Chain: WAIVER_DUE (4h pre-appointment) ──
+  // Vision step 3: every appointment gets a waiver SMS automatically
+  // 4h before tech rolls (or immediately if appointment is <4h away).
+  // The agent re-checks waiver_signed before sending, so re-emits are
+  // safe. Skip non-customer-driven sources that don't represent a real
+  // customer-confirmed appointment (same set as confirmation).
+  const WAIVER_LEAD_MS = 4 * 60 * 60 * 1000;
+  if (
+    scheduledStartMs &&
+    apptLeadMs >= MIN_LEAD_MS &&
+    !SKIP_CUSTOMER_SOURCES.has(source)
+  ) {
+    const waiverDeadlineMs = Math.max(Number(scheduledStartMs) - WAIVER_LEAD_MS, now + MIN_LEAD_MS);
+    try {
+      await xano.emitSignal({
+        signal_type: 'WAIVER_DUE',
+        signal_strength: 50,
+        payload: {
+          job_id: jobId,
+          scheduled_start_ms: scheduledStartMs,
+          deadline_ms: waiverDeadlineMs,
+          scheduled_for_ms: waiverDeadlineMs,
+          source: 'appointment_scheduled_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    } catch (err) {
+      log('waiver_due_emit_failed', { job_id: jobId, error: String(err.message || err) });
+    }
+  }
+
   const meta = {
     job_id: jobId,
     scheduled_start_ms: scheduledStartMs,

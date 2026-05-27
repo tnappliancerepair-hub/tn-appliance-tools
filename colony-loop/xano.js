@@ -159,6 +159,14 @@ export async function getPartsArrivalCheckFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_parts_arrival_check_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getEventLogByAction(action) {
+  return getJSON(`${INTAKE()}/get_event_log_by_action?action=${encodeURIComponent(action)}`);
+}
+
+export async function getWaiverStatus(jobId) {
+  return getJSON(`${INTAKE()}/get_waiver_status?job_id=${jobId}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
