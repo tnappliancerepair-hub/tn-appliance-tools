@@ -697,6 +697,9 @@ function renderActionBar(job, cust, tech) {
     if (portalUrl) {
       buttons.push(`<a href="${escapeAttr(portalUrl)}" target="_blank" rel="noopener noreferrer" title="preview what the customer sees">👤 Customer View</a>`);
     }
+    if (portalUrl) {
+      buttons.push('<button onclick="sendPortalLink()" title="text the customer this portal link">📤 SMS Portal</button>');
+    }
     if (perfUrl) {
       buttons.push(`<a href="${escapeAttr(perfUrl)}" target="_blank" rel="noopener noreferrer" title="tech performance dashboard">📊 Tech Perf</a>`);
     }
@@ -828,6 +831,19 @@ async function submitCancel() {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Cancel Job';
+  }
+}
+
+async function sendPortalLink() {
+  if (!confirm('Text the customer the portal link?')) return;
+  try {
+    const data = await fetchProxy('send_customer_portal_link', {
+      job_id: parseInt(JOB_ID, 10),
+      sent_by: 'office'
+    });
+    alert('Portal SMS sent. Body:\n\n' + (data.sms_body || ''));
+  } catch (e) {
+    alert('Send failed: ' + e.message);
   }
 }
 
