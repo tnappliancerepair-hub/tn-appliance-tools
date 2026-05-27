@@ -199,6 +199,16 @@ export async function getResumeNudgeFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_resume_nudge_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getTechsLateToFirstJob(cutoffHourCt) {
+  let url = `${INTAKE()}/get_techs_late_to_first_job`;
+  if (cutoffHourCt) url += `?cutoff_hour_ct=${cutoffHourCt}`;
+  return getJSON(url);
+}
+
+export async function getTechLateCheckFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_tech_late_check_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);

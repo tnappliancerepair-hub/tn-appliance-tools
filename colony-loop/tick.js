@@ -214,6 +214,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // TECH_LATE_CHECK — fires once per day at 10:15am CT (10:15-12 grace).
+  // For each tech whose first job today started at/before 10am CT but
+  // who hasn't tapped Start Job, SMS them + Teddy.
+  if (hour >= 10 && hour < 12) {
+    let lateFired;
+    try {
+      lateFired = await xano.getTechLateCheckFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('tech_late_check_dedup_failed', { error: err.message });
+      lateFired = null;
+    }
+    if (lateFired && !lateFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TECH_LATE_CHECK',
+          signal_strength: 65,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('tech_late_check_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('tech_late_check_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // RESUME_NUDGE — fires once per day at 9:30am CT (9-12 grace). Sweeps
   // AHS/ServicePower jobs with no resume-chat completion within 48h
   // (single nudge per job, dedup'd via compound action key).
