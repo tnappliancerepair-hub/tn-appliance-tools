@@ -1,18 +1,3 @@
-// SMS-driven Tech Ant Assist. Called by the Netlify tech-sms-inbound
-// webhook AFTER the preference-shortcut interceptor — handles inbound
-// free-text from techs about an in-progress job.
-//
-// Flow:
-//   1. Look up tech by phone
-//   2. Find their current in_progress job (most recent if multiple)
-//   3. If no in_progress job → return matched=false (fall through to legacy)
-//   4. If body is "SAVE" / "DONE" / "TDR DONE" → finalize by calling
-//      create_tdr with the accumulated session.captured_data, SMS confirm
-//   5. Else → call tech_assist_chat with the message + job context,
-//      send the Claude reply back via send_sms
-//
-// Returns matched=true so the webhook short-circuits and doesn't
-// double-process via the legacy tech_sms_inbound flow.
 query tech_sms_assist verb=POST {
   api_group = "intake"
 
@@ -24,14 +9,12 @@ query tech_sms_assist verb=POST {
   stack {
     var $phone_in { value = (($input.phone ?? "")|trim) }
     var $body_in { value = (($input.body ?? "")|trim) }
-    var $body_u { value = $body_in|upper }
 
     precondition ($phone_in != "" && $body_in != "") {
       error_type = "inputerror"
       error      = "phone and body required"
     }
 
-    // Resolve tech by phone (try multiple formats)
     var $digits_only { value = $phone_in|replace:"+":""|replace:"-":""|replace:"(":""|replace:")":""|replace:" ":"" }
     var $dig_len { value = $digits_only|strlen }
     var $last10_start { value = $dig_len - 10 }
@@ -43,100 +26,127 @@ query tech_sms_assist verb=POST {
       return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $tech_rows
 
-    var $tech { value = (($tech_rows.items|first) ?? null) }
+    var $tech_count { value = ($tech_rows.items|count) }
 
     conditional {
-      if ($tech == null) {
+      if ($tech_count == 0) {
         return {
           value = {matched: false, reason: "unknown_tech_phone"}
         }
       }
     }
 
+    var $tech { value = $tech_rows.items|get:0 }
     var $tech_id { value = $tech.id }
-    var $tech_first { value = (($tech.first_name ?? "")|trim) }
 
-    // Find tech's in_progress job — most recent
     db.query jobs {
       where  = $db.jobs.technician_id == $tech_id && $db.jobs.scheduling_status == "in_progress"
-      sort   = {jobs.job_started_at: "desc"}
+      sort   = {jobs.id: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $active_rows
 
-    var $job { value = (($active_rows.items|first) ?? null) }
+    var $active_count { value = ($active_rows.items|count) }
 
     conditional {
-      if ($job == null) {
-        // No active job → free-text falls through to legacy handler
-        // (CLAIM/PICK/RESCHEDULE keywords or Claude open-ended chat)
+      if ($active_count == 0) {
         return {
           value = {matched: false, reason: "no_active_job"}
         }
       }
     }
 
+    var $job { value = $active_rows.items|get:0 }
     var $job_id { value = $job.id }
 
-    // ─── SAVE / DONE → finalize TDR ──────────────────────────────────
-    var $is_save_cmd {
-      value = ($body_u == "SAVE" || $body_u == "DONE" || $body_u == "TDR DONE" || $body_u == "SUBMIT" || $body_u == "FINALIZE")
-    }
+    var $tech_first { value = (($tech.first_name ?? "")|trim) }
+    var $appliance { value = (($job.appliance_type ?? "appliance")|trim) }
+    var $brand { value = (($job.brand ?? "")|trim) }
+    var $problem { value = (($job.problem_summary ?? "")|trim) }
+
+    // ─── SAVE / DONE → finalize TDR by collecting conversation so far ──
+    // For SAVE, ask Claude to extract structured TDR fields from the
+    // recent conversation transcript (last 20 messages for this session)
+    // and call create_tdr. For v1, simpler: pull tech_assist_session
+    // captured_data if present; else ask the tech to text findings first.
+    var $body_u { value = $body_in|upper }
+    var $is_save_cmd { value = ($body_u == "SAVE" || $body_u == "DONE" || $body_u == "SUBMIT" || $body_u == "FINALIZE") }
 
     conditional {
       if ($is_save_cmd) {
-        // Pull the latest session.captured_data for this tech+job
+        // Pull most recent tech_assist_session for this (job, tech)
         db.query tech_assist_session {
           where  = $db.tech_assist_session.job_id == $job_id && $db.tech_assist_session.technician_id == $tech_id
-          sort   = {tech_assist_session.updated_at: "desc"}
+          sort   = {tech_assist_session.id: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1}}
         } as $sess_rows
 
-        var $sess { value = (($sess_rows.items|first) ?? null) }
+        var $sess_count { value = ($sess_rows.items|count) }
 
         conditional {
-          if ($sess == null) {
+          if ($sess_count == 0) {
+            api.request {
+              url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+              method  = "POST"
+              headers = []|push:"Content-Type: application/json"
+              params  = {
+                to              : $phone_in
+                message         : "I don't have a TDR draft yet — text me your findings first (what failed, the part number, labor hours, what you did), then text SAVE."
+                context_tag     : "sms_tdr_save_no_draft"
+              }
+            } as $no_draft_send
+
             return {
-              value = {matched: true, reply: "No TDR draft in progress yet — text me your diagnosis first."}
+              value = {matched: true, action: "save_no_draft"}
             }
           }
         }
 
-        var $captured_raw { value = ($sess.captured_data ?? "{}") }
-        var $captured { value = $captured_raw|json_decode }
+        var $sess { value = $sess_rows.items|get:0 }
+        // captured_data is a json column on tech_assist_session — should
+        // come back as an object directly (no json_decode needed)
+        var $captured { value = ($sess.captured_data ?? {}) }
 
         var $diag { value = (($captured.diagnosis ?? "")|trim) }
         var $failed { value = (($captured.failed_component ?? "")|trim) }
-        var $labor_str { value = (($captured.labor_hours ?? "")|to_text)|trim }
+        var $labor_raw { value = ($captured.labor_hours ?? "") }
+        var $labor_str { value = $labor_raw|to_text }
         var $repair { value = (($captured.repair_completed ?? "")|trim) }
-        var $part { value = (($captured.part_number ?? ($captured.verified_part_number ?? ""))|trim) }
+        var $part { value = (($captured.verified_part_number ?? "")|trim) }
 
-        // Check required fields for warranty submission
-        var $missing_list { value = [] }
+        var $missing { value = "" }
         conditional {
-          if ($diag == "")   { var.update $missing_list { value = $missing_list|push:"diagnosis" } }
+          if ($diag == "")    { var.update $missing { value = ($missing ~ " diagnosis") } }
         }
         conditional {
-          if ($failed == "") { var.update $missing_list { value = $missing_list|push:"failed_component" } }
+          if ($failed == "")  { var.update $missing { value = ($missing ~ " failed_component") } }
         }
         conditional {
-          if ($labor_str == "" || $labor_str == "0") { var.update $missing_list { value = $missing_list|push:"labor_hours" } }
+          if ($labor_str == "" || $labor_str == "0") { var.update $missing { value = ($missing ~ " labor_hours") } }
         }
         conditional {
-          if ($repair == "") { var.update $missing_list { value = $missing_list|push:"repair_completed" } }
+          if ($repair == "")  { var.update $missing { value = ($missing ~ " repair_completed") } }
         }
-
-        var $missing_count { value = $missing_list|count }
 
         conditional {
-          if ($missing_count > 0) {
-            var $missing_text { value = $missing_list|implode:", " }
+          if (($missing|trim) != "") {
+            api.request {
+              url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+              method  = "POST"
+              headers = []|push:"Content-Type: application/json"
+              params  = {
+                to              : $phone_in
+                message         : ("Almost — still need:" ~ $missing ~ ". Text those then SAVE again.")
+                context_tag     : "sms_tdr_save_missing"
+              }
+            } as $miss_send
+
             return {
-              value = {matched: true, reply: ("Almost — still need: " ~ $missing_text ~ ". Reply with those + then SAVE again.")}
+              value = {matched: true, action: "save_missing_fields"}
             }
           }
         }
 
-        // All required fields present — call create_tdr
+        // All fields present — call create_tdr
         var $labor_num { value = $labor_str|to_decimal }
 
         api.request {
@@ -160,80 +170,71 @@ query tech_sms_assist verb=POST {
         var $tdr_status { value = ($tdr_resp.response.status ?? 0) }
         var $tdr_ok { value = ($tdr_status >= 200 && $tdr_status < 300) }
 
-        db.add event_log {
-          data = {
-            action  : "tech_sms_assist_tdr_saved"
-            metadata: {
-              job_id        : $job_id
-              tech_id       : $tech_id
-              tdr_status    : $tdr_status
-              diagnosis_len : ($diag|strlen)
-              part_present  : ($part != "")
-            }
-          }
-        } as $audit
-
-        conditional {
-          if (!$tdr_ok) {
-            return {
-              value = {matched: true, reply: "TDR save hiccup — text Teddy at 615-485-5795 so we can complete this manually."}
-            }
-          }
+        var $save_reply {
+          value = $tdr_ok ? ("TDR saved for job #" ~ ($job_id|to_text) ~ ". Tap Complete in your Ant page when ready to wrap up.") : "TDR save hiccup — text Teddy at 615-485-5795 so we can complete this manually."
         }
 
-        // SMS the success confirmation
         api.request {
           url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
           method  = "POST"
           headers = []|push:"Content-Type: application/json"
           params  = {
             to              : $phone_in
-            message         : ("TDR saved for job #" ~ ($job_id|to_text) ~ ". Tap Complete in your Ant page when you're ready to wrap up.")
+            message         : $save_reply
             context_tag     : "sms_tdr_saved"
           }
-        } as $confirm_send
+        } as $save_send
 
         return {
-          value = {matched: true, action: "tdr_saved", job_id: $job_id}
+          value = {matched: true, action: "tdr_saved", tdr_status: $tdr_status}
         }
       }
     }
 
-    // ─── Regular conversation turn — route through tech_assist_chat ──
+    // Build the system prompt inline. Claude acts as a TDR checklist coach
+    // over SMS — short, plain, asks for one missing field at a time.
+    var $sys_prompt {
+      value = "You are Ant, an in-truck assistant for appliance-repair technicians who texts via SMS. The tech is on-site working a job. Your role: help them complete the TDR (Technician Decision Report) needed for warranty submission. Always reply in under 160 chars when possible, plain text, no markdown. The required TDR fields are: diagnosis (what failed and why), failed_component (specific part name), labor_time_hours (decimal), repair_completed (one-line description of what they did), and verified_part_number when applicable. Ask for one MISSING field at a time. When the tech texts findings that fill multiple fields, acknowledge briefly and ask the next gap. If all 4 core fields look present, reply: \"TDR ready: diagnosis ✓ part ✓ labor ✓ repair done ✓. Text SAVE when ready.\" Job context: tech=" ~ $tech_first ~ " job#" ~ ($job_id|to_text) ~ " appliance=" ~ $brand ~ " " ~ $appliance ~ " problem=" ~ $problem
+    }
+
+    var $user_msg_obj { value = {role: "user", content: $body_in} }
+
     api.request {
-      url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/tech_assist_chat"
-      method  = "POST"
-      headers = []|push:"Content-Type: application/json"
-      params  = {
-        job_id         : $job_id
-        technician_id  : $tech_id
-        user_message   : $body_in
-        session_id     : 0
-        attachment_ids : []
+      url = "https://api.anthropic.com/v1/messages"
+      method = "POST"
+      params = {
+        model     : "claude-haiku-4-5-20251001"
+        max_tokens: 250
+        system    : $sys_prompt
+        messages  : [$user_msg_obj]
       }
-    } as $chat_resp
+      headers = [
+        "x-api-key: " ~ $env.ANTHROPIC_API_KEY
+        "anthropic-version: 2023-06-01"
+        "content-type: application/json"
+      ]
+      timeout = 8
+    } as $claude_resp
 
-    var $chat_status { value = ($chat_resp.response.status ?? 0) }
-    var $chat_ok { value = ($chat_status >= 200 && $chat_status < 300) }
+    var $chat_status { value = ($claude_resp.response.status ?? 0) }
+    var $claude_result { value = ($claude_resp.response.result ?? {}) }
+    var $claude_content { value = ($claude_result.content ?? []) }
+    var $claude_content_count { value = ($claude_content|count) }
+
+    var $reply_text { value = "got it. keep going — text more findings or SAVE when done." }
 
     conditional {
-      if (!$chat_ok) {
-        return {
-          value = {matched: true, reply: "Ant brain hiccup — try again in a sec or text Teddy at 615-485-5795."}
+      if ($claude_content_count > 0) {
+        var $first_block { value = $claude_content|get:0 }
+        var $raw_text { value = (($first_block.text ?? "")|trim) }
+        conditional {
+          if ($raw_text != "") {
+            var.update $reply_text { value = $raw_text }
+          }
         }
       }
     }
 
-    var $chat_result { value = ($chat_resp.response.result ?? {}) }
-    var $reply_text { value = (($chat_result.reply ?? "")|trim) }
-
-    conditional {
-      if ($reply_text == "") {
-        var.update $reply_text { value = "got it. keep going — text more findings or SAVE when the TDR is filled." }
-      }
-    }
-
-    // Send the Claude reply back via SMS
     api.request {
       url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
       method  = "POST"
@@ -244,25 +245,13 @@ query tech_sms_assist verb=POST {
         context_tag     : "sms_tdr_assist_reply"
       }
     } as $reply_send
-
-    db.add event_log {
-      data = {
-        action  : "tech_sms_assist_turn"
-        metadata: {
-          job_id          : $job_id
-          tech_id         : $tech_id
-          inbound_len     : ($body_in|strlen)
-          reply_len       : ($reply_text|strlen)
-          send_status     : ($reply_send.response.status ?? 0)
-        }
-      }
-    } as $turn_log
   }
 
   response = {
-    matched : true
-    action  : "assist_turn"
-    job_id  : $job_id
+    matched     : true
+    job_id      : $job_id
+    chat_status : $chat_status
+    reply_len   : ($reply_text|strlen)
   }
 
   guid = "tech-sms-assist-v1"
