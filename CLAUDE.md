@@ -1004,14 +1004,34 @@ All 4 are reschedule-aware via getTechAssignmentContext + currentStart != schedu
 
 ### Total this session (continuation + extension)
 
-- **49+ commits** (34 substantive + 15+ architect-built in parallel)
-- **3 COLONY_ARCHITECT injects** (signal_id=136, 138, 139)
-- **8 new office pages / surfaces**: tech-performance, customer-portal, customer-search, office-pulse, office-todo, office, service-area, tech-day-off, tech-payouts (+ existing office-calendar, warranty-review)
-- **15+ new agents**: parts_arrival_check, waiver_due, tdr_reminder, callback_check, inbound_call, pre_appointment_check, cancel_followup, unpaid_self_pay_digest, resume_nudge, tech_late_check, office_morning_briefing, google_review_request
-- **20+ new XS endpoints** backing the above + dead-letter / service-zone / day-off / portal-link
-- **Critical infrastructure**: server-side TDR completeness gate, Xano backup script + launchd, dead-letter carve-out
+- **75+ commits** (46 substantive + 29+ architect-built in parallel)
+- **5 COLONY_ARCHITECT injects** (signal_id=136, 138, 139, 140, 142)
+- **12+ new pages / surfaces**: tech-performance, customer-portal, customer-search, office-pulse, office-todo, office, service-area, tech-day-off, tech-payouts, health-check, customer-feedback, tech-leaderboard
+- **18+ new agents**: parts_arrival_check, waiver_due, tdr_reminder, callback_check, inbound_call, pre_appointment_check, cancel_followup, unpaid_self_pay_digest, resume_nudge, tech_late_check, office_morning_briefing, google_review_request, tdr_completeness_report, office_eod_summary, customer_feedback_received
+- **30+ new XS endpoints** backing the above + dead-letter / service-zone / day-off / portal-link / health / feedback / leaderboard
+- **Critical infrastructure**: server-side TDR completeness gate, Xano backup script + launchd, dead-letter carve-out, caffeinate-keep-awake launchd, rating capture (manual form + low-rating alert)
 - **Architect tuning**: round-3 blueprint expansion (+32 specs), template misrouting fix
-- **Daily ops cadence**: now 13 scheduled signal emits + Sunday weekly + 3:15am DR backup
+- **Daily ops cadence**: now 15 scheduled signal emits + Sunday weekly + 3:15am DR backup
+
+### Late-late session tasks 36-46
+
+- **Task 36 — tdr_completeness_report agent.** Daily 6:30pm CT EOD digest of per-tech open TDRs to Teddy.
+- **Task 37 — office_eod_summary agent.** Daily 8pm CT wrap to Teddy + Danielle: completed / canceled / new / warranty / TDR-blocked / callbacks / inbound calls. Backed by 8-parallel-count get_office_eod_summary endpoint.
+- **Task 38 — health-check.html.** Single-glance green/yellow/red loop liveness dashboard. 30s polling. get_loop_health endpoint computes status_color from heartbeat age (green<5min, yellow<15min, red≥15min or null).
+- **Task 39 — office hub adds Operations row** (Loop Health + Service Area tiles).
+- **COLONY_ARCHITECT injected at task 40 — signal_id=142, max_builds=999.**
+- **Task 41 — customer-feedback.html + record_customer_feedback endpoint + customer_feedback_received agent.** Office can manually log 1-5 ratings + comment from phone/email/in-person. Low ratings (1-2) emit URGENT SMS to Teddy + Danielle. Endpoint emits CUSTOMER_FEEDBACK_RECEIVED signal with strength=90 for low ratings.
+- **Task 42 — office hub adds Capture row** (Log Feedback tile).
+- **Task 43 — tech-leaderboard.html + get_tech_leaderboard endpoint.** Monthly per-tech rankings with gold/silver/bronze medals. Jobs done · started · earnings $. Prev/next month nav.
+- **Task 44 — office hub adds Leaderboard tile.**
+- **Task 45 — high-rating auto-Google-review chain.** Customer feedback rating 4-5 now auto-emits GOOGLE_REVIEW_REQUEST with deadline=now-1s, firing immediately on next tick (vs 7d wait). 60-day per-customer dedup prevents duplicates with JOB_COMPLETED chain.
+- **Task 46 — customer-portal Send Photos link.** Conditional button for non-terminal jobs (scheduled/on_way/in_progress). Deep-links to upload.html?job_id=X.
+
+### Caffeinate launchd plist
+
+Added `~/Library/LaunchAgents/com.tnappliance.caffeinate.plist` + repo copy at `colony-loop/launchd/com.tnappliance.caffeinate.plist`. KeepAlive=true means launchd auto-restarts if killed. caffeinate -di prevents both display sleep + idle sleep. Verified live: pid 34682, pmset -g confirms 'sleep prevented by caffeinate'.
+
+System sleep was already 0 (Never); display sleep is 10min but actively prevented by caffeinate. For belt-and-suspenders display sleep, operator can run `sudo pmset -a displaysleep 0`.
 
 **🐜 Long Live Ant.**
 
