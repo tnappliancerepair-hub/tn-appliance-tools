@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.xano-backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/scripts/xano-backup.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop</string>
+
+  <!-- Run daily at 3:15am CT (08:15 UTC) — outside business hours, well
+       clear of the 6am COLONY_ARCHITECT auto-fire window. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>15</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/xano-backup.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/xano-backup.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <!-- BACKUP_S3_BUCKET + BACKUP_S3_PREFIX optional. When unset, snapshots
+         stay local at ~/backups/xano-YYYY-MM-DD/ + .tar.gz. -->
+  </dict>
+</dict>
+</plist>
