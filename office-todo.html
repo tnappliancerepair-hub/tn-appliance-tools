@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office Todo - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --border-soft:#1f2533; --muted:#8a93aa; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace; --green:#00d68f; --orange:#f5a623; --blue:#5aa9ff; --red:#ff6b6b; --violet:#b48cff; }
+  .header { position:sticky; top:0; z-index:50; background:linear-gradient(180deg,#0e1118,rgba(14,17,24,0.95)); backdrop-filter:blur(8px); border-bottom:1px solid var(--border-soft); padding:14px 18px; display:flex; align-items:center; gap:12px; }
+  .header .ant { font-size:22px; }
+  .header .title { font-size:15px; font-weight:700; }
+  .header .sub { font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
+  .header .last-update { font-size:11px; color:var(--muted); font-family:var(--mono); margin-left:auto; }
+  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-soft); }
+  .stat { background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:12px; text-align:center; cursor:pointer; transition:border-color 0.15s; }
+  .stat:hover { border-color:var(--orange); }
+  .stat.active { border-color:var(--orange); background:rgba(245,166,35,0.05); }
+  .stat .lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .stat .val { font-size:26px; font-weight:800; margin-top:4px; }
+  .stat.red .val { color:var(--red); }
+  .stat.orange .val { color:var(--orange); }
+  .stat.violet .val { color:var(--violet); }
+  .stat.blue .val { color:var(--blue); }
+  .stat.green .val { color:var(--green); }
+
+  .section { padding:14px 18px 6px; color:var(--muted); font-size:13px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.04em; }
+  .items { padding:0 14px 18px; display:flex; flex-direction:column; gap:8px; }
+  .item { background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .item .left { flex:1; min-width:0; }
+  .item .title { font-size:14px; font-weight:700; }
+  .item .meta { font-size:12px; color:var(--muted); margin-top:2px; }
+  .item a { background:var(--orange); color:#1a1208; padding:6px 12px; border-radius:6px; font-size:11px; text-decoration:none; font-family:var(--mono); font-weight:700; white-space:nowrap; }
+  .empty { padding:20px; text-align:center; color:var(--muted); font-size:13px; }
+  .err { padding:20px; text-align:center; color:var(--red); font-size:13px; }
+  .auth-overlay { position:fixed; inset:0; background:rgba(14,17,24,0.96); display:flex; align-items:center; justify-content:center; padding:20px; z-index:1000; }
+  .auth-card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:28px 24px; max-width:360px; text-align:center; }
+  .auth-card .ant { font-size:36px; margin-bottom:8px; }
+  .auth-card .title { font-size:18px; font-weight:700; }
+  .auth-card .sub { font-size:13px; color:var(--muted); margin-bottom:18px; }
+  .auth-card input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; color:#e8edf5; font-size:16px; }
+  .auth-card button { margin-top:12px; width:100%; background:var(--orange); color:#1a1208; border:none; border-radius:10px; padding:12px; font-weight:700; cursor:pointer; }
+  .auth-err { color:var(--red); font-size:12px; margin-top:8px; min-height:14px; }
+  @media (max-width:640px) { .grid { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+
+<div id="auth" class="auth-overlay">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Office Todo</div>
+    <div class="sub">things needing human action</div>
+    <input id="pw" type="password" placeholder="office password">
+    <button id="pwBtn">Unlock</button>
+    <div id="pwErr" class="auth-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div>
+      <div class="title">Office Todo</div>
+      <div class="sub">needs human action · 60s refresh</div>
+    </div>
+    <div class="last-update" id="lastUpdate">—</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat red active" data-filter="stale_intake_jobs"><div class="lbl">Stale intake</div><div class="val" id="cStale">0</div></div>
+    <div class="stat violet" data-filter="held_jobs"><div class="lbl">On hold</div><div class="val" id="cHeld">0</div></div>
+    <div class="stat orange" data-filter="parts_arrived_jobs"><div class="lbl">Parts arrived</div><div class="val" id="cParts">0</div></div>
+    <div class="stat blue" data-filter="tdr_blocked_events"><div class="lbl">TDR blocked</div><div class="val" id="cTdr">0</div></div>
+    <div class="stat green" data-filter="callback_events"><div class="lbl">Callbacks</div><div class="val" id="cCb">0</div></div>
+  </div>
+
+  <div class="section" id="sectionTitle">Stale intake jobs (>3 days, not scheduled)</div>
+  <div id="items" class="items"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const OFFICE_PASSWORD = 'antlives';
+  const POLL_MS = 60000;
+
+  const $ = (id) => document.getElementById(id);
+  const auth = $('auth');
+  const app = $('app');
+  const pwInput = $('pw');
+  const pwBtn = $('pwBtn');
+  const pwErr = $('pwErr');
+
+  if (localStorage.getItem(AUTH_KEY) === '1') unlock();
+  pwBtn.addEventListener('click', tryAuth);
+  pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
+  function tryAuth() {
+    if (pwInput.value === OFFICE_PASSWORD) { localStorage.setItem(AUTH_KEY,'1'); unlock(); }
+    else { pwErr.textContent = 'wrong password'; pwInput.select(); }
+  }
+
+  let currentFilter = 'stale_intake_jobs';
+  let lastData = null;
+
+  function unlock() {
+    auth.style.display = 'none';
+    app.style.display = 'block';
+    bindFilter();
+    refresh();
+    setInterval(refresh, POLL_MS);
+  }
+
+  function bindFilter() {
+    document.querySelectorAll('[data-filter]').forEach(b => {
+      b.addEventListener('click', () => {
+        currentFilter = b.getAttribute('data-filter');
+        document.querySelectorAll('[data-filter]').forEach(x => x.classList.toggle('active', x === b));
+        render();
+      });
+    });
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch(`${XANO}/get_office_todo`);
+      const data = await res.json();
+      if (!data || data.success !== true) {
+        $('items').innerHTML = `<div class="err">${escapeHtml((data && data.message) || 'load failed')}</div>`;
+        return;
+      }
+      lastData = data;
+      const c = data.counts || {};
+      $('cStale').textContent = c.stale_intake || 0;
+      $('cHeld').textContent = c.held || 0;
+      $('cParts').textContent = c.parts_arrived || 0;
+      $('cTdr').textContent = c.tdr_blocked || 0;
+      $('cCb').textContent = c.callbacks || 0;
+      $('lastUpdate').textContent = `updated ${new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',second:'2-digit'}).format(new Date())}`;
+      render();
+    } catch (err) {
+      $('items').innerHTML = `<div class="err">network: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  const TITLES = {
+    stale_intake_jobs: 'Stale intake jobs (>3 days, not scheduled)',
+    held_jobs: 'Jobs on hold (warranty auth pending)',
+    parts_arrived_jobs: 'Parts arrived — schedule the re-visit',
+    tdr_blocked_events: 'TDR-blocked completion attempts (last 24h)',
+    callback_events: 'Recent callback alerts (last 24h)',
+  };
+
+  function render() {
+    if (!lastData) return;
+    $('sectionTitle').textContent = TITLES[currentFilter] || '';
+    const items = lastData[currentFilter] || [];
+    if (items.length === 0) {
+      $('items').innerHTML = '<div class="empty">Nothing here. 🎉</div>';
+      return;
+    }
+    if (currentFilter.endsWith('_events')) {
+      $('items').innerHTML = items.map(renderEvent).join('');
+    } else {
+      $('items').innerHTML = items.map(renderJob).join('');
+    }
+  }
+
+  function renderJob(j) {
+    const id = j.id;
+    const appl = [j.brand, j.appliance_type].filter(Boolean).join(' ') || 'job';
+    const status = (j.scheduling_status || '').replace(/_/g, ' ');
+    const created = j.created_at ? fmtCT(j.created_at) : '';
+    const partsClause = j.parts_eta_date ? ` · parts ETA ${j.parts_eta_date}` : '';
+    return `<div class="item">
+      <div class="left">
+        <div class="title">Job #${id} · ${escapeHtml(appl)}</div>
+        <div class="meta">${escapeHtml(status)} · created ${escapeHtml(created)}${escapeHtml(partsClause)}</div>
+      </div>
+      <a href="job-detail.html?job_id=${id}&office=1">Open →</a>
+    </div>`;
+  }
+
+  function renderEvent(e) {
+    let meta = {};
+    try { meta = e.metadata ? (typeof e.metadata === 'string' ? JSON.parse(e.metadata) : e.metadata) : {}; }
+    catch { meta = {}; }
+    const jobId = meta.job_id || '?';
+    const when = e.created_at ? fmtCT(e.created_at) : '';
+    const summary = e.action.includes('tdr') ?
+      `Missing: ${(meta.missing_fields || []).join(', ') || 'unknown'}` :
+      `Prior job #${meta.prior_job_id || '?'}, ${meta.days_since_prior || '?'}d ago`;
+    return `<div class="item">
+      <div class="left">
+        <div class="title">Job #${jobId} · ${escapeHtml(e.action.replace(/_/g, ' '))}</div>
+        <div class="meta">${escapeHtml(summary)} · ${escapeHtml(when)}</div>
+      </div>
+      <a href="job-detail.html?job_id=${jobId}&office=1">Open →</a>
+    </div>`;
+  }
+
+  function fmtCT(ms) {
+    try {
+      return new Intl.DateTimeFormat('en-US', {timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(Number(ms)));
+    } catch { return ''; }
+  }
+  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+})();
+</script>
+</body>
+</html>
