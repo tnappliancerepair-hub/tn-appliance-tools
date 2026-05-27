@@ -214,6 +214,32 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // PARTS_ARRIVAL_CHECK — fires once per day at 11am CT (11am-1pm grace).
+  // Sweeps jobs in awaiting_parts status with parts_eta_date <= today and
+  // SMSes each customer asking for a re-visit time. Per-job dedup handled
+  // inside the agent via event_log compound action key.
+  if (hour >= 11 && hour < 13) {
+    let partsFired;
+    try {
+      partsFired = await xano.getPartsArrivalCheckFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('parts_arrival_check_dedup_failed', { error: err.message });
+      partsFired = null;
+    }
+    if (partsFired && !partsFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'PARTS_ARRIVAL_CHECK',
+          signal_strength: 60,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        xano.logLocal('parts_arrival_check_emitted', { since_ts_ms: sinceMs });
+      } catch (err) {
+        xano.logLocal('parts_arrival_check_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // SCHEDULE_GAP_CHECK — fires once per day at 9am CT (9-11am grace window,
   // after the briefings). Scans today's calendar for 2+ hour gaps per tech
   // and SMSes Teddy with the opportunity list + AHS-backlog candidates.

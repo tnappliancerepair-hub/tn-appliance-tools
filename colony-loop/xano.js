@@ -145,6 +145,20 @@ export async function getTechAssignmentContext(jobId, technicianId) {
   return getJSON(`${INTAKE()}/get_tech_assignment_context?job_id=${jobId}&technician_id=${technicianId}`);
 }
 
+export async function getPartsArrivalDue(todayCt) {
+  let url = `${INTAKE()}/get_parts_arrival_due`;
+  if (todayCt) url += `?today_ct=${encodeURIComponent(todayCt)}`;
+  return getJSON(url);
+}
+
+export async function getPartsFollowupSent(jobId, partsEtaDate) {
+  return getJSON(`${INTAKE()}/get_parts_followup_sent?job_id=${jobId}&parts_eta_date=${encodeURIComponent(partsEtaDate)}`);
+}
+
+export async function getPartsArrivalCheckFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_parts_arrival_check_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
