@@ -16,10 +16,43 @@
 
   const params = new URLSearchParams(window.location.search);
   const JOB_ID = parseInt(params.get('job_id') || '0', 10);
-  const LAST4 = (params.get('last4') || params.get('phone_last4') || '').replace(/\D/g, '').slice(-4);
 
-  if (!JOB_ID || !LAST4) {
-    // No auth — don't inject. Customer needs to log in via the portal gate first.
+  // Resolve LAST4 from URL OR from sessionStorage (set by customer-portal.html
+  // after gate-passes). Widget waits for auth if not present yet.
+  function getLast4() {
+    const fromUrl = (params.get('last4') || params.get('phone_last4') || '').replace(/\D/g, '').slice(-4);
+    if (fromUrl) return fromUrl;
+    try {
+      const raw = sessionStorage.getItem('customer_portal_auth');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p && p.last4 && (!p.job_id || p.job_id === JOB_ID)) return String(p.last4).replace(/\D/g, '').slice(-4);
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  let LAST4 = getLast4();
+
+  if (!JOB_ID) {
+    // No job context at all — never inject (this isn't a portal page with a job).
+    return;
+  }
+
+  // If not authed yet, poll every 1s for up to 5 min — auth typically happens
+  // within seconds of page load when the user enters their last4.
+  let authPollTries = 0;
+  if (!LAST4) {
+    const poll = setInterval(() => {
+      LAST4 = getLast4();
+      authPollTries++;
+      if (LAST4) {
+        clearInterval(poll);
+        injectUI();
+      } else if (authPollTries > 300) {
+        clearInterval(poll);
+      }
+    }, 1000);
     return;
   }
 

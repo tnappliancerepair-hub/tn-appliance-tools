@@ -410,6 +410,13 @@
       return;
     }
     LAST4 = v;
+    // Store auth state so the customer-ant widget can pick it up after
+    // the gate passes. SessionStorage is per-tab and cleared on close.
+    try {
+      sessionStorage.setItem('customer_portal_auth', JSON.stringify({
+        job_id: Number(JOB_ID), last4: v, ts: Date.now(),
+      }));
+    } catch (_) {}
     showApp(r.data);
   }
 
