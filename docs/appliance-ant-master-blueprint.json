@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 21,
-    "agents_to_build": 6,
+    "agents_live": 22,
+    "agents_to_build": 5,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3943,7 +3943,7 @@
       "purpose": "Tell the truth about why Appliance Ant exists. Truth spreads faster than any ad. Built by a father. Named after a son. Carried by a brother.",
       "priority": "HIGH",
       "agents_total": 8,
-      "agents_live": 2,
+      "agents_live": 3,
       "master_narrative": {
         "core_story": "Teddy built a business with his hands across two states. Anthony - Ant - the wrestler, the lightest weight class, TCAT Murfreesboro grad, the son who inspired everything. The platform named in his honor. Andre carrying it forward - the ant tattoo on his face, the beast of a man who has been down since he lost his brother. The why - match need with know-how, automate to elevate not cut, give independent techs the resources to be great.",
         "signature": "Long Live Ant",
@@ -3994,7 +3994,7 @@
         {
           "id": "SW002",
           "name": "Why We Built Ant Post",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 3,
           "purpose": "Generates posts explaining the Ant platform story for prospective customers + new hires. Listens for CONTENT_GENERATOR_REQUEST_WHY_ANT_POST.",
           "triggers": [],
