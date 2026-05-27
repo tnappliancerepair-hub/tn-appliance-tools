@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 24,
-    "agents_to_build": 3,
+    "agents_live": 25,
+    "agents_to_build": 2,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -3943,7 +3943,7 @@
       "purpose": "Tell the truth about why Appliance Ant exists. Truth spreads faster than any ad. Built by a father. Named after a son. Carried by a brother.",
       "priority": "HIGH",
       "agents_total": 8,
-      "agents_live": 5,
+      "agents_live": 6,
       "master_narrative": {
         "core_story": "Teddy built a business with his hands across two states. Anthony - Ant - the wrestler, the lightest weight class, TCAT Murfreesboro grad, the son who inspired everything. The platform named in his honor. Andre carrying it forward - the ant tattoo on his face, the beast of a man who has been down since he lost his brother. The why - match need with know-how, automate to elevate not cut, give independent techs the resources to be great.",
         "signature": "Long Live Ant",
@@ -4027,7 +4027,7 @@
         {
           "id": "SW005",
           "name": "Tech Hero Spotlight",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 3,
           "purpose": "Monthly spotlight post on a tech's standout job. Listens for CONTENT_GENERATOR_REQUEST_TECH_HERO_SPOTLIGHT.",
           "triggers": [],
