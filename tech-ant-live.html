@@ -576,7 +576,19 @@
     <div class="title">Tech Ant Live</div>
     <div class="sub" id="header-sub">Loading...</div>
   </div>
+  <button id="upload-pill" onclick="toggleUploadPanel()" style="display:none;background:rgba(76,210,192,0.15);border:1px solid rgba(76,210,192,0.45);color:#4cd2c0;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-right:6px;">📤 0</button>
   <div class="badge" id="header-badge">CONNECTING</div>
+</div>
+
+<!-- Upload status panel: shows when pill is tapped. Lists every pending /
+     uploading / failed file with status + retry button. -->
+<div id="upload-panel" style="display:none;position:fixed;top:60px;right:8px;left:8px;max-width:420px;margin-left:auto;background:#1a1f2c;border:1px solid #2a3040;border-radius:10px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,0.5);z-index:9000;max-height:60vh;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <span style="font-size:14px;font-weight:700;color:#e8edf5;">📤 Uploads</span>
+    <button onclick="toggleUploadPanel()" style="background:transparent;border:0;color:#8a93aa;font-size:18px;cursor:pointer;">×</button>
+  </div>
+  <div id="upload-panel-body" style="font-size:13px;color:#e8edf5;"></div>
+  <div style="font-size:11px;color:#8a93aa;margin-top:10px;line-height:1.4;border-top:1px solid #2a3040;padding-top:8px;">Photos + videos are saved on this phone the second you tap send. Uploads run in the background — you can leave this page, lose signal, or close the app. They'll finish when signal comes back.</div>
 </div>
 
 <div class="job-bar" id="job-bar">
@@ -717,6 +729,26 @@ async function init() {
   document.getElementById('main-area').innerHTML = '<div class="chat" id="chat"></div>';
   chatEl = document.getElementById('chat');
   document.getElementById('input-wrap').classList.add('show');
+
+  // Initialize durable upload queue (IndexedDB-backed, retries on failure,
+  // verifies S3 receipt before deleting local copy). This is the
+  // lawsuit-insurance layer — once a tech taps send, the file lives on
+  // this device until it lives in S3.
+  try {
+    if (window.UploadQueue) {
+      window.uploadQueue = new UploadQueue({
+        jobId: JOB_ID,
+        techId: TECH_ID,
+        xanoBase: XANO_BASE,
+        netlifyBase: NETLIFY_BASE,
+        onUpdate: () => renderUploadPill(),
+      });
+      await window.uploadQueue.init();
+      renderUploadPill();
+    }
+  } catch (err) {
+    console.warn('[upload-queue] init failed, will fall back to direct upload:', err);
+  }
 
   try {
     const res = await fetch('/.netlify/functions/xano-proxy', {
@@ -1058,7 +1090,136 @@ function scrollToBottom() {
 function handleFiles(event) {
   const files = Array.from(event.target.files);
   event.target.value = '';
-  files.forEach(uploadFile);
+  // Route through the durable upload queue (saves to IndexedDB first,
+  // uploads in background, retries on failure, verifies via S3 HEAD).
+  // Falls back to the old synchronous uploadFile if queue isn't ready.
+  if (window.uploadQueue) {
+    files.forEach((f) => enqueueWithChatNotice(f));
+  } else {
+    files.forEach(uploadFile);
+  }
+}
+
+// Adds a chat message that mirrors the queue status for one file. The
+// queue handles the actual upload; this is just the visible feedback.
+async function enqueueWithChatNotice(file) {
+  if (!chatEl) return;
+  const msgEl = document.createElement('div');
+  msgEl.className = 'upload-msg';
+  msgEl.innerHTML = `
+    <div class="filename">${escapeHtml(file.name)} <span style="opacity:0.6">· ${formatBytes(file.size)}</span></div>
+    <div class="progress-bar"><div class="progress-fill" style="width:3%"></div></div>
+    <div class="status">📥 Saved on phone — uploading in background</div>
+  `;
+  chatEl.appendChild(msgEl);
+  scrollToBottom();
+  try {
+    const id = await window.uploadQueue.enqueue(file);
+    msgEl.dataset.uploadId = id;
+    // Listen for verification — when the file lands in S3, mark this row.
+    const onVerified = (e) => {
+      if (!e.detail || e.detail.id !== id) return;
+      msgEl.classList.add('success');
+      msgEl.querySelector('.progress-fill').style.width = '100%';
+      msgEl.querySelector('.status').textContent = '✓ Uploaded + verified';
+      window.removeEventListener('upload-verified', onVerified);
+      // Tell Ant Assist what landed
+      const description = (e.detail.file_type === 'video' ? 'video' : 'photo');
+      sendToAnt(`I just uploaded a ${description}: ${e.detail.file_name}`, false);
+    };
+    window.addEventListener('upload-verified', onVerified);
+  } catch (err) {
+    msgEl.classList.add('error');
+    msgEl.querySelector('.status').textContent = '❌ Could not save to phone: ' + (err.message || err);
+  }
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+  if (n < 1024*1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+}
+
+// Renders the upload-status pill in the header. Visible only when there's
+// at least one item in the queue. Color-coded: cyan = uploading,
+// orange = pending retry, red = stuck after many retries.
+async function renderUploadPill() {
+  if (!window.uploadQueue) return;
+  const pill = document.getElementById('upload-pill');
+  if (!pill) return;
+  const stats = await window.uploadQueue.getStats();
+  const total = stats.pending + stats.uploading + stats.failed;
+  if (total === 0) {
+    pill.style.display = 'none';
+  } else {
+    pill.style.display = 'inline-block';
+    let icon = '📤';
+    let bg = 'rgba(76,210,192,0.15)';
+    let border = 'rgba(76,210,192,0.45)';
+    let color = '#4cd2c0';
+    if (stats.failed > 0 && stats.uploading === 0) {
+      icon = '⚠️';
+      bg = 'rgba(255,138,138,0.15)';
+      border = 'rgba(255,138,138,0.45)';
+      color = '#ff8a8a';
+    } else if (stats.uploading > 0) {
+      icon = '📤';
+    }
+    pill.textContent = `${icon} ${total}`;
+    pill.style.background = bg;
+    pill.style.borderColor = border;
+    pill.style.color = color;
+  }
+  // Refresh panel if open
+  const panel = document.getElementById('upload-panel');
+  if (panel && panel.style.display !== 'none') {
+    await renderUploadPanelBody();
+  }
+}
+
+async function toggleUploadPanel() {
+  const panel = document.getElementById('upload-panel');
+  if (!panel) return;
+  if (panel.style.display === 'none' || !panel.style.display) {
+    await renderUploadPanelBody();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+async function renderUploadPanelBody() {
+  if (!window.uploadQueue) return;
+  const body = document.getElementById('upload-panel-body');
+  if (!body) return;
+  const items = await window.uploadQueue.list();
+  if (items.length === 0) {
+    body.innerHTML = '<div style="opacity:0.7;text-align:center;padding:18px 0;">No pending uploads.</div>';
+    return;
+  }
+  body.innerHTML = items.map(it => {
+    const statusText = {
+      'queued': '⏳ Queued',
+      'uploading': `📤 Uploading ${it.progress_pct || 0}%`,
+      'failed': `⚠️ Retry ${it.attempts}/${8} — ${it.last_error || 'unknown'}`,
+      'failed_permanent': `🔴 Stuck after ${it.attempts} tries — ${it.last_error || 'unknown'}`,
+    }[it.status] || it.status;
+    const retryBtn = (it.status === 'failed' || it.status === 'failed_permanent')
+      ? `<button onclick="window.uploadQueue.retry('${it.id}').then(renderUploadPill)" style="background:#4a9eff;color:white;border:0;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-right:6px;">Retry</button>`
+      : '';
+    const cancelBtn = `<button onclick="if(confirm('Delete this file? It will NOT be uploaded.')){window.uploadQueue.cancel('${it.id}').then(renderUploadPill);}" style="background:transparent;border:1px solid #ff4757;color:#ff4757;padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;">Delete</button>`;
+    const ageSec = Math.round((Date.now() - it.created_at) / 1000);
+    const ageStr = ageSec < 60 ? `${ageSec}s ago` : ageSec < 3600 ? `${Math.round(ageSec/60)}m ago` : `${Math.round(ageSec/3600)}h ago`;
+    return `
+      <div style="border:1px solid #2a3040;border-radius:8px;padding:10px;margin-bottom:8px;background:#0e1118;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:3px;">${escapeHtml(it.file_name)}</div>
+        <div style="font-size:11px;color:#8a93aa;margin-bottom:6px;">${formatBytes(it.file_size)} · ${ageStr}</div>
+        <div style="font-size:12px;margin-bottom:8px;">${statusText}</div>
+        <div>${retryBtn}${cancelBtn}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function uploadFile(file) {
@@ -2500,6 +2661,7 @@ document.getElementById('pin-input').focus();
   };
 })();
 </script>
+  <script src="/tech-upload-manager.js?v=1"></script>
   <script src="/tech-theme.js?v=1"></script>
 </body>
 </html>
