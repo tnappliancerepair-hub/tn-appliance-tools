@@ -628,8 +628,9 @@
       <option value="partial">Partial — temporary fix</option>
     </select>
   </div>
-  <div class="tdr-save-row">
-    <button class="tdr-save-btn" id="tdr-save-btn" onclick="saveTdrInline()" disabled>Save TDR</button>
+  <div class="tdr-save-row" style="display:flex;gap:8px">
+    <button class="tdr-save-btn" id="tdr-autofill-btn" onclick="autoFillTdrFromChat()" style="flex:1;background:rgba(90,169,255,0.15);border:1px solid rgba(90,169,255,0.4);color:#5aa9ff">✨ Auto-fill from chat</button>
+    <button class="tdr-save-btn" id="tdr-save-btn" onclick="saveTdrInline()" disabled style="flex:1">Save TDR</button>
   </div>
   <div class="tdr-save-msg" id="tdr-save-msg"></div>
 </div>
@@ -1667,6 +1668,55 @@ function syncCollectedDataIntoTdrForm() {
     }
   }
   refreshTdrFormStatus();
+}
+
+// Auto-fill TDR form from current chat transcript. Tech taps once after
+// they've narrated the diagnosis + repair to Ant; Claude extracts the 5
+// fields + we mirror into the form. Tech reviews + edits + saves.
+async function autoFillTdrFromChat() {
+  const btn = document.getElementById('tdr-autofill-btn');
+  const msg = document.getElementById('tdr-save-msg');
+  // Pull the transcript from on-screen messages
+  const lines = [];
+  document.querySelectorAll('.message').forEach(m => {
+    const role = m.classList.contains('user') ? 'TECH' : (m.classList.contains('assistant') ? 'ANT' : null);
+    if (role && m.textContent) lines.push(`${role}: ${m.textContent.trim()}`);
+  });
+  const transcript = lines.join('\n');
+  if (!transcript || transcript.length < 40) {
+    msg.textContent = 'chat too short — narrate findings first, then tap auto-fill';
+    msg.style.color = '#ff8a8a';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'thinking…';
+  msg.textContent = ''; msg.style.color = '';
+  try {
+    const res = await fetch('/.netlify/functions/extract-tdr-from-transcript', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ transcript })
+    });
+    const d = await res.json();
+    if (!d || !d.ok) throw new Error((d && d.error) || 'extract failed');
+    const ex = d.extracted || {};
+    if (ex.diagnosis) document.getElementById('tdr-diagnosis').value = ex.diagnosis;
+    if (ex.failed_component) document.getElementById('tdr-failed-component').value = ex.failed_component;
+    if (ex.labor_time_hours && ex.labor_time_hours > 0) document.getElementById('tdr-labor-time').value = ex.labor_time_hours;
+    if (ex.repair_completed) {
+      const rc = String(ex.repair_completed).toLowerCase();
+      const sel = document.getElementById('tdr-repair-completed');
+      if (/yes|fixed|complete/.test(rc)) sel.value = 'yes';
+      else if (/no|follow.?up|return/.test(rc)) sel.value = 'no';
+      else if (/partial|temporary|temp/.test(rc)) sel.value = 'partial';
+    }
+    refreshTdrFormStatus();
+    msg.textContent = `✓ filled from chat (confidence ${Math.round((ex.confidence||0)*100)}%) — review + edit before saving`;
+    msg.style.color = '#4cd2c0';
+  } catch (err) {
+    msg.textContent = 'auto-fill failed: ' + (err.message || err);
+    msg.style.color = '#ff8a8a';
+  } finally {
+    btn.disabled = false; btn.textContent = '✨ Auto-fill from chat';
+  }
 }
 
 async function saveTdrInline() {
