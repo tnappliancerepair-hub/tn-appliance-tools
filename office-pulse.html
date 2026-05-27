@@ -197,6 +197,7 @@
       <div class="title">Office Pulse</div>
       <div class="sub">live · auto-refresh 20s</div>
     </div>
+    <button id="pauseBtn" style="background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:6px;font-size:11px;font-family:var(--mono);cursor:pointer;margin-right:8px">⏸ pause</button>
     <div class="last-update" id="lastUpdate">—</div>
   </div>
 
@@ -254,6 +255,24 @@ const $ = (id) => document.getElementById(id);
     bindFilter();
     refresh();
     pollTimer = setInterval(refresh, POLL_MS);
+
+    // Pause/resume button
+    const pauseBtn = $('pauseBtn');
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', () => {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          pauseBtn.textContent = '▶ resume';
+          pauseBtn.style.color = '#00d68f';
+        } else {
+          refresh();
+          pollTimer = setInterval(refresh, POLL_MS);
+          pauseBtn.textContent = '⏸ pause';
+          pauseBtn.style.color = '';
+        }
+      });
+    }
   }
 
   // Hook search input to re-filter on every keystroke
