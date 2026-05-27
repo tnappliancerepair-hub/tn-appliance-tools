@@ -1,0 +1,12 @@
+{
+  "name": "Ant - TN Appliance Exchange",
+  "short_name": "Ant",
+  "description": "Your appointment status, notes, and rescheduling",
+  "start_url": "/customer-portal.html",
+  "display": "standalone",
+  "background_color": "#f7f8fb",
+  "theme_color": "#ff8a00",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "any", "type": "image/x-icon" }
+  ]
+}
