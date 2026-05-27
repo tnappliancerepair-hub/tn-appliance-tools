@@ -144,12 +144,38 @@ const SCHEDULER_TOOLS = [
   },
   {
     name: 'suggest_tech_for_job',
-    description: 'Unbiased tech recommendation for an unscheduled job. Looks at every active tech\'s current load + geography + recent performance and returns a ranked recommendation with reasoning. Use when picking up a Needs Scheduled job and deciding who to assign. Does NOT actually assign — call schedule_job after if you decide to go with the recommendation.',
+    description: 'Unbiased tech recommendation for an unscheduled job. Looks at every active tech\'s current load + geography + tech preferences (working hours, day-off, hard rules) + recent performance, and returns a ranked recommendation with reasoning. Use when picking up a Needs Scheduled job and deciding who to assign. Does NOT actually assign — call schedule_job after if you decide to go with the recommendation.',
     input_schema: {
       type: 'object',
       properties: {
         job_id: { type: 'integer', description: 'Job to suggest a tech for' },
         preferred_date_ms: { type: 'integer', description: 'Optional: date the office wants to schedule (defaults to next business day)' },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'get_tech_constraints',
+    description: 'Get a tech\'s full scheduling constraints for a specific date: day-off status, working window (from tech_availability OR tech default OR system), existing job count that day, hard day-of-week preferences. Use this before proposing or booking a slot to confirm the tech can actually work that time.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tech_id: { type: 'integer', description: 'Tech ID' },
+        date: { type: 'string', description: 'Date in YYYY-MM-DD' },
+      },
+      required: ['tech_id', 'date'],
+    },
+  },
+  {
+    name: 'find_open_slots_for_job',
+    description: 'Find the best open scheduling slots for a job across the next N days. For each eligible tech (matching region + not day-off + within tech preferences), returns ranked slots with reasoning. Scoring factors: region match (in-region wins), tech load that day (lower is better), within working window, fits customer preference if specified. Returns up to 10 ranked candidates. This is the core scheduler tool — use whenever picking a slot for a job.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer', description: 'Job to find slots for' },
+        days_ahead: { type: 'integer', description: 'Days from today to search (default 7, max 14)' },
+        slot_duration_minutes: { type: 'integer', description: 'Job duration in minutes (default 90)' },
+        max_results: { type: 'integer', description: 'Max ranked slots to return (default 10)' },
       },
       required: ['job_id'],
     },
@@ -480,40 +506,56 @@ async function executeTool(toolName, toolInput, ctx) {
 
     case 'suggest_tech_for_job': {
       if (!ti.job_id) return { error: 'job_id required' };
-      // Pull job + all techs' calendar load. Score each on:
-      // - capacity (lower load wins, day_off=disqualified)
-      // - geography proxy (region match based on job state vs tech home region)
-      // - basic preference fit
-      // Returns ranked list + reasoning.
       const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
       if (job.error) return job;
       const dateMs = ti.preferred_date_ms || (Date.now() + 24 * 3600 * 1000);
       const dayStart = Math.floor(dateMs / (24 * 3600 * 1000)) * (24 * 3600 * 1000);
+      const dayEnd = dayStart + 24 * 3600 * 1000;
+      const dateYmd = new Date(dayStart).toISOString().slice(0, 10);
+      const dowLower = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(dayStart).getUTCDay()];
+
       const cal = await timedFetch(`${XANO_BASE}/get_office_calendar_week?week_start_ms=${dayStart}`, { method: 'GET' });
       if (cal.error) return cal;
+
       const jobState = (job.service_state || '').toUpperCase();
       const jobRegion = (jobState === 'LA' || jobState === 'LOUISIANA') ? 'LA' : 'TN';
       const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 5: 'LA', 6: 'LA' };
       const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
-      const ranked = [];
       const targetDay = (cal.days || []).find((d) => Math.abs(d.date_ms - dayStart) < 24 * 3600 * 1000);
-      const techs = targetDay ? (targetDay.techs || []) : [];
+      const techs = targetDay ? (targetDay.techs || []) : Object.keys(techHomeRegion).map((id) => ({ tech_id: Number(id), job_count: 0, day_off: false }));
+
+      // Pull constraints for EVERY active tech in parallel (gives us
+      // working hours + hard day-off prefs + actual existing count)
+      const constraintsByTech = {};
+      await Promise.all(techs.map(async (t) => {
+        const c = await timedFetch(`${XANO_BASE}/get_tech_constraints_for_date?technician_id=${t.tech_id}&date_ymd=${dateYmd}&day_start_ms=${dayStart}&day_end_ms=${dayEnd}&day_of_week_lower=${dowLower}`, { method: 'GET' });
+        constraintsByTech[t.tech_id] = c;
+      }));
+
+      const ranked = [];
       for (const t of techs) {
-        if (t.day_off) continue;
+        const c = constraintsByTech[t.tech_id] || {};
+        const isDayOff = !!c.is_day_off;
+        if (isDayOff) continue;  // hard skip — tech can't work that day per their preferences/availability
+
         const tHome = techHomeRegion[t.tech_id] || 'TN';
         const regionMatch = (tHome === 'BOTH' || tHome === jobRegion);
+        const existingCount = c.existing_count != null ? c.existing_count : (t.job_count || 0);
         let score = 100;
-        score -= (t.job_count || 0) * 12;         // each existing job docks 12
-        if (!regionMatch) score -= 35;             // big penalty for crossing region
-        if ((t.job_count || 0) >= 6) score -= 20;  // overloaded
+        score -= existingCount * 12;
+        if (!regionMatch) score -= 35;
+        if (existingCount >= 6) score -= 20;
+
         ranked.push({
           tech_id: t.tech_id,
           tech_name: techNames[t.tech_id] || `tech ${t.tech_id}`,
           score,
-          current_load: t.job_count || 0,
+          current_load: existingCount,
           region_match: regionMatch,
           home_region: tHome,
-          reason: `${techNames[t.tech_id]}: ${t.job_count || 0} jobs, ${regionMatch ? 'in-region' : 'out-of-region (' + tHome + ' → ' + jobRegion + ')'}`,
+          working_window: c.window_start && c.window_end ? `${c.window_start}-${c.window_end}` : '08:00-16:00',
+          window_source: c.window_source || 'system_default',
+          reason: `${techNames[t.tech_id]}: ${existingCount} jobs, ${regionMatch ? 'in-region' : 'out-of-region (' + tHome + ' → ' + jobRegion + ')'}, hours ${c.window_start || '08:00'}-${c.window_end || '16:00'}`,
         });
       }
       ranked.sort((a, b) => b.score - a.score);
@@ -521,10 +563,100 @@ async function executeTool(toolName, toolInput, ctx) {
         success: true,
         job_id: ti.job_id,
         job_region: jobRegion,
+        date_evaluated: dateYmd,
         recommendation: ranked[0] || null,
         alternatives: ranked.slice(1, 3),
         all_scored: ranked,
-        note: 'Scoring is a heuristic. Tech preferences (max/off/hours) not yet integrated — coming in Phase 2.',
+        note: 'Now integrates tech_preferences via get_tech_constraints_for_date — respects day-offs, hard weekly rules, and working hours.',
+      };
+    }
+
+    case 'get_tech_constraints': {
+      if (!ti.tech_id || !ti.date) return { error: 'tech_id + date required' };
+      const dayStart = new Date(`${ti.date}T00:00:00-05:00`).getTime();
+      const dayEnd = dayStart + 24 * 3600 * 1000;
+      const dowLower = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(`${ti.date}T12:00:00`).getDay()];
+      return await timedFetch(`${XANO_BASE}/get_tech_constraints_for_date?technician_id=${ti.tech_id}&date_ymd=${ti.date}&day_start_ms=${dayStart}&day_end_ms=${dayEnd}&day_of_week_lower=${dowLower}`, { method: 'GET' });
+    }
+
+    case 'find_open_slots_for_job': {
+      if (!ti.job_id) return { error: 'job_id required' };
+      const daysAhead = Math.min(ti.days_ahead || 7, 14);
+      const slotMin = ti.slot_duration_minutes || 90;
+      const maxResults = ti.max_results || 10;
+      const job = await timedFetch(`${XANO_BASE}/get_job?job_id=${ti.job_id}`, { method: 'GET' });
+      if (job.error) return job;
+      const jobState = (job.service_state || '').toUpperCase();
+      const jobRegion = (jobState === 'LA' || jobState === 'LOUISIANA') ? 'LA' : 'TN';
+      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 5: 'LA', 6: 'LA' };
+      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+
+      // Filter to in-region techs (BOTH counts)
+      const eligibleTechIds = Object.keys(techHomeRegion)
+        .map(Number)
+        .filter((id) => {
+          const h = techHomeRegion[id];
+          return h === 'BOTH' || h === jobRegion;
+        });
+
+      // For each eligible tech × each day in window, pull constraints
+      const slots = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (let dOff = 1; dOff <= daysAhead; dOff++) {
+        const dt = new Date(today.getTime() + dOff * 24 * 3600 * 1000);
+        const yyyymmdd = dt.toISOString().slice(0, 10);
+        const dayStart = new Date(`${yyyymmdd}T00:00:00-05:00`).getTime();
+        const dayEnd = dayStart + 24 * 3600 * 1000;
+        const dow = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][dt.getDay()];
+
+        await Promise.all(eligibleTechIds.map(async (techId) => {
+          const c = await timedFetch(`${XANO_BASE}/get_tech_constraints_for_date?technician_id=${techId}&date_ymd=${yyyymmdd}&day_start_ms=${dayStart}&day_end_ms=${dayEnd}&day_of_week_lower=${dow}`, { method: 'GET' });
+          if (c.error || c.is_day_off) return;
+          const ws = c.window_start || '08:00';
+          const we = c.window_end || '16:00';
+          const [wsH, wsM] = ws.split(':').map(Number);
+          const [weH, weM] = we.split(':').map(Number);
+          const winStart = dayStart + (wsH * 60 + wsM) * 60 * 1000;
+          const winEnd = dayStart + (weH * 60 + weM) * 60 * 1000;
+          const existing = (c.existing_jobs || []).map((j) => ({ start: j.scheduled_start, end: (j.scheduled_start || 0) + (j.duration_minutes || 90) * 60 * 1000 }));
+          existing.sort((a, b) => a.start - b.start);
+          // Greedy: try each hour-aligned offset from winStart, skipping conflicts
+          for (let offset = winStart; offset + slotMin * 60 * 1000 <= winEnd; offset += 30 * 60 * 1000) {
+            const slotEnd = offset + slotMin * 60 * 1000;
+            const conflict = existing.find((e) => e.start < slotEnd && e.end > offset);
+            if (conflict) continue;
+            const existingCount = c.existing_count || 0;
+            let score = 100;
+            score -= existingCount * 10;  // lower load = better
+            score -= (dOff - 1) * 3;       // sooner is slightly better
+            // Bonus: morning slots (before noon) for first-job-of-day for low-load techs
+            const slotHour = new Date(offset).getHours();
+            if (existingCount === 0 && slotHour >= 8 && slotHour <= 10) score += 5;
+            slots.push({
+              tech_id: techId,
+              tech_name: techNames[techId] || `tech ${techId}`,
+              date: yyyymmdd,
+              slot_start_ms: offset,
+              slot_end_ms: slotEnd,
+              slot_human: new Date(offset).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' }),
+              score,
+              tech_load_that_day: existingCount,
+              working_window: `${ws}-${we}`,
+            });
+          }
+        }));
+      }
+      slots.sort((a, b) => b.score - a.score);
+      return {
+        success: true,
+        job_id: ti.job_id,
+        job_region: jobRegion,
+        days_searched: daysAhead,
+        total_slots_found: slots.length,
+        top_slots: slots.slice(0, maxResults),
+        note: slots.length === 0 ? 'No open slots found — every eligible tech is either off-day or fully booked across the window.' : `Top ${Math.min(maxResults, slots.length)} of ${slots.length} eligible slots. Score weights: load (lower=better), region (in-region=+0/out=-35 implied via filter), sooner=better, morning bonus.`,
       };
     }
 

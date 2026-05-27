@@ -11,6 +11,14 @@
 const { runBrainTurn } = require('./_lib/ant/brain-core');
 const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS } = require('./_lib/ant/tools');
 
+// Confidence-gating mode for write tools. Three settings:
+//   "preview"  (default) — Claude must dry_run first, ask user, then commit
+//   "notify"   — Claude commits high-confidence writes directly + notifies user
+//   "auto"     — Claude commits all writes directly (use carefully)
+// Set via env var AUTO_SCHEDULE_MODE. Per Teddy's "trust gradient" vision:
+// start preview, graduate to notify after observed accuracy, eventually auto.
+const AUTO_MODE = (process.env.AUTO_SCHEDULE_MODE || 'preview').toLowerCase();
+
 // Office exposes READ + SCHEDULER + WRITE. Write tools all default to
 // dry_run=true so Claude previews the action and the user confirms in
 // chat before anything commits.
@@ -63,7 +71,13 @@ TWO-STAGE COMMIT (mandatory):
 3. Show the user the preview + ask explicitly: "Confirm? (yes / no)"
 4. ONLY after user says yes/confirm/do it/proceed, call the SAME tool again with dry_run=false. Then report the result.
 
-NEVER call a write tool with dry_run=false on the first turn. Even if the user sounds urgent ("just cancel it"), still preview first — one extra back-and-forth is cheap; a wrong write is expensive.`;
+NEVER call a write tool with dry_run=false on the first turn. Even if the user sounds urgent ("just cancel it"), still preview first — one extra back-and-forth is cheap; a wrong write is expensive.
+
+CURRENT AUTO-SCHEDULE MODE: ${AUTO_MODE}
+- "preview" (default): two-stage commit required (dry_run preview → user confirm → commit). What you do today.
+- "notify": for HIGH-CONFIDENCE writes (in-region warranty job, tech preferences match cleanly, no conflicts), you MAY skip the preview and commit directly with dry_run=false — but you MUST include a clear "I scheduled X. Will undo if wrong, just say so." note in your reply.
+- "auto": same as notify but no notification requirement. Use sparingly.
+HIGH-CONFIDENCE means: tool result includes region_match=true, no conflicts, tech not at capacity, slot within tech working window. If ANY of those fail, drop back to preview mode regardless of AUTO_MODE.`;
 }
 
 exports.handler = async (event) => {
