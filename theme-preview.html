@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tech Theme Preview</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 16px;
+      background: #0e1118;
+      color: #e8ecf2;
+      font: 14px/1.5 system-ui, -apple-system, sans-serif;
+    }
+    .intro {
+      max-width: 600px; margin: 0 auto 24px;
+      padding: 14px 18px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+    }
+    .intro h1 { margin: 0 0 6px; font-size: 18px; }
+    .intro p { margin: 0; color: #a8b0bd; font-size: 13px; }
+    .grid {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+    .preview-frame {
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .preview-label {
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      font-weight: 700;
+      font-size: 13px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .preview-label a {
+      color: #4dabf7; text-decoration: none; font-size: 12px;
+    }
+    .preview-body {
+      min-height: 380px;
+      padding: 18px;
+      position: relative;
+    }
+    .pv-header {
+      padding: 10px 14px;
+      margin: -18px -18px 14px;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+    }
+    .pv-header h1 { margin: 0; font-size: 18px; }
+    .pv-card {
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .pv-card .who { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+    .pv-card .what { font-size: 13px; opacity: 0.85; margin-bottom: 8px; }
+    .pv-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pv-btn {
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      border: none;
+      cursor: default;
+    }
+    .pv-tagline {
+      position: absolute;
+      bottom: 8px; right: 14px;
+      font-size: 11px;
+      opacity: 0.6;
+      font-style: italic;
+    }
+
+    /* ── Per-theme styles (mirror tech-theme.js) ── */
+
+    /* TEDDY (1) — Mountain */
+    .theme-1 { background: radial-gradient(ellipse at top, rgba(217,160,91,0.10), transparent 55%), linear-gradient(180deg, #1f2d2a, #14201d); color: #e8e0cc; font-family: 'Roboto Slab', Georgia, serif; }
+    .theme-1 .pv-header { background: linear-gradient(180deg, #14201d, #1f2d2a); border-bottom: 3px solid #d9a05b; }
+    .theme-1 .pv-header h1 { font-family: 'Roboto Slab', serif; color: #d9a05b; }
+    .theme-1 .pv-card { background: linear-gradient(180deg, #f4ead4, #e6d6a8); border: 1px solid #6b4f2a; color: #2a1f12; box-shadow: 0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.4); }
+    .theme-1 .pv-btn { background: linear-gradient(180deg, #3a5a40, #2b4231); color: #f4ead4; border: 1px solid #d9a05b; font-family: 'Roboto Slab', serif; box-shadow: 0 2px 0 #1c2a20; }
+
+    /* JIMMY (2) — Custom Truck */
+    .theme-2 { background: linear-gradient(135deg, rgba(255,122,26,0.04), transparent 60%), repeating-linear-gradient(45deg, #1a1a1a 0px, #1a1a1a 12px, #1f1f1f 12px, #1f1f1f 24px); color: #f0f0f0; font-family: 'Oxanium', system-ui, sans-serif; }
+    .theme-2 .pv-header h1 { font-family: 'Black Ops One', sans-serif; letter-spacing: 0.05em; color: #ff7a1a; }
+    .theme-2 .pv-card { background: linear-gradient(180deg, #2a2a2a, #1c1c1c); border: 1px solid #ff7a1a; color: #f0f0f0; box-shadow: 0 2px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05); }
+    .theme-2 .pv-btn { background: linear-gradient(180deg, #ff8c2a, #d65f0c); color: #1a1a1a; border: 1px solid #1a1a1a; font-family: 'Black Ops One', sans-serif; text-transform: uppercase; box-shadow: 0 2px 0 #8a3d00; }
+
+    /* ANDRE (3) — Classic Cars */
+    .theme-3 { background: radial-gradient(ellipse at top, rgba(200,16,46,0.06), transparent 60%), linear-gradient(180deg, #e8e8e8, #d0d0d0); color: #1c1c1c; font-family: 'Cardo', Georgia, serif; }
+    .theme-3 .pv-header h1 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.08em; color: #c8102e; }
+    .theme-3 .pv-card { background: linear-gradient(180deg, #fafafa, #e8e8e8); border: 2px solid #aaa; color: #1c1c1c; box-shadow: 0 1px 0 #fff inset, 0 3px 8px rgba(0,0,0,0.20), 0 0 0 1px #c8102e inset; }
+    .theme-3 .pv-btn { background: linear-gradient(180deg, #d8112e, #9a0a20); color: #fafafa; border: 1px solid #1c1c1c; font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.10em; text-transform: uppercase; box-shadow: 0 2px 0 #6a0a18; }
+
+    /* LEE (4) — Deadpool */
+    .theme-4 { background: radial-gradient(circle at 20% 30%, rgba(232,37,47,0.10), transparent 40%), radial-gradient(circle at 80% 70%, rgba(232,37,47,0.08), transparent 40%), #0e0e0e; color: #f0f0f0; font-family: 'Inter', system-ui, sans-serif; }
+    .theme-4 .pv-header h1 { font-family: 'Bangers', sans-serif; letter-spacing: 0.05em; color: #e8252f; text-shadow: 2px 2px 0 #000; }
+    .theme-4 .pv-card { background: linear-gradient(180deg, #1a1a1a, #111); border: 2px solid #e8252f; color: #f0f0f0; box-shadow: 4px 4px 0 #e8252f, 0 2px 8px rgba(0,0,0,0.5); }
+    .theme-4 .pv-btn { background: #e8252f; color: #fff; border: 2px solid #000; font-family: 'Bangers', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; box-shadow: 3px 3px 0 #000; }
+
+    /* BILLY (5) — Bayou */
+    .theme-5 { background: linear-gradient(135deg, rgba(122,82,48,0.06), transparent 60%), #f1ead8; color: #2a1c0a; font-family: 'Lora', Georgia, serif; }
+    .theme-5 .pv-header h1 { font-family: 'Playfair Display', serif; color: #5c3a0a; }
+    .theme-5 .pv-card { background: #fbf6e8; border: 1px solid #c4a572; color: #2a1c0a; }
+    .theme-5 .pv-btn { background: #7a5230; color: #fff; border: 1px solid #2a1c0a; }
+
+    /* JOHN (6) — NASCAR */
+    .theme-6 { background: #f4f4f4; color: #1a1a1a; font-family: 'Roboto Condensed', system-ui, sans-serif; }
+    .theme-6 .pv-header { background: repeating-linear-gradient(45deg, #000 0 12px, #fff 12px 24px); color: #1a1a1a; border-bottom: 4px solid #e10600; padding-bottom: 10px; }
+    .theme-6 .pv-header h1 { font-family: 'Russo One', sans-serif; text-transform: uppercase; background: rgba(255,255,255,0.92); padding: 4px 12px; border-radius: 4px; display: inline-block; }
+    .theme-6 .pv-card { background: #fff; border: 1px solid #1a1a1a; border-left: 6px solid #e10600; color: #1a1a1a; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+    .theme-6 .pv-btn { background: #e10600; color: #fff; border: 2px solid #1a1a1a; font-family: 'Russo One', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; box-shadow: 0 2px 0 #1a1a1a; }
+  </style>
+  <!-- All theme fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@400;700&family=Caveat:wght@700&family=Black+Ops+One&family=Oxanium:wght@400;700&family=Bebas+Neue&family=Special+Elite&family=Cardo:wght@400;700&family=Bangers&family=Inter:wght@400;700&family=Lora:wght@400;700&family=Playfair+Display:wght@700&family=Russo+One&family=Roboto+Condensed:wght@400;700&display=swap">
+</head>
+<body>
+  <div class="intro">
+    <h1>🎨 Tech Theme Preview</h1>
+    <p>Each card shows the live theme each tech sees when they open the field app. Tap any "Open live →" to see the real dashboard.</p>
+  </div>
+  <div class="grid" id="grid"></div>
+  <script>
+    const themes = [
+      { id: 1, name: 'Teddy',  theme: '🏔️ Mountain',     tagline: 'Above the treeline.' },
+      { id: 4, name: 'Lee',    theme: '🗡️ Deadpool',     tagline: 'Maximum effort.' },
+      { id: 6, name: 'John',   theme: '🏁 NASCAR',       tagline: 'Boogity boogity boogity.' },
+      { id: 3, name: 'Andre',  theme: '🚗 Classic Cars', tagline: 'Keep it shiny.' },
+      { id: 2, name: 'Jimmy',  theme: '🛻 Custom Truck', tagline: 'Built, not bought.' },
+      { id: 5, name: 'Billy',  theme: '⚜️ Bayou',        tagline: 'Laissez les bons temps rouler.' },
+    ];
+    const grid = document.getElementById('grid');
+    themes.forEach(t => {
+      const frame = document.createElement('div');
+      frame.className = 'preview-frame';
+      frame.innerHTML = `
+        <div class="preview-label">
+          <span>${t.name} (id ${t.id}) — ${t.theme}</span>
+          <a href="/tech-daily-dashboard.html?tech_id=${t.id}" target="_blank">Open live →</a>
+        </div>
+        <div class="preview-body theme-${t.id}">
+          <div class="pv-header"><h1>${t.name}'s Day · 3 Jobs</h1></div>
+          <div class="pv-card">
+            <div class="who">#1 · Sarah Mitchell</div>
+            <div class="what">LG fridge · not cooling · 9:00 AM</div>
+            <div class="pv-btn-row">
+              <button class="pv-btn">Start Job</button>
+              <button class="pv-btn">🚗 On My Way</button>
+            </div>
+          </div>
+          <div class="pv-card">
+            <div class="who">#2 · James K.</div>
+            <div class="what">Whirlpool washer · won't drain · 11:30 AM</div>
+            <div class="pv-btn-row">
+              <button class="pv-btn">Start Job</button>
+              <button class="pv-btn">🔧 Parts</button>
+            </div>
+          </div>
+          <div class="pv-tagline">${t.tagline}</div>
+        </div>
+      `;
+      grid.appendChild(frame);
+    });
+  </script>
+</body>
+</html>
