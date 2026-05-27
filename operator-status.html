@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operator Status - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; padding: 24px 18px; max-width: 1100px; margin: 0 auto; min-height: 100vh; }
+  :root { --green:#00d68f; --orange:#f5a623; --red:#ff6b6b; --muted:#8a93aa; --panel:#131720; --border:#2a3040; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace; }
+  .header { display: flex; align-items: baseline; gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
+  .header h1 { font-size: 22px; font-weight: 800; }
+  .header .ts { color: var(--muted); font-family: var(--mono); font-size: 12px; margin-left: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card h2 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .card .big { font-size: 32px; font-weight: 900; font-family: var(--mono); }
+  .card .sub { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
+  .card.green .big { color: var(--green); }
+  .card.orange .big { color: var(--orange); }
+  .card.red .big { color: var(--red); }
+  .footer { color: var(--muted); font-size: 12px; text-align: center; font-family: var(--mono); padding-top: 18px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🐜 Operator Status</h1>
+  <div class="ts" id="lastUpdate">—</div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="footer">
+  refresh every 30s · for incidents call Teddy 615-485-5795
+</div>
+
+<script>
+(function() {
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+  async function refresh() {
+    let health = {}, pulse = {}, todo = {}, eod = {}, cash = {};
+    try {
+      [health, pulse, todo, eod, cash] = await Promise.all([
+        fetch(`${XANO}/get_loop_health`).then(r => r.json()).catch(() => ({})),
+        fetch(`${XANO}/get_office_pulse?limit=1`).then(r => r.json()).catch(() => ({})),
+        fetch(`${XANO}/get_office_todo`).then(r => r.json()).catch(() => ({})),
+        fetch(`${XANO}/get_office_eod_summary`).then(r => r.json()).catch(() => ({})),
+        fetch(`${XANO}/get_cashflow_forecast?days_ahead=30`).then(r => r.json()).catch(() => ({})),
+      ]);
+    } catch (err) { /* keep last values */ }
+
+    const h = pulse.headline || {};
+    const c = todo.counts || {};
+    const healthColor = health.status_color || 'red';
+
+    document.getElementById('grid').innerHTML = `
+      <div class="card ${healthColor === 'green' ? 'green' : healthColor === 'yellow' ? 'orange' : 'red'}">
+        <h2>Loop health</h2>
+        <div class="big">${healthColor.toUpperCase()}</div>
+        <div class="sub">last hb ${health.last_heartbeat_age_secs || '?'}s · ${health.signals_last_hour || 0} sig/hr</div>
+      </div>
+      <div class="card green">
+        <h2>Today scheduled</h2>
+        <div class="big">${h.scheduled_today || 0}</div>
+        <div class="sub">${h.in_progress || 0} in progress · ${h.completed_today || 0} done</div>
+      </div>
+      <div class="card">
+        <h2>Today new jobs</h2>
+        <div class="big">${eod.new_jobs || 0}</div>
+        <div class="sub">${eod.inbound_calls || 0} inbound calls</div>
+      </div>
+      <div class="card orange">
+        <h2>Awaiting parts</h2>
+        <div class="big">${h.awaiting_parts || 0}</div>
+        <div class="sub">${c.parts_arrived || 0} parts arrived today</div>
+      </div>
+      <div class="card red">
+        <h2>Office todo</h2>
+        <div class="big">${(c.stale_intake || 0) + (c.held || 0) + (c.parts_arrived || 0)}</div>
+        <div class="sub">stale ${c.stale_intake || 0} · held ${c.held || 0} · parts ${c.parts_arrived || 0}</div>
+      </div>
+      <div class="card">
+        <h2>30d cashflow forecast</h2>
+        <div class="big">$${Number(cash.total_forecast || 0).toFixed(0)}</div>
+        <div class="sub">scheduled ${cash.scheduled_in_window_count || 0} · warranty ${cash.warranty_in_flight_count || 0}</div>
+      </div>
+      <div class="card ${eod.tdr_blocks ? 'red' : ''}">
+        <h2>TDR-blocked today</h2>
+        <div class="big">${eod.tdr_blocks || 0}</div>
+        <div class="sub">${eod.callbacks || 0} callback alerts</div>
+      </div>
+      <div class="card">
+        <h2>Warranty digests</h2>
+        <div class="big">${eod.warranty_handled || 0}</div>
+        <div class="sub">today</div>
+      </div>
+    `;
+    document.getElementById('lastUpdate').textContent = 'updated ' + new Date().toLocaleTimeString();
+  }
+  setInterval(refresh, 30000); refresh();
+})();
+</script>
+</body>
+</html>
