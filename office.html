@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant Office - Hub</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; padding: 16px; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --border-soft:#1f2533; --muted:#8a93aa; --orange:#f5a623; --green:#00d68f; --blue:#5aa9ff; --red:#ff6b6b; --violet:#b48cff; }
+  .header { display: flex; align-items: center; gap: 12px; padding: 8px 4px 22px; }
+  .header .ant { font-size: 28px; }
+  .header .title { font-size: 20px; font-weight: 800; }
+  .header .sub { font-size: 12px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+  .section-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 4px 8px; font-family: monospace; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 0 4px; }
+  .tile { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px; padding: 16px; text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.05s; display: block; }
+  .tile:hover { border-color: var(--orange); }
+  .tile:active { transform: scale(0.98); }
+  .tile .emoji { font-size: 28px; margin-bottom: 8px; }
+  .tile .name { font-size: 15px; font-weight: 700; }
+  .tile .desc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .tile.green { border-color: rgba(0,214,143,0.25); }
+  .tile.green:hover { border-color: var(--green); }
+  .tile.blue { border-color: rgba(90,169,255,0.25); }
+  .tile.blue:hover { border-color: var(--blue); }
+  .tile.violet { border-color: rgba(180,140,255,0.25); }
+  .tile.violet:hover { border-color: var(--violet); }
+  .tile.red { border-color: rgba(255,107,107,0.25); }
+  .tile.red:hover { border-color: var(--red); }
+  .footer { text-align: center; padding: 30px 4px 12px; color: var(--muted); font-size: 11px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="ant">🐜</div>
+  <div>
+    <div class="title">Ant Office</div>
+    <div class="sub">tnapplianceexchange.net · all your tools</div>
+  </div>
+</div>
+
+<div class="section-title">Daily workflow</div>
+<div class="grid">
+  <a class="tile orange" href="office-calendar.html">
+    <div class="emoji">🗓</div>
+    <div class="name">Calendar</div>
+    <div class="desc">Week / Today view · click-to-book · click-to-manage</div>
+  </a>
+  <a class="tile red" href="office-todo.html">
+    <div class="emoji">✅</div>
+    <div class="name">Todo</div>
+    <div class="desc">Stale intake · held · parts arrived · TDR-blocked · callbacks</div>
+  </a>
+  <a class="tile blue" href="office-pulse.html">
+    <div class="emoji">📡</div>
+    <div class="name">Pulse</div>
+    <div class="desc">Live activity stream · 20s refresh · signal / SMS / errors</div>
+  </a>
+  <a class="tile" href="customer-search.html">
+    <div class="emoji">🔍</div>
+    <div class="name">Customer Search</div>
+    <div class="desc">Phone · name · email lookup · caller-ID deep-link</div>
+  </a>
+</div>
+
+<div class="section-title">Specialized surfaces</div>
+<div class="grid">
+  <a class="tile violet" href="warranty-review.html">
+    <div class="emoji">🛡</div>
+    <div class="name">Warranty Review</div>
+    <div class="desc">Danielle's queue · BLOCKED / FLAGGED / clear</div>
+  </a>
+  <a class="tile green" href="financial-dashboard.html">
+    <div class="emoji">💰</div>
+    <div class="name">Financials</div>
+    <div class="desc">Cash position · AR aging · tech earnings</div>
+  </a>
+  <a class="tile" href="office-tn.html">
+    <div class="emoji">🏠</div>
+    <div class="name">TN Office</div>
+    <div class="desc">Tennessee tech roster · payouts · pending</div>
+  </a>
+  <a class="tile" href="office-la.html">
+    <div class="emoji">🏠</div>
+    <div class="name">LA Office</div>
+    <div class="desc">Louisiana tech roster · payouts · pending</div>
+  </a>
+  <a class="tile" href="teddy-tdr-tool.html">
+    <div class="emoji">🛠</div>
+    <div class="name">Teddy TDR Tool</div>
+    <div class="desc">Pre-diagnosis · part lookup · TDR draft</div>
+  </a>
+  <a class="tile" href="agent-proposals.html">
+    <div class="emoji">🤖</div>
+    <div class="name">Agent Proposals</div>
+    <div class="desc">Build-it inbox · approve / reject new agent ideas</div>
+  </a>
+</div>
+
+<div class="section-title">Quick links</div>
+<div class="grid">
+  <a class="tile" href="tech-daily-dashboard.html?tech_id=1">
+    <div class="emoji">👤</div>
+    <div class="name">Teddy's Dashboard</div>
+    <div class="desc">tech_id=1 · view as Teddy would</div>
+  </a>
+  <a class="tile" href="book.html">
+    <div class="emoji">➕</div>
+    <div class="name">New Job (legacy)</div>
+    <div class="desc">Public booking form · falls back to office-calendar's +new</div>
+  </a>
+</div>
+
+<div class="footer">🐜 ANT · TN Appliance Exchange LLC</div>
+
+</body>
+</html>
