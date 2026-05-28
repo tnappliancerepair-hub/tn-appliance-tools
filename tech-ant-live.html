@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Tech Ant Live - TN Appliance Exchange</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -618,8 +621,8 @@
 
 <div class="action-bar" id="action-bar">
   <div class="action-row">
-    <button class="action-btn" onclick="onNavigate()">📍 Navigate</button>
-    <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()">🚗 On My Way</button>
+    <button class="action-btn" onclick="onNavigate()">📍 Nav</button>
+    <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()">🚗 OMW</button>
     <button class="action-btn" onclick="onCall()">📞 Call</button>
   </div>
   <div class="action-row">
@@ -1589,7 +1592,7 @@ async function onOnMyWay() {
       `Tap OK to confirm.`;
     if (!window.confirm(confirmMsg)) {
       btn.disabled = false;
-      btn.textContent = '🚗 On My Way';
+      btn.textContent = '🚗 OMW';
       addSystem('info', 'On My Way canceled');
       return;
     }
@@ -1619,7 +1622,7 @@ async function onOnMyWay() {
     startTechPositionBroadcast();
   } catch (err) {
     addSystem('error', '⚠️ on-the-way send failed: ' + err.message);
-    btn.textContent = '🚗 On My Way';
+    btn.textContent = '🚗 OMW';
     btn.disabled = false;
   }
 }
