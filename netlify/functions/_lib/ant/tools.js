@@ -112,6 +112,17 @@ const READ_TOOLS = [
       required: ['query'],
     },
   },
+  {
+    name: 'list_recent_jobs',
+    description: 'List the most recent N jobs in the system (sorted by created_at descending). Each row includes intake_source (email_servicepower, email_ahs, manual, hcp_poll, hcp_webhook, web_chat, etc.), warranty_company, scheduling_status, appliance, customer_type. Use to answer questions like "how many jobs came in via email since yesterday?", "what intake sources are we seeing this week?", "show me the last 20 jobs". You filter/count client-side based on created_at + intake_source.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: { type: 'integer', description: 'Max jobs to return (default 50, max 200)' },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ─── SCHEDULER TOOLS (read-only safe for any brain) ─────────────────
@@ -337,6 +348,10 @@ async function executeTool(toolName, toolInput, ctx) {
     case 'search_customers': {
       if (!ti.query) return { error: 'query required' };
       return await timedFetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(ti.query)}`, { method: 'GET' });
+    }
+    case 'list_recent_jobs': {
+      const lim = Math.min(ti.limit || 50, 200);
+      return await timedFetch(`${XANO_BASE}/check_recent_jobs?limit=${lim}`, { method: 'GET' });
     }
 
     // ─── Scheduler read tools ─────────────────────────────────────
