@@ -14,6 +14,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
     height: 100%;
+    width: 100%;
+    max-width: 100vw;
     overflow: hidden;
     background: #000000;
     color: #e8edf5;
@@ -70,6 +72,8 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    width: 100vw;
+    max-width: 100vw;
   }
   /* Stainless-steel ANT cutout: brushed steel gradient inside the letters,
      LED ambient glow bleeding from behind (as if light is leaking through
@@ -77,9 +81,12 @@
   .hero-ant-text {
     font-family: 'Orbitron', sans-serif;
     font-weight: 900;
-    letter-spacing: 0.05em;
-    font-size: min(66vw, 640px);
+    letter-spacing: 0.02em;
+    /* Constrain so 3 letters + letter-spacing fit ≤90vw — no horizontal shift */
+    font-size: clamp(160px, 28vw, 420px);
     line-height: 0.9;
+    max-width: 90vw;
+    text-align: center;
     background:
       /* highlight band (top of letter polish) */
       linear-gradient(
@@ -567,12 +574,10 @@
 <div class="hud-corners" aria-hidden="true"><i class="bl"></i><i class="br"></i></div>
 <div class="hud-statusbar" aria-hidden="true">
   <div class="group">
-    <span><span class="dot"></span>ANT.OS // ONLINE</span>
-    <span class="signal">BUILD 2090.05.28</span>
+    <span><span class="dot"></span>ONLINE</span>
   </div>
   <div class="group">
     <span id="hud-time">--:--</span>
-    <span>◢◤ NEURAL LINK ◥◣</span>
   </div>
 </div>
 
@@ -590,7 +595,7 @@
       <div class="ant-mark" aria-hidden="true"></div>
       <div class="topbar-title-block">
         <div class="topbar-title">ANT</div>
-        <div class="topbar-tagline">// the <span class="cyan">most powerful</span> appliance ai alive</div>
+        <div class="topbar-tagline">your <span class="cyan">field partner</span> &middot; everything you need to know</div>
       </div>
       <div class="topbar-actions">
         <button class="topbar-action" title="Navigate" aria-label="Navigate">📍</button>
@@ -620,8 +625,8 @@
   <main class="chat-stage" id="chat-stage">
     <div class="empty-state" id="empty-state">
       <div class="glyph">🐜</div>
-      <div class="line1">▮ ANT.OS READY ▮</div>
-      <div class="line2">awaiting tech input &mdash;<br>tell me what you see, or tap 🎤 and talk.<br>i&rsquo;ll handle the rest.</div>
+      <div class="line1">ready when you are</div>
+      <div class="line2">talk to me. snap a photo. ask anything.<br>i&rsquo;ve got the rest.</div>
     </div>
   </main>
 
