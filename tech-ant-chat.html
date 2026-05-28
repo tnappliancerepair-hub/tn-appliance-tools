@@ -630,9 +630,25 @@
   }
   .composer-input::placeholder { color: rgba(138,147,170,0.5); }
 
+  /* Typing dots (Ant thinking indicator) */
+  .typing-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(240,245,255,0.7);
+    margin: 0 2px;
+    animation: typingBounce 1.2s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%           { transform: translateY(-4px); opacity: 1; }
+  }
+
   /* Reduced-motion respect */
   @media (prefers-reduced-motion: reduce) {
-    .hero-ant-text, .ant-mark::after, .empty-state .glyph { animation: none !important; }
+    .hero-ant-text, .ant-mark::after, .empty-state .glyph, .typing-dot { animation: none !important; }
   }
 </style>
 </head>
@@ -719,29 +735,432 @@
 </div>
 
 <script>
-// SHELL ONLY — no backend wiring yet. Visual frame for review.
-// HUD time ticker + textarea autogrow.
+// ═══════════════════════════════════════════════════════════════════
+//  TECH-ANT-CHAT — LIVE WIRING
+//  Text · Voice · Photo · Video · Spoken replies
+// ═══════════════════════════════════════════════════════════════════
 (function () {
   'use strict';
-  const ta = document.getElementById('composer-input');
-  if (ta) {
-    ta.addEventListener('input', () => {
-      ta.style.height = 'auto';
-      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
-    });
-  }
-  // 2090 HUD: live time + uptime feel (CT timezone)
-  const hudTime = document.getElementById('hud-time');
-  function tick() {
+
+  // ── Config + state ────────────────────────────────────────────────
+  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const params = new URLSearchParams(location.search);
+  const JOB_ID = parseInt(params.get('job_id') || '0', 10);
+  const TECH_ID = parseInt(params.get('tech_id') || '1', 10);
+
+  let sessionId = null;
+  let jobContext = null;
+  let isMuted = (localStorage.getItem('ant_muted') === '1');
+  let mediaRecorder = null;
+  let mrChunks = [];
+  let mrStream = null;
+  let voicesReady = false;
+  let preferredVoice = null;
+
+  // ── Element refs ──────────────────────────────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const chatStage = $('chat-stage');
+  const emptyState = $('empty-state');
+  const composerInput = $('composer-input');
+  const hudTime = $('hud-time');
+  const ctxPills = $('ctx-pills');
+
+  const btnNav = $('btn-nav');
+  const btnOtw = $('btn-otw');
+  const btnCall = $('btn-call');
+  const btnStart = $('btn-start');
+
+  // ── HUD clock ─────────────────────────────────────────────────────
+  function tickClock() {
     if (!hudTime) return;
-    const now = new Date();
-    const t = now.toLocaleTimeString('en-US', {
+    hudTime.textContent = new Date().toLocaleTimeString('en-US', {
       timeZone: 'America/Chicago',
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    });
-    hudTime.textContent = t + ' CT';
+    }) + ' CT';
   }
-  tick(); setInterval(tick, 1000);
+  tickClock(); setInterval(tickClock, 1000);
+
+  // ── Composer textarea autogrow ────────────────────────────────────
+  composerInput.addEventListener('input', () => {
+    composerInput.style.height = 'auto';
+    composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
+  });
+  composerInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+  document.querySelector('.composer-btn.send').addEventListener('click', handleSend);
+
+  // ── Text-to-speech (browser SpeechSynthesis) ─────────────────────
+  function loadVoices() {
+    if (!('speechSynthesis' in window)) return;
+    const voices = speechSynthesis.getVoices();
+    if (voices.length === 0) return;
+    voicesReady = true;
+    // Prefer natural-sounding English voices on iOS / macOS / Chrome
+    const order = [
+      /Samantha/i, /Karen/i, /Moira/i, /Ava/i, /Allison/i,
+      /Google US English/i, /Google UK English Female/i,
+      /Microsoft Aria/i, /en-US/i, /en-GB/i,
+    ];
+    for (const re of order) {
+      const v = voices.find(v => re.test(v.name) || re.test(v.lang || ''));
+      if (v) { preferredVoice = v; return; }
+    }
+    preferredVoice = voices[0];
+  }
+  if ('speechSynthesis' in window) {
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+  }
+  function speak(text) {
+    if (isMuted || !text || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.rate = 1.04;
+    utt.pitch = 1.0;
+    utt.volume = 1.0;
+    if (preferredVoice) utt.voice = preferredVoice;
+    speechSynthesis.speak(utt);
+  }
+  // Mute toggle (replaces ONLINE dot label on tap)
+  const onlineNode = document.querySelector('.hud-statusbar .group:first-child');
+  if (onlineNode) {
+    onlineNode.style.cursor = 'pointer';
+    onlineNode.title = 'Tap to toggle voice';
+    const muteLabel = document.createElement('span');
+    muteLabel.style.marginLeft = '10px';
+    muteLabel.style.color = 'rgba(240,245,255,0.75)';
+    muteLabel.textContent = isMuted ? '🔇 MUTED' : '🔊 VOICE ON';
+    onlineNode.appendChild(muteLabel);
+    onlineNode.addEventListener('click', () => {
+      isMuted = !isMuted;
+      localStorage.setItem('ant_muted', isMuted ? '1' : '0');
+      muteLabel.textContent = isMuted ? '🔇 MUTED' : '🔊 VOICE ON';
+      if (isMuted) speechSynthesis.cancel();
+    });
+  }
+
+  // ── Chat rendering ────────────────────────────────────────────────
+  function hideEmpty() { if (emptyState) emptyState.style.display = 'none'; }
+  function addMsg(role, text) {
+    if (!text) return;
+    hideEmpty();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (role === 'user' ? 'you' : 'ant');
+    const av = document.createElement('div');
+    av.className = 'msg-av';
+    av.textContent = role === 'user' ? 'YOU' : '🐜';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    chatStage.appendChild(wrap);
+    chatStage.scrollTop = chatStage.scrollHeight;
+  }
+  let typingEl = null;
+  function showTyping() {
+    hideEmpty();
+    if (typingEl) return;
+    typingEl = document.createElement('div');
+    typingEl.className = 'msg ant';
+    typingEl.innerHTML =
+      '<div class="msg-av">🐜</div>' +
+      '<div class="msg-bubble" style="font-style:italic;opacity:0.7">' +
+      '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+    chatStage.appendChild(typingEl);
+    chatStage.scrollTop = chatStage.scrollHeight;
+  }
+  function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
+
+  // ── Job context boot ──────────────────────────────────────────────
+  async function loadJob() {
+    if (!JOB_ID) {
+      renderHeader({ id: 0, customer: 'no job', appliance: '—', time: '' });
+      return;
+    }
+    try {
+      const r = await fetch(XANO_BASE + '/get_job_for_dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: JOB_ID })
+      });
+      const d = await r.json();
+      jobContext = d;
+      const job = d.job || {};
+      const cust = d.customer || {};
+      const appl = d.appliance || {};
+      const fullName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || 'customer';
+      const applShort = [appl.brand, appl.type].filter(Boolean).join(' ') || (job.appliance_type || '—');
+      let timeStr = '—';
+      if (job.scheduled_start) {
+        try {
+          timeStr = new Date(job.scheduled_start).toLocaleTimeString('en-US', {
+            timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true
+          });
+        } catch (_) {}
+      }
+      renderHeader({ id: job.id || JOB_ID, customer: fullName, appliance: applShort, time: timeStr });
+    } catch (e) {
+      console.warn('loadJob failed', e);
+      renderHeader({ id: JOB_ID, customer: 'load failed', appliance: '—', time: '' });
+    }
+  }
+  function renderHeader({ id, customer, appliance, time }) {
+    ctxPills.innerHTML =
+      '<span class="ctx-pill cyan"><span class="label">JOB</span>#' + escapeHtml(String(id)) + '</span>' +
+      '<span class="ctx-pill"><span class="label">CUST</span>' + escapeHtml(customer) + '</span>' +
+      '<span class="ctx-pill"><span class="label">APPL</span>' + escapeHtml(appliance || '—') + '</span>' +
+      '<span class="ctx-pill"><span class="label">TIME</span>' + escapeHtml(time || '—') + '</span>';
+  }
+  function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  // ── Send text to brain ────────────────────────────────────────────
+  async function handleSend() {
+    const text = (composerInput.value || '').trim();
+    if (!text) return;
+    composerInput.value = '';
+    composerInput.style.height = 'auto';
+    await sendToBrain(text);
+  }
+  async function sendToBrain(text) {
+    addMsg('user', text);
+    showTyping();
+    try {
+      const r = await fetch(XANO_BASE + '/tech_assist_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: JOB_ID,
+          technician_id: TECH_ID,
+          user_message: text,
+          session_id: sessionId,
+          attachment_ids: []
+        })
+      });
+      const data = await r.json();
+      hideTyping();
+      if (data && data.success !== false) {
+        sessionId = data.session_id || sessionId;
+        const reply = data.reply || '';
+        if (reply) {
+          addMsg('assistant', reply);
+          speak(reply);
+        }
+      } else {
+        addMsg('assistant', 'I hit an error — try again in a sec.');
+      }
+    } catch (e) {
+      hideTyping();
+      addMsg('assistant', 'Network hiccup. Try again?');
+    }
+  }
+
+  // ── Voice input (MediaRecorder → Whisper) ─────────────────────────
+  const micBtn = document.querySelector('.composer-btn.mic');
+  micBtn.addEventListener('click', toggleRecording);
+  async function toggleRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      addMsg('assistant', 'Mic not available on this browser.');
+      return;
+    }
+    try {
+      mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      addMsg('assistant', 'Mic permission denied — enable in browser settings.');
+      return;
+    }
+    const candidates = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
+    let mime = '';
+    for (const c of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) {
+        mime = c; break;
+      }
+    }
+    try {
+      mediaRecorder = mime ? new MediaRecorder(mrStream, { mimeType: mime }) : new MediaRecorder(mrStream);
+    } catch (e) {
+      addMsg('assistant', 'Recording not supported on this device.');
+      mrStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+    mrChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
+    mediaRecorder.onstop = handleMicStop;
+    mediaRecorder.start();
+    micBtn.style.background = 'rgba(255,80,80,0.25)';
+    micBtn.style.borderColor = '#ff5050';
+    micBtn.style.boxShadow = '0 0 18px rgba(255,80,80,0.5)';
+    micBtn.textContent = '⏹';
+  }
+  async function handleMicStop() {
+    if (mrStream) mrStream.getTracks().forEach(t => t.stop());
+    mrStream = null;
+    micBtn.style.background = '';
+    micBtn.style.borderColor = '';
+    micBtn.style.boxShadow = '';
+    micBtn.textContent = '🎤';
+    const blob = new Blob(mrChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+    if (blob.size < 600) {
+      addMsg('assistant', 'Got nothing — try holding mic + speaking.');
+      return;
+    }
+    showTyping();
+    try {
+      const fd = new FormData();
+      fd.append('file', blob, 'voice.webm');
+      const r = await fetch('/.netlify/functions/whisper-transcribe', { method: 'POST', body: fd });
+      const data = await r.json();
+      hideTyping();
+      if (data && data.text) {
+        composerInput.value = data.text;
+        await sendToBrain(data.text);
+      } else {
+        addMsg('assistant', 'Voice not on yet — type instead.');
+      }
+    } catch (e) {
+      hideTyping();
+      addMsg('assistant', 'Voice transcription failed.');
+    }
+  }
+
+  // ── Photo capture ────────────────────────────────────────────────
+  const cameraBtn = document.querySelector('.composer-btn[title="Camera"]');
+  // Hidden file input for camera capture
+  const photoInput = document.createElement('input');
+  photoInput.type = 'file';
+  photoInput.accept = 'image/*,video/*';
+  photoInput.capture = 'environment';
+  photoInput.style.display = 'none';
+  document.body.appendChild(photoInput);
+  cameraBtn.addEventListener('click', () => photoInput.click());
+  photoInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    for (const f of files) {
+      await uploadMedia(f);
+    }
+    e.target.value = '';
+  });
+
+  async function uploadMedia(file) {
+    const isVideo = (file.type || '').startsWith('video/');
+    const subject = isVideo ? 'video' : 'photo';
+    addMsg('user', '📤 sending ' + subject + '…');
+    showTyping();
+    try {
+      // 1. generate upload url
+      const filename = file.name || (subject + '-' + Date.now() + (isVideo ? '.mp4' : '.jpg'));
+      const genRes = await fetch(XANO_BASE + '/generate_upload_url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: JOB_ID,
+          tech_id: TECH_ID,
+          attachment_type: subject,
+          file_type: isVideo ? 'video' : 'image',
+          original_filename: filename,
+          mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+          uploaded_by: 'tech'
+        })
+      });
+      const gen = await genRes.json();
+      if (!gen || !gen.s3_key || !gen.attachment_id) throw new Error('upload init failed');
+
+      // 2. s3 presign
+      const presRes = await fetch('/.netlify/functions/s3-presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_key: gen.s3_key, mime_type: file.type || 'image/jpeg' })
+      });
+      const pres = await presRes.json();
+      if (!pres || !pres.upload_url) throw new Error('presign failed');
+
+      // 3. PUT to S3
+      await fetch(pres.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
+        body: file
+      });
+
+      // 4. save attachment
+      await fetch(XANO_BASE + '/save_attachment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
+      });
+
+      hideTyping();
+      // Send a brief signal to brain — visual upload confirm is already in chat.
+      await sendToBrain(isVideo
+        ? "I just sent a video. Take a look and tell me what you see."
+        : "I just sent a photo. Take a look and tell me what you see."
+      );
+    } catch (err) {
+      hideTyping();
+      addMsg('assistant', 'Upload failed: ' + (err.message || 'unknown error'));
+    }
+  }
+
+  // ── Header action buttons ────────────────────────────────────────
+  btnNav.addEventListener('click', () => {
+    if (!jobContext) return;
+    const addr = jobContext.job && (jobContext.job.service_address || '') + ' ' + (jobContext.job.service_city || '');
+    if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
+    const q = encodeURIComponent(addr.trim());
+    window.open('https://maps.apple.com/?daddr=' + q, '_blank');
+  });
+  btnCall.addEventListener('click', () => {
+    if (!jobContext || !jobContext.customer || !jobContext.customer.phone) {
+      addMsg('assistant', 'No phone on file.'); return;
+    }
+    window.location.href = 'tel:' + jobContext.customer.phone;
+  });
+  btnOtw.addEventListener('click', async () => {
+    btnOtw.disabled = true;
+    try {
+      await fetch(XANO_BASE + '/tech_on_the_way', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
+      });
+      addMsg('assistant', 'On My Way logged. Customer notified.');
+      speak('On My Way logged.');
+    } catch (e) {
+      addMsg('assistant', 'Could not log OTW.');
+    } finally {
+      btnOtw.disabled = false;
+    }
+  });
+  btnStart.addEventListener('click', async () => {
+    btnStart.disabled = true;
+    try {
+      await fetch(XANO_BASE + '/tech_job_started', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
+      });
+      addMsg('assistant', 'Job started.');
+      speak('Job started.');
+    } catch (e) {
+      addMsg('assistant', 'Could not start job.');
+    } finally {
+      btnStart.disabled = false;
+    }
+  });
+
+  // ── Boot ──────────────────────────────────────────────────────────
+  loadJob();
+
 })();
 </script>
 
