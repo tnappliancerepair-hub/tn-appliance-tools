@@ -167,6 +167,25 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // WARRANTY_CONSOLIDATION_REVIEW — Sunday 4pm CT (4-6pm grace). Weekly
+  // digest SMS to Teddy listing all live overrides written by the
+  // aggregator over the past 7 days. He reviews + decides whether to
+  // roll into the JSON baseline via /warranty-learning.html.
+  {
+    const dayShort = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (dayShort === 'Sun' && hour >= 16 && hour < 18) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'WARRANTY_CONSOLIDATION_REVIEW',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      } catch (err) {
+        xano.logLocal('warranty_consolidation_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
   // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
   if (hour >= 7 && hour < 10) {

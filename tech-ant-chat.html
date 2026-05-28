@@ -817,13 +817,42 @@
     loadVoices();
     speechSynthesis.onvoiceschanged = loadVoices;
   }
-  function speak(text) {
-    if (isMuted || !text || !('speechSynthesis' in window)) return;
-    speechSynthesis.cancel();
+  // OpenAI TTS first (premium voice, consistent across devices). Falls
+  // back to browser SpeechSynthesis if the API call fails (or returns
+  // unavailable when OPENAI_API_KEY isn't set).
+  let __currentAudio = null;
+  async function speak(text) {
+    if (isMuted || !text) return;
+    // Cancel any in-flight playback so newer replies don't queue up.
+    if (__currentAudio) { try { __currentAudio.pause(); __currentAudio.src = ''; } catch (_) {} __currentAudio = null; }
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+    try {
+      const r = await fetch('/.netlify/functions/tts-speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 1800), voice: 'nova' }),
+      });
+      // If JSON came back, it means tts is unavailable / errored — fall back.
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        speakNative(text);
+        return;
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      __currentAudio = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); if (__currentAudio === audio) __currentAudio = null; };
+      audio.onerror = () => { URL.revokeObjectURL(url); speakNative(text); };
+      await audio.play().catch(() => speakNative(text));
+    } catch (e) {
+      speakNative(text);
+    }
+  }
+  function speakNative(text) {
+    if (!('speechSynthesis' in window)) return;
     const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 1.04;
-    utt.pitch = 1.0;
-    utt.volume = 1.0;
+    utt.rate = 1.04; utt.pitch = 1.0; utt.volume = 1.0;
     if (preferredVoice) utt.voice = preferredVoice;
     speechSynthesis.speak(utt);
   }
@@ -1036,8 +1065,14 @@
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
       return;
     }
-    // Path A — native (iOS Safari, Chrome). Free, no API key, on-device.
-    if (SR) {
+    // Path A — Whisper (premium accuracy, handles noisy fields). Default
+    // primary path now that OPENAI_API_KEY is configured. Falls back to
+    // native browser SR if MediaRecorder isn't available.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined') {
+      // Skip native and go straight to Whisper path below.
+    } else if (SR) {
+      // Path B — Native browser SR (instant live transcription, free,
+      // on-device). Used when MediaRecorder isn't supported.
       try {
         nativeRec = new SR();
         nativeRec.continuous = false;
@@ -1074,13 +1109,12 @@
         nativeRec.start();
         return;
       } catch (err) {
-        // Native path failed at construct — fall through to Whisper
-        console.warn('native speech failed', err);
+        console.warn('native speech failed, falling to whisper', err);
       }
     }
-    // Path B — MediaRecorder → Whisper (needs OPENAI_API_KEY in Netlify)
+    // Path C — MediaRecorder → Whisper (now the default when available)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      addMsg('assistant', 'Mic not available on this browser. Set OPENAI_API_KEY in Netlify to enable Whisper.');
+      addMsg('assistant', 'Mic not available on this browser.');
       return;
     }
     try {
