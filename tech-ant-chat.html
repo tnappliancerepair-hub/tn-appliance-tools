@@ -220,12 +220,15 @@
   /* ── 3. App shell ──────────────────────────────────────────────── */
   .app {
     position: relative;
-    height: 100dvh;
-    height: 100vh;
-    display: grid;
-    grid-template-rows: auto auto 1fr auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
     z-index: 1;
     padding-top: 26px;  /* room for HUD statusbar */
+    /* Reserve space at the bottom for the fixed composer so the chat
+       area never gets covered. 56px input + 16px padding + safe-area. */
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
 
   /* ── 3.5 Primary action bar — NAV + OTW + CALL + START JOB ── */
@@ -418,6 +421,7 @@
 
   /* ── 4. Chat area ──────────────────────────────────────────────── */
   .chat-stage {
+    flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -425,6 +429,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    position: relative;
   }
   .chat-stage::-webkit-scrollbar { width: 3px; }
   .chat-stage::-webkit-scrollbar-thumb { background: rgba(240,245,255,0.18); border-radius: 2px; }
@@ -432,35 +437,61 @@
   /* Empty state — sits centered in the chat area when there are no messages */
   .empty-state {
     margin: auto;
-    max-width: 320px;
+    max-width: 360px;
     text-align: center;
-    color: var(--text-dim);
-    padding: 30px 12px;
+    color: var(--text);
+    padding: 40px 16px;
     user-select: none;
+    position: relative;
+    z-index: 2;
   }
   .empty-state .glyph {
-    font-size: 36px;
-    margin-bottom: 12px;
-    opacity: 0.5;
+    font-size: 64px;
+    margin-bottom: 16px;
+    opacity: 0.95;
+    filter: drop-shadow(0 0 24px rgba(240,245,255,0.45));
     animation: float 4s ease-in-out infinite;
   }
   @keyframes float {
     0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-6px); }
+    50%      { transform: translateY(-10px); }
   }
   .empty-state .line1 {
     font-family: 'Orbitron', sans-serif;
-    font-size: 14px;
-    letter-spacing: 0.2em;
+    font-size: 16px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: rgba(240,245,255,0.7);
-    margin-bottom: 8px;
+    color: rgba(240,245,255,0.92);
+    margin-bottom: 14px;
+    text-shadow: 0 0 12px rgba(240,245,255,0.3);
   }
   .empty-state .line2 {
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.5;
+    font-size: 14px;
+    color: rgba(240,245,255,0.65);
+    line-height: 1.6;
+    margin-bottom: 24px;
   }
+  .empty-state .hint-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 12px;
+    color: rgba(240,245,255,0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-family: 'Orbitron', sans-serif;
+  }
+  .empty-state .hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(240,245,255,0.04);
+    border: 1px solid rgba(240,245,255,0.12);
+    border-radius: 999px;
+  }
+  .empty-state .hint .ico { font-size: 14px; }
 
   /* Message bubble (template — for later wiring) */
   .msg {
@@ -516,14 +547,19 @@
   }
 
   /* ── 5. Composer ──────────────────────────────────────────────── */
-  /* Composer goes edge-to-edge across the bottom — full bleed bar */
+  /* Composer pinned to the actual bottom of the visible viewport.
+     position: fixed dodges the iOS 100vh / dynamic-URL-bar issue
+     that was hiding the composer below the visible area. */
   .composer {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 20;
     padding: 0 0 env(safe-area-inset-bottom) 0;
-    border-top: 1px solid rgba(240,245,255,0.18);
-    background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.98) 100%);
+    border-top: 1px solid rgba(240,245,255,0.25);
+    background: linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,1) 100%);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
-    width: 100%;
+    width: 100vw;
     max-width: 100vw;
     box-sizing: border-box;
   }
@@ -545,26 +581,32 @@
     box-shadow: 0 0 0 3px var(--cyan-glow);
   }
   .composer-btn {
-    width: 38px; height: 38px;
+    width: 46px; height: 46px;
     flex-shrink: 0;
-    border-radius: 11px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    background: rgba(240,245,255,0.06);
+    border: 1px solid rgba(240,245,255,0.20);
     color: var(--text);
-    font-size: 16px;
+    font-size: 20px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     -webkit-appearance: none;
     transition: all 0.15s;
   }
-  .composer-btn:hover { border-color: var(--cyan-dim); }
+  .composer-btn:hover { border-color: rgba(240,245,255,0.50); background: rgba(240,245,255,0.10); }
   .composer-btn:active { transform: scale(0.94); }
-  .composer-btn.send {
-    background: linear-gradient(135deg, #4af5ff, #36cdff);
-    color: #03060c;
-    border-color: #4af5ff;
-    box-shadow: 0 0 16px rgba(240,245,255,0.4);
+  .composer-btn.mic {
+    background: rgba(240,245,255,0.10);
+    border-color: rgba(240,245,255,0.45);
+    box-shadow: 0 0 14px rgba(240,245,255,0.18);
   }
+  .composer-btn.send {
+    background: linear-gradient(135deg, #f5f7fa, #cfd4dd);
+    color: #000;
+    border-color: #f5f7fa;
+    box-shadow: 0 0 18px rgba(240,245,255,0.45);
+  }
+  .composer-btn.send:hover { box-shadow: 0 0 26px rgba(240,245,255,0.65); }
   .composer-input {
     flex: 1;
     min-width: 0;
@@ -654,6 +696,10 @@
       <div class="glyph">🐜</div>
       <div class="line1">ready when you are</div>
       <div class="line2">talk to me. snap a photo. ask anything.<br>i&rsquo;ve got the rest.</div>
+      <div class="hint-row">
+        <span class="hint"><span class="ico">🎤</span>tap to talk</span>
+        <span class="hint"><span class="ico">📷</span>snap photo</span>
+      </div>
     </div>
   </main>
 
@@ -661,7 +707,7 @@
   <footer class="composer">
     <div class="composer-inner">
       <button class="composer-btn" title="Camera" aria-label="Camera">📷</button>
-      <button class="composer-btn" title="Voice" aria-label="Voice">🎤</button>
+      <button class="composer-btn mic" title="Voice" aria-label="Voice">🎤</button>
       <textarea class="composer-input" id="composer-input"
         rows="1"
         placeholder="talk to ant..."
