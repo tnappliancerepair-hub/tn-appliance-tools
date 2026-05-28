@@ -7,8 +7,8 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 30,
-    "agents_to_build": 3,
+    "agents_live": 31,
+    "agents_to_build": 2,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -82,7 +82,7 @@
       "purpose": "Pre-dispatch diagnostic intelligence for every job. Makes decent techs perform like great ones.",
       "priority": "HIGH",
       "agents_total": 11,
-      "agents_live": 14,
+      "agents_live": 15,
       "agents": [
         {
           "id": "D001",
@@ -357,7 +357,7 @@
         {
           "id": "D015",
           "name": "Viking Brand Agent",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Brand specialist for Viking ranges + refrigerators. Pro-series-vs-D3 line differences, spark module quirks, sealed-burner failure patterns. High-end residential, cash customer.",
           "triggers": [
