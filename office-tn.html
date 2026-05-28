@@ -849,14 +849,14 @@ async function submitAuth() {
 }
 
 function init() {
-  dbg('init begin');
+  _dbg('init begin');
   try {
     renderSkeleton();
-    dbg('renderSkeleton done');
+    _dbg('renderSkeleton done');
     loadAll();
-    dbg('loadAll kicked');
+    _dbg('loadAll kicked');
   } catch (e) {
-    dbg('init threw', { msg: String(e && e.message) });
+    _dbg('init threw', { msg: String(e && e.message) });
     document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;background:#0e1118;color:#fff;min-height:100vh;"><h2>✓ Logged in — but page hit an error.</h2><p>Hard refresh (Cmd+Shift+R / on iPhone: hold the refresh button) or text Teddy 615-485-5795 with this error: ' + String(e && e.message || 'unknown') + '</p></div>';
   }
 }
@@ -866,11 +866,11 @@ document.getElementById('auth-input').addEventListener('keypress', (e) => {
 });
 
 if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
-  dbg('auth_skip_via_localStorage');
+  _dbg('auth_skip_via_localStorage');
   document.getElementById('auth-overlay').classList.add('hidden');
   init();
 } else {
-  dbg('auth_gate_shown');
+  _dbg('auth_gate_shown');
   document.getElementById('auth-input').focus();
 }
 </script>
