@@ -123,6 +123,27 @@ query get_tech_daily_dashboard verb=GET {
         }
       }
     }
+
+    // Personal block / day-off lookup so the dashboard can banner
+    // "HAS ALEC" / "vacation" / etc. above the day's jobs.
+    db.query tech_availability {
+      where  = $db.tech_availability.technician_id == $tech.id && $db.tech_availability.blocked_date == $resolved_date
+      return = {type: "list", paging: {page: 1, per_page: 5}}
+    } as $avail_rows
+
+    var $day_off_reason { value = "" }
+    var $day_off_active { value = false }
+
+    foreach ($avail_rows.items) {
+      each as $a {
+        conditional {
+          if (($a.full_day_off ?? false) == true) {
+            var.update $day_off_active { value = true }
+            var.update $day_off_reason { value = ($a.reason ?? "") }
+          }
+        }
+      }
+    }
   }
 
   response = {
@@ -134,6 +155,8 @@ query get_tech_daily_dashboard verb=GET {
     date_window_end_ms  : $day_end_utc
     job_count           : ($jobs_out|count)
     jobs                : $jobs_out
+    day_off_active      : $day_off_active
+    day_off_reason      : $day_off_reason
   }
 
   guid = "get-tech-daily-dashboard-v1"

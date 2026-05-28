@@ -95,12 +95,13 @@
   }
 
   .action-btn {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 44px;
     background: #1e2433;
     border: 1px solid #2a3040;
     color: #e8edf5;
-    padding: 0 10px;
+    padding: 0 6px;
     border-radius: 8px;
     font-size: 13px;
     font-weight: 600;
@@ -108,12 +109,20 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     font-family: inherit;
     transition: all 0.15s;
     -webkit-appearance: none;
     appearance: none;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Narrow phones — shrink slightly so 3-button rows always fit */
+  @media (max-width: 400px) {
+    .action-btn { font-size: 12px; padding: 0 4px; gap: 2px; }
+    .action-row { gap: 4px; }
+    .action-bar { padding: 8px; }
   }
   .action-btn:active { transform: scale(0.97); }
   .action-btn:hover:not(:disabled) { background: #2a3040; border-color: #4a9eff; }
