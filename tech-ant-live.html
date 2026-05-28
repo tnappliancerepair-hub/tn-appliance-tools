@@ -394,33 +394,33 @@
      the form grew tall enough to push the input-wrap (mic + camera + send)
      off the bottom of the viewport on smaller phones — and body's
      overflow:hidden meant techs couldn't scroll to reach them. */
+  /* TDR form lives as a slide-up modal sheet — invisible until user taps
+     the "📝 TDR" button in the input row. Chat takes the entire middle of
+     the screen. Mirrors the public website chat pattern. */
   .tdr-form {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    z-index: 9500;
     background: #161b26;
-    border: 1px solid #2a3040;
-    border-radius: 10px;
-    margin: 12px;
-    padding: 14px 14px 10px;
-    max-height: 32vh;
+    border-top: 1px solid #2a3040;
+    border-radius: 16px 16px 0 0;
+    padding: 18px 16px max(20px, env(safe-area-inset-bottom));
+    max-height: 80vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    transform: translateY(100%);
+    transition: transform 0.25s ease;
+    box-shadow: 0 -8px 24px rgba(0,0,0,0.5);
   }
-  /* Collapsed default — only the header shows, chat takes the room */
-  .tdr-form.collapsed {
-    max-height: none;
-    padding: 10px 14px;
-    overflow: hidden;
+  .tdr-form.open { transform: translateY(0); }
+  .tdr-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9400;
+    display: none;
   }
-  .tdr-form.collapsed .tdr-field,
-  .tdr-form.collapsed .tdr-save-row { display: none; }
-  .tdr-form .tdr-form-head { cursor: pointer; user-select: none; }
-  .tdr-form .tdr-form-head::after {
-    content: '▾';
-    color: #8a93aa;
-    font-size: 13px;
-    margin-left: 8px;
-    transition: transform 0.15s;
-  }
-  .tdr-form.collapsed .tdr-form-head::after { transform: rotate(-90deg); display: inline-block; }
+  .tdr-backdrop.open { display: block; }
   .tdr-form.highlight {
     border-color: #f6cf45;
     box-shadow: 0 0 0 3px rgba(246, 207, 69, 0.18);
@@ -436,12 +436,12 @@
     background: rgba(255,107,107,0.12);
     border: 1px solid rgba(255,107,107,0.4);
     color: #ff6b6b;
-    width: 28px; height: 28px;
+    width: 32px; height: 32px;
     border-radius: 50%;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     cursor: pointer;
-    display: none;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0;
@@ -449,9 +449,6 @@
     flex-shrink: 0;
   }
   .tdr-close-btn:active { transform: scale(0.92); }
-  .tdr-form:not(.collapsed) .tdr-close-btn { display: inline-flex; }
-  /* Hide the chevron when X is showing (would be redundant) */
-  .tdr-form:not(.collapsed) .tdr-form-head::after { display: none; }
   .tdr-form .tdr-form-title {
     font-family: 'Bebas Neue', sans-serif;
     letter-spacing: 0.06em;
@@ -586,6 +583,8 @@
   .btn-camera:hover:not(:disabled) { background: #3a4050; }
   .btn-plus { background: #2a3040; color: #e8edf5; font-size: 22px; }
   .btn-plus:hover:not(:disabled) { background: #3a4050; }
+  .btn-tdr { background: #2a3040; color: #f6cf45; font-size: 16px; }
+  .btn-tdr:hover:not(:disabled) { background: #3a4050; }
   .btn-send { background: #4a9eff; color: white; }
   .btn-send:hover:not(:disabled) { background: #3a8eef; }
   .btn-mic { background: #1e2433; color: #8a93aa; border: 1px solid #2a3040; }
@@ -695,12 +694,13 @@
   </div>
 </div>
 
-<!-- TDR form - urgent fix 2026-05-26. Visible + fillable directly in-page. -->
+<!-- TDR form lives as a slide-up modal sheet (2026-05-28 redesign per Teddy). -->
+<div class="tdr-backdrop" id="tdr-backdrop" onclick="closeTdrSheet()"></div>
 <div class="tdr-form" id="tdr-form" style="display:none">
   <div class="tdr-form-head">
     <span class="tdr-form-title">TDR — Tech Decision Report</span>
     <span class="tdr-form-status" id="tdr-form-status">0 / 4 fields</span>
-    <button class="tdr-close-btn" type="button" aria-label="Close TDR form" onclick="event.stopPropagation(); document.getElementById('tdr-form').classList.add('collapsed');">✕</button>
+    <button class="tdr-close-btn" type="button" aria-label="Close TDR form" onclick="closeTdrSheet()">✕</button>
   </div>
   <div class="tdr-field" id="tdr-field-diagnosis">
     <label for="tdr-diagnosis">Diagnosis <span class="req">*</span></label>
@@ -747,6 +747,7 @@
   <div class="input-row">
     <button class="btn btn-camera" onclick="document.getElementById('file-input-photos').click()" title="Upload photos">📷</button>
     <button class="btn btn-mic" id="btn-mic" onclick="toggleRecording()" title="Voice input">🎤</button>
+    <button class="btn btn-tdr" onclick="openTdrSheet()" title="Open TDR form">📝</button>
     <button class="btn btn-plus" onclick="toggleQuickActions()" title="More: video, model tag, parts, similar">＋</button>
     <textarea id="input-msg" placeholder="Talk to Ant — type or tap 🎤" rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
     <button class="btn btn-send" onclick="sendMessage()">↑</button>
@@ -1932,17 +1933,28 @@ function showTdrGateError(missingLabels) {
 // ── Inline TDR form (urgent field fix 2026-05-26) ──
 let inlineTdrJustSaved = false;
 
+function openTdrSheet() {
+  const form = document.getElementById('tdr-form');
+  const bd = document.getElementById('tdr-backdrop');
+  if (!form) return;
+  form.style.display = 'block';
+  // Trigger transform after display flip so the slide animates
+  requestAnimationFrame(() => {
+    form.classList.add('open');
+    if (bd) bd.classList.add('open');
+  });
+}
+function closeTdrSheet() {
+  const form = document.getElementById('tdr-form');
+  const bd = document.getElementById('tdr-backdrop');
+  if (form) form.classList.remove('open');
+  if (bd) bd.classList.remove('open');
+}
+
 function initInlineTdrForm(allTdrs) {
   const form = document.getElementById('tdr-form');
   if (!form) return;
-  form.style.display = 'block';
-  // Default to collapsed so the chat dominates; tap the header to expand.
-  form.classList.add('collapsed');
-  const head = form.querySelector('.tdr-form-head');
-  if (head && !head.__toggleWired) {
-    head.__toggleWired = true;
-    head.addEventListener('click', () => form.classList.toggle('collapsed'));
-  }
+  // Sheet starts hidden — opens via the "📝 TDR" button next to the input.
   // Pre-fill from the most recent tech-authored TDR (skip Teddy's tech_id=1).
   const techTdrs = (allTdrs || []).filter((t) => t && t.technician_id && t.technician_id != 1);
   const latest = techTdrs.length ? techTdrs[techTdrs.length - 1] : null;
