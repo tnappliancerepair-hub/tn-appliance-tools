@@ -57,7 +57,26 @@
   .week-range {
     font-family: var(--mono); font-size: 12px;
     color: var(--muted); padding: 0 6px;
-    flex-grow: 0;
+    flex-grow: 1;
+  }
+
+  /* View toggle */
+  .view-toggle {
+    display: inline-flex; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 2px; gap: 2px;
+  }
+  .view-btn {
+    background: transparent; border: none; color: var(--muted);
+    padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
+    border-radius: 6px; letter-spacing: 0.04em;
+  }
+  .view-btn.active { background: #f5a623; color: #1a1100; }
+
+  /* Month header (separator between weeks in month view) */
+  .month-week-sep {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--muted); padding: 8px 4px 4px;
+    letter-spacing: 0.1em; text-transform: uppercase;
   }
 
   /* Tech filter row */
@@ -184,11 +203,15 @@
   <div class="topbar">
     <div class="row1">
       <span class="title"><span class="ant">📅</span>Schedule</span>
-      <button class="nav-btn" id="prevWeek" title="Previous week">‹</button>
+      <button class="nav-btn" id="prevWeek" title="Previous">‹</button>
       <button class="nav-btn today-btn" id="todayBtn">Today</button>
-      <button class="nav-btn" id="nextWeek" title="Next week">›</button>
+      <button class="nav-btn" id="nextWeek" title="Next">›</button>
     </div>
     <div class="row1" style="margin-bottom: 6px;">
+      <div class="view-toggle">
+        <button class="view-btn active" id="viewWeekBtn" data-view="week">Week</button>
+        <button class="view-btn" id="viewMonthBtn" data-view="month">Month</button>
+      </div>
       <span class="week-range" id="weekRange">—</span>
     </div>
     <div class="filter-row" id="techFilters">
@@ -229,11 +252,12 @@
   const FALLBACK_COLOR = { fg: '#8a93aa', bg: 'rgba(138,147,170,0.15)' };
   function techColor(tid) { return TECH_COLORS[tid] || FALLBACK_COLOR; }
 
-  // URL params
+  // URL params + view mode
   const params = new URLSearchParams(window.location.search);
   let currentWeekStart = params.get('week') || null;
   let serverTodayCT = null;
   let lastData = null;
+  let currentView = params.get('view') === 'month' ? 'month' : (localStorage.getItem('office_schedule_view_v1') === 'month' ? 'month' : 'week');
   let hiddenTechIds = new Set();
   try {
     const raw = localStorage.getItem(HIDDEN_TECHS_KEY);
@@ -250,6 +274,15 @@
   const app = $('app'), loading = $('loading'), content = $('content');
   const weekRange = $('weekRange'), prevWeek = $('prevWeek'), nextWeek = $('nextWeek'), todayBtn = $('todayBtn');
   const techFilters = $('techFilters');
+  const viewWeekBtn = $('viewWeekBtn'), viewMonthBtn = $('viewMonthBtn');
+
+  function syncViewButtons() {
+    viewWeekBtn.classList.toggle('active',  currentView === 'week');
+    viewMonthBtn.classList.toggle('active', currentView === 'month');
+  }
+  syncViewButtons();
+  viewWeekBtn.addEventListener('click',  () => { if (currentView === 'week') return;  currentView = 'week';  localStorage.setItem('office_schedule_view_v1','week');  syncViewButtons(); loadRange(); });
+  viewMonthBtn.addEventListener('click', () => { if (currentView === 'month') return; currentView = 'month'; localStorage.setItem('office_schedule_view_v1','month'); syncViewButtons(); loadRange(); });
 
   // Auth helper
   async function __verifyOfficePassword(pw) {
@@ -268,7 +301,7 @@
   function unlock() {
     authGate.classList.remove('show');
     app.style.display = 'block';
-    loadWeek();
+    loadRange();
   }
   function tryUnlock() {
     if (localStorage.getItem(OFFICE_AUTH_KEY) === 'ok') unlock();
@@ -300,23 +333,45 @@
     dt.setUTCDate(dt.getUTCDate() + days);
     return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth()+1).padStart(2,'0') + '-' + String(dt.getUTCDate()).padStart(2,'0');
   }
-  prevWeek.addEventListener('click', () => { if (!lastData) return; currentWeekStart = offsetWeek(lastData.week_start_ct, -7); loadWeek(); });
-  nextWeek.addEventListener('click', () => { if (!lastData) return; currentWeekStart = offsetWeek(lastData.week_start_ct,  7); loadWeek(); });
-  todayBtn.addEventListener('click',  () => { currentWeekStart = null; loadWeek(); });
+  prevWeek.addEventListener('click', () => { if (!lastData) return; currentWeekStart = offsetWeek(lastData.week_start_ct, currentView === 'month' ? -28 : -7); loadRange(); });
+  nextWeek.addEventListener('click', () => { if (!lastData) return; currentWeekStart = offsetWeek(lastData.week_start_ct, currentView === 'month' ?  28 :  7); loadRange(); });
+  todayBtn.addEventListener('click',  () => { currentWeekStart = null; loadRange(); });
 
-  async function loadWeek() {
+  async function fetchWeek(weekStart) {
+    let url = XANO_BASE + '/get_office_calendar_week';
+    if (weekStart) url += '?week_start=' + encodeURIComponent(weekStart);
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d || d.success !== true) throw new Error(d && d.error ? d.error : 'failed to load');
+    return d;
+  }
+
+  async function loadRange() {
     loading.style.display = 'block';
     content.innerHTML = '';
-    let url = XANO_BASE + '/get_office_calendar_week';
-    if (currentWeekStart) url += '?week_start=' + encodeURIComponent(currentWeekStart);
     try {
-      const r = await fetch(url);
-      const d = await r.json();
-      if (!d || d.success !== true) { showError(d && d.error ? d.error : 'failed to load'); return; }
-      lastData = d;
-      serverTodayCT = d.today_ct;
-      currentWeekStart = d.week_start_ct;
-      render(d);
+      const first = await fetchWeek(currentWeekStart);
+      serverTodayCT = first.today_ct;
+      currentWeekStart = first.week_start_ct;
+      if (currentView === 'week') {
+        lastData = first;
+        render(first);
+      } else {
+        // Month view: fetch 4 weeks total (anchor + 3 forward). Parallel.
+        const starts = [];
+        for (let i = 1; i <= 3; i++) starts.push(offsetWeek(first.week_start_ct, i * 7));
+        const rest = await Promise.all(starts.map(fetchWeek));
+        const combined = {
+          success: true,
+          today_ct: first.today_ct,
+          week_start_ct: first.week_start_ct,
+          week_end_ct: rest[2].week_end_ct,
+          technicians: first.technicians,
+          jobs: [].concat(first.jobs || [], ...rest.map(r => r.jobs || [])),
+        };
+        lastData = combined;
+        render(combined);
+      }
     } catch (e) {
       console.error(e); showError('network error: ' + e.message);
     } finally {
@@ -373,7 +428,12 @@
   }
 
   function render(d) {
-    weekRange.textContent = fmtRange(d.week_start_ct, d.week_end_ct);
+    if (currentView === 'month') {
+      const [Y1,M1] = d.week_start_ct.split('-').map(Number);
+      weekRange.textContent = MONTHS[M1-1] + ' ' + d.week_start_ct.slice(8,10) + ' – ' + fmtRange(d.week_start_ct, d.week_end_ct).split(' – ')[1];
+    } else {
+      weekRange.textContent = fmtRange(d.week_start_ct, d.week_end_ct);
+    }
     renderTechFilters(d.technicians);
     renderDays(d);
   }
@@ -449,19 +509,26 @@
       byDay[k].push(j);
     });
 
-    // Build 7-day window from week_start_ct
+    // Build window from week_start_ct (7 days in week mode, 28 in month mode)
     const days = [];
     const [Y,M,D] = data.week_start_ct.split('-').map(Number);
-    for (let i = 0; i < 7; i++) {
+    const len = currentView === 'month' ? 28 : 7;
+    for (let i = 0; i < len; i++) {
       const dt = new Date(Date.UTC(Y, M-1, D + i));
       const y = dt.getUTCFullYear();
       const m = String(dt.getUTCMonth()+1).padStart(2,'0');
       const d = String(dt.getUTCDate()).padStart(2,'0');
       const key = y + '-' + m + '-' + d;
-      days.push({ key, dt });
+      days.push({ key, dt, weekIdx: Math.floor(i/7) });
     }
 
-    const html = days.map(({ key, dt }) => {
+    let lastWeekIdx = -1;
+    const html = days.map(({ key, dt, weekIdx }) => {
+      let sep = '';
+      if (currentView === 'month' && weekIdx !== lastWeekIdx) {
+        lastWeekIdx = weekIdx;
+        sep = '<div class="month-week-sep">— week of ' + MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate() + ' —</div>';
+      }
       const dow = DOW[dt.getUTCDay()];
       const dateStr = MONTHS[dt.getUTCMonth()] + ' ' + dt.getUTCDate();
       const isToday = (key === serverTodayCT);
@@ -471,7 +538,7 @@
       const body = count === 0
         ? '<div class="empty-day">no jobs scheduled</div>'
         : '<div class="jobs-list">' + list.map(renderJob).join('') + '</div>';
-      return '<div class="day' + (isToday ? ' today' : '') + '">'
+      return sep + '<div class="day' + (isToday ? ' today' : '') + '">'
            +   '<div class="day-header">'
            +     '<span class="dow">' + headTxt + '</span>'
            +     '<span class="date">' + dateStr + '</span>'
