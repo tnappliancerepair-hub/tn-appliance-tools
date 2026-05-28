@@ -999,13 +999,17 @@ function composeAntGreeting() {
     }
   }
 
-  const opener = `Hey ${techName}, you're at ${custDisplay}'s place.`;
-  const what = applPhrase ? ` ${brand ? brand : ''} ${type ? type : ''}`.trim() + (problem ? ` — ${problem}.` : '.') : (problem ? ` Issue: ${problem}` : '');
-  const guidance = teddyBlock
-    ? `${teddyBlock}\n\nText me your findings as you check. Need a part number? Tap "🔧 Parts" below. Done with the job? Tap "✨ Auto-fill from chat" and the TDR fills itself — review + save.`
-    : `\n\nNo pre-diagnosis yet. Walk me through what you see and I'll help narrow it down. Need a part number? Tap "🔧 Parts" below. Done with the job? Tap "✨ Auto-fill from chat" and the TDR fills itself — review + save.`;
-
-  return `${opener}${what ? ' ' + what : ''}${guidance}`;
+  // Tight one-liner only — Teddy: "the suggestion is blocking everything and
+  // really could be eliminated and just be given in the ant conversation."
+  // Keep it short so the chat starts mostly empty and the tech drives.
+  const applShort = applPhrase || 'appliance';
+  let teddyHint = '';
+  if (teddyTdr) {
+    const dx = String(teddyTdr.diagnosis || '').trim();
+    if (dx) teddyHint = ` Teddy thinks: ${dx.split(/[.!?\n]/)[0].slice(0, 90)}.`;
+  }
+  const problemHint = problem ? ` (${problem.slice(0, 60)})` : '';
+  return `Hey ${techName} — ${custDisplay}, ${applShort}${problemHint}.${teddyHint} What are you seeing?`;
 }
 
 function showError(title, msg) {
