@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Ant — Field</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: #03060c;
+    color: #e8edf5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :root {
+    --bg-0: #03060c;
+    --bg-1: #060a14;
+    --bg-2: #0a1020;
+    --cyan: #4af5ff;
+    --cyan-dim: rgba(74,245,255,0.5);
+    --cyan-glow: rgba(74,245,255,0.18);
+    --chrome-1: #ffffff;
+    --chrome-2: #d8dde6;
+    --chrome-3: #6f7585;
+    --chrome-4: #2a2f3a;
+    --text: #e8edf5;
+    --text-dim: #8a93aa;
+    --line: rgba(255,255,255,0.06);
+  }
+
+  /* ── 1. Background canvas: deep space + faint grid + radial glow ───── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 30%, rgba(74,245,255,0.10), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 50% 100%, rgba(180,140,255,0.06), transparent 60%),
+      linear-gradient(180deg, #03060c 0%, #060a14 50%, #03060c 100%);
+    z-index: -3;
+  }
+  /* Faint grid pattern */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    z-index: -2;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
+  }
+
+  /* ── 2. Hero backdrop: massive chrome ANT text + ant silhouette ───── */
+  .hero-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .hero-ant-text {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    font-size: min(58vw, 540px);
+    line-height: 1;
+    background: linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #d8dde6 28%,
+      #6f7585 52%,
+      #2a2f3a 64%,
+      #6f7585 78%,
+      #d8dde6 92%,
+      #ffffff 100%
+    );
+    background-size: 100% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    opacity: 0.18;
+    filter: drop-shadow(0 0 30px rgba(74,245,255,0.10));
+    text-shadow: 0 0 60px rgba(0,0,0,0.6);
+    user-select: none;
+    transform: translateY(-2vh);
+    animation: chromeSheen 12s ease-in-out infinite;
+  }
+  @keyframes chromeSheen {
+    0%, 100% { filter: drop-shadow(0 0 30px rgba(74,245,255,0.10)); }
+    50%      { filter: drop-shadow(0 0 50px rgba(74,245,255,0.22)); }
+  }
+
+  /* SVG chrome ant silhouette — sits behind the ANT text */
+  .hero-ant-svg {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: min(72vw, 700px);
+    height: auto;
+    opacity: 0.08;
+    transform: translateY(8vh) rotate(-6deg);
+  }
+
+  /* ── 3. App shell ──────────────────────────────────────────────── */
+  .app {
+    position: relative;
+    height: 100dvh;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    z-index: 1;
+  }
+
+  /* Header */
+  .topbar {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(3,6,12,0.92) 0%, rgba(3,6,12,0.72) 100%);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+  }
+  .topbar-row1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .ant-mark {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1a1f2c, #0a1020);
+    border: 1px solid rgba(74,245,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 0 12px rgba(74,245,255,0.22);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .ant-mark::before {
+    content: '🐜';
+    font-size: 20px;
+    filter: drop-shadow(0 0 4px rgba(74,245,255,0.6));
+  }
+  .ant-mark::after {
+    content: '';
+    position: absolute; inset: -2px;
+    border-radius: 12px;
+    border: 1px solid rgba(74,245,255,0.18);
+    animation: pulseRing 2.8s ease-in-out infinite;
+  }
+  @keyframes pulseRing {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50%      { opacity: 0.8; transform: scale(1.06); }
+  }
+  .topbar-title-block { flex: 1; min-width: 0; }
+  .topbar-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.12em;
+    background: linear-gradient(180deg, #ffffff 0%, #d8dde6 50%, #8a93aa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .topbar-tagline {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 2px;
+    font-family: 'Inter', monospace;
+  }
+  .topbar-tagline .cyan { color: var(--cyan); }
+  .topbar-row2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar-row2::-webkit-scrollbar { display: none; }
+  .ctx-pill {
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .ctx-pill.cyan {
+    border-color: rgba(74,245,255,0.30);
+    color: var(--cyan);
+    background: rgba(74,245,255,0.06);
+  }
+  .ctx-pill .label {
+    color: rgba(138,147,170,0.7);
+    margin-right: 4px;
+    font-weight: 500;
+  }
+
+  /* Quick action chips inside header */
+  .topbar-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  .topbar-action {
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(255,255,255,0.04);
+    color: var(--text);
+    font-size: 15px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-appearance: none;
+    transition: all 0.15s;
+  }
+  .topbar-action:hover { border-color: var(--cyan-dim); background: rgba(74,245,255,0.08); }
+  .topbar-action:active { transform: scale(0.94); }
+
+  /* ── 4. Chat area ──────────────────────────────────────────────── */
+  .chat-stage {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 18px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .chat-stage::-webkit-scrollbar { width: 3px; }
+  .chat-stage::-webkit-scrollbar-thumb { background: rgba(74,245,255,0.18); border-radius: 2px; }
+
+  /* Empty state — sits centered in the chat area when there are no messages */
+  .empty-state {
+    margin: auto;
+    max-width: 320px;
+    text-align: center;
+    color: var(--text-dim);
+    padding: 30px 12px;
+    user-select: none;
+  }
+  .empty-state .glyph {
+    font-size: 36px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+  .empty-state .line1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(74,245,255,0.7);
+    margin-bottom: 8px;
+  }
+  .empty-state .line2 {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* Message bubble (template — for later wiring) */
+  .msg {
+    display: flex;
+    gap: 10px;
+    animation: msgIn 0.3s ease forwards;
+    max-width: 92%;
+  }
+  .msg.ant { align-self: flex-start; }
+  .msg.you { align-self: flex-end; flex-direction: row-reverse; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .msg-av {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    margin-top: 2px;
+  }
+  .msg.ant .msg-av {
+    background: linear-gradient(135deg, rgba(74,245,255,0.16), rgba(74,245,255,0.06));
+    border: 1px solid rgba(74,245,255,0.35);
+  }
+  .msg.you .msg-av {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+
+  .msg-bubble {
+    padding: 12px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.55;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+  .msg.ant .msg-bubble {
+    background: linear-gradient(180deg, rgba(20,28,46,0.94), rgba(14,20,34,0.94));
+    border: 1px solid rgba(74,245,255,0.18);
+    border-top-left-radius: 4px;
+    color: var(--text);
+    box-shadow: 0 2px 12px rgba(74,245,255,0.06);
+  }
+  .msg.you .msg-bubble {
+    background: linear-gradient(180deg, rgba(74,245,255,0.92), rgba(54,205,255,0.92));
+    border-top-right-radius: 4px;
+    color: #03060c;
+    font-weight: 500;
+  }
+
+  /* ── 5. Composer ──────────────────────────────────────────────── */
+  .composer {
+    padding: 10px 12px max(14px, env(safe-area-inset-bottom)) 12px;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(3,6,12,0.7) 0%, rgba(3,6,12,0.95) 100%);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+  }
+  .composer-inner {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: rgba(10,16,32,0.7);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 16px;
+    padding: 6px 6px 6px 6px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .composer-inner:focus-within {
+    border-color: var(--cyan-dim);
+    box-shadow: 0 0 0 3px var(--cyan-glow);
+  }
+  .composer-btn {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-appearance: none;
+    transition: all 0.15s;
+  }
+  .composer-btn:hover { border-color: var(--cyan-dim); }
+  .composer-btn:active { transform: scale(0.94); }
+  .composer-btn.send {
+    background: linear-gradient(135deg, #4af5ff, #36cdff);
+    color: #03060c;
+    border-color: #4af5ff;
+    box-shadow: 0 0 16px rgba(74,245,255,0.4);
+  }
+  .composer-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    padding: 9px 10px;
+    resize: none;
+    max-height: 120px;
+    min-height: 40px;
+  }
+  .composer-input::placeholder { color: rgba(138,147,170,0.5); }
+
+  /* Reduced-motion respect */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-ant-text, .ant-mark::after, .empty-state .glyph { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero backdrop: chrome ANT block letters + ant silhouette behind everything -->
+<div class="hero-backdrop" aria-hidden="true">
+  <svg class="hero-ant-svg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="chromeAntFill" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%"  stop-color="#ffffff"/>
+        <stop offset="30%" stop-color="#d8dde6"/>
+        <stop offset="55%" stop-color="#6f7585"/>
+        <stop offset="70%" stop-color="#2a2f3a"/>
+        <stop offset="100%" stop-color="#8a93aa"/>
+      </linearGradient>
+    </defs>
+    <!-- Stylized ant silhouette: head, thorax, abdomen, six legs, antennae -->
+    <g fill="url(#chromeAntFill)" stroke="rgba(74,245,255,0.3)" stroke-width="1.5">
+      <!-- Head -->
+      <ellipse cx="180" cy="200" rx="55" ry="48"/>
+      <!-- Antennae -->
+      <path d="M 145 165 Q 110 130 90 100" stroke="url(#chromeAntFill)" stroke-width="4" fill="none"/>
+      <path d="M 215 165 Q 220 125 240 90" stroke="url(#chromeAntFill)" stroke-width="4" fill="none"/>
+      <circle cx="90" cy="100" r="6"/>
+      <circle cx="240" cy="90" r="6"/>
+      <!-- Thorax -->
+      <ellipse cx="290" cy="200" rx="50" ry="42"/>
+      <!-- Abdomen -->
+      <ellipse cx="420" cy="200" rx="90" ry="65"/>
+      <!-- Legs (six) -->
+      <path d="M 260 220 L 230 300 L 210 320" stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+      <path d="M 290 230 L 290 320 L 280 340" stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+      <path d="M 320 220 L 350 300 L 370 320" stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+      <path d="M 270 175 L 240 100 L 220 80"  stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+      <path d="M 290 170 L 290 80 L 295 60"  stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+      <path d="M 315 175 L 345 100 L 365 80"  stroke="url(#chromeAntFill)" stroke-width="5" fill="none"/>
+    </g>
+  </svg>
+  <div class="hero-ant-text">ANT</div>
+</div>
+
+<!-- App shell -->
+<div class="app">
+
+  <!-- Header -->
+  <header class="topbar">
+    <div class="topbar-row1">
+      <div class="ant-mark" aria-hidden="true"></div>
+      <div class="topbar-title-block">
+        <div class="topbar-title">ANT</div>
+        <div class="topbar-tagline">the <span class="cyan">most powerful</span> appliance AI alive</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="topbar-action" title="Navigate" aria-label="Navigate">📍</button>
+        <button class="topbar-action" title="Call customer" aria-label="Call customer">📞</button>
+        <button class="topbar-action" title="Job details" aria-label="Job details">ⓘ</button>
+      </div>
+    </div>
+    <div class="topbar-row2" id="ctx-pills">
+      <span class="ctx-pill cyan"><span class="label">JOB</span>#18270</span>
+      <span class="ctx-pill"><span class="label">CUST</span>Shenouda Kaleeny</span>
+      <span class="ctx-pill"><span class="label">APPL</span>—</span>
+      <span class="ctx-pill"><span class="label">TIME</span>11:00 AM</span>
+    </div>
+  </header>
+
+  <!-- Chat stage -->
+  <main class="chat-stage" id="chat-stage">
+    <div class="empty-state" id="empty-state">
+      <div class="glyph">🐜</div>
+      <div class="line1">ant is listening</div>
+      <div class="line2">tell me what you're seeing, or tap 🎤 and talk.<br>i'll handle the rest.</div>
+    </div>
+  </main>
+
+  <!-- Composer -->
+  <footer class="composer">
+    <div class="composer-inner">
+      <button class="composer-btn" title="Camera" aria-label="Camera">📷</button>
+      <button class="composer-btn" title="Voice" aria-label="Voice">🎤</button>
+      <textarea class="composer-input" id="composer-input"
+        rows="1"
+        placeholder="talk to ant..."
+        aria-label="Talk to Ant"></textarea>
+      <button class="composer-btn send" title="Send" aria-label="Send">↑</button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// SHELL ONLY — no backend wiring yet. Visual frame for review.
+// All buttons are inert except the textarea auto-grow.
+(function () {
+  'use strict';
+  const ta = document.getElementById('composer-input');
+  if (ta) {
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
