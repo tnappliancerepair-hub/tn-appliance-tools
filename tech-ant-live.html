@@ -509,6 +509,8 @@
     gap: 8px;
     margin-top: 14px;
   }
+  /* Collapse hides the save row too (inline display:flex removed from HTML). */
+  .tdr-form.collapsed .tdr-save-row { display: none !important; }
   .tdr-save-btn {
     flex: 1;
     padding: 14px;
@@ -721,7 +723,7 @@
       <option value="partial">Partial — temporary fix</option>
     </select>
   </div>
-  <div class="tdr-save-row" style="display:flex;gap:8px">
+  <div class="tdr-save-row">
     <button class="tdr-save-btn" id="tdr-autofill-btn" onclick="autoFillTdrFromChat()" style="flex:1;background:rgba(90,169,255,0.15);border:1px solid rgba(90,169,255,0.4);color:#5aa9ff">✨ Auto-fill from chat</button>
     <button class="tdr-save-btn" id="tdr-save-btn" onclick="saveTdrInline()" disabled style="flex:1">Save TDR</button>
   </div>
@@ -925,9 +927,15 @@ async function preloadHistory() {
       // tech types first, Ant responds in flow.
       return;
     }
+    // Filter old auto-greetings from cached session history.
+    // 2026-05-28: per Teddy, the upfront "hey teddy - on the appliance at
+    // the X house..." opening is gone. Any previously-saved greeting that
+    // matches the old pattern is dropped on load so it doesn't reappear.
+    const OLD_GREETING_PAT = /^(🐜\s*)?hey\s+\w+\s*[-—]\s+on\s+the/i;
     for (const m of msgs) {
       if (!m || !m.role) continue;
       const c = (typeof m.content === 'string') ? m.content : JSON.stringify(m.content || '');
+      if (m.role === 'assistant' && OLD_GREETING_PAT.test(c.trim())) continue;
       addMessage(m.role, c);
     }
   } catch (e) {
