@@ -26,26 +26,60 @@ exports.handler = async function (event) {
     if (!message) {
       return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: "Missing message" }) };
     }
-    const controller = new AbortController();
-    const timer = setTimeout(function() { controller.abort(); }, 27000);
-    const requestBody = { message: message, session_id: session_id, source: source, channel: "web" };
-    if (conversation_id) requestBody.conversation_id = conversation_id;
-    if (customer_id) requestBody.customer_id = customer_id;
-    const xanoRes = await fetch(
-      "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/chat/reply2",
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: controller.signal }
-    );
-    clearTimeout(timer);
-    if (!xanoRes.ok) {
-      const errText = await xanoRes.text();
-      console.error("Xano error:", xanoRes.status, errText);
-      return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: "Hey — Ant is having a moment. Try again or call 615-280-2949." }) };
+    // 2026-05-28: TWO-PATH dispatch with safe fallback.
+    // 1. Try website-ant-brain (Claude with tools — same pattern as
+    //    tech/office/customer Ants). Conversation memory comes from
+    //    the client-supplied `history` array.
+    // 2. If brain fails (timeout, missing key, etc.), fall back to the
+    //    legacy XS chat/reply2 endpoint so the website chat never goes
+    //    dark during the transition window.
+    const history = Array.isArray(body.history) ? body.history : [];
+
+    // ── PATH 1: new tool-calling brain ─────────────────────────
+    let reply = null;
+    let brainOk = false;
+    try {
+      const brainCtrl = new AbortController();
+      const brainTimer = setTimeout(function() { brainCtrl.abort(); }, 26000);
+      const brainRes = await fetch(
+        (process.env.URL || "https://tnapplianceexchange.net") + "/.netlify/functions/website-ant-brain",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: message, history: history }), signal: brainCtrl.signal }
+      );
+      clearTimeout(brainTimer);
+      if (brainRes.ok) {
+        const brainData = await brainRes.json();
+        if (brainData && brainData.ok && brainData.reply) {
+          reply = brainData.reply;
+          brainOk = true;
+        }
+      }
+    } catch (brainErr) {
+      console.warn("[agent-chat-proxy] brain path failed, falling back:", brainErr.message);
     }
-    const data = await xanoRes.json();
-    let reply = "Got it — give me just a second.";
-    if (data && data.reply) { reply = data.reply; }
-    else if (data && data.message) { reply = data.message; }
-    return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: reply, conversation_id: data.conversation_id || null, customer_id: data.customer_id || null, success: true }) };
+
+    // ── PATH 2: legacy fallback ───────────────────────────────
+    if (!brainOk) {
+      const controller = new AbortController();
+      const timer = setTimeout(function() { controller.abort(); }, 27000);
+      const requestBody = { message: message, session_id: session_id, source: source, channel: "web" };
+      if (conversation_id) requestBody.conversation_id = conversation_id;
+      if (customer_id) requestBody.customer_id = customer_id;
+      const xanoRes = await fetch(
+        "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/chat/reply2",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody), signal: controller.signal }
+      );
+      clearTimeout(timer);
+      if (!xanoRes.ok) {
+        const errText = await xanoRes.text();
+        console.error("Xano fallback error:", xanoRes.status, errText);
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: "Hey — Ant is having a moment. Try again or call 615-280-2949." }) };
+      }
+      const data = await xanoRes.json();
+      reply = (data && data.reply) || (data && data.message) || "Got it — give me just a second.";
+      return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: reply, conversation_id: data.conversation_id || null, customer_id: data.customer_id || null, success: true, source_brain: "legacy_chat_reply2" }) };
+    }
+
+    return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: reply, conversation_id: conversation_id || null, customer_id: customer_id || null, success: true, source_brain: "website_ant_brain" }) };
   } catch (err) {
     console.error("Proxy error:", err.message);
     return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: "Ant is thinking — try sending that again." }) };
