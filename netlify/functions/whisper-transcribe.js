@@ -17,10 +17,17 @@ exports.handler = async (event) => {
   }
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
+    // Friendlier message so techs in the field see something useful instead
+    // of a cryptic env-var error. Returns 200 with ok=false so the client
+    // shows the friendly text instead of "transcribe failed: ..." red box.
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ error: 'OPENAI_API_KEY not configured' }),
+      body: JSON.stringify({
+        ok: false,
+        unavailable: true,
+        error: "Voice typing isn't turned on yet — type your finding instead. We'll have voice live soon.",
+      }),
     };
   }
 

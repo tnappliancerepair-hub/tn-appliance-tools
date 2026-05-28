@@ -2290,7 +2290,13 @@ async function uploadAndTranscribe(audioBlob, mimeType, btn) {
     });
     const data = await res.json();
     if (!data.ok || !data.text) {
-      addSystem('error', '⚠️ transcribe failed: ' + (data.error || 'no text returned'));
+      // Distinguish between "service not configured yet" (friendly info)
+      // and actual transcription failure (red error)
+      if (data.unavailable) {
+        addSystem('info', '🎤 ' + (data.error || "Voice typing isn't on yet — type instead"));
+      } else {
+        addSystem('error', '⚠️ transcribe failed: ' + (data.error || 'no text returned'));
+      }
       btn.textContent = '🎤';
       return;
     }
