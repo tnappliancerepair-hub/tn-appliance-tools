@@ -1,0 +1,130 @@
+{
+  "_meta": {
+    "version": 1,
+    "last_updated": "2026-05-28",
+    "purpose": "Per-warranty-company checklist of fields + photos + videos Danielle needs to submit a clean claim. Brain loads this at session start and leads the tech through each item. Update via PR — over time Danielle's corrections feed back into these lists.",
+    "field_keys_map_to": "technician_decision_report columns (diagnosis, failed_component, etc.)",
+    "photo_capture_subjects": "Stored in job_attachments.attachment_type for filtering downstream"
+  },
+
+  "default": {
+    "display_name": "Generic Warranty",
+    "items": [
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",        "prompt": "What's the model number on the unit?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",         "prompt": "Snap a photo of the model/serial tag." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",           "prompt": "What's wrong with it?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",    "prompt": "What part failed?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",  "prompt": "Snap a photo of the failed part." },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",         "prompt": "How long did it take, in hours?" },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",    "prompt": "Was it fixed today, or does it need a return visit?" }
+    ]
+  },
+
+  "ahs": {
+    "display_name": "American Home Shield",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "claim_number",        "required": true,  "field": "claim_number",                "prompt": "What's the AHS work order number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "What's the model number on the unit?" },
+      { "type": "field",  "key": "serial_number",       "required": false, "field": "serial_number",               "prompt": "What's the serial number?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap a photo of the model/serial tag — AHS needs to verify." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "What's wrong with the unit?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "Failed part — use AHS taxonomy (Compressor, Control Board, Drum Bearing, etc.)." },
+      { "type": "field",  "key": "failure_cause",       "required": true,  "field": "failure_cause",               "prompt": "Cause of failure (normal wear / electrical / mechanical)? AHS will reject 'customer misuse' unless documented." },
+      { "type": "field",  "key": "diagnostic_test_performed", "required": true, "field": "diagnostic_test_performed", "prompt": "What test confirmed the diagnosis?" },
+      { "type": "photo",  "key": "failed_component_photo", "required": true, "subject": "failed_component",        "prompt": "Snap the failed part itself." },
+      { "type": "field",  "key": "verified_part_number","required": true,  "field": "verified_part_number",        "prompt": "What's the OEM part number?" },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "Labor hours? If over 2, add a brief technical rationale." },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Was it completed today?" }
+    ],
+    "notes": "AHS uses a web form. Failed component must use their taxonomy. BER claims need 'Repair cost exceeds X% of unit replacement value' language."
+  },
+
+  "frontdoor": {
+    "display_name": "Frontdoor Home Warranty",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "service_request_number", "required": true, "field": "claim_number",             "prompt": "What's the Frontdoor service request number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "Model number?" },
+      { "type": "field",  "key": "serial_number",       "required": true,  "field": "serial_number",               "prompt": "Serial number?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap the model/serial tag." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "What's the problem?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "What component failed?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",          "prompt": "Snap a photo of the failed part." },
+      { "type": "field",  "key": "verified_part_number","required": true,  "field": "verified_part_number",        "prompt": "OEM part number? Frontdoor needs pre-auth on any part over $150 retail." },
+      { "type": "field",  "key": "customer_facing_diagnosis", "required": true, "field": "customer_facing_diagnosis", "prompt": "Diagnosis in plain English for the customer." },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "Labor hours?" },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Was it repaired today?" }
+    ],
+    "notes": "Frontdoor needs customer-facing diagnosis language. Pre-auth required for parts > $150 retail. BER needs unit age + repair cost vs replacement."
+  },
+
+  "servicepower": {
+    "display_name": "ServicePower",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "dispatch_number",     "required": true,  "field": "claim_number",                "prompt": "What's the ServicePower dispatch number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "Model number on the unit?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap the model tag." },
+      { "type": "photo",  "key": "before_photo",        "required": true,  "subject": "before",                    "prompt": "Snap a photo of the unit BEFORE the repair (condition shot)." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "What did you find?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "Failed component?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",          "prompt": "Snap the failed part." },
+      { "type": "field",  "key": "verified_part_number","required": true,  "field": "verified_part_number",        "prompt": "Part number used?" },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "How long did the repair take?" },
+      { "type": "photo",  "key": "after_photo",         "required": true,  "subject": "after",                     "prompt": "Snap a photo of the unit AFTER the repair." },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Was the repair completed today?" }
+    ],
+    "notes": "ServicePower requires before + after photos for every claim. They want photos uploaded WITH the dispatch close-out."
+  },
+
+  "allstate": {
+    "display_name": "Allstate Dealer Services",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "claim_number",        "required": true,  "field": "claim_number",                "prompt": "Allstate claim number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "Model number?" },
+      { "type": "field",  "key": "serial_number",       "required": true,  "field": "serial_number",               "prompt": "Serial number?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap the model/serial tag." },
+      { "type": "photo",  "key": "appliance_condition", "required": true,  "subject": "before",                    "prompt": "Snap a wide shot showing the unit's overall condition." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "Diagnosis?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "Failed component?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",          "prompt": "Snap the failed part." },
+      { "type": "field",  "key": "verified_part_number","required": true,  "field": "verified_part_number",        "prompt": "Part number?" },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "Labor hours?" },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Was it completed?" }
+    ],
+    "notes": "Allstate is photo-heavy. They reject claims without good overall condition shots."
+  },
+
+  "squaretrade": {
+    "display_name": "SquareTrade",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "contract_number",     "required": true,  "field": "claim_number",                "prompt": "SquareTrade contract number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "Model number?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap the model tag." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "What's the problem?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "Failed part?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",          "prompt": "Snap the failed part." },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "Labor hours?" },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Was it completed?" }
+    ]
+  },
+
+  "choice_home_warranty": {
+    "display_name": "Choice Home Warranty",
+    "submission_model": "web_form",
+    "items": [
+      { "type": "field",  "key": "claim_number",        "required": true,  "field": "claim_number",                "prompt": "Choice Home Warranty claim number?" },
+      { "type": "field",  "key": "model_number",        "required": true,  "field": "model_number",                "prompt": "Model number?" },
+      { "type": "photo",  "key": "model_tag",           "required": true,  "subject": "model_tag",                 "prompt": "Snap the model tag." },
+      { "type": "field",  "key": "diagnosis",           "required": true,  "field": "diagnosis",                   "prompt": "Diagnostic findings?" },
+      { "type": "field",  "key": "failed_component",    "required": true,  "field": "failed_component",            "prompt": "Failed component?" },
+      { "type": "photo",  "key": "failed_component",    "required": true,  "subject": "failed_component",          "prompt": "Snap the failed part." },
+      { "type": "field",  "key": "verified_part_number","required": true,  "field": "verified_part_number",        "prompt": "Part number?" },
+      { "type": "field",  "key": "labor_hours",         "required": true,  "field": "labor_hours",                 "prompt": "Labor hours?" },
+      { "type": "field",  "key": "repair_completed",    "required": true,  "field": "repair_completed",            "prompt": "Repair status?" }
+    ]
+  }
+}
