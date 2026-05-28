@@ -1,5 +1,68 @@
 # Appliance Ant
 
+## 🌅 MORNING BRIEF — 2026-05-28 (overnight consolidate-and-verify pass)
+
+Overnight ran consolidate-and-verify mode only (per directive). No new features started.
+
+### TIER 1 — Danielle's login: **FIXED NOT VERIFIED**
+- Root cause: NOT wrong password (`antlives` works — verified live via curl). NOT undefined function (her trace yesterday shows `submitAuth start → verify ok → init returned`). The hang is somewhere AFTER init() returns OR she's hitting iOS Safari localStorage eviction (private browsing / ITP) and not realizing she should re-enter the password.
+- Fixes applied: cache-busted all office JS includes (?v=20260528-1) so her browser pulls fresh code. Added dbg() coverage to office-tn.html init() path (`auth_skip_via_localStorage`, `auth_gate_shown`, `init begin`, `renderSkeleton done`, `loadAll kicked`, plus try/catch with visible recovery UI). Next visit her trace will tell us exactly what's happening.
+- **CANNOT verify in a headless browser** — no puppeteer/playwright in this overnight env. Explicit per directive: "do NOT claim it's fixed" — calling this FIXED-NOT-VERIFIED.
+- **SMS to send to Danielle when you're up:** *"Morning! Should be fixed. Password is `antlives` (8 chars, no caps). If the page loads blank after Unlock, do a hard refresh — hold the refresh button on your iPhone and pick Reload Without Content Blockers. If it still hangs, take a screenshot and send it. — Teddy"*
+
+### TIER 2 — Full Ant-only lifecycle: **PARTIAL PASS / MIXED**
+| Stage | Result |
+|---|---|
+| Parallel intake endpoint (`create_job_from_email`) accepts contract | ✅ PASS (dry_run succeeded) |
+| Parallel intake REAL writes | ❌ **GATED OFF** — `EMAIL_INTAKE_ENABLED=false` in Xano env. **Operator todo: flip this on when ready.** |
+| Legacy AHS poller writes parallel marker | ✅ PASS (debug_parallel_marker confirms substring match for in-use markers) |
+| Job lands in needs-scheduled queue | ⚠️ Empty right now (no recent parallel jobs to verify; legacy path active but no new email arrived during test) |
+| Tech-side scribe scope guard | ✅ PASS — tech_sms_assist matched=true, chat_status=200, auto_saved=true for test job 18252 |
+| Zero customer SMS | ✅ PASS — gate fires correctly (gated:true, success:false on customer phones) |
+| Zero HCP outbound writes | ✅ PASS — HCP_PUSH_DISABLED gate on create_tdr, HCP_WEBHOOK_DISABLED on webhook |
+
+### TIER 3 — Cleanup state: **MIXED — POLICY CHANGE MID-PASS**
+| Item | State |
+|---|---|
+| `get_hcp_cutover_readiness` stubbed | ❌ Still active. Teddy intervened mid-pass: keeping HCP read-path alive. Not stubbing. |
+| `hcp_poll_recent_jobs` scheduled task | ✅ Active (Teddy explicitly directed during overnight: "This is super important being we have separated hcp so this is how we will get the jobs loaded to xano". Phase 1 policy revised: HCP = read-only inbound source. Writes/webhook still gated.) |
+| Backfilled AHS rows purged | ✅ Queue empty (no backfilled rows currently visible) |
+| Auto-assignment shelved | ✅ Agent file is a REMOVED stub |
+| Outbound HCP writes from code | ✅ Gated everywhere we checked (HCP_PUSH_DISABLED, HCP_WEBHOOK_DISABLED) |
+
+### TIER 4 — Hardening: **DONE for verifiable items**
+- `send_sms` gate: ✅ VERIFIED — customer phone returns `gated:true, success:false`, owner phone passes
+- `office-search.js` injected on all 14 office pages (added to warranty-review.html + customer-search.html which were missing)
+- `parallel_intake_watch` monitor: ❌ doesn't exist — **operator todo: build later** (not building tonight, would be new feature)
+- `send-teddy-sms` Netlify fn: ✅ hard-coded to Teddy's number only, internal
+
+### TIER 5 — Not started
+Tiers 1-3 didn't all go GREEN, so per directive did not start.
+
+---
+
+### 🚨 OPERATOR ACTIONS NEEDED (Teddy, do these in the morning)
+
+1. **Set `OPENAI_API_KEY` in Netlify env vars.** Jimmy hit `transcribe failed: OPENAI_API_KEY not configured` on the field tonight at job #18164 (Bruce Sterling fridge). Tonight I changed the error to a friendly "Voice typing isn't on yet — type instead" so it's not scary, but real fix is setting the key. embed-text.js silently falls back to dummy embeddings without it — that's also affecting the ask-ant + similar-jobs features.
+2. **Set `EMAIL_INTAKE_ENABLED=true` in Xano env** when you're ready to activate the parallel `create_job_from_email` intake path. Currently OFF; legacy AHS/SP pollers handle intake via the older endpoints (which now also write the parallel marker per yesterday's commits).
+3. **SMS Danielle the message above** when you're up.
+4. **Test her login yourself in a real browser** (since I couldn't headless-verify). If she trips, her trace will now log exact step in event_log action='client_debug' — search for it via the metadata API.
+5. **If you want voice for techs immediately**, the key needs setting per #1. Otherwise techs will see "Voice typing isn't on yet" and type instead — graceful but feature is dead until env is set.
+
+### 📋 PROPOSED NEXT PROJECTS (for you to approve when up — NOT pre-built)
+
+In priority order:
+1. **Build `parallel_intake_watch` monitor** — tick.js cron agent that watches the parallel intake stream + alerts you if no new jobs arrive in N hours during business hours. (Sleeps with Phase 1.)
+2. **Verify Danielle's actual login flow end-to-end** with a real browser session — possibly screen-share with her in the morning.
+3. **`EMAIL_INTAKE_ENABLED` activation + small smoke test** — flip the flag, send a synthetic ServicePower email through Gmail, confirm it lands in needs-scheduled.
+4. **Wire `OPENAI_API_KEY`** + verify Whisper transcription end-to-end with a real audio clip.
+5. **Stub `get_hcp_cutover_readiness`** with a Phase 1 status response, OR keep it for the legacy view. Your call.
+6. (Pre-vacation hardening) wire the `VACATION_BACKUP_PHONE` env var pointing at Danielle's number — this is one shell command on the Mac Mini.
+
+Detailed runbook for Danielle is in `docs/danielle-runbook.md` — review and edit if needed before her Monday morning.
+
+---
+
 AI operations platform for **TN Appliance Exchange LLC**. Owner: James "Teddy" Pivacek (tech ID 1, `tnappliancerepair@gmail.com`, SMS **615-485-5795** for human-judgment escalations).
 
 ## Long-term commercial direction (decided 2026-05-27)
