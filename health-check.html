@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Loop Health - Ant</title>
 <style>
+  /* 2026-05-28 horizontal-offset fix (John report). Locks html + body
+     to viewport width so iOS Safari can't horizontally pan content
+     off-screen when any inner element briefly overflows. */
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   :root { --green: #00d68f; --yellow: #f5a623; --red: #ff6b6b; --muted: #8a93aa; --panel: #131720; --border: #2a3040; }

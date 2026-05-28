@@ -11,6 +11,11 @@
 <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw-tech.js').catch(e=>console.warn('sw',e.message));});}</script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <style>
+  /* 2026-05-28 horizontal-offset fix (John report). Locks html + body
+     to viewport width so iOS Safari can't horizontally pan content
+     off-screen when any inner element briefly overflows. */
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { height: 100%; }
   body {

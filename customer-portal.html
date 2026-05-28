@@ -10,6 +10,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw-customer.js').catch(e=>console.warn('sw',e.message));});}</script>
 <style>
+  /* 2026-05-28 horizontal-offset fix (John report). Locks html + body
+     to viewport width so iOS Safari can't horizontally pan content
+     off-screen when any inner element briefly overflows. */
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { height: 100%; }
   body {
