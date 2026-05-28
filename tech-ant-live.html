@@ -920,17 +920,9 @@ async function preloadHistory() {
     if (data.session_id) assistSessionId = data.session_id;
     const msgs = Array.isArray(data.messages) ? data.messages : [];
     if (msgs.length === 0) {
-      // Auto-greeting (urgent field fix 2026-05-26). When there's no prior
-      // chat, Ant introduces itself with customer + appliance + problem +
-      // Teddy's pre-diagnosis (when present) so the tech doesn't open to
-      // an empty chat.
-      const greeting = composeAntGreeting();
-      if (greeting) {
-        addMessage('assistant', greeting);
-        conversationHistory.push({ role: 'assistant', content: greeting });
-      } else {
-        addSystem('', 'no prior messages - send your first finding to ant');
-      }
+      // 2026-05-28: auto-greeting REMOVED per Teddy. The opening Ant bubble
+      // was blocking the conversation area. Chat now starts completely empty;
+      // tech types first, Ant responds in flow.
       return;
     }
     for (const m of msgs) {
