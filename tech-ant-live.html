@@ -92,44 +92,33 @@
   }
   .action-bar.show { display: flex; }
 
-  /* Hard-lock each button to viewport-derived px width — no flex/grid
-     negotiation. iOS in-app browser was clipping the rightmost button
-     even with grid 1fr. Math doesn't lie:
-       action-bar padding 12 × 2 = 24
-       gaps 6 × 2 = 12
-       per-button = (100vw - 24 - 12) / 3 */
+  /* Compact single-row action pill bar. Combines both old action rows
+     (Nav/OMW/Call + Start/Complete) into one thin strip so the chat
+     dominates the screen like the public website. */
   .action-row {
-    display: flex;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
     width: 100%;
     box-sizing: border-box;
   }
-  .action-row > .action-btn {
-    flex: 0 0 auto;
-    width: calc((100vw - 36px) / 3);
-    max-width: calc((100vw - 36px) / 3);
-  }
-  .action-row.two > .action-btn {
-    width: calc((100vw - 30px) / 2);
-    max-width: calc((100vw - 30px) / 2);
-  }
+  .action-row.two { display: none; }  /* old 2nd row hidden — buttons promoted into row 1 via JS */
 
   .action-btn {
-    flex: 1 1 0;
     min-width: 0;
-    min-height: 44px;
+    min-height: 42px;
     background: #1e2433;
     border: 1px solid #2a3040;
     color: #e8edf5;
-    padding: 0 6px;
+    padding: 0 4px;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 2px;
     font-family: inherit;
     transition: all 0.15s;
     -webkit-appearance: none;
@@ -350,7 +339,8 @@
     box-sizing: border-box;
     width: 100%;
   }
-  .quick-actions.show { display: flex; }
+  /* User taps "+" next to input to expand. Default state = hidden so chat dominates. */
+  .quick-actions.show.expanded { display: flex; }
   /* Each quick-btn locks to viewport math — 2 per row on narrow phones,
      4 per row on wider screens. No horizontal scroll required. */
   .quick-actions .quick-btn {
@@ -571,6 +561,8 @@
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .btn-camera { background: #2a3040; color: #e8edf5; }
   .btn-camera:hover:not(:disabled) { background: #3a4050; }
+  .btn-plus { background: #2a3040; color: #e8edf5; font-size: 22px; }
+  .btn-plus:hover:not(:disabled) { background: #3a4050; }
   .btn-send { background: #4a9eff; color: white; }
   .btn-send:hover:not(:disabled) { background: #3a8eef; }
   .btn-mic { background: #1e2433; color: #8a93aa; border: 1px solid #2a3040; }
@@ -665,14 +657,12 @@
 
 <div class="action-bar" id="action-bar">
   <div class="action-row">
-    <button class="action-btn" onclick="onNavigate()">📍 Nav</button>
-    <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()">🚗 OMW</button>
-    <button class="action-btn" onclick="onCall()">📞 Call</button>
-  </div>
-  <div class="action-row two">
-    <button class="action-btn primary" id="btn-start-job" onclick="onStartJob()">▶ Start Job</button>
-    <select class="action-btn complete" id="complete-select" onchange="onComplete(this.value)">
-      <option value="" disabled selected hidden>✅ Complete ▾</option>
+    <button class="action-btn" onclick="onNavigate()" title="Navigate">📍 Nav</button>
+    <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()" title="On My Way">🚗 OMW</button>
+    <button class="action-btn" onclick="onCall()" title="Call customer">📞 Call</button>
+    <button class="action-btn primary" id="btn-start-job" onclick="onStartJob()" title="Start job">▶ Start</button>
+    <select class="action-btn complete" id="complete-select" onchange="onComplete(this.value)" title="Complete job">
+      <option value="" disabled selected hidden>✅ End</option>
       <option value="repair_complete">Repair Complete</option>
       <option value="parts_needed">Parts Needed</option>
       <option value="warranty_auth_needed">Warranty Auth Needed</option>
@@ -731,13 +721,19 @@
 
 <div class="input-wrap" id="input-wrap">
   <div class="input-row">
-    <button class="btn btn-camera" onclick="document.getElementById('file-input-photos').click()" title="Upload photos (multi-select)">📷</button>
-    <button class="btn btn-camera" onclick="document.getElementById('file-input-video-camera').click()" title="Record one video">🎥</button>
+    <button class="btn btn-camera" onclick="document.getElementById('file-input-photos').click()" title="Upload photos">📷</button>
     <button class="btn btn-mic" id="btn-mic" onclick="toggleRecording()" title="Voice input">🎤</button>
+    <button class="btn btn-plus" onclick="toggleQuickActions()" title="More: video, model tag, parts, similar">＋</button>
     <textarea id="input-msg" placeholder="Talk to Ant — type or tap 🎤" rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
     <button class="btn btn-send" onclick="sendMessage()">↑</button>
   </div>
 </div>
+<script>
+function toggleQuickActions() {
+  var qa = document.getElementById('quick-actions');
+  if (qa) qa.classList.toggle('expanded');
+}
+</script>
 
 <!-- iOS multi-select picker only behaves correctly when mime is image-only.
      Mixed image+video collapses to single-pick on some iOS versions, which
@@ -1438,7 +1434,8 @@ function showQuickActions() {
   const partsUrl = `parts-lookup.html?brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`;
   const partsButton = `<a class="quick-btn" href="${partsUrl}" target="_blank" style="text-decoration:none;background:rgba(245,166,35,0.15);border-color:rgba(245,166,35,0.4);color:#f5a623">🔧 Parts</a>`;
   const similarButton = `<button class="quick-btn" onclick="showSimilarJobs()" style="background:rgba(90,169,255,0.15);border-color:rgba(90,169,255,0.4);color:#5aa9ff">🧠 Similar</button>`;
-  qa.innerHTML = captureButtons + partsButton + similarButton;
+  const videoButton = `<button class="quick-btn" onclick="document.getElementById('file-input-video-camera').click()">🎥 Video</button>`;
+  qa.innerHTML = captureButtons + videoButton + partsButton + similarButton;
   qa.classList.add('show');
 }
 
