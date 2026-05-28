@@ -1,3 +1,9 @@
+// 2026-05-28: explicit 26s function timeout so slow Xano endpoints
+// (get_jobs_for_dashboard takes ~7s) don't hit the Netlify edge-gateway
+// default. Without this, Danielle's office-tn.html shows red (504) on
+// any section that depends on a slow endpoint.
+exports.config = { timeout: 26 };
+
 exports.handler = async function (event, context) {
   if (event.httpMethod === "OPTIONS") {
     return {

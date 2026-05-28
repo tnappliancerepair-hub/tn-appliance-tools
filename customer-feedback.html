@@ -101,7 +101,7 @@ const $ = (id) => document.getElementById(id);
   if (localStorage.getItem(AUTH_KEY) === '1') unlock();
   $('pwBtn').addEventListener('click', tryAuth);
   $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
-  async async function tryAuth() {
+  async function tryAuth() {
     if ((await __verifyOfficePassword($('pw').value))) { localStorage.setItem(AUTH_KEY, '1'); unlock(); }
     else { $('pwErr').textContent = 'wrong password'; $('pw').select(); }
   }
