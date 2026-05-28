@@ -961,16 +961,81 @@
     }
   }
 
-  // ── Voice input (MediaRecorder → Whisper) ─────────────────────────
+  // ── Voice input: native browser speech first (works without API key),
+  //    Whisper as upgrade when OPENAI_API_KEY is set in Netlify. ──────
   const micBtn = document.querySelector('.composer-btn.mic');
-  micBtn.addEventListener('click', toggleRecording);
-  async function toggleRecording() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let nativeRec = null;
+  let isListening = false;
+
+  micBtn.addEventListener('click', toggleMic);
+
+  function setMicActive(on) {
+    if (on) {
+      micBtn.style.background = 'rgba(255,80,80,0.25)';
+      micBtn.style.borderColor = '#ff5050';
+      micBtn.style.boxShadow = '0 0 18px rgba(255,80,80,0.5)';
+      micBtn.textContent = '⏹';
+    } else {
+      micBtn.style.background = '';
+      micBtn.style.borderColor = '';
+      micBtn.style.boxShadow = '';
+      micBtn.textContent = '🎤';
+    }
+  }
+
+  async function toggleMic() {
+    // If already listening, stop
+    if (isListening) {
+      if (nativeRec) try { nativeRec.stop(); } catch (_) {}
+      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
       return;
     }
+    // Path A — native (iOS Safari, Chrome). Free, no API key, on-device.
+    if (SR) {
+      try {
+        nativeRec = new SR();
+        nativeRec.continuous = false;
+        nativeRec.interimResults = true;
+        nativeRec.lang = 'en-US';
+        nativeRec.maxAlternatives = 1;
+        let finalText = '';
+        nativeRec.onstart = () => { isListening = true; setMicActive(true); };
+        nativeRec.onresult = (e) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const r = e.results[i];
+            if (r.isFinal) finalText += (r[0] && r[0].transcript) || '';
+            else composerInput.value = (r[0] && r[0].transcript) || '';
+          }
+        };
+        nativeRec.onerror = (e) => {
+          isListening = false;
+          setMicActive(false);
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            addMsg('assistant', 'Mic permission denied — enable in browser settings.');
+          } else if (e.error === 'no-speech') {
+            addMsg('assistant', "Didn't catch that — try again, speak up.");
+          }
+        };
+        nativeRec.onend = async () => {
+          isListening = false;
+          setMicActive(false);
+          const text = (finalText || composerInput.value || '').trim();
+          if (text) {
+            composerInput.value = '';
+            await sendToBrain(text);
+          }
+        };
+        nativeRec.start();
+        return;
+      } catch (err) {
+        // Native path failed at construct — fall through to Whisper
+        console.warn('native speech failed', err);
+      }
+    }
+    // Path B — MediaRecorder → Whisper (needs OPENAI_API_KEY in Netlify)
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      addMsg('assistant', 'Mic not available on this browser.');
+      addMsg('assistant', 'Mic not available on this browser. Set OPENAI_API_KEY in Netlify to enable Whisper.');
       return;
     }
     try {
@@ -997,18 +1062,15 @@
     mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
     mediaRecorder.onstop = handleMicStop;
     mediaRecorder.start();
-    micBtn.style.background = 'rgba(255,80,80,0.25)';
-    micBtn.style.borderColor = '#ff5050';
-    micBtn.style.boxShadow = '0 0 18px rgba(255,80,80,0.5)';
-    micBtn.textContent = '⏹';
+    isListening = true;
+    setMicActive(true);
   }
+
   async function handleMicStop() {
     if (mrStream) mrStream.getTracks().forEach(t => t.stop());
     mrStream = null;
-    micBtn.style.background = '';
-    micBtn.style.borderColor = '';
-    micBtn.style.boxShadow = '';
-    micBtn.textContent = '🎤';
+    isListening = false;
+    setMicActive(false);
     const blob = new Blob(mrChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
     if (blob.size < 600) {
       addMsg('assistant', 'Got nothing — try holding mic + speaking.');
@@ -1022,10 +1084,12 @@
       const data = await r.json();
       hideTyping();
       if (data && data.text) {
-        composerInput.value = data.text;
+        composerInput.value = '';
         await sendToBrain(data.text);
+      } else if (data && data.unavailable) {
+        addMsg('assistant', 'Whisper offline — OPENAI_API_KEY not set in Netlify. Use native voice (Safari has it) or type.');
       } else {
-        addMsg('assistant', 'Voice not on yet — type instead.');
+        addMsg('assistant', 'Voice transcription failed.');
       }
     } catch (e) {
       hideTyping();
