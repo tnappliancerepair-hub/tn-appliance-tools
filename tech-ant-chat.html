@@ -750,6 +750,8 @@
 
   let sessionId = null;
   let jobContext = null;
+  let warrantyChecklist = null;      // {vendor, items, next_pending, ...}
+  let warrantyChecklistText = '';    // pre-formatted string sent to brain
   let isMuted = (localStorage.getItem('ant_muted') === '1');
   let mediaRecorder = null;
   let mrChunks = [];
@@ -876,6 +878,44 @@
   }
   function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
 
+  // ── Warranty checklist loader ─────────────────────────────────────
+  async function loadWarrantyChecklist() {
+    if (!JOB_ID) return;
+    try {
+      const r = await fetch('/.netlify/functions/get-warranty-requirements?job_id=' + JOB_ID);
+      const d = await r.json();
+      if (d && d.success) {
+        warrantyChecklist = d;
+        warrantyChecklistText = formatChecklist(d);
+      }
+    } catch (e) { console.warn('warranty checklist fetch failed', e); }
+  }
+  function formatChecklist(d) {
+    const lines = [];
+    lines.push('VENDOR: ' + (d.display_name || d.warranty_company_key));
+    if (d.notes) lines.push('NOTES: ' + d.notes);
+    lines.push('');
+    lines.push('CHECKLIST (✅ captured / ⬜ pending):');
+    for (const item of d.items || []) {
+      const icon = item.captured ? '✅' : '⬜';
+      const req = item.required ? ' (required)' : ' (optional)';
+      const typeLbl = item.type === 'photo' ? '📷 photo' : (item.type === 'video' ? '🎥 video' : '📝 field');
+      const target = item.field || item.subject || item.key;
+      lines.push('  ' + icon + ' ' + typeLbl + ' [' + target + ']' + req + ' — "' + (item.prompt || '') + '"');
+    }
+    if (d.next_pending) {
+      lines.push('');
+      lines.push('NEXT PENDING: ' + (d.next_pending.field || d.next_pending.subject || d.next_pending.key));
+      lines.push('  -> Use prompt: "' + (d.next_pending.prompt || '') + '"');
+    }
+    if (d.counts) {
+      lines.push('');
+      lines.push('PROGRESS: ' + d.counts.captured_required + '/' + d.counts.total_required + ' required items captured.');
+      if (d.counts.complete) lines.push('STATUS: COMPLETE — say "TDR ready — tap save." and stop.');
+    }
+    return lines.join('\n');
+  }
+
   // ── Job context boot ──────────────────────────────────────────────
   async function loadJob() {
     if (!JOB_ID) {
@@ -940,7 +980,8 @@
           technician_id: TECH_ID,
           user_message: text,
           session_id: sessionId,
-          attachment_ids: []
+          attachment_ids: [],
+          warranty_checklist_text: warrantyChecklistText || ''
         })
       });
       const data = await r.json();
@@ -952,6 +993,10 @@
           addMsg('assistant', reply);
           speak(reply);
         }
+        // Refresh checklist asynchronously — captured state may have
+        // changed (TDR fields updated, photo uploaded). Brain sees the
+        // newer version on the NEXT turn.
+        loadWarrantyChecklist();
       } else {
         addMsg('assistant', 'I hit an error — try again in a sec.');
       }
