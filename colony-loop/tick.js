@@ -151,6 +151,22 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // WARRANTY_LEARNING_AGGREGATE — fires daily at 5am CT (5-7am grace
+  // window). Reads recent warranty_correction events, detects patterns,
+  // writes warranty_requirement_override rows. Agent idempotency via
+  // check_event_log_fired_today so multiple grace-window ticks are safe.
+  if (hour >= 5 && hour < 7) {
+    try {
+      await xano.emitSignal({
+        signal_type: 'WARRANTY_LEARNING_AGGREGATE',
+        signal_strength: 60,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+    } catch (err) {
+      xano.logLocal('warranty_learning_emit_failed', { error: err.message });
+    }
+  }
+
   // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
   // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
   if (hour >= 7 && hour < 10) {

@@ -63,6 +63,71 @@ async function fetchJobContext(jobId) {
   return await r.json();
 }
 
+// Pull active warranty_requirement_override rows for a vendor.
+// Aggregator agent writes these when Danielle's corrections cross
+// pattern threshold. Merged INTO the base JSON checklist before
+// the response is built.
+async function fetchOverrides(vendorKey) {
+  try {
+    const r = await fetch(
+      XANO_INTAKE + '/list_warranty_requirement_overrides?warranty_company=' + encodeURIComponent(vendorKey)
+    );
+    if (!r.ok) return [];
+    const d = await r.json();
+    return Array.isArray(d.overrides) ? d.overrides : [];
+  } catch (_) { return []; }
+}
+
+// Apply overrides to the base checklist. Each override is an
+// event_log row with JSON metadata describing the change. Action
+// types we understand:
+//   add_required    → add new item OR flip optional → required
+//   update_prompt   → replace the prompt text on an existing item
+//   remove          → mark item as removed (filtered out before return)
+function applyOverrides(baseItems, overrides) {
+  const items = baseItems.map((i) => ({ ...i, _source: 'baseline' }));
+  const seen = new Set(items.map((i) => i.key));
+  const consolidatedRemovals = new Set();
+
+  for (const ov of overrides) {
+    let meta;
+    try { meta = typeof ov.metadata_raw === 'string' ? JSON.parse(ov.metadata_raw) : ov.metadata_raw; }
+    catch (_) { continue; }
+    if (!meta || !meta.item_key || (meta.status && meta.status !== 'active')) continue;
+
+    const k = meta.item_key;
+    const existing = items.find((i) => i.key === k);
+
+    if (meta.action === 'remove') {
+      consolidatedRemovals.add(k);
+      continue;
+    }
+    if (meta.action === 'update_prompt' && existing && meta.prompt) {
+      existing.prompt = meta.prompt;
+      existing._source = 'override:update_prompt';
+      continue;
+    }
+    if (meta.action === 'add_required') {
+      if (existing) {
+        existing.required = true;
+        existing._source = 'override:promote';
+      } else {
+        items.push({
+          type: meta.item_type || 'field',
+          key: meta.item_key,
+          required: true,
+          field: meta.item_type === 'field' ? (meta.field_or_subject || meta.item_key) : undefined,
+          subject: (meta.item_type === 'photo' || meta.item_type === 'video') ? (meta.field_or_subject || meta.item_key) : undefined,
+          prompt: meta.prompt || `Capture the ${meta.item_key.replace(/_/g, ' ')}.`,
+          _source: 'override:add',
+        });
+        seen.add(k);
+      }
+    }
+  }
+  return items.filter((i) => !consolidatedRemovals.has(i.key));
+}
+
 // Decide whether each checklist item is captured.
 function computeStatus(items, tdr, attachments) {
   const filledFields = new Set();
@@ -129,6 +194,10 @@ exports.handler = async (event) => {
   const vendorKey = normalizeVendor(rawVendor) || 'default';
   const checklist = requirements[vendorKey] || requirements.default;
 
+  // Merge in any aggregator-written overrides for this vendor (Layer 3c).
+  const overrides = await fetchOverrides(vendorKey);
+  const mergedItems = applyOverrides(checklist.items, overrides);
+
   // Pick the latest TDR (highest id, or last in array)
   const tdrs = Array.isArray(ctx.all_tdrs) ? ctx.all_tdrs : [];
   const latestTdr = tdrs.length ? tdrs[tdrs.length - 1] : null;
@@ -139,7 +208,7 @@ exports.handler = async (event) => {
     ? ctx.job_attachments
     : [];
 
-  const items = computeStatus(checklist.items, latestTdr, attachments);
+  const items = computeStatus(mergedItems, latestTdr, attachments);
 
   const totalRequired = items.filter((i) => i.required).length;
   const capturedRequired = items.filter((i) => i.required && i.captured).length;

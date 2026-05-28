@@ -394,6 +394,45 @@ export async function recordEventLog(action, metadata = {}) {
   });
 }
 
+// Alias used by newer agents.
+export async function recordEvent(action, metadata = {}) {
+  return recordEventLog(action, metadata);
+}
+
+// Generic recent event_log fetch. Used by warranty learning aggregator
+// to scan corrections within a window. Returns an array of rows with
+// {id, action, metadata, created_at}.
+export async function listRecentEventLog({ action, days_back = 14, limit = 1000 } = {}) {
+  const params = new URLSearchParams({
+    action: String(action || ''),
+    days_back: String(days_back),
+    limit: String(limit),
+  });
+  const r = await getJSON(`${INTAKE()}/list_recent_event_log?${params.toString()}`);
+  return (r && r.items) || r || [];
+}
+
+// Has an action with this day-key value already fired today?
+// Used by daily-fired agents (briefings, aggregator) for idempotency.
+export async function checkEventLogFiredToday(action, dayKey) {
+  const params = new URLSearchParams({
+    action: String(action || ''),
+    day_key: String(dayKey || ''),
+  });
+  const r = await getJSON(`${INTAKE()}/check_event_log_fired_today?${params.toString()}`);
+  return !!(r && r.fired);
+}
+
+// Lists active warranty_requirement_override rows for a vendor (or all).
+export async function listWarrantyRequirementOverrides({ warranty_company = '', days_back = 30 } = {}) {
+  const params = new URLSearchParams({
+    days_back: String(days_back),
+  });
+  if (warranty_company) params.append('warranty_company', warranty_company);
+  const r = await getJSON(`${INTAKE()}/list_warranty_requirement_overrides?${params.toString()}`);
+  return (r && r.overrides) || [];
+}
+
 export async function getPrediagSentForJob(jobId) {
   return getJSON(`${INTAKE()}/get_prediag_sent_for_job?job_id=${jobId}`);
 }
