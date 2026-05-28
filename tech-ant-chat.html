@@ -228,49 +228,58 @@
     padding-top: 26px;  /* room for HUD statusbar */
   }
 
-  /* ── 3.5 Primary action bar — OTW + START JOB (Cybertruck angular) ── */
+  /* ── 3.5 Primary action bar — NAV + OTW + CALL + START JOB ── */
   .action-bar {
-    padding: 8px 12px;
+    padding: 8px 10px;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    background: rgba(3,6,12,0.55);
+    grid-template-columns: 1fr 1fr 1fr 1.4fr;
+    gap: 6px;
+    background: rgba(0,0,0,0.55);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   .action-btn {
     position: relative;
-    height: 46px;
+    min-width: 0;
+    height: 44px;
     background: linear-gradient(180deg, rgba(30,38,55,0.85), rgba(14,22,40,0.85));
     border: 1px solid rgba(255,255,255,0.10);
     color: var(--text);
     font-family: 'Orbitron', sans-serif;
     font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.18em;
+    font-size: 11px;
+    letter-spacing: 0.10em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    /* Cybertruck angular cut corners */
+    gap: 5px;
+    padding: 0 6px;
+    /* Cybertruck angular cut corners (smaller for narrow phones) */
     clip-path: polygon(
-      10px 0,
-      calc(100% - 10px) 0,
-      100% 10px,
-      100% calc(100% - 10px),
-      calc(100% - 10px) 100%,
-      10px 100%,
-      0 calc(100% - 10px),
-      0 10px
+      8px 0,
+      calc(100% - 8px) 0,
+      100% 8px,
+      100% calc(100% - 8px),
+      calc(100% - 8px) 100%,
+      8px 100%,
+      0 calc(100% - 8px),
+      0 8px
     );
     transition: all 0.15s;
     -webkit-appearance: none;
     text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .action-btn .emoji {
-    font-size: 16px;
+    font-size: 14px;
     filter: drop-shadow(0 0 4px rgba(240,245,255,0.4));
   }
   .action-btn:active { transform: scale(0.98); }
@@ -290,9 +299,13 @@
   .topbar {
     padding: 14px 16px 10px;
     border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(3,6,12,0.92) 0%, rgba(3,6,12,0.72) 100%);
+    background: linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.72) 100%);
     backdrop-filter: blur(12px) saturate(140%);
     -webkit-backdrop-filter: blur(12px) saturate(140%);
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    overflow: hidden;
   }
   .topbar-row1 {
     display: flex;
@@ -503,22 +516,29 @@
   }
 
   /* ── 5. Composer ──────────────────────────────────────────────── */
+  /* Composer goes edge-to-edge across the bottom — full bleed bar */
   .composer {
-    padding: 10px 12px max(14px, env(safe-area-inset-bottom)) 12px;
-    border-top: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(3,6,12,0.7) 0%, rgba(3,6,12,0.95) 100%);
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    padding: 0 0 env(safe-area-inset-bottom) 0;
+    border-top: 1px solid rgba(240,245,255,0.18);
+    background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.98) 100%);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
   .composer-inner {
     display: flex;
     align-items: flex-end;
-    gap: 8px;
-    background: rgba(10,16,32,0.7);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 16px;
-    padding: 6px 6px 6px 6px;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 8px 8px;
     transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
   .composer-inner:focus-within {
     border-color: var(--cyan-dim);
@@ -548,17 +568,23 @@
   .composer-input {
     flex: 1;
     min-width: 0;
-    background: transparent;
-    border: none;
+    background: rgba(10,16,32,0.6);
+    border: 1px solid rgba(240,245,255,0.10);
+    border-radius: 12px;
     outline: none;
     color: var(--text);
     font-family: 'Inter', sans-serif;
     font-size: 16px;
     line-height: 1.4;
-    padding: 9px 10px;
+    padding: 10px 12px;
     resize: none;
     max-height: 120px;
     min-height: 40px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .composer-input:focus {
+    border-color: rgba(240,245,255,0.50);
+    box-shadow: 0 0 0 2px rgba(240,245,255,0.10);
   }
   .composer-input::placeholder { color: rgba(138,147,170,0.5); }
 
@@ -597,11 +623,6 @@
         <div class="topbar-title">ANT</div>
         <div class="topbar-tagline">your <span class="cyan">field partner</span> &middot; everything you need to know</div>
       </div>
-      <div class="topbar-actions">
-        <button class="topbar-action" title="Navigate" aria-label="Navigate">📍</button>
-        <button class="topbar-action" title="Call customer" aria-label="Call customer">📞</button>
-        <button class="topbar-action" title="Job details" aria-label="Job details">ⓘ</button>
-      </div>
     </div>
     <div class="topbar-row2" id="ctx-pills">
       <span class="ctx-pill cyan"><span class="label">JOB</span>#18270</span>
@@ -611,13 +632,19 @@
     </div>
   </header>
 
-  <!-- Primary action bar — OTW + Start Job -->
+  <!-- Primary action bar — NAV + OTW + CALL + START JOB -->
   <div class="action-bar">
+    <button class="action-btn" id="btn-nav" title="Navigate">
+      <span class="emoji">📍</span><span>NAV</span>
+    </button>
     <button class="action-btn" id="btn-otw" title="On My Way">
-      <span class="emoji">🚗</span><span>ON MY WAY</span>
+      <span class="emoji">🚗</span><span>OTW</span>
+    </button>
+    <button class="action-btn" id="btn-call" title="Call customer">
+      <span class="emoji">📞</span><span>CALL</span>
     </button>
     <button class="action-btn primary" id="btn-start" title="Start Job">
-      <span class="emoji">▶</span><span>START JOB</span>
+      <span class="emoji">▶</span><span>START</span>
     </button>
   </div>
 
