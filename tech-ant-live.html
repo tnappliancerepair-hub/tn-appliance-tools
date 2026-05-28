@@ -345,26 +345,36 @@
     border-top: 1px solid #2a3040;
     padding: 8px 12px;
     display: none;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+    width: 100%;
   }
   .quick-actions.show { display: flex; }
-  .quick-actions::-webkit-scrollbar { display: none; }
+  /* Each quick-btn locks to viewport math — 2 per row on narrow phones,
+     4 per row on wider screens. No horizontal scroll required. */
   .quick-actions .quick-btn {
     background: #1e2433;
     border: 1px solid #2a3040;
     color: #e8edf5;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: 8px;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    flex-shrink: 0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     transition: all 0.15s;
+    flex: 0 0 calc((100vw - 30px) / 2);
+    max-width: calc((100vw - 30px) / 2);
+    text-align: center;
+  }
+  @media (min-width: 500px) {
+    .quick-actions .quick-btn {
+      flex: 0 0 calc((100vw - 42px) / 4);
+      max-width: calc((100vw - 42px) / 4);
+    }
   }
   .quick-actions .quick-btn:hover {
     background: #2a3040;
