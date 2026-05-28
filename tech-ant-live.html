@@ -92,9 +92,18 @@
   }
   .action-bar.show { display: flex; }
 
+  /* Grid (not flex) so each button gets EXACTLY 1/3 of available row width.
+     Flex equal-distribution can fail in iOS in-app browsers when content has
+     min-content > basis. Grid 1fr fractions are deterministic. */
   .action-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .action-row.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .action-btn {
@@ -625,7 +634,7 @@
     <button class="action-btn" id="btn-on-my-way" onclick="onOnMyWay()">🚗 OMW</button>
     <button class="action-btn" onclick="onCall()">📞 Call</button>
   </div>
-  <div class="action-row">
+  <div class="action-row two">
     <button class="action-btn primary" id="btn-start-job" onclick="onStartJob()">▶ Start Job</button>
     <select class="action-btn complete" id="complete-select" onchange="onComplete(this.value)">
       <option value="" disabled selected hidden>✅ Complete ▾</option>
