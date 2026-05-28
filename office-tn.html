@@ -849,8 +849,16 @@ async function submitAuth() {
 }
 
 function init() {
-  renderSkeleton();
-  loadAll();
+  dbg('init begin');
+  try {
+    renderSkeleton();
+    dbg('renderSkeleton done');
+    loadAll();
+    dbg('loadAll kicked');
+  } catch (e) {
+    dbg('init threw', { msg: String(e && e.message) });
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;background:#0e1118;color:#fff;min-height:100vh;"><h2>✓ Logged in — but page hit an error.</h2><p>Hard refresh (Cmd+Shift+R / on iPhone: hold the refresh button) or text Teddy 615-485-5795 with this error: ' + String(e && e.message || 'unknown') + '</p></div>';
+  }
 }
 
 document.getElementById('auth-input').addEventListener('keypress', (e) => {
@@ -858,15 +866,17 @@ document.getElementById('auth-input').addEventListener('keypress', (e) => {
 });
 
 if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
+  dbg('auth_skip_via_localStorage');
   document.getElementById('auth-overlay').classList.add('hidden');
   init();
 } else {
+  dbg('auth_gate_shown');
   document.getElementById('auth-input').focus();
 }
 </script>
-<script src="/office-search.js?v=20260527-2"></script>
-<script src="/office-map.js?v=1"></script>
-  <script src="/office-theme-hogwarts.js?v=1"></script>
-  <script src="/office-ant.js?v=1"></script>
+<script src="/office-search.js?v=20260528-1"></script>
+<script src="/office-map.js?v=20260528-1"></script>
+  <script src="/office-theme-hogwarts.js?v=20260528-1"></script>
+  <script src="/office-ant.js?v=20260528-1"></script>
 </body>
 </html>
