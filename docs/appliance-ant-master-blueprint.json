@@ -8,7 +8,7 @@
     "total_colonies": 20,
     "total_agents": 379,
     "agents_live": 27,
-    "agents_to_build": 0,
+    "agents_to_build": 6,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
       "frontend": "Netlify - superlative-naiad-233aa7.netlify.app",
@@ -21,9 +21,9 @@
     },
     "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
     "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates.",
-    "total_agents_enumerated": 312,
+    "total_agents_enumerated": 366,
     "agents_total": 360,
-    "agents_built": 333
+    "agents_built": 360
   },
   "signal_architecture": {
     "table": "colony_signals",
@@ -289,6 +289,132 @@
             "D008",
             "D009",
             "D010"
+          ]
+        },
+        {
+          "id": "D012",
+          "name": "Bosch Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Bosch dishwashers + laundry. Quiet-pump diagnostics, error-code library, fault history per model line. Bosch-OEM-only parts preference.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=bosch"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "bosch_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
+          ]
+        },
+        {
+          "id": "D013",
+          "name": "Sub-Zero Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Sub-Zero refrigerators + wine coolers. Dual-compressor diagnostics, vacuum-panel insulation faults, control-board generation differences. High-end residential, cash customer.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=subzero"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "subzero_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
+          ]
+        },
+        {
+          "id": "D014",
+          "name": "Wolf Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Wolf ranges + cooktops + ovens. Dual-fuel ignition diagnostics, infrared broiler quirks, control-board fault library. High-end residential, cash customer.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=wolf"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "wolf_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
+          ]
+        },
+        {
+          "id": "D015",
+          "name": "Viking Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Viking ranges + refrigerators. Pro-series-vs-D3 line differences, spark module quirks, sealed-burner failure patterns. High-end residential, cash customer.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=viking"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "viking_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
+          ]
+        },
+        {
+          "id": "D016",
+          "name": "Thermador Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Thermador cooktops + ovens + refrigeration (BSH family with Bosch). Star Burner ignition, freedom-induction diagnostics, BSH-OEM parts sourcing. High-end residential.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=thermador"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "thermador_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
+          ]
+        },
+        {
+          "id": "D017",
+          "name": "Miele Brand Agent",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Brand specialist for Miele dishwashers + laundry + cooking. AutoDos, TwinDos quirks, ProfiLine-vs-consumer differences, Miele-OEM-only parts. High-end residential, cash customer.",
+          "triggers": [
+            "DIAGNOSTIC_BRIEF signal with brand=miele"
+          ],
+          "outputs": [
+            "BRAND_INTELLIGENCE signal"
+          ],
+          "xano_endpoint": "miele_brand_agent",
+          "dependencies": [
+            "D001",
+            "D002",
+            "D003",
+            "D004",
+            "D005"
           ]
         }
       ]
@@ -1840,7 +1966,7 @@
           "name": "Job Duration Learner",
           "status": "BUILT",
           "priority": 2,
-          "purpose": "Learns true job durations per (appliance × brand × failure) and refines future scheduled_end_ms suggestions. Emits SCHEDULING_DECISION.",
+          "purpose": "Learns true job durations per (appliance \u00d7 brand \u00d7 failure) and refines future scheduled_end_ms suggestions. Emits SCHEDULING_DECISION.",
           "triggers": [
             "SCHEDULE_REQUEST_DURATION_REFINE"
           ],
@@ -5292,6 +5418,6 @@
     "dedication": "This platform was built by a father in honor of his son Anthony - Ant - wrestler, TCAT graduate, the lightest weight class, the hardest worker in the room.",
     "mission": "Match need with know-how. Automate to elevate not cut. Give every independent tradesperson the resources to be extraordinary.",
     "promise": "Every job completed. Every agent built. Every tech drafted. Every customer helped. All of it carries his name forward.",
-    "signature": "LONG LIVE ANT 🐜"
+    "signature": "LONG LIVE ANT \ud83d\udc1c"
   }
 }

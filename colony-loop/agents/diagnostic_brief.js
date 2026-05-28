@@ -40,6 +40,15 @@ const BRAND_MAP = {
   frigidaire: 'electrolux_family',
   'electrolux family': 'electrolux_family',
   'electrolux frigidaire': 'electrolux_family',
+  // High-end residential (cash customers, no warranty) — added 2026-05-28
+  bosch: 'bosch',
+  'sub-zero': 'subzero',
+  subzero: 'subzero',
+  'sub zero': 'subzero',
+  wolf: 'wolf',
+  viking: 'viking',
+  thermador: 'thermador',
+  miele: 'miele',
 };
 
 function brandSlug(raw) {
