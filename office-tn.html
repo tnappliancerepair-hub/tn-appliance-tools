@@ -400,17 +400,17 @@ const SECTIONS = [
     tnFilter: true,  // apply client-side TN filter on these subs
     subs: [
       { id: 'sched-needs', name: 'Needs Scheduling', endpoint: 'get_jobs_for_dashboard',
-        payload: { date_filter: 'unscheduled', per_page: 200 } },
+        payload: { date_filter: 'unscheduled', per_page: 50 } },
       { id: 'sched-pre',   name: 'Pre-Diagnosis',    endpoint: 'get_jobs_for_dashboard',
-        payload: { status: 'prediagnosis_pending', date_filter: 'all', per_page: 200 } },
+        payload: { status: 'prediagnosis_pending', date_filter: 'all', per_page: 50 } },
       // Post-diagnosis = complete + parts_ordered merged
       { id: 'sched-post',  name: 'Post-Diagnosis',   merge: ['sched-post-complete', 'sched-post-parts'] }
     ],
     extraFetches: [
       { id: 'sched-post-complete', endpoint: 'get_jobs_for_dashboard',
-        payload: { status: 'complete', date_filter: 'all', per_page: 200 } },
+        payload: { status: 'complete', date_filter: 'all', per_page: 50 } },
       { id: 'sched-post-parts', endpoint: 'get_jobs_for_dashboard',
-        payload: { status: 'parts_ordered', date_filter: 'all', per_page: 200 } }
+        payload: { status: 'parts_ordered', date_filter: 'all', per_page: 50 } }
     ]
   },
   {
@@ -419,9 +419,9 @@ const SECTIONS = [
     name: "Jimmy's Jobs (tech 2)",
     subs: [
       { id: 'jimmy-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 2, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 2, status: 'scheduled', date_filter: 'all', per_page: 50 } },
       { id: 'jimmy-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 2, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 2, status: 'pending_auth', date_filter: 'all', per_page: 50 } },
       { id: 'jimmy-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 2, date_filter: 'all', per_page: 500 },
         clientFilter: { field: 'office_stage', value: 'report' } },
@@ -445,9 +445,9 @@ const SECTIONS = [
     name: "Lee's Jobs (tech 4)",
     subs: [
       { id: 'lee-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 4, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 4, status: 'scheduled', date_filter: 'all', per_page: 50 } },
       { id: 'lee-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 4, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 4, status: 'pending_auth', date_filter: 'all', per_page: 50 } },
       { id: 'lee-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 4, date_filter: 'all', per_page: 500 },
         clientFilter: { field: 'office_stage', value: 'report' } },
@@ -471,9 +471,9 @@ const SECTIONS = [
     name: "Teddy's Jobs (tech 1)",
     subs: [
       { id: 'teddy-scheduled',       name: 'Scheduled',        endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 1, status: 'scheduled', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 1, status: 'scheduled', date_filter: 'all', per_page: 50 } },
       { id: 'teddy-upgrade',         name: 'Upgrade',          endpoint: 'get_jobs_for_dashboard',
-        payload: { tech_id: 1, status: 'pending_auth', date_filter: 'all', per_page: 200 } },
+        payload: { tech_id: 1, status: 'pending_auth', date_filter: 'all', per_page: 50 } },
       { id: 'teddy-report',          name: 'Report',           endpoint: 'get_jobs_for_dashboard',
         payload: { tech_id: 1, date_filter: 'all', per_page: 500 },
         clientFilter: { field: 'office_stage', value: 'report' } },
