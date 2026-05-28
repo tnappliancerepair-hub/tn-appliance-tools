@@ -13,15 +13,16 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
-    height: 100%;
     width: 100%;
     max-width: 100vw;
-    overflow: hidden;
+    overflow-x: hidden;
     background: #000000;
     color: #e8edf5;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  html { height: 100%; }
+  body { min-height: 100%; }
 
   /* Wrap-with-cutout palette: pure black wrap, stainless steel cutout,
      LED-white accent (Cybertruck headlight feel — not blue, not cyan, pure cold white). */
@@ -189,8 +190,8 @@
   /* HUD status bar at the very top — 2090 system readout */
   .hud-statusbar {
     position: fixed;
-    top: 12px; left: 32px; right: 32px;
-    z-index: 6;
+    top: 6px; left: 32px; right: 32px;
+    z-index: 12;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -225,10 +226,10 @@
     display: flex;
     flex-direction: column;
     z-index: 1;
-    padding-top: 26px;  /* room for HUD statusbar */
     /* Reserve space at the bottom for the fixed composer so the chat
-       area never gets covered. 56px input + 16px padding + safe-area. */
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+       area never gets covered. 56px input + 16px padding + safe-area
+       + extra cushion so growing textarea doesn't clip messages. */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
 
   /* ── 3.5 Primary action bar — NAV + OTW + CALL + START JOB ── */
@@ -298,17 +299,25 @@
   }
   .action-btn.primary:hover { box-shadow: 0 0 0 1px rgba(240,245,255,0.20), 0 0 28px rgba(240,245,255,0.28); }
 
-  /* Header */
+  /* Header — sticky so chat scrolls UNDER it with backdrop blur. */
   .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     padding: 14px 16px 10px;
     border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.72) 100%);
-    backdrop-filter: blur(12px) saturate(140%);
-    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    background: linear-gradient(180deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.82) 100%);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
     width: 100%;
     max-width: 100vw;
     box-sizing: border-box;
     overflow: hidden;
+  }
+  /* Action bar also sticky so it stays visible while chat scrolls. */
+  .action-bar {
+    position: sticky;
+    z-index: 9;
   }
   .topbar-row1 {
     display: flex;
@@ -421,8 +430,8 @@
 
   /* ── 4. Chat area ──────────────────────────────────────────────── */
   .chat-stage {
-    flex: 1;
-    overflow-y: auto;
+    flex: 1 1 auto;
+    overflow-y: visible;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     padding: 18px 16px 24px;
@@ -430,6 +439,7 @@
     flex-direction: column;
     gap: 16px;
     position: relative;
+    min-height: 200px;
   }
   .chat-stage::-webkit-scrollbar { width: 3px; }
   .chat-stage::-webkit-scrollbar-thumb { background: rgba(240,245,255,0.18); border-radius: 2px; }
@@ -817,6 +827,25 @@
     loadVoices();
     speechSynthesis.onvoiceschanged = loadVoices;
   }
+  // ── iOS audio unlock: Safari requires a user gesture before audio
+  // playback. First tap on the page silently plays an empty audio
+  // to unlock the audio context. After that all TTS plays.
+  let __audioUnlocked = false;
+  function unlockAudioOnce() {
+    if (__audioUnlocked) return;
+    __audioUnlocked = true;
+    try {
+      // 1-frame silent audio. Playing it on a user gesture unlocks
+      // the audio context for the rest of the page lifetime.
+      const a = new Audio('data:audio/wav;base64,UklGRhgAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+      a.volume = 0.001;
+      a.play().catch(() => {});
+    } catch (_) {}
+  }
+  ['touchstart','click','keydown'].forEach((evt) => {
+    document.addEventListener(evt, unlockAudioOnce, { once: true, passive: true });
+  });
+
   // OpenAI TTS first (premium voice, consistent across devices). Falls
   // back to browser SpeechSynthesis if the API call fails (or returns
   // unavailable when OPENAI_API_KEY isn't set).
@@ -876,6 +905,14 @@
 
   // ── Chat rendering ────────────────────────────────────────────────
   function hideEmpty() { if (emptyState) emptyState.style.display = 'none'; }
+  function scrollChatToBottom() {
+    // Page-level scroll (chat-stage no longer scrolls internally).
+    // Use requestAnimationFrame so the new message is laid out first.
+    requestAnimationFrame(() => {
+      const target = document.documentElement.scrollHeight;
+      window.scrollTo({ top: target, behavior: 'smooth' });
+    });
+  }
   function addMsg(role, text) {
     if (!text) return;
     hideEmpty();
@@ -890,7 +927,7 @@
     wrap.appendChild(av);
     wrap.appendChild(bubble);
     chatStage.appendChild(wrap);
-    chatStage.scrollTop = chatStage.scrollHeight;
+    scrollChatToBottom();
   }
   let typingEl = null;
   function showTyping() {
@@ -1059,20 +1096,45 @@
   }
 
   async function toggleMic() {
-    // If already listening, stop
+    // Tap to stop if already recording
     if (isListening) {
-      if (nativeRec) try { nativeRec.stop(); } catch (_) {}
+      if (nativeRec) { try { nativeRec.stop(); } catch (_) {} }
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
       return;
     }
-    // Path A — Whisper (premium accuracy, handles noisy fields). Default
-    // primary path now that OPENAI_API_KEY is configured. Falls back to
-    // native browser SR if MediaRecorder isn't available.
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined') {
-      // Skip native and go straight to Whisper path below.
-    } else if (SR) {
-      // Path B — Native browser SR (instant live transcription, free,
-      // on-device). Used when MediaRecorder isn't supported.
+    // Try Whisper path first (MediaRecorder + getUserMedia → /whisper-transcribe)
+    const canRecord = navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
+    if (canRecord) {
+      try {
+        mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        addMsg('assistant', '🎤 mic permission needed — enable in Safari Settings → Microphone, then retry.');
+        return;
+      }
+      const candidates = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+      let mime = '';
+      for (const c of candidates) {
+        try {
+          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) { mime = c; break; }
+        } catch (_) {}
+      }
+      try {
+        mediaRecorder = mime ? new MediaRecorder(mrStream, { mimeType: mime }) : new MediaRecorder(mrStream);
+      } catch (e) {
+        mrStream.getTracks().forEach((t) => t.stop());
+        addMsg('assistant', '🎤 recorder init failed: ' + (e.message || 'unknown'));
+        return;
+      }
+      mrChunks = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
+      mediaRecorder.onstop = handleMicStop;
+      mediaRecorder.start();
+      isListening = true;
+      setMicActive(true);
+      return;
+    }
+    // Whisper path unavailable — try native browser SR
+    if (SR) {
       try {
         nativeRec = new SR();
         nativeRec.continuous = false;
@@ -1089,60 +1151,26 @@
           }
         };
         nativeRec.onerror = (e) => {
-          isListening = false;
-          setMicActive(false);
+          isListening = false; setMicActive(false);
           if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            addMsg('assistant', 'Mic permission denied — enable in browser settings.');
+            addMsg('assistant', '🎤 mic permission needed.');
           } else if (e.error === 'no-speech') {
-            addMsg('assistant', "Didn't catch that — try again, speak up.");
+            addMsg('assistant', "Didn't catch that.");
           }
         };
         nativeRec.onend = async () => {
-          isListening = false;
-          setMicActive(false);
+          isListening = false; setMicActive(false);
           const text = (finalText || composerInput.value || '').trim();
-          if (text) {
-            composerInput.value = '';
-            await sendToBrain(text);
-          }
+          if (text) { composerInput.value = ''; await sendToBrain(text); }
         };
         nativeRec.start();
         return;
       } catch (err) {
-        console.warn('native speech failed, falling to whisper', err);
+        addMsg('assistant', '🎤 voice not available: ' + (err.message || 'unknown'));
+        return;
       }
     }
-    // Path C — MediaRecorder → Whisper (now the default when available)
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      addMsg('assistant', 'Mic not available on this browser.');
-      return;
-    }
-    try {
-      mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (e) {
-      addMsg('assistant', 'Mic permission denied — enable in browser settings.');
-      return;
-    }
-    const candidates = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg'];
-    let mime = '';
-    for (const c of candidates) {
-      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) {
-        mime = c; break;
-      }
-    }
-    try {
-      mediaRecorder = mime ? new MediaRecorder(mrStream, { mimeType: mime }) : new MediaRecorder(mrStream);
-    } catch (e) {
-      addMsg('assistant', 'Recording not supported on this device.');
-      mrStream.getTracks().forEach(t => t.stop());
-      return;
-    }
-    mrChunks = [];
-    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
-    mediaRecorder.onstop = handleMicStop;
-    mediaRecorder.start();
-    isListening = true;
-    setMicActive(true);
+    addMsg('assistant', '🎤 voice not supported in this browser.');
   }
 
   async function handleMicStop() {
@@ -1150,29 +1178,36 @@
     mrStream = null;
     isListening = false;
     setMicActive(false);
-    const blob = new Blob(mrChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm';
+    const blob = new Blob(mrChunks, { type: mime });
     if (blob.size < 600) {
-      addMsg('assistant', 'Got nothing — try holding mic + speaking.');
+      addMsg('assistant', '🎤 too short — hold the button + speak, then tap again.');
       return;
     }
     showTyping();
     try {
+      // Pick a filename extension matching the mime so Whisper accepts it.
+      let ext = 'webm';
+      if (mime.includes('mp4')) ext = 'm4a';
+      else if (mime.includes('ogg')) ext = 'ogg';
       const fd = new FormData();
-      fd.append('file', blob, 'voice.webm');
+      fd.append('file', blob, 'voice.' + ext);
       const r = await fetch('/.netlify/functions/whisper-transcribe', { method: 'POST', body: fd });
-      const data = await r.json();
+      let data;
+      try { data = await r.json(); }
+      catch (_) { data = { error: 'bad whisper response' }; }
       hideTyping();
       if (data && data.text) {
         composerInput.value = '';
         await sendToBrain(data.text);
       } else if (data && data.unavailable) {
-        addMsg('assistant', 'Whisper offline — OPENAI_API_KEY not set in Netlify. Use native voice (Safari has it) or type.');
+        addMsg('assistant', 'Whisper offline — set OPENAI_API_KEY in Netlify.');
       } else {
-        addMsg('assistant', 'Voice transcription failed.');
+        addMsg('assistant', '🎤 transcription failed: ' + (data.error || 'unknown'));
       }
     } catch (e) {
       hideTyping();
-      addMsg('assistant', 'Voice transcription failed.');
+      addMsg('assistant', '🎤 transcription error: ' + (e.message || 'unknown'));
     }
   }
 
