@@ -414,6 +414,23 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+  /* Collapsed default — only the header shows, chat takes the room */
+  .tdr-form.collapsed {
+    max-height: none;
+    padding: 10px 14px;
+    overflow: hidden;
+  }
+  .tdr-form.collapsed .tdr-field,
+  .tdr-form.collapsed .tdr-save-row { display: none; }
+  .tdr-form .tdr-form-head { cursor: pointer; user-select: none; }
+  .tdr-form .tdr-form-head::after {
+    content: '▾';
+    color: #8a93aa;
+    font-size: 13px;
+    margin-left: 8px;
+    transition: transform 0.15s;
+  }
+  .tdr-form.collapsed .tdr-form-head::after { transform: rotate(-90deg); display: inline-block; }
   .tdr-form.highlight {
     border-color: #f6cf45;
     box-shadow: 0 0 0 3px rgba(246, 207, 69, 0.18);
@@ -717,7 +734,7 @@
     <button class="btn btn-camera" onclick="document.getElementById('file-input-photos').click()" title="Upload photos (multi-select)">📷</button>
     <button class="btn btn-camera" onclick="document.getElementById('file-input-video-camera').click()" title="Record one video">🎥</button>
     <button class="btn btn-mic" id="btn-mic" onclick="toggleRecording()" title="Voice input">🎤</button>
-    <textarea id="input-msg" placeholder="Type or tap mic..." rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
+    <textarea id="input-msg" placeholder="Talk to Ant — type or tap 🎤" rows="1" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
     <button class="btn btn-send" onclick="sendMessage()">↑</button>
   </div>
 </div>
@@ -1070,6 +1087,17 @@ function addMessage(role, content) {
         }), 250);
       }
     }
+  }
+
+  // Strip the "or open: https://...tech-ant-live..." redundant link from
+  // greetings — the tech is obviously already viewing tech-ant-live. The
+  // same opening message is used as a tech SMS where the URL is useful;
+  // here it's just visual noise that bloats the bubble.
+  if (role === 'assistant' && typeof visibleContent === 'string') {
+    visibleContent = visibleContent
+      .replace(/\s*or open:\s*https?:\/\/\S*tech-ant-live[^\s]*/gi, '')
+      .replace(/\s+-\s+lmk if you want my help\.?/gi, '')
+      .trim();
   }
 
   const msg = document.createElement('div');
@@ -1872,6 +1900,13 @@ function initInlineTdrForm(allTdrs) {
   const form = document.getElementById('tdr-form');
   if (!form) return;
   form.style.display = 'block';
+  // Default to collapsed so the chat dominates; tap the header to expand.
+  form.classList.add('collapsed');
+  const head = form.querySelector('.tdr-form-head');
+  if (head && !head.__toggleWired) {
+    head.__toggleWired = true;
+    head.addEventListener('click', () => form.classList.toggle('collapsed'));
+  }
   // Pre-fill from the most recent tech-authored TDR (skip Teddy's tech_id=1).
   const techTdrs = (allTdrs || []).filter((t) => t && t.technician_id && t.technician_id != 1);
   const latest = techTdrs.length ? techTdrs[techTdrs.length - 1] : null;
