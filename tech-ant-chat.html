@@ -891,10 +891,19 @@
       }, 250);
     }
   }
+  // Pre-create + attach a single audio element to the DOM (some iOS
+  // versions refuse to play() elements that aren't already in the
+  // document tree). Reuse the same element for every reply.
+  const __sharedAudio = document.createElement('audio');
+  __sharedAudio.preload = 'auto';
+  __sharedAudio.playsInline = true;
+  __sharedAudio.setAttribute('webkit-playsinline', 'true');
+  __sharedAudio.setAttribute('playsinline', 'true');
+  __sharedAudio.style.display = 'none';
+  document.body.appendChild(__sharedAudio);
+
   async function speak(text) {
     if (isMuted || !text) return;
-    // Cancel any in-flight playback so newer replies don't queue up.
-    if (__currentAudio) { try { __currentAudio.pause(); __currentAudio.src = ''; } catch (_) {} __currentAudio = null; }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     suspendMicForPlayback();
     try {
@@ -904,28 +913,52 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.slice(0, 1800), voice: voicePref }),
       });
+      if (!r.ok) {
+        addSystem('error', '🔊 TTS HTTP ' + r.status + ' — falling back to native voice');
+        speakNative(text);
+        return;
+      }
       const ct = r.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
+        let info = '';
+        try { const j = await r.json(); info = j.error || JSON.stringify(j).slice(0, 100); } catch (_) {}
+        addSystem('error', '🔊 TTS returned JSON instead of audio: ' + info);
         speakNative(text);
         return;
       }
       const blob = await r.blob();
+      if (blob.size < 100) {
+        addSystem('error', '🔊 TTS audio empty (size=' + blob.size + ')');
+        speakNative(text);
+        return;
+      }
+      // Revoke any prior URL we created
+      if (__currentAudio && __currentAudio._objUrl) {
+        try { URL.revokeObjectURL(__currentAudio._objUrl); } catch (_) {}
+      }
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.preload = 'auto';
-      audio.playsInline = true;
-      // Force loud-speaker output on iOS via the Web Audio routing hint.
-      try { audio.setAttribute('webkit-playsinline', 'true'); } catch (_) {}
-      __currentAudio = audio;
-      const cleanup = () => {
-        URL.revokeObjectURL(url);
-        if (__currentAudio === audio) __currentAudio = null;
+      __sharedAudio.src = url;
+      __sharedAudio._objUrl = url;
+      __currentAudio = __sharedAudio;
+      __sharedAudio.onended = () => { resumeMicAfterPlayback(); };
+      __sharedAudio.onerror = () => {
+        const err = __sharedAudio.error;
+        addSystem('error', '🔊 audio element error: ' + (err ? 'code ' + err.code : 'unknown'));
         resumeMicAfterPlayback();
       };
-      audio.onended = cleanup;
-      audio.onerror = () => { cleanup(); speakNative(text); };
-      await audio.play().catch(() => { cleanup(); speakNative(text); });
+      try {
+        const p = __sharedAudio.play();
+        if (p && typeof p.then === 'function') {
+          await p;
+        }
+      } catch (playErr) {
+        addSystem('error', '🔊 play() rejected: ' + (playErr.name || '') + ' — ' + (playErr.message || 'unknown') + '. iMessage preview blocks audio; tap Done → open in Safari.');
+        resumeMicAfterPlayback();
+        // Try browser fallback voice too
+        speakNative(text);
+      }
     } catch (e) {
+      addSystem('error', '🔊 TTS fetch failed: ' + (e.message || 'unknown'));
       resumeMicAfterPlayback();
       speakNative(text);
     }
