@@ -13,7 +13,12 @@
 // add_note_to_my_job. All draft-then-confirm via portal UI.
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { timedFetch, XANO_BASE } = require('./_lib/ant/tools');
+const { timedFetch, XANO_BASE, UNIVERSAL_TOOLS } = require('./_lib/ant/tools');
+
+// Customer-facing brain runs on the same Sonnet baseline by default,
+// env-overridable. Quality matters since this is a public-facing
+// surface, but cost matters too — keeping the baseline conservative.
+const CUSTOMER_MODEL_OVERRIDE = process.env.ANT_CUSTOMER_MODEL || '';
 
 // Customer brain has its OWN tool set — scoped to one customer. Doesn't
 // share with READ_TOOLS because those are office/tech-wide (could leak
@@ -29,6 +34,11 @@ const CUSTOMER_TOOLS = [
     description: 'Get the customer\'s past repair history with us — every prior job, what was wrong, what we fixed. Call when they ask "have you been here before?" / "what did you do last time?" / "is this a recurring issue?"',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
+  // Universal: capability gap escalation only. save_session_note +
+  // load_relevant_notes are intentionally OFF for customer brain —
+  // we don't want a customer-facing session reading or writing notes
+  // about the customer (privacy + tone risk).
+  ...UNIVERSAL_TOOLS.filter((t) => t.name === 'flag_capability_gap'),
 ];
 
 async function executeCustomerTool(toolName, ctx) {
@@ -47,6 +57,27 @@ async function executeCustomerTool(toolName, ctx) {
       body: JSON.stringify({ job_id: ctx.job_id, phone_last4: ctx.phone_last4 }),
     });
   }
+  // Universal tools delegated to a tightly-scoped subset for the
+  // customer brain. Only flag_capability_gap is allowed — saving
+  // notes about customers from inside the customer's own session
+  // crosses a privacy line. Memory READ is also off for the same
+  // reason (customer shouldn't see what we noted about them).
+  if (toolName === 'flag_capability_gap') {
+    const payload = {
+      brain: 'customer_ant',
+      user_request: String(ti.user_request || '').slice(0, 1500),
+      gap_description: String(ti.gap_description || '').slice(0, 1500),
+      proposed_solution: String(ti.proposed_solution || '').slice(0, 1500),
+      ctx_customer_id: ctx.customer_id || null,
+      ctx_job_id: ctx.job_id || null,
+      flagged_at_ms: Date.now(),
+    };
+    await timedFetch(`${XANO_BASE}/record_event_log`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'brain_capability_gap', metadata_json: JSON.stringify(payload) }),
+    });
+    return { ok: true, message: 'Gap logged.' };
+  }
   return { error: `unknown customer tool: ${toolName}` };
 }
 
@@ -57,7 +88,7 @@ async function executeCustomerTool(toolName, ctx) {
 // safety isolation — worth it.
 async function runCustomerBrainTurn({ systemPrompt, userContent, history, ctx, maxIterations = 4 }) {
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-  const MODEL = 'claude-sonnet-4-5-20250929';
+  const MODEL = CUSTOMER_MODEL_OVERRIDE || 'claude-sonnet-4-5-20250929';
   if (!ANTHROPIC_KEY) return { reply: '', tool_calls: [], status: 0, error: 'ANTHROPIC_API_KEY not set' };
 
   const messages = [];

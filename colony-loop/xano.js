@@ -423,6 +423,12 @@ export async function checkEventLogFiredToday(action, dayKey) {
   return !!(r && r.fired);
 }
 
+// Fetch a job's full dashboard view (job + customer + appliance + TDRs
+// + attachments). Used by agents that need rich job context.
+export async function getJobForDashboard(jobId) {
+  return postJSON(`${INTAKE()}/get_job_for_dashboard`, { job_id: jobId });
+}
+
 // Find open / parts-ready jobs near a tech's recent location. Used by
 // the scheduler_fill_gap agent to surface fill-in work when a tech
 // wraps ahead of schedule.

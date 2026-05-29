@@ -151,6 +151,27 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // CLUSTER_ROUTE_MORNING_CHECK — daily 6:45am CT (6-8 grace).
+  // Surfaces route inefficiencies before trucks roll: outlier stops,
+  // backtracks, far-flung days. Dedup via check_event_log_fired_today.
+  if (hour >= 6 && hour < 8) {
+    const dateCt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowTs));
+    let firedAlready = false;
+    try { firedAlready = await xano.checkEventLogFiredToday('cluster_route_morning_check_emitted', dateCt); } catch (_) {}
+    if (!firedAlready) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'CLUSTER_ROUTE_MORNING_CHECK',
+          signal_strength: 45,
+          payload: { day: dateCt, emitted_ct: fmtCT(nowTs) },
+        });
+        await xano.recordEvent('cluster_route_morning_check_emitted', { day: dateCt });
+      } catch (err) {
+        xano.logLocal('cluster_route_morning_check_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // SCHEDULER_BEHIND_CHECK — fires every 20 min during business hours
   // (7am-7pm CT). Scans active techs for jobs running 30+ min past
   // their scheduled_end. Each agent run is idempotent per-(tech,job).

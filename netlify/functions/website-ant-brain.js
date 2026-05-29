@@ -15,7 +15,11 @@
 // flow once the visitor decides to start.
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { timedFetch, XANO_BASE } = require('./_lib/ant/tools');
+const { timedFetch, XANO_BASE, UNIVERSAL_TOOLS } = require('./_lib/ant/tools');
+
+// Env-driven model override so we can experiment with website voice
+// without redeploys.
+const WEBSITE_MODEL_OVERRIDE = process.env.ANT_WEBSITE_MODEL || '';
 
 const WEBSITE_TOOLS = [
   {
@@ -53,6 +57,9 @@ const WEBSITE_TOOLS = [
       required: ['phone'],
     },
   },
+  // Universal: capability gap escalation only. Same privacy rationale
+  // as customer brain — no memory writes from a public-facing surface.
+  ...UNIVERSAL_TOOLS.filter((t) => t.name === 'flag_capability_gap'),
 ];
 
 async function executeWebsiteTool(toolName, ti) {
@@ -97,6 +104,20 @@ async function executeWebsiteTool(toolName, ti) {
         },
       };
     }
+    case 'flag_capability_gap': {
+      const payload = {
+        brain: 'website_ant',
+        user_request: String(ti.user_request || '').slice(0, 1500),
+        gap_description: String(ti.gap_description || '').slice(0, 1500),
+        proposed_solution: String(ti.proposed_solution || '').slice(0, 1500),
+        flagged_at_ms: Date.now(),
+      };
+      await timedFetch(`${XANO_BASE}/record_event_log`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'brain_capability_gap', metadata_json: JSON.stringify(payload) }),
+      });
+      return { ok: true, message: 'Gap logged.' };
+    }
     default:
       return { error: `unknown website tool: ${toolName}` };
   }
@@ -107,7 +128,7 @@ async function executeWebsiteTool(toolName, ti) {
 // don't share the executeTool path with office-side tools).
 async function runWebsiteBrainTurn({ systemPrompt, userContent, history, maxIterations = 4 }) {
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-  const MODEL = 'claude-sonnet-4-5-20250929';
+  const MODEL = WEBSITE_MODEL_OVERRIDE || 'claude-sonnet-4-5-20250929';
   if (!ANTHROPIC_KEY) return { reply: '', tool_calls: [], status: 0, error: 'ANTHROPIC_API_KEY not set' };
 
   const messages = [];
