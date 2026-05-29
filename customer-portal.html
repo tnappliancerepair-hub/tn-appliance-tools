@@ -287,6 +287,10 @@
       📅 Add to my calendar
       <span class="sub">Apple / Google with 1-hour reminder.</span>
     </a>
+    <button class="btn" id="btnPartsArrived" style="display:none;background:linear-gradient(135deg,#00d68f,#00aa70);border-color:#00d68f;color:#fff">
+      📦 My parts arrived
+      <span class="sub" style="color:rgba(255,255,255,0.85)">Tap when the box hits your porch — we'll come install.</span>
+    </button>
     <button class="btn" id="btnRate" style="display:none">
       ⭐ Rate your visit
       <span class="sub">30-second feedback. Helps us improve.</span>
@@ -462,10 +466,18 @@
                     job.scheduling_status === 'held' ? 'on hold' :
                     job.scheduling_status === 'no_fix_possible' ? 'no fix possible' : 'completed';
         if (job.scheduling_status === 'awaiting_parts') {
-          headline = `${techFirst} diagnosed your ${appl} — parts ordered.`;
-          detail = job.parts_eta_date
-            ? `Parts ETA: ${fmtDateOnly(job.parts_eta_date)}. We'll text you when they arrive to schedule the install.`
-            : `We'll text you when parts arrive to schedule the install.`;
+          // Once parts_status flips to "arrived", elevate the messaging to
+          // a celebration + a clear "pick a return time" call to action.
+          if (job.parts_status === 'arrived') {
+            badgeText = 'parts arrived';
+            headline = `🎉 Your parts arrived! Ready to schedule ${techFirst}'s return visit.`;
+            detail = `Reply to your text with a window that works, or tap below to send a note.`;
+          } else {
+            headline = `${techFirst} diagnosed your ${appl} — parts ordered.`;
+            detail = job.parts_eta_date
+              ? `Parts ETA: ${fmtDateOnly(job.parts_eta_date)}. We'll text you when they arrive to schedule the install.`
+              : `We'll text you when parts arrive to schedule the install.`;
+          }
         } else if (job.scheduling_status === 'held') {
           headline = `${techFirst} put your job on hold — we'll be in touch.`;
           detail = 'We need more info or authorization before continuing.';
@@ -540,6 +552,47 @@
     const btnRate = $('btnRate');
     if (btnRate) {
       btnRate.style.display = (viewState === 'completed') ? '' : 'none';
+    }
+
+    // 📦 Parts arrived — only when the job is awaiting parts AND parts
+    // haven't been marked arrived already. Customer-driven path: some
+    // warranty vendors ship directly to the customer, so the customer
+    // is the one who knows when the box hit the porch.
+    const btnPartsArrived = $('btnPartsArrived');
+    if (btnPartsArrived) {
+      const awaitingParts = (job.scheduling_status === 'awaiting_parts');
+      const notYetArrived = (job.parts_status !== 'arrived');
+      if (awaitingParts && notYetArrived && LAST4) {
+        btnPartsArrived.style.display = '';
+        btnPartsArrived.onclick = async () => {
+          if (btnPartsArrived.disabled) return;
+          if (!confirm("Mark your parts as arrived? We'll get your tech back out to install them as soon as we can.")) return;
+          btnPartsArrived.disabled = true;
+          btnPartsArrived.textContent = 'Marking parts arrived…';
+          try {
+            const res = await fetch(`${XANO_BASE}/customer_mark_parts_arrived`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ job_id: job.id, phone_last4: LAST4 }),
+            });
+            const data = await res.json();
+            if (data && data.success) {
+              btnPartsArrived.textContent = '✓ Got it — your tech has been notified';
+              setTimeout(() => location.reload(), 1500);
+            } else {
+              btnPartsArrived.disabled = false;
+              btnPartsArrived.textContent = '📦 My parts arrived';
+              alert(data.error || 'Something went wrong. Please try again or text us.');
+            }
+          } catch (e) {
+            btnPartsArrived.disabled = false;
+            btnPartsArrived.textContent = '📦 My parts arrived';
+            alert('Network error. Please try again.');
+          }
+        };
+      } else {
+        btnPartsArrived.style.display = 'none';
+      }
     }
 
     // Show upload link for non-terminal jobs
