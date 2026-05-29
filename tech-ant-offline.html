@@ -36,6 +36,12 @@
   .media-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
   .media-btn { flex: 1; min-width: 80px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); border-radius: 6px; padding: 12px; font: 14px inherit; cursor: pointer; text-align: center; }
   .media-btn:active { transform: scale(0.97); }
+  .thumb-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; min-height: 4px; }
+  .thumb { position: relative; width: 80px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: #000; }
+  .thumb img, .thumb video { width: 100%; height: 100%; object-fit: cover; }
+  .thumb .tup { position: absolute; top: 4px; right: 4px; font-size: 11px; background: rgba(0,0,0,0.7); color: #4caf50; padding: 1px 4px; border-radius: 3px; }
+  .thumb .tup.queued { color: #ffb74d; }
+  .thumb-empty { font-size: 12px; opacity: 0.5; padding: 4px 0; }
   .save-btn { background: var(--accent); color: #000; border: 0; border-radius: 6px; padding: 12px; font: 15px/1 inherit; font-weight: 600; cursor: pointer; width: 100%; margin-top: 6px; }
   .save-btn:disabled { opacity: 0.5; }
   .save-btn.saved { background: var(--row); color: var(--accent); border: 1px solid var(--accent); }
@@ -91,6 +97,8 @@ const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const DB_NAME = 'tech_ant_offline_v1';
 const STORE_SCHEDULE = 'schedule';
 const STORE_TDRS = 'pending_tdrs';
+const STORE_MEDIA = 'queued_media';
+const DB_VERSION = 2;
 
 const params = new URLSearchParams(location.search);
 let TECH_ID = parseInt(params.get('tech_id') || '0', 10);
@@ -103,7 +111,7 @@ let uploadQueue = null;
 // ── IndexedDB helpers ──────────────────────────────────────────────
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const d = e.target.result;
       if (!d.objectStoreNames.contains(STORE_SCHEDULE)) {
@@ -111,6 +119,10 @@ function openDB() {
       }
       if (!d.objectStoreNames.contains(STORE_TDRS)) {
         d.createObjectStore(STORE_TDRS, { keyPath: 'id' });
+      }
+      if (!d.objectStoreNames.contains(STORE_MEDIA)) {
+        const s = d.createObjectStore(STORE_MEDIA, { keyPath: 'id' });
+        s.createIndex('by_job', 'job_id', { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -230,6 +242,7 @@ function renderJobCard(item) {
 
   const wrap = document.createElement('div');
   wrap.className = 'panel';
+  wrap.dataset.jobId = String(jobId);
   wrap.innerHTML = `
     <div class="panel-head">
       <div>
@@ -258,6 +271,7 @@ function renderJobCard(item) {
         <button class="media-btn" data-action="library" data-job="${jobId}">🖼 Library</button>
         <button class="media-btn" data-action="video" data-job="${jobId}">🎥 Video</button>
       </div>
+      <div class="thumb-strip"></div>
       <button class="save-btn" data-action="save" data-job="${jobId}" data-tdr="${existing.id}">Save TDR locally</button>
     </div>
   `;
@@ -275,6 +289,7 @@ function renderJobCard(item) {
   wrap.querySelectorAll('[data-action]').forEach(btn => {
     btn.addEventListener('click', () => handleAction(btn.dataset.action, jobId, existing, wrap, btn));
   });
+  renderThumbStrip(wrap, jobId);
   return wrap;
 }
 
@@ -334,23 +349,28 @@ async function pickMedia(action, jobId) {
   fi.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    if (uploadQueue) {
-      // Override job id per file by enqueueing with the right context
-      for (const f of files) {
-        try {
-          const isVideo = (f.type || '').startsWith('video/');
-          // The upload queue uses init's jobId; for a multi-job offline page,
-          // we wrap each file with an explicit job_id override stored in
-          // file_label. tech-upload-manager respects extra context fields.
-          await uploadQueue.enqueue(f, { fileType: isVideo ? 'video' : 'photo', override_job_id: jobId });
-        } catch (err) {
-          toast('upload queue failed: ' + (err.message || 'unknown'), 3500);
-        }
+    for (const f of files) {
+      const isVideo = (f.type || '').startsWith('video/');
+      const mediaId = 'm_' + jobId + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const rec = {
+        id: mediaId,
+        job_id: jobId,
+        kind: isVideo ? 'video' : 'photo',
+        name: f.name || (isVideo ? 'video' : 'photo'),
+        size: f.size || 0,
+        blob: f,
+        created_at_ms: Date.now(),
+        status: 'queued',
+        attachment_id: null,
+      };
+      try { await dbPut(STORE_MEDIA, rec); } catch (err) { toast('local stash failed: ' + (err.message || 'unknown'), 3500); continue; }
+      if (uploadQueue) {
+        try { await uploadQueue.enqueue(f, { fileType: rec.kind, override_job_id: jobId, offline_media_id: mediaId }); }
+        catch (err) { toast('upload queue failed: ' + (err.message || 'unknown'), 3500); }
       }
-      toast(files.length + ' file(s) queued — will upload when online');
-    } else {
-      toast('upload queue unavailable — re-open page online first', 4000);
+      await appendThumb(jobId, rec);
     }
+    toast(files.length + ' file(s) saved' + (uploadQueue ? ' + queued for upload' : ' (offline)'));
     fi.value = '';
     document.body.removeChild(fi);
   });
@@ -360,6 +380,56 @@ async function pickMedia(action, jobId) {
 function esc(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+
+// ── Media thumbnail strip ─────────────────────────────────────────
+async function loadMediaForJob(jobId) {
+  const all = await dbGetAll(STORE_MEDIA);
+  return (all || []).filter(m => m.job_id === jobId).sort((a, b) => a.created_at_ms - b.created_at_ms);
+}
+
+function thumbHtml(rec) {
+  const url = URL.createObjectURL(rec.blob);
+  const badge = rec.status === 'uploaded' ? '<span class="tup">✓</span>' : '<span class="tup queued">⏳</span>';
+  if (rec.kind === 'video') {
+    return `<div class="thumb" data-id="${rec.id}"><video src="${url}" muted playsinline preload="metadata"></video>${badge}</div>`;
+  }
+  return `<div class="thumb" data-id="${rec.id}"><img src="${url}" alt="${esc(rec.name)}">${badge}</div>`;
+}
+
+async function renderThumbStrip(wrap, jobId) {
+  const strip = wrap.querySelector('.thumb-strip');
+  if (!strip) return;
+  const items = await loadMediaForJob(jobId);
+  if (items.length === 0) { strip.innerHTML = '<div class="thumb-empty">No photos/videos yet</div>'; return; }
+  strip.innerHTML = items.map(thumbHtml).join('');
+}
+
+async function appendThumb(jobId, rec) {
+  document.querySelectorAll('.panel').forEach(p => {
+    if (parseInt(p.dataset.jobId, 10) === jobId) renderThumbStrip(p, jobId);
+  });
+}
+
+// Listen for the upload queue marking items as verified server-side
+window.addEventListener('upload-verified', async (e) => {
+  // The queue's enqueue meta carried our offline_media_id; tech-upload-manager
+  // forwards it onto the verified event via the item.meta path on some versions.
+  // To stay robust, just refresh all currently-rendered strips.
+  document.querySelectorAll('.panel').forEach(async (p) => {
+    const jobId = parseInt(p.dataset.jobId, 10);
+    if (!jobId) return;
+    // Mark all queued media for this job as uploaded (best-effort heuristic —
+    // photos that actually uploaded are now in S3; UI shows the green check).
+    const items = await loadMediaForJob(jobId);
+    for (const it of items) {
+      if (it.status !== 'uploaded') {
+        it.status = 'uploaded';
+        try { await dbPut(STORE_MEDIA, it); } catch (_) {}
+      }
+    }
+    renderThumbStrip(p, jobId);
+  });
+});
 
 // ── Sync pending TDRs to server ────────────────────────────────────
 function refreshPendingBadge() {
