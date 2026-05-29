@@ -744,6 +744,10 @@
 
 </div>
 
+<!-- IndexedDB-backed upload queue: photos+videos persist across page
+     reloads and auto-retry when network returns. Critical for techs
+     in low-signal driveways. -->
+<script src="/tech-upload-manager.js?v=1"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 //  TECH-ANT-CHAT — LIVE WIRING
@@ -768,6 +772,7 @@
   let mrStream = null;
   let voicesReady = false;
   let preferredVoice = null;
+  let uploadQueue = null;            // tech-upload-manager IndexedDB queue
 
   // ── Element refs ──────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -1102,7 +1107,49 @@
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
       return;
     }
-    // Try Whisper path first (MediaRecorder + getUserMedia → /whisper-transcribe)
+    // FIELD RELIABILITY: native SR runs ON-DEVICE — no network needed.
+    // Whisper is gold-standard but needs cell signal which techs don't
+    // always have. Use native first; fall back to Whisper only if it
+    // isn't supported (older Android, some embedded browsers).
+    if (SR) {
+      try {
+        nativeRec = new SR();
+        nativeRec.continuous = false;
+        nativeRec.interimResults = true;
+        nativeRec.lang = 'en-US';
+        nativeRec.maxAlternatives = 1;
+        let finalText = '';
+        nativeRec.onstart = () => { isListening = true; setMicActive(true); };
+        nativeRec.onresult = (e) => {
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const r = e.results[i];
+            if (r.isFinal) finalText += (r[0] && r[0].transcript) || '';
+            else composerInput.value = (r[0] && r[0].transcript) || '';
+          }
+        };
+        nativeRec.onerror = (e) => {
+          isListening = false; setMicActive(false);
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            addMsg('assistant', '🎤 mic permission needed — Settings → Safari → Microphone.');
+          } else if (e.error === 'no-speech') {
+            addMsg('assistant', "Didn't catch that — try again.");
+          } else if (e.error === 'network') {
+            // iOS native SR sometimes wants network. Fall back to Whisper.
+            addMsg('assistant', '🎤 native voice needs signal — recording for Whisper instead, hold + speak.');
+          }
+        };
+        nativeRec.onend = async () => {
+          isListening = false; setMicActive(false);
+          const text = (finalText || composerInput.value || '').trim();
+          if (text) { composerInput.value = ''; await sendToBrain(text); }
+        };
+        nativeRec.start();
+        return;
+      } catch (err) {
+        console.warn('native speech failed, trying whisper', err);
+      }
+    }
+    // Whisper fallback (needs network)
     const canRecord = navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
     if (canRecord) {
       try {
@@ -1132,43 +1179,6 @@
       isListening = true;
       setMicActive(true);
       return;
-    }
-    // Whisper path unavailable — try native browser SR
-    if (SR) {
-      try {
-        nativeRec = new SR();
-        nativeRec.continuous = false;
-        nativeRec.interimResults = true;
-        nativeRec.lang = 'en-US';
-        nativeRec.maxAlternatives = 1;
-        let finalText = '';
-        nativeRec.onstart = () => { isListening = true; setMicActive(true); };
-        nativeRec.onresult = (e) => {
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const r = e.results[i];
-            if (r.isFinal) finalText += (r[0] && r[0].transcript) || '';
-            else composerInput.value = (r[0] && r[0].transcript) || '';
-          }
-        };
-        nativeRec.onerror = (e) => {
-          isListening = false; setMicActive(false);
-          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            addMsg('assistant', '🎤 mic permission needed.');
-          } else if (e.error === 'no-speech') {
-            addMsg('assistant', "Didn't catch that.");
-          }
-        };
-        nativeRec.onend = async () => {
-          isListening = false; setMicActive(false);
-          const text = (finalText || composerInput.value || '').trim();
-          if (text) { composerInput.value = ''; await sendToBrain(text); }
-        };
-        nativeRec.start();
-        return;
-      } catch (err) {
-        addMsg('assistant', '🎤 voice not available: ' + (err.message || 'unknown'));
-        return;
-      }
     }
     addMsg('assistant', '🎤 voice not supported in this browser.');
   }
@@ -1233,17 +1243,37 @@
   async function uploadMedia(file) {
     const isVideo = (file.type || '').startsWith('video/');
     const subject = isVideo ? 'video' : 'photo';
+
+    // Use the IndexedDB queue if it's loaded — handles low-signal areas:
+    // file persists across page reload, retries when network returns.
+    if (uploadQueue) {
+      try {
+        const id = await uploadQueue.enqueue(file, { fileType: subject });
+        addMsg('user', '📤 ' + subject + ' queued (auto-retries on signal)');
+        // The queue uploads in background. When it lands, tell the brain.
+        // For first ship: just send the brain a notification after the file
+        // is in the queue. Vision pipe is a follow-up.
+        await sendToBrain(isVideo
+          ? "I just queued a video. Once it uploads I want you to look at it."
+          : "I just queued a photo. Once it uploads I want you to look at it."
+        );
+        return;
+      } catch (e) {
+        // Queue init failed — fall through to direct upload below
+        console.warn('queue enqueue failed, doing direct upload', e);
+      }
+    }
+
+    // Direct upload fallback (no queue — used if IndexedDB unavailable)
     addMsg('user', '📤 sending ' + subject + '…');
     showTyping();
     try {
-      // 1. generate upload url
       const filename = file.name || (subject + '-' + Date.now() + (isVideo ? '.mp4' : '.jpg'));
       const genRes = await fetch(XANO_BASE + '/generate_upload_url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          job_id: JOB_ID,
-          tech_id: TECH_ID,
+          job_id: JOB_ID, tech_id: TECH_ID,
           attachment_type: subject,
           file_type: isVideo ? 'video' : 'image',
           original_filename: filename,
@@ -1253,8 +1283,6 @@
       });
       const gen = await genRes.json();
       if (!gen || !gen.s3_key || !gen.attachment_id) throw new Error('upload init failed');
-
-      // 2. s3 presign
       const presRes = await fetch('/.netlify/functions/s3-presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1262,30 +1290,24 @@
       });
       const pres = await presRes.json();
       if (!pres || !pres.upload_url) throw new Error('presign failed');
-
-      // 3. PUT to S3
       await fetch(pres.upload_url, {
         method: 'PUT',
         headers: { 'Content-Type': file.type || 'image/jpeg' },
         body: file
       });
-
-      // 4. save attachment
       await fetch(XANO_BASE + '/save_attachment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
       });
-
       hideTyping();
-      // Send a brief signal to brain — visual upload confirm is already in chat.
       await sendToBrain(isVideo
         ? "I just sent a video. Take a look and tell me what you see."
         : "I just sent a photo. Take a look and tell me what you see."
       );
     } catch (err) {
       hideTyping();
-      addMsg('assistant', 'Upload failed: ' + (err.message || 'unknown error'));
+      addMsg('assistant', 'Upload failed: ' + (err.message || 'unknown') + ' — your photo is saved on your phone, try again when signal improves.');
     }
   }
 
@@ -1336,8 +1358,50 @@
     }
   });
 
+  // ── IndexedDB upload queue init (handles low-signal areas) ───────
+  async function initUploadQueue() {
+    if (!JOB_ID || !TECH_ID) return;
+    if (typeof window.UploadQueue === 'undefined') return;
+    try {
+      uploadQueue = new window.UploadQueue({
+        jobId: JOB_ID,
+        techId: TECH_ID,
+        xanoBase: XANO_BASE,
+        netlifyBase: '',
+        onUpdate: () => {},
+      });
+      await uploadQueue.init();
+    } catch (e) {
+      console.warn('UploadQueue init failed', e);
+      uploadQueue = null;
+    }
+  }
+
+  // ── Online / offline status pill in HUD ──────────────────────────
+  function updateOnlineState() {
+    const dot = document.querySelector('.hud-statusbar .dot');
+    const label = document.querySelector('.hud-statusbar .group:first-child > span:first-child');
+    if (!dot || !label) return;
+    if (navigator.onLine) {
+      dot.style.background = 'var(--led)';
+      dot.style.boxShadow = '0 0 6px var(--led-glow), 0 0 12px var(--led-glow)';
+      // Restore "ONLINE" label (don't clobber the mute toggle text node)
+      const first = label.firstChild;
+      if (first && first.nodeType === 3) first.nodeValue = 'ONLINE ';
+    } else {
+      dot.style.background = '#ff5050';
+      dot.style.boxShadow = '0 0 6px rgba(255,80,80,0.6), 0 0 12px rgba(255,80,80,0.4)';
+      const first = label.firstChild;
+      if (first && first.nodeType === 3) first.nodeValue = 'OFFLINE — queueing ';
+    }
+  }
+  window.addEventListener('online', updateOnlineState);
+  window.addEventListener('offline', updateOnlineState);
+  updateOnlineState();
+
   // ── Boot ──────────────────────────────────────────────────────────
   loadJob();
+  initUploadQueue();
 
 })();
 </script>
