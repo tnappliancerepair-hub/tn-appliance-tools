@@ -221,11 +221,134 @@ query tech_assist_chat verb=POST {
       }
     }
   
+    // ── 6b. Vision integration — collect image view URLs for the
+    // attachments the client just uploaded. Mirrors the pattern used in
+    // qc_cockpit_load (s3-view-url Netlify function) and the message
+    // shape Anthropic accepts (same as tech-assist-brain.js for SMS):
+    // { type: "image", source: { type: "url", url: <signed_url> } }
+    // Only image attachments are sent to vision; videos are skipped
+    // (Claude does not accept video frames as input today).
+    var $attachment_ids_in {
+      value = ($input.attachment_ids ?? [])
+    }
+
+    var $attachment_count {
+      value = $attachment_ids_in|count
+    }
+
+    var $image_s3_keys {
+      value = []
+    }
+
+    conditional {
+      if ($attachment_count > 0) {
+        foreach ($attachment_ids_in) {
+          each as $att_id {
+            db.get attachments {
+              field_name  = "id"
+              field_value = $att_id
+            } as $att
+
+            conditional {
+              if ($att != null) {
+                var $att_ft {
+                  value = ($att.file_type ?? "")|to_text
+                }
+
+                var $att_key {
+                  value = ($att.s3_key ?? "")|to_text
+                }
+
+                conditional {
+                  if (($att_ft == "image" || $att_ft == "photo") && $att_key != "") {
+                    array.push $image_s3_keys {
+                      value = $att_key
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    var $image_view_urls {
+      value = []
+    }
+
+    var $image_key_count {
+      value = $image_s3_keys|count
+    }
+
+    conditional {
+      if ($image_key_count > 0) {
+        api.request {
+          url     = "https://superlative-naiad-233aa7.netlify.app/.netlify/functions/s3-view-url"
+          method  = "POST"
+          params  = {s3_keys: $image_s3_keys}
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $sign_resp_chat
+
+        var $signed_chat {
+          value = ($sign_resp_chat.response.result.signed_urls ?? [])
+        }
+
+        foreach ($signed_chat) {
+          each as $sg2 {
+            var $url_only {
+              value = ($sg2.view_url ?? "")|to_text
+            }
+
+            conditional {
+              if ($url_only != "") {
+                array.push $image_view_urls {
+                  value = $url_only
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // The just-persisted user message is NOT in $recent (querying happened before
     // the insert). Always append it as the latest user turn. If history's last
     // pushed role was already "user" (rare double-tap), Anthropic will combine.
-    array.push $claude_messages {
-      value = {role: "user", content: $input.user_message}
+    // With images, the content is an array of [image blocks..., text block].
+    // Without images, the content stays a plain string (unchanged behavior).
+    var $final_image_count {
+      value = $image_view_urls|count
+    }
+
+    conditional {
+      if ($final_image_count > 0) {
+        var $user_content_blocks {
+          value = []
+        }
+
+        foreach ($image_view_urls) {
+          each as $iurl {
+            array.push $user_content_blocks {
+              value = {type: "image", source: {type: "url", url: $iurl}}
+            }
+          }
+        }
+
+        array.push $user_content_blocks {
+          value = {type: "text", text: $input.user_message}
+        }
+
+        array.push $claude_messages {
+          value = {role: "user", content: $user_content_blocks}
+        }
+      }
+      else {
+        array.push $claude_messages {
+          value = {role: "user", content: $input.user_message}
+        }
+      }
     }
   
     // ── 7. Build 7-day calendar (same pattern as tech_sms_inbound) ──

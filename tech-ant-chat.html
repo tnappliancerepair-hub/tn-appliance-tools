@@ -804,6 +804,11 @@
   let voicesReady = false;
   let preferredVoice = null;
   let uploadQueue = null;            // tech-upload-manager IndexedDB queue
+  // Attachments uploaded since the last chat turn. sendToBrain consumes
+  // + clears this list so each chat turn carries its attachments to the
+  // server, and the server hands them to Claude as image blocks for
+  // vision processing. Set by uploadMedia direct path + queue onUpdate.
+  let pendingAttachmentIds = [];
 
   // ── Element refs ──────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
@@ -1230,6 +1235,11 @@
     showTyping();
     let httpStatus = 0;
     let rawBody = '';
+    // Snapshot pending attachments for THIS turn + clear immediately so
+    // a concurrent upload doesn't get double-sent. If the fetch fails,
+    // we'll restore the list in the catch so the next turn retries them.
+    const attachmentsThisTurn = pendingAttachmentIds.slice();
+    pendingAttachmentIds = [];
     try {
       const r = await fetch(XANO_BASE + '/tech_assist_chat', {
         method: 'POST',
@@ -1239,7 +1249,7 @@
           technician_id: TECH_ID,
           user_message: text,
           session_id: sessionId,
-          attachment_ids: [],
+          attachment_ids: attachmentsThisTurn,
           warranty_checklist_text: warrantyChecklistText || ''
         })
       });
@@ -1274,6 +1284,12 @@
       const truncBody = (rawBody || '').slice(0, 800);
       console.error('[tech-ant] chat exception', { err: errMsg, httpStatus, rawBody: truncBody });
       addMsg('assistant', '⚠ network/parse exception\nhttp=' + httpStatus + '\nex=' + errMsg + (truncBody ? '\nbody=' + truncBody : ''));
+      // Restore the attachments so the next turn can retry them. Dedupe
+      // in case a parallel upload landed during the failed fetch.
+      const seen = new Set(pendingAttachmentIds);
+      for (const id of attachmentsThisTurn) {
+        if (!seen.has(id)) pendingAttachmentIds.push(id);
+      }
     }
   }
 
@@ -1714,9 +1730,13 @@
         body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
       });
       hideTyping();
+      // Push attachment_id so sendToBrain ships it for vision processing
+      if (gen.attachment_id) {
+        pendingAttachmentIds.push(gen.attachment_id);
+      }
       await sendToBrain(isVideo
-        ? "I just sent a video. Take a look and tell me what you see."
-        : "I just sent a photo. Take a look and tell me what you see."
+        ? "Just uploaded a video — go look and tell me what you see."
+        : "Photo of the model plate — read the model number off it and confirm it back to me. If it's not a model plate, just tell me what you see."
       );
     } catch (err) {
       hideTyping();
@@ -1893,12 +1913,18 @@
             const items = await uploadQueue.list();
             for (const item of items) renderUploadBubble(item);
             // Tell brain when an upload lands. One-time per item.
+            // Push the attachment_id onto pendingAttachmentIds so
+            // sendToBrain ships it to the server, which fetches a
+            // signed view URL and gives Claude an image block.
             for (const item of items) {
               if (item.status === 'uploaded' && !item._notified) {
                 item._notified = true;
+                if (item.attachment_id) {
+                  pendingAttachmentIds.push(item.attachment_id);
+                }
                 sendToBrain(item.file_type === 'video'
-                  ? "Just uploaded a video — go look."
-                  : "Just uploaded a photo — go look.");
+                  ? "Just uploaded a video — go look and tell me what you see."
+                  : "Photo of the model plate — read the model number off it and confirm it back to me. If it's not a model plate, just tell me what you see.");
               }
             }
           } catch (e) { console.warn('upload bubble render', e); }
