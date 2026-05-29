@@ -435,6 +435,28 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     render(data);
+    recordPortalEvent('portal_viewed').catch(() => {});
+  }
+
+  // Records portal engagement so the channel-preference engine learns
+  // whether this customer actually uses the portal. portal_viewed +
+  // portal_action_taken events tilt them toward 'portal'; ignored SMS
+  // links tilt them toward 'sms'. See get_customer_channel_preference.
+  async function recordPortalEvent(event, actionName) {
+    try {
+      const cid = jobData && jobData.customer && jobData.customer.id;
+      if (!cid) return;
+      await fetch(`${XANO_BASE}/record_portal_event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: cid,
+          event,
+          job_id: Number(JOB_ID),
+          action_name: actionName || ''
+        })
+      });
+    } catch (_) {}
   }
 
   // ── Rendering ───────────────────────────────────────────────────
@@ -578,6 +600,7 @@
             const data = await res.json();
             if (data && data.success) {
               btnPartsArrived.textContent = '✓ Got it — your tech has been notified';
+              recordPortalEvent('portal_action_taken', 'parts_arrived').catch(() => {});
               setTimeout(() => location.reload(), 1500);
             } else {
               btnPartsArrived.disabled = false;
@@ -662,6 +685,7 @@
         if (!d || !d.success) throw new Error((d && d.message) || 'failed');
         msg.textContent = '✓ Thank you for your feedback!';
         msg.className = 'msg ok';
+        recordPortalEvent('portal_action_taken', 'rated_visit').catch(() => {});
         setTimeout(() => $('rateForm').classList.remove('show'), 1800);
       } catch (err) {
         msg.textContent = 'failed: ' + (err.message || err);
@@ -717,6 +741,7 @@
       msg.textContent = kind === 'reschedule'
         ? 'Got it — our team will reach out shortly to set up a new time.'
         : 'Saved. Your tech will see these notes.';
+      recordPortalEvent('portal_action_taken', action).catch(() => {});
       ta.value = '';
       // Reload to reflect any saved-notes changes
       if (kind === 'add_notes') {

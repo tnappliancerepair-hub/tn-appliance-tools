@@ -429,6 +429,25 @@ export async function getJobForDashboard(jobId) {
   return postJSON(`${INTAKE()}/get_job_for_dashboard`, { job_id: jobId });
 }
 
+// Returns the open awaiting_parts queue (lean shape) used by the
+// parts_delivery_observation_handler matcher. Fields:
+//   id, customer_name, service_zip, service_city, part_number,
+//   model_number, order_number
+export async function listAwaitingPartsJobs({ limit = 100 } = {}) {
+  try {
+    const r = await getJSON(`${INTAKE()}/list_awaiting_parts_jobs?limit=${limit}`);
+    return (r && Array.isArray(r.items)) ? r.items : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+// Canonical "parts arrived" trigger — same endpoint office UI hits.
+// Source string is recorded in metadata for audit traceability.
+export async function markPartsArrived({ job_id, source, notes = '' }) {
+  return postJSON(`${INTAKE()}/mark_parts_arrived`, { job_id, source, notes });
+}
+
 // Find open / parts-ready jobs near a tech's recent location. Used by
 // the scheduler_fill_gap agent to surface fill-in work when a tech
 // wraps ahead of schedule.
@@ -437,6 +456,18 @@ export async function findNearbyOpenJobs({ tech_id, recent_zip = '', recent_city
   if (recent_zip) params.append('recent_zip', recent_zip);
   if (recent_city) params.append('recent_city', recent_city);
   return getJSON(`${INTAKE()}/find_nearby_open_jobs?${params.toString()}`);
+}
+
+// Returns a customer's preferred comms channel based on their last 60d
+// of portal vs SMS engagement. See get_customer_channel_preference_GET.xs.
+// Shape: { prefers: "portal" | "sms" | "unknown", score, evidence: {...} }
+export async function getCustomerChannelPreference(customerId) {
+  if (!customerId) return { prefers: 'unknown', score: 0, evidence: {} };
+  try {
+    return await getJSON(`${INTAKE()}/get_customer_channel_preference?customer_id=${customerId}`);
+  } catch (_) {
+    return { prefers: 'unknown', score: 0, evidence: {} };
+  }
 }
 
 // Lists active warranty_requirement_override rows for a vendor (or all).

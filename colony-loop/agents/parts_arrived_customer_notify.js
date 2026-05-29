@@ -26,6 +26,8 @@
 //   - Skip if no customer phone on file.
 //   - Skip after 8pm / before 8am CT — no after-hours pings.
 
+import { composeForChannel } from '../channel.js';
+
 const CT_TZ = 'America/Chicago';
 const BASE_URL = 'https://tnapplianceexchange.net';
 
@@ -73,7 +75,17 @@ export async function run(signal, ctx) {
   const appl = (job.appliance_type || 'appliance').toLowerCase();
   const portalUrl = `${BASE_URL}/customer-portal.html?job_id=${jobId}&last4=${phoneLast4}`;
 
-  const body = `[TN Appliance] Great news ${firstName} — your parts for the ${appl} repair are here! Tap to pick a return-visit time: ${portalUrl}`;
+  // Channel-aware composition: portal-prefering customers get a short
+  // push to the portal; SMS-prefering customers get the full info
+  // inline + a reply prompt instead of a portal link.
+  const composed = await composeForChannel({
+    customerId: customer.id,
+    intro: `great news ${firstName} — your parts for the ${appl} repair are here`,
+    inlineDetail: `Reply with a day + time window that works (e.g. "Thursday afternoon") and we'll get you back on the schedule.`,
+    portalUrl,
+    portalActionLabel: 'pick a return-visit time',
+  });
+  const body = composed.body;
 
   // sms.toCustomer enforces the CUSTOMER_FACING_ENABLED gate at the
   // send_sms endpoint. If gated, the message is dropped + Teddy is
@@ -98,6 +110,7 @@ export async function run(signal, ctx) {
       customer_id: customer.id,
       sms_ok: !!(smsResult && smsResult.ok),
       gated: !!(smsResult && smsResult.gated),
+      channel_pref: composed.prefers,
     });
   } catch (_) {}
 
@@ -105,8 +118,9 @@ export async function run(signal, ctx) {
     job_id: jobId,
     sms_ok: !!(smsResult && smsResult.ok),
     gated: !!(smsResult && smsResult.gated),
+    channel_pref: composed.prefers,
   });
 
-  log('parts_arrived_customer_notify_sent', { job_id: jobId, gated: !!(smsResult && smsResult.gated) });
+  log('parts_arrived_customer_notify_sent', { job_id: jobId, gated: !!(smsResult && smsResult.gated), channel: composed.prefers });
   return { success: true, action: 'sent' };
 }

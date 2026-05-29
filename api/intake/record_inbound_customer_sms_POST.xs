@@ -128,6 +128,26 @@ query record_inbound_customer_sms verb=POST {
       }
     } as $audit
 
+    // 4b. Channel-preference signal: if we matched a customer, log a
+    // dedicated sms_reply_received event the channel-preference engine
+    // reads to learn that this customer engages via SMS. (The
+    // inbound_customer_sms_received audit row above isn't filtered by
+    // customer_id efficiently — this separate row is.)
+    conditional {
+      if ($customer_id_val > 0) {
+        db.add event_log {
+          data = {
+            action  : "sms_reply_received"
+            metadata: {
+              customer_id : $customer_id_val
+              job_id      : $job_id_val
+              recorded_at : now|to_ms
+            }
+          }
+        }
+      }
+    }
+
     // 5. Emit signal for the inbound_customer_sms agent.
     var $ics_payload_obj {
       value = {

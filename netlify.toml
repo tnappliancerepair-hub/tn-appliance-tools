@@ -38,3 +38,14 @@
 # pollers are stable and warranty intake automation is proven.
 [functions."servicepower-gmail-poller"]
   schedule = "*/15 * * * *"
+
+# Parts-vendor delivery-notification poller. Scans the same Gmail inbox
+# the AHS / SP pollers use for shipping-confirmation + delivery emails
+# from parts distributors (Marcone, Triple S, Reliable Parts) and
+# carriers (FedEx, UPS). When a "delivered" message lands, posts to
+# /record_parts_delivery_observation → matcher agent → mark_parts_arrived
+# if a single confident job match exists. Otherwise escalates to Teddy
+# with candidate jobs. Path D of the 4-path parts-arrival rail.
+# Every 30 min — delivery emails aren't time-critical to the same minute.
+[functions."parts-vendor-gmail-poller"]
+  schedule = "*/30 * * * *"
