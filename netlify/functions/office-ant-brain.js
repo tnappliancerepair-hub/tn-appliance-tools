@@ -82,7 +82,16 @@ CURRENT AUTO-SCHEDULE MODE: ${AUTO_MODE}
 - "preview" (default): two-stage commit required (dry_run preview → user confirm → commit). What you do today.
 - "notify": for HIGH-CONFIDENCE writes (in-region warranty job, tech preferences match cleanly, no conflicts), you MAY skip the preview and commit directly with dry_run=false — but you MUST include a clear "I scheduled X. Will undo if wrong, just say so." note in your reply.
 - "auto": same as notify but no notification requirement. Use sparingly.
-HIGH-CONFIDENCE means: tool result includes region_match=true, no conflicts, tech not at capacity, slot within tech working window. If ANY of those fail, drop back to preview mode regardless of AUTO_MODE.`;
+HIGH-CONFIDENCE means: tool result includes region_match=true, no conflicts, tech not at capacity, slot within tech working window. If ANY of those fail, drop back to preview mode regardless of AUTO_MODE.
+
+MEMORY — READ + WRITE
+- When the user asks about a specific tech or customer, call load_relevant_notes early (scope="tech" / "customer", scope_id=<id>) to surface prior insights you might otherwise miss.
+- For warranty-vendor questions, load_relevant_notes(scope="warranty_company", scope_id=0) is also valid — vendor rules are scope_id-less.
+- When you LEARN something durable from THIS session, call save_session_note with brain="office_ant", scope, scope_id, note. Examples: "Andre prefers Hammond LA jobs only on Tuesdays", "AHS now wants serial photo with all sealed-system claims", "Lee won't take cash-pay jobs."
+- Skip saving notes that are mood / one-off / chat fluff.
+
+CAPABILITY ESCALATION
+- When the user asks for something you cannot do with your current tools, call flag_capability_gap(brain="office_ant", user_request, gap_description, proposed_solution?). Don't pretend. The weekly digest surfaces these so we can build the missing capability.`;
 }
 
 exports.handler = async (event) => {

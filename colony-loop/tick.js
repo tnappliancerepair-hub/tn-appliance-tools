@@ -612,12 +612,17 @@ async function maybeEmitTimeSignals() {
     }
     if (omFired && !omFired.fired) {
       try {
+        // Write the dedup marker FIRST. If this fails we throw and the
+        // emit doesn't happen — next tick will retry the full pair.
+        // Previously the marker write was inside a swallow-all
+        // try/catch, so a silent write failure would let the next tick
+        // re-emit and Danielle would get a duplicate SMS.
+        await xano.recordEventLog('office_morning_briefing_emitted', { since_ts_ms: sinceMs });
         await xano.emitSignal({
           signal_type: 'OFFICE_MORNING_BRIEFING',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        try { await xano.recordEventLog('office_morning_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('office_morning_briefing_emit_failed', { error: err.message });
       }

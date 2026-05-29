@@ -830,6 +830,47 @@ async function executeTool(toolName, toolInput, ctx) {
       };
     }
 
+    case 'load_relevant_notes': {
+      const scope = String(ti.scope || '').toLowerCase();
+      const scopeId = ti.scope_id || 0;
+      const daysBack = Math.min(ti.days_back || 90, 365);
+      const limit = Math.min(ti.limit || 10, 30);
+      if (!scope) return { error: 'scope required' };
+      if (scope !== 'global' && !scopeId) return { error: 'scope_id required for non-global scope' };
+      // Pull recent brain_session_note rows and filter in app code by
+      // scope + scope_id. Cheap because notes are sparse.
+      const params = new URLSearchParams({ action: 'brain_session_note', days_back: String(daysBack), limit: '300' });
+      const res = await timedFetch(`${XANO_BASE}/list_recent_event_log?${params.toString()}`, { method: 'GET' });
+      if (res.error) return res;
+      const rows = Array.isArray(res.items) ? res.items : [];
+      const matches = [];
+      for (const row of rows) {
+        let meta;
+        try { meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata; }
+        catch (_) { continue; }
+        if (!meta) continue;
+        if (String(meta.scope || '').toLowerCase() !== scope) continue;
+        if (scope !== 'global' && Number(meta.scope_id || 0) !== Number(scopeId)) continue;
+        matches.push({
+          note: meta.note,
+          confidence: meta.confidence || 'medium',
+          saved_at_ms: meta.saved_at_ms || row.created_at,
+          source_brain: meta.brain || 'unknown',
+        });
+        if (matches.length >= limit) break;
+      }
+      return {
+        ok: true,
+        scope,
+        scope_id: scopeId,
+        notes_found: matches.length,
+        notes: matches,
+        guidance: matches.length === 0
+          ? 'No prior notes for this entity. If you learn something durable this session, save it via save_session_note.'
+          : 'Use these notes to inform your reply. If you learn something new + durable, save it via save_session_note.',
+      };
+    }
+
     case 'flag_capability_gap': {
       // Universal escalation surface. Architect reads these events
       // daily and proposes new agents/tools to fill the gap.
@@ -911,6 +952,20 @@ const UNIVERSAL_TOOLS = [
         proposed_solution: { type: 'string', description: 'Optional — your best guess at what tool / endpoint / agent would fill the gap.' },
       },
       required: ['brain', 'user_request', 'gap_description'],
+    },
+  },
+  {
+    name: 'load_relevant_notes',
+    description: "Load durable observations from past sessions that match the current entity. Call this at the start of a non-trivial conversation (about a specific customer, tech, or warranty company) to see what prior brains learned. Returns recent brain_session_note rows scoped to the entity. Saves you from re-asking the user something we already know.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', description: 'Which entity to look up: customer | tech | warranty_company | global' },
+        scope_id: { type: 'integer', description: 'ID of the entity (customer_id, tech_id, etc.) — required for non-global scopes' },
+        days_back: { type: 'integer', description: 'How far back to look (default 90)' },
+        limit: { type: 'integer', description: 'Max notes to return (default 10, max 30)' },
+      },
+      required: ['scope'],
     },
   },
   {
