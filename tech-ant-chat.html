@@ -591,13 +591,13 @@
     box-shadow: 0 0 0 3px var(--cyan-glow);
   }
   .composer-btn {
-    width: 46px; height: 46px;
+    width: 42px; height: 42px;
     flex-shrink: 0;
-    border-radius: 12px;
+    border-radius: 11px;
     background: rgba(240,245,255,0.06);
     border: 1px solid rgba(240,245,255,0.20);
     color: var(--text);
-    font-size: 20px;
+    font-size: 18px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     -webkit-appearance: none;
@@ -744,7 +744,8 @@
   <!-- Composer -->
   <footer class="composer">
     <div class="composer-inner">
-      <button class="composer-btn" title="Camera" aria-label="Camera">📷</button>
+      <button class="composer-btn" id="btn-photo" title="Photo" aria-label="Photo">📷</button>
+      <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Video">🎥</button>
       <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
       <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
       <textarea class="composer-input" id="composer-input"
@@ -1433,12 +1434,13 @@
   // screen camera, live preview, 10s MP4 cap, retry + gallery
   // fallback). Native picker is the safety net if CaptureOverlay
   // isn't loaded.
-  const cameraBtn = document.querySelector('.composer-btn[title="Camera"]');
+  const btnPhoto = document.getElementById('btn-photo');
+  const btnVideo = document.getElementById('btn-video');
 
-  // Native fallback picker
+  // Native fallback picker for photo
   const photoInput = document.createElement('input');
   photoInput.type = 'file';
-  photoInput.accept = 'image/*,video/*';
+  photoInput.accept = 'image/*';
   photoInput.capture = 'environment';
   photoInput.style.display = 'none';
   document.body.appendChild(photoInput);
@@ -1449,17 +1451,45 @@
     e.target.value = '';
   });
 
-  cameraBtn.addEventListener('click', () => {
+  // Native fallback picker for video
+  const videoInput = document.createElement('input');
+  videoInput.type = 'file';
+  videoInput.accept = 'video/*';
+  videoInput.capture = 'environment';
+  videoInput.style.display = 'none';
+  document.body.appendChild(videoInput);
+  videoInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    for (const f of files) await uploadMedia(f);
+    e.target.value = '';
+  });
+
+  btnPhoto.addEventListener('click', () => {
     if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
-      // Default to photo. (Brain can later emit REQUEST_VIDEO which
-      // we'll wire to openVideoCapture as the chat-driven flow.)
       window.CaptureOverlay.openPhotoCapture(async (blob, mimeType) => {
-        if (!blob) return;  // cancelled
+        if (!blob) return;
         const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: mimeType || 'image/jpeg' });
         await uploadMedia(file);
       });
     } else {
       photoInput.click();
+    }
+  });
+
+  btnVideo.addEventListener('click', () => {
+    if (window.CaptureOverlay && typeof window.CaptureOverlay.openVideoCapture === 'function') {
+      window.CaptureOverlay.openVideoCapture(async (blob, mimeType) => {
+        if (!blob) return;
+        // Pick extension matching the mime so save_attachment + S3 are happy
+        let ext = 'mp4';
+        if (mimeType && mimeType.includes('webm')) ext = 'webm';
+        else if (mimeType && mimeType.includes('quicktime')) ext = 'mov';
+        const file = new File([blob], 'video-' + Date.now() + '.' + ext, { type: mimeType || 'video/mp4' });
+        await uploadMedia(file);
+      });
+    } else {
+      videoInput.click();
     }
   });
 
