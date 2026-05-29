@@ -56,6 +56,7 @@
   .net-pill.offline { background: rgba(245,110,110,0.15); color: var(--err); }
   .badge-pending { background: var(--warn); color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
   .badge-synced { background: var(--accent); color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .job-pending { display: none; font-size: 12px; color: var(--warn); padding: 6px 8px; background: rgba(255,170,0,0.08); border-left: 3px solid var(--warn); margin-bottom: 12px; border-radius: 3px; }
   .toast { position: fixed; bottom: 18px; left: 18px; right: 18px; background: var(--row); border: 1px solid var(--accent); color: var(--accent); padding: 10px 14px; border-radius: 8px; text-align: center; font-size: 13px; display: none; z-index: 100; }
   .toast.show { display: block; }
   .gate { padding: 40px 24px; text-align: center; }
@@ -236,8 +237,21 @@ function renderJobCard(item) {
   const applLine = [job.brand, job.appliance_type].filter(Boolean).join(' ') || 'appliance';
   const addrLine = [job.service_address, job.service_city].filter(Boolean).join(', ');
 
-  // Find existing pending TDR for this job
-  const existing = pendingTdrs.find(t => t.job_id === jobId && !t.synced_at_ms) || { id: 'tdr_' + jobId + '_' + Date.now(), job_id: jobId, fields: {}, created_at_ms: Date.now() };
+  // Find existing pending TDR for this job, or create a transient stub
+  // and IMMEDIATELY persist it so a power-off mid-typing doesn't lose data.
+  let existing = pendingTdrs.find(t => t.job_id === jobId && !t.synced_at_ms);
+  if (!existing) {
+    const idemKey = 'idem_' + jobId + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    existing = {
+      id: 'tdr_' + jobId + '_' + Date.now(),
+      job_id: jobId,
+      client_idempotency_key: idemKey,
+      fields: {},
+      created_at_ms: Date.now(),
+    };
+    pendingTdrs.push(existing);
+    dbPut(STORE_TDRS, existing).catch(() => {});
+  }
   const status = existing.synced_at_ms ? 'synced' : (Object.keys(existing.fields || {}).length > 0 ? 'pending' : '');
 
   const wrap = document.createElement('div');
@@ -256,6 +270,11 @@ function renderJobCard(item) {
       </div>
     </div>
     <div class="panel-body">
+      <div class="job-pending" data-pending-for="${jobId}"></div>
+      <div class="field"><label>Model number (read off the plate, type it here)</label><input data-field="model_number_typed" type="text" autocapitalize="characters" value="${esc(existing.fields.model_number_typed || '')}" placeholder="e.g. WTW5000DW2"></div>
+      <div class="field"><label>Symptom confirmation (what's the customer reporting)</label><textarea data-field="symptom_confirmation">${esc(existing.fields.symptom_confirmation || '')}</textarea></div>
+      <div class="field"><label>Model confirmation (does the plate match the work order? yes/no + notes)</label><input data-field="model_confirmation" type="text" value="${esc(existing.fields.model_confirmation || '')}" placeholder="yes / no — notes"></div>
+      <div class="field"><label>Diagnosis</label><textarea data-field="diagnosis">${esc(existing.fields.diagnosis || '')}</textarea></div>
       <div class="field"><label>What failed</label><textarea data-field="failed_component">${esc(existing.fields.failed_component || '')}</textarea></div>
       <div class="field"><label>Why it failed</label><textarea data-field="failure_cause">${esc(existing.fields.failure_cause || '')}</textarea></div>
       <div class="field"><label>Part number used / ordered</label><input data-field="verified_part_number" type="text" value="${esc(existing.fields.verified_part_number || '')}" placeholder="e.g. WPW10310240"></div>
@@ -265,7 +284,7 @@ function renderJobCard(item) {
           ${repairRadios(existing.fields.repair_completed)}
         </div>
       </div>
-      <div class="field"><label>Notes</label><textarea data-field="technician_notes">${esc(existing.fields.technician_notes || '')}</textarea></div>
+      <div class="field"><label>Findings / notes (what you found, what you did)</label><textarea data-field="technician_notes">${esc(existing.fields.technician_notes || '')}</textarea></div>
       <div class="media-row">
         <button class="media-btn" data-action="photo" data-job="${jobId}">📷 Take photo</button>
         <button class="media-btn" data-action="library" data-job="${jobId}">🖼 Library</button>
@@ -290,6 +309,7 @@ function renderJobCard(item) {
     btn.addEventListener('click', () => handleAction(btn.dataset.action, jobId, existing, wrap, btn));
   });
   renderThumbStrip(wrap, jobId);
+  setTimeout(() => updateJobPendingBadge(jobId), 50);
   return wrap;
 }
 
@@ -303,8 +323,9 @@ function repairRadios(current) {
   return options.map(o => `<label><input type="radio" name="repair_${Date.now()}_${Math.random()}" value="${o.v}"${current === o.v ? ' checked' : ''}><span>${o.label}</span></label>`).join('');
 }
 
+const SAVE_DEBOUNCE_MS = 300;
+const _saveTimers = new Map();
 function onFieldChange(wrap, existing) {
-  // Update existing.fields from DOM
   wrap.querySelectorAll('[data-field]').forEach(el => {
     existing.fields[el.dataset.field] = el.value || '';
   });
@@ -313,6 +334,35 @@ function onFieldChange(wrap, existing) {
     const checked = rg.querySelector('input:checked');
     existing.fields.repair_completed = checked ? checked.value : '';
   }
+  existing.updated_at_ms = Date.now();
+  // Auto-persist EVERY keystroke (debounced) so a force-quit mid-typing
+  // never loses data. The spec is store-and-forward: capture must be
+  // durable before any network attempt.
+  const key = existing.id;
+  if (_saveTimers.has(key)) clearTimeout(_saveTimers.get(key));
+  _saveTimers.set(key, setTimeout(() => {
+    dbPut(STORE_TDRS, existing).catch(err => console.warn('autosave', err));
+    if (!pendingTdrs.find(t => t.id === existing.id)) pendingTdrs.push(existing);
+    refreshPendingBadge();
+    updateJobPendingBadge(existing.job_id);
+  }, SAVE_DEBOUNCE_MS));
+}
+
+async function updateJobPendingBadge(jobId) {
+  const tdrs = pendingTdrs.filter(t => t.job_id === jobId && !t.synced_at_ms);
+  const media = await loadMediaForJob(jobId);
+  const tdrCount = tdrs.length;
+  const mediaPending = media.filter(m => m.status !== 'uploaded').length;
+  const mediaTotal = media.length;
+  const lines = [];
+  if (tdrCount > 0) lines.push(`${tdrCount} TDR draft saved locally`);
+  if (mediaPending > 0) lines.push(`${mediaPending} of ${mediaTotal} photo/video waiting to upload`);
+  else if (mediaTotal > 0) lines.push(`${mediaTotal} photo/video uploaded`);
+  const txt = lines.length > 0 ? lines.join(' · ') : '';
+  document.querySelectorAll('[data-pending-for="' + jobId + '"]').forEach(el => {
+    el.textContent = txt;
+    el.style.display = txt ? 'block' : 'none';
+  });
 }
 
 async function handleAction(action, jobId, existing, wrap, btn) {
@@ -408,6 +458,7 @@ async function appendThumb(jobId, rec) {
   document.querySelectorAll('.panel').forEach(p => {
     if (parseInt(p.dataset.jobId, 10) === jobId) renderThumbStrip(p, jobId);
   });
+  updateJobPendingBadge(jobId);
 }
 
 // Listen for the upload queue marking items as verified server-side
@@ -446,15 +497,31 @@ async function syncAll() {
   let synced = 0, failed = 0;
   for (const t of pendingTdrs) {
     if (t.synced_at_ms) continue;
+    if (!t.client_idempotency_key) {
+      t.client_idempotency_key = 'idem_' + t.job_id + '_' + t.created_at_ms + '_' + Math.random().toString(36).slice(2, 8);
+      await dbPut(STORE_TDRS, t);
+    }
     try {
+      const f = t.fields || {};
+      // Pack model_typed + model_confirmation + symptom_confirmation into
+      // problem_summary so they ride to the same column the online flow
+      // uses. Diagnosis and the other fields land in their own columns.
+      const summaryLines = [];
+      if (f.model_number_typed) summaryLines.push('Model typed by tech: ' + f.model_number_typed);
+      if (f.model_confirmation) summaryLines.push('Model confirmed: ' + f.model_confirmation);
+      if (f.symptom_confirmation) summaryLines.push('Symptom confirmed: ' + f.symptom_confirmation);
       const payload = {
         job_id: t.job_id,
         technician_id: TECH_ID,
-        verified_part_number: t.fields.verified_part_number || '',
-        labor_time_hours: t.fields.labor_time_hours ? parseFloat(t.fields.labor_time_hours) : 0,
-        problem_summary: t.fields.failed_component || '',
-        technician_notes: ([t.fields.failure_cause, t.fields.technician_notes].filter(Boolean).join('\n\n')),
-        repair_completed: t.fields.repair_completed || '',
+        client_idempotency_key: t.client_idempotency_key,
+        diagnosis: f.diagnosis || '',
+        failed_component: f.failed_component || '',
+        failure_cause: f.failure_cause || '',
+        verified_part_number: f.verified_part_number || '',
+        labor_time_hours: f.labor_time_hours ? parseFloat(f.labor_time_hours) : 0,
+        problem_summary: summaryLines.join('\n'),
+        technician_notes: f.technician_notes || '',
+        repair_completed: f.repair_completed || '',
         status: 'offline_sync',
       };
       const r = await fetch(`${XANO_BASE}/create_tdr`, {
@@ -464,13 +531,21 @@ async function syncAll() {
         signal: AbortSignal.timeout(20000),
       });
       if (r.ok) {
+        const data = await r.json().catch(() => null);
         t.synced_at_ms = Date.now();
+        t.server_tdr_id = (data && data.tdr && data.tdr.id) || null;
+        t.server_reused = !!(data && data.reused);
         await dbPut(STORE_TDRS, t);
         synced += 1;
       } else {
+        const body = await r.text().catch(() => '');
+        t.last_sync_error = 'HTTP ' + r.status + ': ' + body.slice(0, 200);
+        await dbPut(STORE_TDRS, t);
         failed += 1;
       }
     } catch (e) {
+      t.last_sync_error = String(e && e.message || e);
+      await dbPut(STORE_TDRS, t);
       failed += 1;
     }
   }

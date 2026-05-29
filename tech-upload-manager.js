@@ -106,8 +106,9 @@
         file_size: file.size,
         file_type: meta.fileType || (file.type.startsWith('video/') ? 'video' : 'photo'),
         mime: file.type || 'application/octet-stream',
-        job_id: this.jobId,
-        tech_id: this.techId,
+        job_id: meta.override_job_id || meta.jobId || this.jobId,
+        tech_id: meta.override_tech_id || meta.techId || this.techId,
+        offline_media_id: meta.offline_media_id || null,
         status: 'queued',                // queued | uploading | uploaded | failed
         attempts: 0,
         last_error: null,
@@ -219,13 +220,13 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            job_id: parseInt(this.jobId, 10),
+            job_id: parseInt(item.job_id || this.jobId, 10),
             attachment_type: 'tdr',
             file_type: item.file_type,
             original_filename: item.file_name,
             mime_type: item.mime,
             uploaded_by: 'tech',
-            tech_id: parseInt(this.techId, 10),
+            tech_id: parseInt(item.tech_id || this.techId, 10),
           }),
           signal: ac.signal,
         });
