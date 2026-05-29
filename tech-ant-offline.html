@@ -273,7 +273,7 @@ function renderJobCard(item) {
     el.addEventListener('change', () => onFieldChange(wrap, existing));
   });
   wrap.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => handleAction(btn.dataset.action, jobId, existing.id, wrap, btn));
+    btn.addEventListener('click', () => handleAction(btn.dataset.action, jobId, existing, wrap, btn));
   });
   return wrap;
 }
@@ -300,24 +300,26 @@ function onFieldChange(wrap, existing) {
   }
 }
 
-async function handleAction(action, jobId, tdrId, wrap, btn) {
+async function handleAction(action, jobId, existing, wrap, btn) {
   if (action === 'photo' || action === 'video' || action === 'library') {
     await pickMedia(action, jobId);
     return;
   }
   if (action === 'save') {
-    const existing = pendingTdrs.find(t => t.id === tdrId);
-    if (!existing) return;
-    // Read fields one more time
-    onFieldChange(wrap, existing);
-    existing.created_at_ms = existing.created_at_ms || Date.now();
-    existing.updated_at_ms = Date.now();
-    await dbPut(STORE_TDRS, existing);
-    if (!pendingTdrs.find(t => t.id === tdrId)) pendingTdrs.push(existing);
-    btn.classList.add('saved');
-    btn.textContent = '✓ Saved locally';
-    setTimeout(() => { btn.classList.remove('saved'); btn.textContent = 'Save TDR locally'; }, 2000);
-    refreshPendingBadge();
+    if (!existing) { toast('save failed: no tdr context', 3500); return; }
+    try {
+      onFieldChange(wrap, existing);
+      existing.created_at_ms = existing.created_at_ms || Date.now();
+      existing.updated_at_ms = Date.now();
+      await dbPut(STORE_TDRS, existing);
+      if (!pendingTdrs.find(t => t.id === existing.id)) pendingTdrs.push(existing);
+      btn.classList.add('saved');
+      btn.textContent = '✓ Saved locally';
+      setTimeout(() => { btn.classList.remove('saved'); btn.textContent = 'Save TDR locally'; }, 2000);
+      refreshPendingBadge();
+    } catch (err) {
+      toast('save failed: ' + (err && err.message ? err.message : 'unknown'), 4000);
+    }
   }
 }
 
