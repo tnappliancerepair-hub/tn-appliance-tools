@@ -113,6 +113,21 @@ export async function run(signal, ctx) {
   const jobId = Number(payload.job_id);
   if (!jobId) throw new Error('payload.job_id required');
 
+  // ── Chain: SCHEDULER_POST_STOP_CHECKIN (immediate) ──
+  // The scheduler ant pings the tech right after they complete a stop:
+  // "Good to go? X more left today. Tap to switch anything around."
+  // Agent: scheduler_post_stop_checkin.js — gates on tech_id != 1,
+  // remaining-jobs > 0, after-hours, and dedup via signal processing.
+  try {
+    await xano.emitSignal({
+      signal_type: 'SCHEDULER_POST_STOP_CHECKIN',
+      signal_strength: 45,
+      payload: { job_id: jobId, technician_id: job.technician_id || 0, source: 'job_completed' },
+    });
+  } catch (e) {
+    log('scheduler_post_stop_checkin_emit_failed', { job_id: jobId, error: e.message });
+  }
+
   // ── Chain: FOLLOWUP_DUE (24h) ──
   // Fire for EVERY completed job (warranty + self-pay). followup_due.js
   // holds via re-emit until the deadline, then sends the customer the

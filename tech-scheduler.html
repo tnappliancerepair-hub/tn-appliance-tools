@@ -1783,6 +1783,15 @@
   // ── Boot ──────────────────────────────────────────────────────────
   loadJob();
   initUploadQueue();
+
+  // If the URL carries ?prompt=... auto-send that as the first turn so
+  // SMS deep-links (post-stop check-in, periodic check-in) open the
+  // page already pulling the tech's status from the brain.
+  const seedPrompt = (params.get('prompt') || '').trim();
+  if (seedPrompt) {
+    // Wait a tick so the empty state + brain context are ready
+    setTimeout(() => { sendToBrain(seedPrompt); }, 350);
+  }
   // Show voice test card on first visit (until tech dismisses it).
   if (localStorage.getItem('ant_voice_test_dismissed') !== '1') {
     setTimeout(showVoiceTestCard, 500);

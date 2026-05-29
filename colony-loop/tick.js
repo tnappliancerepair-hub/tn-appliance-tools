@@ -151,6 +151,38 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // SCHEDULER_PERIODIC_CHECKIN — fires Mon-Sat at 10am CT and 2pm CT.
+  // Per-tech check-in: "how's it going, want any extra stops?"
+  // Dedup via check_event_log_fired_today so multiple ticks within
+  // the hour don't multi-emit.
+  {
+    const dayShort = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    const dateCt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowTs));
+    const isWeekday = dayShort !== 'Sun';
+    let windowSlot = null;
+    if (isWeekday && hour === 10) windowSlot = 'morning';
+    else if (isWeekday && hour === 14) windowSlot = 'afternoon';
+    if (windowSlot) {
+      const dayKey = `${dateCt}_${windowSlot}`;
+      let fired = false;
+      try {
+        fired = await xano.checkEventLogFiredToday('scheduler_periodic_checkin_emitted', dayKey);
+      } catch (_) {}
+      if (!fired) {
+        try {
+          await xano.emitSignal({
+            signal_type: 'SCHEDULER_PERIODIC_CHECKIN',
+            signal_strength: 40,
+            payload: { window: windowSlot, day: dateCt, emitted_ct: fmtCT(nowTs) },
+          });
+          await xano.recordEvent('scheduler_periodic_checkin_emitted', { day: dayKey, window: windowSlot });
+        } catch (err) {
+          xano.logLocal('scheduler_periodic_checkin_emit_failed', { error: err.message });
+        }
+      }
+    }
+  }
+
   // WARRANTY_LEARNING_AGGREGATE — fires daily at 5am CT (5-7am grace
   // window). Reads recent warranty_correction events, detects patterns,
   // writes warranty_requirement_override rows. Agent idempotency via
