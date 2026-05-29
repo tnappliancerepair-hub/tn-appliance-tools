@@ -1571,6 +1571,40 @@
     }
     window.location.href = 'tel:' + jobContext.customer.phone;
   });
+  // ── OTW + live position broadcast (Uber-style customer tracking) ──
+  let __posWatch = null;
+  let __posSafety = null;
+  let __lastPingMs = 0;
+  function startPositionBroadcast() {
+    if (__posWatch != null || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(sendPosPing, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+    __posWatch = navigator.geolocation.watchPosition(sendPosPing, () => {}, { enableHighAccuracy: true, maximumAge: 25000 });
+    __posSafety = setTimeout(stopPositionBroadcast, 2 * 60 * 60 * 1000);  // safety: stop after 2h
+  }
+  function stopPositionBroadcast() {
+    if (__posWatch != null) { navigator.geolocation.clearWatch(__posWatch); __posWatch = null; }
+    if (__posSafety) { clearTimeout(__posSafety); __posSafety = null; }
+  }
+  async function sendPosPing(pos) {
+    if (Date.now() - __lastPingMs < 25000) return;  // rate-limit
+    __lastPingMs = Date.now();
+    try {
+      await fetch(XANO_BASE + '/record_tech_position', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tech_id: TECH_ID,
+          job_id: JOB_ID,
+          lat: String(pos.coords.latitude),
+          lng: String(pos.coords.longitude),
+          accuracy_m: String(Math.round(pos.coords.accuracy || 0)),
+          speed_mps: pos.coords.speed != null ? String(pos.coords.speed) : '',
+          heading_deg: pos.coords.heading != null ? String(pos.coords.heading) : '',
+        }),
+      });
+    } catch (_) {}
+  }
+
   btnOtw.addEventListener('click', async () => {
     btnOtw.disabled = true;
     try {
@@ -1579,8 +1613,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
       });
-      addMsg('assistant', 'On My Way logged. Customer notified.');
-      speak('On My Way logged.');
+      addMsg('assistant', 'On My Way logged. Customer notified with ETA + live tracking link.');
+      speak('On the way logged.');
+      // Start broadcasting GPS for the customer's live map
+      startPositionBroadcast();
     } catch (e) {
       addMsg('assistant', 'Could not log OTW.');
     } finally {
@@ -1597,12 +1633,18 @@
       });
       addMsg('assistant', 'Job started.');
       speak('Job started.');
+      // Tech has arrived — stop draining battery for tracking
+      stopPositionBroadcast();
     } catch (e) {
       addMsg('assistant', 'Could not start job.');
     } finally {
       btnStart.disabled = false;
     }
   });
+  // Also stop tracking on page hide/close so we don't drain battery if
+  // the tech navigates away without tapping Start.
+  window.addEventListener('pagehide', stopPositionBroadcast);
+  window.addEventListener('beforeunload', stopPositionBroadcast);
 
   // ── Upload status tracking ───────────────────────────────────────
   // For every queued item we render a status bubble in the chat that
