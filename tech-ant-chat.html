@@ -1259,23 +1259,20 @@
         // newer version on the NEXT turn.
         loadWarrantyChecklist();
       } else {
-        const serverErr = data && (data.error || data.message) || (rawBody || '').slice(0, 200) || 'unknown';
-        console.error('[tech-ant] chat non-success', { httpStatus, data, rawBody: rawBody.slice(0, 400) });
-        if (DEBUG_MODE) {
-          addMsg('assistant', 'I hit an error — try again in a sec. [debug http=' + httpStatus + ' err=' + serverErr + ']');
-        } else {
-          addMsg('assistant', 'I hit an error — try again in a sec.');
-        }
+        // TRIAGE MODE 2026-05-29: surface raw HTTP status + full
+        // response body so we can see exactly what tech_assist_chat
+        // returned. Revert to friendly message once the underlying
+        // failure is identified.
+        const truncBody = (rawBody || '').slice(0, 800);
+        console.error('[tech-ant] chat non-success', { httpStatus, data, rawBody: truncBody });
+        addMsg('assistant', '⚠ chat error\nhttp=' + httpStatus + '\nbody=' + truncBody);
       }
     } catch (e) {
       hideTyping();
       const errMsg = (e && (e.message || String(e))) || 'unknown';
-      console.error('[tech-ant] chat exception', { err: errMsg, httpStatus, rawBody: (rawBody || '').slice(0, 400) });
-      if (DEBUG_MODE) {
-        addMsg('assistant', 'Network hiccup. Try again? [debug http=' + httpStatus + ' ex=' + errMsg + (rawBody ? ' body=' + rawBody.slice(0, 200) : '') + ']');
-      } else {
-        addMsg('assistant', 'Network hiccup. Try again?');
-      }
+      const truncBody = (rawBody || '').slice(0, 800);
+      console.error('[tech-ant] chat exception', { err: errMsg, httpStatus, rawBody: truncBody });
+      addMsg('assistant', '⚠ network/parse exception\nhttp=' + httpStatus + '\nex=' + errMsg + (truncBody ? '\nbody=' + truncBody : ''));
     }
   }
 
