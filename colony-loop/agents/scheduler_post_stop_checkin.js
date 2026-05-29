@@ -81,6 +81,25 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_no_more_stops' };
   }
 
+  // Ahead-of-schedule detection: compare completion time vs the job's
+  // scheduled_end. If finished 30+ min early AND there are more stops
+  // later today, the SMS shifts to "want me to ask later customers if
+  // they can come up?"
+  let aheadMin = 0;
+  try {
+    const dash = await xano.getTechDailyDashboard(techIdFromPayload);
+    const myDay = (dash && Array.isArray(dash.jobs)) ? dash.jobs : [];
+    const completedEntry = myDay.find((e) => (e.job || e).id === jobId);
+    if (completedEntry) {
+      const cj = completedEntry.job || completedEntry;
+      const schedEnd = Number(cj.scheduled_end || 0);
+      if (schedEnd > 0) {
+        aheadMin = Math.round((schedEnd - Date.now()) / 60000);
+      }
+    }
+  } catch (_) {}
+  const runningAhead = aheadMin >= 30;
+
   // Compose SMS
   const N = remainingJobs.length;
   let nextLine = '';
@@ -96,11 +115,15 @@ export async function run(signal, ctx) {
       nextLine = ` Next: ${t} — ${custName}.`;
     } catch (_) {}
   }
-  // Deep-link with a pre-seeded prompt so the scheduler chat auto-pulls status.
-  const promptText = 'I just finished a job. What have I got left today and how am I tracking?';
+  // Deep-link prompt adapts to detected state.
+  const promptText = runningAhead
+    ? `I just finished early — about ${aheadMin} minutes ahead. Want to ask my later customers today if any of them can come up earlier? Show me the candidates.`
+    : 'I just finished a job. What have I got left today and how am I tracking?';
   const link = `${BASE_URL}/tech-scheduler.html?tech_id=${techIdFromPayload}&prompt=${encodeURIComponent(promptText)}`;
 
-  const body = `[ant] wrapped — good to go? ${N} stop${N === 1 ? '' : 's'} left.${nextLine} Switch anything around: ${link}`;
+  const body = runningAhead
+    ? `[ant] nice — wrapped ${aheadMin} min early. ${N} stop${N === 1 ? '' : 's'} left.${nextLine} Want me to ask any of them to move up? ${link}`
+    : `[ant] wrapped — good to go? ${N} stop${N === 1 ? '' : 's'} left.${nextLine} Switch anything around: ${link}`;
 
   let smsResult;
   try {

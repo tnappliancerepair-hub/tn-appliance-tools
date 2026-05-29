@@ -151,6 +151,33 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // SCHEDULER_BEHIND_CHECK — fires every 20 min during business hours
+  // (7am-7pm CT). Scans active techs for jobs running 30+ min past
+  // their scheduled_end. Each agent run is idempotent per-(tech,job).
+  if (hour >= 7 && hour < 19) {
+    const minute = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: '2-digit', hour12: false }).format(new Date(nowTs)), 10);
+    // Fire at minute 0, 20, 40 (every 20 minutes)
+    if (minute === 0 || minute === 20 || minute === 40) {
+      const slot = `${hour.toString().padStart(2,'0')}_${minute.toString().padStart(2,'0')}`;
+      const dateCt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowTs));
+      const dayKey = `${dateCt}_${slot}`;
+      let firedAlready = false;
+      try { firedAlready = await xano.checkEventLogFiredToday('scheduler_behind_check_emitted', dayKey); } catch (_) {}
+      if (!firedAlready) {
+        try {
+          await xano.emitSignal({
+            signal_type: 'SCHEDULER_BEHIND_CHECK',
+            signal_strength: 50,
+            payload: { slot, emitted_ct: fmtCT(nowTs) },
+          });
+          await xano.recordEvent('scheduler_behind_check_emitted', { day: dayKey, slot });
+        } catch (err) {
+          xano.logLocal('scheduler_behind_check_emit_failed', { error: err.message });
+        }
+      }
+    }
+  }
+
   // SCHEDULER_PERIODIC_CHECKIN — fires Mon-Sat at 10am CT and 2pm CT.
   // Per-tech check-in: "how's it going, want any extra stops?"
   // Dedup via check_event_log_fired_today so multiple ticks within
