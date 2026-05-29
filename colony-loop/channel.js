@@ -15,7 +15,7 @@
 // portal URL, action label) and this layer assembles them according
 // to the customer's preference.
 
-import { getCustomerChannelPreference, getCustomerCommsStyleSamples } from './xano.js';
+import { getCustomerChannelPreference, getCustomerCommsStyleSamples, getCustomerIntel } from './xano.js';
 
 const MAX_SMS_CHARS = 320; // single-message ceiling we aim for
 
@@ -27,12 +27,23 @@ export async function composeForChannel({
   portalActionLabel, // e.g. "pick a return-visit time"
   fallback,        // optional fallback body if everything else collapses
 } = {}) {
-  const [pref, style] = await Promise.all([
-    getCustomerChannelPreference(customerId).catch(() => ({ prefers: 'unknown' })),
-    classifyCommsStyle(customerId).catch(() => ({ style: 'unknown' })),
-  ]);
-  const prefers = (pref && pref.prefers) || 'unknown';
-  const styleName = (style && style.style) || 'unknown';
+  // Single fetch from the materialized intel row (refreshed nightly).
+  // Live fallback to individual lookups if intel row isn't ready yet.
+  let prefers = 'unknown', styleName = 'unknown', language = 'en';
+  const intelRes = await getCustomerIntel(customerId).catch(() => ({ found: false }));
+  if (intelRes && intelRes.found && intelRes.intel) {
+    prefers = intelRes.intel.channel_pref || 'unknown';
+    styleName = intelRes.intel.comms_style || 'unknown';
+    language = intelRes.intel.preferred_language || 'en';
+  } else {
+    // Fall back to live lookups (slower but works on first-touch).
+    const [pref, style] = await Promise.all([
+      getCustomerChannelPreference(customerId).catch(() => ({ prefers: 'unknown' })),
+      classifyCommsStyle(customerId).catch(() => ({ style: 'unknown' })),
+    ]);
+    prefers = (pref && pref.prefers) || 'unknown';
+    styleName = (style && style.style) || 'unknown';
+  }
 
   // Tone-shape the headline + inline body per style. Same intro text
   // gets transformed: brief = single line; conversational = friendly
@@ -62,12 +73,60 @@ export async function composeForChannel({
 
   if (!body || body.trim() === '') body = fallback || '[TN Appliance] Update on your appointment — call 615-280-2949.';
 
+  // #7 language routing: customer prefers Spanish → translate the
+  // composed body before it ships. Anthropic call adds ~$0.001/msg
+  // but the customer-experience win is huge for our Spanish-speaking
+  // customer base (the morning brief noted we have some). Best-effort;
+  // failure preserves the English original.
+  if (language === 'es') {
+    try {
+      const translated = await translateToSpanish(body);
+      if (translated && translated.trim()) body = translated.trim();
+    } catch (_) {}
+  }
+
   return {
     body,
     prefers,
     style: styleName,
-    evidence: (pref && pref.evidence) || {},
+    language,
+    evidence: (intelRes && intelRes.intel) ? intelRes.intel : {},
   };
+}
+
+// Best-effort SMS-tone translation to Spanish via Claude Haiku
+// (cheapest viable model — translation doesn't need depth). Keeps the
+// bracketed [TN Appliance] prefix as-is and preserves URLs verbatim.
+async function translateToSpanish(text) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), 8000);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: process.env.ANT_TRANSLATE_MODEL || 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: 'Translate the user message to natural Tex-Mex Spanish for an SMS to a customer in the southern US. Preserve the [TN Appliance] prefix, any URLs, and any times exactly as-is. Reply with ONLY the translated SMS body — no preamble, no quotes, no notes.',
+        messages: [{ role: 'user', content: text }],
+      }),
+      signal: ac.signal,
+    });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const data = await r.json();
+    const out = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    return out || null;
+  } catch (_) {
+    clearTimeout(t);
+    return null;
+  }
 }
 
 // Inbound-SMS style classifier. Pulls the last 60d of inbound messages

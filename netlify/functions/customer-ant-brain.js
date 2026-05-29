@@ -207,6 +207,19 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: 'job_id + phone_last4 + message required' }) };
   }
 
+  // Per-phone abuse gate — if this last4 + job combination triggers
+  // >ANT_ABUSE_INBOUND_PER_HOUR calls in a rolling hour, refuse with
+  // 429. Protects Claude spend from runaway customer scripts / bots.
+  // Cold-start resets the in-memory counter (Netlify warm-instance
+  // tradeoff — see spend.js).
+  try {
+    const { checkPhoneAbuseGate } = require('./_lib/ant/spend');
+    const gate = checkPhoneAbuseGate(`${phone_last4}-${job_id}`);
+    if (!gate.allow) {
+      return { statusCode: 429, body: JSON.stringify({ error: 'too many requests', detail: gate.reason }) };
+    }
+  } catch (_) {}
+
   // Pre-flight: validate this customer can actually access this job (defense
   // in depth — the portal already validated, but never trust a client).
   // The same get_customer_job_view endpoint enforces the gate and returns

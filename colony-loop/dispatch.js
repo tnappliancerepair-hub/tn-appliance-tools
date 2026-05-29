@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AGENTS_DIR = join(HERE, 'agents');
@@ -16,6 +16,9 @@ const SIGNAL_TTL_MS = (() => {
   return (Number.isFinite(days) && days > 0 ? days : 14) * 24 * 60 * 60 * 1000;
 })();
 
+// Cache stores { mod, mtimeMs } per type so hot-reload can detect when
+// an agent file changes on disk and re-import. Saves the
+// launchctl-kickstart dance every time the architect builds.
 const agentCache = new Map();
 
 export async function dispatch(signal, ctx) {
@@ -38,14 +41,26 @@ export async function dispatch(signal, ctx) {
     return { success: false, action: 'ttl_expired' };
   }
 
-  let mod = agentCache.get(type);
-  if (!mod) {
-    const path = join(AGENTS_DIR, `${type}.js`);
-    if (!existsSync(path)) {
-      return { success: false, action: 'no_agent_yet' };
-    }
-    mod = await import(path);
-    agentCache.set(type, mod);
+  const path = join(AGENTS_DIR, `${type}.js`);
+  if (!existsSync(path)) {
+    return { success: false, action: 'no_agent_yet' };
+  }
+
+  // Hot reload: re-import when the file mtime has changed since cache.
+  // Saves the launchctl-kickstart restart dance after architect builds
+  // or manual edits. Cost: 1 statSync per dispatch (negligible).
+  let cached = agentCache.get(type);
+  let currentMtime = 0;
+  try { currentMtime = statSync(path).mtimeMs; } catch (_) {}
+  let mod;
+  if (cached && cached.mtimeMs === currentMtime) {
+    mod = cached.mod;
+  } else {
+    // Cache-bust via query string — Node's import map ignores it but
+    // a different specifier forces a fresh module evaluation.
+    const url = `${path}?t=${currentMtime}`;
+    mod = await import(url);
+    agentCache.set(type, { mod, mtimeMs: currentMtime });
   }
 
   if (typeof mod.run !== 'function') {

@@ -94,9 +94,44 @@ function checkSpendGate({ critical } = {}) {
   return { allow: true, reason: '', today_usd: today, soft_cap_usd: softCap, hard_cap_usd: hardCap, critical: !!critical };
 }
 
+// Per-phone live abuse detection. Independent of materialized
+// customer_intel (which is 24h stale). Tracks inbound count per phone
+// in a rolling 1-hour window. If a phone fires >ABUSE_INBOUND_PER_HOUR
+// calls, the gate refuses + alerts Teddy.
+//
+// In-memory only — survives within a single Netlify warm instance.
+// Cold-start resets the counter, allowing a burst. We accept that
+// imprecision in exchange for not paying a Xano lookup on every
+// customer-facing call.
+const _phoneState = new Map(); // phone → { count, windowStart }
+const ABUSE_INBOUND_PER_HOUR = Number(process.env.ANT_ABUSE_INBOUND_PER_HOUR || 12);
+const ABUSE_WINDOW_MS = 60 * 60 * 1000;
+
+function checkPhoneAbuseGate(phone) {
+  if (!phone) return { allow: true };
+  const now = Date.now();
+  const key = String(phone).replace(/\D/g, '').slice(-10);
+  if (!key) return { allow: true };
+  let s = _phoneState.get(key);
+  if (!s || (now - s.windowStart) > ABUSE_WINDOW_MS) {
+    s = { count: 0, windowStart: now };
+    _phoneState.set(key, s);
+  }
+  s.count += 1;
+  if (s.count > ABUSE_INBOUND_PER_HOUR) {
+    return {
+      allow: false,
+      reason: `phone ${key} hit ${s.count} inbound calls within ${Math.round((now - s.windowStart) / 60000)} min (limit ${ABUSE_INBOUND_PER_HOUR}/hr)`,
+      phone_count: s.count,
+    };
+  }
+  return { allow: true, phone_count: s.count };
+}
+
 module.exports = {
   calcCallCost,
   recordSpend,
   todaysSpend,
   checkSpendGate,
+  checkPhoneAbuseGate,
 };

@@ -547,6 +547,24 @@ export async function getCustomerCommsStyleSamples(customerId, { days_back = 60,
   }
 }
 
+// Returns the materialized customer intel row (channel pref + comms
+// style + preferred language + abuse score) refreshed nightly. Single
+// query replaces 3-4 separate lookups. 24h staleness is fine for tone;
+// live abuse detection layers on top via brain-core.
+export async function getCustomerIntel(customerId) {
+  if (!customerId) return { found: false, intel: null };
+  try {
+    const r = await getJSON(`${INTAKE()}/get_customer_intel?customer_id=${customerId}`);
+    if (!r || !r.found || !r.metadata) return { found: false, intel: null };
+    let intel = null;
+    try { intel = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata; }
+    catch (_) {}
+    return { found: !!intel, intel };
+  } catch (_) {
+    return { found: false, intel: null };
+  }
+}
+
 // Returns a customer's preferred comms channel based on their last 60d
 // of portal vs SMS engagement. See get_customer_channel_preference_GET.xs.
 // Shape: { prefers: "portal" | "sms" | "unknown", score, evidence: {...} }

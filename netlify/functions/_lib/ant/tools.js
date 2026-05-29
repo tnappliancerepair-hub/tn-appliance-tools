@@ -312,6 +312,41 @@ function gateWrite(toolName, ti) {
   };
 }
 
+// Mandatory adversarial review for HIGH-blast writes about to commit.
+// Brain can't forget — gate enforces it. Returns { allow, blockedReason }.
+// allow=false means the commit MUST become a preview with the blocker.
+//
+// We run reviewer on ALL high-blast commits regardless of confidence —
+// the cost ($0.04/call) is trivial vs the cost of a bad reassign or
+// cancel. ANT_REVIEWER_DISABLED=true env disables (testing only).
+async function mandatoryReview({ toolName, actionType, ti, contextSnapshot = {} }) {
+  if (process.env.ANT_REVIEWER_DISABLED === 'true') return { allow: true };
+  const blast = BLAST_RADIUS[toolName] || 'high';
+  if (blast !== 'high') return { allow: true };
+  try {
+    const { reviewAction } = require('./adversarial');
+    const proposed = JSON.stringify(ti);
+    const review = await reviewAction({
+      actionType,
+      originalRequest: ti.reason || `${toolName} request`,
+      proposed,
+      context: { tool: toolName, ...contextSnapshot },
+    });
+    if (!review.approve && review.blocking && review.blocking.length > 0) {
+      return {
+        allow: false,
+        blockedReason: review.blocking.join('; '),
+        advisory: review.advisory || [],
+        confidence: review.confidence,
+      };
+    }
+    return { allow: true, advisory: review.advisory || [], confidence: review.confidence };
+  } catch (e) {
+    // Fail-open — reviewer offline means we don't deadlock the operator
+    return { allow: true, advisory: ['reviewer offline'] };
+  }
+}
+
 const WRITE_TOOLS = [
   {
     name: 'schedule_job',
@@ -628,6 +663,11 @@ async function executeTool(toolName, toolInput, ctx) {
           preview: `Would reassign job #${ti.job_id} to tech ${ti.new_tech_id}. Reason: ${ti.reason || '(none given)'}. New tech + customer will receive auto-SMS.${gatedNotice} Reassigns are HIGH-blast — operator confirmation always required.`,
         };
       }
+      // Mandatory reviewer gate — high-blast commit requires audit
+      const review = await mandatoryReview({ toolName: 'reassign_job', actionType: 'reassign', ti, contextSnapshot: { job_id: ti.job_id, new_tech_id: ti.new_tech_id, reason: ti.reason } });
+      if (!review.allow) {
+        return { success: false, dry_run: true, blocked_by_reviewer: true, blocking: review.blockedReason, preview: `BLOCKED by reviewer before reassign: ${review.blockedReason}` };
+      }
       const writeRes = await timedFetch(`${XANO_BASE}/reassign_job`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -649,6 +689,11 @@ async function executeTool(toolName, toolInput, ctx) {
           dry_run: true,
           preview: `Would cancel job #${ti.job_id} with reason: "${ti.reason}". Customer + tech will receive auto-SMS.${gatedNotice} Cancels are HIGH-blast — operator confirmation always required.`,
         };
+      }
+      // Mandatory reviewer gate — cancels touch billing + customer relationship
+      const review = await mandatoryReview({ toolName: 'cancel_job', actionType: 'cancel', ti, contextSnapshot: { job_id: ti.job_id, reason: ti.reason } });
+      if (!review.allow) {
+        return { success: false, dry_run: true, blocked_by_reviewer: true, blocking: review.blockedReason, preview: `BLOCKED by reviewer before cancel: ${review.blockedReason}` };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/cancel_job`, {
         method: 'POST',

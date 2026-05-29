@@ -49,3 +49,11 @@
 # Every 30 min — delivery emails aren't time-critical to the same minute.
 [functions."parts-vendor-gmail-poller"]
   schedule = "*/30 * * * *"
+
+# Colony heartbeat watchdog. Every 5 min, verifies the Mac Mini loop
+# is firing loop_tick events. If the most recent tick is older than
+# COLONY_WATCHDOG_THRESHOLD_MIN (default 15), SMSes Teddy. Dedup: only
+# alerts once per 2 hours so a long outage doesn't spam. 80% of the
+# SPOF mitigation without standing up a warm replica.
+[functions."colony-watchdog"]
+  schedule = "*/5 * * * *"

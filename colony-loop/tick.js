@@ -247,6 +247,28 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // CUSTOMER_INTEL_REFRESH — fires nightly at 10:30pm CT (22-23 grace).
+  // Materialized view: channel_pref + comms_style + preferred_language
+  // + abuse_score per customer. Replaces 3-4 separate live lookups
+  // across customer-direction agents. Intelligence #5.
+  if (hour >= 22 && hour < 24) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'customer_intel_refresh_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'CUSTOMER_INTEL_REFRESH',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('customer_intel_refresh_emit_failed', { error: err.message });
+    }
+  }
+
   // PRE_JOB_INTELLIGENCE_PRESTAGER — fires nightly at 9:30pm CT (21-23 grace).
   // For every job scheduled for tomorrow, runs the similar-jobs lookup +
   // channel preference + warranty hints and caches the distilled
