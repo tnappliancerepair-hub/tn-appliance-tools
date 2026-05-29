@@ -896,80 +896,30 @@
     if (preferredVoice) utt.voice = preferredVoice;
     speechSynthesis.speak(utt);
   }
-  // ── Voice picker (per-tech, persists via localStorage) ───────────
-  const VOICE_OPTIONS = [
-    { id: 'mute',    label: '🔇 Mute',        desc: 'No voice' },
-    { id: 'onyx',    label: '♂ Onyx',         desc: 'Deep + confident (default)' },
-    { id: 'echo',    label: '♂ Echo',         desc: 'Calm + smooth' },
-    { id: 'fable',   label: '♂ Fable',        desc: 'British' },
-    { id: 'nova',    label: '♀ Nova',         desc: 'Energetic + present' },
-    { id: 'shimmer', label: '♀ Shimmer',      desc: 'Warm + soft' },
-    { id: 'alloy',   label: '🤖 Alloy',       desc: 'Neutral / professional' },
-  ];
-  function currentVoiceId() {
-    if (isMuted) return 'mute';
-    return localStorage.getItem('ant_voice') || 'onyx';
-  }
-  function voiceLabel(id) {
-    const v = VOICE_OPTIONS.find((x) => x.id === id);
-    return v ? v.label : '♂ Onyx';
-  }
-
+  // ── Voice on/off toggle (per-device via localStorage) ────────────
   const onlineNode = document.querySelector('.hud-statusbar .group:first-child');
   let voiceLabelEl = null;
+  function renderVoiceLabel() {
+    if (!voiceLabelEl) return;
+    voiceLabelEl.textContent = isMuted ? '🔇 VOICE OFF' : '🔊 VOICE ON';
+  }
   if (onlineNode) {
     onlineNode.style.cursor = 'pointer';
-    onlineNode.title = 'Tap to change voice';
+    onlineNode.title = 'Tap to toggle Ant\'s voice';
     voiceLabelEl = document.createElement('span');
     voiceLabelEl.style.marginLeft = '10px';
     voiceLabelEl.style.color = 'rgba(240,245,255,0.85)';
-    voiceLabelEl.style.borderBottom = '1px dotted rgba(240,245,255,0.4)';
-    voiceLabelEl.textContent = voiceLabel(currentVoiceId());
+    renderVoiceLabel();
     onlineNode.appendChild(voiceLabelEl);
-    onlineNode.addEventListener('click', openVoicePicker);
-  }
-  function openVoicePicker() {
-    if (document.getElementById('voicePicker')) return;
-    const cur = currentVoiceId();
-    const wrap = document.createElement('div');
-    wrap.id = 'voicePicker';
-    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9500;padding:18px';
-    const card = document.createElement('div');
-    card.style.cssText = 'background:#0a0f1a;border:1px solid rgba(240,245,255,0.18);border-radius:14px;padding:18px;max-width:360px;width:100%;color:#e8edf5;font-family:inherit;box-shadow:0 0 40px rgba(240,245,255,0.10)';
-    card.innerHTML = '<div style="font-family:Orbitron,sans-serif;font-size:13px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(240,245,255,0.7);margin-bottom:14px">// pick ant\'s voice</div>';
-    for (const v of VOICE_OPTIONS) {
-      const btn = document.createElement('button');
-      const sel = (v.id === cur);
-      btn.style.cssText = 'display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:' + (sel ? 'rgba(240,245,255,0.10)' : 'transparent') + ';border:1px solid ' + (sel ? 'rgba(240,245,255,0.40)' : 'rgba(240,245,255,0.10)') + ';border-radius:10px;color:#e8edf5;cursor:pointer;margin-bottom:6px;text-align:left;font-family:inherit;-webkit-appearance:none';
-      btn.innerHTML = '<span style="font-size:15px;font-weight:700;flex:1">' + v.label + '</span><span style="font-size:11px;color:rgba(240,245,255,0.55)">' + v.desc + '</span>' + (sel ? '<span style="color:#4af5ff;margin-left:8px">✓</span>' : '');
-      btn.onclick = async () => {
-        if (v.id === 'mute') {
-          isMuted = true;
-          localStorage.setItem('ant_muted', '1');
-          speechSynthesis.cancel();
-          if (__currentAudio) { try { __currentAudio.pause(); } catch (_) {} __currentAudio = null; }
-        } else {
-          isMuted = false;
-          localStorage.setItem('ant_muted', '0');
-          localStorage.setItem('ant_voice', v.id);
-        }
-        if (voiceLabelEl) voiceLabelEl.textContent = voiceLabel(currentVoiceId());
-        wrap.remove();
-        // Preview the new voice with a short line — unless mute.
-        if (v.id !== 'mute') {
-          speak("Hey, this is Ant.");
-        }
-      };
-      card.appendChild(btn);
-    }
-    const close = document.createElement('button');
-    close.textContent = 'Close';
-    close.style.cssText = 'display:block;width:100%;padding:10px;background:transparent;border:1px solid rgba(240,245,255,0.18);color:rgba(240,245,255,0.7);border-radius:8px;cursor:pointer;margin-top:6px;font-family:inherit;-webkit-appearance:none';
-    close.onclick = () => wrap.remove();
-    card.appendChild(close);
-    wrap.appendChild(card);
-    wrap.onclick = (e) => { if (e.target === wrap) wrap.remove(); };
-    document.body.appendChild(wrap);
+    onlineNode.addEventListener('click', () => {
+      isMuted = !isMuted;
+      localStorage.setItem('ant_muted', isMuted ? '1' : '0');
+      renderVoiceLabel();
+      if (isMuted) {
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
+        if (__currentAudio) { try { __currentAudio.pause(); } catch (_) {} __currentAudio = null; }
+      }
+    });
   }
 
   // ── Chat rendering ────────────────────────────────────────────────
