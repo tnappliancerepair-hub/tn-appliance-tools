@@ -140,6 +140,17 @@ const SCHEDULER_TOOLS = [
     },
   },
   {
+    name: 'get_pre_job_intelligence',
+    description: "Reads the cached pre-job intelligence the colony staged overnight for this job (similar past jobs distillation, customer channel preference, warranty pre-collect hints). Call this at the START of a tech-assist session for a specific job. Way cheaper than redoing all those lookups bedside. Returns 'found: false' if the job wasn't staged (new job after stager ran, or job for a tech with no prior schedule yet).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'integer', description: 'Job ID' },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
     name: 'get_warranty_vendor_fingerprint',
     description: "Get the behavioral fingerprint for a warranty vendor (AHS, ServicePower, Frontdoor, Allstate, SquareTrade, ChoiceHomeWarranty). Returns: claims_count + clear_rate + rejection_rate over last 60 days + top fields they reject without. Use BEFORE composing a warranty claim or asking a tech for diagnostic info, so you front-load the fields THIS vendor needs to approve cleanly.",
     input_schema: {
@@ -472,6 +483,29 @@ async function executeTool(toolName, toolInput, ctx) {
         job_count: tech ? (tech.job_count || 0) : 0,
         jobs: tech ? (tech.jobs || []) : [],
       };
+    }
+    case 'get_pre_job_intelligence': {
+      const jobId = Number(ti.job_id || 0);
+      if (!jobId) return { error: 'job_id required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/get_pre_job_intelligence?job_id=${jobId}`);
+        if (r.error) return r;
+        let parsed = null;
+        if (r.found && r.metadata) {
+          try { parsed = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata; }
+          catch (_) { parsed = null; }
+        }
+        return {
+          job_id: jobId,
+          found: r.found,
+          intelligence: parsed,
+          hint: r.found
+            ? `Use this summary to ground your tech-assist session. The similar-jobs lines and channel_pref give you instant context without making the tech wait for lookups.`
+            : `No staged intelligence (job created after last 9:30pm stager run, or unstaged tech). Fall back to find_similar_jobs at runtime if needed.`,
+        };
+      } catch (e) {
+        return { error: 'pre_job_intelligence fetch failed: ' + (e.message || e) };
+      }
     }
     case 'get_warranty_vendor_fingerprint': {
       const vendor = String(ti.vendor || '').trim();

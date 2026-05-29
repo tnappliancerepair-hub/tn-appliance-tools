@@ -247,6 +247,30 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // PRE_JOB_INTELLIGENCE_PRESTAGER — fires nightly at 9:30pm CT (21-23 grace).
+  // For every job scheduled for tomorrow, runs the similar-jobs lookup +
+  // channel preference + warranty hints and caches the distilled
+  // summary in event_log. Tech Assist reads it at first session in the
+  // morning. Overnight compute that would otherwise hit techs at
+  // 7:30am. Intelligence #5.
+  if (hour >= 21 && hour < 23) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'pre_job_intelligence_prestager_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'PRE_JOB_INTELLIGENCE_PRESTAGER',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('pre_job_intelligence_prestager_emit_failed', { error: err.message });
+    }
+  }
+
   // WARRANTY_FINGERPRINT_AGGREGATOR — fires daily at 4:30am CT (4-6 grace).
   // Per-vendor behavioral fingerprint (60d window): claims_count,
   // clear_rate, rejection_rate, top correction fields. Tech Assist
