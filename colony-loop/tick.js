@@ -356,6 +356,75 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // TECH_PERFORMANCE_ALERT — Sunday 11am CT (11-1pm grace). Compares
+  // each tech's 7d vs 30d performance, alerts Teddy on significant
+  // drops (FVFR, callback, rating, TDR completeness).
+  {
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (day === 'Sun' && hour >= 11 && hour < 13) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'tech_performance_alert_handled',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!fired || !fired.fired_today) {
+          await xano.emitSignal({
+            signal_type: 'TECH_PERFORMANCE_ALERT',
+            signal_strength: 45,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+        }
+      } catch (err) {
+        xano.logLocal('tech_performance_alert_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // CUSTOMER_RE_ENGAGEMENT — Tuesday 10am CT (10-12 grace). Pings
+  // 6-12-month-old completed-job customers with personalized
+  // maintenance-check SMS. Capped 25/run. Revenue play.
+  {
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (day === 'Tue' && hour >= 10 && hour < 12) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'customer_re_engagement_handled',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!fired || !fired.fired_today) {
+          await xano.emitSignal({
+            signal_type: 'CUSTOMER_RE_ENGAGEMENT',
+            signal_strength: 35,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+        }
+      } catch (err) {
+        xano.logLocal('customer_re_engagement_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // STUCK_JOB_DETECTOR — daily 8:15am CT (8-10 grace). Scans every
+  // non-terminal status for jobs sitting too long; SMSes Teddy a
+  // digest of the worst offenders.
+  if (hour >= 8 && hour < 10) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'stuck_job_detector_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'STUCK_JOB_DETECTOR',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('stuck_job_detector_emit_failed', { error: err.message });
+    }
+  }
+
   // PROMPT_EVOLUTION_PROPOSER — Sunday 7pm CT (7-9pm grace). Reads 14d
   // of claude_call_outcome, finds failing (brain, signal_type) cells,
   // proposes concrete prompt revisions. SMSes Teddy a digest.
