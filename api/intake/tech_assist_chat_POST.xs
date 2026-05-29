@@ -244,7 +244,7 @@ query tech_assist_chat verb=POST {
       if ($attachment_count > 0) {
         foreach ($attachment_ids_in) {
           each as $att_id {
-            db.get attachments {
+            db.get job_attachments {
               field_name  = "id"
               field_value = $att_id
             } as $att
@@ -538,8 +538,19 @@ query tech_assist_chat verb=POST {
       value = ($checklist_raw != "") ? ("\n\n# WARRANTY-SPECIFIC REQUIREMENTS\n\n" ~ $checklist_raw ~ "\n\nLEAD THE TECH THROUGH THESE IN ORDER. Confirm each captured item without re-asking. Ask for the next pending item using its prompt text. When ALL required items are captured, say 'TDR ready — tap save.' and stop asking.\n") : ""
     }
 
+    // VISION OVERRIDE 2026-05-29: vision IS now wired (this endpoint
+    // ships image blocks via attachment_ids → s3-view-url → Claude
+    // image source). Older versions of ANT_TECH_ASSIST_PROMPT told
+    // Claude "I can't see photos yet" which contradicts current
+    // behavior. Append an override note whenever images are attached
+    // so Claude knows to actually analyze them and extract any
+    // visible model / serial / part / error code text.
+    var $vision_note {
+      value = ($final_image_count > 0) ? "\n\n# VISION ENABLED THIS TURN\n\nThe tech attached " ~ ($final_image_count|to_text) ~ " image(s) to this message. You CAN see them. Read any visible model number / serial / part number / error code / nameplate text and confirm it back to the tech. If it is a model or serial plate, capture the model and serial as TDR fields. Do not say you cannot see images." : ""
+    }
+
     var $context_block {
-      value = "\n\n# CURRENT CONTEXT\n\nToday: " ~ $today_date_str ~ " (" ~ $today_day_str ~ ") - Central Time" ~ $calendar_text ~ "\n\nSession: id=" ~ $session_id_str ~ ", job_id=" ~ $job_id_str ~ "\nTech: " ~ $tech_first_str ~ " (tech_id=" ~ $tech_id_str ~ ")\nWarranty company: " ~ $warranty_co_str ~ "\nCustomer: " ~ $cust_display_name ~ "\nAppliance: " ~ $brand_for_ctx ~ " " ~ $appliance_type_disp ~ " (model: " ~ $model_for_ctx ~ ")\n\nCAPTURED SO FAR (json): " ~ $captured_json ~ "\nREQUIRED FIELDS REMAINING (json): " ~ $required_json ~ $warranty_block
+      value = "\n\n# CURRENT CONTEXT\n\nToday: " ~ $today_date_str ~ " (" ~ $today_day_str ~ ") - Central Time" ~ $calendar_text ~ "\n\nSession: id=" ~ $session_id_str ~ ", job_id=" ~ $job_id_str ~ "\nTech: " ~ $tech_first_str ~ " (tech_id=" ~ $tech_id_str ~ ")\nWarranty company: " ~ $warranty_co_str ~ "\nCustomer: " ~ $cust_display_name ~ "\nAppliance: " ~ $brand_for_ctx ~ " " ~ $appliance_type_disp ~ " (model: " ~ $model_for_ctx ~ ")\n\nCAPTURED SO FAR (json): " ~ $captured_json ~ "\nREQUIRED FIELDS REMAINING (json): " ~ $required_json ~ $warranty_block ~ $vision_note
     }
   
     // ── 9. Call Anthropic ──

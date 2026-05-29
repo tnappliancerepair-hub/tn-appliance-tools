@@ -1698,13 +1698,19 @@
     showTyping();
     try {
       const filename = file.name || (subject + '-' + Date.now() + (isVideo ? '.mp4' : '.jpg'));
+      // generate_upload_url enums (per its XS schema):
+      //   attachment_type ∈ {"intake","completion","tdr"}
+      //   file_type       ∈ {"photo","video"}
+      // Field-uploaded media during a tech assist session is TDR
+      // material (failure documentation). Use the correct enums so
+      // the call doesn't 400 with "Input 'photo' is not allowable".
       const genRes = await fetch(XANO_BASE + '/generate_upload_url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: JOB_ID, tech_id: TECH_ID,
-          attachment_type: subject,
-          file_type: isVideo ? 'video' : 'image',
+          attachment_type: 'tdr',
+          file_type: isVideo ? 'video' : 'photo',
           original_filename: filename,
           mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
           uploaded_by: 'tech'
