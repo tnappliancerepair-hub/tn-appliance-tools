@@ -464,6 +464,30 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // WEEKLY_DANIELLE_RECEIPT — Friday 5pm CT (17-19 grace). Counts the
+  // week's automation outputs + estimates time saved. SMSes Teddy ONE
+  // forwardable text. Parallel-run pattern for Danielle adoption.
+  {
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (day === 'Fri' && hour >= 17 && hour < 19) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'weekly_danielle_receipt_handled',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!fired || !fired.fired_today) {
+          await xano.emitSignal({
+            signal_type: 'WEEKLY_DANIELLE_RECEIPT',
+            signal_strength: 40,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+        }
+      } catch (err) {
+        xano.logLocal('weekly_danielle_receipt_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // STUCK_JOB_DETECTOR — daily 8:15am CT (8-10 grace). Scans every
   // non-terminal status for jobs sitting too long; SMSes Teddy a
   // digest of the worst offenders.
