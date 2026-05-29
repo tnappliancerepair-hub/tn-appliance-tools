@@ -807,7 +807,10 @@
         // Don't navigate if click was on a tel: or maps: link
         if (e.target.closest('.quick-btn')) return;
         const jobId = it.job.id;
-        window.location.href = `tech-ant-live.html?job_id=${jobId}&tech_id=${TECH_ID}`;
+        // Tap a stop → open Ant Assist (the new Tech Ant chat surface)
+        // for that job. Per Teddy 2026-05-29: dashboard lists stops,
+        // Ant Assist is what they work from per-job.
+        window.location.href = `tech-ant-chat.html?job_id=${jobId}&tech_id=${TECH_ID}`;
       });
     });
     // Fetch attachment view URLs in batch and inject thumbnails
