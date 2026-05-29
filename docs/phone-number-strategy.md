@@ -2,11 +2,23 @@
 
 Last updated 2026-05-28. Owner: Teddy Pivacek.
 
-## The Principle
+## The Principles
 
-**Every number a customer or tech might see reaches the same intelligent Ant brain. No dead ends. Same engine, different opening line per number.**
+**(1) Every number a customer or tech might see reaches the same intelligent Ant brain. No dead ends. Same engine, different opening line per number.**
 
 The brain knows which number was dialed and adapts. One assistant config in Vapi, many numbers attached, distinct first messages and contexts per number. Cheap, maintainable, consistent customer experience.
+
+**(2) Phone numbers are STRATEGIC INVENTORY, not just operational tools.**
+
+Three reasons we keep more numbers than we need TODAY:
+
+- **Carrier-approval insurance.** Twilio TCR / A2P 10DLC approval took almost a month while we were waiting. Telnyx came through, Twilio approved the next day. Holding pre-approved numbers on both carriers means if anything ever happens (account suspension, A2P re-review, ban) we are NOT waiting another month while texting — core to the business — is dead. Few dollars a month for that insurance is obvious.
+
+- **SaaS multi-tenant future.** When Ant becomes a platform for other independent repair shops + warranty companies ([[saas_strategy]]), pre-acquired ANT vanity numbers (1-888-ANT-8998, 1-866-ANT-0111) become brandable assets we can lease to tenants. Vapi BYO numbers can spin up tenant-specific assistants without going through provisioning queues. We don't release these.
+
+- **Advertising leverage.** Catchy click-to-call vanity numbers (ANT acronym) anchor SEO and ad campaigns at a much lower friction than a random 615 number.
+
+Default decision when in doubt about releasing a number: **KEEP.** Re-acquiring approved numbers later costs more than holding them now.
 
 ## Full Inventory (12 numbers across 4 providers)
 
@@ -28,12 +40,14 @@ The brain knows which number was dialed and adapts. One assistant config in Vapi
 | 7 | **+1 888-ANT-8998** (888-268-8998) | vanity provider | NEVER routed since acquisition | Port or forward → Ant Inbound v2 |
 | 8 | **+1 866-ANT-0111** (866-268-0111) | vanity provider | NEVER routed | Port or forward → Ant Inbound v2 |
 
-### Vapi BYO legacy (decide: repoint or release)
+### Vapi BYO secondary TN (KEEP as SaaS inventory)
 
-| # | Number | Provider | Today | Decision |
+Per the Strategic Inventory principle — these were originally acquired for Vapi use and stay as platform inventory for the multi-tenant future. Few dollars a month, real strategic value at scale.
+
+| # | Number | Provider | Today | Target |
 |---|---|---|---|---|
-| 9 | **+1 629-260-7111** | Vapi BYO | TN secondary, old assistant | Repoint to Ant Inbound v2 OR release (~$1/mo saved) |
-| 10 | **+1 629-247-7111** | Vapi BYO | TN secondary, old assistant | Repoint OR release |
+| 9 | **+1 629-260-7111** | Vapi BYO | TN secondary, old assistant | Repoint → Ant Inbound v2 (warm tone); future-reserve for SaaS tenant |
+| 10 | **+1 629-247-7111** | Vapi BYO | TN secondary, old assistant | Repoint → Ant Inbound v2 (warm tone); future-reserve for SaaS tenant |
 
 ### KILL LIST — delete in Twilio dashboard
 
@@ -72,11 +86,11 @@ Customers see these numbers when we text them. When they call back instead of te
 |---|---|---|
 | RingCentral | killed | **−$300** |
 | HCP | killed | **−$500** |
-| Twilio numbers (×4 → ×2 keep) | 2 numbers @ ~$1.15/mo = $2.30 | unchanged |
+| Twilio numbers (×4 → ×2 kill mystery) | 2 keepers @ ~$1.15/mo = $2.30 | unchanged |
 | Telnyx (×2, already paying SMS) | add voice ~$1/mo each = +$2 | +$2 |
-| Vapi BYO numbers (×3 → ×1 or 2) | release 1-2 @ ~$1/mo = −$1-2 | −$1 to −$2 |
+| Vapi BYO TN (×2 secondary, KEEP as inventory) | unchanged | unchanged |
 | Vapi inbound call minutes | active | +~$900 |
-| **Net change** | | **+$98-99/mo replacing receptionist + ending dead-air gap** |
+| **Net change** | | **+~$100/mo replacing receptionist + ending dead-air gap + holding strategic inventory** |
 
 vs $3,500-4,500/mo human receptionist who only works 40 hrs/week and would need to learn every customer + every job from scratch.
 
@@ -104,11 +118,9 @@ vs $3,500-4,500/mo human receptionist who only works 40 hrs/week and would need 
 
 10. **Port or forward 1-888-ANT-8998 + 1-866-ANT-0111 to Vapi.** These have been unrouted for months. After this they finally answer Ant.
 
-### Vapi BYO decision (5 min)
+### Vapi BYO repoint (5 min)
 
-11. **Decide on 629-260-7111 + 629-247-7111.** If not advertised on any marketing material:
-    - **Release both** — save ~$2/mo, simpler inventory
-    - **Or keep one** as a B2B-specific number (Vapi assigns it to a separate "Ant B2B" assistant later)
+11. **Repoint 629-260-7111 + 629-247-7111 to "Ant Inbound v2"** in the Vapi dashboard. KEEP both — they're strategic inventory for the SaaS tenant future. Per the Strategic Inventory principle, releasing approved Vapi numbers we already own = paying premium to re-acquire later.
 
 ### Verify
 
@@ -144,21 +156,25 @@ No XS deploys, no Mac Mini reboot, no Vapi prompt edits.
 ## Operator Reference Card
 
 ```
-KEEP (route to Ant Inbound v2):
-  TN PRIMARY:      615-280-2949   (Vapi after port)
+KEEP — operational (all route to Ant Inbound v2):
+  TN PRIMARY:      615-280-2949   (Vapi after RC port)
   LA MARKET:       504-355-9111   (Vapi already)
-  TELNYX CUST:     615-588-9500   (callback context)
-  TELNYX TECH:     615-857-8800   (tech context)
-  TWILIO CUST:     629-284-0444   (callback context)
-  TWILIO TECH:     727-350-8487   (tech context)
-  VANITY (lead):   1-888-ANT-8998
-  VANITY (back):   1-866-ANT-0111
+  TELNYX CUST:     615-588-9500   (callback context, primary SMS)
+  TELNYX TECH:     615-857-8800   (tech context, primary SMS)
+  TWILIO CUST:     629-284-0444   (callback context, FAILOVER SMS)
+  TWILIO TECH:     727-350-8487   (tech context, FAILOVER SMS)
 
-EVALUATE (release or repoint):
-  VAPI BYO #1:     629-260-7111
-  VAPI BYO #2:     629-247-7111
+KEEP — strategic inventory (route to Ant Inbound v2 + reserve):
+  VANITY 888:      1-888-ANT-8998 (SaaS tenant inventory + advertising)
+  VANITY 866:      1-866-ANT-0111 (SaaS tenant inventory + advertising)
+  VAPI BYO #1:     629-260-7111   (SaaS tenant inventory)
+  VAPI BYO #2:     629-247-7111   (SaaS tenant inventory)
 
-KILL (delete in Twilio):
-  MYSTERY #1:      570-378-8177
-  MYSTERY #2:      234-219-3439
+KILL (delete in Twilio dashboard — brand-conflict landmines):
+  MYSTERY #1:      570-378-8177   (Twilio demo IVR)
+  MYSTERY #2:      234-219-3439   (Twilio demo IVR)
 ```
+
+## Why we keep so many numbers
+
+Read the [phone inventory strategy memory](../.claude/projects/-Users-tpivacek-tn-appliance-tools/memory/project_phone_inventory_strategy.md) — short version: Twilio approval took a month, vanities are SaaS inventory + ad anchors, holding pre-approved numbers is real insurance against another month-long approval gap. Few dollars a month for that protection is obvious.

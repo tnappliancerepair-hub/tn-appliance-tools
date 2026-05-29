@@ -119,23 +119,24 @@ const NUMBER_PROFILES = {
     tech_side: true,
   },
 
-  // ── Vapi BYO TN numbers (legacy — pre-RC-port) ─────────────────
-  // Pre-existing TN-area Vapi numbers from before 615-280-2949 port.
-  // Once 615-280-2949 lands, these are redundant — keep one as a
-  // secondary / B2B spare, release the other. Mark as 'secondary'
-  // so the brain doesn't loudly identify them.
+  // ── Vapi BYO TN numbers — KEEP as SaaS multi-tenant inventory ──
+  // Per docs/phone-number-strategy.md "Strategic Inventory" principle.
+  // These were originally Vapi-acquired for TN use; once we go multi-
+  // tenant (saas_strategy memory), they're reserves for spinning up
+  // tenant-specific assistants without going through Vapi's
+  // provisioning queue. Cost ~$1/mo each = obvious to hold.
   '6292607111': {
     role: 'vapi_secondary_tn',
     provider: 'vapi',
     market_context: 'Middle Tennessee.',
-    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening; flag for release once 615-280-2949 is live and confirmed working.',
+    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening. Reserved as SaaS tenant inventory for future multi-tenant rollout.',
     tech_side: false,
   },
   '6292477111': {
     role: 'vapi_secondary_tn',
     provider: 'vapi',
     market_context: 'Middle Tennessee.',
-    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening; flag for release once 615-280-2949 is live.',
+    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening. Reserved as SaaS tenant inventory for future multi-tenant rollout.',
     tech_side: false,
   },
 
