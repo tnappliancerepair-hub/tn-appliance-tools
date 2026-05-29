@@ -1469,21 +1469,14 @@
 
     // Use the IndexedDB queue if it's loaded — handles low-signal areas:
     // file persists across page reload, retries when network returns.
+    // The bubble updates in real time so the tech sees uploading 0% → 100%
+    // → uploaded ✓ (or retrying / failed).
     if (uploadQueue) {
       try {
-        const id = await uploadQueue.enqueue(file, { fileType: subject });
-        addMsg('user', '📤 ' + subject + ' queued (auto-retries on signal)');
-        // The queue uploads in background. When it lands, tell the brain.
-        // For first ship: just send the brain a notification after the file
-        // is in the queue. Vision pipe is a follow-up.
-        await sendToBrain(isVideo
-          ? "I just queued a video. Once it uploads I want you to look at it."
-          : "I just queued a photo. Once it uploads I want you to look at it."
-        );
-        return;
+        await uploadQueue.enqueue(file, { fileType: subject });
+        return;  // onUpdate handler renders the bubble + notifies brain
       } catch (e) {
-        // Queue init failed — fall through to direct upload below
-        console.warn('queue enqueue failed, doing direct upload', e);
+        addSystem('error', '📷 queue enqueue failed: ' + (e.message || 'unknown') + ' — falling back to direct upload');
       }
     }
 
@@ -1581,21 +1574,101 @@
     }
   });
 
-  // ── IndexedDB upload queue init (handles low-signal areas) ───────
+  // ── Upload status tracking ───────────────────────────────────────
+  // For every queued item we render a status bubble in the chat that
+  // updates in real time: queued → uploading X% → uploaded ✓ or failed.
+  // No more silent "queued and forgotten" — tech sees exactly what each
+  // file is doing.
+  const __uploadBubbles = new Map();  // queue item id → DOM element
+
+  function renderUploadBubble(item) {
+    let el = __uploadBubbles.get(item.id);
+    if (!el) {
+      // Create a new bubble for this upload
+      const wrap = document.createElement('div');
+      wrap.className = 'msg you';
+      wrap.dataset.uploadId = item.id;
+      const av = document.createElement('div');
+      av.className = 'msg-av';
+      av.textContent = 'YOU';
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.style.display = 'flex';
+      bubble.style.flexDirection = 'column';
+      bubble.style.gap = '4px';
+      bubble.id = 'upload-bubble-' + item.id;
+      wrap.appendChild(av);
+      wrap.appendChild(bubble);
+      chatStage.appendChild(wrap);
+      __uploadBubbles.set(item.id, bubble);
+      el = bubble;
+      scrollChatToBottom();
+    }
+    const isVideo = item.file_type === 'video';
+    const ico = isVideo ? '🎥' : '📷';
+    let statusLine = '';
+    let footerLine = '';
+    if (item.status === 'queued') {
+      statusLine = ico + ' ' + item.file_type + ' queued · waiting for signal';
+    } else if (item.status === 'uploading') {
+      const pct = Math.max(0, Math.min(100, Math.round(item.progress_pct || 0)));
+      statusLine = ico + ' uploading… ' + pct + '%';
+      footerLine = '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden"><div style="height:100%;background:#4af5ff;width:' + pct + '%;transition:width 0.3s"></div></div>';
+    } else if (item.status === 'uploaded') {
+      statusLine = ico + ' uploaded ✓';
+      el.style.opacity = '0.85';
+    } else if (item.status === 'failed') {
+      const att = item.attempts || 0;
+      statusLine = ico + ' upload retrying (try ' + att + ')…';
+      if (item.last_error) footerLine = '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">last error: ' + escapeHtml(String(item.last_error).slice(0, 80)) + '</div>';
+    } else if (item.status === 'failed_permanent') {
+      statusLine = ico + ' upload failed permanently';
+      el.style.opacity = '0.6';
+      if (item.last_error) footerLine = '<div style="font-size:11px;color:rgba(255,107,107,0.85);margin-top:2px">' + escapeHtml(String(item.last_error).slice(0, 120)) + '</div>';
+    }
+    el.innerHTML = '<div>' + statusLine + '</div>' + footerLine;
+  }
+  function removeUploadBubble(id) {
+    const el = __uploadBubbles.get(id);
+    if (el && el.parentNode && el.parentNode.parentNode) {
+      el.parentNode.parentNode.remove();
+    }
+    __uploadBubbles.delete(id);
+  }
+
   async function initUploadQueue() {
     if (!JOB_ID || !TECH_ID) return;
-    if (typeof window.UploadQueue === 'undefined') return;
+    if (typeof window.UploadQueue === 'undefined') {
+      addSystem('error', '📷 upload queue script missing — direct upload only (less reliable in low signal)');
+      return;
+    }
     try {
       uploadQueue = new window.UploadQueue({
         jobId: JOB_ID,
         techId: TECH_ID,
         xanoBase: XANO_BASE,
         netlifyBase: '',
-        onUpdate: () => {},
+        onUpdate: async () => {
+          // Each queue mutation → refresh every visible bubble
+          try {
+            const items = await uploadQueue.list();
+            for (const item of items) renderUploadBubble(item);
+            // Tell brain when an upload lands. One-time per item.
+            for (const item of items) {
+              if (item.status === 'uploaded' && !item._notified) {
+                item._notified = true;
+                sendToBrain(item.file_type === 'video'
+                  ? "Just uploaded a video — go look."
+                  : "Just uploaded a photo — go look.");
+              }
+            }
+          } catch (e) { console.warn('upload bubble render', e); }
+        },
       });
       await uploadQueue.init();
     } catch (e) {
       console.warn('UploadQueue init failed', e);
+      addSystem('error', '📷 upload queue init failed: ' + (e.message || 'unknown'));
       uploadQueue = null;
     }
   }
