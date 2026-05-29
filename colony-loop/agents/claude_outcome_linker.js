@@ -100,6 +100,36 @@ export async function linkOutcomesForJob(signal, ctx, { outcomeType, outcomeValu
     calls: linked,
     entity: `${entityKey}=${entityId}`,
   });
+
+  // ── Correction loop: when an outcome was BAD, write a durable
+  // brain_session_note attaching to the source brain so they SEE it
+  // on their next session. Closes the "outcome happened but the
+  // brain that caused it never finds out" gap.
+  const value = String(outcomeValue || '').toLowerCase();
+  const isBad = value === 'bad' || value === '1' || value === '2';
+  if (isBad && matched.length > 0) {
+    for (const row of matched) {
+      let meta;
+      try { meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata; }
+      catch (_) { meta = {}; }
+      const brain = meta.brain || '';
+      if (!brain || brain === 'reviewer') continue;
+      try {
+        await recordEvent('brain_session_note', {
+          brain,
+          scope: entityKey === 'job_id' ? 'job' : (entityKey === 'customer_id' ? 'customer' : 'global'),
+          scope_id: entityId,
+          note: `Past action on this ${entityKey === 'job_id' ? 'job' : 'customer'} got a BAD outcome (${outcomeType}=${outcomeValue}). Review what was done differently this time. Call log id: ${meta.call_log_id || '?'}, signal: ${meta.signal_type || '?'}.`,
+          confidence: 'high',
+          source: 'outcome_correction_loop',
+          outcome_type: outcomeType,
+          outcome_value: outcomeValue,
+          saved_at_ms: Date.now(),
+        });
+      } catch (_) {}
+    }
+  }
+
   return { success: true, action: 'linked', count: linked };
 }
 

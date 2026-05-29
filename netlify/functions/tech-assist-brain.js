@@ -14,15 +14,57 @@
 //   { ok, reply, captured, tool_calls, status }
 
 const { runBrainTurn, tryParseJsonReply } = require('./_lib/ant/brain-core');
-const { READ_TOOLS, pickTools } = require('./_lib/ant/tools');
+const { READ_TOOLS, UNIVERSAL_TOOLS, pickTools } = require('./_lib/ant/tools');
 
-// Tech-side tool subset — only the tools that make sense for a tech
-// mid-job. Customer history + model failures = directly useful while
-// diagnosing. No calendar/pulse/search_customers (office concerns).
-const TECH_TOOLS = pickTools(READ_TOOLS, [
-  'get_customer_service_history',
-  'get_common_failures_for_model',
-]);
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Tech-side tool subset. Customer history + model failures = directly
+// useful while diagnosing. Intelligence reads added 2026-05-28:
+//   get_pre_job_intelligence (#5) — overnight-staged context for THIS job
+//   get_warranty_vendor_fingerprint (#4) — what THIS vendor needs
+// Plus UNIVERSAL bus reads so peer brains' observations land here too.
+const TECH_TOOLS = [
+  ...pickTools(READ_TOOLS, [
+    'get_customer_service_history',
+    'get_common_failures_for_model',
+    'get_pre_job_intelligence',
+    'get_warranty_vendor_fingerprint',
+  ]),
+  ...UNIVERSAL_TOOLS.filter((t) => ['flag_capability_gap', 'load_brain_observations', 'record_brain_observation'].includes(t.name)),
+];
+
+// Pre-fetch the staged intelligence + warranty fingerprint BEFORE
+// calling Claude. Cuts a Claude turn on common cases — the data is
+// already in the prompt rather than requiring a tool round-trip.
+// Best-effort; failure just means the brain gets less ground truth.
+async function prefetchIntel({ job_id, warranty_company }) {
+  const out = { pre_job_intel: null, warranty_fingerprint: null };
+  if (job_id) {
+    try {
+      const r = await fetch(`${XANO_BASE}/get_pre_job_intelligence?job_id=${job_id}`, { signal: AbortSignal.timeout(3500) });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.found && d.metadata) {
+          try { out.pre_job_intel = typeof d.metadata === 'string' ? JSON.parse(d.metadata) : d.metadata; }
+          catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+  if (warranty_company) {
+    try {
+      const r = await fetch(`${XANO_BASE}/get_warranty_vendor_fingerprint?vendor=${encodeURIComponent(warranty_company)}`, { signal: AbortSignal.timeout(3500) });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.found && d.metadata) {
+          try { out.warranty_fingerprint = typeof d.metadata === 'string' ? JSON.parse(d.metadata) : d.metadata; }
+          catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+  return out;
+}
 
 function buildSystemPrompt(ctx) {
   return `You are Ant, the silent scribe + smart teammate for an appliance-repair tech mid-job. Hands dirty, on the road. NOT a chatbot — you only speak when you have real value to add.
@@ -58,7 +100,26 @@ REPLY RULES (chat-led TDR gathering — 2026-05-28 update):
 - Photos: when tech sends image, READ IT. Extract model/serial/part/error code. If you read a model number, confirm: "Got the model: WTW5000DW2. What's wrong with it?"
 
 JOB CONTEXT: tech=${ctx.tech_first_name} job#${ctx.job_id} appliance=${ctx.brand} ${ctx.appliance} problem=${ctx.problem}
-Already captured: ${JSON.stringify(ctx.existing_captured || {})}`;
+Already captured: ${JSON.stringify(ctx.existing_captured || {})}${renderPreJobIntel(ctx.pre_job_intel)}${renderWarrantyFingerprint(ctx.warranty_fingerprint)}`;
+}
+
+function renderPreJobIntel(intel) {
+  if (!intel || !intel.summary) return '';
+  return `\n\nPRE-JOB INTELLIGENCE (overnight-staged):\n${intel.summary}`;
+}
+
+function renderWarrantyFingerprint(fp) {
+  if (!fp || !fp.vendor) return '';
+  const lines = [`\n\nWARRANTY VENDOR FINGERPRINT (${fp.vendor}, ${fp.window_days || 60}d):`];
+  if (fp.clear_rate_pct != null) lines.push(`  Clear rate: ${fp.clear_rate_pct}% (${fp.claims_count || 0} claims)`);
+  if (fp.rejection_rate_pct != null) lines.push(`  Rejection rate: ${fp.rejection_rate_pct}%`);
+  if (Array.isArray(fp.top_correction_fields) && fp.top_correction_fields.length > 0) {
+    lines.push(`  Most-missed fields (front-load these):`);
+    for (const f of fp.top_correction_fields.slice(0, 5)) {
+      lines.push(`    • ${f.field} (rejected ${f.count}x)`);
+    }
+  }
+  return lines.join('\n');
 }
 
 exports.handler = async (event) => {
@@ -76,8 +137,20 @@ exports.handler = async (event) => {
     brand: body.brand || '',
     appliance: body.appliance || 'appliance',
     problem: body.problem || '',
+    warranty_company: body.warranty_company || '',
     existing_captured: body.existing_captured || {},
+    // Entity-link fields for outcome-conditioned learning logging.
+    brain: 'tech_assist',
+    signal_type: 'TECH_SMS_ASSIST',
   };
+
+  // Pre-fetch staged intelligence + vendor fingerprint in parallel.
+  // Best-effort; failures fold into empty context blocks.
+  try {
+    const intel = await prefetchIntel({ job_id: ctx.job_id, warranty_company: ctx.warranty_company });
+    ctx.pre_job_intel = intel.pre_job_intel;
+    ctx.warranty_fingerprint = intel.warranty_fingerprint;
+  } catch (_) {}
 
   // Build user content (text-only OR multi-part with image blocks for MMS).
   const mediaUrls = Array.isArray(body.media_urls)

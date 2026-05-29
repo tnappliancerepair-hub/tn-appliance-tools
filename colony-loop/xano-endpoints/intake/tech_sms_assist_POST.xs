@@ -318,6 +318,7 @@ query tech_sms_assist verb=POST {
         brand             : $brand
         appliance         : $appliance
         problem           : $problem
+        warranty_company  : ($job.warranty_company ?? "")
         message           : $body_in
         media_urls        : $media_urls_in
         existing_captured : $existing_captured

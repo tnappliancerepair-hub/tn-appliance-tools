@@ -49,6 +49,29 @@ export function pickNextAgent(blueprint, opts = {}) {
     }
   }
 
+  // Capability-gap specs (#8 feedback loop): brains flagged ≥3 hits with
+  // the same signature, the capability_gap_to_blueprint agent wrote
+  // them into blueprint.capability_gap_specs as TO_BUILD. We treat
+  // them like a synthetic colony with HIGH priority — they reflect
+  // brains actively asking for the capability, so they outrank static
+  // blueprint backlog.
+  const gapSpecs = Array.isArray(blueprint.capability_gap_specs) ? blueprint.capability_gap_specs : [];
+  for (const spec of gapSpecs) {
+    if (spec.status !== 'TO_BUILD') continue;
+    if (excludeIds.has(spec.id)) continue;
+    candidates.push({
+      colony: { id: 'CAPABILITY_GAPS', priority: 'HIGH', name: 'Capability Gaps (auto-injected)' },
+      agent: {
+        id: spec.id,
+        name: `Capability gap: ${spec.signature}`,
+        priority: 1,
+        status: 'TO_BUILD',
+        from_capability_gap: true,
+        capability_gap_spec: spec,
+      },
+    });
+  }
+
   candidates.sort((a, b) => {
     const pa = PRIORITY_RANK[String(a.colony.priority || 'MED').toUpperCase()] || 99;
     const pb = PRIORITY_RANK[String(b.colony.priority || 'MED').toUpperCase()] || 99;
@@ -64,6 +87,19 @@ export function pickNextAgent(blueprint, opts = {}) {
  * the relevant counters. Returns blueprint.
  */
 export function markBuilt(blueprint, colonyId, agentId) {
+  // Synthetic CAPABILITY_GAPS "colony" path — entries live in
+  // blueprint.capability_gap_specs[] not blueprint.colonies[].
+  if (colonyId === 'CAPABILITY_GAPS') {
+    const specs = blueprint.capability_gap_specs || [];
+    for (const spec of specs) {
+      if (spec.id !== agentId) continue;
+      spec.status = 'BUILT';
+      spec.built_at_ms = Date.now();
+      break;
+    }
+    return blueprint;
+  }
+
   for (const c of blueprint.colonies || []) {
     if (c.id !== colonyId) continue;
     for (const a of c.agents || []) {

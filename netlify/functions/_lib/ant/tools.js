@@ -268,7 +268,16 @@ const BLAST_RADIUS = {
   // Newer tools default to 'high' until classified — fail safe.
 };
 
-const CONF_THRESHOLD = { low: 75, medium: 90, high: 101 /* never */ };
+// Threshold defaults — env-overridable so day-1 tuning doesn't need a
+// code change. Setting any threshold to >100 disables auto for that
+// blast tier (per-blast kill switch). HIGH-blast default stays >100
+// forever as a hard safety: cancels/reassigns always require operator
+// confirmation regardless of confidence.
+const CONF_THRESHOLD = {
+  low: Number(process.env.ANT_AUTONOMY_CONF_LOW || 60),
+  medium: Number(process.env.ANT_AUTONOMY_CONF_MEDIUM || 85),
+  high: Number(process.env.ANT_AUTONOMY_CONF_HIGH || 101 /* never */),
+};
 
 function shouldAutoExecute(toolName, confidencePct) {
   if (process.env.ANT_AUTONOMY_DISABLED === 'true') return false;
@@ -1122,25 +1131,44 @@ async function executeTool(toolName, toolInput, ctx) {
         const r = await timedFetch(`${XANO_BASE}/list_brain_observations?${params.toString()}`);
         if (!r.ok) return { error: `list_brain_observations ${r.status}` };
         const data = await r.json();
-        const rows = (data.items || []).map((row) => {
+        const now = Date.now();
+        // Score: weight (high=3, med=2, low=1) × recency decay
+        // (e^(-age_days/7)). Newer + heavier first. Stale low-weight
+        // observations sink to the bottom.
+        const weightScore = (w) => ({ high: 3, medium: 2, low: 1 }[String(w || 'medium').toLowerCase()] || 2);
+        const seen = new Set();
+        const rows = [];
+        for (const row of (data.items || [])) {
           let meta = {};
           try { meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {}); }
           catch (_) { meta = {}; }
-          return {
+          // De-dup: same source_brain + observation within 24h gets
+          // collapsed (keep newest).
+          const dedupKey = `${meta.source_brain || ''}|${(meta.observation || '').slice(0, 80)}`;
+          if (seen.has(dedupKey)) continue;
+          seen.add(dedupKey);
+          const recordedAt = Number(meta.recorded_at_ms || row.created_at_ms || 0);
+          const ageDays = recordedAt > 0 ? (now - recordedAt) / 86400000 : 14;
+          const score = weightScore(meta.weight) * Math.exp(-Math.max(0, ageDays) / 7);
+          rows.push({
             id: row.id,
-            recorded_at_ms: meta.recorded_at_ms || row.created_at_ms,
+            recorded_at_ms: recordedAt,
+            age_days: Math.round(ageDays * 10) / 10,
             source_brain: meta.source_brain,
             observation: meta.observation,
             weight: meta.weight,
             topic: meta.topic,
-          };
-        });
+            _score: score,
+          });
+        }
+        rows.sort((a, b) => b._score - a._score);
+        for (const r of rows) delete r._score;
         return {
           items: rows,
           count: rows.length,
           hint: rows.length === 0
             ? 'No cross-brain observations for this entity. Make your own judgment + record_brain_observation if you learn something other brains need.'
-            : 'Use these observations to inform your reply. Higher weight = stronger signal.',
+            : 'Sorted by weight × recency. Trust the top items more than the bottom. Older low-weight notes may already be stale.',
         };
       } catch (e) {
         return { error: 'load_brain_observations failed: ' + (e.message || e) };
