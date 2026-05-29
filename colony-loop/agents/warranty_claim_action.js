@@ -83,6 +83,56 @@ export async function run(signal, ctx) {
   // warranty-review page. Strip the escalate marker before persisting so
   // it doesn't appear in the digest UI.
   const persistText = escalate ? claimText.replace(new RegExp(ESCALATE_MARKER, 'g'), '').trim() : claimText;
+
+  // ── Adversarial review (#7) ──────────────────────────────────────
+  // High-stakes: this is the text Danielle will reference for the real
+  // warranty submission. A hallucination here ($ amount, customer name,
+  // missing field for THIS vendor) creates real billing/process problems.
+  // Second brain reviews before persistence. Block on a denial.
+  let review = { approve: true, blocking: [], advisory: [], confidence: 0, reviewer_status: 'skipped' };
+  try {
+    // CJS module imported from ESM — destructure via .default fallback.
+    const mod = await import('../../netlify/functions/_lib/ant/adversarial.js');
+    const reviewAction = (mod && (mod.reviewAction || (mod.default && mod.default.reviewAction)));
+    if (reviewAction) {
+      review = await reviewAction({
+        actionType: 'warranty_claim_submission',
+        originalRequest: `Compose warranty claim package for job #${jobId} (vendor ${vendorLabel})`,
+        proposed: persistText,
+        context: { job_id: jobId, vendor: vendorLabel, escalate, high_flags: highFlags },
+      });
+    }
+  } catch (e) {
+    log('warranty_claim_action_reviewer_offline', { error: String(e.message || e) });
+  }
+
+  if (!review.approve && review.blocking && review.blocking.length > 0) {
+    // Reviewer blocked. Persist a flag instead of the package so Danielle
+    // sees it but doesn't submit. SMS Teddy.
+    try {
+      await xano.recordEventLog('warranty_claim_action_blocked_by_reviewer', {
+        job_id: jobId,
+        specialty,
+        vendor: vendorLabel,
+        blocking: review.blocking,
+        advisory: review.advisory,
+        reviewer_confidence: review.confidence,
+        text_preview: persistText.slice(0, 600),
+      });
+    } catch (_) {}
+
+    try {
+      const blockerSms = `[ant] warranty claim blocked by reviewer — job #${jobId} (${vendorLabel}). Issues: ${review.blocking.slice(0, 3).join(' / ')}. Open: ${bareDomain()}/warranty-review.html?job_id=${jobId}`;
+      const { toOwner } = await import('../sms.js');
+      await toOwner(blockerSms, { call_site: 'warranty_claim_action_reviewer_block' });
+    } catch (_) {}
+
+    const meta = { job_id: jobId, specialty, vendor: vendorLabel, outcome: 'blocked_by_reviewer', high_flags: highFlags, blocking_count: review.blocking.length };
+    await xano.markSignalProcessed(signal.id, 'warranty_claim_action_handled', meta);
+    log('warranty_claim_action_blocked', meta);
+    return { success: true, action: 'blocked_by_reviewer', job_id: jobId };
+  }
+
   try {
     await xano.recordEventLog('warranty_claim_action_persisted', {
       job_id: jobId,
@@ -92,6 +142,9 @@ export async function run(signal, ctx) {
       high_flags: highFlags,
       claim_action_text: persistText,
       generated_by: payload.generated_by || '',
+      reviewer_approve: review.approve,
+      reviewer_advisory: review.advisory || [],
+      reviewer_confidence: review.confidence || 0,
       source_signal_id: signal.id,
       generated_at_ms: Date.now(),
     });

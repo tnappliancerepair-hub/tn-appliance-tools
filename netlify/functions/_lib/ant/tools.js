@@ -1088,6 +1088,25 @@ async function executeTool(toolName, toolInput, ctx) {
       }
     }
 
+    case 'review_before_ship': {
+      try {
+        const { reviewAction } = require('./adversarial');
+        const review = await reviewAction({
+          actionType: String(ti.action_type || 'unspecified'),
+          originalRequest: String(ti.original_request || ''),
+          proposed: String(ti.proposed || ''),
+          context: ti.context || {},
+        });
+        return {
+          ...review,
+          hint: review.approve
+            ? `Reviewer cleared it.${review.advisory && review.advisory.length ? ' Advisory notes (not blocking): ' + review.advisory.join('; ') : ''}`
+            : `Reviewer blocked. REVISE before retrying. Issues: ${(review.blocking || []).join('; ')}`,
+        };
+      } catch (e) {
+        return { approve: true, blocking: [], advisory: ['reviewer failed: ' + (e.message || e)], confidence: 0, reviewer_status: 'error' };
+      }
+    }
     case 'load_brain_observations': {
       const entityType = String(ti.entity_type || '');
       const entityId = String(ti.entity_id || '');
@@ -1207,6 +1226,20 @@ const UNIVERSAL_TOOLS = [
         expires_at_ms: { type: 'integer', description: 'Optional auto-stale timestamp; omit for never' },
       },
       required: ['source_brain', 'entity_type', 'entity_id', 'observation'],
+    },
+  },
+  {
+    name: 'review_before_ship',
+    description: "Have a second Claude brain (the adversarial reviewer) audit your proposed action / message BEFORE it goes out. Use for high-stakes: warranty submission text, large reschedule plans, refunds, customer complaint replies. Reviewer returns approve true/false + blocking issues + advisory nits. If approve=false, REVISE your output and try again. Don't use this for routine acks or short SMS — slow + costs an extra Claude call.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        action_type: { type: 'string', description: 'Tag for what kind of action e.g. "warranty_submission" | "mass_reschedule" | "customer_complaint_reply" | "refund"' },
+        original_request: { type: 'string', description: "What the user asked you to do, in their words." },
+        proposed: { type: 'string', description: 'The text / action body you want to ship.' },
+        context: { type: 'object', description: 'Any relevant context (job, customer, vendor, etc.) — the reviewer reads this to find inconsistencies between context and proposed.' },
+      },
+      required: ['action_type', 'proposed'],
     },
   },
   {
