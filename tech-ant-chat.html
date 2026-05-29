@@ -873,11 +873,30 @@
   // back to browser SpeechSynthesis if the API call fails (or returns
   // unavailable when OPENAI_API_KEY isn't set).
   let __currentAudio = null;
+  // iOS quirk: when SpeechRecognition or MediaRecorder owns the mic,
+  // audio output gets routed to the earpiece (telephony mode), which
+  // makes playback essentially silent. Pause the mic while Ant speaks,
+  // resume after — this releases iOS audio routing back to the loud
+  // speaker.
+  function suspendMicForPlayback() {
+    if (handsfreeRec) {
+      try { handsfreeRec.stop(); } catch (_) {}
+    }
+  }
+  function resumeMicAfterPlayback() {
+    if (handsfreeOn) {
+      // Small delay so iOS finishes routing back to loud speaker
+      setTimeout(() => {
+        try { if (handsfreeRec) handsfreeRec.start(); } catch (_) {}
+      }, 250);
+    }
+  }
   async function speak(text) {
     if (isMuted || !text) return;
     // Cancel any in-flight playback so newer replies don't queue up.
     if (__currentAudio) { try { __currentAudio.pause(); __currentAudio.src = ''; } catch (_) {} __currentAudio = null; }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
+    suspendMicForPlayback();
     try {
       const voicePref = localStorage.getItem('ant_voice') || 'onyx';
       const r = await fetch('/.netlify/functions/tts-speak', {
@@ -885,7 +904,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.slice(0, 1800), voice: voicePref }),
       });
-      // If JSON came back, it means tts is unavailable / errored — fall back.
       const ct = r.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
         speakNative(text);
@@ -894,11 +912,21 @@
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.preload = 'auto';
+      audio.playsInline = true;
+      // Force loud-speaker output on iOS via the Web Audio routing hint.
+      try { audio.setAttribute('webkit-playsinline', 'true'); } catch (_) {}
       __currentAudio = audio;
-      audio.onended = () => { URL.revokeObjectURL(url); if (__currentAudio === audio) __currentAudio = null; };
-      audio.onerror = () => { URL.revokeObjectURL(url); speakNative(text); };
-      await audio.play().catch(() => speakNative(text));
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        if (__currentAudio === audio) __currentAudio = null;
+        resumeMicAfterPlayback();
+      };
+      audio.onended = cleanup;
+      audio.onerror = () => { cleanup(); speakNative(text); };
+      await audio.play().catch(() => { cleanup(); speakNative(text); });
     } catch (e) {
+      resumeMicAfterPlayback();
       speakNative(text);
     }
   }
@@ -918,13 +946,27 @@
   }
   if (onlineNode) {
     onlineNode.style.cursor = 'pointer';
-    onlineNode.title = 'Tap to toggle Ant\'s voice';
+    onlineNode.title = 'Tap toggle voice · double-tap to test playback';
     voiceLabelEl = document.createElement('span');
     voiceLabelEl.style.marginLeft = '10px';
     voiceLabelEl.style.color = 'rgba(240,245,255,0.85)';
     renderVoiceLabel();
     onlineNode.appendChild(voiceLabelEl);
+    let lastTap = 0;
     onlineNode.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - lastTap < 400) {
+        // Double-tap = test playback (helps diagnose iOS audio routing)
+        lastTap = 0;
+        const wasMuted = isMuted;
+        isMuted = false;
+        speak("Audio test — if you can hear this, Ant's voice is working.");
+        if (wasMuted) {
+          setTimeout(() => { isMuted = true; renderVoiceLabel(); }, 4000);
+        }
+        return;
+      }
+      lastTap = now;
       isMuted = !isMuted;
       localStorage.setItem('ant_muted', isMuted ? '1' : '0');
       renderVoiceLabel();
