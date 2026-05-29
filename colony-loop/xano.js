@@ -458,6 +458,24 @@ export async function findNearbyOpenJobs({ tech_id, recent_zip = '', recent_city
   return getJSON(`${INTAKE()}/find_nearby_open_jobs?${params.toString()}`);
 }
 
+// Returns the raw inbound SMS samples for comms-style classification.
+// Classifier lives in channel.js (JS-side) — XS just bulk-returns the
+// metadata rows.
+export async function getCustomerCommsStyleSamples(customerId, { days_back = 60, limit = 50 } = {}) {
+  if (!customerId) return [];
+  try {
+    const params = new URLSearchParams({
+      customer_id: String(customerId),
+      days_back: String(days_back),
+      limit: String(limit),
+    });
+    const r = await getJSON(`${INTAKE()}/get_customer_comms_style?${params.toString()}`);
+    return (r && Array.isArray(r.items)) ? r.items : [];
+  } catch (_) {
+    return [];
+  }
+}
+
 // Returns a customer's preferred comms channel based on their last 60d
 // of portal vs SMS engagement. See get_customer_channel_preference_GET.xs.
 // Shape: { prefers: "portal" | "sms" | "unknown", score, evidence: {...} }
