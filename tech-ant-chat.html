@@ -866,10 +866,11 @@
     if (__currentAudio) { try { __currentAudio.pause(); __currentAudio.src = ''; } catch (_) {} __currentAudio = null; }
     if ('speechSynthesis' in window) speechSynthesis.cancel();
     try {
+      const voicePref = localStorage.getItem('ant_voice') || 'onyx';
       const r = await fetch('/.netlify/functions/tts-speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 1800), voice: 'nova' }),
+        body: JSON.stringify({ text: text.slice(0, 1800), voice: voicePref }),
       });
       // If JSON came back, it means tts is unavailable / errored — fall back.
       const ct = r.headers.get('content-type') || '';
