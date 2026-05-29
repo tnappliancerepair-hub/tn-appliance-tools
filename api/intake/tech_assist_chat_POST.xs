@@ -46,12 +46,71 @@ query tech_assist_chat verb=POST {
   
     conditional {
       if ($session == null) {
-        return {
-          value = {
-            success: false
-            error  : "no active session - HCP webhook may not have fired"
-          }
+        // Lazy-create the session inline. The original creation path
+        // (start_tech_assist_session, called by hcp_job_webhook) is
+        // disabled in parallel mode (HCP_WEBHOOK_DISABLED=true), so no
+        // session row ever gets created and every chat message would
+        // fail. Field shape mirrors start_tech_assist_session_POST.xs
+        // lines 189-201 so the row is identical to one HCP-created.
+        // The agent_conversation null-check downstream in this same
+        // file self-heals the conversation row, so we only need the
+        // session here.
+        db.get jobs {
+          field_name = "id"
+          field_value = $input.job_id
+        } as $lazy_job
+
+        var $lazy_warranty_co_raw {
+          value = ($lazy_job.warranty_company ?? "")|trim
         }
+
+        var $lazy_warranty_co {
+          value = ($lazy_warranty_co_raw != "") ? $lazy_warranty_co_raw : "unknown"
+        }
+
+        var $lazy_cust_type_raw {
+          value = ($lazy_job.customer_type ?? "")|trim
+        }
+
+        var $lazy_cust_type {
+          value = ($lazy_cust_type_raw == "warranty" || $lazy_cust_type_raw == "self_pay") ? $lazy_cust_type_raw : "warranty"
+        }
+
+        var $lazy_required_fields {
+          value = [
+            "model_confirmation"
+            "symptom_confirmation"
+            "diagnosis"
+            "repair_completed_status"
+          ]
+        }
+
+        db.add tech_assist_session {
+          data = {
+            job_id                   : $input.job_id
+            technician_id            : $input.technician_id
+            warranty_company         : $lazy_warranty_co
+            customer_type            : $lazy_cust_type
+            status                   : "active"
+            captured_data            : {}
+            required_fields_remaining: $lazy_required_fields
+            session_start_event      : "lazy_created_by_chat"
+            last_message_at          : now
+            updated_at               : now
+          }
+        } as $session
+
+        db.add event_log {
+          data = {
+            action  : "tech_assist_session_lazy_created"
+            metadata: {
+            session_id   : $session.id
+            job_id       : $input.job_id
+            technician_id: $input.technician_id
+            source       : "tech_assist_chat_lazy"
+          }
+          }
+        } as $lazy_audit
       }
     }
   
