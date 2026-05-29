@@ -125,6 +125,136 @@ const READ_TOOLS = [
   },
 ];
 
+// ─── PHONE TOOLS — voice-brain specific (Vapi custom-LLM webhook) ───
+// The phone brain runs through brain-core just like every other brain
+// but gets its OWN tool surface tuned for live voice calls:
+//   - heavier on read tools (the agent should KNOW before it asks)
+//   - dedicated escalation + safety tools (only meaningful mid-call)
+//   - send_customer_a_link to push a portal/photo/payment URL via SMS
+//     while the caller is still on the line
+const PHONE_TOOLS = [
+  {
+    name: 'lookup_customer_by_phone',
+    description: "ALWAYS CALL THIS FIRST when the call begins. Returns the customer record + last 3 jobs + comms style + channel preference + LTV + last call summary, all from the inbound phone number. Don't ask 'who's calling' if this returns a match — greet them by name.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        phone: { type: 'string', description: 'E.164 phone number from the inbound call (Vapi provides this)' },
+      },
+      required: ['phone'],
+    },
+  },
+  {
+    name: 'get_open_jobs_for_customer',
+    description: 'Returns active jobs for a customer (scheduling_status not in completed/canceled). Each row has scheduled_start, technician_id + first_name, parts_status, parts_eta_date, warranty_company. Use to answer "what is the status of my appointment?" / "when is the tech coming?" / "have you ordered the part yet?"',
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+      },
+      required: ['customer_id'],
+    },
+  },
+  {
+    name: 'get_recent_call_summary',
+    description: "Returns summaries of the last 3 phone calls with this customer. Useful when they say 'I called yesterday about X' — you can read the prior summary and pick up cleanly instead of making them repeat.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        limit: { type: 'integer', description: 'Max calls to return (default 3, max 10)' },
+      },
+      required: ['customer_id'],
+    },
+  },
+  {
+    name: 'send_customer_a_link',
+    description: "Texts the customer a link DURING the call. Use for: portal URL (status updates), photo upload URL (collect appliance photos), live truck tracking URL (when tech is en route), payment link, calendar invite. Tell the customer you're sending it so they know to look for the text.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        phone: { type: 'string', description: 'E.164 (uses customer record if omitted)' },
+        link_type: { type: 'string', description: 'portal | photo_upload | tracking | payment | resume_chat | calendar' },
+        job_id: { type: 'integer', description: 'Required for portal/tracking/photo_upload/resume_chat' },
+        note: { type: 'string', description: 'One-line context (e.g. "tap to see live truck location")' },
+      },
+      required: ['customer_id', 'link_type'],
+    },
+  },
+  {
+    name: 'request_callback',
+    description: "Books a callback. Use when the caller wants Teddy or Danielle to call them back, or when the agent can't resolve in this call. Fires a CALLBACK_PROMISED signal that creates a tracked task; the human gets a reminder; we don't drop balls. Confirm a SPECIFIC TIME WINDOW with the caller (not 'soon' — 'this afternoon' or '4pm CT').",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        phone: { type: 'string' },
+        callback_for: { type: 'string', description: 'teddy | danielle | tech | dispatch — who should call back' },
+        reason: { type: 'string', description: 'Why the callback is needed (becomes the human-facing summary)' },
+        when_ct: { type: 'string', description: 'Time window in CT (e.g. "this afternoon 1-3pm", "tomorrow morning")' },
+        priority: { type: 'string', description: 'urgent | normal | low' },
+      },
+      required: ['customer_id', 'callback_for', 'reason'],
+    },
+  },
+  {
+    name: 'escalate_to_human',
+    description: "MID-CALL transfer to a live human. Use when the caller asks for Teddy / Danielle by name, when emotional intensity is high, when they have a question you genuinely don't know how to answer. Provide a one-line summary so the human picks up informed. The system rings Teddy first, falls back to Danielle. If neither answers, request_callback instead.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        target: { type: 'string', description: 'teddy | danielle | tech | any' },
+        summary: { type: 'string', description: 'One-line context for the human picking up' },
+        urgency: { type: 'string', description: 'high | medium | low' },
+      },
+      required: ['target', 'summary'],
+    },
+  },
+  {
+    name: 'mark_safety_emergency',
+    description: "Caller has a SAFETY EMERGENCY — gas leak, water flooding, electrical hazard, fire, medical. STOP the conversation, tell them to call 911 immediately if they haven't, then call this. Fires owner alert + records the event. Use AGGRESSIVELY — false positive is fine, false negative is not.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        phone: { type: 'string' },
+        emergency_type: { type: 'string', description: 'gas_leak | flooding | electrical | fire | medical | other' },
+        details: { type: 'string', description: "What they described in their own words" },
+      },
+      required: ['emergency_type', 'details'],
+    },
+  },
+  {
+    name: 'start_warranty_intake',
+    description: "Customer has a warranty company (AHS, ServicePower, Frontdoor, Allstate, SquareTrade, Choice) and a claim number they'd like to file with us. Fires a WARRANTY_INTAKE_STARTED signal which creates a job stub + texts them the resume-chat link to fill out details. Don't try to collect full job details on the phone — the chat link is faster + structured.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        warranty_company: { type: 'string' },
+        claim_number: { type: 'string' },
+        appliance_type: { type: 'string', description: 'washer | dryer | refrigerator | dishwasher | range | microwave | hvac' },
+        problem_summary: { type: 'string', description: '1-2 sentence summary in caller\'s words' },
+      },
+      required: ['customer_id', 'warranty_company', 'appliance_type', 'problem_summary'],
+    },
+  },
+  {
+    name: 'update_customer_note',
+    description: "Add a free-form note to the customer record. Use for: address corrections, preference updates, complaint summary, gate code, dog/pet info, anything you learned on this call that the team needs to remember.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_id: { type: 'integer' },
+        note: { type: 'string' },
+      },
+      required: ['customer_id', 'note'],
+    },
+  },
+];
+
 // ─── SCHEDULER TOOLS (read-only safe for any brain) ─────────────────
 const SCHEDULER_TOOLS = [
   {
@@ -528,6 +658,185 @@ async function executeTool(toolName, toolInput, ctx) {
         jobs: tech ? (tech.jobs || []) : [],
       };
     }
+    // ─── PHONE TOOLS executors ──────────────────────────────────────
+    case 'lookup_customer_by_phone': {
+      const phone = String(ti.phone || '').trim();
+      if (!phone) return { error: 'phone required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/lookup_customer_by_phone?phone=${encodeURIComponent(phone)}`);
+        if (!r.ok) return { error: `lookup ${r.status}`, found: false };
+        return {
+          ...r,
+          hint: r.found
+            ? `Customer ${r.customer && r.customer.first_name}. Greet by first name. Reference their open job if any without asking.`
+            : `No prior record for this phone. Treat as new customer. After collecting name + city, save_session_note so future calls find them.`,
+        };
+      } catch (e) {
+        return { error: 'lookup failed: ' + (e.message || e) };
+      }
+    }
+    case 'get_open_jobs_for_customer': {
+      const customerId = Number(ti.customer_id || 0);
+      if (!customerId) return { error: 'customer_id required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/get_open_jobs_for_customer?customer_id=${customerId}`);
+        if (!r.ok) return { error: `lookup ${r.status}` };
+        return r;
+      } catch (e) {
+        return { error: 'lookup failed: ' + (e.message || e) };
+      }
+    }
+    case 'get_recent_call_summary': {
+      const customerId = Number(ti.customer_id || 0);
+      if (!customerId) return { error: 'customer_id required' };
+      const limit = Math.min(Number(ti.limit || 3), 10);
+      try {
+        const r = await timedFetch(`${XANO_BASE}/get_recent_call_summary?customer_id=${customerId}&limit=${limit}`);
+        if (!r.ok) return { error: `lookup ${r.status}` };
+        return r;
+      } catch (e) {
+        return { error: 'lookup failed: ' + (e.message || e) };
+      }
+    }
+    case 'send_customer_a_link': {
+      const customerId = Number(ti.customer_id || 0);
+      const linkType = String(ti.link_type || '').toLowerCase();
+      if (!customerId || !linkType) return { error: 'customer_id + link_type required' };
+
+      const BASE = 'https://tnapplianceexchange.net';
+      const jobId = Number(ti.job_id || 0);
+      let url;
+      switch (linkType) {
+        case 'portal':       url = `${BASE}/customer-portal.html${jobId ? '?job_id=' + jobId : ''}`; break;
+        case 'photo_upload': if (!jobId) return { error: 'job_id required for photo_upload' }; url = `${BASE}/upload.html?job_id=${jobId}`; break;
+        case 'tracking':     if (!jobId) return { error: 'job_id required for tracking' }; url = `${BASE}/customer-portal.html?job_id=${jobId}&view=tracking`; break;
+        case 'payment':      url = `${BASE}/customer-portal.html${jobId ? '?job_id=' + jobId + '&view=payment' : ''}`; break;
+        case 'resume_chat':  if (!jobId) return { error: 'job_id required for resume_chat' }; url = `${BASE}/customer-portal.html?job_id=${jobId}&mode=resume`; break;
+        case 'calendar':     if (!jobId) return { error: 'job_id required for calendar' }; url = `${BASE}/.netlify/functions/appointment-ics?job_id=${jobId}`; break;
+        default: return { error: `unknown link_type ${linkType}` };
+      }
+
+      try {
+        const r = await timedFetch(`${XANO_BASE}/send_customer_a_link`, {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_id: customerId,
+            phone: ti.phone || '',
+            link_type: linkType,
+            url,
+            note: ti.note || '',
+            source: 'phone_brain',
+          }),
+        });
+        if (!r.ok) return { error: `send_link ${r.status}` };
+        return { ...r, sent_url: url, hint: 'Tell the caller you just sent the link so they look for the text.' };
+      } catch (e) {
+        return { error: 'send_link failed: ' + (e.message || e) };
+      }
+    }
+    case 'request_callback': {
+      const customerId = Number(ti.customer_id || 0);
+      const callbackFor = String(ti.callback_for || '').toLowerCase();
+      const reason = String(ti.reason || '').trim();
+      if (!customerId || !callbackFor || !reason) return { error: 'customer_id + callback_for + reason required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/request_callback`, {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_id: customerId,
+            phone: ti.phone || '',
+            callback_for: callbackFor,
+            reason,
+            when_ct: ti.when_ct || 'asap',
+            priority: ti.priority || 'normal',
+            source: 'phone_brain',
+          }),
+        });
+        if (!r.ok) return { error: `callback ${r.status}` };
+        return { ...r, hint: `Tell the caller: ${callbackFor === 'teddy' ? 'Teddy' : callbackFor === 'danielle' ? 'Danielle' : 'someone'} will call back ${ti.when_ct || 'soon'}.` };
+      } catch (e) {
+        return { error: 'request_callback failed: ' + (e.message || e) };
+      }
+    }
+    case 'escalate_to_human': {
+      const target = String(ti.target || 'any').toLowerCase();
+      const summary = String(ti.summary || '').trim();
+      if (!summary) return { error: 'summary required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/escalate_phone_call_to_human`, {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_id: ti.customer_id || 0,
+            target,
+            summary,
+            urgency: ti.urgency || 'medium',
+            source: 'phone_brain',
+          }),
+        });
+        if (!r.ok) return { error: `escalate ${r.status}` };
+        return { ...r, hint: `Tell the caller: hang on, getting ${target === 'teddy' ? 'Teddy' : target === 'danielle' ? 'Danielle' : 'someone'} on the line right now.` };
+      } catch (e) {
+        return { error: 'escalate failed: ' + (e.message || e) };
+      }
+    }
+    case 'mark_safety_emergency': {
+      const emType = String(ti.emergency_type || '').toLowerCase();
+      const details = String(ti.details || '').trim();
+      if (!emType || !details) return { error: 'emergency_type + details required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/mark_safety_emergency`, {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_id: ti.customer_id || 0,
+            phone: ti.phone || '',
+            emergency_type: emType,
+            details,
+            source: 'phone_brain',
+          }),
+        });
+        if (!r.ok) return { error: `mark_emergency ${r.status}` };
+        return { ...r, hint: `Tell the caller again to call 911 NOW if they haven't already. Stay on the line. Teddy has been alerted.` };
+      } catch (e) {
+        return { error: 'mark_emergency failed: ' + (e.message || e) };
+      }
+    }
+    case 'start_warranty_intake': {
+      const customerId = Number(ti.customer_id || 0);
+      if (!customerId) return { error: 'customer_id required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/start_warranty_intake_from_phone`, {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_id: customerId,
+            warranty_company: ti.warranty_company || '',
+            claim_number: ti.claim_number || '',
+            appliance_type: ti.appliance_type || '',
+            problem_summary: ti.problem_summary || '',
+            source: 'phone_brain',
+          }),
+        });
+        if (!r.ok) return { error: `intake ${r.status}` };
+        return { ...r, hint: 'Tell the caller you just texted a link to finish the details — quicker than collecting them on the phone.' };
+      } catch (e) {
+        return { error: 'intake failed: ' + (e.message || e) };
+      }
+    }
+    case 'update_customer_note': {
+      const customerId = Number(ti.customer_id || 0);
+      const note = String(ti.note || '').trim();
+      if (!customerId || !note) return { error: 'customer_id + note required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/update_customer_note`, {
+          method: 'POST',
+          body: JSON.stringify({ customer_id: customerId, note, source: 'phone_brain' }),
+        });
+        if (!r.ok) return { error: `note ${r.status}` };
+        return r;
+      } catch (e) {
+        return { error: 'note failed: ' + (e.message || e) };
+      }
+    }
+
     case 'get_pre_job_intelligence': {
       const jobId = Number(ti.job_id || 0);
       if (!jobId) return { error: 'job_id required' };
@@ -1337,7 +1646,8 @@ module.exports = {
   SCHEDULER_TOOLS,
   WRITE_TOOLS,
   UNIVERSAL_TOOLS,
-  ALL_TOOLS: [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS, ...UNIVERSAL_TOOLS],
+  PHONE_TOOLS,
+  ALL_TOOLS: [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS, ...UNIVERSAL_TOOLS, ...PHONE_TOOLS],
   executeTool,
   pickTools,
   timedFetch,
