@@ -53,7 +53,10 @@ export async function dispatch(signal, ctx) {
   }
 
   const payload = parsePayload(signal.payload);
-  return mod.run({ ...signal, payload }, ctx);
+  // Propagate trace_id from the signal payload into ctx so brain-core,
+  // logCallAsync, and downstream emits all carry the same chain ID.
+  const enrichedCtx = { ...ctx, trace_id: payload.trace_id || ctx.trace_id || '' };
+  return mod.run({ ...signal, payload }, enrichedCtx);
 }
 
 function parsePayload(raw) {

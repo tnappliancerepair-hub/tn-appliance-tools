@@ -15,6 +15,7 @@ const CLAUDE_TIMEOUT_MS_DEFAULT = 30_000;
 const XANO_LOG_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/log_claude_call';
 
 const { executeTool } = require('./tools');
+const { calcCallCost, checkSpendGate, recordSpend } = require('./spend');
 
 // Fire-and-forget log writer. Best-effort; we never want to slow a
 // brain response down by waiting on the log POST. The outcome-linker
@@ -42,6 +43,25 @@ async function runBrainTurn({
 }) {
   if (!ANTHROPIC_KEY) {
     return { reply: '', tool_calls: [], status: 0, error: 'ANTHROPIC_API_KEY not configured' };
+  }
+
+  // Spend gate (#3) — non-critical calls get blocked once today's
+  // in-memory spend crosses ANT_DAILY_SPEND_CAP_USD. Critical paths
+  // (ctx.critical=true — Tech Assist mid-job, customer-facing replies)
+  // continue until the hard cap. Mark Tech Assist / customer / scheduler
+  // as critical by default since blocking them mid-conversation breaks
+  // the customer experience.
+  const isCritical = ctx.critical === true
+    || ['tech_assist', 'customer_ant', 'scheduler', 'tech_scheduler'].includes(ctx.brain);
+  const gate = checkSpendGate({ critical: isCritical });
+  if (!gate.allow) {
+    return {
+      reply: '',
+      tool_calls: [],
+      status: 0,
+      error: 'spend_gate_blocked: ' + gate.reason,
+      spend_gate: gate,
+    };
   }
 
   // Build messages array: history (sanitized to role+content), then current user turn
@@ -156,6 +176,37 @@ async function runBrainTurn({
       confPct = Math.max(0, Math.min(100, Math.round(parsed.captured.confidence * 100)));
     }
   } catch (_) {}
+  // #4 — compute cost from token usage (Anthropic per-MTok pricing)
+  // and add it to the in-memory daily counter (#3 gate reads from
+  // the same counter). claude_call_log gets the per-call cost so the
+  // weekly digest can break down spend by brain.
+  const costUsd = calcCallCost(model, totalTokensIn, totalTokensOut);
+  const dailyTotalAfter = recordSpend(costUsd);
+
+  // Emit an event_log row when daily spend crosses key thresholds (50%,
+  // 80%, 100% of soft cap). Fire-and-forget. Lets the digest see how
+  // spend ramps through the day.
+  const softCap = Number(process.env.ANT_DAILY_SPEND_CAP_USD || 50);
+  const before = dailyTotalAfter - costUsd;
+  for (const pct of [0.5, 0.8, 1.0]) {
+    const threshold = softCap * pct;
+    if (before < threshold && dailyTotalAfter >= threshold) {
+      try {
+        fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_event_log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'claude_spend_threshold_crossed',
+            metadata_json: JSON.stringify({
+              pct, threshold_usd: threshold, today_usd: dailyTotalAfter,
+              soft_cap_usd: softCap, crossed_at_ms: Date.now(),
+            }),
+          }),
+        }).catch(() => {});
+      } catch (_) {}
+    }
+  }
+
   _logCallAsync({
     company_id: ctx.company_id || 1,
     agent_name: ctx.brain || ctx.agent_name || 'brain',
@@ -165,7 +216,7 @@ async function runBrainTurn({
     output_preview: (finalText || '').slice(0, 1000),
     tokens_in: totalTokensIn,
     tokens_out: totalTokensOut,
-    cost_usd: 0,
+    cost_usd: Math.round(costUsd * 1e6) / 1e6,
     outcome: '',
     source_signal_id: ctx.source_signal_id || 0,
     job_id: ctx.job_id || 0,
@@ -184,6 +235,8 @@ async function runBrainTurn({
     elapsed_ms: Date.now() - callStartedAt,
     tokens_in: totalTokensIn,
     tokens_out: totalTokensOut,
+    cost_usd: costUsd,
+    spend_gate: gate,
     confidence_pct: confPct,
   };
 }

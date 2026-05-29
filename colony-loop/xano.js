@@ -75,22 +75,93 @@ export async function fetchPendingSignals(limit = 50) {
   return data.items || [];
 }
 
-export async function markSignalProcessed(signalId, resultAction, resultObj) {
+// Categorizes a result_action string into one of three classes for
+// fast analytics. Auto-classification rules — agents that explicitly
+// pass outcome_class override this. Heuristic:
+//   contains 'error', 'failed', 'crashed' → 'errored'
+//   contains 'skipped', 'no_op', 'deferred', 'gated', 'duplicate',
+//     'ttl_expired', 'no_agent_yet', 'already' → 'skipped'
+//   otherwise → 'succeeded'
+function classifyOutcome(resultAction) {
+  const s = String(resultAction || '').toLowerCase();
+  if (!s) return 'unknown';
+  if (s.includes('error') || s.includes('failed') || s.includes('crashed')) return 'errored';
+  if (
+    s.includes('skipped') || s.includes('no_op') || s.includes('deferred') ||
+    s.includes('gated') || s.includes('duplicate') || s.includes('ttl_expired') ||
+    s.includes('no_agent_yet') || s.includes('already')
+  ) return 'skipped';
+  return 'succeeded';
+}
+
+export async function markSignalProcessed(signalId, resultAction, resultObj, opts = {}) {
   const merged = resultAction ? { signal_id: signalId, ...(resultObj || {}) } : null;
-  return postJSON(`${INTAKE()}/mark_signal_processed`, {
+  const outcomeClass = opts.outcome_class || classifyOutcome(resultAction);
+
+  // Original write — keep for back-compat.
+  const primary = postJSON(`${INTAKE()}/mark_signal_processed`, {
     signal_id: signalId,
     result_action: resultAction || '',
     result_json: merged ? JSON.stringify(merged) : '',
   });
+
+  // Sibling categorized row for fast analytics. Action name is one of
+  // three discrete values so a single event_log filter gives us the
+  // succeed/skip/error rate per agent without parsing metadata.
+  // Fire-and-forget; never block the primary mark.
+  try {
+    const ctx = (resultObj && resultObj._ctx) || {};
+    const traceId = ctx.trace_id || (resultObj && resultObj.trace_id) || '';
+    postJSON(`${INTAKE()}/record_event_log`, {
+      action: `signal_outcome_${outcomeClass}`,
+      metadata_json: JSON.stringify({
+        signal_id: signalId,
+        result_action: resultAction || '',
+        outcome_class: outcomeClass,
+        trace_id: traceId,
+        ...(resultObj || {}),
+        _ctx: undefined,
+      }),
+    }).catch(() => {});
+  } catch (_) {}
+
+  return primary;
 }
 
-export async function emitSignal({ signal_type, signal_strength = 50, source_colony, target_colonies = '', payload = {} }) {
+// Generates a trace_id used to follow a chain of signals back to its
+// originating event. Format: tr_<base36-ms>_<random4>. Cheap, unique
+// enough for our scale.
+export function newTraceId() {
+  return `tr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// Reads an existing trace_id from a signal payload OR generates a new
+// one. Agents emitting follow-on signals should call this with the
+// inbound signal's payload to keep the chain stitched together.
+export function getOrCreateTraceId(payload) {
+  if (payload && payload.trace_id) return String(payload.trace_id);
+  return newTraceId();
+}
+
+export async function emitSignal({ signal_type, signal_strength = 50, source_colony, target_colonies = '', payload = {}, trace_id = '' }) {
+  // Trace ID propagation: if caller passed trace_id explicitly, use
+  // it. Else if the payload already has one, preserve it. Else create.
+  let payloadObj;
+  if (typeof payload === 'string') {
+    try { payloadObj = JSON.parse(payload); }
+    catch (_) { payloadObj = { _raw: payload }; }
+  } else {
+    payloadObj = { ...payload };
+  }
+  if (!payloadObj.trace_id) {
+    payloadObj.trace_id = trace_id || newTraceId();
+  }
   return postJSON(`${INTAKE()}/emit_colony_signal`, {
     signal_type,
     signal_strength,
     source_colony: source_colony || config.colonyName,
     target_colonies,
-    payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
+    payload: JSON.stringify(payloadObj),
   });
 }
 
