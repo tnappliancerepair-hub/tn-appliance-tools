@@ -22,7 +22,11 @@
 //   { reply: text, tool_calls: [...], status, error? }
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS } = require('./_lib/ant/tools');
+const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS, UNIVERSAL_TOOLS } = require('./_lib/ant/tools');
+
+// Model is env-driven so we can swap in Sonnet 4.6, Opus 4.7, etc.
+// without code changes. Default = the brain-core baseline if unset.
+const SCHEDULER_MODEL = process.env.ANT_SCHEDULER_MODEL || 'claude-sonnet-4-5-20250929';
 
 // Tech scheduler exposes the full scheduler write set + the read tools
 // it needs to make informed proposals. Write tools default to dry_run
@@ -54,6 +58,8 @@ const TECH_SCHEDULER_TOOLS = [
     'draft_customer_running_behind_sms',
     'draft_customer_running_ahead_sms',
   ].includes(t.name)),
+  // Universal: capability gap escalation + persistent memory writes
+  ...UNIVERSAL_TOOLS,
 ];
 
 function buildSystemPrompt(ctx) {
@@ -97,6 +103,14 @@ WHEN ${techFirst} ASKS TO MOVE THEIR EARLY/LATE CUSTOMERS, PROACTIVELY:
 - For RUNNING BEHIND: call get_customer_service_history per affected customer if useful for tone. Compose the SMS via draft_customer_running_behind_sms with the updated ETA. ${techFirst} sends from their phone.
 
 NEVER auto-move customers without confirmation. The customer SMS is a DRAFT — ${techFirst} reviews + sends.
+
+CAPABILITY ESCALATION
+- When ${techFirst} asks for something you CAN'T do with your current tools (missing endpoint, missing data source, missing automation), call flag_capability_gap with brain="tech_scheduler", the user_request, and gap_description. Don't pretend you can do it.
+- Examples worth flagging: "look up part stock at Marcone", "text my whole route at once", "check if this customer has Nest so we know the temp".
+
+MEMORY
+- When you learn something durable that future sessions should know — customer preferences, tech quirks, vendor rules, recurring patterns — call save_session_note with brain="tech_scheduler", scope (customer|tech|warranty_company|global), scope_id, and a one-line note.
+- DO NOT save chat fluff or single-turn details. Only durable facts. "Mrs Smith always prefers afternoons" YES. "Mrs Smith said her schedule today is open" NO.
 
 CONFIRMATION RULES — IMPORTANT
 - All write tools default to dry_run=true. CALL THEM that way FIRST so you and ${techFirst} can both see the proposed change.
@@ -185,6 +199,7 @@ exports.handler = async (event) => {
     ctx,
     maxIterations: 6,
     maxTokens: 2000,
+    model: SCHEDULER_MODEL,
   });
 
   return {

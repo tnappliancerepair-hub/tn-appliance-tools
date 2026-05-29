@@ -9,7 +9,12 @@
 // will later expose SCHEDULER_TOOLS + WRITE_TOOLS when those are wired.
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS } = require('./_lib/ant/tools');
+const { READ_TOOLS, SCHEDULER_TOOLS, WRITE_TOOLS, UNIVERSAL_TOOLS } = require('./_lib/ant/tools');
+
+// Office Ant uses the top-tier model — operational decisions here
+// ripple across techs and customers. Env-driven so we can swap
+// Sonnet ↔ Opus without redeploys.
+const OFFICE_MODEL = process.env.ANT_OFFICE_MODEL || 'claude-sonnet-4-5-20250929';
 
 // Confidence-gating mode for write tools. Three settings:
 //   "preview"  (default) — Claude must dry_run first, ask user, then commit
@@ -22,7 +27,7 @@ const AUTO_MODE = (process.env.AUTO_SCHEDULE_MODE || 'preview').toLowerCase();
 // Office exposes READ + SCHEDULER + WRITE. Write tools all default to
 // dry_run=true so Claude previews the action and the user confirms in
 // chat before anything commits.
-const OFFICE_TOOLS = [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS];
+const OFFICE_TOOLS = [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS, ...UNIVERSAL_TOOLS];
 
 function buildSystemPrompt() {
   const todayCt = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'full', timeStyle: 'short' });
@@ -99,6 +104,7 @@ exports.handler = async (event) => {
     maxIterations: 6,
     maxTokens: 2000,
     claudeTimeoutMs: 30_000,
+    model: OFFICE_MODEL,
   });
 
   return {

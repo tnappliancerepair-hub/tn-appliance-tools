@@ -830,6 +830,54 @@ async function executeTool(toolName, toolInput, ctx) {
       };
     }
 
+    case 'flag_capability_gap': {
+      // Universal escalation surface. Architect reads these events
+      // daily and proposes new agents/tools to fill the gap.
+      const payload = {
+        brain: String(ti.brain || 'unknown'),
+        user_request: String(ti.user_request || '').slice(0, 1500),
+        gap_description: String(ti.gap_description || '').slice(0, 1500),
+        proposed_solution: String(ti.proposed_solution || '').slice(0, 1500),
+        ctx_tech_id: ctx.tech_id || null,
+        ctx_job_id: ctx.job_id || null,
+        ctx_customer_id: ctx.customer_id || null,
+        flagged_at_ms: Date.now(),
+      };
+      await timedFetch(`${XANO_BASE}/record_event_log`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'brain_capability_gap',
+          metadata_json: JSON.stringify(payload),
+        }),
+      });
+      return {
+        ok: true,
+        message: 'Gap logged. Teddy will see this in the weekly architect digest.',
+      };
+    }
+
+    case 'save_session_note': {
+      // Durable memory write. The retrieval layer (Phase 2) will load
+      // recent notes per entity at brain session start.
+      const payload = {
+        brain: String(ti.brain || 'unknown'),
+        scope: String(ti.scope || 'global'),
+        scope_id: ti.scope_id || 0,
+        note: String(ti.note || '').slice(0, 1000),
+        confidence: String(ti.confidence || 'medium'),
+        saved_at_ms: Date.now(),
+      };
+      if (!payload.note) return { error: 'note required' };
+      await timedFetch(`${XANO_BASE}/record_event_log`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'brain_session_note',
+          metadata_json: JSON.stringify(payload),
+        }),
+      });
+      return { ok: true, message: 'Saved.' };
+    }
+
     default:
       return { error: `unknown tool: ${toolName}` };
   }
@@ -842,11 +890,52 @@ function pickTools(allTools, names) {
   return allTools.filter(t => set.has(t.name));
 }
 
+// ─── UNIVERSAL TOOLS ──────────────────────────────────────────────────
+// Available to every brain. flag_capability_gap is the escalation
+// surface — when Claude hits a request it can't fulfill with its
+// current toolset, it calls this and the architect agent reads the
+// gaps daily and proposes new agents/tools to fill them.
+// save_session_note writes a durable observation into event_log; the
+// memory retrieval layer (Phase 2) reads recent notes per entity at
+// session start so each brain learns over time.
+const UNIVERSAL_TOOLS = [
+  {
+    name: 'flag_capability_gap',
+    description: "When you receive a request that you CANNOT complete with your current tools, call this. Don't apologize or pretend you can — record the gap so we can build the missing capability. Use sparingly: only when no combination of existing tools would work. NOT for things you SHOULDN'T do (policy violations) — only for things you CAN'T do (missing data source, missing endpoint, etc.).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        brain: { type: 'string', description: 'Which brain reported this: tech_assist | tech_scheduler | office_ant | customer_ant | website_ant' },
+        user_request: { type: 'string', description: 'What the user asked for, in their words.' },
+        gap_description: { type: 'string', description: 'What capability is missing? Be specific. "Need a tool to look up part stock at Marcone" not "need parts info".' },
+        proposed_solution: { type: 'string', description: 'Optional — your best guess at what tool / endpoint / agent would fill the gap.' },
+      },
+      required: ['brain', 'user_request', 'gap_description'],
+    },
+  },
+  {
+    name: 'save_session_note',
+    description: "Save a durable, factual observation from this session that future brain sessions could benefit from knowing. Examples: 'Customer Smith prefers afternoon appointments', 'Jimmy doesn't like working Saturdays', 'AHS now requires serial photo for sealed-system claims'. NOT chat history — only durable insights. Future brain sessions will see notes matching the current entity (tech, customer, job).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        brain: { type: 'string', description: 'Which brain wrote this' },
+        scope: { type: 'string', description: 'Entity this note attaches to: customer | tech | warranty_company | global' },
+        scope_id: { type: 'integer', description: 'ID of the entity (customer_id, tech_id, etc.) — omit for global notes' },
+        note: { type: 'string', description: 'The observation, 1-2 sentences max. Factual, durable, future-useful.' },
+        confidence: { type: 'string', description: 'Optional: high | medium | low — how confident in this note' },
+      },
+      required: ['brain', 'scope', 'note'],
+    },
+  },
+];
+
 module.exports = {
   READ_TOOLS,
   SCHEDULER_TOOLS,
   WRITE_TOOLS,
-  ALL_TOOLS: [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS],
+  UNIVERSAL_TOOLS,
+  ALL_TOOLS: [...READ_TOOLS, ...SCHEDULER_TOOLS, ...WRITE_TOOLS, ...UNIVERSAL_TOOLS],
   executeTool,
   pickTools,
   timedFetch,

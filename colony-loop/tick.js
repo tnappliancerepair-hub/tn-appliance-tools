@@ -226,6 +226,24 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // BRAIN_CAPABILITY_GAP_DIGEST — Sunday 5pm CT (5-7pm grace). Reads
+  // last 7 days of brain_capability_gap events, summarizes by brain +
+  // gap, sends Teddy a digest. Architect ingests the gaps next run.
+  {
+    const dayShortGap = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (dayShortGap === 'Sun' && hour >= 17 && hour < 19) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'BRAIN_CAPABILITY_GAP_DIGEST',
+          signal_strength: 50,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      } catch (err) {
+        xano.logLocal('brain_capability_gap_digest_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // WARRANTY_CONSOLIDATION_REVIEW — Sunday 4pm CT (4-6pm grace). Weekly
   // digest SMS to Teddy listing all live overrides written by the
   // aggregator over the past 7 days. He reviews + decides whether to
