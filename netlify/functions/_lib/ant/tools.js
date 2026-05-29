@@ -762,8 +762,20 @@ async function executeTool(toolName, toolInput, ctx) {
       const target = String(ti.target || 'any').toLowerCase();
       const summary = String(ti.summary || '').trim();
       if (!summary) return { error: 'summary required' };
+
+      // Two-rail handoff: (a) SMS the human their context immediately
+      // so they're informed when the warm transfer connects; (b) if
+      // the call is via Vapi (ctx.vapi_call_id set), return a special
+      // marker the brain can speak ("Hang on, connecting you with
+      // Teddy right now") — Vapi's forwardingPhoneNumbers config
+      // picks up the transfer when the brain emits the destination
+      // phone in its reply.
+      const targetPhone = target === 'danielle'
+        ? (process.env.DANIELLE_PHONE_NUMBER || '+16154850713')
+        : (process.env.OWNER_PHONE_NUMBER || '+16154855795');
+
       try {
-        const r = await timedFetch(`${XANO_BASE}/escalate_phone_call_to_human`, {
+        await timedFetch(`${XANO_BASE}/escalate_phone_call_to_human`, {
           method: 'POST',
           body: JSON.stringify({
             customer_id: ti.customer_id || 0,
@@ -773,11 +785,14 @@ async function executeTool(toolName, toolInput, ctx) {
             source: 'phone_brain',
           }),
         });
-        if (!r.ok) return { error: `escalate ${r.status}` };
-        return { ...r, hint: `Tell the caller: hang on, getting ${target === 'teddy' ? 'Teddy' : target === 'danielle' ? 'Danielle' : 'someone'} on the line right now.` };
-      } catch (e) {
-        return { error: 'escalate failed: ' + (e.message || e) };
-      }
+      } catch (_) {}
+
+      return {
+        ok: true,
+        transfer_to: targetPhone,
+        transfer_label: target === 'danielle' ? 'Danielle' : 'Teddy',
+        hint: `Tell the caller: "Hang on — connecting you with ${target === 'danielle' ? 'Danielle' : 'Teddy'} right now." Then end your turn so Vapi can pick up the transfer destination from forwardingPhoneNumbers.`,
+      };
     }
     case 'mark_safety_emergency': {
       const emType = String(ti.emergency_type || '').toLowerCase();

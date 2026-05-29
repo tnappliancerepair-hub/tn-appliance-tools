@@ -356,6 +356,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // PROMPT_EVOLUTION_PROPOSER — Sunday 7pm CT (7-9pm grace). Reads 14d
+  // of claude_call_outcome, finds failing (brain, signal_type) cells,
+  // proposes concrete prompt revisions. SMSes Teddy a digest.
+  // Closes the outcome-learning loop into actionable prompt updates.
+  {
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (day === 'Sun' && hour >= 19 && hour < 21) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'prompt_evolution_handled',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!fired || !fired.fired_today) {
+          await xano.emitSignal({
+            signal_type: 'PROMPT_EVOLUTION_PROPOSER',
+            signal_strength: 45,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+        }
+      } catch (err) {
+        xano.logLocal('prompt_evolution_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // CLAUDE_OUTCOME_DIGEST — Sunday 6pm CT (6-9pm grace). Reads last 7
   // days of claude_call_outcome events and reports brain hit rates so
   // Teddy can see which (brain, signal_type) cells are producing real

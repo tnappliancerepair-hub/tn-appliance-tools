@@ -25,6 +25,42 @@ const XANO_LOOKUP_CUSTOMER = `${XANO_BASE}/lookup_customer_by_phone`;
 const XANO_RECORD_BRAIN_OBS = `${XANO_BASE}/record_brain_observation`;
 
 const PHONE_BRAIN_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-brain';
+const PHONE_OUTBOUND_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-outbound';
+
+// Known warranty company / B2B caller patterns. When a call comes in
+// from one of these area codes / number prefixes, we flip to
+// professional B2B tone via a different voice + tighter system prompt.
+// Operator can add more as they learn them.
+const B2B_NUMBER_PREFIXES = [
+  '+1888', // AHS dispatch typically masked behind 888
+  '+1800',
+];
+const KNOWN_WARRANTY_NUMBERS = (process.env.ANT_KNOWN_WARRANTY_NUMBERS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+function classifyCaller({ callerNumber, prefetchedCustomer }) {
+  // Known warranty company by exact number
+  if (KNOWN_WARRANTY_NUMBERS.some((n) => callerNumber.endsWith(n.replace(/\D/g, '').slice(-10)))) {
+    return { tone: 'b2b', kind: 'warranty_company' };
+  }
+  // Known customer
+  if (prefetchedCustomer && prefetchedCustomer.found) {
+    return { tone: 'warm_returning', kind: 'returning_customer' };
+  }
+  // Unknown caller — possible new customer
+  return { tone: 'warm_new', kind: 'new_customer' };
+}
+
+// Voice ID selector per tone. Operator overrides via env so the
+// same code works through voice-cloning rollout.
+function voiceIdForTone(tone) {
+  const map = {
+    warm_returning: process.env.ANT_PHONE_VOICE_TEDDY || process.env.ANT_PHONE_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
+    warm_new:       process.env.ANT_PHONE_VOICE_TEDDY || process.env.ANT_PHONE_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
+    b2b:            process.env.ANT_PHONE_VOICE_B2B   || process.env.ANT_PHONE_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL',
+  };
+  return map[tone] || map.warm_new;
+}
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
@@ -44,11 +80,18 @@ exports.handler = async function (event) {
 
   // ── assistant-request: return dynamic assistant config ────────────
   // Vapi calls this at call-start to learn what assistant to use. We
-  // return a config that points Vapi's "Custom LLM" at phone-ant-brain
-  // and seeds runtime variables with caller context.
+  // return a config that points Vapi's "Custom LLM" at the right brain
+  // (inbound vs outbound), with classified tone + voice + first message.
   if (type === 'assistant-request') {
+    // Outbound calls: Vapi passes variableValues including purpose
+    const vars = (call && call.variableValues) || {};
+    const isOutbound = !!vars.purpose;
+    if (isOutbound) {
+      return ok(buildOutboundAssistantConfig({ callerNumber, calledNumber, callId, vars }));
+    }
     const pf = await prefetchCaller(callerNumber);
-    return ok(buildAssistantConfig({ callerNumber, calledNumber, callId, pf }));
+    const classification = classifyCaller({ callerNumber, prefetchedCustomer: pf });
+    return ok(buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification }));
   }
 
   // ── call-start ────────────────────────────────────────────────────
@@ -156,11 +199,40 @@ async function prefetchCaller(phone) {
   }
 }
 
-function buildAssistantConfig({ callerNumber, calledNumber, callId, pf }) {
+// Vapi-side function definitions for live warm-transfer. When the
+// brain decides to escalate, it calls `transfer_to_human` (a custom
+// LLM tool we route at our end) OR Vapi's built-in transferCall
+// function if we declared one with destinations. We declare both:
+//   - transferCall (Vapi-native): destinations Teddy + Danielle
+//   - end_call: clean end-of-conversation hangup
+const TRANSFER_DESTINATIONS = [
+  {
+    type: 'number',
+    number: process.env.OWNER_PHONE_NUMBER || '+16154855795',
+    description: 'Teddy — owner. First-choice for escalations, complaints, special requests.',
+    message: 'Connecting you with Teddy now — hang on one second.',
+  },
+  {
+    type: 'number',
+    number: process.env.DANIELLE_PHONE_NUMBER || '+16154850713',
+    description: 'Danielle — office manager. Handles scheduling, warranty, billing, customer service.',
+    message: 'Putting you through to Danielle — one moment.',
+  },
+];
+
+function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification }) {
   const knownName = pf && pf.found && pf.customer && pf.customer.first_name;
-  const firstMsg = knownName
-    ? `Hey ${knownName} — glad you called. What can I do for you?`
-    : `Hey, you've reached TN Appliance Exchange. What's broken today?`;
+  const tone = (classification && classification.tone) || 'warm_new';
+  const kind = (classification && classification.kind) || 'new_customer';
+
+  let firstMsg;
+  if (kind === 'warranty_company') {
+    firstMsg = `Hi, this is Ant with TN Appliance Exchange. Who am I speaking with and how can I help?`;
+  } else if (knownName) {
+    firstMsg = `Hey ${knownName} — glad you called. What can I do for you?`;
+  } else {
+    firstMsg = `Hey, you've reached TN Appliance Exchange. What's broken today?`;
+  }
 
   return {
     assistant: {
@@ -169,16 +241,15 @@ function buildAssistantConfig({ callerNumber, calledNumber, callId, pf }) {
       firstMessageMode: 'assistant-speaks-first',
       voice: {
         provider: '11labs',
-        // Replace with cloned voice ID once recorded; default Heisenberg-like
-        voiceId: process.env.ANT_PHONE_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
-        stability: 0.55,
+        voiceId: voiceIdForTone(tone),
+        stability: tone === 'b2b' ? 0.65 : 0.55,
         similarityBoost: 0.7,
       },
       model: {
         provider: 'custom-llm',
         url: PHONE_BRAIN_URL,
         model: 'phone-ant',
-        messages: [], // server-side controls system prompt
+        messages: [],
       },
       transcriber: {
         provider: 'deepgram',
@@ -193,16 +264,69 @@ function buildAssistantConfig({ callerNumber, calledNumber, callId, pf }) {
       responseDelaySeconds: 0.3,
       llmRequestDelaySeconds: 0.1,
       numWordsToInterruptAssistant: 2,
-      backgroundSound: 'office',
-      // Variables Vapi makes available to the prompt; we duplicate them
-      // into our server-side context anyway, but this is useful for
-      // Vapi-side tools / templates.
+      backgroundSound: tone === 'b2b' ? 'off' : 'office',
+      // Vapi-native transferCall function — caller can be warm-transferred
+      // by the brain. The brain decides + sets destination in its reply
+      // text; Vapi parses the function call from the LLM response.
+      forwardingPhoneNumbers: TRANSFER_DESTINATIONS.map(d => d.number),
+      transferDestinations: TRANSFER_DESTINATIONS,
       variableValues: {
         caller_number: callerNumber,
         called_number: calledNumber,
         vapi_call_id: callId,
         customer_id: pf && pf.found && pf.customer ? pf.customer.id : 0,
         customer_first_name: knownName || '',
+        caller_classification: kind,
+        caller_tone: tone,
+      },
+    },
+  };
+}
+
+// Outbound assistant config — brain swap, voice swap, tighter
+// max-duration since outbound calls should be short.
+function buildOutboundAssistantConfig({ callerNumber, calledNumber, callId, vars }) {
+  const purpose = String(vars.purpose || 'missed_call_callback').toLowerCase();
+  return {
+    assistant: {
+      name: 'Ant Outbound',
+      firstMessageMode: 'assistant-speaks-first',
+      // For outbound, let the brain's first turn drive the opening — Vapi
+      // calls our LLM with empty messages on connect, brain reads
+      // SCENARIOS[purpose].open_template and produces the open.
+      firstMessage: '',
+      voice: {
+        provider: '11labs',
+        voiceId: voiceIdForTone('warm_returning'),
+        stability: 0.55,
+        similarityBoost: 0.7,
+      },
+      model: {
+        provider: 'custom-llm',
+        url: PHONE_OUTBOUND_URL,
+        model: 'phone-ant-outbound',
+        messages: [],
+      },
+      transcriber: {
+        provider: 'deepgram',
+        model: 'nova-2-phonecall',
+        language: 'en',
+        smartFormat: true,
+      },
+      endCallFunctionEnabled: true,
+      endCallPhrases: ['goodbye', 'bye now', 'take care', 'thank you bye'],
+      maxDurationSeconds: 300, // outbound: keep it tight
+      silenceTimeoutSeconds: 20,
+      responseDelaySeconds: 0.3,
+      llmRequestDelaySeconds: 0.1,
+      numWordsToInterruptAssistant: 2,
+      backgroundSound: 'office',
+      forwardingPhoneNumbers: TRANSFER_DESTINATIONS.map(d => d.number),
+      transferDestinations: TRANSFER_DESTINATIONS,
+      variableValues: {
+        ...vars,
+        called_number: calledNumber,
+        vapi_call_id: callId,
       },
     },
   };

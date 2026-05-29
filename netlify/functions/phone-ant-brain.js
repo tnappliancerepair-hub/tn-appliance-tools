@@ -133,6 +133,33 @@ async function prefetchCallerContext(phone) {
   }
 }
 
+// Lightweight per-turn anger/distress detection. Flags emotional
+// intensity so the brain can soften + auto-suggest escalation. Cheap
+// regex pass — not perfect, fine for triage. If anger detected, we
+// inject a SYSTEM hint into the system prompt for THIS turn.
+function detectEmotionalIntensity(text) {
+  if (!text) return { level: 'normal' };
+  const t = String(text).toLowerCase();
+  const angerSignals = [
+    /\b(fuck|shit|damn|hell|wtf|bullshit|garbage|terrible|horrible|awful|stupid|incompetent|useless|worthless|sucks)\b/i,
+    /\b(sue|lawyer|attorney|lawsuit|legal action|report|complain|complaint)\b/i,
+    /\b(refund me|give me my money|cancel everything|never again|done with you)\b/i,
+    /!{2,}/,
+  ];
+  const distressSignals = [
+    /\b(gas leak|smell gas|fire|burning|flooding|water everywhere|electrical|sparks|emergency)\b/i,
+    /\b(help me|please help|i need help|in trouble|scared|afraid)\b/i,
+  ];
+  for (const re of distressSignals) {
+    if (re.test(t)) return { level: 'distress', reason: re.toString().slice(0, 60) };
+  }
+  let hits = 0;
+  for (const re of angerSignals) { if (re.test(t)) hits += 1; }
+  if (hits >= 2) return { level: 'anger_high', hits };
+  if (hits === 1) return { level: 'anger_moderate', hits };
+  return { level: 'normal' };
+}
+
 // Translate OpenAI messages → (systemPrompt, history, userContent) for brain-core.
 function adaptOpenAIMessages(messages) {
   let systemFromMessages = '';
@@ -196,7 +223,19 @@ exports.handler = async (event) => {
 
   // Build our system prompt + adapt the OpenAI messages
   const { history, userContent } = adaptOpenAIMessages(messages);
-  const systemPrompt = buildSystemPrompt({ callerPhone, vapiCallId, prefetched });
+  let systemPrompt = buildSystemPrompt({ callerPhone, vapiCallId, prefetched });
+
+  // Per-turn sentiment check — appends a system hint when anger/distress
+  // detected. Brain's prompt already covers safety triggers; this layer
+  // adds tone-softening + escalation suggestion for anger.
+  const intensity = detectEmotionalIntensity(userContent);
+  if (intensity.level === 'distress') {
+    systemPrompt += `\n\n⚠ DISTRESS DETECTED THIS TURN: caller may have a safety emergency. Re-read their last message. If gas/fire/electrical/flood/medical, call mark_safety_emergency immediately + tell them to call 911. If not safety, treat as high-emotion → soften tone, listen, offer escalate_to_human(target=teddy, urgency=high).`;
+  } else if (intensity.level === 'anger_high') {
+    systemPrompt += `\n\n⚠ HIGH ANGER DETECTED THIS TURN: caller is upset. Do NOT defend. Acknowledge directly ("That's really frustrating — I'm sorry"). Then offer a CONCRETE next step (escalate_to_human(target=teddy, urgency=high) is appropriate). Don't add chipper closers. Don't apologize 3 times — once + action.`;
+  } else if (intensity.level === 'anger_moderate') {
+    systemPrompt += `\n\nNote: caller's tone is somewhat irritated. Lead with acknowledgment, keep tone calm, focus on resolution.`;
+  }
 
   const ctx = {
     brain: 'phone_ant',
