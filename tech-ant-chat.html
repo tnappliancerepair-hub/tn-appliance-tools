@@ -748,6 +748,11 @@
      reloads and auto-retry when network returns. Critical for techs
      in low-signal driveways. -->
 <script src="/tech-upload-manager.js?v=1"></script>
+<!-- CaptureOverlay — proven photo/video capture UI from the public
+     website. Full-screen overlay with retry / gallery fallback / live
+     preview / 10s MP4 cap. Same code the public chat has been
+     hardening since the website launch. -->
+<script src="/capture-overlay.js?v=1"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 //  TECH-ANT-CHAT — LIVE WIRING
@@ -1221,23 +1226,39 @@
     }
   }
 
-  // ── Photo capture ────────────────────────────────────────────────
+  // ── Photo / video capture ────────────────────────────────────────
+  // Primary path: CaptureOverlay (the public-website overlay — full-
+  // screen camera, live preview, 10s MP4 cap, retry + gallery
+  // fallback). Native picker is the safety net if CaptureOverlay
+  // isn't loaded.
   const cameraBtn = document.querySelector('.composer-btn[title="Camera"]');
-  // Hidden file input for camera capture
+
+  // Native fallback picker
   const photoInput = document.createElement('input');
   photoInput.type = 'file';
   photoInput.accept = 'image/*,video/*';
   photoInput.capture = 'environment';
   photoInput.style.display = 'none';
   document.body.appendChild(photoInput);
-  cameraBtn.addEventListener('click', () => photoInput.click());
   photoInput.addEventListener('change', async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    for (const f of files) {
-      await uploadMedia(f);
-    }
+    for (const f of files) await uploadMedia(f);
     e.target.value = '';
+  });
+
+  cameraBtn.addEventListener('click', () => {
+    if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
+      // Default to photo. (Brain can later emit REQUEST_VIDEO which
+      // we'll wire to openVideoCapture as the chat-driven flow.)
+      window.CaptureOverlay.openPhotoCapture(async (blob, mimeType) => {
+        if (!blob) return;  // cancelled
+        const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: mimeType || 'image/jpeg' });
+        await uploadMedia(file);
+      });
+    } else {
+      photoInput.click();
+    }
   });
 
   async function uploadMedia(file) {
