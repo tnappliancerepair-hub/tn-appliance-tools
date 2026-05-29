@@ -6,103 +6,130 @@ Last updated 2026-05-28. Owner: Teddy Pivacek.
 
 **Every number a customer or tech might see reaches the same intelligent Ant brain. No dead ends. Same engine, different opening line per number.**
 
-The brain knows which number was dialed and adapts. One assistant config in Vapi, six numbers attached, six different first messages and contexts. Cheap, maintainable, consistent customer experience.
+The brain knows which number was dialed and adapts. One assistant config in Vapi, many numbers attached, distinct first messages and contexts per number. Cheap, maintainable, consistent customer experience.
 
-## Current Numbers + Target Roles
+## Full Inventory (12 numbers across 4 providers)
 
-| Number | Role | Currently | Target | Operator action |
+### Currently active + visible to customers
+
+| # | Number | Provider | Today | Target |
 |---|---|---|---|---|
-| **615-280-2949** | Primary TN, every public page | RingCentral ($300/mo) | **Vapi → Ant Inbound** | Port from RC tomorrow morning |
-| **504-355-9111** | Louisiana market | Unknown routing | **Vapi → Ant Inbound** (LA market context) | Verify ownership, port or forward |
-| **615-588-9500** | Customer SMS line | Telnyx, voice → **dead air** | **Vapi → Ant Inbound** (callback-context profile) | Enable voice on Telnyx number, forward voice to Vapi |
-| **615-857-8800** | Tech SMS line | Telnyx, voice → **dead air** | **Vapi → Ant Inbound** (tech-side profile) | Enable voice on Telnyx number, forward voice to Vapi |
-| **1-888-ANT-8998** | National vanity | Owned, **unrouted** since acquisition | **Vapi → Ant Inbound** (vanity profile) | Port to Vapi or forward to 615-280-2949 |
-| **1-866-ANT-0111** | Backup vanity | Owned, **unrouted** | **Vapi → Ant Inbound** (vanity profile) | Port or forward |
+| 1 | **+1 615-280-2949** | RingCentral ($300/mo) | Public website TN primary | Port → Vapi → Ant Inbound |
+| 2 | **+1 504-355-9111** | Vapi BYO | LA market (already on Vapi, old assistant) | Repoint → Ant Inbound v2 (LA context) |
+| 3 | **+1 615-588-9500** | Telnyx | Customer SMS outbound; calling it → dead air | Enable voice → Ant Inbound (callback context) |
+| 4 | **+1 615-857-8800** | Telnyx | Tech SMS outbound; calling it → dead air | Enable voice → Ant Inbound (tech context) |
+| 5 | **+1 629-284-0444** | Twilio | Business outbound SMS (legacy waiver/booking + Telnyx failover) | Enable voice → Ant Inbound (callback context) |
+| 6 | **+1 727-350-8487** | Twilio | Tech inbound SMS + scheduler outbound | Enable voice → Ant Inbound (tech context) |
 
-**No dead ends, no number sloppy mess. Every dial lands on Ant.**
+### Owned but unrouted (route now)
+
+| # | Number | Provider | Today | Target |
+|---|---|---|---|---|
+| 7 | **+1 888-ANT-8998** (888-268-8998) | vanity provider | NEVER routed since acquisition | Port or forward → Ant Inbound v2 |
+| 8 | **+1 866-ANT-0111** (866-268-0111) | vanity provider | NEVER routed | Port or forward → Ant Inbound v2 |
+
+### Vapi BYO legacy (decide: repoint or release)
+
+| # | Number | Provider | Today | Decision |
+|---|---|---|---|---|
+| 9 | **+1 629-260-7111** | Vapi BYO | TN secondary, old assistant | Repoint to Ant Inbound v2 OR release (~$1/mo saved) |
+| 10 | **+1 629-247-7111** | Vapi BYO | TN secondary, old assistant | Repoint OR release |
+
+### KILL LIST — delete in Twilio dashboard
+
+| # | Number | Provider | Why kill |
+|---|---|---|---|
+| 11 | **+1 570-378-8177** | Twilio | Points at Twilio demo IVR. Brand-conflict landmine if anyone calls/texts. Created Jan 2026, no documented purpose. |
+| 12 | **+1 234-219-3439** | Twilio | Same — Twilio demo IVR. KILL. |
 
 ## Per-Number Behavior
 
-The brain reads `called_number_role` + `called_number_market` + `called_number_callback_hint` on every call. These come from `NUMBER_PROFILES` in `vapi-webhook.js` (single source of truth — update one map, all numbers update).
+The brain reads `called_number_role` + `called_number_market` + `called_number_callback_hint` from Vapi `variableValues` on every call. These come from `NUMBER_PROFILES` in `vapi-webhook.js` (single source of truth — update one map, all numbers update).
 
-### 615-280-2949 (primary TN)
-- **First message:** *"Hey, you've reached TN Appliance Exchange. What's broken today?"* (or by name if returning customer)
-- **Tone:** warm_new / warm_returning
-- **Market context:** Middle Tennessee — Nashville, Murfreesboro, Antioch, Clarksville
+### Public-facing primary (visible on website, business cards)
+- **615-280-2949** (TN) — *"Hey, you've reached TN Appliance Exchange. What's broken today?"* (warm, TN market)
+- **504-355-9111** (LA) — *"Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond…"* (warm, LA market)
 
-### 504-355-9111 (Louisiana)
-- **First message:** *"Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond. What's broken today?"*
-- **Tone:** warm
-- **Market context:** Louisiana, Hammond LA techs (Andre, Billy, John)
+### Telnyx + Twilio SMS callback lines (CRITICAL — closes biggest leak)
+Customers see these numbers when we text them. When they call back instead of texting:
+- **615-588-9500** (Telnyx customer) + **629-284-0444** (Twilio failover customer):
+  - *"Hey — got your number from a text we sent. What's going on?"*
+  - Brain checks recent customer-direction SMS for the caller
+- **615-857-8800** (Telnyx tech) + **727-350-8487** (Twilio failover tech):
+  - *"Hey — what do you need?"* (terse)
+  - Brain cross-checks caller_phone against tech roster; if matches, switches to tech-assist context
 
-### 615-588-9500 (customer SMS callback) — **THIS IS THE BIG WIN**
-- **First message:** *"Hey — got your number from a text we sent recently. What's going on?"* (or by name)
-- **Tone:** warm + "we likely texted them" prior
-- **Callback hint baked in:** brain pulls recent customer-direction SMS for this caller before responding
-- **Closes the worst current leak:** every text we send, the customer's instinct is to call back. Today they hit dead air. After this, they hit Ant who already knows what we texted them about.
+### Vanity for branded materials
+- **1-888-ANT-8998** + **1-866-ANT-0111** — same warm opening as primary TN; classifyCaller spots known warranty company numbers and flips to b2b regardless
 
-### 615-857-8800 (tech SMS callback)
-- **First message:** *"Hey — what do you need?"*
-- **Tone:** terse, tech-assist context
-- **Behavior:** brain cross-checks caller_phone against tech roster. If it matches a known tech, switches to tech-side tools (job status, parts lookup) and skips customer warmth.
+### Vapi BYO secondary (629-260-7111 / 629-247-7111)
+- Same warm opening as primary TN
+- Flagged in NUMBER_PROFILES as `vapi_secondary_tn` so we know to evaluate for release once 615-280-2949 is confirmed working
 
-### 1-888-ANT-8998 + 1-866-ANT-0111 (vanity)
-- **First message:** same as 615-280-2949
-- **Tone:** warm_new
-- **Note:** classifyCaller still spots known warranty company numbers and flips to b2b regardless of which number was dialed
+## Cost Picture
 
-## What Customers See (the visible footprint)
-
-Public website (every page, every SEO landing): **615-280-2949** (TN) and **504-355-9111** (LA)
-
-Outbound SMS FROM: **615-588-9500** (customer-facing) and **615-857-8800** (tech-facing)
-
-Vanity for branded materials, business cards, partners: **1-888-ANT-8998** (lead) and **1-866-ANT-0111** (backup)
-
-## What's Saving Money
-
-| Today | After cleanup | Monthly savings |
+| Today | After cleanup | Monthly delta |
 |---|---|---|
-| RingCentral | killed | **$300** |
-| HCP | killed | **$500** |
-| Telnyx voice (already paying for SMS) | enable voice (~$1/mo per number) | negligible |
-| Vapi inbound calls | ~$0.24/min × 125 min/day | ~$900 (new cost) |
-| **Net** | | **~+$100/mo while replacing receptionist + ending dead-air gap** |
+| RingCentral | killed | **−$300** |
+| HCP | killed | **−$500** |
+| Twilio numbers (×4 → ×2 keep) | 2 numbers @ ~$1.15/mo = $2.30 | unchanged |
+| Telnyx (×2, already paying SMS) | add voice ~$1/mo each = +$2 | +$2 |
+| Vapi BYO numbers (×3 → ×1 or 2) | release 1-2 @ ~$1/mo = −$1-2 | −$1 to −$2 |
+| Vapi inbound call minutes | active | +~$900 |
+| **Net change** | | **+$98-99/mo replacing receptionist + ending dead-air gap** |
 
-vs $3,500-4,500/mo for a human receptionist. The phone strategy doesn't cost — it pays.
+vs $3,500-4,500/mo human receptionist who only works 40 hrs/week and would need to learn every customer + every job from scratch.
 
 ## Operator Action Sequence
 
-**Step 1 (tomorrow morning, ~30 min):**
-1. Port 615-280-2949 from RingCentral to Vapi
-2. Cancel RingCentral the moment port confirms ($300/mo saved)
-3. Cancel HCP ($500/mo saved)
-4. In Vapi dashboard → Phone Numbers → assign 615-280-2949 to "Ant Inbound v2"
-5. Place a test call → expect Ant greeting
+### Tomorrow morning (~45 min)
 
-**Step 2 (same day or next, ~30 min):**
-1. Enable voice capability on Telnyx 615-588-9500 (Telnyx dashboard → Numbers → enable Voice)
-2. Set Voice forwarding URL on Telnyx number → Vapi inbound URL (or forward to 615-280-2949)
-3. Same for 615-857-8800 (tech line)
-4. Test call to each → expect Ant greeting with the appropriate role-based opening
+1. **Port 615-280-2949 from RingCentral → Vapi.** RingCentral typically requires a Letter of Authorization; expect 24-48 hrs for the port. Once submitted, cancel RingCentral immediately upon port confirmation. **$300/mo saved.**
+2. **Cancel HCP.** **$500/mo saved.**
+3. **In Vapi dashboard → Phone Numbers** → assign 615-280-2949 to "Ant Inbound v2" assistant.
+4. **Repoint 504-355-9111** (Vapi BYO) to Ant Inbound v2. Currently on old assistant — flip the assignment.
+5. **Test call to each → expect Ant greeting by-number-context.**
 
-**Step 3 (when ready, ~15 min):**
-1. Port or forward 504-355-9111 to Vapi
-2. Port or forward 1-888-ANT-8998 to Vapi
-3. Port or forward 1-866-ANT-0111 to Vapi
-4. Test each
+### Same day or next (~30 min)
 
-**Step 4 (verify):**
-1. Run `node colony-loop/scripts/smoke-phone-brain.js`
-2. Call each number from a customer-roster phone → confirm by-name greeting
-3. Call each number from an unknown phone → confirm generic greeting + correct market context
+6. **Enable voice on Telnyx 615-588-9500 + 615-857-8800.** Telnyx dashboard → Number settings → enable Voice → set Voice URL to your Vapi inbound URL OR forward to 615-280-2949. (~$1/mo per number to add voice).
+7. **Enable voice on Twilio 629-284-0444 + 727-350-8487.** Same in Twilio dashboard. Failover lines should answer Ant the same way primary lines do.
+8. **Test each → confirm callback context kicks in.**
+
+### Kill landmines (5 min)
+
+9. **In Twilio dashboard, DELETE 570-378-8177 + 234-219-3439.** Both point at Twilio demo IVR — brand-conflict risk. No legitimate use found.
+
+### Vanity (~15 min)
+
+10. **Port or forward 1-888-ANT-8998 + 1-866-ANT-0111 to Vapi.** These have been unrouted for months. After this they finally answer Ant.
+
+### Vapi BYO decision (5 min)
+
+11. **Decide on 629-260-7111 + 629-247-7111.** If not advertised on any marketing material:
+    - **Release both** — save ~$2/mo, simpler inventory
+    - **Or keep one** as a B2B-specific number (Vapi assigns it to a separate "Ant B2B" assistant later)
+
+### Verify
+
+12. Run `node colony-loop/scripts/smoke-phone-brain.js`
+13. Call each number from a customer-roster phone → confirm by-name greeting + appropriate context
+14. Call each number from an unknown phone → confirm generic greeting + correct market/callback context
+
+## What's NEW after this cleanup
+
+- **Customer texts you, calls back** → Ant answers immediately. Today they hit dead air. **This is the highest customer-impact fix.**
+- **Tech calls from his cell to the tech SMS line** → Ant recognizes him and helps with job/parts. Today: dead air.
+- **Warranty company dials any of our numbers** → Ant flips to b2b tone regardless of which number was dialed.
+- **Twilio failover** stops being a brand inconsistency — failover SMS still goes from Twilio, but the customer's callback also reaches Ant.
+- **Vanity numbers go live** (months-open gap closed).
+- **2 mystery Twilio numbers deleted** before they bite us.
 
 ## When This Strategy Changes
 
-- **Per-state expansion (Memphis, Chattanooga, Knoxville TN; Lafayette LA):** add per-market numbers to NUMBER_PROFILES with the local market_context. Same brain, more local presence.
-- **Marketing channel attribution (Google Ads, Facebook, Yelp):** add per-channel forwarder numbers. Brain captures `called_number_role` so we can attribute leads per channel.
-- **Warranty company B2B dedicated line:** if AHS dispatcher routing becomes a problem, we can add a separate B2B-only number. Not needed yet — the b2b tone classification already handles it on the existing numbers.
-- **24-hour answer guarantee:** never. The system already is 24/7. No staffing required to scale answer hours.
+- **Per-state expansion (Memphis, Chattanooga, Knoxville TN; Lafayette LA):** add per-market numbers to `NUMBER_PROFILES` with local market_context. Same brain, more local presence.
+- **Marketing channel attribution (Google Ads, Facebook, Yelp):** add per-channel forwarder numbers. Brain captures `called_number_role` so we attribute leads per channel.
+- **Dedicated warranty company B2B line:** if AHS dispatcher routing becomes a problem, add separate B2B-only number. Not needed yet — b2b tone classification handles it on existing numbers.
 
 ## Single Source of Truth
 
@@ -114,13 +141,24 @@ The map in `netlify/functions/vapi-webhook.js` → `NUMBER_PROFILES` constant. T
 
 No XS deploys, no Mac Mini reboot, no Vapi prompt edits.
 
-## Operator Reference Card (print this)
+## Operator Reference Card
 
 ```
-TN PRIMARY:        615-280-2949  →  Ant Inbound (warm)
-LA MARKET:         504-355-9111  →  Ant Inbound (LA context)
-CUSTOMER SMS:      615-588-9500  →  Ant Inbound (callback context)
-TECH SMS:          615-857-8800  →  Ant Inbound (tech context)
-VANITY (lead):     1-888-ANT-8998 →  Ant Inbound (warm)
-VANITY (backup):   1-866-ANT-0111 →  Ant Inbound (warm)
+KEEP (route to Ant Inbound v2):
+  TN PRIMARY:      615-280-2949   (Vapi after port)
+  LA MARKET:       504-355-9111   (Vapi already)
+  TELNYX CUST:     615-588-9500   (callback context)
+  TELNYX TECH:     615-857-8800   (tech context)
+  TWILIO CUST:     629-284-0444   (callback context)
+  TWILIO TECH:     727-350-8487   (tech context)
+  VANITY (lead):   1-888-ANT-8998
+  VANITY (back):   1-866-ANT-0111
+
+EVALUATE (release or repoint):
+  VAPI BYO #1:     629-260-7111
+  VAPI BYO #2:     629-247-7111
+
+KILL (delete in Twilio):
+  MYSTERY #1:      570-378-8177
+  MYSTERY #2:      234-219-3439
 ```

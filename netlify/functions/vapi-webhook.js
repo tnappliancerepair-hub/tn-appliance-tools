@@ -60,39 +60,92 @@ function classifyCaller({ callerNumber, prefetchedCustomer }) {
 // Single source of truth for "what does this number mean." If you
 // rearrange the strategy, update HERE — no other file needs touching.
 const NUMBER_PROFILES = {
-  // Primary TN — RingCentral port (Sprint 1)
+  // ── Primary TN — RingCentral port (Sprint 1) ───────────────────
   '6152802949': {
     role: 'primary_tn',
+    provider: 'vapi',
     market_context: 'Middle Tennessee — Nashville, Murfreesboro, Antioch, Clarksville and surrounding.',
     callback_hint: '',
     tech_side: false,
   },
-  // Louisiana market
+  // ── Louisiana market (already on Vapi BYO) ────────────────────
   '5043559111': {
     role: 'la_market',
+    provider: 'vapi',
     market_context: 'Louisiana — New Orleans, Baton Rouge, Hammond and surrounding parishes.',
     callback_hint: '',
     tech_side: false,
   },
-  // Vanity national
-  '8882688998': { role: 'vanity_888', market_context: 'National vanity (1-888-ANT-8998).', callback_hint: '', tech_side: false },
-  '8662680111': { role: 'vanity_866', market_context: 'National vanity (1-866-ANT-0111).', callback_hint: '', tech_side: false },
-  // Customer-direction Telnyx — texted FROM this number, now answers
-  // calls back. Critical for closing the "they texted me, I called back,
-  // dead air" leak.
+  // ── Vanity national ───────────────────────────────────────────
+  '8882688998': { role: 'vanity_888', provider: 'vanity', market_context: 'National vanity (1-888-ANT-8998).', callback_hint: '', tech_side: false },
+  '8662680111': { role: 'vanity_866', provider: 'vanity', market_context: 'National vanity (1-866-ANT-0111).', callback_hint: '', tech_side: false },
+
+  // ── Telnyx (primary SMS) ──────────────────────────────────────
+  // Customer line — texted FROM this number, now answers calls back.
+  // Critical for closing the "they texted me, I called back, dead air"
+  // leak. Caller likely got a recent SMS from us.
   '6155889500': {
     role: 'customer_sms_callback',
+    provider: 'telnyx',
     market_context: '',
-    callback_hint: 'This is the number we text customers FROM. Caller likely got a recent SMS from us and called back. Open like: "Hey — got your number from a text we sent. What\'s going on?" Pull recent customer-direction SMS to this caller if any.',
+    callback_hint: 'PRIMARY customer-direction line (Telnyx). Caller likely got a recent SMS from us and called back. Open like: "Hey — got your number from a text we sent. What\'s going on?" Pull recent customer-direction SMS for this caller if any.',
     tech_side: false,
   },
-  // Tech-direction Telnyx — techs occasionally call back
   '6158578800': {
     role: 'tech_sms_callback',
+    provider: 'telnyx',
     market_context: '',
-    callback_hint: 'Tech-direction line. Caller is likely one of our techs (cross-check caller_number against tech roster). If caller is a tech, switch to tech-assist context — they need job/parts help, not customer-service warmth.',
+    callback_hint: 'PRIMARY tech-direction line (Telnyx). Caller is likely one of our techs (cross-check caller_number against tech roster). If caller is a tech, switch to tech-assist context — they need job/parts help, not customer-service warmth.',
     tech_side: true,
   },
+
+  // ── Twilio (SMS failover for Telnyx) ───────────────────────────
+  // Inbound to these should ALSO reach Ant — same role as their
+  // Telnyx counterparts. When Telnyx is down and send_sms falls
+  // back to Twilio, customers see these as the from-number; they
+  // may call them back. Don't let them die in Twilio demo IVR.
+  '6292840444': {
+    role: 'customer_sms_callback',
+    provider: 'twilio',
+    market_context: '',
+    callback_hint: 'Customer-direction FAILOVER line (Twilio). Same handling as Telnyx 615-588-9500 — caller likely got a recent SMS from us and called back.',
+    tech_side: false,
+  },
+  '7273508487': {
+    role: 'tech_sms_callback',
+    provider: 'twilio',
+    market_context: '',
+    callback_hint: 'Tech-direction FAILOVER line (Twilio). Same handling as Telnyx 615-857-8800 — caller likely a tech.',
+    tech_side: true,
+  },
+
+  // ── Vapi BYO TN numbers (legacy — pre-RC-port) ─────────────────
+  // Pre-existing TN-area Vapi numbers from before 615-280-2949 port.
+  // Once 615-280-2949 lands, these are redundant — keep one as a
+  // secondary / B2B spare, release the other. Mark as 'secondary'
+  // so the brain doesn't loudly identify them.
+  '6292607111': {
+    role: 'vapi_secondary_tn',
+    provider: 'vapi',
+    market_context: 'Middle Tennessee.',
+    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening; flag for release once 615-280-2949 is live and confirmed working.',
+    tech_side: false,
+  },
+  '6292477111': {
+    role: 'vapi_secondary_tn',
+    provider: 'vapi',
+    market_context: 'Middle Tennessee.',
+    callback_hint: 'Secondary TN Vapi number. Treat like primary_tn for opening; flag for release once 615-280-2949 is live.',
+    tech_side: false,
+  },
+
+  // ── KILL list — DO NOT route ─────────────────────────────────
+  // These two Twilio numbers point at Twilio's demo IVR. If they ever
+  // get hit by a real caller, brand-conflict disaster. Listed here so
+  // we have a record, but they should be DELETED in the Twilio dashboard.
+  // If they somehow reach this code, brain treats them as unknown.
+  // (570) 378-8177  — DELETE
+  // (234) 219-3439  — DELETE
 };
 
 function profileForCalledNumber(calledNumber) {
