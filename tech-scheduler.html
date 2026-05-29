@@ -717,14 +717,14 @@
     <button class="action-btn" data-prompt="Show my schedule for today">
       <span class="emoji">📅</span><span>TODAY</span>
     </button>
+    <button class="action-btn primary" data-prompt="I'm running ahead of schedule. For each of my customers scheduled later today, draft a customer SMS asking if they would like to move their appointment up to an earlier slot today since I have time available. Then ask me which ones you should reach out to first.">
+      <span class="emoji">⚡</span><span>AHEAD</span>
+    </button>
+    <button class="action-btn" data-prompt="I'm running about an hour behind. For each of my customers scheduled later today, draft a 'running behind' SMS letting them know to expect about a 1 hour delay and giving them an updated ETA.">
+      <span class="emoji">⏰</span><span>+1HR</span>
+    </button>
     <button class="action-btn" data-prompt="Show me the rest of this week for me">
       <span class="emoji">🗓</span><span>WEEK</span>
-    </button>
-    <button class="action-btn" data-prompt="Push all my afternoon stops by an hour">
-      <span class="emoji">⏱</span><span>PUSH 1H</span>
-    </button>
-    <button class="action-btn primary" data-prompt="Find me an open slot tomorrow">
-      <span class="emoji">＋</span><span>NEW</span>
     </button>
   </div>
 
@@ -735,8 +735,8 @@
       <div class="line1">scheduler ready</div>
       <div class="line2">tell me what to move. try things like:<br>&ldquo;push my afternoon by an hour&rdquo;<br>&ldquo;reassign 3pm Smith to Jimmy&rdquo;<br>&ldquo;Mark me off tomorrow&rdquo;</div>
       <div class="hint-row">
-        <span class="hint"><span class="ico">🎤</span>tap to talk</span>
-        <span class="hint"><span class="ico">🗓</span>see my week</span>
+        <span class="hint"><span class="ico">⚡</span>running ahead</span>
+        <span class="hint"><span class="ico">⏰</span>running late</span>
       </div>
     </div>
   </main>
@@ -744,8 +744,6 @@
   <!-- Composer -->
   <footer class="composer">
     <div class="composer-inner">
-      <button class="composer-btn" id="btn-photo" title="Photo" aria-label="Photo">📷</button>
-      <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Video">🎥</button>
       <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
       <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
       <textarea class="composer-input" id="composer-input"
@@ -1399,13 +1397,11 @@
     }
   }
 
-  // ── Photo / video capture ────────────────────────────────────────
-  // Primary path: CaptureOverlay (the public-website overlay — full-
-  // screen camera, live preview, 10s MP4 cap, retry + gallery
-  // fallback). Native picker is the safety net if CaptureOverlay
-  // isn't loaded.
-  const btnPhoto = document.getElementById('btn-photo');
-  const btnVideo = document.getElementById('btn-video');
+  // ── Photo / video capture — DISABLED on scheduler page ──────────
+  // Camera buttons removed per Teddy: scheduler is text/voice only.
+  const btnPhoto = null;
+  const btnVideo = null;
+  if (false) {  // dead code below — kept so var refs stay legal
 
   // Native fallback picker for photo
   const photoInput = document.createElement('input');
@@ -1462,6 +1458,7 @@
       videoInput.click();
     }
   });
+  }  // end of disabled photo/video block (if false)
 
   async function uploadMedia(file) {
     const isVideo = (file.type || '').startsWith('video/');
