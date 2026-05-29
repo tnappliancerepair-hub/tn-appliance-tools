@@ -755,8 +755,9 @@
   <!-- Composer -->
   <footer class="composer">
     <div class="composer-inner">
-      <button class="composer-btn" id="btn-photo" title="Photo" aria-label="Photo">📷</button>
-      <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Video">🎥</button>
+      <button class="composer-btn" id="btn-photo" title="Take photo" aria-label="Take photo">📷</button>
+      <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
+      <button class="composer-btn" id="btn-library" title="Upload from photo library" aria-label="Upload from library">🖼</button>
       <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
       <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
       <textarea class="composer-input" id="composer-input"
@@ -1364,9 +1365,25 @@
             interim += t;
           }
         }
+        // BARGE-IN 2026-05-29: when tech starts speaking while Ant is
+        // playing TTS, pause the playback so tech isn't fighting Ant's
+        // voice + so the mic gets a clean signal. Resumes are not
+        // automatic — tech can re-tap voice/text and Ant will speak
+        // again on the next reply.
+        if ((interim && interim.length > 1) || buffer) {
+          if (__sharedAudio && !__sharedAudio.paused) {
+            try { __sharedAudio.pause(); } catch (_) {}
+          }
+          if ('speechSynthesis' in window && speechSynthesis.speaking) {
+            try { speechSynthesis.cancel(); } catch (_) {}
+          }
+        }
         // Display = final buffer + current interim, rebuilt every event
         composerInput.value = (buffer + (interim ? ' ' + interim : '')).trim();
-        // Only schedule send when we're not actively hearing speech
+        // SILENCE TIMER 2026-05-29: bumped 1200 → 2500ms because techs
+        // were getting cut off mid-sentence during natural pauses (e.g.
+        // reading model numbers character by character with breaths).
+        // Only schedule send when we're not actively hearing speech.
         if (buffer && (!interim || interim.length < 2)) {
           if (silenceTimer) clearTimeout(silenceTimer);
           silenceTimer = setTimeout(async () => {
@@ -1377,7 +1394,7 @@
               composerInput.value = '';
               await sendToBrain(text);
             }
-          }, 1200);
+          }, 2500);
         }
       };
       handsfreeRec.onerror = (e) => {
@@ -1563,6 +1580,7 @@
   // isn't loaded.
   const btnPhoto = document.getElementById('btn-photo');
   const btnVideo = document.getElementById('btn-video');
+  const btnLibrary = document.getElementById('btn-library');
 
   // Native fallback picker for photo
   const photoInput = document.createElement('input');
@@ -1591,6 +1609,28 @@
     for (const f of files) await uploadMedia(f);
     e.target.value = '';
   });
+
+  // LIBRARY picker — same shape as above but WITHOUT capture="environment".
+  // Omitting `capture` tells iOS Safari + Android Chrome to open the native
+  // picker sheet which lets the user pick from their photo library OR take
+  // a fresh photo / pick a file. Accepts both images and videos so one
+  // button covers both. Multiple selection enabled so techs can batch
+  // upload everything they captured earlier in the day.
+  const libraryInput = document.createElement('input');
+  libraryInput.type = 'file';
+  libraryInput.accept = 'image/*,video/*';
+  libraryInput.multiple = true;
+  libraryInput.style.display = 'none';
+  document.body.appendChild(libraryInput);
+  libraryInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    for (const f of files) await uploadMedia(f);
+    e.target.value = '';
+  });
+  if (btnLibrary) {
+    btnLibrary.addEventListener('click', () => libraryInput.click());
+  }
 
   btnPhoto.addEventListener('click', () => {
     if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
