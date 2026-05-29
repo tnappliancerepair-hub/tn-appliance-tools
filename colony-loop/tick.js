@@ -265,6 +265,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // CLAUDE_OUTCOME_DIGEST — Sunday 6pm CT (6-9pm grace). Reads last 7
+  // days of claude_call_outcome events and reports brain hit rates so
+  // Teddy can see which (brain, signal_type) cells are producing real
+  // results vs. theater. Outcome-conditioned learning loop (#1).
+  {
+    const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    if (day === 'Sun' && hour >= 18 && hour < 21) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'claude_outcome_digest_handled',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!fired || !fired.fired_today) {
+          await xano.emitSignal({
+            signal_type: 'CLAUDE_OUTCOME_DIGEST',
+            signal_strength: 45,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+        }
+      } catch (err) {
+        xano.logLocal('claude_outcome_digest_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // WARRANTY_CONSOLIDATION_REVIEW — Sunday 4pm CT (4-6pm grace). Weekly
   // digest SMS to Teddy listing all live overrides written by the
   // aggregator over the past 7 days. He reviews + decides whether to

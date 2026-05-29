@@ -12,8 +12,22 @@
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL_DEFAULT = 'claude-sonnet-4-5-20250929';
 const CLAUDE_TIMEOUT_MS_DEFAULT = 30_000;
+const XANO_LOG_ENDPOINT = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/log_claude_call';
 
 const { executeTool } = require('./tools');
+
+// Fire-and-forget log writer. Best-effort; we never want to slow a
+// brain response down by waiting on the log POST. The outcome-linker
+// agent reads these rows later to attribute outcomes to calls.
+function _logCallAsync(payload) {
+  try {
+    fetch(XANO_LOG_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch (_) {}
+}
 
 async function runBrainTurn({
   systemPrompt,
@@ -44,6 +58,9 @@ async function runBrainTurn({
   const toolCallsLog = [];
   let finalText = '';
   let lastStatus = 0;
+  const callStartedAt = Date.now();
+  let totalTokensIn = 0;
+  let totalTokensOut = 0;
 
   for (let iter = 0; iter < maxIterations; iter++) {
     const ac = new AbortController();
@@ -87,6 +104,10 @@ async function runBrainTurn({
       };
     }
     const data = await resp.json();
+    if (data.usage) {
+      totalTokensIn += Number(data.usage.input_tokens || 0);
+      totalTokensOut += Number(data.usage.output_tokens || 0);
+    }
     const blocks = data.content || [];
     const toolUseBlocks = blocks.filter((b) => b.type === 'tool_use');
     const textBlocks = blocks.filter((b) => b.type === 'text');
@@ -120,7 +141,51 @@ async function runBrainTurn({
     messages.push({ role: 'user', content: toolResults });
   }
 
-  return { reply: finalText, tool_calls: toolCallsLog, status: lastStatus };
+  // Outcome-learning log. Best-effort fire-and-forget; never blocks the
+  // brain response. ctx may carry entity links (job_id, customer_id,
+  // tech_id, signal_type, brain) — pass through whatever the caller
+  // provided. The outcome linker walks back these rows when an outcome
+  // signal (JOB_COMPLETED / CUSTOMER_FEEDBACK_RECEIVED / WARRANTY_*)
+  // arrives later and attributes the outcome to the call.
+  const userInput = typeof userContent === 'string' ? userContent : JSON.stringify(userContent).slice(0, 1000);
+  // Self-reported confidence (if present in Claude's reply JSON).
+  let confPct = 0;
+  try {
+    const parsed = tryParseJsonReply(finalText);
+    if (parsed && parsed.parsed && parsed.captured && typeof parsed.captured.confidence === 'number') {
+      confPct = Math.max(0, Math.min(100, Math.round(parsed.captured.confidence * 100)));
+    }
+  } catch (_) {}
+  _logCallAsync({
+    company_id: ctx.company_id || 1,
+    agent_name: ctx.brain || ctx.agent_name || 'brain',
+    purpose: ctx.purpose || '',
+    model,
+    input_preview: userInput.slice(0, 1000),
+    output_preview: (finalText || '').slice(0, 1000),
+    tokens_in: totalTokensIn,
+    tokens_out: totalTokensOut,
+    cost_usd: 0,
+    outcome: '',
+    source_signal_id: ctx.source_signal_id || 0,
+    job_id: ctx.job_id || 0,
+    customer_id: ctx.customer_id || 0,
+    tech_id: ctx.tech_id || 0,
+    signal_type: ctx.signal_type || '',
+    brain: ctx.brain || '',
+    tool_calls_count: toolCallsLog.length,
+    confidence_pct: confPct,
+  });
+
+  return {
+    reply: finalText,
+    tool_calls: toolCallsLog,
+    status: lastStatus,
+    elapsed_ms: Date.now() - callStartedAt,
+    tokens_in: totalTokensIn,
+    tokens_out: totalTokensOut,
+    confidence_pct: confPct,
+  };
 }
 
 // Helper to parse JSON-formatted Claude responses (tech-side scribe uses

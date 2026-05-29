@@ -113,6 +113,20 @@ export async function run(signal, ctx) {
   const jobId = Number(payload.job_id);
   if (!jobId) throw new Error('payload.job_id required');
 
+  // ── Outcome learning: link recent claude_call_logged events for
+  // this job to a "job_completed" outcome row. Background task —
+  // doesn't gate the rest of the chain.
+  try {
+    const { linkOutcomesForJob } = await import('./claude_outcome_linker.js');
+    linkOutcomesForJob(signal, ctx, {
+      outcomeType: 'job_completed',
+      outcomeValue: 'good',
+      lookbackDays: 30,
+      entityKey: 'job_id',
+      entityId: jobId,
+    }).catch(() => {});
+  } catch (_) {}
+
   // ── Chain: SCHEDULER_FILL_GAP (immediate, AHEAD detection) ──
   // Tighter agent that only SMSes the tech if they wrapped 30+ min
   // early AND there are nearby parts-ready candidates. When it skips,

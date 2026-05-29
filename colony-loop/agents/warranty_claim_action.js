@@ -147,5 +147,20 @@ export async function run(signal, ctx) {
   await xano.markSignalProcessed(signal.id, 'warranty_claim_action_handled', meta);
   log('warranty_claim_action_handled', meta);
 
+  // ── Outcome learning: tag the claude calls for this job. Outcome
+  // value reflects how the claim came out — 'good' (no flags, ready),
+  // 'neutral' (flags present), 'bad' (escalated, blocked).
+  try {
+    const outcomeValue = escalate ? 'bad' : (highFlags > 0 ? 'neutral' : 'good');
+    const { linkOutcomesForJob } = await import('./claude_outcome_linker.js');
+    linkOutcomesForJob(signal, ctx, {
+      outcomeType: 'warranty_claim_result',
+      outcomeValue,
+      lookbackDays: 7,
+      entityKey: 'job_id',
+      entityId: jobId,
+    }).catch(() => {});
+  } catch (_) {}
+
   return { success: true, action: meta.outcome, job_id: jobId };
 }

@@ -29,6 +29,31 @@ export async function run(signal, ctx) {
     return { success: false, action: 'skipped_invalid_payload' };
   }
 
+  // ── Outcome learning: attribute the rating back to recent claude
+  // calls for this customer + job. Side-task — does not gate.
+  try {
+    const { linkOutcomesForJob } = await import('./claude_outcome_linker.js');
+    const value = rating >= 4 ? 'good' : (rating <= 2 ? 'bad' : 'neutral');
+    if (customerId) {
+      linkOutcomesForJob(signal, ctx, {
+        outcomeType: 'customer_rating',
+        outcomeValue: String(rating),
+        lookbackDays: 14,
+        entityKey: 'customer_id',
+        entityId: customerId,
+      }).catch(() => {});
+    }
+    if (jobId) {
+      linkOutcomesForJob(signal, ctx, {
+        outcomeType: 'customer_rating_for_job',
+        outcomeValue: value,
+        lookbackDays: 14,
+        entityKey: 'job_id',
+        entityId: jobId,
+      }).catch(() => {});
+    }
+  } catch (_) {}
+
   if (rating >= 4) {
     // High rating → fire Google review ask IMMEDIATELY (deadline=now)
     // rather than waiting for the 7d post-completion timer. Higher
