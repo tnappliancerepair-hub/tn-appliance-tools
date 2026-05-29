@@ -1620,9 +1620,46 @@
   window.addEventListener('offline', updateOnlineState);
   updateOnlineState();
 
+  // ── Voice test button (visible in chat as a system card) ─────────
+  // Single-tap, no timing needed. Diagnoses TTS playback issues without
+  // needing the double-tap on the HUD label.
+  function showVoiceTestCard() {
+    if (document.getElementById('voiceTestCard')) return;
+    const card = document.createElement('div');
+    card.id = 'voiceTestCard';
+    card.className = 'msg system';
+    card.style.cssText = 'align-self:center;background:rgba(74,245,255,0.06);color:rgba(240,245,255,0.9);border:1px solid rgba(74,245,255,0.3);padding:14px 18px;border-radius:12px;font-size:13px;max-width:92%;text-align:center;display:flex;flex-direction:column;gap:10px;';
+    card.innerHTML =
+      '<div style="font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:0.18em;color:rgba(74,245,255,0.85)">// AUDIO CHECK</div>' +
+      '<div>If you can\'t hear Ant: <b>open this link in Safari</b> (not the iMessage preview). The preview blocks audio playback on iOS.</div>' +
+      '<button id="voiceTestBtn" style="background:linear-gradient(135deg,#f5f7fa,#cfd4dd);color:#000;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;-webkit-appearance:none">🔊 Tap to test Ant\'s voice</button>' +
+      '<button id="voiceTestDismiss" style="background:transparent;border:none;color:rgba(240,245,255,0.5);font-size:11px;cursor:pointer;font-family:inherit;text-decoration:underline">dismiss</button>';
+    chatStage.appendChild(card);
+    scrollChatToBottom();
+    document.getElementById('voiceTestBtn').addEventListener('click', async () => {
+      const wasMuted = isMuted;
+      isMuted = false;
+      try {
+        await speak("Audio test — if you can hear this, Ant's voice is working.");
+      } finally {
+        if (wasMuted) {
+          setTimeout(() => { isMuted = true; renderVoiceLabel(); }, 5000);
+        }
+      }
+    });
+    document.getElementById('voiceTestDismiss').addEventListener('click', () => {
+      card.remove();
+      localStorage.setItem('ant_voice_test_dismissed', '1');
+    });
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────
   loadJob();
   initUploadQueue();
+  // Show voice test card on first visit (until tech dismisses it).
+  if (localStorage.getItem('ant_voice_test_dismissed') !== '1') {
+    setTimeout(showVoiceTestCard, 500);
+  }
   // Hands-free was on at last visit? Wait for the first user gesture
   // (browsers won't grant mic without one) then auto-resume.
   if (handsfreeOn) {
