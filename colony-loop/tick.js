@@ -271,6 +271,28 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // CAPABILITY_GAP_TO_BLUEPRINT — fires daily 5-8am CT.
+  // Reads brain_capability_gap events from last 14d, groups by normalized
+  // signature, when ≥3 hits writes the spec into the blueprint as
+  // TO_BUILD. Architect's 6am run picks it up. Intelligence #8.
+  if (hour >= 5 && hour < 8) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'capability_gap_to_blueprint_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'CAPABILITY_GAP_TO_BLUEPRINT',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('capability_gap_to_blueprint_emit_failed', { error: err.message });
+    }
+  }
+
   // WARRANTY_FINGERPRINT_AGGREGATOR — fires daily at 4:30am CT (4-6 grace).
   // Per-vendor behavioral fingerprint (60d window): claims_count,
   // clear_rate, rejection_rate, top correction fields. Tech Assist
