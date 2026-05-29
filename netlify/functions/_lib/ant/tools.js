@@ -191,6 +191,20 @@ const SCHEDULER_TOOLS = [
       required: ['job_id'],
     },
   },
+  {
+    name: 'find_nearby_open_jobs',
+    description: 'Find jobs near a given location that are READY TO BE WORKED right now — unscheduled, pending authorization, or with parts already arrived. Use when a tech runs ahead of schedule to spot fill-in work in the same neighborhood. Each candidate carries proximity_score (100=same zip, 60=same city), parts_status, ready_now flag, customer + appliance + warranty info, and age_days (older = higher priority to clear). Tech can review + pick which to add via reschedule_job / schedule_job.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tech_id: { type: 'integer', description: 'Tech whose location to search near' },
+        recent_zip: { type: 'string', description: 'Zip code of where the tech just was (e.g. zip of the job they just completed). Best signal.' },
+        recent_city: { type: 'string', description: 'City of where the tech just was. Fallback when zip not available.' },
+        limit: { type: 'integer', description: 'Max candidates to return (default 10, max 50)' },
+      },
+      required: ['tech_id'],
+    },
+  },
 ];
 
 // ─── WRITE TOOLS (gated — only office brain exposes these) ──────────
@@ -673,6 +687,16 @@ async function executeTool(toolName, toolInput, ctx) {
         top_slots: slots.slice(0, maxResults),
         note: slots.length === 0 ? 'No open slots found — every eligible tech is either off-day or fully booked across the window.' : `Top ${Math.min(maxResults, slots.length)} of ${slots.length} eligible slots. Score weights: load (lower=better), region (in-region=+0/out=-35 implied via filter), sooner=better, morning bonus.`,
       };
+    }
+
+    case 'find_nearby_open_jobs': {
+      if (!ti.tech_id) return { error: 'tech_id required' };
+      const params = new URLSearchParams({ tech_id: String(ti.tech_id), limit: String(ti.limit || 10) });
+      if (ti.recent_zip) params.append('recent_zip', String(ti.recent_zip));
+      if (ti.recent_city) params.append('recent_city', String(ti.recent_city));
+      const out = await timedFetch(`${XANO_BASE}/find_nearby_open_jobs?${params.toString()}`, { method: 'GET' });
+      if (out.error) return out;
+      return out;
     }
 
     case 'draft_customer_running_behind_sms': {

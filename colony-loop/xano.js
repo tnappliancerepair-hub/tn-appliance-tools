@@ -423,6 +423,16 @@ export async function checkEventLogFiredToday(action, dayKey) {
   return !!(r && r.fired);
 }
 
+// Find open / parts-ready jobs near a tech's recent location. Used by
+// the scheduler_fill_gap agent to surface fill-in work when a tech
+// wraps ahead of schedule.
+export async function findNearbyOpenJobs({ tech_id, recent_zip = '', recent_city = '', limit = 10 } = {}) {
+  const params = new URLSearchParams({ tech_id: String(tech_id), limit: String(limit) });
+  if (recent_zip) params.append('recent_zip', recent_zip);
+  if (recent_city) params.append('recent_city', recent_city);
+  return getJSON(`${INTAKE()}/find_nearby_open_jobs?${params.toString()}`);
+}
+
 // Lists active warranty_requirement_override rows for a vendor (or all).
 export async function listWarrantyRequirementOverrides({ warranty_company = '', days_back = 30 } = {}) {
   const params = new URLSearchParams({

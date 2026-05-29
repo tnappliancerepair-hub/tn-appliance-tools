@@ -113,6 +113,21 @@ export async function run(signal, ctx) {
   const jobId = Number(payload.job_id);
   if (!jobId) throw new Error('payload.job_id required');
 
+  // ── Chain: SCHEDULER_FILL_GAP (immediate, AHEAD detection) ──
+  // Tighter agent that only SMSes the tech if they wrapped 30+ min
+  // early AND there are nearby parts-ready candidates. When it skips,
+  // the broader post_stop_checkin below still fires so the tech still
+  // gets a SMS.
+  try {
+    await xano.emitSignal({
+      signal_type: 'SCHEDULER_FILL_GAP',
+      signal_strength: 55,
+      payload: { job_id: jobId, technician_id: job.technician_id || 0 },
+    });
+  } catch (e) {
+    log('scheduler_fill_gap_emit_failed', { job_id: jobId, error: e.message });
+  }
+
   // ── Chain: SCHEDULER_POST_STOP_CHECKIN (immediate) ──
   // The scheduler ant pings the tech right after they complete a stop:
   // "Good to go? X more left today. Tap to switch anything around."
