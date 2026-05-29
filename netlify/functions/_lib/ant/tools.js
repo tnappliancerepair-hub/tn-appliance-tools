@@ -140,6 +140,17 @@ const SCHEDULER_TOOLS = [
     },
   },
   {
+    name: 'get_warranty_vendor_fingerprint',
+    description: "Get the behavioral fingerprint for a warranty vendor (AHS, ServicePower, Frontdoor, Allstate, SquareTrade, ChoiceHomeWarranty). Returns: claims_count + clear_rate + rejection_rate over last 60 days + top fields they reject without. Use BEFORE composing a warranty claim or asking a tech for diagnostic info, so you front-load the fields THIS vendor needs to approve cleanly.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        vendor: { type: 'string', description: 'Vendor name (e.g. "AHS", "ServicePower")' },
+      },
+      required: ['vendor'],
+    },
+  },
+  {
     name: 'check_scheduling_conflict',
     description: 'Check whether scheduling a job for a tech at a given time would overlap with their other jobs that day. Returns conflicting jobs if any.',
     input_schema: {
@@ -461,6 +472,30 @@ async function executeTool(toolName, toolInput, ctx) {
         job_count: tech ? (tech.job_count || 0) : 0,
         jobs: tech ? (tech.jobs || []) : [],
       };
+    }
+    case 'get_warranty_vendor_fingerprint': {
+      const vendor = String(ti.vendor || '').trim();
+      if (!vendor) return { error: 'vendor required' };
+      try {
+        const r = await timedFetch(`${XANO_BASE}/get_warranty_vendor_fingerprint?vendor=${encodeURIComponent(vendor)}`);
+        if (r.error) return r;
+        // Parse the embedded metadata for the brain
+        let parsed = null;
+        if (r.found && r.metadata) {
+          try { parsed = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata; }
+          catch (_) { parsed = null; }
+        }
+        return {
+          vendor,
+          found: r.found,
+          fingerprint: parsed,
+          hint: r.found
+            ? `Use top_correction_fields to pre-collect what this vendor needs. clear_rate_pct shows how often we get a clean submission with current behavior. rejection_rate_pct includes flagged + escalated outcomes.`
+            : `No recent fingerprint (computed daily — runs at 4:30am CT). Fall back to the static warranty checklist for this vendor.`,
+        };
+      } catch (e) {
+        return { error: 'fingerprint fetch failed: ' + (e.message || e) };
+      }
     }
     case 'check_scheduling_conflict': {
       if (!ti.tech_id || !ti.scheduled_start_ms) return { error: 'tech_id + scheduled_start_ms required' };

@@ -247,6 +247,29 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // WARRANTY_FINGERPRINT_AGGREGATOR — fires daily at 4:30am CT (4-6 grace).
+  // Per-vendor behavioral fingerprint (60d window): claims_count,
+  // clear_rate, rejection_rate, top correction fields. Tech Assist
+  // + the warranty_router read this to pre-collect exactly the
+  // fields THIS vendor rejects without. Intelligence #4.
+  if (hour >= 4 && hour < 6) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'warranty_fingerprint_aggregator_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'WARRANTY_FINGERPRINT_AGGREGATOR',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('warranty_fingerprint_aggregator_emit_failed', { error: err.message });
+    }
+  }
+
   // BRAIN_CAPABILITY_GAP_DIGEST — Sunday 5pm CT (5-7pm grace). Reads
   // last 7 days of brain_capability_gap events, summarizes by brain +
   // gap, sends Teddy a digest. Architect ingests the gaps next run.
