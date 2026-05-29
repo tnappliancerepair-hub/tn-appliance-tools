@@ -554,6 +554,17 @@
     <button id="nextDay" aria-label="next day">›</button>
   </div>
 
+  <!-- Talk to Ant Scheduler — primary CTA, top of nav so it's the
+       fastest action from the dashboard. -->
+  <div style="padding:8px 12px 0">
+    <a id="navScheduler" href="#"
+       style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:linear-gradient(135deg,rgba(74,245,255,0.14),rgba(74,245,255,0.06));border:1px solid rgba(74,245,255,0.4);color:#4af5ff;border-radius:10px;text-decoration:none;font-weight:700;letter-spacing:0.04em;box-shadow:0 0 18px rgba(74,245,255,0.10)">
+      <span style="font-size:20px">🐜</span>
+      <span style="flex:1">Talk to Ant — switch your day around</span>
+      <span style="font-size:18px">→</span>
+    </a>
+  </div>
+
   <div style="padding:6px 12px 0;display:flex;gap:6px;font-family:var(--mono);font-size:11px">
     <a id="navPerf" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(180,140,255,0.10);border:1px solid rgba(180,140,255,0.25);color:#b48cff;border-radius:8px;text-decoration:none">📊 Performance</a>
     <a id="navPayouts" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(0,214,143,0.10);border:1px solid rgba(0,214,143,0.25);color:#00d68f;border-radius:8px;text-decoration:none">💰 Payouts</a>
@@ -670,6 +681,8 @@
     app.style.display = 'block';
     loading.style.display = 'block';
     // Wire sub-nav links to the same tech_id this dashboard is loading
+    const nsched = document.getElementById('navScheduler');
+    if (nsched) nsched.href = `tech-scheduler.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     const np = document.getElementById('navPerf');
     const npay = document.getElementById('navPayouts');
     const ndo = document.getElementById('navDayOff');
