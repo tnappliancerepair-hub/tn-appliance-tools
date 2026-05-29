@@ -1136,9 +1136,41 @@
   }
 
   // ── Job context boot ──────────────────────────────────────────────
+  // tech-ant-chat is the unified "Tech Ant" surface. When opened
+  // with only tech_id (no job_id), auto-redirect to the tech's
+  // current-or-next job for the day. Order: in_progress > soonest
+  // upcoming > most recent. If nothing today, show empty state with
+  // schedule link.
   async function loadJob() {
     if (!JOB_ID) {
-      renderHeader({ id: 0, customer: 'no job', appliance: '—', time: '' });
+      try {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const date = `${yyyy}-${mm}-${dd}`;
+        const r = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${TECH_ID}&date=${date}`);
+        if (r.ok) {
+          const data = await r.json();
+          const jobs = (data && data.jobs) || [];
+          if (jobs.length > 0) {
+            // Prefer in_progress, then next-by-time, then any
+            const now = Date.now();
+            const inProgress = jobs.find(x => (x.job||{}).scheduling_status === 'in_progress');
+            const upcoming = jobs
+              .filter(x => ((x.job||{}).scheduled_start_ms || 0) >= now - 4*3600*1000)
+              .sort((a,b) => ((a.job||{}).scheduled_start_ms||0) - ((b.job||{}).scheduled_start_ms||0))[0];
+            const pick = inProgress || upcoming || jobs[0];
+            const pid = pick && pick.job && pick.job.id;
+            if (pid) {
+              // Redirect to per-job URL — preserves bookmarkability + brain context
+              location.replace(`?job_id=${pid}&tech_id=${TECH_ID}`);
+              return;
+            }
+          }
+        }
+      } catch (e) { console.warn('tech-ant auto-pick failed', e); }
+      renderHeader({ id: 0, customer: 'no jobs today', appliance: '—', time: 'tap menu for schedule' });
       return;
     }
     try {
