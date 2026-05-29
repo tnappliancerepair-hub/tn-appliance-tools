@@ -356,6 +356,66 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // SPEND_ANOMALY_DETECTOR — daily 11pm CT (23-25=23 only). Compares
+  // today's spend vs 7d baseline + warns at 80% of hard cap.
+  if (hour === 23) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'spend_anomaly_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'SPEND_ANOMALY_DETECTOR',
+          signal_strength: 40,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('spend_anomaly_emit_failed', { error: err.message });
+    }
+  }
+
+  // WARRANTY_DENIAL_PATTERN_DETECTOR — daily 6pm CT (18-20 grace).
+  // Surfaces vendors whose denial-rate exceeded threshold over 14d.
+  if (hour >= 18 && hour < 20) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'warranty_denial_pattern_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'WARRANTY_DENIAL_PATTERN_DETECTOR',
+          signal_strength: 45,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('warranty_denial_emit_failed', { error: err.message });
+    }
+  }
+
+  // APPOINTMENT_NO_SHOW_PREDICTOR — daily 6:30pm CT. Scores tomorrow's
+  // appointments for no-show risk; surfaces top high-risk ones.
+  if (hour >= 18 && hour < 20) {
+    try {
+      const fired = await xano.checkEventLogFiredToday({
+        action: 'no_show_predictor_handled',
+        since_ts_ms: sinceMs,
+      }).catch(() => ({ fired_today: false }));
+      if (!fired || !fired.fired_today) {
+        await xano.emitSignal({
+          signal_type: 'APPOINTMENT_NO_SHOW_PREDICTOR',
+          signal_strength: 45,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+      }
+    } catch (err) {
+      xano.logLocal('no_show_predictor_emit_failed', { error: err.message });
+    }
+  }
+
   // TECH_PERFORMANCE_ALERT — Sunday 11am CT (11-1pm grace). Compares
   // each tech's 7d vs 30d performance, alerts Teddy on significant
   // drops (FVFR, callback, rating, TDR completeness).
