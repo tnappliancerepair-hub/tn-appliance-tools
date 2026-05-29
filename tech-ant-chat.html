@@ -701,7 +701,7 @@
       <div class="ant-mark" aria-hidden="true"></div>
       <div class="topbar-title-block">
         <div class="topbar-title">ANT</div>
-        <div class="topbar-tagline">your <span class="cyan">field partner</span> &middot; everything you need to know</div>
+        <div class="topbar-tagline">your <span class="cyan">field partner</span> &middot; everything you need to know &middot; <a id="offline-link" href="#" style="color:var(--muted);text-decoration:none;border-bottom:1px dashed rgba(138,147,170,0.4);">📋 offline TDR</a></div>
       </div>
     </div>
     <div class="topbar-row2" id="ctx-pills">
@@ -1147,6 +1147,42 @@
   // current-or-next job for the day. Order: in_progress > soonest
   // upcoming > most recent. If nothing today, show empty state with
   // schedule link.
+  // ── Offline-backup: stash today's full schedule into IndexedDB ───
+  // Pure best-effort. Called after a successful job load. Lets
+  // tech-ant-offline.html render the schedule even when Xano is dark.
+  async function stashScheduleForOffline() {
+    if (!TECH_ID) return;
+    try {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const date = `${yyyy}-${mm}-${dd}`;
+      const r = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${TECH_ID}&date=${date}`, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return;
+      const data = await r.json();
+      const jobs = (data && data.jobs) || [];
+      // Write to IndexedDB using the same schema tech-ant-offline.html reads
+      await new Promise((resolve) => {
+        const req = indexedDB.open('tech_ant_offline_v1', 1);
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains('schedule')) d.createObjectStore('schedule', { keyPath: 'tech_id' });
+          if (!d.objectStoreNames.contains('pending_tdrs')) d.createObjectStore('pending_tdrs', { keyPath: 'id' });
+        };
+        req.onsuccess = () => {
+          try {
+            const tx = req.result.transaction('schedule', 'readwrite');
+            tx.objectStore('schedule').put({ tech_id: TECH_ID, cached_at_ms: Date.now(), date, jobs });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+          } catch (_) { resolve(); }
+        };
+        req.onerror = () => resolve();
+      });
+    } catch (_) {}
+  }
+
   async function loadJob() {
     if (!JOB_ID) {
       try {
@@ -1188,6 +1224,10 @@
       });
       const d = await r.json();
       jobContext = d;
+      // OFFLINE BACKUP — stash today's full schedule into IndexedDB so
+      // tech-ant-offline.html can render even when Xano is unreachable.
+      // Best-effort, no failure-mode for the chat. See tech-ant-offline.html.
+      stashScheduleForOffline().catch(() => {});
       const job = d.job || {};
       const cust = d.customer || {};
       const appl = d.appliance || {};
@@ -1751,6 +1791,12 @@
   }
 
   // ── Header action buttons ────────────────────────────────────────
+  // Offline TDR discoverable link in topbar tagline
+  const offlineLink = document.getElementById('offline-link');
+  if (offlineLink) {
+    offlineLink.href = '/tech-ant-offline.html?tech_id=' + TECH_ID;
+  }
+
   btnNav.addEventListener('click', () => {
     if (!jobContext) return;
     const addr = jobContext.job && (jobContext.job.service_address || '') + ' ' + (jobContext.job.service_city || '');

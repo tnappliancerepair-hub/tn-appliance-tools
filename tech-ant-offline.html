@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Tech Ant — Offline TDR</title>
+<style>
+  :root { --bg: #0d0e10; --fg: #d4d6dc; --muted: #7b7f8a; --accent: #74e3c4; --warn: #f5b150; --err: #f56e6e; --line: #1d1f24; --row: #14161b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  header { padding: 18px 18px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 10; }
+  header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .warning { background: rgba(245,177,80,0.10); border: 1px solid var(--warn); color: var(--warn); padding: 10px 14px; margin: 12px 18px; border-radius: 8px; font-size: 13px; line-height: 1.4; }
+  main { padding: 12px 18px 24px; }
+  .panel { background: var(--row); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 12px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; cursor: pointer; }
+  .panel-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .panel-head .meta { color: var(--muted); font-size: 12px; }
+  .panel-body { display: none; padding-top: 12px; border-top: 1px dashed var(--line); margin-top: 10px; }
+  .panel.open .panel-body { display: block; }
+  .panel-head .chev { color: var(--muted); transition: transform 0.2s; }
+  .panel.open .panel-head .chev { transform: rotate(90deg); }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input, .field textarea, .field select { width: 100%; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: 16px/1.4 inherit; }
+  .field textarea { min-height: 70px; resize: vertical; }
+  .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .row-radio { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row-radio label { background: var(--bg); border: 1px solid var(--line); border-radius: 18px; padding: 8px 14px; font-size: 13px; cursor: pointer; color: var(--fg); text-transform: none; letter-spacing: 0; margin-bottom: 0; }
+  .row-radio input[type=radio] { display: none; }
+  .row-radio input[type=radio]:checked + span { color: var(--accent); }
+  .row-radio label:has(input:checked) { border-color: var(--accent); background: rgba(116,227,196,0.08); }
+  .media-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .media-btn { flex: 1; min-width: 80px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); border-radius: 6px; padding: 12px; font: 14px inherit; cursor: pointer; text-align: center; }
+  .media-btn:active { transform: scale(0.97); }
+  .save-btn { background: var(--accent); color: #000; border: 0; border-radius: 6px; padding: 12px; font: 15px/1 inherit; font-weight: 600; cursor: pointer; width: 100%; margin-top: 6px; }
+  .save-btn:disabled { opacity: 0.5; }
+  .save-btn.saved { background: var(--row); color: var(--accent); border: 1px solid var(--accent); }
+  .sync-bar { background: var(--row); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 16px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .sync-bar .pending-count { font-weight: 600; }
+  .sync-btn { background: var(--accent); color: #000; border: 0; border-radius: 6px; padding: 10px 16px; font: 14px inherit; font-weight: 600; cursor: pointer; }
+  .sync-btn.busy { opacity: 0.5; cursor: wait; }
+  .sync-btn.success { background: var(--row); color: var(--accent); border: 1px solid var(--accent); }
+  .empty { text-align: center; padding: 60px 24px; color: var(--muted); }
+  .net-pill { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; margin-left: 8px; }
+  .net-pill.online { background: rgba(116,227,196,0.15); color: var(--accent); }
+  .net-pill.offline { background: rgba(245,110,110,0.15); color: var(--err); }
+  .badge-pending { background: var(--warn); color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .badge-synced { background: var(--accent); color: #000; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+  .toast { position: fixed; bottom: 18px; left: 18px; right: 18px; background: var(--row); border: 1px solid var(--accent); color: var(--accent); padding: 10px 14px; border-radius: 8px; text-align: center; font-size: 13px; display: none; z-index: 100; }
+  .toast.show { display: block; }
+  .gate { padding: 40px 24px; text-align: center; }
+  .gate input { background: var(--row); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font: 16px inherit; width: 200px; text-align: center; }
+  .gate button { background: var(--accent); color: #000; border: 0; padding: 12px 24px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-left: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Tech Ant Offline TDR
+    <span id="netpill" class="net-pill offline">offline</span>
+  </h1>
+  <div class="sub">Use when Tech Assist is down. Save TDRs + photos here; sync when back online.</div>
+</header>
+
+<div id="gate" class="gate" style="display:none">
+  <p>Enter your tech ID to load your schedule:</p>
+  <input id="techIdInput" type="number" placeholder="tech id" inputmode="numeric">
+  <button id="gateBtn">Open</button>
+</div>
+
+<div class="warning" id="cacheWarning" style="display:none"></div>
+
+<div class="sync-bar" id="syncBar">
+  <span><span class="pending-count" id="pendingCount">0</span> TDR(s) pending sync</span>
+  <button class="sync-btn" id="syncBtn">↺ Sync now</button>
+</div>
+
+<main id="main"></main>
+
+<div class="toast" id="toast"></div>
+
+<script src="/tech-upload-manager.js?v=1"></script>
+<script>
+'use strict';
+
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const DB_NAME = 'tech_ant_offline_v1';
+const STORE_SCHEDULE = 'schedule';
+const STORE_TDRS = 'pending_tdrs';
+
+const params = new URLSearchParams(location.search);
+let TECH_ID = parseInt(params.get('tech_id') || '0', 10);
+
+let db = null;
+let scheduleData = null;       // {tech_id, cached_at_ms, jobs:[...]}
+let pendingTdrs = [];          // [{id, job_id, fields, created_at_ms, synced_at_ms?}]
+let uploadQueue = null;
+
+// ── IndexedDB helpers ──────────────────────────────────────────────
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE_SCHEDULE)) {
+        d.createObjectStore(STORE_SCHEDULE, { keyPath: 'tech_id' });
+      }
+      if (!d.objectStoreNames.contains(STORE_TDRS)) {
+        d.createObjectStore(STORE_TDRS, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+function dbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const r = tx.objectStore(store).get(key);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const r = tx.objectStore(store).getAll();
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbPut(store, obj) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const r = tx.objectStore(store).put(obj);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+function dbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const r = tx.objectStore(store).delete(key);
+    r.onsuccess = () => resolve();
+    r.onerror = () => reject(r.error);
+  });
+}
+
+// ── Online/offline state ──────────────────────────────────────────
+function setOnline(state) {
+  const pill = document.getElementById('netpill');
+  pill.textContent = state ? 'online' : 'offline';
+  pill.classList.toggle('online', state);
+  pill.classList.toggle('offline', !state);
+}
+window.addEventListener('online', () => setOnline(true));
+window.addEventListener('offline', () => setOnline(false));
+setOnline(navigator.onLine);
+
+// ── Toast ──────────────────────────────────────────────────────────
+function toast(msg, ms) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms || 2400);
+}
+
+// ── Today CT date ──────────────────────────────────────────────────
+function todayCtKey() {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' });
+  return f.format(new Date());
+}
+
+// ── Fetch + cache schedule (when online) ──────────────────────────
+async function refreshScheduleOnline() {
+  if (!TECH_ID) return null;
+  try {
+    const r = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${TECH_ID}&date=${todayCtKey()}`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const entry = {
+      tech_id: TECH_ID,
+      cached_at_ms: Date.now(),
+      date: todayCtKey(),
+      jobs: (data && data.jobs) || [],
+    };
+    await dbPut(STORE_SCHEDULE, entry);
+    return entry;
+  } catch (e) { console.warn('refresh schedule failed', e); return null; }
+}
+
+// ── Render schedule list + TDR cards ──────────────────────────────
+function renderMain() {
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  if (!scheduleData || !scheduleData.jobs || scheduleData.jobs.length === 0) {
+    main.innerHTML = '<div class="empty">No jobs cached for today. Open this page once while online so it can stash your schedule, OR enter TDRs free-form below.</div>';
+    return;
+  }
+  // Cache freshness banner
+  const ageMin = Math.round((Date.now() - (scheduleData.cached_at_ms || 0)) / 60000);
+  const cacheWarn = document.getElementById('cacheWarning');
+  if (ageMin > 60 * 12) {
+    cacheWarn.style.display = 'block';
+    cacheWarn.textContent = `⚠ Schedule cache is ${Math.round(ageMin / 60)}h old. Open Tech Ant chat while online to refresh.`;
+  } else {
+    cacheWarn.style.display = 'none';
+  }
+  // Render each job
+  for (const item of scheduleData.jobs) {
+    main.appendChild(renderJobCard(item));
+  }
+}
+
+function renderJobCard(item) {
+  const job = item.job || {};
+  const cust = item.customer || {};
+  const jobId = job.id;
+  const customerLine = ((cust.first_name || '') + ' ' + (cust.last_name || '')).trim() || '(no name)';
+  const applLine = [job.brand, job.appliance_type].filter(Boolean).join(' ') || 'appliance';
+  const addrLine = [job.service_address, job.service_city].filter(Boolean).join(', ');
+
+  // Find existing pending TDR for this job
+  const existing = pendingTdrs.find(t => t.job_id === jobId && !t.synced_at_ms) || { id: 'tdr_' + jobId + '_' + Date.now(), job_id: jobId, fields: {}, created_at_ms: Date.now() };
+  const status = existing.synced_at_ms ? 'synced' : (Object.keys(existing.fields || {}).length > 0 ? 'pending' : '');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'panel';
+  wrap.innerHTML = `
+    <div class="panel-head">
+      <div>
+        <h2>${esc(customerLine)} <span style="opacity:0.6">· #${jobId}</span></h2>
+        <div class="meta">${esc(applLine)} ${addrLine ? '· ' + esc(addrLine) : ''}</div>
+      </div>
+      <div>
+        ${status === 'pending' ? '<span class="badge-pending">pending</span>' : ''}
+        ${status === 'synced' ? '<span class="badge-synced">synced</span>' : ''}
+        <span class="chev">▸</span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="field"><label>What failed</label><textarea data-field="failed_component">${esc(existing.fields.failed_component || '')}</textarea></div>
+      <div class="field"><label>Why it failed</label><textarea data-field="failure_cause">${esc(existing.fields.failure_cause || '')}</textarea></div>
+      <div class="field"><label>Part number used / ordered</label><input data-field="verified_part_number" type="text" value="${esc(existing.fields.verified_part_number || '')}" placeholder="e.g. WPW10310240"></div>
+      <div class="field"><label>Labor hours</label><input data-field="labor_time_hours" type="text" inputmode="decimal" value="${esc(existing.fields.labor_time_hours || '')}" placeholder="e.g. 1.5"></div>
+      <div class="field"><label>Repair status</label>
+        <div class="row-radio" data-radiogroup="repair_completed">
+          ${repairRadios(existing.fields.repair_completed)}
+        </div>
+      </div>
+      <div class="field"><label>Notes</label><textarea data-field="technician_notes">${esc(existing.fields.technician_notes || '')}</textarea></div>
+      <div class="media-row">
+        <button class="media-btn" data-action="photo" data-job="${jobId}">📷 Take photo</button>
+        <button class="media-btn" data-action="library" data-job="${jobId}">🖼 Library</button>
+        <button class="media-btn" data-action="video" data-job="${jobId}">🎥 Video</button>
+      </div>
+      <button class="save-btn" data-action="save" data-job="${jobId}" data-tdr="${existing.id}">Save TDR locally</button>
+    </div>
+  `;
+  // Wire interactions
+  wrap.querySelector('.panel-head').addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    wrap.classList.toggle('open');
+  });
+  // Pre-open if there are unsaved drafts
+  if (status === 'pending') wrap.classList.add('open');
+  wrap.querySelectorAll('[data-field], [data-radiogroup] input').forEach(el => {
+    el.addEventListener('input', () => onFieldChange(wrap, existing));
+    el.addEventListener('change', () => onFieldChange(wrap, existing));
+  });
+  wrap.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => handleAction(btn.dataset.action, jobId, existing.id, wrap, btn));
+  });
+  return wrap;
+}
+
+function repairRadios(current) {
+  const options = [
+    { v: 'completed', label: '✓ Completed' },
+    { v: 'parts_ordered', label: '📦 Parts ordered' },
+    { v: 'held', label: '⏸ Held' },
+    { v: 'no_fix_possible', label: '⛔ No fix' },
+  ];
+  return options.map(o => `<label><input type="radio" name="repair_${Date.now()}_${Math.random()}" value="${o.v}"${current === o.v ? ' checked' : ''}><span>${o.label}</span></label>`).join('');
+}
+
+function onFieldChange(wrap, existing) {
+  // Update existing.fields from DOM
+  wrap.querySelectorAll('[data-field]').forEach(el => {
+    existing.fields[el.dataset.field] = el.value || '';
+  });
+  const rg = wrap.querySelector('[data-radiogroup="repair_completed"]');
+  if (rg) {
+    const checked = rg.querySelector('input:checked');
+    existing.fields.repair_completed = checked ? checked.value : '';
+  }
+}
+
+async function handleAction(action, jobId, tdrId, wrap, btn) {
+  if (action === 'photo' || action === 'video' || action === 'library') {
+    await pickMedia(action, jobId);
+    return;
+  }
+  if (action === 'save') {
+    const existing = pendingTdrs.find(t => t.id === tdrId);
+    if (!existing) return;
+    // Read fields one more time
+    onFieldChange(wrap, existing);
+    existing.created_at_ms = existing.created_at_ms || Date.now();
+    existing.updated_at_ms = Date.now();
+    await dbPut(STORE_TDRS, existing);
+    if (!pendingTdrs.find(t => t.id === tdrId)) pendingTdrs.push(existing);
+    btn.classList.add('saved');
+    btn.textContent = '✓ Saved locally';
+    setTimeout(() => { btn.classList.remove('saved'); btn.textContent = 'Save TDR locally'; }, 2000);
+    refreshPendingBadge();
+  }
+}
+
+async function pickMedia(action, jobId) {
+  const fi = document.createElement('input');
+  fi.type = 'file';
+  if (action === 'photo')   { fi.accept = 'image/*'; fi.capture = 'environment'; }
+  if (action === 'video')   { fi.accept = 'video/*'; fi.capture = 'environment'; }
+  if (action === 'library') { fi.accept = 'image/*,video/*'; fi.multiple = true; }
+  fi.style.display = 'none';
+  document.body.appendChild(fi);
+  fi.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    if (uploadQueue) {
+      // Override job id per file by enqueueing with the right context
+      for (const f of files) {
+        try {
+          const isVideo = (f.type || '').startsWith('video/');
+          // The upload queue uses init's jobId; for a multi-job offline page,
+          // we wrap each file with an explicit job_id override stored in
+          // file_label. tech-upload-manager respects extra context fields.
+          await uploadQueue.enqueue(f, { fileType: isVideo ? 'video' : 'photo', override_job_id: jobId });
+        } catch (err) {
+          toast('upload queue failed: ' + (err.message || 'unknown'), 3500);
+        }
+      }
+      toast(files.length + ' file(s) queued — will upload when online');
+    } else {
+      toast('upload queue unavailable — re-open page online first', 4000);
+    }
+    fi.value = '';
+    document.body.removeChild(fi);
+  });
+  fi.click();
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ── Sync pending TDRs to server ────────────────────────────────────
+function refreshPendingBadge() {
+  const cnt = pendingTdrs.filter(t => !t.synced_at_ms).length;
+  document.getElementById('pendingCount').textContent = cnt;
+  document.getElementById('syncBar').style.opacity = cnt > 0 ? '1' : '0.5';
+}
+
+async function syncAll() {
+  if (!navigator.onLine) { toast('You are offline — can\'t sync now', 3000); return; }
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('busy');
+  btn.textContent = '⏳ Syncing…';
+  let synced = 0, failed = 0;
+  for (const t of pendingTdrs) {
+    if (t.synced_at_ms) continue;
+    try {
+      const payload = {
+        job_id: t.job_id,
+        technician_id: TECH_ID,
+        verified_part_number: t.fields.verified_part_number || '',
+        labor_time_hours: t.fields.labor_time_hours ? parseFloat(t.fields.labor_time_hours) : 0,
+        problem_summary: t.fields.failed_component || '',
+        technician_notes: ([t.fields.failure_cause, t.fields.technician_notes].filter(Boolean).join('\n\n')),
+        repair_completed: t.fields.repair_completed || '',
+        status: 'offline_sync',
+      };
+      const r = await fetch(`${XANO_BASE}/create_tdr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r.ok) {
+        t.synced_at_ms = Date.now();
+        await dbPut(STORE_TDRS, t);
+        synced += 1;
+      } else {
+        failed += 1;
+      }
+    } catch (e) {
+      failed += 1;
+    }
+  }
+  btn.classList.remove('busy');
+  if (failed === 0 && synced > 0) {
+    btn.classList.add('success');
+    btn.textContent = `✓ Synced ${synced}`;
+    setTimeout(() => { btn.classList.remove('success'); btn.textContent = '↺ Sync now'; }, 3000);
+  } else if (failed > 0) {
+    btn.textContent = `↺ Sync now (${failed} failed)`;
+  } else {
+    btn.textContent = 'Nothing to sync';
+    setTimeout(() => { btn.textContent = '↺ Sync now'; }, 2000);
+  }
+  refreshPendingBadge();
+  renderMain();
+}
+
+document.getElementById('syncBtn').addEventListener('click', syncAll);
+
+// ── Boot ────────────────────────────────────────────────────────────
+async function boot() {
+  db = await openDB();
+
+  // Init upload queue (uses tech_id at construction, override per file)
+  if (window.UploadQueue && TECH_ID) {
+    try {
+      uploadQueue = new window.UploadQueue({
+        jobId: 0, // overridden per file via enqueue context
+        techId: TECH_ID,
+        xanoBase: XANO_BASE,
+        netlifyBase: '',
+        onUpdate: async () => { /* no-op visual for now */ },
+      });
+      await uploadQueue.init();
+    } catch (e) {
+      console.warn('uploadQueue init', e);
+    }
+  }
+
+  // Tech gate
+  if (!TECH_ID) {
+    document.getElementById('gate').style.display = 'block';
+    document.getElementById('syncBar').style.display = 'none';
+    document.getElementById('gateBtn').addEventListener('click', () => {
+      const v = parseInt(document.getElementById('techIdInput').value || '0', 10);
+      if (v > 0) { location.search = '?tech_id=' + v; }
+    });
+    return;
+  }
+
+  // Load cached schedule
+  scheduleData = await dbGet(STORE_SCHEDULE, TECH_ID);
+
+  // If online, try to refresh
+  if (navigator.onLine) {
+    const fresh = await refreshScheduleOnline();
+    if (fresh) scheduleData = fresh;
+  }
+
+  // Load pending TDRs
+  pendingTdrs = (await dbGetAll(STORE_TDRS)) || [];
+
+  renderMain();
+  refreshPendingBadge();
+}
+
+boot().catch(e => {
+  document.getElementById('main').innerHTML = '<div class="empty">Boot failed: ' + (e.message || e) + '</div>';
+});
+</script>
+
+</body>
+</html>
