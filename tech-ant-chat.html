@@ -610,6 +610,18 @@
     border-color: rgba(240,245,255,0.45);
     box-shadow: 0 0 14px rgba(240,245,255,0.18);
   }
+  .composer-btn.handsfree { font-size: 18px; }
+  .composer-btn.handsfree.active {
+    background: rgba(74,245,255,0.18);
+    border-color: rgba(74,245,255,0.6);
+    color: #4af5ff;
+    box-shadow: 0 0 18px rgba(74,245,255,0.35);
+    animation: hfPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes hfPulse {
+    0%, 100% { box-shadow: 0 0 14px rgba(74,245,255,0.30); }
+    50%      { box-shadow: 0 0 28px rgba(74,245,255,0.55); }
+  }
   .composer-btn.send {
     background: linear-gradient(135deg, #f5f7fa, #cfd4dd);
     color: #000;
@@ -733,7 +745,8 @@
   <footer class="composer">
     <div class="composer-inner">
       <button class="composer-btn" title="Camera" aria-label="Camera">📷</button>
-      <button class="composer-btn mic" title="Voice" aria-label="Voice">🎤</button>
+      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
+      <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
       <textarea class="composer-input" id="composer-input"
         rows="1"
         placeholder="talk to ant..."
@@ -1114,8 +1127,111 @@
     }
   }
 
+  // ── Hands-free mode (continuous mic) ─────────────────────────────
+  // When ON: native SR runs continuous=true, transcribes each utterance
+  // automatically + sends to brain at sentence boundaries. Stays on
+  // until tech taps 🎙 again or closes the page.
+  let handsfreeOn = (localStorage.getItem('ant_handsfree') === '1');
+  const btnHandsfree = document.getElementById('btn-handsfree');
+  function renderHandsfree() {
+    if (!btnHandsfree) return;
+    btnHandsfree.classList.toggle('active', handsfreeOn);
+    btnHandsfree.title = handsfreeOn
+      ? 'Hands-free ON — tap to stop continuous listening'
+      : 'Hands-free OFF — tap to keep mic on the whole time';
+  }
+  renderHandsfree();
+  if (btnHandsfree) {
+    btnHandsfree.addEventListener('click', async () => {
+      handsfreeOn = !handsfreeOn;
+      localStorage.setItem('ant_handsfree', handsfreeOn ? '1' : '0');
+      renderHandsfree();
+      if (handsfreeOn) {
+        // Kick off continuous listening immediately
+        await startHandsfree();
+      } else {
+        stopHandsfree();
+      }
+    });
+  }
+  let handsfreeRec = null;
+  async function startHandsfree() {
+    if (!SR) {
+      addMsg('assistant', 'Hands-free needs the browser voice API (iOS Safari + Android Chrome). Use push-to-talk instead.');
+      handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
+      return;
+    }
+    try {
+      handsfreeRec = new SR();
+      handsfreeRec.continuous = true;
+      handsfreeRec.interimResults = true;
+      handsfreeRec.lang = 'en-US';
+      let buffer = '';
+      let silenceTimer = null;
+      handsfreeRec.onstart = () => { isListening = true; setMicActive(true); };
+      handsfreeRec.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) {
+            buffer += (r[0] && r[0].transcript) || '';
+            composerInput.value = buffer.trim();
+            // Wait 1.2s of silence before sending — handles "uh", "um"
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(async () => {
+              const text = buffer.trim();
+              if (text.length >= 2) {
+                buffer = '';
+                composerInput.value = '';
+                await sendToBrain(text);
+              }
+            }, 1200);
+          } else {
+            composerInput.value = (buffer + ((r[0] && r[0].transcript) || '')).trim();
+          }
+        }
+      };
+      handsfreeRec.onerror = (e) => {
+        // iOS sometimes throws 'no-speech' — just restart
+        if (e.error === 'no-speech' || e.error === 'aborted') {
+          if (handsfreeOn) { try { handsfreeRec.start(); } catch (_) {} }
+          return;
+        }
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          addMsg('assistant', '🎙 mic permission needed. Hands-free off.');
+          handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
+        }
+        isListening = false; setMicActive(false);
+      };
+      handsfreeRec.onend = () => {
+        // Browser auto-stops after some idle time even with continuous=true.
+        // Re-start if hands-free is still on.
+        if (handsfreeOn) {
+          try { handsfreeRec.start(); } catch (_) {}
+        } else {
+          isListening = false; setMicActive(false);
+        }
+      };
+      handsfreeRec.start();
+    } catch (err) {
+      addMsg('assistant', '🎙 hands-free failed: ' + (err.message || 'unknown'));
+      handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
+    }
+  }
+  function stopHandsfree() {
+    if (handsfreeRec) {
+      try { handsfreeRec.continuous = false; handsfreeRec.stop(); } catch (_) {}
+      handsfreeRec = null;
+    }
+    isListening = false; setMicActive(false);
+  }
+
   async function toggleMic() {
-    // Tap to stop if already recording
+    // Hands-free mode owns the mic when on — push-to-talk button does nothing
+    if (handsfreeOn) {
+      addMsg('assistant', '🎙 hands-free is on — just talk. Tap 🎙 again to stop.');
+      return;
+    }
+    // Tap to stop if already recording (push-to-talk path)
     if (isListening) {
       if (nativeRec) { try { nativeRec.stop(); } catch (_) {} }
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
@@ -1432,6 +1548,17 @@
   // ── Boot ──────────────────────────────────────────────────────────
   loadJob();
   initUploadQueue();
+  // Hands-free was on at last visit? Wait for the first user gesture
+  // (browsers won't grant mic without one) then auto-resume.
+  if (handsfreeOn) {
+    const resume = () => {
+      document.removeEventListener('touchstart', resume);
+      document.removeEventListener('click', resume);
+      startHandsfree();
+    };
+    document.addEventListener('touchstart', resume, { once: true, passive: true });
+    document.addEventListener('click', resume, { once: true });
+  }
 
 })();
 </script>
