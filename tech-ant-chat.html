@@ -1156,10 +1156,11 @@
           if (jobs.length > 0) {
             // Prefer in_progress, then next-by-time, then any
             const now = Date.now();
-            const inProgress = jobs.find(x => (x.job||{}).scheduling_status === 'in_progress');
+            const getStart = x => Number((x.job||{}).scheduled_start || (x.job||{}).scheduled_start_ms || 0);
+            const inProgress = jobs.find(x => (x.job||{}).scheduling_status === 'in_progress' || (x.job||{}).current_status === 'in_progress');
             const upcoming = jobs
-              .filter(x => ((x.job||{}).scheduled_start_ms || 0) >= now - 4*3600*1000)
-              .sort((a,b) => ((a.job||{}).scheduled_start_ms||0) - ((b.job||{}).scheduled_start_ms||0))[0];
+              .filter(x => getStart(x) >= now - 4*3600*1000)
+              .sort((a,b) => getStart(a) - getStart(b))[0];
             const pick = inProgress || upcoming || jobs[0];
             const pid = pick && pick.job && pick.job.id;
             if (pid) {
