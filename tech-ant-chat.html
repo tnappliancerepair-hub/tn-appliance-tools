@@ -952,7 +952,9 @@
           await p;
         }
       } catch (playErr) {
-        addSystem('error', '🔊 play() rejected: ' + (playErr.name || '') + ' — ' + (playErr.message || 'unknown') + '. iMessage preview blocks audio; tap Done → open in Safari.');
+        const ua = navigator.userAgent || '';
+        const browser = /iPhone|iPad|iPod/.test(ua) ? 'Safari' : /Android/i.test(ua) ? 'Chrome' : 'your browser';
+        addSystem('error', '🔊 play() rejected: ' + (playErr.name || '') + ' — ' + (playErr.message || 'unknown') + '. Open this link in ' + browser + ' (not a chat-app in-app preview) so audio can play.');
         resumeMicAfterPlayback();
         // Try browser fallback voice too
         speakNative(text);
@@ -1625,13 +1627,22 @@
   // needing the double-tap on the HUD label.
   function showVoiceTestCard() {
     if (document.getElementById('voiceTestCard')) return;
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPhone|iPad|iPod/.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    const browser = isIOS ? 'Safari' : isAndroid ? 'Chrome' : 'your browser';
+    const inAppPreview = isIOS
+      ? 'iMessage preview / Facebook in-app browser'
+      : isAndroid
+        ? 'Gmail / Messages / Facebook in-app browser'
+        : 'in-app preview';
     const card = document.createElement('div');
     card.id = 'voiceTestCard';
     card.className = 'msg system';
     card.style.cssText = 'align-self:center;background:rgba(74,245,255,0.06);color:rgba(240,245,255,0.9);border:1px solid rgba(74,245,255,0.3);padding:14px 18px;border-radius:12px;font-size:13px;max-width:92%;text-align:center;display:flex;flex-direction:column;gap:10px;';
     card.innerHTML =
       '<div style="font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:0.18em;color:rgba(74,245,255,0.85)">// AUDIO CHECK</div>' +
-      '<div>If you can\'t hear Ant: <b>open this link in Safari</b> (not the iMessage preview). The preview blocks audio playback on iOS.</div>' +
+      '<div>If you can\'t hear Ant: open this link in <b>' + browser + '</b> instead of a chat app\'s ' + inAppPreview + '. In-app previews block audio playback.</div>' +
       '<button id="voiceTestBtn" style="background:linear-gradient(135deg,#f5f7fa,#cfd4dd);color:#000;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;-webkit-appearance:none">🔊 Tap to test Ant\'s voice</button>' +
       '<button id="voiceTestDismiss" style="background:transparent;border:none;color:rgba(240,245,255,0.5);font-size:11px;cursor:pointer;font-family:inherit;text-decoration:underline">dismiss</button>';
     chatStage.appendChild(card);
