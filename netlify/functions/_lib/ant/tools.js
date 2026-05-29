@@ -212,6 +212,75 @@ const SCHEDULER_TOOLS = [
 // preview of what WOULD happen. Only when the caller explicitly sets
 // dry_run=false does the actual write fire. Every write is audited
 // to event_log with action='ant_write_tool_executed'.
+//
+// CONFIDENCE-GATED AUTONOMY (#3):
+//   Each write tool has a BLAST_RADIUS classification + a
+//   MIN_AUTONOMOUS_CONFIDENCE threshold. When Claude calls a write
+//   with dry_run=false AND its self-reported confidence_pct (passed
+//   via ctx.confidence_pct from brain-core) meets the threshold AND
+//   the operator hasn't disabled autonomy globally, the write goes
+//   through without an extra confirm step.
+//
+//   Otherwise the write falls back to dry_run-preview-then-confirm.
+//
+//   BLAST_RADIUS values:
+//     "low"    — visible to one tech only, easy to undo (e.g. set day off)
+//     "medium" — affects one customer (reschedule, draft SMS)
+//     "high"   — multi-stakeholder, hard to undo (cancel, reassign, mass SMS)
+//
+//   Conf thresholds:
+//     low blast    → 75%  (most things auto-go)
+//     medium blast → 90%  (only very-confident moves auto-go)
+//     high blast   → never auto (always require explicit operator confirm)
+//
+//   Global kill switch: ANT_AUTONOMY_DISABLED=true env var forces
+//   every write back to dry-run-then-confirm regardless of conf.
+const BLAST_RADIUS = {
+  schedule_job:                  'medium',
+  reschedule_job:                'medium',
+  reassign_job:                  'high',
+  cancel_job:                    'high',
+  set_tech_day_off:              'low',
+  draft_customer_running_behind_sms: 'low',  // it's a draft, not a send
+  draft_customer_running_ahead_sms:  'low',
+  // Newer tools default to 'high' until classified — fail safe.
+};
+
+const CONF_THRESHOLD = { low: 75, medium: 90, high: 101 /* never */ };
+
+function shouldAutoExecute(toolName, confidencePct) {
+  if (process.env.ANT_AUTONOMY_DISABLED === 'true') return false;
+  const blast = BLAST_RADIUS[toolName] || 'high';
+  const need = CONF_THRESHOLD[blast];
+  return Number(confidencePct || 0) >= need;
+}
+
+// Gates a write tool's dry_run flag through the autonomy/confidence
+// check. Call at the top of each WRITE_TOOLS case:
+//
+//   const { effectiveDryRun, gatedNotice } = gateWrite(toolName, ti);
+//
+// If the brain set dry_run=false but its confidence is below the
+// blast-radius threshold, this DOWNGRADES the call to dry_run=true
+// and returns a notice the case branch can include in the preview.
+// This is a safety floor — the brain can never auto-execute a write
+// it's not confident enough in for that write's blast radius.
+function gateWrite(toolName, ti) {
+  const askedExecute = ti && ti.dry_run === false;
+  const conf = Number(ti && ti.confidence_pct || 0);
+  if (!askedExecute) return { effectiveDryRun: true, gatedNotice: '' };
+  if (shouldAutoExecute(toolName, conf)) return { effectiveDryRun: false, gatedNotice: '' };
+  const blast = BLAST_RADIUS[toolName] || 'high';
+  const need = CONF_THRESHOLD[blast];
+  const reason = process.env.ANT_AUTONOMY_DISABLED === 'true'
+    ? 'global autonomy off (ANT_AUTONOMY_DISABLED=true)'
+    : `confidence ${conf}% < required ${need}% for blast=${blast}`;
+  return {
+    effectiveDryRun: true,
+    gatedNotice: ` [auto-execute denied: ${reason}; preview only]`,
+  };
+}
+
 const WRITE_TOOLS = [
   {
     name: 'schedule_job',
@@ -237,6 +306,7 @@ const WRITE_TOOLS = [
         new_scheduled_start_ms: { type: 'integer', description: 'New start time in unix ms' },
         reason: { type: 'string', description: 'Brief reason (audit trail)' },
         dry_run: { type: 'boolean' },
+        confidence_pct: { type: 'integer', description: 'Your self-reported confidence in this action (0-100). Required to auto-execute when dry_run=false. low-blast tools need ≥75; medium need ≥90; high-blast always require operator confirm.' },
       },
       required: ['job_id', 'new_scheduled_start_ms'],
     },
@@ -251,6 +321,7 @@ const WRITE_TOOLS = [
         new_tech_id: { type: 'integer' },
         reason: { type: 'string' },
         dry_run: { type: 'boolean' },
+        confidence_pct: { type: 'integer', description: 'Your self-reported confidence in this action (0-100). Required to auto-execute when dry_run=false. low-blast tools need ≥75; medium need ≥90; high-blast always require operator confirm.' },
       },
       required: ['job_id', 'new_tech_id'],
     },
@@ -264,6 +335,7 @@ const WRITE_TOOLS = [
         job_id: { type: 'integer' },
         reason: { type: 'string', description: 'Why canceled (customer-visible)' },
         dry_run: { type: 'boolean' },
+        confidence_pct: { type: 'integer', description: 'Your self-reported confidence in this action (0-100). Required to auto-execute when dry_run=false. low-blast tools need ≥75; medium need ≥90; high-blast always require operator confirm.' },
       },
       required: ['job_id', 'reason'],
     },
@@ -278,6 +350,7 @@ const WRITE_TOOLS = [
         date: { type: 'string', description: 'Date in YYYY-MM-DD' },
         reason: { type: 'string', description: 'Optional reason (e.g. "sick", "vacation")' },
         dry_run: { type: 'boolean' },
+        confidence_pct: { type: 'integer', description: 'Your self-reported confidence in this action (0-100). Required to auto-execute when dry_run=false. low-blast tools need ≥75; medium need ≥90; high-blast always require operator confirm.' },
       },
       required: ['tech_id', 'date'],
     },
@@ -418,18 +491,18 @@ async function executeTool(toolName, toolInput, ctx) {
       };
     }
 
-    // ─── Write tools (dry_run-gated) ──────────────────────────────
+    // ─── Write tools (dry_run-gated + confidence-gated) ───────────
     case 'schedule_job': {
       if (!ti.job_id || !ti.tech_id || !ti.scheduled_start_ms) {
         return { error: 'job_id + tech_id + scheduled_start_ms required' };
       }
-      const dryRun = ti.dry_run !== false;
+      const { effectiveDryRun, gatedNotice } = gateWrite('schedule_job', ti);
       const dt = new Date(ti.scheduled_start_ms).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' });
-      if (dryRun) {
+      if (effectiveDryRun) {
         return {
           success: true,
           dry_run: true,
-          preview: `Would schedule job #${ti.job_id} to tech ${ti.tech_id} at ${dt} CT. Set dry_run=false to commit.`,
+          preview: `Would schedule job #${ti.job_id} to tech ${ti.tech_id} at ${dt} CT.${gatedNotice} Set dry_run=false (with confidence_pct ≥ 90) to commit.`,
         };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/auto_book_existing_job`, {
@@ -446,13 +519,13 @@ async function executeTool(toolName, toolInput, ctx) {
     }
     case 'reschedule_job': {
       if (!ti.job_id || !ti.new_scheduled_start_ms) return { error: 'job_id + new_scheduled_start_ms required' };
-      const dryRun = ti.dry_run !== false;
+      const { effectiveDryRun, gatedNotice } = gateWrite('reschedule_job', ti);
       const dt = new Date(ti.new_scheduled_start_ms).toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' });
-      if (dryRun) {
+      if (effectiveDryRun) {
         return {
           success: true,
           dry_run: true,
-          preview: `Would reschedule job #${ti.job_id} to ${dt} CT. Reason: ${ti.reason || '(none given)'}. Customer + tech will receive auto-SMS confirmation. Set dry_run=false to commit.`,
+          preview: `Would reschedule job #${ti.job_id} to ${dt} CT. Reason: ${ti.reason || '(none given)'}. Customer + tech will receive auto-SMS confirmation.${gatedNotice} Set dry_run=false (with confidence_pct ≥ 90) to commit.`,
         };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/reschedule_job`, {
@@ -469,12 +542,12 @@ async function executeTool(toolName, toolInput, ctx) {
     }
     case 'reassign_job': {
       if (!ti.job_id || !ti.new_tech_id) return { error: 'job_id + new_tech_id required' };
-      const dryRun = ti.dry_run !== false;
-      if (dryRun) {
+      const { effectiveDryRun, gatedNotice } = gateWrite('reassign_job', ti);
+      if (effectiveDryRun) {
         return {
           success: true,
           dry_run: true,
-          preview: `Would reassign job #${ti.job_id} to tech ${ti.new_tech_id}. Reason: ${ti.reason || '(none given)'}. New tech + customer will receive auto-SMS. Set dry_run=false to commit.`,
+          preview: `Would reassign job #${ti.job_id} to tech ${ti.new_tech_id}. Reason: ${ti.reason || '(none given)'}. New tech + customer will receive auto-SMS.${gatedNotice} Reassigns are HIGH-blast — operator confirmation always required.`,
         };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/reassign_job`, {
@@ -491,12 +564,12 @@ async function executeTool(toolName, toolInput, ctx) {
     }
     case 'cancel_job': {
       if (!ti.job_id || !ti.reason) return { error: 'job_id + reason required' };
-      const dryRun = ti.dry_run !== false;
-      if (dryRun) {
+      const { effectiveDryRun, gatedNotice } = gateWrite('cancel_job', ti);
+      if (effectiveDryRun) {
         return {
           success: true,
           dry_run: true,
-          preview: `Would cancel job #${ti.job_id} with reason: "${ti.reason}". Customer + tech will receive auto-SMS. Set dry_run=false to commit.`,
+          preview: `Would cancel job #${ti.job_id} with reason: "${ti.reason}". Customer + tech will receive auto-SMS.${gatedNotice} Cancels are HIGH-blast — operator confirmation always required.`,
         };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/cancel_job`, {
@@ -512,12 +585,12 @@ async function executeTool(toolName, toolInput, ctx) {
     }
     case 'set_tech_day_off': {
       if (!ti.tech_id || !ti.date) return { error: 'tech_id + date required' };
-      const dryRun = ti.dry_run !== false;
-      if (dryRun) {
+      const { effectiveDryRun, gatedNotice } = gateWrite('set_tech_day_off', ti);
+      if (effectiveDryRun) {
         return {
           success: true,
           dry_run: true,
-          preview: `Would mark tech ${ti.tech_id} off on ${ti.date}. Reason: ${ti.reason || '(none given)'}. Existing jobs on that day will need reassignment. Set dry_run=false to commit.`,
+          preview: `Would mark tech ${ti.tech_id} off on ${ti.date}. Reason: ${ti.reason || '(none given)'}. Existing jobs on that day will need reassignment.${gatedNotice} Set dry_run=false (with confidence_pct ≥ 75) to commit.`,
         };
       }
       const writeRes = await timedFetch(`${XANO_BASE}/tech_set_day_off`, {
