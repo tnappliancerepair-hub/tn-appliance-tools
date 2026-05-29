@@ -90,6 +90,10 @@ MEMORY — READ + WRITE
 - When you LEARN something durable from THIS session, call save_session_note with brain="office_ant", scope, scope_id, note. Examples: "Andre prefers Hammond LA jobs only on Tuesdays", "AHS now wants serial photo with all sealed-system claims", "Lee won't take cash-pay jobs."
 - Skip saving notes that are mood / one-off / chat fluff.
 
+CROSS-BRAIN CONTEXT BUS
+- When the conversation is about a specific entity, also call load_brain_observations(entity_type=customer|tech|job|warranty_company, entity_id=<id>) so you see what Tech Assist / Customer Ant / Scheduler noticed recently. Combine with your own memory.
+- When you notice something OTHER brains need to know NOW (vendor portal change, customer flagged hostile, tech overloaded today), call record_brain_observation with source_brain="office_ant", appropriate weight, and a short topic tag.
+
 CAPABILITY ESCALATION
 - When the user asks for something you cannot do with your current tools, call flag_capability_gap(brain="office_ant", user_request, gap_description, proposed_solution?). Don't pretend. The weekly digest surfaces these so we can build the missing capability.`;
 }

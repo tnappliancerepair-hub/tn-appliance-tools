@@ -919,6 +919,73 @@ async function executeTool(toolName, toolInput, ctx) {
       return { ok: true, message: 'Saved.' };
     }
 
+    case 'record_brain_observation': {
+      // Cross-brain context bus write. Other brains will see this when
+      // they call load_brain_observations for the same entity.
+      const payload = {
+        source_brain: String(ti.source_brain || 'unknown'),
+        entity_type: String(ti.entity_type || ''),
+        entity_id: String(ti.entity_id || ''),
+        observation: String(ti.observation || '').slice(0, 500),
+        weight: ['low', 'medium', 'high'].includes(String(ti.weight)) ? String(ti.weight) : 'medium',
+        topic: String(ti.topic || ''),
+        expires_at_ms: Number(ti.expires_at_ms || 0),
+      };
+      if (!payload.entity_type || !payload.entity_id || !payload.observation) {
+        return { error: 'entity_type, entity_id, observation required' };
+      }
+      try {
+        const r = await timedFetch(`${XANO_BASE}/record_brain_observation`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        if (!r.ok) return { error: `record_brain_observation ${r.status}` };
+        return { ok: true, message: 'Observation logged for other brains.' };
+      } catch (e) {
+        return { error: 'record_brain_observation failed: ' + (e.message || e) };
+      }
+    }
+
+    case 'load_brain_observations': {
+      const entityType = String(ti.entity_type || '');
+      const entityId = String(ti.entity_id || '');
+      if (!entityType || !entityId) return { error: 'entity_type + entity_id required' };
+      const params = new URLSearchParams({
+        entity_type: entityType,
+        entity_id: entityId,
+        days_back: String(ti.days_back || 14),
+        limit: String(Math.min(Number(ti.limit || 10), 30)),
+      });
+      if (ti.topic) params.append('topic', String(ti.topic));
+      try {
+        const r = await timedFetch(`${XANO_BASE}/list_brain_observations?${params.toString()}`);
+        if (!r.ok) return { error: `list_brain_observations ${r.status}` };
+        const data = await r.json();
+        const rows = (data.items || []).map((row) => {
+          let meta = {};
+          try { meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : (row.metadata || {}); }
+          catch (_) { meta = {}; }
+          return {
+            id: row.id,
+            recorded_at_ms: meta.recorded_at_ms || row.created_at_ms,
+            source_brain: meta.source_brain,
+            observation: meta.observation,
+            weight: meta.weight,
+            topic: meta.topic,
+          };
+        });
+        return {
+          items: rows,
+          count: rows.length,
+          hint: rows.length === 0
+            ? 'No cross-brain observations for this entity. Make your own judgment + record_brain_observation if you learn something other brains need.'
+            : 'Use these observations to inform your reply. Higher weight = stronger signal.',
+        };
+      } catch (e) {
+        return { error: 'load_brain_observations failed: ' + (e.message || e) };
+      }
+    }
+
     default:
       return { error: `unknown tool: ${toolName}` };
   }
@@ -981,6 +1048,38 @@ const UNIVERSAL_TOOLS = [
         confidence: { type: 'string', description: 'Optional: high | medium | low — how confident in this note' },
       },
       required: ['brain', 'scope', 'note'],
+    },
+  },
+  {
+    name: 'record_brain_observation',
+    description: "CROSS-BRAIN context bus. Different from save_session_note — that's YOUR durable memory; this is a SHORT-TERM signal for OTHER brains working on the same entity right now. Examples: Tech Assist sees customer hostile → other brains should soften tone. Scheduler sees tech running 90min behind → Tech Assist should not push complex diagnostics today. Office notices AHS rejection-rate spiked → Tech Assist should pre-collect extra fields. Use weight='high' for things other brains MUST factor in; 'medium' for context; 'low' for FYI.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        source_brain: { type: 'string', description: 'Which brain noticed it: tech_assist | tech_scheduler | office_ant | customer_ant | website_ant' },
+        entity_type: { type: 'string', description: 'customer | job | tech | warranty_company' },
+        entity_id: { type: 'string', description: 'ID of the entity (stringified — supports both numeric IDs and string keys like "AHS")' },
+        observation: { type: 'string', description: 'Plain-text observation, 1-2 sentences. What did you notice that other brains need to know about this entity?' },
+        weight: { type: 'string', description: 'low | medium | high — how strongly other brains should weight this' },
+        topic: { type: 'string', description: 'Optional tag e.g. "tone" | "schedule_pressure" | "vendor_quirk"' },
+        expires_at_ms: { type: 'integer', description: 'Optional auto-stale timestamp; omit for never' },
+      },
+      required: ['source_brain', 'entity_type', 'entity_id', 'observation'],
+    },
+  },
+  {
+    name: 'load_brain_observations',
+    description: "Read recent observations OTHER brains noticed about the current entity. Call this at the start of any session involving a specific customer, tech, job, or warranty company — to see what your peer brains learned about them recently. Returns rows from the cross-brain context bus. Different from load_relevant_notes (which is YOUR own memory). Filter by topic if you only care about one thing (e.g. topic='tone' before composing a customer SMS).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        entity_type: { type: 'string', description: 'customer | job | tech | warranty_company' },
+        entity_id: { type: 'string', description: 'ID of the entity (stringified)' },
+        topic: { type: 'string', description: 'Optional topic filter e.g. "tone"' },
+        days_back: { type: 'integer', description: 'Default 14, max 60' },
+        limit: { type: 'integer', description: 'Max rows; default 10' },
+      },
+      required: ['entity_type', 'entity_id'],
     },
   },
 ];
