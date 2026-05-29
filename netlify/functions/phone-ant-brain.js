@@ -39,7 +39,7 @@ const PHONE_BRAIN_TOOLS = [
   ...UNIVERSAL_TOOLS.filter((t) => ['flag_capability_gap', 'record_brain_observation', 'load_brain_observations', 'review_before_ship'].includes(t.name)),
 ];
 
-function buildSystemPrompt({ callerPhone, vapiCallId, prefetched }) {
+function buildSystemPrompt({ callerPhone, vapiCallId, prefetched, calledNumberContext }) {
   const known = prefetched && prefetched.customer;
   const openJobs = (prefetched && prefetched.open_jobs) || [];
   const lastCall = prefetched && prefetched.last_call_summary;
@@ -92,7 +92,19 @@ ${jobsBlock}
 
 ${lastCallBlock}
 
+${renderCalledNumberContext(calledNumberContext)}
+
 Call metadata: vapi_call_id=${vapiCallId}, inbound from ${callerPhone}.`;
+}
+
+function renderCalledNumberContext(ctx) {
+  if (!ctx) return '';
+  const lines = [];
+  if (ctx.role && ctx.role !== 'unknown') lines.push(`CALLED-NUMBER ROLE: ${ctx.role}`);
+  if (ctx.market_context) lines.push(`MARKET CONTEXT: ${ctx.market_context}`);
+  if (ctx.callback_hint) lines.push(`CALLBACK HINT: ${ctx.callback_hint}`);
+  if (ctx.tech_side) lines.push(`TECH-SIDE CALL: caller may be one of our techs. Cross-check caller_phone against the tech roster. If it matches a tech, switch to tech-assist context — no warm "what can I help you with"; lead with "what do you need?"`);
+  return lines.length > 0 ? lines.join('\n') : '';
 }
 
 // Pre-fetch caller context BEFORE Claude is invoked. Saves a tool
@@ -221,9 +233,20 @@ exports.handler = async (event) => {
   // Pre-fetch caller context (does nothing if phone empty)
   const prefetched = await prefetchCallerContext(callerPhone);
 
+  // Pull called-number context from Vapi variableValues (seeded by
+  // vapi-webhook.js buildAssistantConfig). Tells the brain WHICH of
+  // our numbers was dialed and what that means for opening + tone.
+  const cv = (body.call && body.call.variableValues) || {};
+  const calledNumberContext = {
+    role: cv.called_number_role || '',
+    market_context: cv.called_number_market || '',
+    callback_hint: cv.called_number_callback_hint || '',
+    tech_side: !!cv.tech_side_call,
+  };
+
   // Build our system prompt + adapt the OpenAI messages
   const { history, userContent } = adaptOpenAIMessages(messages);
-  let systemPrompt = buildSystemPrompt({ callerPhone, vapiCallId, prefetched });
+  let systemPrompt = buildSystemPrompt({ callerPhone, vapiCallId, prefetched, calledNumberContext });
 
   // Per-turn sentiment check — appends a system hint when anger/distress
   // detected. Brain's prompt already covers safety triggers; this layer

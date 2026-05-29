@@ -51,6 +51,55 @@ function classifyCaller({ callerNumber, prefetchedCustomer }) {
   return { tone: 'warm_new', kind: 'new_customer' };
 }
 
+// Number profiles — keyed by the called number (last 10 digits, no
+// formatting). Each profile carries: brand_id (for first-message),
+// market_context, callback_hint (when this number is one customers
+// likely got TEXTED FROM), and tech_side flag (when this number is
+// the tech-direction line). Updated as numbers are ported to Vapi.
+//
+// Single source of truth for "what does this number mean." If you
+// rearrange the strategy, update HERE — no other file needs touching.
+const NUMBER_PROFILES = {
+  // Primary TN — RingCentral port (Sprint 1)
+  '6152802949': {
+    role: 'primary_tn',
+    market_context: 'Middle Tennessee — Nashville, Murfreesboro, Antioch, Clarksville and surrounding.',
+    callback_hint: '',
+    tech_side: false,
+  },
+  // Louisiana market
+  '5043559111': {
+    role: 'la_market',
+    market_context: 'Louisiana — New Orleans, Baton Rouge, Hammond and surrounding parishes.',
+    callback_hint: '',
+    tech_side: false,
+  },
+  // Vanity national
+  '8882688998': { role: 'vanity_888', market_context: 'National vanity (1-888-ANT-8998).', callback_hint: '', tech_side: false },
+  '8662680111': { role: 'vanity_866', market_context: 'National vanity (1-866-ANT-0111).', callback_hint: '', tech_side: false },
+  // Customer-direction Telnyx — texted FROM this number, now answers
+  // calls back. Critical for closing the "they texted me, I called back,
+  // dead air" leak.
+  '6155889500': {
+    role: 'customer_sms_callback',
+    market_context: '',
+    callback_hint: 'This is the number we text customers FROM. Caller likely got a recent SMS from us and called back. Open like: "Hey — got your number from a text we sent. What\'s going on?" Pull recent customer-direction SMS to this caller if any.',
+    tech_side: false,
+  },
+  // Tech-direction Telnyx — techs occasionally call back
+  '6158578800': {
+    role: 'tech_sms_callback',
+    market_context: '',
+    callback_hint: 'Tech-direction line. Caller is likely one of our techs (cross-check caller_number against tech roster). If caller is a tech, switch to tech-assist context — they need job/parts help, not customer-service warmth.',
+    tech_side: true,
+  },
+};
+
+function profileForCalledNumber(calledNumber) {
+  const last10 = String(calledNumber || '').replace(/\D/g, '').slice(-10);
+  return NUMBER_PROFILES[last10] || { role: 'unknown', market_context: '', callback_hint: '', tech_side: false };
+}
+
 // Voice ID selector per tone. Operator overrides via env so the
 // same code works through voice-cloning rollout.
 function voiceIdForTone(tone) {
@@ -91,7 +140,8 @@ exports.handler = async function (event) {
     }
     const pf = await prefetchCaller(callerNumber);
     const classification = classifyCaller({ callerNumber, prefetchedCustomer: pf });
-    return ok(buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification }));
+    const numberProfile = profileForCalledNumber(calledNumber);
+    return ok(buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification, numberProfile }));
   }
 
   // ── call-start ────────────────────────────────────────────────────
@@ -220,13 +270,28 @@ const TRANSFER_DESTINATIONS = [
   },
 ];
 
-function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification }) {
+function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification, numberProfile }) {
   const knownName = pf && pf.found && pf.customer && pf.customer.first_name;
   const tone = (classification && classification.tone) || 'warm_new';
   const kind = (classification && classification.kind) || 'new_customer';
+  const role = (numberProfile && numberProfile.role) || 'unknown';
 
+  // First message branches on (1) called-number profile, then
+  // (2) caller classification. customer_sms_callback (615-588-9500)
+  // wins because that's the highest-context number — customer
+  // probably called to follow up on a recent text.
   let firstMsg;
-  if (kind === 'warranty_company') {
+  if (role === 'customer_sms_callback') {
+    firstMsg = knownName
+      ? `Hey ${knownName} — got your call, looks like you saw our text. What's going on?`
+      : `Hey — got your number from a text we sent recently. What can I do for you?`;
+  } else if (role === 'tech_sms_callback') {
+    firstMsg = `Hey — what do you need?`;
+  } else if (role === 'la_market') {
+    firstMsg = knownName
+      ? `Hey ${knownName} — glad you called TN Appliance Exchange Louisiana. What's going on?`
+      : `Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond. What's broken today?`;
+  } else if (kind === 'warranty_company') {
     firstMsg = `Hi, this is Ant with TN Appliance Exchange. Who am I speaking with and how can I help?`;
   } else if (knownName) {
     firstMsg = `Hey ${knownName} — glad you called. What can I do for you?`;
@@ -278,6 +343,10 @@ function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classifi
         customer_first_name: knownName || '',
         caller_classification: kind,
         caller_tone: tone,
+        called_number_role: role,
+        called_number_market: (numberProfile && numberProfile.market_context) || '',
+        called_number_callback_hint: (numberProfile && numberProfile.callback_hint) || '',
+        tech_side_call: !!(numberProfile && numberProfile.tech_side),
       },
     },
   };
