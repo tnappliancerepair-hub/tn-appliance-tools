@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tnappliance.backup-verify</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/node</string>
+        <string>/Users/tpivacek/tn-appliance-tools/colony-loop/scripts/verify-backup-restorable.js</string>
+    </array>
+
+    <!-- Monthly: 1st of month at 4:45am CT (after backup at 3:15am completes) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Day</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>45</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/tpivacek/Library/Logs/backup-verify.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/tpivacek/Library/Logs/backup-verify.err.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

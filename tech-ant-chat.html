@@ -710,6 +710,17 @@
       <span class="ctx-pill"><span class="label">APPL</span>—</span>
       <span class="ctx-pill"><span class="label">TIME</span>11:00 AM</span>
     </div>
+    <!-- Real-time TDR completeness bar — visible at all times so techs
+         see what's left without scrolling. Updates on every chat tick. -->
+    <div id="tdr-bar" style="display:none; padding: 8px 14px 12px; font-size: 12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; color:#d4d6dc;">
+        <span><strong id="tdr-bar-label">TDR</strong> <span id="tdr-bar-count" style="opacity:.7"></span></span>
+        <span id="tdr-bar-next" style="opacity:.85; font-style:italic; max-width:60%; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+      </div>
+      <div style="height:6px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden;">
+        <div id="tdr-bar-fill" style="height:100%; width:0%; background:#74e3c4; transition:width .3s ease;"></div>
+      </div>
+    </div>
   </header>
 
   <!-- Primary action bar — NAV + OTW + CALL + START JOB -->
@@ -1063,8 +1074,40 @@
       if (d && d.success) {
         warrantyChecklist = d;
         warrantyChecklistText = formatChecklist(d);
+        renderTdrBar(d);
       }
     } catch (e) { console.warn('warranty checklist fetch failed', e); }
+  }
+
+  // Real-time TDR completeness bar in the topbar. Reads from the
+  // warranty checklist's counts + next_pending. Visible after first
+  // load; hides when no checklist data (non-warranty job).
+  function renderTdrBar(d) {
+    const bar = document.getElementById('tdr-bar');
+    if (!bar) return;
+    if (!d || !d.counts) { bar.style.display = 'none'; return; }
+    const cap = d.counts.captured_required || 0;
+    const tot = d.counts.total_required || 0;
+    if (tot === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    const pct = Math.round((cap / tot) * 100);
+    const fill = document.getElementById('tdr-bar-fill');
+    if (fill) {
+      fill.style.width = pct + '%';
+      fill.style.background = pct >= 100 ? '#74e3c4' : (pct >= 60 ? '#f5b150' : '#f56e6e');
+    }
+    const lbl = document.getElementById('tdr-bar-label');
+    if (lbl) lbl.textContent = pct >= 100 ? 'TDR ✓ READY TO SAVE' : 'TDR';
+    const cnt = document.getElementById('tdr-bar-count');
+    if (cnt) cnt.textContent = ` ${cap}/${tot}`;
+    const nxt = document.getElementById('tdr-bar-next');
+    if (nxt) {
+      if (pct >= 100) { nxt.textContent = 'tap 📝 to save'; }
+      else if (d.next_pending) {
+        const target = d.next_pending.field || d.next_pending.subject || d.next_pending.key;
+        nxt.textContent = `next: ${target}`;
+      } else { nxt.textContent = ''; }
+    }
   }
   function formatChecklist(d) {
     const lines = [];

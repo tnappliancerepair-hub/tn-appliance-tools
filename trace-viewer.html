@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ant Trace Viewer</title>
+<script src="/office-search.js"></script>
+<style>
+  :root { --bg: #0d0e10; --fg: #d4d6dc; --muted: #7b7f8a; --accent: #74e3c4; --warn: #f5b150; --err: #f56e6e; --line: #1d1f24; --row: #14161b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  header { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  header input { flex: 1; background: var(--row); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; font: inherit; font-family: ui-monospace, Menlo, monospace; }
+  header button { background: var(--accent); color: #000; border: 0; border-radius: 6px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+  header button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .gate { padding: 20px; }
+  .gate input { display: block; width: 100%; max-width: 320px; background: var(--row); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; margin-bottom: 8px; }
+  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .summary { background: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .summary .lbl { color: var(--muted); }
+  .row { background: var(--row); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .row .head { display: flex; gap: 12px; align-items: baseline; margin-bottom: 6px; }
+  .row .ts { color: var(--muted); font-size: 11px; min-width: 100px; }
+  .row .action { font-weight: 600; color: var(--accent); }
+  .row .action.err { color: var(--err); }
+  .row .action.skip { color: var(--warn); }
+  .row pre { margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--fg); opacity: 0.85; max-height: 200px; overflow-y: auto; }
+  .empty { color: var(--muted); text-align: center; padding: 60px; }
+  .err { color: var(--err); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 Ant Trace Viewer</h1>
+  <input id="traceInput" placeholder="Paste trace_id (e.g. tr_lz3a2k_7x9k)" autocomplete="off">
+  <button id="goBtn">Load</button>
+</header>
+
+<div class="gate" id="gate">
+  <p>Office password to view traces.</p>
+  <input id="pw" type="password" placeholder="password">
+  <button id="gateBtn">Unlock</button>
+  <p id="gateErr" class="err"></p>
+</div>
+
+<main id="main" style="display:none">
+  <div class="summary" id="summary"></div>
+  <div id="rows"></div>
+</main>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Office gate
+const gate = document.getElementById('gate');
+const main = document.getElementById('main');
+const pw = document.getElementById('pw');
+const gateBtn = document.getElementById('gateBtn');
+const gateErr = document.getElementById('gateErr');
+gateBtn.addEventListener('click', verifyGate);
+pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') verifyGate(); });
+
+async function verifyGate() {
+  gateErr.textContent = '';
+  gateBtn.disabled = true;
+  try {
+    const r = await __verifyOfficePassword(pw.value);
+    if (r) {
+      localStorage.setItem('office_unlocked_at', Date.now());
+      gate.style.display = 'none';
+      main.style.display = 'block';
+    } else {
+      gateErr.textContent = 'Wrong password.';
+    }
+  } catch (e) { gateErr.textContent = 'Server error.'; }
+  finally { gateBtn.disabled = false; }
+}
+
+// office-search.js injects this function — fallback inline if not present
+async function __verifyOfficePassword(p) {
+  try {
+    const r = await fetch(XANO_BASE + '/verify_office_password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: p }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return false;
+    const d = await r.json();
+    return !!(d && d.ok);
+  } catch { return false; }
+}
+
+// Auto-unlock if recently authed
+if (Number(localStorage.getItem('office_unlocked_at') || 0) > Date.now() - 3600_000) {
+  gate.style.display = 'none';
+  main.style.display = 'block';
+}
+
+// Trace load
+const traceInput = document.getElementById('traceInput');
+const goBtn = document.getElementById('goBtn');
+const rowsDiv = document.getElementById('rows');
+const summary = document.getElementById('summary');
+
+// URL deep-link: ?trace_id=tr_xxx
+const params = new URLSearchParams(location.search);
+if (params.get('trace_id')) {
+  traceInput.value = params.get('trace_id');
+  loadTrace();
+}
+goBtn.addEventListener('click', loadTrace);
+traceInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadTrace(); });
+
+async function loadTrace() {
+  const id = traceInput.value.trim();
+  if (!id) return;
+  goBtn.disabled = true;
+  rowsDiv.innerHTML = '<div class="empty">Loading…</div>';
+  summary.innerHTML = '';
+  try {
+    const r = await fetch(`${XANO_BASE}/get_trace_chain?trace_id=${encodeURIComponent(id)}&limit=400`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!r.ok) { rowsDiv.innerHTML = `<div class="empty err">Server error ${r.status}</div>`; return; }
+    const data = await r.json();
+    render(data);
+  } catch (e) { rowsDiv.innerHTML = `<div class="empty err">${e.message || e}</div>`; }
+  finally { goBtn.disabled = false; }
+}
+
+function render(data) {
+  const items = data.items || [];
+  if (items.length === 0) { rowsDiv.innerHTML = '<div class="empty">No events for this trace_id.</div>'; return; }
+  const firstTs = items[0].created_at_ms;
+  const lastTs = items[items.length - 1].created_at_ms;
+  summary.innerHTML = `
+    <div><span class="lbl">trace_id:</span> ${data.trace_id}</div>
+    <div><span class="lbl">events:</span> ${items.length}</div>
+    <div><span class="lbl">first:</span> ${new Date(firstTs).toLocaleString()}</div>
+    <div><span class="lbl">last:</span> ${new Date(lastTs).toLocaleString()}</div>
+    <div><span class="lbl">span:</span> ${Math.round((lastTs - firstTs) / 1000)}s</div>
+  `;
+  rowsDiv.innerHTML = items.map(renderRow).join('');
+}
+
+function renderRow(row) {
+  let metaPretty = '';
+  try {
+    const m = typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata;
+    delete m.trace_id;
+    metaPretty = JSON.stringify(m, null, 2);
+  } catch (_) { metaPretty = String(row.metadata || ''); }
+  const cls = row.action.startsWith('signal_outcome_errored') || row.action.includes('failed') ? 'err'
+    : row.action.startsWith('signal_outcome_skipped') ? 'skip'
+    : '';
+  return `<div class="row">
+    <div class="head">
+      <span class="ts">${new Date(row.created_at_ms).toLocaleTimeString()}</span>
+      <span class="action ${cls}">${escapeHtml(row.action)}</span>
+      <span class="lbl">#${row.id}</span>
+    </div>
+    <pre>${escapeHtml(metaPretty)}</pre>
+  </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+</script>
+</body>
+</html>

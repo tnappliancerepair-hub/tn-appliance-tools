@@ -4,6 +4,21 @@
 [functions]
   node_bundler = "esbuild"
 
+# Security headers — applied to every page served from this site.
+# Keeps office surfaces hardened: CSP limits where scripts/connections
+# can come from, X-Frame-Options blocks click-jacking, Referrer-Policy
+# strips full URLs from outbound referrers, Permissions-Policy denies
+# camera/mic except where we explicitly need them (tech-ant-chat has
+# camera; we allow self).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self), payment=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://xbtp-g9bh-ditq.n7e.xano.io https://api.anthropic.com https://api.openai.com https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org https://maps.googleapis.com https://api.telnyx.com https://*.netlify.app https://tnapplianceexchange.net wss:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+
 # Scheduled function: AHS dispatch email poller (every 15 minutes).
 # Reads tnappliancerepair@gmail.com via Gmail API, extracts dispatch.xml
 # attachments from Frontdoor emails, POSTs to Xano ahs_email_intake.

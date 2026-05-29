@@ -29,7 +29,54 @@ query tech_job_started verb=POST {
         }
       }
     }
-  
+
+    // Vision step 3 enforcement: customer must have signed waiver
+    // before tech starts. Lookups: jobs.waiver_signed_at column OR
+    // event_log action="waiver_submitted" with this job_id.
+    //
+    // WAIVER_GATE_ENFORCED env switches between WARN (write event_log
+    // row but allow start) and BLOCK (refuse start). Defaults to WARN
+    // since we don't want to brick technicians until the upstream
+    // waiver flow is reliable. Operator flips to BLOCK when ready.
+    var $waiver_check_needle { value = "\"job_id\":" ~ $input.job_id }
+    db.query event_log {
+      filter {
+        $this.action == "waiver_submitted"
+        && $this.metadata contains $waiver_check_needle
+      }
+      sort = {created_at: "desc"}
+      per_page = 1
+    } as $waiver_rows
+    var $waiver_signed { value = (($waiver_rows.items|first) != null) }
+
+    conditional {
+      if (!$waiver_signed) {
+        db.add event_log {
+          data = {
+            action  : "tech_start_no_waiver"
+            metadata: {
+              job_id        : $input.job_id
+              technician_id : $input.technician_id
+              gate_mode     : ($env.WAIVER_GATE_ENFORCED ?? "warn")
+              started_anyway: ($env.WAIVER_GATE_ENFORCED != "block")
+              recorded_at   : now|to_ms
+            }|json_encode
+          }
+        }
+        conditional {
+          if (($env.WAIVER_GATE_ENFORCED ?? "warn") == "block") {
+            return {
+              value = {
+                success: false
+                error  : "waiver not signed — ask customer to sign before starting (or flip WAIVER_GATE_ENFORCED=warn to override)"
+                gate   : "block"
+              }
+            }
+          }
+        }
+      }
+    }
+
     db.edit jobs {
       field_name = "id"
       field_value = $input.job_id

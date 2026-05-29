@@ -48,6 +48,19 @@ export async function run(signal, ctx) {
   const jobId = Number(payload.job_id);
   if (!jobId) throw new Error('payload.job_id required');
 
+  // Parts pre-order suggestion — fires once per job. The
+  // parts_pre_order_suggestion agent does its own dedup + skip logic
+  // based on confidence threshold + signal completeness.
+  try {
+    await xano.emitSignal({
+      signal_type: 'PARTS_PRE_ORDER_SUGGESTION',
+      signal_strength: 40,
+      payload: { job_id: jobId, source: 'job_created_chain', source_signal_id: signal.id },
+    });
+  } catch (e) {
+    log('parts_pre_order_emit_failed', { job_id: jobId, error: String(e.message || e) });
+  }
+
   if (payload.scheduled_for_ms && Date.now() < Number(payload.scheduled_for_ms)) {
     await xano.emitSignal({
       signal_type: 'JOB_CREATED',
