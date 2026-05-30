@@ -1032,6 +1032,27 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // MARKETING_SITE_WATCH — every 5 min, 24/7. Probes tnapplianceexchange.net
+  // root + key customer surfaces. Built after the 2026-05-30 incident where
+  // a CSS regression hid the marketing site for 5 days under a stuck
+  // "Loading your repair info" overlay. SMSes Teddy on first failure of
+  // any surface; sends a one-line recovery SMS when a previously-failing
+  // surface comes back. Dedup via event_log.
+  {
+    const minuteCTm = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCTm) && (minuteCTm % 5) === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'MARKETING_SITE_WATCH',
+          signal_strength: 70,
+          payload: { now_ms: nowTs },
+        });
+      } catch (err) {
+        xano.logLocal('marketing_site_watch_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // ASSIGN_PARALLEL_TEST_JOBS — REMOVED per revised brief. Phase 1 has
   // NO auto-assignment. Danielle manually schedules every parallel job
   // through needs-scheduled.html. Agent file kept dormant in case Phase 2
