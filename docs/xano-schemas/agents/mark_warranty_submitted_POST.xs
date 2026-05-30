@@ -14,7 +14,7 @@
 //   }
 //
 // Schema fact (verified 2026-05-30):
-//   jobs.warranty_submitted_at — timestamp (ms), nullable, default null.
+//   jobs.warranty_submitted_at - timestamp (ms), nullable, default null.
 //   Column added 2026-05-30 via Metadata API.
 //
 // XS rules: no em-dashes, no backticks, no try/catch, no raw if, every
@@ -68,7 +68,7 @@ query mark_warranty_submitted verb=POST {
       }
     } as $updated_job
 
-    // Audit row — useful for "who submitted what when" later.
+    // Audit row - useful for "who submitted what when" later.
     db.add event_log {
       data = {
         action: "warranty_submission_toggled"
