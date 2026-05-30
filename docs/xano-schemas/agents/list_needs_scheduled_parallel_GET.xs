@@ -29,8 +29,15 @@ query list_needs_scheduled_parallel verb=GET {
 
     // Pull all parallel-mode jobs that are not yet scheduled.
     // scheduled_start null OR 0 = not scheduled.
+    //
+    // 2026-05-30 fix: was filtering on parallel_mode == true, but that
+    // column was added via Metadata API with default "" instead of false.
+    // Xano silently drops bool writes against that misconfigured column,
+    // so parallel_mode never lands true and the queue stays empty. We
+    // now filter on intake_source (text column, writes land cleanly)
+    // matching the parallel-only intake sources.
     db.query jobs {
-      where = $db.jobs.parallel_mode == true && ($db.jobs.scheduled_start == null || $db.jobs.scheduled_start == 0) && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled")
+      where = ($db.jobs.intake_source == "email_ahs" || $db.jobs.intake_source == "email_servicepower" || $db.jobs.intake_source == "email_allstate" || $db.jobs.intake_source == "web_chat" || $db.jobs.intake_source == "manual" || $db.jobs.intake_source == "phone_call") && ($db.jobs.scheduled_start == null || $db.jobs.scheduled_start == 0) && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled")
       sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: $lim}}
     } as $job_rows

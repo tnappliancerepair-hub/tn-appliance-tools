@@ -345,6 +345,12 @@ query create_job_from_email verb=POST {
       value = (($input.service_zip ?? "")|trim)
     }
 
+    // XS dialect quirk: literal `true` in a db.add data block does not
+    // get honored — the column lands as default false. Bind to a var first.
+    var $parallel_mode_flag {
+      value = true
+    }
+
     db.add jobs {
       data = {
         customer_id: $cust_id_final
@@ -361,7 +367,7 @@ query create_job_from_email verb=POST {
         service_city: $service_city_clean
         service_state: $service_state_clean
         service_zip: $service_zip_clean
-        parallel_mode: true
+        parallel_mode: $parallel_mode_flag
         intake_source: $intake_src_clean
       }
     } as $new_job
