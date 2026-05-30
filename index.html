@@ -1676,6 +1676,11 @@ footer span { display:none; }
     overflow-y: auto; padding: 40px 20px 80px; z-index: 9999;
     font-family: 'Geist Mono', monospace;
   }
+  /* Without this, the .resume-overlay class wins over the [hidden] HTML
+     attribute, leaving the overlay visible on every clean root URL hit
+     and blocking the marketing site behind a stuck "Loading your repair
+     info" card. Bug introduced 2026-05-25, fixed 2026-05-30. */
+  .resume-overlay[hidden] { display: none !important; }
   .resume-card {
     width: 100%; max-width: 520px;
     background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 12px;
