@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Office Kanban - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0e1118;
+    color: #e8edf5;
+    min-height: 100vh;
+    padding: 14px;
+  }
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --panel-2: #1a1f2c;
+    --border: #2a3040;
+    --border-soft: #1f2533;
+    --muted: #8a93aa;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --green: #00d68f;
+    --orange: #f5a623;
+    --blue: #5aa9ff;
+    --red: #ff6b6b;
+    --yellow: #f6cf45;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 6px 4px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.2); }
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    gap: 10px;
+    min-height: 60vh;
+  }
+  @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px)  { .board { grid-template-columns: 1fr; } }
+
+  .col {
+    background: var(--panel);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 10px;
+    min-height: 100%;
+  }
+  .col-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 4px 10px;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 10px;
+  }
+  .col-title { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .col-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: var(--muted);
+  }
+  .col-title.t-needs    { color: var(--blue); }
+  .col-title.t-sched    { color: var(--yellow); }
+  .col-title.t-prog     { color: var(--green); }
+  .col-title.t-parts    { color: var(--orange); }
+  .col-title.t-warranty { color: #c084fc; }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border-soft);
+    border-left: 3px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease;
+    position: relative;
+  }
+  .card:hover { border-color: var(--border); transform: translateY(-1px); }
+  .card.flash {
+    animation: flash-in 0.6s ease;
+  }
+  @keyframes flash-in {
+    0%   { background: rgba(0, 214, 143, 0.20); }
+    100% { background: var(--panel-2); }
+  }
+  .card-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .card-sub   { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .card-meta  { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .badge.warranty { color: #c084fc; border-color: rgba(192, 132, 252, 0.4); }
+  .badge.parallel { color: var(--green); border-color: rgba(0, 214, 143, 0.4); }
+
+  .card-warning { border-left-color: var(--orange); }
+  .card-urgent  { border-left-color: var(--red); }
+
+  .empty {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 12px;
+    padding: 14px 6px;
+    text-align: center;
+  }
+
+  .lock-screen {
+    position: fixed; inset: 0;
+    background: rgba(14, 17, 24, 0.97);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .lock-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    text-align: center;
+  }
+  .lock-card input {
+    width: 220px; padding: 10px 12px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px;
+    font-size: 14px;
+    margin-top: 14px;
+  }
+  .lock-card button {
+    display: block; width: 220px;
+    margin: 12px auto 0;
+    padding: 10px;
+    background: var(--blue); color: #fff;
+    border: none; border-radius: 6px;
+    font-weight: 600; cursor: pointer;
+  }
+  .err { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 14px; }
+
+  footer {
+    margin-top: 18px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<!-- Office password gate -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div style="font-size: 14px;">Office password</div>
+    <input id="passInput" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off">
+    <button id="lockBtn">Unlock</button>
+    <div class="err" id="lockErr"></div>
+  </div>
+</div>
+
+<header>
+  <div>
+    <h1>Office Kanban <span id="lastUpdate"></span></h1>
+  </div>
+  <div class="header-right">
+    <span id="totalCount">—</span>
+    <div class="pulse-dot" id="pulseDot" title="live, updates every 30s"></div>
+  </div>
+</header>
+
+<div class="board" id="board"></div>
+
+<footer>Office Kanban v1 · polls every 30s · click a card to open its job detail page</footer>
+
+<script src="/office-search.js?v=20260530"></script>
+<script>
+'use strict';
+
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const POLL_MS = 30 * 1000;
+
+// Column definitions in display order. Each has a `match(j)` function
+// that returns true when the job belongs in that column.
+const COLUMNS = [
+  {
+    key: 'needs',
+    title: 'Needs Scheduled',
+    cls: 't-needs',
+    match: (j) => (j.scheduling_status === 'not_ready' || j.scheduling_status === 'needs_scheduled') && (!j.scheduled_start || j.scheduled_start === 0),
+  },
+  {
+    key: 'sched',
+    title: 'Scheduled',
+    cls: 't-sched',
+    match: (j) => j.scheduling_status === 'scheduled',
+  },
+  {
+    key: 'prog',
+    title: 'In Progress',
+    cls: 't-prog',
+    match: (j) => j.scheduling_status === 'in_progress',
+  },
+  {
+    key: 'parts',
+    title: 'Awaiting Parts',
+    cls: 't-parts',
+    match: (j) => j.scheduling_status === 'awaiting_parts' || ['parts_needed','ordered','on_order','pending','awaiting_parts'].includes((j.parts_status || '').toLowerCase()),
+  },
+  {
+    key: 'warranty',
+    title: 'Warranty Submission',
+    cls: 't-warranty',
+    match: (j) => j.scheduling_status === 'completed' && (j.warranty_company || '').trim() !== '',
+  },
+];
+
+// Track which jobs are in which column so we can flash on move
+const previousColumn = new Map(); // job_id -> column key
+
+async function verifyPassword(pw) {
+  const r = await fetch(XANO_BASE + '/verify_office_password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) return { ok: false, msg: 'Server error' };
+  const d = await r.json();
+  return { ok: !!d.success, msg: d.success ? '' : (d.error || 'Wrong password') };
+}
+
+const lockScreen = document.getElementById('lockScreen');
+const passInput  = document.getElementById('passInput');
+const lockBtn    = document.getElementById('lockBtn');
+const lockErr    = document.getElementById('lockErr');
+
+const SESSION_KEY = 'office_pw_ok_at';
+const SESSION_TTL = 1000 * 60 * 60 * 12;
+
+function isUnlocked() {
+  const t = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
+  return t > 0 && (Date.now() - t) < SESSION_TTL;
+}
+
+async function submitAuth() {
+  const pw = passInput.value;
+  if (!pw) return;
+  lockBtn.disabled = true;
+  lockBtn.textContent = 'Authenticating…';
+  lockErr.textContent = '';
+  try {
+    const r = await verifyPassword(pw);
+    if (r.ok) {
+      localStorage.setItem(SESSION_KEY, String(Date.now()));
+      lockScreen.style.display = 'none';
+      boot();
+    } else {
+      lockErr.textContent = r.msg || 'Wrong password';
+    }
+  } catch (e) {
+    lockErr.textContent = 'Auth failed: ' + (e.message || 'unknown');
+  } finally {
+    lockBtn.disabled = false;
+    lockBtn.textContent = 'Unlock';
+  }
+}
+
+lockBtn.addEventListener('click', submitAuth);
+passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+
+if (isUnlocked()) {
+  lockScreen.style.display = 'none';
+  boot();
+} else {
+  passInput.focus();
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function fmtTime(ms) {
+  if (!ms) return '';
+  try {
+    const d = new Date(ms);
+    return d.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch (_) { return ''; }
+}
+
+function ageDays(ms) {
+  if (!ms) return 0;
+  return Math.floor((Date.now() - ms) / 86400000);
+}
+
+function cardFor(job, colKey) {
+  const name = ((job.customer_first || '') + ' ' + (job.customer_last || '')).trim() || '(no name)';
+  const appl = [job.brand, job.appliance].filter(Boolean).join(' ') || 'appliance';
+  const age = ageDays(job.created_at);
+
+  const moved = previousColumn.get(job.id) && previousColumn.get(job.id) !== colKey;
+  const isStale = age > 3 && colKey === 'needs';
+  const isUrgent = age > 7;
+
+  let cls = 'card';
+  if (moved) cls += ' flash';
+  if (isStale) cls += ' card-warning';
+  if (isUrgent) cls += ' card-urgent';
+
+  const badges = [];
+  if (job.warranty_company) badges.push('<span class="badge warranty">' + esc(job.warranty_company) + '</span>');
+  if (job.parallel_mode)    badges.push('<span class="badge parallel">parallel</span>');
+
+  const metaLines = [];
+  metaLines.push(esc(appl));
+  if (job.service_city) metaLines.push(esc(job.service_city));
+  if (job.scheduled_start) metaLines.push('🕐 ' + esc(fmtTime(job.scheduled_start)));
+  if (age >= 1) metaLines.push(age + 'd old');
+
+  return '<a class="' + cls + '" href="/job-detail.html?job_id=' + job.id + '" target="_blank" style="text-decoration:none; color:inherit; display:block;">' +
+    '<div class="card-title">' + esc(name) + ' <span class="card-sub">#' + job.id + '</span></div>' +
+    (badges.length ? '<div style="margin-top:4px;">' + badges.join('') + '</div>' : '') +
+    '<div class="card-meta">' + metaLines.join(' · ') + '</div>' +
+    '</a>';
+}
+
+function render(jobs) {
+  const board = document.getElementById('board');
+  const buckets = {};
+  for (const col of COLUMNS) buckets[col.key] = [];
+
+  let total = 0;
+  for (const j of jobs) {
+    for (const col of COLUMNS) {
+      if (col.match(j)) {
+        buckets[col.key].push(j);
+        previousColumn.set(j.id, col.key);
+        total += 1;
+        break;
+      }
+    }
+  }
+
+  board.innerHTML = COLUMNS.map(col => {
+    const items = buckets[col.key];
+    return '<div class="col">' +
+      '<div class="col-head">' +
+        '<div class="col-title ' + col.cls + '">' + col.title + '</div>' +
+        '<div class="col-count">' + items.length + '</div>' +
+      '</div>' +
+      (items.length === 0
+        ? '<div class="empty">— empty —</div>'
+        : items.map(j => cardFor(j, col.key)).join('')) +
+    '</div>';
+  }).join('');
+
+  document.getElementById('totalCount').textContent = total + ' active';
+  document.getElementById('lastUpdate').textContent = '· updated ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+async function fetchAndRender() {
+  try {
+    const r = await fetch(XANO_BASE + '/get_office_kanban', { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    render(d.items || []);
+  } catch (e) {
+    document.getElementById('totalCount').textContent = 'fetch err: ' + (e.message || 'unknown');
+  }
+}
+
+function boot() {
+  fetchAndRender();
+  setInterval(fetchAndRender, POLL_MS);
+}
+</script>
+</body>
+</html>
