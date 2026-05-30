@@ -105,6 +105,24 @@ exports.handler = async function (event) {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
 
+  // ─── Customer-direction dispatch (2026-05-30) ───────────────────
+  // Both numbers (+1 615-857-8800 tech, +1 615-588-9500 customer) are
+  // assigned to the same Telnyx messaging profile, which only allows
+  // one webhook URL per profile. When an inbound arrives on the
+  // customer-direction number, hand it to the customer handler and
+  // return that response. Tech-direction continues unchanged.
+  const customerDigits = (parsed.to || '').replace(/\D/g, '').slice(-10);
+  if (customerDigits === '6155889500') {
+    console.log('[tech-sms-inbound] dispatching to customer-sms-inbound (to=' + parsed.to + ')');
+    try {
+      const customerHandler = require('./customer-sms-inbound.js').handler;
+      return await customerHandler(event);
+    } catch (e) {
+      console.error('[tech-sms-inbound] customer dispatch failed:', e.message);
+      return providerAck(provider, '');
+    }
+  }
+
   // 3. Forward to brain (v2) or legacy Xano endpoint (v1).
   //
   // 2026-05-20: feature-flag dispatch. The legacy Xano `tech_sms_inbound`
