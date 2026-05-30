@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Customer Portal Share — Appliance Ant</title>
+<style>
+  :root{
+    --bg:#0c0f14;--panel:#141922;--panel-2:#1b212c;--line:#26303d;
+    --ink:#e8edf4;--ink-dim:#8c98a8;--ink-faint:#5b6874;
+    --accent:#3ddc97;--accent-dim:#1d6b4d;--warn:#f0b429;--bad:#ef5350;
+    --chip:#222b38;--radius:10px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+
+  /* gate */
+  #gate{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 600px at 50% -10%,#16202c 0%,var(--bg) 60%)}
+  .gate-card{width:min(360px,90vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:28px 24px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .gate-card .ant{font-size:30px;display:block;margin-bottom:10px}
+  .gate-card h1{font-size:18px;margin:0 0 4px;letter-spacing:.3px}
+  .gate-card p{color:var(--ink-dim);font-size:13px;margin:0 0 18px}
+  .gate-card input{width:100%;padding:11px 12px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;color:var(--ink);font-size:15px;text-align:center;letter-spacing:2px}
+  .gate-card input:focus{outline:none;border-color:var(--accent)}
+  .gate-card button{margin-top:12px;width:100%;padding:11px;border:0;border-radius:8px;
+    background:var(--accent);color:#06110b;font-weight:700;font-size:15px;cursor:pointer}
+  .gate-err{color:var(--bad);font-size:12px;min-height:16px;margin-top:8px}
+
+  /* header */
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 20px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;
+    background:linear-gradient(180deg,var(--panel) 0%,rgba(20,25,34,.6) 100%)}
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.4px;display:flex;align-items:center;gap:8px}
+  header h1 .ant{color:var(--accent)}
+  .live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-dim);font-family:var(--mono)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .dot.stale{background:var(--bad)}
+  .spacer{flex:1}.meta{font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* body */
+  .wrap{padding:22px 20px 60px;max-width:680px;margin:0 auto}
+  .search{display:flex;gap:9px;margin-bottom:8px}
+  .search input{flex:1;padding:12px 14px;background:var(--panel);border:1px solid var(--line);
+    border-radius:9px;color:var(--ink);font-size:15px}
+  .search input:focus{outline:none;border-color:var(--accent)}
+  .search button{padding:0 18px;border:0;border-radius:9px;background:var(--accent);color:#06110b;font-weight:700;font-size:14px;cursor:pointer}
+  .hint{font-size:12px;color:var(--ink-faint);margin:0 2px 18px}
+
+  .result{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:13px 15px;margin-bottom:9px}
+  .result:hover{border-color:var(--accent-dim)}
+  .result .main{min-width:0;flex:1}
+  .result .nm{font-size:15px;font-weight:600}
+  .result .sub{font-size:12px;color:var(--ink-dim);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+  .result .sub .jid{font-family:var(--mono);color:var(--ink-faint)}
+  .result .nophone{color:var(--warn)}
+  .btn{border:1px solid var(--accent-dim);background:transparent;color:var(--accent);padding:8px 14px;
+    border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s}
+  .btn:hover{background:var(--accent);color:#06110b}
+  .btn:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line);color:var(--ink-faint)}
+  .empty{color:var(--ink-faint);font-size:14px;text-align:center;padding:48px 0;font-style:italic}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;z-index:60;background:rgba(4,7,11,.72);display:none;align-items:center;justify-content:center;padding:18px}
+  .modal-bg.show{display:flex}
+  .modal{width:min(480px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .modal h2{margin:0 0 4px;font-size:17px}
+  .modal .to{font-size:13px;color:var(--ink-dim);margin-bottom:4px}
+  .modal .to b{color:var(--ink);font-family:var(--mono)}
+  .modal .warn-no{color:var(--bad);font-size:13px;margin:8px 0}
+  .modal label{display:block;font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}
+  .modal textarea{width:100%;min-height:120px;resize:vertical;padding:12px;background:var(--bg);
+    border:1px solid var(--line);border-radius:9px;color:var(--ink);font-size:14px;font-family:var(--sans);line-height:1.5}
+  .modal textarea:focus{outline:none;border-color:var(--accent)}
+  .cc{font-size:11px;color:var(--ink-faint);text-align:right;margin-top:5px;font-family:var(--mono)}
+  .modal-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
+  .modal-actions .cancel{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:9px 16px;border-radius:8px;font-size:14px;cursor:pointer}
+  .modal-actions .send{background:var(--accent);border:0;color:#06110b;font-weight:700;padding:9px 18px;border-radius:8px;font-size:14px;cursor:pointer}
+  .modal-actions .send:disabled{opacity:.5;cursor:wait}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink);padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:70}
+  .toast.show{opacity:1}.toast.err{border-color:var(--bad);color:#ffd6d4}.toast.ok{border-color:var(--accent-dim);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <span class="ant">🐜</span>
+    <h1>Customer Portal Share</h1>
+    <p>Enter the office passcode.</p>
+    <input id="pw" type="password" inputmode="numeric" placeholder="passcode" autocomplete="off" />
+    <div class="gate-err" id="gateErr"></div>
+    <button id="gateBtn">Unlock</button>
+  </div>
+</div>
+
+<header style="display:none" id="appHeader">
+  <h1><span class="ant">🐜</span> Customer Portal Share</h1>
+  <span class="live"><span class="dot" id="liveDot"></span><span id="liveTxt">ready</span></span>
+  <div class="spacer"></div>
+  <span class="meta">texts the customer their portal link</span>
+</header>
+
+<div class="wrap" id="wrap" style="display:none">
+  <div class="search">
+    <input id="q" type="text" placeholder="Search by name, phone, or address…" autocomplete="off" />
+    <button id="searchBtn">Search</button>
+  </div>
+  <p class="hint">Type at least 2 characters and press Enter. Sending a link will text the customer's number on file.</p>
+  <div id="results"></div>
+</div>
+
+<!-- confirm/compose modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h2>Send portal link</h2>
+    <div class="to">To: <b id="mTo"></b> · <span id="mName"></span></div>
+    <div class="warn-no" id="mNoPhone" style="display:none">⚠ No phone number on file for this customer — can't send.</div>
+    <label>Message</label>
+    <textarea id="mBody"></textarea>
+    <div class="cc"><span id="mCount">0</span> chars</div>
+    <div class="modal-actions">
+      <button class="cancel" id="mCancel">Cancel</button>
+      <button class="send" id="mSend">Send text</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   CONFIG — CHECK THESE
+   ----------------------------------------------------------------
+   SEARCH_ENDPOINT : GET with ?q=<term> — customer/job lookup.
+                     Accepts { customers:[..] } or { jobs:[..] } or bare array.
+                     (Point at your existing customer-search source.)
+
+   SEND_ENDPOINT   : POST send_sms (#32). Body sent: { to, body }.
+                     send_sms already routes customers through the
+                     Telnyx customer number with Twilio fallback, so
+                     this page just hands it { to, body }. If your
+                     endpoint expects "message" or "phone" instead of
+                     "body"/"to", tweak buildSendPayload() below.
+
+   PORTAL_BASE     : the customer portal page. The link is built as
+                     PORTAL_BASE + "?" + PORTAL_PARAM + "=" + <id>,
+                     preferring job_id, falling back to customer_id.
+
+   <record> fields used (all optional):
+     job_id/id, customer_id, customer_name/customer/name,
+     phone/customer_phone, address, city
+   ================================================================ */
+  const XANO_BASE       = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+  const SEARCH_ENDPOINT = XANO_BASE + "/search_customers";   // <-- confirm/replace
+  const SEND_ENDPOINT   = XANO_BASE + "/send_sms";           // #32
+  const PORTAL_BASE     = "https://tnapplianceexchange.net/customer-portal.html";
+  const PORTAL_PARAM    = "job_id";                          // or "customer_id"
+  const OFFICE_PASS     = "CHANGE_ME";                       // <-- set real passcode
+
+  // Default message template. {name} and {link} are filled in.
+  const TEMPLATE = "Hi {name}, this is TN Appliance Exchange. You can track your repair and see updates anytime here: {link}  Reply STOP to opt out.";
+
+  function buildSendPayload(to, body){ return { to, body }; }  // adjust field names if needed
+
+/* ---------------- gate ---------------- */
+  let unlocked=false; const $=(id)=>document.getElementById(id);
+  function tryUnlock(){
+    if($("pw").value.trim()===OFFICE_PASS){
+      unlocked=true;$("gate").style.display="none";
+      $("appHeader").style.display="flex";$("wrap").style.display="block";$("q").focus();
+    }else{$("gateErr").textContent="Wrong passcode.";$("pw").value="";}
+  }
+  $("gateBtn").addEventListener("click",tryUnlock);
+  $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock();});
+  $("pw").focus();
+
+/* ---------------- helpers ---------------- */
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+  function digits(p){return String(p||"").replace(/\D/g,"");}
+  function fmtPhone(p){const d=digits(p);if(d.length===10)return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;if(d.length===11&&d[0]==="1")return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;return p||"";}
+  function e164(p){const d=digits(p);if(d.length===10)return "+1"+d;if(d.length===11&&d[0]==="1")return "+"+d;return p;}
+  function portalLink(rec){
+    const id = rec.job_id ?? rec.id ?? rec.customer_id;
+    return id!=null ? `${PORTAL_BASE}?${PORTAL_PARAM}=${encodeURIComponent(id)}` : PORTAL_BASE;
+  }
+  function setLive(ok){const d=$("liveDot"),t=$("liveTxt");if(ok){d.classList.remove("stale");t.textContent="ready";}else{d.classList.add("stale");t.textContent="offline";}}
+
+/* ---------------- search ---------------- */
+  let lastResults=[];
+  async function doSearch(){
+    const q=$("q").value.trim();
+    if(q.length<2){ toast("Type at least 2 characters."); return; }
+    $("results").innerHTML=`<div class="empty">Searching…</div>`;
+    try{
+      const r=await fetch(SEARCH_ENDPOINT+"?q="+encodeURIComponent(q),{headers:{"Accept":"application/json"}});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const data=await r.json();
+      lastResults=Array.isArray(data)?data:(data.customers||data.jobs||[]);
+      setLive(true);renderResults(lastResults);
+    }catch(err){ setLive(false); $("results").innerHTML=`<div class="empty">Search failed — ${esc(err.message)}</div>`; }
+  }
+
+  function renderResults(rows){
+    if(!rows.length){ $("results").innerHTML=`<div class="empty">No matches.</div>`; return; }
+    $("results").innerHTML=rows.map((rec,i)=>{
+      const name=rec.customer_name||rec.customer||rec.name||"Unnamed";
+      const phone=rec.phone||rec.customer_phone;
+      const loc=[rec.address,rec.city].filter(Boolean).join(", ");
+      const jid=rec.job_id??rec.id;
+      const sub=[];
+      if(jid!=null) sub.push(`<span class="jid">#${esc(jid)}</span>`);
+      sub.push(phone?`<span>${esc(fmtPhone(phone))}</span>`:`<span class="nophone">no phone on file</span>`);
+      if(loc) sub.push(`<span>${esc(loc)}</span>`);
+      return `<div class="result">
+        <div class="main"><div class="nm">${esc(name)}</div><div class="sub">${sub.join("")}</div></div>
+        <button class="btn" ${phone?"":"disabled"} onclick="openSend(${i})">Send link</button>
+      </div>`;
+    }).join("");
+  }
+
+/* ---------------- compose + send ---------------- */
+  let pending=null;
+  window.openSend=function(i){
+    const rec=lastResults[i]; if(!rec) return;
+    const phone=rec.phone||rec.customer_phone;
+    const name=(rec.customer_name||rec.customer||rec.name||"there").split(" ")[0];
+    const link=portalLink(rec);
+    pending={to:e164(phone),rec};
+    $("mTo").textContent=fmtPhone(phone)||"—";
+    $("mName").textContent=rec.customer_name||rec.customer||rec.name||"";
+    const body=TEMPLATE.replace("{name}",name).replace("{link}",link);
+    $("mBody").value=body; $("mCount").textContent=body.length;
+    $("mNoPhone").style.display=phone?"none":"block";
+    $("mSend").disabled=!phone;
+    $("modalBg").classList.add("show"); $("mBody").focus();
+  };
+  $("mBody").addEventListener("input",e=>$("mCount").textContent=e.target.value.length);
+  $("mCancel").addEventListener("click",()=>{$("modalBg").classList.remove("show");pending=null;});
+  $("modalBg").addEventListener("click",e=>{if(e.target===$("modalBg")){$("modalBg").classList.remove("show");pending=null;}});
+
+  $("mSend").addEventListener("click",async()=>{
+    if(!pending) return;
+    const body=$("mBody").value.trim();
+    if(!body){ toast("Message is empty."); return; }
+    $("mSend").disabled=true;
+    try{
+      const r=await fetch(SEND_ENDPOINT,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(buildSendPayload(pending.to,body))
+      });
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      $("modalBg").classList.remove("show");
+      toast("Sent to "+fmtPhone(pending.to),false,true);
+      pending=null;
+    }catch(err){ toast("Send failed: "+err.message,true); $("mSend").disabled=false; }
+  });
+
+/* ---------------- wiring ---------------- */
+  $("searchBtn").addEventListener("click",doSearch);
+  $("q").addEventListener("keydown",e=>{if(e.key==="Enter")doSearch();});
+  let toastTimer=null;
+  function toast(msg,err,ok){const t=$("toast");t.textContent=msg;t.className="toast show"+(err?" err":ok?" ok":"");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.className="toast",4000);}
+</script>
+</body>
+</html>
