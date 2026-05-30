@@ -1,4 +1,4 @@
-// Powers office-kanban.html — the live "jobs moving by themselves"
+// Powers office-kanban.html - the live "jobs moving by themselves"
 // board for Danielle.
 //
 // Returns a flat list of every job that should appear on the board:
