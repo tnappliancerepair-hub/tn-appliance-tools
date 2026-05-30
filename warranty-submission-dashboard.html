@@ -140,8 +140,8 @@
      submitted/warranty_submitted (bool)
    ================================================================ */
   const XANO_BASE      = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
-  const LIST_ENDPOINT  = XANO_BASE + "/list_jobs_by_status?status=ready_warranty";
-  const SUBMIT_ENDPOINT= XANO_BASE + "/mark_warranty_submitted";   // <-- confirm/replace
+  const LIST_ENDPOINT  = XANO_BASE + "/list_warranty_jobs?days_back=30";  // completed warranty jobs, incl. already-submitted
+  const SUBMIT_ENDPOINT= XANO_BASE + "/mark_warranty_submitted";          // POST {job_id, submitted}
   const OFFICE_PASS    = "CHANGE_ME";                              // <-- set real passcode
   const POLL_MS        = 30000;
 
@@ -226,14 +226,14 @@
     const cust=j.customer_name||j.customer||"Unnamed";
     const tName=techName(j), phone=j.customer_phone||j.phone, loc=j.city||j.address;
     const claim=j.claim_number||j.claim;
-    const tdr=j.tdr_completed_at||j.tdr_date;
+    const completed=j.job_completed_at||j.tdr_completed_at;
     const sub=[];
     if(k!=null)   sub.push(`<span class="jid">#${esc(k)}</span>`);
     if(claim)     sub.push(`<span class="jid">claim ${esc(claim)}</span>`);
     if(phone)     sub.push(`<a href="tel:${esc(String(phone).replace(/\D/g,''))}">📞 ${esc(fmtPhone(phone))}</a>`);
     if(loc)       sub.push(`<span>${esc(loc)}</span>`);
     if(tName)     sub.push(`<span class="chip tech">🔧 ${esc(tName)}</span>`);
-    const when=tdr?`TDR ${esc(fmtDate(tdr))}`:"";
+    const when=completed?`Completed ${esc(fmtDate(completed))}`:"";
     return `<div class="job ${done?'done':''}" data-k="${esc(k)}">
       <div class="main">
         <div class="cust">${esc(cust)}</div>
