@@ -51,7 +51,10 @@ All four use the same recovery pattern: alert action stored in event_log, 30-60 
 
 **Thread B (parser refactors)** held until Day 2 paste lands — don't want real customer email volume hitting the buggy endpoint.
 
-### Two unforced errors caught (full root-cause + fix below)
+### Three unforced errors caught (full root-cause + fix below)
+
+**P2 — Early return in tick.js silently dropped 5+ emits** (fixed in commit `e04edaa`):
+The DAILY_BRIEFING gate at line 1004 used `if (hour < 8 || hour >= 11) return;` which exited the ENTIRE `maybeEmitTimeSignals` function outside the 8-11am CT window. Every cron emit added below it — including TECH_ASSIST_LOOP_WATCH and today's four watchdogs (MARKETING_SITE_WATCH, COLONY_LOOP_SELF_WATCH, XANO_API_WATCH, PARALLEL_INTAKE_WATCH) — never fired except during that 3-hour window. Caught when the four 2026-05-30 watchdogs failed to emit any signals after their cron-mark minutes. A manually-emitted MARKETING_SITE_WATCH signal dispatched fine (probes:4, failing:0) confirming the agent side was healthy — the bug was upstream in tick.js. Fix: replace the early return with an if-block that wraps only the DAILY_BRIEFING-specific code. All subsequent emits now get evaluated regardless of hour.
 
 **P0 — Marketing site overlay** (fixed in commit `2d311d3`):
 Live since 2026-05-25 20:46. The warranty resume-chat overlay CSS declared `display: flex` with no `:not([hidden])` rule. The class selector beat the `[hidden]` HTML attribute → every clean URL hit (organic search, direct type, business card, marketing material) showed the stuck "Loading your repair info" overlay covering the marketing site. **5 days of broken customer acquisition.** Caught when a referred customer told Teddy's buddy she kept landing on the loading page. Fix: one CSS rule `.resume-overlay[hidden] { display: none !important; }`. Marketing watch agent now asserts the rule's presence — same regression would now alert within 5 min.
