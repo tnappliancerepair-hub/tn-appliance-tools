@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Warranty Submission — Appliance Ant</title>
+<style>
+  :root{
+    --bg:#0c0f14;--panel:#141922;--panel-2:#1b212c;--line:#26303d;
+    --ink:#e8edf4;--ink-dim:#8c98a8;--ink-faint:#5b6874;
+    --accent:#3ddc97;--accent-dim:#1d6b4d;--warn:#f0b429;--bad:#ef5350;
+    --chip:#222b38;--radius:10px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+
+  /* gate */
+  #gate{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 600px at 50% -10%,#16202c 0%,var(--bg) 60%)}
+  .gate-card{width:min(360px,90vw);background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:28px 24px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .gate-card .ant{font-size:30px;display:block;margin-bottom:10px}
+  .gate-card h1{font-size:18px;margin:0 0 4px;letter-spacing:.3px}
+  .gate-card p{color:var(--ink-dim);font-size:13px;margin:0 0 18px}
+  .gate-card input{width:100%;padding:11px 12px;background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;color:var(--ink);font-size:15px;text-align:center;letter-spacing:2px}
+  .gate-card input:focus{outline:none;border-color:var(--accent)}
+  .gate-card button{margin-top:12px;width:100%;padding:11px;border:0;border-radius:8px;
+    background:var(--accent);color:#06110b;font-weight:700;font-size:15px;cursor:pointer}
+  .gate-err{color:var(--bad);font-size:12px;min-height:16px;margin-top:8px}
+
+  /* header */
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 20px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;
+    background:linear-gradient(180deg,var(--panel) 0%,rgba(20,25,34,.6) 100%)}
+  header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.4px;display:flex;align-items:center;gap:8px}
+  header h1 .ant{color:var(--accent)}
+  .live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-dim);font-family:var(--mono)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}70%{box-shadow:0 0 0 8px rgba(61,220,151,0)}100%{box-shadow:0 0 0 0 rgba(61,220,151,0)}}
+  .dot.stale{background:var(--bad);animation:none}
+  .spacer{flex:1}
+  .pill{font-size:12px;font-family:var(--mono);background:var(--chip);color:var(--ink-dim);padding:4px 10px;border-radius:20px}
+  .pill b{color:var(--warn)}
+  header button.ghost,header select{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    padding:7px 11px;border-radius:8px;font-size:13px;cursor:pointer;font-family:var(--sans)}
+  .toggle{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-dim);cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent)}
+  .meta{font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+
+  /* body */
+  .wrap{padding:18px 20px 60px;max-width:1100px;margin:0 auto}
+  .group{margin-bottom:26px}
+  .group-head{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+  .group-head .name{font-size:14px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .group-head .badge{font-size:11px;font-family:var(--mono);background:var(--chip);color:var(--ink-dim);padding:2px 9px;border-radius:20px}
+  .group-head .rule{flex:1;height:1px;background:var(--line)}
+
+  .job{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:13px 15px;margin-bottom:9px;transition:opacity .25s,border-color .15s}
+  .job.done{opacity:.5}
+  .job:hover{border-color:var(--accent-dim)}
+  .job .main{min-width:0;flex:1}
+  .job .cust{font-size:15px;font-weight:600}
+  .job .sub{font-size:12px;color:var(--ink-dim);margin-top:4px;display:flex;gap:12px;flex-wrap:wrap}
+  .job .sub .jid{font-family:var(--mono);color:var(--ink-faint)}
+  .job .sub a{color:var(--ink-dim);text-decoration:none}
+  .job .sub a:hover{color:var(--accent)}
+  .job .when{font-size:11px;color:var(--ink-faint);font-family:var(--mono);white-space:nowrap}
+  .chip{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--chip);color:var(--ink-dim)}
+  .chip.tech{background:#16302a;color:var(--accent)}
+
+  .btn{border:1px solid var(--accent-dim);background:transparent;color:var(--accent);
+    padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s}
+  .btn:hover{background:var(--accent);color:#06110b}
+  .btn.is-done{border-color:var(--line);color:var(--ink-dim)}
+  .btn.is-done:hover{background:var(--panel-2);color:var(--ink)}
+  .btn:disabled{opacity:.5;cursor:wait}
+
+  .empty{color:var(--ink-faint);font-size:14px;text-align:center;padding:60px 0;font-style:italic}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel-2);
+    border:1px solid var(--line);color:var(--ink);padding:10px 16px;border-radius:8px;font-size:13px;
+    opacity:0;transition:opacity .3s;pointer-events:none;z-index:40}
+  .toast.show{opacity:1}
+  .toast.err{border-color:var(--bad);color:#ffd6d4}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <span class="ant">🐜</span>
+    <h1>Warranty Submission</h1>
+    <p>Enter the office passcode.</p>
+    <input id="pw" type="password" inputmode="numeric" placeholder="passcode" autocomplete="off" />
+    <div class="gate-err" id="gateErr"></div>
+    <button id="gateBtn">Unlock</button>
+  </div>
+</div>
+
+<header style="display:none" id="appHeader">
+  <h1><span class="ant">🐜</span> Warranty Submission</h1>
+  <span class="live"><span class="dot" id="liveDot"></span><span id="liveTxt">connecting…</span></span>
+  <span class="pill"><b id="pendingCount">0</b> pending</span>
+  <div class="spacer"></div>
+  <label class="toggle"><input type="checkbox" id="showDone" /> show submitted</label>
+  <button class="ghost" id="refreshBtn">↻ Refresh</button>
+  <span class="meta" id="updated"></span>
+</header>
+
+<div class="wrap" id="wrap" style="display:none"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================================
+   CONFIG — CHECK THESE
+   ----------------------------------------------------------------
+   LIST_ENDPOINT : GET — returns jobs that are TDR-complete and
+                   ready for warranty submission. Accepts either:
+                     { "jobs":[ <job>, ... ] }   or a bare array.
+                   (e.g. list_jobs_by_status?status=ready_warranty,
+                    or a purpose-built get_warranty_ready.)
+
+   SUBMIT_ENDPOINT : POST — marks a job submitted / un-submitted.
+                     Body sent: { job_id, submitted:true|false }.
+                     Wire this to your real write endpoint
+                     (mark_warranty_submitted / update_scheduling_decision /
+                      the "Submit to Portal" action). If you don't have
+                      one yet, the toggle still updates the UI locally
+                      and will warn that the write didn't persist.
+
+   <job> fields used (all optional):
+     job_id/id, customer_name/customer, warranty_company/warranty,
+     claim_number/claim, tech_id(1..6)/tech_name,
+     customer_phone/phone, city/address,
+     tdr_completed_at/tdr_date, appointment_date/scheduled_date,
+     submitted/warranty_submitted (bool)
+   ================================================================ */
+  const XANO_BASE      = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+  const LIST_ENDPOINT  = XANO_BASE + "/list_jobs_by_status?status=ready_warranty";
+  const SUBMIT_ENDPOINT= XANO_BASE + "/mark_warranty_submitted";   // <-- confirm/replace
+  const OFFICE_PASS    = "CHANGE_ME";                              // <-- set real passcode
+  const POLL_MS        = 30000;
+
+  const TECHS = {1:"Teddy",2:"Jimmy",3:"Andre",4:"Lee",5:"Billy",6:"John"};
+  // Preferred display order for warranty companies; unknown ones appended.
+  const WARRANTY_ORDER = ["SquareTrade","ServicePower","AHS","Frontdoor"];
+
+/* ---------------- gate ---------------- */
+  let unlocked=false;
+  const $=(id)=>document.getElementById(id);
+  function tryUnlock(){
+    if($("pw").value.trim()===OFFICE_PASS){
+      unlocked=true;$("gate").style.display="none";
+      $("appHeader").style.display="flex";$("wrap").style.display="block";start();
+    }else{$("gateErr").textContent="Wrong passcode.";$("pw").value="";}
+  }
+  $("gateBtn").addEventListener("click",tryUnlock);
+  $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock();});
+  $("pw").focus();
+
+/* ---------------- state + fetch ---------------- */
+  let jobs=[];           // normalized
+  let showDone=false;
+  let timer=null;
+  const localOverride={}; // job_id -> submitted bool (optimistic)
+
+  const jid=(j)=>j.job_id ?? j.id;
+  function techName(j){ if(j.tech_name) return j.tech_name; const t=j.tech_id??j.technician_id; return (t!=null&&TECHS[t])?TECHS[t]:null; }
+  function isSubmitted(j){ const k=jid(j); if(k in localOverride) return localOverride[k]; return !!(j.submitted ?? j.warranty_submitted); }
+  function warrantyOf(j){ return j.warranty_company || j.warranty || "Other"; }
+
+  async function load(){
+    try{
+      const r=await fetch(LIST_ENDPOINT,{headers:{"Accept":"application/json"}});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const data=await r.json();
+      jobs=Array.isArray(data)?data:(Array.isArray(data?.jobs)?data.jobs:[]);
+      setLive(true);render();stamp();
+    }catch(err){ setLive(false);toast("Fetch failed: "+err.message,true); }
+  }
+  function setLive(ok){const d=$("liveDot"),t=$("liveTxt");if(ok){d.classList.remove("stale");t.textContent="live";}else{d.classList.add("stale");t.textContent="offline";}}
+  function stamp(){$("updated").textContent="updated "+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+
+/* ---------------- render ---------------- */
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+  function fmtPhone(p){const d=String(p||"").replace(/\D/g,"");if(d.length===10)return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;if(d.length===11&&d[0]==="1")return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;return p||"";}
+  function fmtDate(s){if(!s)return "";const d=new Date(s);return isNaN(d)?String(s):d.toLocaleDateString([], {month:"short",day:"numeric"});}
+
+  function render(){
+    const wrap=$("wrap");
+    const visible=jobs.filter(j=>showDone||!isSubmitted(j));
+    const pending=jobs.filter(j=>!isSubmitted(j)).length;
+    $("pendingCount").textContent=pending;
+
+    if(!visible.length){
+      wrap.innerHTML=`<div class="empty">${jobs.length?"All caught up — nothing pending. 🐜":"No jobs ready for submission."}</div>`;
+      return;
+    }
+    // group by warranty company
+    const groups={};
+    visible.forEach(j=>{const w=warrantyOf(j);(groups[w]=groups[w]||[]).push(j);});
+    const names=Object.keys(groups).sort((a,b)=>{
+      const ia=WARRANTY_ORDER.indexOf(a),ib=WARRANTY_ORDER.indexOf(b);
+      return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b);
+    });
+
+    wrap.innerHTML=names.map(w=>{
+      const rows=groups[w].map(jobRow).join("");
+      const pend=groups[w].filter(j=>!isSubmitted(j)).length;
+      return `<div class="group">
+        <div class="group-head">
+          <span class="name">${esc(w)}</span>
+          <span class="badge">${pend} pending</span>
+          <span class="rule"></span>
+        </div>${rows}
+      </div>`;
+    }).join("");
+  }
+
+  function jobRow(j){
+    const k=jid(j), done=isSubmitted(j);
+    const cust=j.customer_name||j.customer||"Unnamed";
+    const tName=techName(j), phone=j.customer_phone||j.phone, loc=j.city||j.address;
+    const claim=j.claim_number||j.claim;
+    const tdr=j.tdr_completed_at||j.tdr_date;
+    const sub=[];
+    if(k!=null)   sub.push(`<span class="jid">#${esc(k)}</span>`);
+    if(claim)     sub.push(`<span class="jid">claim ${esc(claim)}</span>`);
+    if(phone)     sub.push(`<a href="tel:${esc(String(phone).replace(/\D/g,''))}">📞 ${esc(fmtPhone(phone))}</a>`);
+    if(loc)       sub.push(`<span>${esc(loc)}</span>`);
+    if(tName)     sub.push(`<span class="chip tech">🔧 ${esc(tName)}</span>`);
+    const when=tdr?`TDR ${esc(fmtDate(tdr))}`:"";
+    return `<div class="job ${done?'done':''}" data-k="${esc(k)}">
+      <div class="main">
+        <div class="cust">${esc(cust)}</div>
+        <div class="sub">${sub.join("")}</div>
+      </div>
+      ${when?`<span class="when">${when}</span>`:""}
+      <button class="btn ${done?'is-done':''}" onclick="toggleSubmit('${esc(k)}')">
+        ${done?"✓ Submitted — undo":"Mark submitted"}
+      </button>
+    </div>`;
+  }
+
+/* ---------------- submit toggle ---------------- */
+  window.toggleSubmit=async function(k){
+    const j=jobs.find(x=>String(jid(x))===String(k));
+    if(!j) return;
+    const next=!isSubmitted(j);
+    const btn=document.querySelector(`.job[data-k="${k}"] .btn`);
+    if(btn) btn.disabled=true;
+    localOverride[k]=next;       // optimistic
+    render();
+    try{
+      const r=await fetch(SUBMIT_ENDPOINT,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({job_id:isNaN(+k)?k:+k,submitted:next})
+      });
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      toast(next?"Marked submitted.":"Reverted.");
+    }catch(err){
+      toast("Saved locally but write failed: "+err.message,true);
+      // keep optimistic state on screen; it will reconcile on next successful poll
+    }
+  };
+
+/* ---------------- controls + loop ---------------- */
+  function start(){load();timer=setInterval(load,POLL_MS);}
+  $("showDone").addEventListener("change",e=>{showDone=e.target.checked;render();});
+  $("refreshBtn").addEventListener("click",load);
+  let toastTimer=null;
+  function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast show"+(err?" err":"");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.className="toast",4000);}
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){clearInterval(timer);}
+    else if(unlocked){load();timer=setInterval(load,POLL_MS);}
+  });
+</script>
+</body>
+</html>
