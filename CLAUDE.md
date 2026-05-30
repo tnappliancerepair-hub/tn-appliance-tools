@@ -1,5 +1,89 @@
 # Appliance Ant
 
+## 🌅 MORNING BRIEF — 2026-05-30 (Day 1-3 execution log)
+
+Three-day push to get the system durable enough for real customer traffic. Big wins, two unforced errors caught.
+
+### Day 1 (2026-05-29) — Infrastructure flipped on
+
+All 9 items from the Day 1 plan shipped and verified:
+
+| Item | Verified by |
+|---|---|
+| `jobs.parallel_mode` column added (bool, default false) | Metadata API schema confirms |
+| `jobs.intake_source` column | Already existed as text — kept as-is |
+| Danielle login | Working on her phone |
+| `OPENAI_API_KEY` in Netlify | embed-text returns `placeholder:false, model:text-embedding-3-small, 1536 dims` |
+| `HCP_PUSH_DISABLED=true` (Xano env) | hcp_sync flipped from populated → null on create_tdr probe |
+| `CUSTOMER_FACING_ENABLED=false` | Customer phone returns `gated:true`, owner phone passes |
+| `EMAIL_INTAKE_ENABLED=true` | Now-time email accepted via `create_job_from_email` |
+| `PARSER_ACTIVATION_TS_MS=1780145417935` | 24h-old email rejected with `error: email_pre_activation` |
+| Telnyx SMS routing | Code-dispatched via patched `tech-sms-inbound.js` (one webhook, branches on `parsed.to`) — see commit `8a84226` |
+| Telnyx voice routing | New Voice Application `2971272301628098069` with webhook → inbound-call-webhook.js; toll-free vanity numbers `888-268-8998` + `866-268-0111` assigned to it |
+
+Customer-facing pages confirmed reachable. Parallel-mode contract enforced (NO HCP writes, NO customer SMS, every TDR / email gated). Real customer leads can flow through the parallel pipeline from this point on.
+
+### Day 2 (2026-05-30 morning) — Closed-loop synthetic email caught two prod bugs
+
+Synthetic AHS email POST to `create_job_from_email` revealed:
+
+1. **`parallel_mode` column not being set on db.add** — endpoint comment said "parallel_mode=true (assumed)" but the actual write did not include it. Jobs landed invisible to Danielle's queue.
+2. **Side effects silently dropped after db.add jobs** — the event_log audit row and the Danielle SMS alert in the success path did not fire (verified by event_log window-scan: 0 entries within ±5s of job 18278's creation). Response still returned `success:true` with the new job_id. Root cause: nested `metadata: {…}` block + `headers = [] |push:"…"` pattern aborts the stack quietly, while the response block still returns. Dry-run path worked because it has a cleaner shape.
+3. **Queue endpoint relied on event_log substring scan** (because `parallel_mode` column did not exist when it was written). Plus a backtick wrap on line 63 and a stray ternary on line 101.
+
+Fixes in `docs/xano-schemas/agents/`:
+- `create_job_from_email_POST.xs` — sets `parallel_mode: true` + `intake_source` on the row, captures `$created_job_id` / `$created_customer_id` in plain vars BEFORE downstream writes (eliminates the evaluation-order trap), inlines headers list, simplified metadata blocks.
+- `list_needs_scheduled_parallel_GET.xs` — queries jobs by `parallel_mode == true` directly, removes the event_log scan + footguns.
+
+Both paste-ready. Closed-loop verification re-runs the moment Teddy pastes.
+
+### Day 3 — Durability + reach
+
+**Thread A — observability (shipped, see commit `87bb074`):**
+Three colony loop watchdog agents wired into tick.js cron:
+- `parallel_intake_watch` (hourly, business hours) — alerts if zero `parallel_job_created_from_email` events in the last 2 hours. Catches stuck AHS/SP Gmail pollers, OAuth expiry, rate limits.
+- `colony_loop_self_watch` (every 10 min) — alerts if colony_signal_emitted + signal_processed count < 5 in last 10 min. Catches "alive but stuck" — deadlocks, hung agents, lost Xano connection.
+- `xano_api_watch` (every 15 min) — probes `get_capacity_check_fired_today` with 5-sec timeout. Two consecutive failures → SMS. Catches Xano-side outages.
+
+Plus `marketing_site_watch` from earlier today (every 5 min) — probes the root + 3 surfaces with content + CSS-rule assertions. Catches regressions like the one below.
+
+All four use the same recovery pattern: alert action stored in event_log, 30-60 min dedup, recovery SMS when previously-failing surface comes back.
+
+**Thread B (parser refactors)** held until Day 2 paste lands — don't want real customer email volume hitting the buggy endpoint.
+
+### Two unforced errors caught (full root-cause + fix below)
+
+**P0 — Marketing site overlay** (fixed in commit `2d311d3`):
+Live since 2026-05-25 20:46. The warranty resume-chat overlay CSS declared `display: flex` with no `:not([hidden])` rule. The class selector beat the `[hidden]` HTML attribute → every clean URL hit (organic search, direct type, business card, marketing material) showed the stuck "Loading your repair info" overlay covering the marketing site. **5 days of broken customer acquisition.** Caught when a referred customer told Teddy's buddy she kept landing on the loading page. Fix: one CSS rule `.resume-overlay[hidden] { display: none !important; }`. Marketing watch agent now asserts the rule's presence — same regression would now alert within 5 min.
+
+**P1 — SMS storm: heartbeat write was logically dead** (fixed in commit `68d4406`):
+`tick.js` had `lastHeartbeat = now` in the OUTER if-block, not inside the inner block that actually writes the heartbeat. In production with constant traffic, the outer block fires every tick (because `processed > 0`), bumping `lastHeartbeat` even when no heartbeat wrote. The inner condition `now - lastHeartbeat > 5min` was therefore always false → `recordHeartbeat` never fired → healthcheck.js (correctly!) saw nothing newer than the last loop restart and SMS-paged Teddy every 30 min for 2 days. Fix: move `lastHeartbeat = now` INSIDE the inner block, after a successful `recordHeartbeat` call. Verified: heartbeat firing again at expected ~5 min cadence post-restart.
+
+### Office Kanban v1 shipped (commit `d46af9b`)
+
+`office-kanban.html` + paste-ready `get_office_kanban_GET.xs`. Five-column board (Needs Scheduled / Scheduled / In Progress / Awaiting Parts / Warranty Submission). Polls every 30s. Stale-card emphasis (orange >3d, red >7d). Cards flash green for 0.6s when they move between columns. Office-password gated. Goal: Danielle adoption — she watches automation move work across columns without anyone touching it. **Will not render data until Teddy pastes `get_office_kanban_GET.xs` into Xano UI.**
+
+### XS PASTE QUEUE (priority order)
+
+These all live in `docs/xano-schemas/agents/`. Footgun-clean (em-dashes / backticks / unwrapped filters / brace+paren balance all verified). Paste in Xano UI:
+
+1. **`create_job_from_email_POST.xs`** — REPLACE existing → unblocks Day 2 closed-loop test
+2. **`list_needs_scheduled_parallel_GET.xs`** — REPLACE existing → unblocks Danielle's queue
+3. **`get_office_kanban_GET.xs`** — CREATE new → unblocks Office Kanban page
+4. **`get_tdr_by_idempotency_key_GET.xs`** — CREATE new → enables client-side dedup for offline TDR sync
+5–11. The seven Colony 4 + Colony 10 agent-support endpoints from yesterday's session.
+
+### CRITICAL FOLLOW-UPS (operator action needed)
+
+| Item | Why | Owner |
+|---|---|---|
+| Paste 11 XS files above | Day 2/3 unblocking + dormant agents activate | Teddy via Xano UI |
+| 2-line `client_idempotency_key` add to restored create_tdr | Offline TDR sync idempotency | Teddy via Xano UI |
+| Audit GA analytics for the 5-day broken-landing window (2026-05-25 → 2026-05-30) | Quantify lost customer acquisition | Teddy + share dashboard or creds |
+| Watch event_log for first AHS / ServicePower poller deploy (Thread B) | Confirm real customer flow when producer refactors ship | Both |
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-05-28 (overnight consolidate-and-verify pass)
 
 Overnight ran consolidate-and-verify mode only (per directive). No new features started.
