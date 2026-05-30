@@ -1053,6 +1053,61 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // COLONY_LOOP_SELF_WATCH — every 10 min, 24/7. Confirms loop is not
+  // just alive but actually processing signals (counts event_log rows
+  // in last 10 min). Catches "alive but stuck" — deadlocks, hung
+  // agents, lost Xano connection.
+  {
+    const minuteCTs = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCTs) && (minuteCTs % 10) === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'COLONY_LOOP_SELF_WATCH',
+          signal_strength: 80,
+          payload: { now_ms: nowTs },
+        });
+      } catch (err) {
+        xano.logLocal('colony_loop_self_watch_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // XANO_API_WATCH — every 15 min, 24/7. Probes a cheap Xano endpoint
+  // with a 5-sec timeout. Alerts on two consecutive failures so a
+  // single flaky tick does not false-alarm.
+  {
+    const minuteCTx = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCTx) && (minuteCTx % 15) === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'XANO_API_WATCH',
+          signal_strength: 90,
+          payload: { now_ms: nowTs },
+        });
+      } catch (err) {
+        xano.logLocal('xano_api_watch_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // PARALLEL_INTAKE_WATCH — every hour during business hours (8am-9pm
+  // CT). Looks for parallel_job_created_from_email rows in the last 2
+  // hours. If zero, AHS/SP pollers may be stuck.
+  if (hour >= 8 && hour < 21) {
+    const minuteCTp = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCTp) && minuteCTp === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'PARALLEL_INTAKE_WATCH',
+          signal_strength: 75,
+          payload: { now_ms: nowTs },
+        });
+      } catch (err) {
+        xano.logLocal('parallel_intake_watch_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // ASSIGN_PARALLEL_TEST_JOBS — REMOVED per revised brief. Phase 1 has
   // NO auto-assignment. Danielle manually schedules every parallel job
   // through needs-scheduled.html. Agent file kept dormant in case Phase 2
