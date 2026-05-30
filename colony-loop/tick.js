@@ -71,6 +71,14 @@ export async function tick() {
       // Persist a heartbeat to Xano event_log so the standalone healthcheck
       // script can detect liveness independently of the loop's own process.
       // Throttled to once per HEARTBEAT_MS window (matches local log cadence).
+      //
+      // 2026-05-30 fix: lastHeartbeat = now used to be outside this if-block,
+      // which meant every tick with processed signals updated the timestamp
+      // even when no heartbeat was written. Result: inner condition was
+      // always false in active production, heartbeats stopped firing, and
+      // the healthcheck SMS-spammed Teddy for 2 days with stale event_id
+      // references. Assignment now lives INSIDE the inner block so it only
+      // moves forward when a heartbeat actually wrote.
       if (now - lastHeartbeat > HEARTBEAT_MS || lastHeartbeat === 0) {
         try {
           await xano.recordHeartbeat({
@@ -78,12 +86,11 @@ export async function tick() {
             uptime_ms: now - LOOP_STARTED_AT,
             signals_processed_in_window: processed,
           });
+          lastHeartbeat = now;
         } catch (err) {
           xano.logLocal('heartbeat_write_failed', { error: err.message });
         }
       }
-
-      lastHeartbeat = now;
     }
   } catch (err) {
     xano.logLocal('loop_error', {
