@@ -1001,23 +1001,26 @@ async function maybeEmitTimeSignals() {
   }
 
   // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
-  if (hour < 8 || hour >= 11) return;
-
-  let fired;
-  try {
-    fired = await xano.getDailyBriefingFiredToday(sinceMs);
-  } catch (err) {
-    xano.logLocal('daily_briefing_check_failed', { error: err.message });
-    return;
+  // 2026-05-30 fix: this block used to early-return when hour was outside
+  // the window, which silently dropped every emit added below it
+  // (TECH_ASSIST_LOOP_WATCH, the four 2026-05-30 watchdogs, etc). The
+  // gate is now an if-block so subsequent emits get a chance to run.
+  if (hour >= 8 && hour < 11) {
+    let dailyBriefingFired = null;
+    try {
+      dailyBriefingFired = await xano.getDailyBriefingFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_briefing_check_failed', { error: err.message });
+    }
+    if (dailyBriefingFired === null || !(dailyBriefingFired && dailyBriefingFired.fired)) {
+      await xano.emitSignal({
+        signal_type: 'DAILY_BRIEFING',
+        signal_strength: 80,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+      try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+    }
   }
-  if (fired && fired.fired) return;
-
-  await xano.emitSignal({
-    signal_type: 'DAILY_BRIEFING',
-    signal_strength: 80,
-    payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
-  });
-  try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
 
   // TECH_ASSIST_LOOP_WATCH — every 5 min during 7am-10pm CT. Detects
   // interrogation loops in the new SMS Tech Assist flow + auto-pauses
