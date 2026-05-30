@@ -119,7 +119,7 @@
    ================================================================ */
   const XANO_BASE = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
   const ENDPOINT  = XANO_BASE + "/get_tech_adoption";   // <-- confirm/replace
-  const OFFICE_PASS = "CHANGE_ME";                      // <-- set real passcode
+  const VERIFY_PW_ENDPOINT = XANO_BASE + "/verify_office_password"; // POST {password} — server checks $env.OFFICE_PASSWORD
   const POLL_MS   = 30000;
 
   // Active roster (drives the "all techs shown even at zero" view).
@@ -132,17 +132,41 @@
     6:{name:"John",  region:"Baton Rouge / Walker LA"},
   };
 
-/* ---------------- gate ---------------- */
+/* ---------------- gate (server-side verify, no client-side passcode) ---------------- */
   let unlocked=false; const $=(id)=>document.getElementById(id);
-  function tryUnlock(){
-    if($("pw").value.trim()===OFFICE_PASS){
-      unlocked=true;$("gate").style.display="none";
-      $("appHeader").style.display="flex";$("wrap").style.display="block";start();
-    }else{$("gateErr").textContent="Wrong passcode.";$("pw").value="";}
+  const SESSION_KEY="office_pw_ok_at";
+  const SESSION_TTL=1000*60*60*12;
+  function isUnlocked(){
+    const t=parseInt(localStorage.getItem(SESSION_KEY)||"0",10);
+    return t>0 && (Date.now()-t)<SESSION_TTL;
+  }
+  async function verifyPassword(pw){
+    try{
+      const r=await fetch(VERIFY_PW_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:pw}),signal:AbortSignal.timeout(10000)});
+      if(!r.ok) return {ok:false,msg:"Server error"};
+      const d=await r.json();
+      return {ok:!!d.success,msg:d.success?"":(d.error||"Wrong passcode")};
+    }catch(e){return {ok:false,msg:"Auth failed: "+(e.message||"unknown")};}
+  }
+  async function tryUnlock(){
+    const pw=$("pw").value.trim();
+    if(!pw) return;
+    $("gateBtn").disabled=true;$("gateBtn").textContent="Authenticating…";$("gateErr").textContent="";
+    try{
+      const r=await verifyPassword(pw);
+      if(r.ok){
+        unlocked=true;
+        localStorage.setItem(SESSION_KEY,String(Date.now()));
+        $("gate").style.display="none";
+        $("appHeader").style.display="flex";$("wrap").style.display="block";start();
+      }else{$("gateErr").textContent=r.msg||"Wrong passcode.";$("pw").value="";}
+    }finally{$("gateBtn").disabled=false;$("gateBtn").textContent="Unlock";}
   }
   $("gateBtn").addEventListener("click",tryUnlock);
   $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock();});
-  $("pw").focus();
+  if(isUnlocked()){
+    unlocked=true;$("gate").style.display="none";$("appHeader").style.display="flex";$("wrap").style.display="block";start();
+  }else{$("pw").focus();}
 
 /* ---------------- fetch + normalize ---------------- */
   let timer=null;
