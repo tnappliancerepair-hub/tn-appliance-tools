@@ -9,14 +9,14 @@
 // does not support cleanly.
 //
 // Schema corrections from the spec (verified 2026-05-30):
-//   * Source field is `technician_id`, NOT `tech_id`. The draft was wrong.
-//   * `last_message_at` is a stronger "last used" signal than `created_at`
+//   * Source field is technician_id, NOT tech_id. The draft was wrong.
+//   * last_message_at is a stronger "last used" signal than created_at
 //     because the session row is created once at session-start but the
 //     last_message_at is updated on every tech reply. Fall back to
-//     `created_at` if last_message_at is null.
-//   * `now` returns a datetime; needs `|to_ms` for arithmetic.
+//     created_at if last_message_at is null.
+//   * now returns a datetime; needs |to_ms for arithmetic.
 //
-// The response exposes `tech_id` (mapped from technician_id) to keep the
+// The response exposes tech_id (mapped from technician_id) to keep the
 // page's contract unchanged.
 //
 // XS rules: no em-dashes, no backticks, no try/catch, no raw if, every
