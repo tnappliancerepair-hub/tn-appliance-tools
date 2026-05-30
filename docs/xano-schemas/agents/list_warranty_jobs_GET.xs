@@ -152,7 +152,7 @@ query list_warranty_jobs verb=GET {
   response = {
     success: true
     count: ($items|count)
-    items: $items
+    jobs: $items
   }
 
   guid = "list-warranty-jobs-v1"
