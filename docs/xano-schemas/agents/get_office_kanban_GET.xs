@@ -35,8 +35,8 @@ query get_office_kanban verb=GET {
     }
 
     db.query jobs {
-      where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "scheduled" || $db.jobs.scheduling_status == "in_progress" || $db.jobs.scheduling_status == "awaiting_parts" || $db.jobs.scheduling_status == "held" || ($db.jobs.scheduling_status == "completed" && $db.jobs.updated_at >= $window_cutoff_ms)
-      sort = {jobs.updated_at: "desc"}
+      where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "scheduled" || $db.jobs.scheduling_status == "in_progress" || $db.jobs.scheduling_status == "awaiting_parts" || $db.jobs.scheduling_status == "held" || ($db.jobs.scheduling_status == "completed" && $db.jobs.job_completed_at >= $window_cutoff_ms)
+      sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 300}}
     } as $job_rows
 
@@ -79,7 +79,7 @@ query get_office_kanban verb=GET {
             technician_id: ($j.technician_id ?? null)
             service_city: (($j.service_city ?? "")|trim)
             service_zip: (($j.service_zip ?? "")|trim)
-            updated_at: ($j.updated_at ?? 0)
+            job_completed_at: ($j.job_completed_at ?? 0)
             created_at: ($j.created_at ?? 0)
           }
         }
