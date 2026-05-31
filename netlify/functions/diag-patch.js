@@ -10,24 +10,36 @@ exports.handler = async function (event) {
   const jobId = parseInt(qp.job_id || '0', 10);
   const op = qp.op || 'patch_minimal';
 
-  // op=list_tdrs — list recent TDR rows (tdr table is id 12)
+  // op=list_tdrs — paginate the whole TDR table and return newest by created_at
   if (op === 'list_tdrs') {
     try {
-      const r = await fetch(`${META_BASE}/table/12/content?page=1&per_page=20`, {
-        headers: { Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}` },
-      });
-      const body = await r.json();
-      const items = (body.items || []).slice(-20).map((t) => ({
-        id: t.id,
-        job_id: t.job_id,
-        technician_id: t.technician_id,
-        created_at: t.created_at,
-        diagnosis: (t.diagnosis || '').slice(0, 60),
-        failed_component: t.failed_component,
-        labor_time_hours: t.labor_time_hours,
-        repair_completed: (t.repair_completed || '').slice(0, 40),
-      }));
-      return jr(200, { ok: true, count: items.length, items });
+      const headers = { Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}` };
+      // Pull all pages
+      let all = [];
+      let page = 1;
+      while (page <= 10) {
+        const r = await fetch(`${META_BASE}/table/12/content?page=${page}&per_page=500`, { headers });
+        const body = await r.json();
+        const its = body.items || [];
+        if (!its.length) break;
+        all = all.concat(its);
+        if (its.length < 500) break;
+        page++;
+      }
+      const newest = all
+        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+        .slice(0, 30)
+        .map((t) => ({
+          id: t.id,
+          job_id: t.job_id,
+          technician_id: t.technician_id,
+          created_at: t.created_at,
+          diagnosis: (t.diagnosis || '').slice(0, 80),
+          failed_component: t.failed_component,
+          labor_time_hours: t.labor_time_hours,
+          repair_completed: (t.repair_completed || '').slice(0, 60),
+        }));
+      return jr(200, { ok: true, total_count: all.length, newest_count: newest.length, items: newest });
     } catch (e) {
       return jr(500, { ok: false, error: String(e.message || e) });
     }
