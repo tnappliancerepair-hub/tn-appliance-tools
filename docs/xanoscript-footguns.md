@@ -6,6 +6,117 @@ Companion to memory `[[reference_xanoscript_gotchas]]` (older parser-level catal
 
 ---
 
+## 🚨 Xano CLI workspace push silently no-ops on body updates (2026-05-30)
+
+**The single most expensive footgun yet — cost 4 hours yesterday.**
+
+`xano workspace push` (CLI v1.0.1, all modes — default partial, `--sync`, `--sync --force`, `--no-transaction`) reports `"Pushed N documents"` after a `200 OK` POST to `/api:meta/workspace/1/multidoc` — **but the `xanoscript` field is silently dropped server-side**. The metadata API's GET on the same endpoint shows the field as empty bytes. The live serving layer keeps cached bytecode from whatever the last UI paste was; CLI pushes literally do nothing to update behavior.
+
+**Symptoms:**
+- CLI reports `Pushed N documents to workspace 1 in X.Xs`
+- `xano workspace pull -b v1` shows old code in the local file
+- Live API behavior unchanged
+- `curl /api:meta/.../api/{id}` GET shows `xanoscript: ""`
+- Confirmed across 8+ push attempts on `verify_office_password`, `get_office_kanban`, `create_job_from_email`
+
+**The only working create/edit path is Xano UI paste.** CLI source code (`/opt/homebrew/lib/node_modules/@xano/cli/dist/utils/multidoc-push.js`) has no separate publish step — multidoc IS supposed to be the publish, but the server drops the body for reasons unknown.
+
+**Adjacent failure modes confirmed:**
+- Default partial mode (`xano workspace push --force`) → either "No changes to push" or "Pushed N" lie
+- `--sync --force` on a NEW endpoint → `400 "Missing valid API Group on query: X"` regardless of `api_group` string
+- `PUT /api:meta/workspace/1/apigroup/4/api/{id}` with `xanoscript` field → 200 OK, field dropped
+- Branch `-b live` → 404. Branch `-b v1` → "Pushed N" lie (v1 IS live, confirmed via `xano branch list`)
+
+**Workaround:** every XS change goes through Xano UI paste. Stage paste-ready files on Desktop, label them by sequence (`scheduler-1-*.txt` etc), have operator paste in REPLACE or CREATE mode.
+
+**Reproducer** (do NOT use for real updates):
+```bash
+xano workspace push --sync --force -i "**/<endpoint_name>*" --verbose 2>&1
+# Then verify the lie:
+mkdir -p /tmp/x && cd /tmp/x && xano workspace pull -b v1
+grep -c "<your-new-string>" /tmp/x/api/intake/<endpoint>.xs
+# Returns 0 even though CLI said "Pushed 1 documents"
+```
+
+---
+
+## 🚨 Xano UI strips `db.add <tablename>` when target table doesn't exist at paste time (2026-05-30)
+
+When you paste XS with `db.add office_session { data = {...} }` into the Xano UI **before** the `office_session` table exists in the workspace, the UI's reference-resolver silently rewrites it to `db.add "" { data = {...} }`. The endpoint saves successfully, but at runtime fails with `ERROR_FATAL "Invalid name: mvpw1:0"` (empty table name lookup).
+
+**Symptom:** endpoint returns HTTP 500 `{"code":"ERROR_FATAL","message":"Invalid name: mvpw1:0"}`. Pulling the source shows `db.add ""` where you pasted `db.add office_session`.
+
+**Why this is sneaky:** the UI doesn't warn you. The save succeeds. The error only surfaces at runtime when someone actually calls the endpoint. By then the original paste is gone.
+
+**Fix:** create the table FIRST (via Metadata API or UI), THEN paste the XS that references it. Order matters. The Metadata API table-create path works fine:
+```bash
+curl -X POST "https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1/table" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"office_session","auth":false,"tag":[]}'
+```
+Then add columns via `/schema/type/{type}`. Then paste the XS.
+
+**Repaste-safe:** if you've already pasted into the broken state, create the table, re-pull source, re-paste the same content — the resolver will now find the table and `db.add ""` becomes `db.add office_session` again.
+
+---
+
+## 🚨 Worker null-job-PK throw — scheduling_queue_worker leaves rows stuck at "processing" (2026-05-30)
+
+**The bug:** at the top of `scheduling_queue_worker.xs` foreach (line 39+), the worker does:
+```
+db.edit scheduling_queue { ... data = {status: "processing"} } as $claimed
+
+conditional {
+  if ($row.job_id != null) {
+    db.get jobs {
+      field_name = "id"
+      field_value = $row.job_id
+    } as $job_fetched
+    var.update $job { value = $job_fetched }
+  }
+}
+
+// ... later, dispatch branches read $job.parts_status, $job.cluster, etc.
+```
+
+The null-guard at `if ($row.job_id != null)` only checks if the **input ID** is null. If `$row.job_id = 9999999` (or any non-existent ID), `db.get` returns null, `$job` is null, then a later branch reads `$job.parts_status` → throws → foreach dies mid-iteration → row stays at `status="processing"` forever (next tick's pending-rows query excludes processing).
+
+**Reproduced 2026-05-30:** liveness probe inserted row with `job_id=9999999, action_type=broadcast`. Worker grabbed it within 65s. Status stuck at `processing`. Manual delete required.
+
+**Proposed fix** (REVIEW BEFORE PASTE — touches 1454-line file, 7 dispatch branches each reading `$job`):
+
+After the existing `$job` population block (~line 62), insert an orphan-detection block:
+```
+var $is_orphan_dispatch {
+  value = ($row.action_type != "sick_day_cascade" && $row.job_id != null && $job == null)
+}
+
+conditional {
+  if ($is_orphan_dispatch) {
+    var.update $result_notes {
+      value = "ORPHAN: queue references missing job_id=" ~ ($row.job_id|to_text)
+    }
+    var.update $final_status {
+      value = "failed"
+    }
+    db.add event_log {
+      data = {
+        action: "scheduling_queue_orphan_job_skipped"
+        metadata: ("{\"queue_id\":" ~ ($row.id|to_text) ~ ",\"job_id\":" ~ ($row.job_id|to_text) ~ ",\"action_type\":\"" ~ $row.action_type ~ "\"}")
+      }
+    } as $orphan_log
+  }
+}
+```
+
+Then add `&& $is_orphan_dispatch == false` to the entry condition of each of the 7 dispatch branches (`if ($row.action_type == "broadcast" && $is_orphan_dispatch == false)`, etc.) so they skip cleanly on orphan.
+
+The `sick_day_cascade` exclusion is critical — that action_type legitimately uses null job_id (operates on tech_id from metadata).
+
+**Why we haven't shipped the fix yet:** 7 dispatch branches × 1 condition each + 1 insertion = 8 surgical edits across a 1454-line file. Operator should review the proposed change in-person before paste rather than relying on overnight automation to get it right. Catalogued here for next session's first action.
+
+---
+
 ## ai.agent.run result accessor — `.result`, not `.response`
 
 **Pattern:**

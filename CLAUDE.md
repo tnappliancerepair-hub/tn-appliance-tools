@@ -1,5 +1,100 @@
 # Appliance Ant
 
+## 🌅 MORNING BRIEF — 2026-05-31 (Day 4 — operating path reset)
+
+Yesterday burned 4 hours on an auth gate side-quest that ultimately got abandoned. Lesson logged. The real story is that the **scheduler is built but dormant in production** — confirmed by direct query. **One paste wakes it up.** Today's focus: flip the operating system on for real customer traffic.
+
+### State at start of today
+
+**On your Desktop (paste cards ready, both REPLACE existing endpoints):**
+
+| Card | File | Endpoint | Change |
+|---|---|---|---|
+| 1 | `~/Desktop/xano-paste/scheduler-1-create_job_from_email.txt` | `create_job_from_email` (id 582) | Adds 53-line auto-enqueue block. Web-chat-warranty jobs (and AHS/SP once pollers repoint) flow into `scheduling_queue` with `action_type=broadcast`. Skips SquareTrade (already pre-scheduled). |
+| 2 | `~/Desktop/xano-paste/scheduler-2-ahs_email_intake.txt` | `ahs_email_intake` (id 399) | **One-line change**: `action_type: "propose"` → `action_type: "broadcast"`. Removes you from PICK1/2/3 loop on AHS jobs. |
+
+**ServicePower intake intentionally not touched** — SP jobs come pre-scheduled from the dispatch email with `scheduled_start` already populated. They flow through APPOINTMENT_SCHEDULED chain directly without needing the queue.
+
+**Other env state:**
+- `CUSTOMER_FACING_ENABLED=false` (per your directive — stays that way until after dry-run)
+- `SCHEDULING_QUEUE_ENABLED=true` (confirmed by liveness probe — worker IS running)
+- All other env vars unchanged from yesterday morning
+
+### Dry-run plan after pasting (your call: A or B)
+
+**Test A — wire-only, zero tech disturbance**. Synthetic job with bogus zip (no cluster match). Broadcast handler hits "no cluster found" branch → fires one owner alert to your phone → exits clean. Proves intake → enqueue → worker → handler chain without spamming techs.
+
+**Test B — full chain**. Synthetic job with real TN Metro zip (37013). Broadcast SMS goes to qualified cluster techs (Teddy + Jimmy + Lee). You text the guys first ("test broadcast in next 30 min, ignore"). You receive the broadcast on your phone, text YES to claim, watch the full booking chain fire. Customer SMS gates correctly (CUSTOMER_FACING_ENABLED=false drops the fake-customer message).
+
+After dry-run passes → flip `CUSTOMER_FACING_ENABLED=true` and the system is operating for real.
+
+### Yesterday's diagnostic findings (worth keeping in head)
+
+**Scheduler effectively dormant in production:**
+- `scheduling_queue`: only 2 rows in 7 days, both from the May 25 smoke-test job 18096
+- `broadcast_attempt`: 1 row all-time, expired with no taker
+- Zero scheduling-related event_log actions in last 7 days
+- Cause: `create_job_from_email` (the parallel intake path) doesn't enqueue. Every parallel-mode AHS/SP/Allstate job since May 27 has been at `not_ready` waiting on Danielle's manual queue.
+
+**Worker IS alive — confirmed by liveness probe:**
+- Inserted fake-job-id row into scheduling_queue. Worker grabbed it within 65s (`pending` → `processing`).
+- Got stuck at `processing` because of the null-job-PK footgun (db.get with bad job_id throws, foreach dies mid-iteration). Probe row cleaned up. **Recommended hardening fix documented in `docs/xanoscript-footguns.md`** for review before production gets a real orphan.
+
+**Production health (end of 2026-05-30):**
+- Loop heartbeat: fresh (2.4 min ago)
+- Stuck queue rows: zero
+- Error-shaped actions in 24h: zero
+- ~2000 event_log audit rows in 24h, healthy throughput
+- All scheduled agents firing: appointment_reminder (112), waiver_due (111), pre_appointment_check (96), upsell_due (65), pre_job_intelligence (8), customer_intel (3)
+- 4 watchdogs firing as designed (audit count low because they only log on alert/action, not clean probes)
+
+### The auth side-quest — abandoned, NOT to be revived this week
+
+Spent ~4 hours yesterday trying to gate office data endpoints behind a session token / shared key. Pulled along these dead ends:
+1. Xano-native JWT (would have needed a stub office_user table)
+2. Path B opaque DB-backed session token (tables created via Metadata API, but `db.add office_session` got UI-rewritten to `db.add ""` when Teddy pasted — table didn't exist at paste time)
+3. Path B v3/v4 with HMAC-SHA256 / SHA256 sandwich — paste didn't take, then took then errored, then 4 hours later we found the CLI workspace push silently no-ops on body updates so we couldn't iterate
+4. Simple shared-key (`?key=` query string) — would have worked but Teddy correctly cut the cord: "too much friction for the value right now"
+
+**Resolution**: customer PII endpoints stay open behind page-passcode UX only. Real auth waits for SaaS multi-tenant phase. Pages stay at their `acf51d5` last-clean state (server-side `verify_office_password` calls, 12h localStorage cache). All experimental code reverted.
+
+### Office Manager Autopilot — major future project, saved to memory
+
+Discussed last night, saved to `~/.claude/projects/-Users-tpivacek-tn-appliance-tools/memory/project_secret_autopilot_plan.md`. Teddy will develop the design over the next week (2026-05-30 → 2026-06-06) before greenlighting build. Not in any user-facing artifact. Stays between Teddy and Claude only. Future sessions read the memory file, do not surface the trust-test dimension anywhere, do not start building until explicit greenlight.
+
+Visible-side architecture decision locked in: button-only UI surface, no AI chat for the office manager. Background colony-loop agents trained on observed action patterns. Separate operator-only verification dashboard for Teddy with three views (usage truth, performance truth, narrative gap detector).
+
+### Tier 1 / 2 / 3 — the operating-path picture
+
+**Tier 1 (today, ~10 min of clicks) — gets system OPERATING:**
+1. Paste scheduler-1 → web-chat-warranty auto-broadcasts (no operator loop)
+2. Paste scheduler-2 → AHS auto-broadcasts (no operator loop)
+3. Run dry-run (A or B)
+4. Flip `CUSTOMER_FACING_ENABLED=true`
+
+**Tier 2 (this week, ~3-4 hours) — closing remaining loops:**
+- Worker null-job-PK hardening (paste card to write — see footgun catalog for proposed code)
+- Repoint Gmail pollers (`ahs-gmail-poller.js`, `servicepower-gmail-poller.js`) to POST to `create_job_from_email` instead of legacy intakes. Cleaner single-pipeline.
+- Wire Vapi vanity numbers (888-268-8998 + 866-268-0111) — owned but unrouted
+- Server-side TDR completeness gate verification
+
+**Tier 3 (later, not blocking):**
+- Mac Mini DR (single point of failure today)
+- Stripe SaaS billing (waiting on per-tenant signup)
+- Vector store backfill (`backfill-embeddings.js` after OPENAI_API_KEY was set on Day 1)
+- HCP Saturday cutover (only prereq: office calendar write-back, done)
+
+### What NOT to do today
+
+- **DO NOT** attempt CLI workspace push for any XS body update. Confirmed yesterday: reports success, silently drops xanoscript field. UI paste is the only working path.
+- **DO NOT** push office page changes until dry-run passes — held for your approval (instruction still standing from yesterday).
+- **DO NOT** reopen the auth-gate work this week. Customer SaaS phase only.
+- **DO NOT** start building the autopilot until explicit greenlight from Teddy. Saved memory has the plan; conversation-driven evolution this week.
+- **DO NOT** touch SP intake (it doesn't enqueue, doesn't need to).
+- **DO NOT** repoint Gmail pollers before scheduler-1 is pasted — would temporarily break the AHS path (legacy intakes enqueue; create_job_from_email doesn't until paste lands).
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-05-30 (Day 1-3 execution log)
 
 Three-day push to get the system durable enough for real customer traffic. Big wins, two unforced errors caught.
