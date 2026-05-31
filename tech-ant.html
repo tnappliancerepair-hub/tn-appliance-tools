@@ -374,9 +374,47 @@
   </div>
 </div>
 
-<button class="submit-banner" id="submit-banner" onclick="submitTDR()">
+<button class="submit-banner" id="submit-banner" onclick="openCompletionChoice()">
   ✅ Ready to Submit TDR — Tap to Finalize
 </button>
+
+<!-- 2026-06-01: 4-button completion selector overlay. Replaces the prior
+     hardcoded-to-repair_complete submit. Each button maps to a completion_type
+     that tech_job_complete uses to set jobs.scheduling_status, routing the
+     job into the correct office bucket (Needs Invoiced / Needs Parts / Held /
+     No Fix Possible). -->
+<div id="completion-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:24px;max-width:480px;width:100%;color:#f5f5f5">
+    <h3 style="margin:0 0 6px;font-size:18px">How did this job finish?</h3>
+    <p style="margin:0 0 18px;color:#888;font-size:13px">Pick one. Submits the TDR and routes the job to the right office bucket.</p>
+    <button class="cbtn" data-ct="repair_complete" onclick="finalizeWithCompletion('repair_complete')">
+      ✅ Repair Complete — Ready to Bill
+    </button>
+    <button class="cbtn" data-ct="parts_needed" onclick="finalizeWithCompletion('parts_needed')">
+      📦 Need to Order Parts — Coming Back
+    </button>
+    <button class="cbtn" data-ct="warranty_auth_needed" onclick="finalizeWithCompletion('warranty_auth_needed')">
+      ⏳ Waiting on Warranty Authorization
+    </button>
+    <button class="cbtn" data-ct="no_repair" onclick="finalizeWithCompletion('no_repair')">
+      ❌ Cannot Repair — Recommend Replace
+    </button>
+    <button class="cbtn cbtn-cancel" onclick="closeCompletionChoice()">Cancel</button>
+  </div>
+</div>
+<style>
+  #completion-overlay { display:none }
+  #completion-overlay.show { display:flex }
+  .cbtn { display:block; width:100%; padding:14px 16px; margin:8px 0; font-size:15px;
+    background:#2a2a2a; color:#f5f5f5; border:1px solid #444; border-radius:8px;
+    cursor:pointer; text-align:left; transition:background .15s }
+  .cbtn:hover { background:#383838 }
+  .cbtn[data-ct="repair_complete"] { border-color:#3a7d3a; }
+  .cbtn[data-ct="parts_needed"] { border-color:#7d6e3a; }
+  .cbtn[data-ct="warranty_auth_needed"] { border-color:#3a5d7d; }
+  .cbtn[data-ct="no_repair"] { border-color:#7d3a3a; }
+  .cbtn-cancel { margin-top:14px; background:transparent; border-color:#555; color:#888; }
+</style>
 
 <div class="quick-actions" id="quick-actions"></div>
 
@@ -712,16 +750,41 @@ function showQuickActions() {
   qa.classList.add('show');
 }
 
-async function submitTDR() {
+// 2026-06-01: replaces the prior submitTDR() which always defaulted to
+// repair_complete. The new flow:
+//   1. Tap submit banner -> opens completion-overlay (4 buttons)
+//   2. Tech picks one -> finalizeWithCompletion(ct) runs
+//      a. create_tdr (TDR row, HCP note, Danielle SMS)
+//      b. tech_job_complete (sets jobs.scheduling_status based on ct,
+//         which is what routes the job into the correct office bucket)
+function openCompletionChoice() {
   if (isSubmitting) return;
+  document.getElementById('completion-overlay').classList.add('show');
+}
+function closeCompletionChoice() {
+  document.getElementById('completion-overlay').classList.remove('show');
+}
+
+const COMPLETION_LABEL = {
+  repair_complete: 'Repair Complete',
+  parts_needed: 'Parts Needed',
+  warranty_auth_needed: 'Awaiting Warranty Auth',
+  no_repair: 'No Repair Possible'
+};
+
+async function finalizeWithCompletion(completionType) {
+  if (isSubmitting) return;
+  if (!COMPLETION_LABEL[completionType]) return;
   isSubmitting = true;
 
+  closeCompletionChoice();
   const banner = document.getElementById('submit-banner');
   banner.disabled = true;
-  banner.textContent = '⏳ Submitting TDR...';
+  banner.textContent = `⏳ Submitting (${COMPLETION_LABEL[completionType]})...`;
 
   try {
-    const payload = {
+    // STEP 1 — create_tdr (existing path)
+    const tdrPayload = {
       job_id: parseInt(JOB_ID, 10),
       technician_id: parseInt(TECH_ID, 10),
       problem_summary: collectedData.symptom || collectedData.problem_summary || '',
@@ -734,23 +797,50 @@ async function submitTDR() {
       technician_notes: collectedData.tech_notes || '',
       tech_ant_session_id: SESSION_ID,
       status: 'submitted',
+      repair_completed: completionType === 'repair_complete' ? 'completed' : 'not_completed',
+      repair_not_completed_reason: completionType === 'repair_complete' ? '' : COMPLETION_LABEL[completionType],
       report_date: new Date().toISOString()
     };
 
-    const res = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
+    const tdrRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: 'create_tdr', payload })
+      body: JSON.stringify({ endpoint: 'create_tdr', payload: tdrPayload })
     });
+    const tdrData = await tdrRes.json();
+    if (!tdrData || !tdrData.tdr || !tdrData.tdr.id) {
+      throw new Error('TDR submission failed: ' + JSON.stringify(tdrData).slice(0, 150));
+    }
 
-    const data = await res.json();
+    // STEP 2 — tech_job_complete: routes the job into the right office bucket
+    //   completion_type -> jobs.scheduling_status mapping (in the endpoint):
+    //     repair_complete       -> "completed"        (Needs Invoiced bucket)
+    //     parts_needed          -> "awaiting_parts"   (Needs Parts bucket)
+    //     warranty_auth_needed  -> "held"             (Held bucket)
+    //     no_repair             -> "no_fix_possible"  (No Fix Possible bucket)
+    const completePayload = {
+      job_id: parseInt(JOB_ID, 10),
+      technician_id: parseInt(TECH_ID, 10),
+      completion_type: completionType,
+      tdr_id: tdrData.tdr.id
+    };
+    const completeRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'tech_job_complete', payload: completePayload })
+    });
+    const completeData = await completeRes.json();
 
-    if (data && data.tdr && data.tdr.id) {
-      addSystem('success', `✅ TDR #${data.tdr.id} submitted! You can close this and continue in HCP.`);
-      banner.textContent = `✅ TDR Submitted #${data.tdr.id}`;
+    if (completeData && completeData.success) {
+      addSystem('success', `✅ TDR #${tdrData.tdr.id} submitted. Job routed: ${COMPLETION_LABEL[completionType]}.`);
+      banner.textContent = `✅ Submitted #${tdrData.tdr.id} — ${COMPLETION_LABEL[completionType]}`;
       banner.onclick = null;
     } else {
-      throw new Error('TDR submission failed: ' + JSON.stringify(data).slice(0, 150));
+      // TDR was written but routing failed — surface so the office knows
+      addSystem('error', `⚠️ TDR saved but routing failed: ${JSON.stringify(completeData).slice(0,150)}`);
+      banner.textContent = `⚠️ Partial: TDR saved, route failed`;
+      banner.disabled = false;
+      isSubmitting = false;
     }
   } catch (err) {
     addSystem('error', '⚠️ Submit failed: ' + err.message);
@@ -759,6 +849,9 @@ async function submitTDR() {
     isSubmitting = false;
   }
 }
+
+// Backward-compat alias in case anything else calls submitTDR()
+async function submitTDR() { openCompletionChoice(); }
 
 function setupSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

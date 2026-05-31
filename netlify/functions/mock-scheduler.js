@@ -3,14 +3,19 @@
 // MOCK_MODE: never writes to jobs.scheduling_status, never sends SMS, never touches
 // live appointments. Writes plan to mock_assignment table + summary event_log row.
 //
+// APPLY MODE (?apply=true): writes plan to LIVE jobs table — sets technician_id,
+// scheduled_start, scheduled_end, scheduling_status="scheduled". Also deletes any
+// auto-enqueued scheduling_queue rows for those job_ids so the PICK1/2/3 SMS
+// pathway doesn't fire. Customer SMS still gated by server-side CUSTOMER_FACING_ENABLED.
+//
 // Request: GET /.netlify/functions/mock-scheduler?limit=30&dry_run=true
-//   limit:    int, default 30, max 500 (cap to keep runs fast + board readable)
-//   dry_run:  if true, returns the plan without writing to Xano (default false)
+//   limit:    int, default 30, max 500
+//   dry_run:  if true, returns the plan without writing anything (default false)
+//   apply:    if true, write to LIVE jobs table; overrides dry_run (default false)
+//   day_offset: int (default 1), days ahead from today to schedule (1 = tomorrow)
 //   run_id:   optional; auto-generated as `mock_<ms>` if absent
 //
 // Response: { ok, run_id, summary:{...}, by_tech:{...}, unrouted:[...], mock_sms:[...] }
-//   Mirrors the engine.js scheduleAll() output shape so the existing mockup
-//   board UI can render it directly.
 
 const XANO_INTAKE_BASE = process.env.XANO_INTAKE_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const XANO_META_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -257,12 +262,30 @@ exports.handler = async function (event) {
   const qp = event.queryStringParameters || {};
   const limit = Math.min(parseInt(qp.limit || '30', 10), 500);
   const dryRun = qp.dry_run === 'true' || qp.dry_run === '1';
+  const apply = qp.apply === 'true' || qp.apply === '1';
+  const testRunId = (qp.test_run_id || '').trim();
   const runId = qp.run_id || `mock_${startedAt}`;
+  // dayOffset = how many days ahead from today (in CT) to schedule.
+  // 1 = tomorrow (default). 0 = today. Used as the BASE day for flexible (AHS/self-pay)
+  // jobs; SquareTrade jobs honor their own committed scheduled_start date.
+  const dayOffset = parseInt(qp.day_offset || '1', 10);
 
-  if (process.env.MOCK_MODE !== 'true' && qp.force_mock !== '1') {
+  if (process.env.MOCK_MODE !== 'true' && qp.force_mock !== '1' && !apply) {
     return json(403, {
       ok: false,
-      error: 'MOCK_MODE env var must be true (or pass ?force_mock=1)',
+      error: 'MOCK_MODE env var must be true (or pass ?force_mock=1, or ?apply=true)',
+    });
+  }
+  if (apply && qp.confirm_apply !== '1') {
+    return json(400, {
+      ok: false,
+      error: 'apply=true requires confirm_apply=1 (safety gate to prevent accidental live writes)',
+    });
+  }
+  if (apply && !testRunId) {
+    return json(400, {
+      ok: false,
+      error: 'apply=true requires test_run_id (safety gate — would scoop legacy/non-test jobs otherwise)',
     });
   }
   if (!process.env.XANO_METADATA_TOKEN) {
@@ -318,25 +341,42 @@ exports.handler = async function (event) {
       };
     }
 
-    // 5) Load jobs — flexible + anchor candidates only.
-    // Pre-filter to ROUTABLE rows (have a zip that maps to a cluster OR a city in TOWNS)
-    // so the sample we display is interesting, not 30 empties.
+    // 5) Compute the TARGET DATE for this scheduler run (today + dayOffset, CT).
+    // Flexible jobs go on this date; SquareTrade anchors only included if their
+    // committed scheduled_start lands on this same date.
+    const targetDateMs = ctMidnightMsForOffsetDays(dayOffset);
+    const targetDateYmd = formatYmdCT(targetDateMs);
+    const targetDateEndMs = targetDateMs + 24 * 60 * 60 * 1000;
+
+    // 5b) Load jobs and filter:
+    // - flexibles: scheduling_status in (needs_scheduled, not_ready, prediagnosis_pending)
+    //              AND no scheduled_start AND routable.
+    // - anchors:   SquareTrade AND scheduled_start lands inside the target date.
+    // Optional test_run_id scope: when set, restrict to jobs tagged with that run_id.
     const allJobs = await loadAllPages(TABLES.jobs, 2000);
     const isRoutable = (r) => {
       const zip = (r.service_zip || '').trim();
       const city = (r.service_city || '').trim();
       return (zip && zipToCluster[zip]) || (city && TOWNS[city]);
     };
+    const matchesTestScope = (r) => !testRunId || (r.test_run_id || '') === testRunId;
+
     const flexible = allJobs.filter(
       (r) =>
         ['needs_scheduled', 'not_ready', 'prediagnosis_pending'].includes(
           r.scheduling_status || '',
         ) &&
         !r.scheduled_start &&
-        isRoutable(r),
+        isRoutable(r) &&
+        matchesTestScope(r),
     );
     const anchors = allJobs.filter(
-      (r) => r.warranty_company === 'SquareTrade' && r.scheduled_start && isRoutable(r),
+      (r) =>
+        r.warranty_company === 'SquareTrade' &&
+        r.scheduled_start &&
+        (r.scheduled_start >= targetDateMs && r.scheduled_start < targetDateEndMs) &&
+        isRoutable(r) &&
+        matchesTestScope(r),
     );
 
     // 6) Cap to limit (flexibles first, then anchors always included).
@@ -521,12 +561,39 @@ exports.handler = async function (event) {
       }
     }
 
+    // 10c) APPLY MODE — write to live jobs + clear propose queue
+    let applyResult = null;
+    if (apply) {
+      applyResult = await applyPlanToLiveJobs({
+        result,
+        targetDateMs,
+        testRunId,
+      });
+      // Audit log for the apply write
+      try {
+        await metaPost(`/table/${TABLES.event_log}/content`, {
+          action: 'mock_scheduler_apply',
+          metadata: JSON.stringify({
+            run_id: runId,
+            test_run_id: testRunId || null,
+            target_date: targetDateYmd,
+            jobs_patched: applyResult.jobs.ok,
+            jobs_failed: applyResult.jobs.failed,
+            queue_rows_deleted: applyResult.scheduling_queue.ok,
+          }),
+        });
+      } catch (_e) {}
+    }
+
     // 11) Build response — shape mirrors mockup engine.js output for direct UI render
     const elapsed = Date.now() - startedAt;
     const responsePayload = {
       ok: true,
       run_id: runId,
       dry_run: dryRun,
+      apply,
+      target_date: targetDateYmd,
+      test_run_id: testRunId || null,
       summary: {
         elapsed_ms: elapsed,
         total_jobs_in: jobs.length,
@@ -538,11 +605,15 @@ exports.handler = async function (event) {
         customer_notifications_suppressed: custSuppressed,
         plan_rows_written: writeOps.filter((w) => w.ok && w.kind === 'plan_row').length,
         plan_rows_failed: writeOps.filter((w) => !w.ok && w.kind === 'plan_row').length,
+        applied_jobs_patched: applyResult ? applyResult.jobs.ok : 0,
+        applied_jobs_failed: applyResult ? applyResult.jobs.failed : 0,
+        applied_queue_rows_deleted: applyResult ? applyResult.scheduling_queue.ok : 0,
         limit_applied: limit,
       },
       result: serializeResult(result),
       unrouted,
       mock_sms: mockSms,
+      apply_result: applyResult,
     };
     return json(200, responsePayload);
   } catch (e) {
@@ -592,6 +663,141 @@ function serializeResult(result) {
     };
   }
   return out;
+}
+
+// CT date helpers. CT = UTC-5 (CDT) most of the year.
+const CT_OFFSET_HOURS = 5;
+function ctMidnightMsForOffsetDays(offsetDays) {
+  // Today's date in CT, plus offsetDays days, at 00:00:00 CT, returned as UTC ms.
+  const nowUtcMs = Date.now();
+  const ctNowMs = nowUtcMs - CT_OFFSET_HOURS * 60 * 60 * 1000;
+  const ctDay = Math.floor(ctNowMs / (24 * 60 * 60 * 1000));
+  const targetCtDay = ctDay + offsetDays;
+  const targetCtMidnightMs = targetCtDay * 24 * 60 * 60 * 1000;
+  return targetCtMidnightMs + CT_OFFSET_HOURS * 60 * 60 * 1000;
+}
+function formatYmdCT(utcMs) {
+  const ctMs = utcMs - CT_OFFSET_HOURS * 60 * 60 * 1000;
+  const d = new Date(ctMs);
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const da = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+// Compute the actual UTC ms timestamp for a stop given the target date and minute offset.
+function stopTimestampMs(targetDateMs, minuteOffset) {
+  return targetDateMs + minuteOffset * 60 * 1000;
+}
+
+// APPLY MODE: writes the plan to the live jobs table.
+// For each placed (non-overflow) stop, PATCH the job with:
+//   technician_id, scheduled_start, scheduled_end, scheduling_status="scheduled"
+// Then bulk-delete pending propose rows from scheduling_queue for these job_ids
+// so the existing PICK1/2/3 SMS path doesn't fire on already-scheduled jobs.
+//
+// Caller responsibility: only call this when apply=true && confirm_apply=1.
+async function applyPlanToLiveJobs({ result, targetDateMs, testRunId }) {
+  const writes = { ok: 0, failed: 0, errors: [] };
+  const placedJobIds = [];
+
+  // Per-stop PATCH (parallel, capped concurrency)
+  const stops = [];
+  for (const tid of Object.keys(result)) {
+    const r = result[tid];
+    if (!r.eval.feasible) continue;
+    for (const s of r.eval.stops) {
+      stops.push({ stop: s, tech_id: parseInt(tid, 10) });
+    }
+  }
+
+  const concurrency = 8;
+  let idx = 0;
+  const writeOne = async () => {
+    while (idx < stops.length) {
+      const i = idx++;
+      const { stop, tech_id } = stops[i];
+      const startMs = stopTimestampMs(targetDateMs, stop.start);
+      const endMs = stopTimestampMs(targetDateMs, stop.end);
+      const patch = {
+        technician_id: tech_id,
+        scheduled_start: startMs,
+        scheduled_end: endMs,
+        scheduling_status: 'scheduled',
+      };
+      // Only set test_run_id if provided AND the column exists; safe to include — Xano
+      // will ignore unknown fields on PATCH per past behavior. (Confirmed via parallel_mode.)
+      if (testRunId) patch.test_run_id = testRunId;
+
+      try {
+        const r = await fetch(
+          `${XANO_META_BASE}/table/${TABLES.jobs}/content/${stop.job.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(patch),
+          },
+        );
+        if (!r.ok) {
+          const t = await r.text();
+          writes.failed++;
+          writes.errors.push({ job_id: stop.job.id, status: r.status, body: t.slice(0, 200) });
+        } else {
+          writes.ok++;
+          placedJobIds.push(stop.job.id);
+        }
+      } catch (e) {
+        writes.failed++;
+        writes.errors.push({ job_id: stop.job.id, err: String(e.message || e) });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, writeOne));
+
+  // Silence existing PICK1/2/3 SMS path: delete scheduling_queue propose rows for
+  // these job_ids. The queue worker would otherwise SMS Teddy with options.
+  const queueDeletes = { ok: 0, failed: 0 };
+  if (placedJobIds.length) {
+    try {
+      const qData = await metaGet(
+        `/table/${TABLES.scheduling_queue}/content?page=1&per_page=2000`,
+      );
+      const matchingRows = (qData.items || []).filter(
+        (r) =>
+          placedJobIds.includes(r.job_id) &&
+          (r.action_type === 'propose' || r.action_type === 'broadcast') &&
+          r.status === 'pending',
+      );
+      let qi = 0;
+      const qDeleteOne = async () => {
+        while (qi < matchingRows.length) {
+          const j = qi++;
+          try {
+            const r = await fetch(
+              `${XANO_META_BASE}/table/${TABLES.scheduling_queue}/content/${matchingRows[j].id}`,
+              {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}` },
+              },
+            );
+            if (r.ok) queueDeletes.ok++;
+            else queueDeletes.failed++;
+          } catch (_e) {
+            queueDeletes.failed++;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: 6 }, qDeleteOne));
+    } catch (e) {
+      queueDeletes.failed = -1;
+      queueDeletes.error = String(e.message || e);
+    }
+  }
+
+  return { jobs: writes, scheduling_queue: queueDeletes, placed_job_ids: placedJobIds };
 }
 
 function fmtMin(m) {

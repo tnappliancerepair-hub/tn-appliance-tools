@@ -343,14 +343,22 @@ async function __verifyOfficePassword(pw) {
   }
 }
 
+// 2026-06-01: tab filter values now match the actual scheduling_status enum.
+// Previously these filtered on values like 'awaiting_completion', 'parts_ordered',
+// 'complete', 'submitted', 'pending_auth' — none of which exist in the enum,
+// so 5 of 7 tabs returned empty in production. Real enum:
+//   pending, awaiting_parts, ready, broadcasting, scheduled, in_progress,
+//   completed, escalated, canceled, held, not_ready, booked, needs_pre_diagnosis,
+//   intake_complete, prediagnosis_pending, needs_more_info, no_fix_possible
 const TABS = [
-  { id: 'all',          label: 'All',              filter: { date_filter: 'all' } },
-  { id: 'unscheduled',  label: 'Needs Scheduling', filter: { date_filter: 'unscheduled' } },
-  { id: 'needs_info',   label: 'Needs Info',       filter: { status: 'awaiting_completion', date_filter: 'all' } },
-  { id: 'parts_ordered',label: 'Parts Ordered',    filter: { status: 'parts_ordered', date_filter: 'all' } },
-  { id: 'ready',        label: 'Ready to Submit',  filter: { status: 'complete', date_filter: 'all' } },
-  { id: 'submitted',    label: 'Submitted',        filter: { status: 'submitted', date_filter: 'all' } },
-  { id: 'flagged',      label: 'Flagged',          filter: { status: 'pending_auth', date_filter: 'all' } }
+  { id: 'all',           label: 'All',              filter: { date_filter: 'all' } },
+  { id: 'unscheduled',   label: 'Needs Scheduled',  filter: { date_filter: 'unscheduled' } },
+  { id: 'scheduled',     label: 'Scheduled',        filter: { status: 'scheduled', date_filter: 'all' } },
+  { id: 'in_progress',   label: 'In Progress',      filter: { status: 'in_progress', date_filter: 'all' } },
+  { id: 'needs_parts',   label: 'Needs Parts',      filter: { status: 'awaiting_parts', date_filter: 'all' } },
+  { id: 'held',          label: 'Held',             filter: { status: 'held', date_filter: 'all' } },
+  { id: 'needs_invoiced',label: 'Needs Invoiced',   filter: { status: 'completed', date_filter: 'all' } },
+  { id: 'no_fix',        label: 'No Fix Possible',  filter: { status: 'no_fix_possible', date_filter: 'all' } }
 ];
 
 let activeTab = 'all';
