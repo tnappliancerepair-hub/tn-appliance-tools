@@ -746,10 +746,17 @@
        Each button maps to a completion_type that routes the job to its
        correct office bucket (Needs Invoiced / Needs Parts / Needs Scheduled
        / No Fix Possible). -->
-  <div id="completion-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px">
-    <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:24px;max-width:480px;width:100%;color:#f5f5f5">
+  <div id="completion-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:24px;max-width:480px;width:100%;color:#f5f5f5;margin-top:40px;margin-bottom:40px">
       <h3 style="margin:0 0 6px;font-size:18px">How did this job finish?</h3>
-      <p style="margin:0 0 18px;color:#888;font-size:13px">Pick one. Submits and routes the job.</p>
+      <p style="margin:0 0 14px;color:#888;font-size:13px">Fill the TDR (warranty + Job Complete requires all fields) then pick a route.</p>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px">
+        <input id="tdr-diagnosis" placeholder="Diagnosis (what's broken)" style="background:#222;color:#f5f5f5;border:1px solid #444;border-radius:6px;padding:10px;font-size:14px;font-family:inherit">
+        <input id="tdr-failed-component" placeholder="Failed component" style="background:#222;color:#f5f5f5;border:1px solid #444;border-radius:6px;padding:10px;font-size:14px;font-family:inherit">
+        <input id="tdr-failure-cause" placeholder="Failure cause" style="background:#222;color:#f5f5f5;border:1px solid #444;border-radius:6px;padding:10px;font-size:14px;font-family:inherit">
+        <input id="tdr-labor-hours" type="number" step="0.25" min="0" placeholder="Labor time (hours, e.g. 1.5)" style="background:#222;color:#f5f5f5;border:1px solid #444;border-radius:6px;padding:10px;font-size:14px;font-family:inherit">
+        <input id="tdr-repair-completed" placeholder='Repair completed (e.g. "replaced compressor")' style="background:#222;color:#f5f5f5;border:1px solid #444;border-radius:6px;padding:10px;font-size:14px;font-family:inherit">
+      </div>
       <button class="cbtn" data-ct="repair_complete">✅ Job Complete</button>
       <button class="cbtn" data-ct="parts_needed">📦 Parts Needed</button>
       <button class="cbtn" data-ct="reassignment_needed">🔄 Reassignment Needed</button>
@@ -1940,6 +1947,17 @@
     b.addEventListener('click', () => finalizeWithCompletion(b.dataset.ct));
   });
 
+  function readTdrFormFields() {
+    const v = (id) => (document.getElementById(id).value || '').trim();
+    return {
+      diagnosis: v('tdr-diagnosis'),
+      failed_component: v('tdr-failed-component'),
+      failure_cause: v('tdr-failure-cause'),
+      labor_time_hours: parseFloat(v('tdr-labor-hours')) || 0,
+      repair_completed: v('tdr-repair-completed'),
+    };
+  }
+
   async function finalizeWithCompletion(completionType) {
     if (__isFinishing) return;
     if (!COMPLETION_LABEL[completionType]) return;
@@ -1948,39 +1966,73 @@
     btnFinish.disabled = true;
     addMsg('assistant', `Submitting (${COMPLETION_LABEL[completionType]})...`);
     try {
-      let res, data;
+      // Reassignment skips TDR (just bounces the job back to needs_scheduled)
       if (completionType === 'reassignment_needed') {
-        res = await fetch('/.netlify/functions/tech-request-reassignment', {
+        const rr = await fetch('/.netlify/functions/tech-request-reassignment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            job_id: JOB_ID,
-            technician_id: TECH_ID,
+            job_id: JOB_ID, technician_id: TECH_ID,
             reason: 'Tech requested reassignment via FINISH'
           })
         });
-      } else {
-        res = await fetch(XANO_BASE + '/tech_job_complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            job_id: JOB_ID,
-            technician_id: TECH_ID,
-            completion_type: completionType
-          })
-        });
+        const rd = await rr.json().catch(() => ({}));
+        if (rd && rd.success) {
+          addMsg('assistant', `✅ Job routed: Reassignment Needed.`);
+          speak('Submitted. Reassignment needed.');
+          btnFinish.innerHTML = '<span class="emoji">✓</span><span>DONE</span>';
+        } else {
+          addMsg('assistant', `⚠️ Routing failed: ${JSON.stringify(rd).slice(0,200)}`);
+          btnFinish.disabled = false; __isFinishing = false;
+        }
+        return;
       }
-      data = await res.json().catch(() => ({}));
-      if (data && data.success) {
-        addMsg('assistant', `✅ Job routed: ${COMPLETION_LABEL[completionType]}.`);
+
+      // For the other 3 routes: create_tdr first (using inline form fields), then tech_job_complete
+      const f = readTdrFormFields();
+      const tdrPayload = {
+        job_id: JOB_ID,
+        technician_id: TECH_ID,
+        diagnosis: f.diagnosis,
+        failed_component: f.failed_component,
+        failure_cause: f.failure_cause,
+        labor_time_hours: f.labor_time_hours,
+        repair_completed: f.repair_completed,
+        problem_summary: f.diagnosis,
+        status: 'submitted',
+        report_date: new Date().toISOString()
+      };
+      const tdrRes = await fetch(XANO_BASE + '/create_tdr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tdrPayload)
+      });
+      const tdrData = await tdrRes.json().catch(() => ({}));
+      const tdrId = tdrData && tdrData.tdr && tdrData.tdr.id;
+      if (!tdrId) {
+        addMsg('assistant', `⚠️ TDR create failed: ${JSON.stringify(tdrData).slice(0,200)}`);
+        btnFinish.disabled = false; __isFinishing = false;
+        return;
+      }
+
+      const cr = await fetch(XANO_BASE + '/tech_job_complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: JOB_ID,
+          technician_id: TECH_ID,
+          completion_type: completionType,
+          tdr_id: tdrId
+        })
+      });
+      const cd = await cr.json().catch(() => ({}));
+      if (cd && cd.success) {
+        addMsg('assistant', `✅ TDR #${tdrId} saved. Job routed: ${COMPLETION_LABEL[completionType]}.`);
         speak(`Submitted. ${COMPLETION_LABEL[completionType]}.`);
-        btnFinish.textContent = '';
         btnFinish.innerHTML = '<span class="emoji">✓</span><span>DONE</span>';
       } else {
-        const errBody = JSON.stringify(data || {}).slice(0, 200);
-        addMsg('assistant', `⚠️ Routing failed (${completionType}): ${errBody}`);
-        btnFinish.disabled = false;
-        __isFinishing = false;
+        addMsg('assistant', `⚠️ TDR saved (#${tdrId}) but routing failed: ${JSON.stringify(cd).slice(0,200)}`);
+        btnFinish.disabled = false; __isFinishing = false;
       }
     } catch (e) {
       addMsg('assistant', `⚠️ Network error finalizing: ${(e && e.message) || e}`);
