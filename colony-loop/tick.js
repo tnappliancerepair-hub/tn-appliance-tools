@@ -1000,6 +1000,29 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // OPERATOR_STATUS_BRIEFING — owner system-health digest, 7-8am CT window.
+  // Fires BEFORE the 8am DAILY_BRIEFING so Teddy gets the operating-truth
+  // SMS (loop heartbeat, queue depth, broadcasts, errors, intake counts,
+  // Tier 1 status) first thing, then his task-list briefing.
+  // 2026-05-31 added. Dedup via event_log "operator_status_briefing_handled".
+  if (hour >= 7 && hour < 8) {
+    let opsBriefingFired = null;
+    try {
+      opsBriefingFired = await xano.getEventLogByAction('operator_status_briefing_handled');
+    } catch (err) {
+      xano.logLocal('operator_status_check_failed', { error: err.message });
+    }
+    const firedToday = opsBriefingFired && opsBriefingFired.items && opsBriefingFired.items.some((r) => (r.created_at || 0) >= sinceMs);
+    if (!firedToday) {
+      await xano.emitSignal({
+        signal_type: 'OPERATOR_STATUS_BRIEFING',
+        signal_strength: 80,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+      try { await xano.recordEventLog('operator_status_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+    }
+  }
+
   // DAILY_BRIEFING — owner morning briefing, 8-11am CT window.
   // 2026-05-30 fix: this block used to early-return when hour was outside
   // the window, which silently dropped every emit added below it
