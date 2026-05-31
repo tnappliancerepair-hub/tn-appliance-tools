@@ -861,9 +861,10 @@
         </div>`;
     }
 
-    // Latest TDR for this job by ANY tech (not just Teddy). Shown only if it
-    // has actual content AND is NOT the same row already rendered as Teddy's
-    // pre-diagnosis (avoid duplicate display for jobs Teddy himself diagnosed).
+    // Latest TDR for this job by ANY tech (not just Teddy). Always rendered
+    // when a TDR row exists so the tech can confirm submission landed, even
+    // if the form fields were empty. Skipped only when it's literally the
+    // same row already shown as Teddy's pre-diagnosis.
     let latestTdrHtml = '';
     const sameAsTeddy = t && lt && t.id === lt.id;
     if (lt && !sameAsTeddy) {
@@ -872,19 +873,19 @@
       const ltRepair = (lt.repair_completed || '').trim();
       const ltLabor = lt.labor_time_hours;
       const ltAuthor = lt.technician_id;
-      const hasContent = ltSummary || ltFailed || ltRepair || (ltLabor && ltLabor > 0);
-      if (hasContent) {
-        const parts = [];
-        if (ltFailed) parts.push(`Failed: ${escapeHtml(ltFailed)}`);
-        if (ltLabor && ltLabor > 0) parts.push(`${ltLabor}h`);
-        if (ltRepair) parts.push(`Repair: ${escapeHtml(ltRepair)}`);
-        latestTdrHtml = `
-          <div class="teddy-note" style="border-left-color:#74e3c4">
-            <div class="label">📋 Tech TDR (tech #${ltAuthor})</div>
-            ${ltSummary ? `<div class="text">${escapeHtml(ltSummary)}</div>` : '<div class="text" style="opacity:.6">(no diagnosis text)</div>'}
-            ${parts.length ? `<div class="meta">${parts.join(' · ')}</div>` : ''}
-          </div>`;
-      }
+      const parts = [];
+      if (ltFailed) parts.push(`Failed: ${escapeHtml(ltFailed)}`);
+      if (ltLabor && ltLabor > 0) parts.push(`${ltLabor}h`);
+      if (ltRepair) parts.push(`Repair: ${escapeHtml(ltRepair)}`);
+      const summaryHtml = ltSummary
+        ? `<div class="text">${escapeHtml(ltSummary)}</div>`
+        : `<div class="text" style="opacity:.6">(submitted with empty diagnosis — fill TDR fields on FINISH next time)</div>`;
+      latestTdrHtml = `
+        <div class="teddy-note" style="border-left-color:#74e3c4">
+          <div class="label">📋 Tech TDR #${lt.id} (tech #${ltAuthor})</div>
+          ${summaryHtml}
+          ${parts.length ? `<div class="meta">${parts.join(' · ')}</div>` : ''}
+        </div>`;
     }
 
     let attHtml = '';
