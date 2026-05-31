@@ -8,6 +8,7 @@ query ahs_email_intake verb=POST {
     text? gmail_thread_id?
     text? sender?
     text? subject?
+    text? test_run_id?
   }
 
   stack {
@@ -250,6 +251,96 @@ query ahs_email_intake verb=POST {
   
     var $claim_number {
       value = `($dl_id_parts|count) > 1 ? ($dl_id_parts|get:1|split:"\""|get:0) : ""`
+    }
+  
+    //  ========================================================
+    //  2026-06-01 - CLAIM_NUMBER DEDUP (mirror servicepower_email_intake)
+    // 
+    //  Without this guard, AHS sends multiple distinct emails per claim over its
+    //  lifecycle (DISPATCH_OFFER, SCHEDULE_CHANGE, NOTES_ADDED, CANCELLATION, etc.)
+    //  and each one created a fresh job because the only dedup happened at the
+    //  gmail_message_id level. Audit (2026-05-31) found 13,431 excess duplicate
+    //  AHS jobs across 2,948 claims with 2+ jobs, max 76 jobs for a single claim.
+    //  ServicePower intake (servicepower_email_intake_POST.xs lines 130-145) has
+    //  never had this problem because it always checks claim_number first.
+    // 
+    //  If a job already exists for this claim_number, log an audit row and short
+    //  circuit. Do NOT create a second job, do NOT re-enqueue scheduling, do NOT
+    //  re-create job_financial or job_event rows.
+    //  ========================================================
+    var $claim_number_clean {
+      value = ($claim_number ?? "")|trim
+    }
+  
+    var $existing_job_for_claim {
+      value = null
+    }
+  
+    conditional {
+      if ($claim_number_clean != "") {
+        db.query jobs {
+          where = $db.jobs.claim_number == $claim_number_clean
+          return = {type: "single"}
+        } as $existing_job_lookup
+      
+        var.update $existing_job_for_claim {
+          value = $existing_job_lookup
+        }
+      }
+    }
+  
+    conditional {
+      if ($existing_job_for_claim != null) {
+        conditional {
+          if ($effective_gmail_msg_id != "") {
+            db.add job_email_event {
+              data = {
+                job_id          : $existing_job_for_claim.id
+                email_type      : "DISPATCH_OFFER"
+                vendor          : "ahs"
+                gmail_message_id: $effective_gmail_msg_id
+                gmail_thread_id : ($input.gmail_thread_id ?? "")
+                sender          : ($input.sender ?? "")
+                subject         : ($input.subject ?? "")
+                body_excerpt    : ($input.rawXml ?? "")|substr:0:500
+                triggered_action: "updated_job_status"
+                resolution_note : "AHS dispatch matched existing job by claim_number; create suppressed"
+                metadata        : {
+                claim_number    : $claim_number_clean
+                existing_job_id : $existing_job_for_claim.id
+                gmail_message_id: $effective_gmail_msg_id
+                dedup_source    : "claim_number"
+              }
+              }
+            } as $dedup_audit_event
+          }
+        }
+      
+        db.add event_log {
+          data = {
+            action  : "ahs_email_intake_dedup_skipped"
+            metadata: {
+            claim_number    : $claim_number_clean
+            existing_job_id : $existing_job_for_claim.id
+            gmail_message_id: $effective_gmail_msg_id
+            reason          : "job already exists for this claim_number"
+          }
+          }
+        } as $dedup_event_log
+      
+        return {
+          value = {
+            success             : true
+            duplicate           : true
+            claim_number        : $claim_number_clean
+            existing_job_id     : $existing_job_for_claim.id
+            customer_id         : null
+            consent_channel_used: null
+            resolution          : "claim_number already exists in jobs table"
+            test_run_id         : ($input.test_run_id ?? "")
+          }
+        }
+      }
     }
   
     var $ddt_parts {
@@ -1005,22 +1096,23 @@ query ahs_email_intake verb=POST {
         intake_source                   : "ahs_email"
         customer_type                   : "warranty"
         notes_internal                  : $notes_internal
+        test_run_id                     : ($input.test_run_id ?? "")
       }
     } as $new_job
-
+  
     // Phase B: emit JOB_CREATED for colony loop greeting (see docs/colony-loop-design.md section 16).
     var $jc_phone {
       value = $phone_normalized
     }
-
+  
     var $jc_first {
       value = $first_name
     }
-
+  
     var $jc_appliance {
       value = ($appliance_type ?? "")
     }
-
+  
     var $jc_payload_obj {
       value = {
         job_id             : $new_job.id
@@ -1030,11 +1122,11 @@ query ahs_email_intake verb=POST {
         source             : "ahs_email"
       }
     }
-
+  
     var $jc_payload_str {
       value = $jc_payload_obj|json_encode
     }
-
+  
     db.add colony_signals {
       data = {
         signal_type    : "JOB_CREATED"
@@ -1044,50 +1136,60 @@ query ahs_email_intake verb=POST {
         payload        : $jc_payload_str
       }
     } as $jc_signal
-
-    // Parallel ANT Phase 1 marker — Danielle's needs-scheduled.html
+  
+    // Parallel ANT Phase 1 marker - Danielle's needs-scheduled.html
     // scans event_log for this action to find new email-parsed jobs.
     db.add event_log {
       data = {
         action  : "parallel_job_created_from_email"
         metadata: {
-          job_id          : $new_job.id
-          customer_id     : ($new_job.customer_id ?? 0)
-          intake_source   : "email_ahs"
-          warranty_company: "AHS"
-          claim_number    : ($jc_appliance ?? "")
-        }
+        job_id          : $new_job.id
+        customer_id     : ($new_job.customer_id ?? 0)
+        intake_source   : "email_ahs"
+        warranty_company: "AHS"
+        claim_number    : ($jc_appliance ?? "")
+      }
       }
     } as $parallel_marker_ahs
-
-    // SMS Danielle on every new AHS job (internal recipient — bypasses
+  
+    // SMS Danielle on every new AHS job (internal recipient - bypasses
     // CUSTOMER_FACING_ENABLED gate via the recipient_role check).
-    var $dn_first { value = (($new_job.customer_first_name ?? "")|trim) }
-    var $dn_city { value = (($new_job.service_city ?? "")|trim) }
-    var $dn_alert_body { value = ("[ant] new AHS job in Needs Scheduled: " ~ $dn_first ~ ", " ~ $dn_city ~ ". tnapplianceexchange.net/needs-scheduled.html") }
-
+    var $dn_first {
+      value = (($new_job.customer_first_name ?? "")|trim)
+    }
+  
+    var $dn_city {
+      value = (($new_job.service_city ?? "")|trim)
+    }
+  
+    var $dn_alert_body {
+      value = ("[ant] new AHS job in Needs Scheduled: " ~ $dn_first ~ ", " ~ $dn_city ~ ". tnapplianceexchange.net/needs-scheduled.html")
+    }
+  
     api.request {
-      url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
-      method  = "POST"
-      headers = []|push:"Content-Type: application/json"
-      params  = {
-        to          : "+16154850713"
-        message     : $dn_alert_body
-        context_tag : "parallel_ahs_danielle_alert"
+      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+      method = "POST"
+      params = {
+        to         : "+16154850713"
+        message    : $dn_alert_body
+        context_tag: "parallel_ahs_danielle_alert"
       }
+    
+      headers = []
+        |push:"Content-Type: application/json"
     } as $danielle_ahs_alert
-
+  
     db.add event_log {
       data = {
         action  : "job_created_signal_emitted"
         metadata: {
-          job_id   : $new_job.id
-          signal_id: $jc_signal.id
-          source   : "ahs_email"
-        }
+        job_id   : $new_job.id
+        signal_id: $jc_signal.id
+        source   : "ahs_email"
+      }
       }
     } as $jc_log
-
+  
     conditional {
       if ($effective_gmail_msg_id != "") {
         db.add job_email_event {
@@ -1131,7 +1233,7 @@ query ahs_email_intake verb=POST {
         created_by  : "system"
       }
     } as $new_event
-
+  
     // HOUR 1: auto-enqueue scheduling_queue propose row for every new AHS job.
     // AHS dispatches carry a date (dispatch_date) but no slot detail, so we push
     // the job into the propose path immediately. scheduling_queue_worker picks
@@ -1146,7 +1248,7 @@ query ahs_email_intake verb=POST {
         claim_number    : $claim_number
       }
     }
-
+  
     db.add scheduling_queue {
       data = {
         job_id     : $new_job.id
@@ -1155,30 +1257,30 @@ query ahs_email_intake verb=POST {
         metadata   : $sq_meta_obj
       }
     } as $sq_row
-
+  
     db.add event_log {
       data = {
         action  : "scheduling_queue_propose_enqueued"
         metadata: {
-          job_id             : $new_job.id
-          scheduling_queue_id: $sq_row.id
-          source             : "ahs_email_intake_auto"
-          claim_number       : $claim_number
-        }
+        job_id             : $new_job.id
+        scheduling_queue_id: $sq_row.id
+        source             : "ahs_email_intake_auto"
+        claim_number       : $claim_number
+      }
       }
     } as $sq_log
-
+  
     // Phase B: greeting is now owned by the Mac Mini colony loop (JOB_CREATED signal
     // emitted above). Wire 1 SMS, consent-channel logic, and chat-link mint were removed
     // here - the loop sends the greeting and Ant handles chat from the bare link.
     var $consent_channel_used {
       value = "deferred_to_loop"
     }
-
+  
     var $sms_response_status {
       value = null
     }
-
+  
     db.add event_log {
       data = {
         action  : "ahs_email_intake_created"

@@ -38,6 +38,7 @@ query servicepower_email_intake verb=POST {
     text email_type
     text? body_excerpt?
     text dispatches_json
+    text? test_run_id?
   }
 
   stack {
@@ -203,7 +204,7 @@ query servicepower_email_intake verb=POST {
                         var $sched_ts {
                           value = (($sched_date ~ " 08:00:00")|to_timestamp)|transform_timestamp:"+5 hours"
                         }
-
+                      
                         db.edit jobs {
                           field_name = "id"
                           field_value = $existing_job.id
@@ -215,7 +216,7 @@ query servicepower_email_intake verb=POST {
                             current_status   : "rescheduled"
                           }
                         } as $sched_update
-
+                      
                         // Phase 5.5C: emit APPOINTMENT_SCHEDULED for SP-side reschedule.
                         var $as_sp_resched_obj {
                           value = {
@@ -226,11 +227,11 @@ query servicepower_email_intake verb=POST {
                             source            : "servicepower_reschedule"
                           }
                         }
-
+                      
                         var $as_sp_resched_str {
                           value = $as_sp_resched_obj|json_encode
                         }
-
+                      
                         db.add colony_signals {
                           data = {
                             signal_type    : "APPOINTMENT_SCHEDULED"
@@ -240,21 +241,21 @@ query servicepower_email_intake verb=POST {
                             payload        : $as_sp_resched_str
                           }
                         } as $as_sp_resched_signal
-
+                      
                         db.add event_log {
                           data = {
                             action  : "appointment_scheduled_signal_emitted"
                             metadata: {
-                              job_id            : $existing_job.id
-                              signal_id         : $as_sp_resched_signal.id
-                              scheduled_start_ms: $sched_ts
-                              source            : "servicepower_reschedule"
-                            }
+                            job_id            : $existing_job.id
+                            signal_id         : $as_sp_resched_signal.id
+                            scheduled_start_ms: $sched_ts
+                            source            : "servicepower_reschedule"
+                          }
                           }
                         } as $as_sp_resched_log
                       }
                     }
-
+                  
                     var.update $action_label {
                       value = "updated_job_status"
                     }
@@ -523,6 +524,7 @@ query servicepower_email_intake verb=POST {
                     customer_type       : "warranty"
                     manual_review_needed: $manual_review_flag
                     notes_internal      : "=== SERVICEPOWER DISPATCH " ~ $call_number ~ " ===\nSource: " ~ ($disp.source ?? "") ~ "\nService Type: " ~ ($disp.service_type ?? "") ~ "\nCall Type: " ~ ($disp.call_type ?? "") ~ "\nSchedule Period: " ~ ($disp.schedule_period ?? "") ~ "\nContract #: " ~ ($disp.contract_number ?? "") ~ "\nAppointment URL: " ~ ($disp.appointment_form_url ?? "") ~ "\n\nProblem:\n" ~ ($disp.problem ?? "")
+                    test_run_id         : ($input.test_run_id ?? "")
                   }
                 } as $new_job
               
@@ -550,20 +552,20 @@ query servicepower_email_intake verb=POST {
                     created_by  : "system"
                   }
                 } as $new_event
-
+              
                 // Phase B: emit JOB_CREATED for colony loop greeting (see docs/colony-loop-design.md section 16).
                 var $jc_phone {
                   value = $phone10_final
                 }
-
+              
                 var $jc_first {
                   value = ($disp.customer.first_name ?? "")
                 }
-
+              
                 var $jc_appliance {
                   value = ($disp.appliance_type ?? "")
                 }
-
+              
                 var $jc_payload_obj {
                   value = {
                     job_id             : $new_job.id
@@ -573,11 +575,11 @@ query servicepower_email_intake verb=POST {
                     source             : "servicepower_email"
                   }
                 }
-
+              
                 var $jc_payload_str {
                   value = $jc_payload_obj|json_encode
                 }
-
+              
                 db.add colony_signals {
                   data = {
                     signal_type    : "JOB_CREATED"
@@ -587,71 +589,80 @@ query servicepower_email_intake verb=POST {
                     payload        : $jc_payload_str
                   }
                 } as $jc_signal
-
+              
                 db.add event_log {
                   data = {
                     action  : "job_created_signal_emitted"
                     metadata: {
-                      job_id   : $new_job.id
-                      signal_id: $jc_signal.id
-                      source   : "servicepower_email"
-                    }
+                    job_id   : $new_job.id
+                    signal_id: $jc_signal.id
+                    source   : "servicepower_email"
+                  }
                   }
                 } as $jc_log
-
-                // Parallel ANT Phase 1 marker — Danielle's needs-scheduled.html
+              
+                // Parallel ANT Phase 1 marker - Danielle's needs-scheduled.html
                 // scans event_log for this action.
                 db.add event_log {
                   data = {
                     action  : "parallel_job_created_from_email"
                     metadata: {
-                      job_id          : $new_job.id
-                      customer_id     : $customer_id_final
-                      intake_source   : "email_servicepower"
-                      warranty_company: $warranty_company
-                      claim_number    : $call_number
-                    }
+                    job_id          : $new_job.id
+                    customer_id     : $customer_id_final
+                    intake_source   : "email_servicepower"
+                    warranty_company: $warranty_company
+                    claim_number    : $call_number
+                  }
                   }
                 } as $parallel_marker_sp
-
+              
                 // SMS Danielle on every new SP job (internal recipient)
-                var $dn_sp_city { value = ($raw_city ?? "") }
-                var $dn_sp_body { value = ("[ant] new ServicePower job in Needs Scheduled: " ~ ($customer_id_final|to_text) ~ ", " ~ $dn_sp_city ~ ". tnapplianceexchange.net/needs-scheduled.html") }
-
+                var $dn_sp_city {
+                  value = ($raw_city ?? "")
+                }
+              
+                var $dn_sp_body {
+                  value = ("[ant] new ServicePower job in Needs Scheduled: " ~ ($customer_id_final|to_text) ~ ", " ~ $dn_sp_city ~ ". tnapplianceexchange.net/needs-scheduled.html")
+                }
+              
                 api.request {
-                  url     = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
-                  method  = "POST"
-                  headers = []|push:"Content-Type: application/json"
-                  params  = {
-                    to          : "+16154850713"
-                    message     : $dn_sp_body
-                    context_tag : "parallel_sp_danielle_alert"
+                  url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+                  method = "POST"
+                  params = {
+                    to         : "+16154850713"
+                    message    : $dn_sp_body
+                    context_tag: "parallel_sp_danielle_alert"
                   }
+                
+                  headers = []
+                    |push:"Content-Type: application/json"
                 } as $danielle_sp_alert
-
+              
                 // Phase 5.5C: emit APPOINTMENT_SCHEDULED when SP intake lands
                 // a brand-new job with a real scheduled_start (gated to skip
                 // null/zero times from emails without "Schedule Date" set).
                 var $as_sp_create_start {
                   value = ($sched_ts ?? 0)
                 }
-
+              
                 conditional {
                   if ($as_sp_create_start > 0) {
                     var $as_sp_create_obj {
-                      value = {
-                        job_id            : $new_job.id
-                        scheduled_start_ms: $as_sp_create_start
-                        scheduled_end_ms  : null
-                        technician_id     : 0
-                        source            : "servicepower_email"
-                      }
+                      value = ```
+                        {
+                          job_id            : $new_job.id
+                          scheduled_start_ms: $as_sp_create_start
+                          scheduled_end_ms  : null
+                          technician_id     : 0
+                          source            : "servicepower_email"
+                        }
+                        ```
                     }
-
+                  
                     var $as_sp_create_str {
                       value = $as_sp_create_obj|json_encode
                     }
-
+                  
                     db.add colony_signals {
                       data = {
                         signal_type    : "APPOINTMENT_SCHEDULED"
@@ -661,21 +672,21 @@ query servicepower_email_intake verb=POST {
                         payload        : $as_sp_create_str
                       }
                     } as $as_sp_create_signal
-
+                  
                     db.add event_log {
                       data = {
                         action  : "appointment_scheduled_signal_emitted"
                         metadata: {
-                          job_id            : $new_job.id
-                          signal_id         : $as_sp_create_signal.id
-                          scheduled_start_ms: $as_sp_create_start
-                          source            : "servicepower_email"
-                        }
+                        job_id            : $new_job.id
+                        signal_id         : $as_sp_create_signal.id
+                        scheduled_start_ms: $as_sp_create_start
+                        source            : "servicepower_email"
+                      }
                       }
                     } as $as_sp_create_log
                   }
                 }
-
+              
                 var.update $action_label {
                   value = "created_job"
                 }
