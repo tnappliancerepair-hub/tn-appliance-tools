@@ -45,11 +45,12 @@ exports.handler = async function (event) {
   }
 
   try {
-    // 1. PATCH the job: clear assignment, reset scheduling_status
+    // 1. PUT the job: clear assignment, reset scheduling_status
+    // (Xano metadata API uses PUT for partial updates; PATCH returns 404.)
     const patchRes = await fetch(
       `${XANO_META_BASE}/table/${TABLES.jobs}/content/${jobId}`,
       {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}`,
           'Content-Type': 'application/json',

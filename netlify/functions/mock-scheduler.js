@@ -749,7 +749,7 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMo
         const r = await fetch(
           `${XANO_META_BASE}/table/${TABLES.jobs}/content/${stop.job.id}`,
           {
-            method: 'PATCH',
+            method: 'PUT',
             headers: {
               Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}`,
               'Content-Type': 'application/json',
