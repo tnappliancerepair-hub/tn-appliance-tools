@@ -487,6 +487,10 @@ async function init() {
     setupSpeechRecognition();
     sendInitialGreeting();
 
+    if (new URLSearchParams(window.location.search).get('force_submit') === '1') {
+      document.getElementById('submit-banner').classList.add('show');
+    }
+
   } catch (err) {
     showError('Could not load job', err.message);
   }
