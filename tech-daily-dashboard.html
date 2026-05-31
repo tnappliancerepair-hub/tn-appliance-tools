@@ -830,6 +830,8 @@
     const status = (j.scheduling_status || j.current_status || 'other').toLowerCase();
     const statusClass = ['scheduled','in_progress','completed','prediagnosis_pending','needs_review'].includes(status) ? `status-${status}` : 'status-other';
     const statusLabel = status.replace(/_/g, ' ');
+    const isPractice = (j.test_run_id || '').startsWith('PRACTICE');
+    const practicePill = isPractice ? `<div class="status-pill" style="background:rgba(245,166,35,0.18); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">🧪 PRACTICE</div>` : '';
 
     const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
@@ -877,6 +879,7 @@
           <div class="stop-num">${num}</div>
           <div class="time-window">${timeStr}</div>
           <div class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</div>
+          ${practicePill}
         </div>
         <div class="customer-line">${escapeHtml(custName)}</div>
         <div class="appliance-line">${applianceLine}</div>

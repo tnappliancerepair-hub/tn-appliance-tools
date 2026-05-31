@@ -65,6 +65,14 @@
 [functions."parts-vendor-gmail-poller"]
   schedule = "*/30 * * * *"
 
+# Practice auto-scheduler. Every 15 min, auto-places not_ready jobs from
+# May 30+ onto tech dashboards via mock-scheduler in practice_mode. Tags
+# placed jobs with test_run_id="PRACTICE_<date>" so the tech daily
+# dashboard renders a "🧪 PRACTICE" badge. No tech SMS, no customer SMS.
+# Disable by removing this block or changing the schedule.
+[functions."practice-auto-schedule-cron"]
+  schedule = "*/15 * * * *"
+
 # Colony heartbeat watchdog. Every 5 min, verifies the Mac Mini loop
 # is firing loop_tick events. If the most recent tick is older than
 # COLONY_WATCHDOG_THRESHOLD_MIN (default 15), SMSes Teddy. Dedup: only

@@ -265,6 +265,12 @@ exports.handler = async function (event) {
   const apply = qp.apply === 'true' || qp.apply === '1';
   const testRunId = (qp.test_run_id || '').trim();
   const runId = qp.run_id || `mock_${startedAt}`;
+  // PRACTICE MODE — auto-schedules ALL not_ready jobs created since cutoff_ms
+  // (default Sat May 30 00:00 CT). Skips test_run_id safety gate. Tags each
+  // PATCHed job with test_run_id="PRACTICE_<targetDate>" as a marker so the
+  // tech dashboard can render a "🧪 PRACTICE" badge.
+  const practiceMode = qp.practice_mode === 'true' || qp.practice_mode === '1';
+  const practiceCutoffMs = parseInt(qp.practice_cutoff_ms || '1780117200000', 10);
   // dayOffset = how many days ahead from today (in CT) to schedule.
   // 1 = tomorrow (default). 0 = today. Used as the BASE day for flexible (AHS/self-pay)
   // jobs; SquareTrade jobs honor their own committed scheduled_start date.
@@ -282,10 +288,10 @@ exports.handler = async function (event) {
       error: 'apply=true requires confirm_apply=1 (safety gate to prevent accidental live writes)',
     });
   }
-  if (apply && !testRunId) {
+  if (apply && !testRunId && !practiceMode) {
     return json(400, {
       ok: false,
-      error: 'apply=true requires test_run_id (safety gate — would scoop legacy/non-test jobs otherwise)',
+      error: 'apply=true requires test_run_id OR practice_mode=1 (safety gate — would scoop legacy jobs otherwise)',
     });
   }
   if (!process.env.XANO_METADATA_TOKEN) {
@@ -360,6 +366,12 @@ exports.handler = async function (event) {
       return (zip && zipToCluster[zip]) || (city && TOWNS[city]);
     };
     const matchesTestScope = (r) => !testRunId || (r.test_run_id || '') === testRunId;
+    // Practice mode: only sweep jobs created since cutoff AND not already practice-tagged
+    // (so re-runs don't re-touch jobs we've already auto-scheduled).
+    const matchesPracticeScope = (r) =>
+      !practiceMode ||
+      ((r.created_at || 0) >= practiceCutoffMs &&
+        !(r.test_run_id || '').startsWith('PRACTICE'));
 
     const flexible = allJobs.filter(
       (r) =>
@@ -368,7 +380,8 @@ exports.handler = async function (event) {
         ) &&
         !r.scheduled_start &&
         isRoutable(r) &&
-        matchesTestScope(r),
+        matchesTestScope(r) &&
+        matchesPracticeScope(r),
     );
     const anchors = allJobs.filter(
       (r) =>
@@ -568,6 +581,8 @@ exports.handler = async function (event) {
         result,
         targetDateMs,
         testRunId,
+        practiceMode,
+        practiceTagYmd: targetDateYmd,
       });
       // Audit log for the apply write
       try {
@@ -697,7 +712,7 @@ function stopTimestampMs(targetDateMs, minuteOffset) {
 // so the existing PICK1/2/3 SMS path doesn't fire on already-scheduled jobs.
 //
 // Caller responsibility: only call this when apply=true && confirm_apply=1.
-async function applyPlanToLiveJobs({ result, targetDateMs, testRunId }) {
+async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMode, practiceTagYmd }) {
   const writes = { ok: 0, failed: 0, errors: [] };
   const placedJobIds = [];
 
@@ -728,6 +743,7 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId }) {
       // Only set test_run_id if provided AND the column exists; safe to include — Xano
       // will ignore unknown fields on PATCH per past behavior. (Confirmed via parallel_mode.)
       if (testRunId) patch.test_run_id = testRunId;
+      else if (practiceMode) patch.test_run_id = `PRACTICE_${practiceTagYmd}`;
 
       try {
         const r = await fetch(
