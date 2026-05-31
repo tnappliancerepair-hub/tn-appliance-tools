@@ -388,16 +388,16 @@
     <h3 style="margin:0 0 6px;font-size:18px">How did this job finish?</h3>
     <p style="margin:0 0 18px;color:#888;font-size:13px">Pick one. Submits the TDR and routes the job to the right office bucket.</p>
     <button class="cbtn" data-ct="repair_complete" onclick="finalizeWithCompletion('repair_complete')">
-      ✅ Repair Complete — Ready to Bill
+      ✅ Job Complete
     </button>
     <button class="cbtn" data-ct="parts_needed" onclick="finalizeWithCompletion('parts_needed')">
-      📦 Need to Order Parts — Coming Back
+      📦 Parts Needed
     </button>
-    <button class="cbtn" data-ct="warranty_auth_needed" onclick="finalizeWithCompletion('warranty_auth_needed')">
-      ⏳ Waiting on Warranty Authorization
+    <button class="cbtn" data-ct="reassignment_needed" onclick="finalizeWithCompletion('reassignment_needed')">
+      🔄 Reassignment Needed
     </button>
     <button class="cbtn" data-ct="no_repair" onclick="finalizeWithCompletion('no_repair')">
-      ❌ Cannot Repair — Recommend Replace
+      ❌ Not Worth Fixing
     </button>
     <button class="cbtn cbtn-cancel" onclick="closeCompletionChoice()">Cancel</button>
   </div>
@@ -411,7 +411,7 @@
   .cbtn:hover { background:#383838 }
   .cbtn[data-ct="repair_complete"] { border-color:#3a7d3a; }
   .cbtn[data-ct="parts_needed"] { border-color:#7d6e3a; }
-  .cbtn[data-ct="warranty_auth_needed"] { border-color:#3a5d7d; }
+  .cbtn[data-ct="reassignment_needed"] { border-color:#3a5d7d; }
   .cbtn[data-ct="no_repair"] { border-color:#7d3a3a; }
   .cbtn-cancel { margin-top:14px; background:transparent; border-color:#555; color:#888; }
 </style>
@@ -766,10 +766,10 @@ function closeCompletionChoice() {
 }
 
 const COMPLETION_LABEL = {
-  repair_complete: 'Repair Complete',
+  repair_complete: 'Job Complete',
   parts_needed: 'Parts Needed',
-  warranty_auth_needed: 'Awaiting Warranty Auth',
-  no_repair: 'No Repair Possible'
+  reassignment_needed: 'Reassignment Needed',
+  no_repair: 'Not Worth Fixing'
 };
 
 async function finalizeWithCompletion(completionType) {
@@ -812,24 +812,45 @@ async function finalizeWithCompletion(completionType) {
       throw new Error('TDR submission failed: ' + JSON.stringify(tdrData).slice(0, 150));
     }
 
-    // STEP 2 — tech_job_complete: routes the job into the right office bucket
-    //   completion_type -> jobs.scheduling_status mapping (in the endpoint):
-    //     repair_complete       -> "completed"        (Needs Invoiced bucket)
-    //     parts_needed          -> "awaiting_parts"   (Needs Parts bucket)
-    //     warranty_auth_needed  -> "held"             (Held bucket)
-    //     no_repair             -> "no_fix_possible"  (No Fix Possible bucket)
-    const completePayload = {
-      job_id: parseInt(JOB_ID, 10),
-      technician_id: parseInt(TECH_ID, 10),
-      completion_type: completionType,
-      tdr_id: tdrData.tdr.id
-    };
-    const completeRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: 'tech_job_complete', payload: completePayload })
-    });
-    const completeData = await completeRes.json();
+    // STEP 2 — route the job to the right office bucket based on completion type:
+    //   repair_complete  -> tech_job_complete -> scheduling_status="completed"
+    //                       (Needs Invoiced bucket)
+    //   parts_needed     -> tech_job_complete -> scheduling_status="awaiting_parts"
+    //                       (Needs Parts bucket)
+    //   no_repair        -> tech_job_complete -> scheduling_status="no_fix_possible"
+    //                       (No Fix Possible bucket)
+    //   reassignment_needed -> tech-request-reassignment (custom Netlify fn):
+    //                       clears technician_id + scheduled_start, flips
+    //                       scheduling_status back to "needs_scheduled" so the
+    //                       job pops back into the Needs Scheduled bucket for
+    //                       the office to manually re-route to a different tech.
+    let completeRes, completeData;
+    if (completionType === 'reassignment_needed') {
+      completeRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/tech-request-reassignment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: parseInt(JOB_ID, 10),
+          technician_id: parseInt(TECH_ID, 10),
+          tdr_id: tdrData.tdr.id,
+          reason: collectedData.tech_notes || 'Tech requested reassignment via TDR submit'
+        })
+      });
+      completeData = await completeRes.json();
+    } else {
+      const completePayload = {
+        job_id: parseInt(JOB_ID, 10),
+        technician_id: parseInt(TECH_ID, 10),
+        completion_type: completionType,
+        tdr_id: tdrData.tdr.id
+      };
+      completeRes = await fetch(`${NETLIFY_BASE}/.netlify/functions/xano-proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: 'tech_job_complete', payload: completePayload })
+      });
+      completeData = await completeRes.json();
+    }
 
     if (completeData && completeData.success) {
       addSystem('success', `✅ TDR #${tdrData.tdr.id} submitted. Job routed: ${COMPLETION_LABEL[completionType]}.`);
