@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appliance Ant · Mock Dispatch Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15120c; --panel:#1d1810; --panel2:#241e14; --line:#3a3122;
+    --ink:#f3ead6; --dim:#a99a7c; --faint:#6f6450;
+    --amber:#f2a93b; --amber-d:#c9821f;
+    --st:#f2a93b;        /* SquareTrade / anchor */
+    --selfpay:#3fb6a3;   /* self-pay */
+    --ahs:#5b8def;       /* AHS */
+    --bad:#e2604a;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --disp:"Saira Condensed",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
+    background-image:radial-gradient(circle at 20% -10%,rgba(242,169,59,.06),transparent 45%),
+                     radial-gradient(circle at 90% 0%,rgba(91,141,239,.05),transparent 40%);}
+  body{padding:0 0 60px}
+  .wrap{max-width:1500px;margin:0 auto;padding:0 18px}
+
+  header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#15120c,#15120cee);
+    border-bottom:1px solid var(--line);backdrop-filter:blur(6px)}
+  .bar{display:flex;align-items:center;gap:16px;padding:14px 18px;max-width:1500px;margin:0 auto;flex-wrap:wrap}
+  .logo{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:.5px;display:flex;align-items:center;gap:9px}
+  .logo b{color:var(--amber)}
+  .ant{width:22px;height:22px;flex:0 0 auto}
+  .mode{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1.5px;
+    color:#15120c;background:var(--amber);padding:4px 9px;border-radius:3px;text-transform:uppercase}
+  .spacer{flex:1}
+  .stat{display:flex;flex-direction:column;line-height:1.1}
+  .stat .n{font-family:var(--disp);font-size:24px;font-weight:600}
+  .stat .l{font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase}
+  .stat.warn .n{color:var(--amber)}
+  .stat.bad .n{color:var(--bad)}
+
+  .controls{display:flex;gap:10px;align-items:center;padding:14px 0;flex-wrap:wrap}
+  button{font-family:var(--mono);font-weight:600;font-size:12px;letter-spacing:.5px;cursor:pointer;
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink);padding:8px 14px;border-radius:4px;
+    transition:.15s}
+  button:hover{border-color:var(--amber);color:var(--amber)}
+  button.primary{background:var(--amber);color:#15120c;border-color:var(--amber)}
+  button.primary:hover{background:#ffba4d}
+  .legend{display:flex;gap:14px;align-items:center;margin-left:auto;font-size:11px;color:var(--dim);flex-wrap:wrap}
+  .dot{display:inline-flex;align-items:center;gap:5px}
+  .dot i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+  details.editor{margin:6px 0 18px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+  details.editor summary{cursor:pointer;padding:11px 14px;font-size:12px;letter-spacing:.5px;color:var(--dim);user-select:none}
+  details.editor summary::marker{color:var(--amber)}
+  textarea{width:100%;min-height:180px;background:#100d08;color:var(--ink);border:none;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12px;line-height:1.6;padding:14px;resize:vertical;outline:none}
+  .editor .row{display:flex;gap:10px;padding:10px 14px;align-items:center}
+  .err{color:var(--bad);font-size:12px}
+
+  .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+  .tech{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;
+    display:flex;flex-direction:column}
+  .tech-head{padding:12px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--panel2),var(--panel))}
+  .tech-name{font-family:var(--disp);font-size:22px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .tech-name .rg{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--faint);
+    border:1px solid var(--line);padding:2px 6px;border-radius:3px;letter-spacing:1px}
+  .tech-sub{font-size:11px;color:var(--dim);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+  .tech-sub b{color:var(--ink);font-weight:600}
+
+  .stops{padding:8px 10px 12px;display:flex;flex-direction:column}
+  .home{font-size:10px;color:var(--faint);letter-spacing:1px;padding:4px 6px}
+  .drive{font-size:10px;color:var(--faint);padding:2px 0 2px 18px;position:relative}
+  .drive::before{content:"";position:absolute;left:7px;top:-2px;bottom:-2px;width:1px;
+    background:repeating-linear-gradient(var(--faint) 0 2px,transparent 2px 5px)}
+  .stop{display:flex;gap:10px;padding:8px 6px;border-radius:6px;align-items:flex-start;position:relative}
+  .stop:hover{background:var(--panel2)}
+  .tick{flex:0 0 4px;align-self:stretch;border-radius:3px;margin-top:2px}
+  .stop .t{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap}
+  .stop .meta{flex:1;min-width:0}
+  .stop .cust{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stop .sub{font-size:11px;color:var(--dim);margin-top:1px}
+  .badge{font-size:9px;font-weight:600;letter-spacing:.8px;padding:2px 6px;border-radius:3px;text-transform:uppercase;
+    display:inline-block;margin-top:4px}
+  .b-st{background:rgba(242,169,59,.16);color:var(--st)}
+  .b-selfpay{background:rgba(63,182,163,.16);color:var(--selfpay)}
+  .b-ahs{background:rgba(91,141,239,.16);color:var(--ahs)}
+  .win{color:var(--st);font-size:10px;letter-spacing:.5px}
+
+  .overflow{margin:4px 10px 12px;border:1px dashed var(--bad);border-radius:6px;padding:8px 10px}
+  .overflow h4{margin:0 0 6px;font-size:10px;letter-spacing:1px;color:var(--bad);text-transform:uppercase;font-weight:600}
+  .ovf-item{font-size:11px;color:var(--dim);padding:3px 0;display:flex;justify-content:space-between;gap:8px}
+  .ovf-item b{color:var(--ink);font-weight:600}
+  .ovf-tag{color:var(--bad);font-size:9px;letter-spacing:.5px}
+
+  .empty{padding:20px 14px;color:var(--faint);font-size:12px;text-align:center}
+
+  .sms{margin-top:26px;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
+  .sms h3{margin:0;padding:12px 14px;font-family:var(--disp);font-size:18px;font-weight:600;
+    border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .sms h3 .mode{font-size:10px}
+  .sms-list{max-height:380px;overflow:auto}
+  .sms-row{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid #2a2418;font-size:12px;align-items:flex-start}
+  .sms-row:last-child{border-bottom:none}
+  .sms-to{flex:0 0 110px;color:var(--dim)}
+  .sms-to b{display:block;color:var(--ink);font-weight:600;font-size:13px}
+  .sms-body{flex:1;color:var(--ink);line-height:1.5;white-space:pre-wrap}
+  .sms-kind{flex:0 0 auto;font-size:9px;letter-spacing:.8px;padding:2px 7px;border-radius:3px;font-weight:600;height:fit-content}
+  .k-summary{background:rgba(63,182,163,.16);color:var(--selfpay)}
+  .k-offer{background:rgba(242,169,59,.16);color:var(--st)}
+  .k-suppress{background:rgba(111,100,80,.2);color:var(--faint)}
+  .note{font-size:11px;color:var(--faint);padding:10px 14px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">
+      <svg class="ant" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="5" r="2.4" fill="#f2a93b"/><ellipse cx="12" cy="11" rx="2.1" ry="2.4" fill="#f2a93b"/><ellipse cx="12" cy="17.5" rx="2.6" ry="3" fill="#f2a93b"/><path d="M9.6 10 4.5 8M9.6 12l-5 3M14.4 10l5.1-2M14.4 12l5 3M10.5 4 8 1.5M13.5 4 16 1.5" stroke="#c9821f" stroke-width="1.1" stroke-linecap="round"/></svg>
+      Appliance <b>Ant</b> · Dispatch
+    </div>
+    <span class="mode" id="modeBadge">Mock Mode</span>
+    <div class="spacer"></div>
+    <div class="stat"><span class="n" id="sJobs">–</span><span class="l">Scheduled</span></div>
+    <div class="stat"><span class="n" id="sTechs">–</span><span class="l">Techs</span></div>
+    <div class="stat warn"><span class="n" id="sDrive">–</span><span class="l">Drive min</span></div>
+    <div class="stat bad"><span class="n" id="sOvf">–</span><span class="l">Overflow</span></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <button class="primary" onclick="run()">▸ Run Mock Schedule</button>
+    <button onclick="toggleSms()">Toggle SMS Log</button>
+    <div class="legend">
+      <span class="dot"><i style="background:var(--st)"></i>SquareTrade (anchor)</span>
+      <span class="dot"><i style="background:var(--selfpay)"></i>Self-pay</span>
+      <span class="dot"><i style="background:var(--ahs)"></i>AHS</span>
+    </div>
+  </div>
+
+  <details class="editor">
+    <summary>▾ Jobs input — paste tomorrow's "Needs Scheduled" here (JSON), then Run</summary>
+    <textarea id="jobsInput" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="primary" onclick="loadFromXano()">▶ Run mock against live Xano</button>
+      <button onclick="run()">Re-run from textarea</button>
+      <button onclick="loadSample()">Reset to sample</button>
+      <span class="err" id="parseErr"></span>
+      <span style="margin-left:auto;font-size:11px;color:var(--dim);font-family:var(--mono)">
+        limit <input id="limitInput" type="number" value="30" min="1" max="500" style="width:64px;background:#100d08;border:1px solid var(--line);color:var(--ink);padding:4px 6px;border-radius:4px;font-family:var(--mono);font-size:11px">
+        <label style="margin-left:10px"><input id="dryRunInput" type="checkbox" checked style="vertical-align:middle"> dry-run</label>
+      </span>
+    </div>
+  </details>
+
+  <div class="board" id="board"></div>
+
+  <div class="sms" id="smsPanel">
+    <h3>Mock SMS Log <span class="mode">No live sends</span></h3>
+    <div class="sms-list" id="smsList"></div>
+    <div class="note" id="smsNote"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ENGINE  (identical to engine.js — ports to netlify/functions/mock-scheduler.js)
+   In production: jobs come from a Xano "Needs Scheduled" query, cluster routing
+   calls get_tech_for_zip, and results write back assignment_mode="mock" + mock SMS rows.
+   ============================================================ */
+const DAY_START=8*60, DAY_END=17*60, SERVICE_MIN=30, CAP=6, AVG_MPH=35, MIN_HOP_MIN=8;
+const TELNYX_TECH="+16158578800";
+
+const TOWNS={
+  "Antioch":[36.060,-86.672],"South Nashville":[36.130,-86.770],"Nashville":[36.162,-86.781],
+  "West Nashville":[36.150,-86.860],"Murfreesboro":[35.846,-86.390],"Hermitage":[36.187,-86.603],
+  "Mt Juliet":[36.200,-86.519],"Clarksville":[36.530,-87.359],"Bellevue":[36.075,-86.945],
+  "Pegram":[36.100,-87.050],"Ashland City":[36.274,-87.064],"Kingston Springs":[36.100,-87.114],
+  "Joelton":[36.310,-86.890],"New Orleans":[29.951,-90.071],"Metairie":[29.984,-90.153],
+  "Kenner":[29.994,-90.241],"Hammond":[30.504,-90.461],"Ponchatoula":[30.438,-90.441],
+  "Slidell":[30.275,-89.781],"Covington":[30.475,-90.101],"Mandeville":[30.358,-90.066],
+  "Walker":[30.485,-90.861],"Baton Rouge":[30.451,-91.187],"Denham Springs":[30.486,-90.957],
+  "Gonzales":[30.238,-90.920]
+};
+const TOWN_TECH={
+  "Antioch":2,"South Nashville":2,"Nashville":2,"Murfreesboro":2,"Hermitage":2,"Mt Juliet":2,
+  "Clarksville":4,"Bellevue":4,"Pegram":4,"Ashland City":4,"Kingston Springs":4,"Joelton":4,"West Nashville":4,
+  "New Orleans":3,"Metairie":3,"Kenner":3,
+  "Hammond":5,"Ponchatoula":5,"Slidell":5,"Covington":5,"Mandeville":5,
+  "Walker":6,"Baton Rouge":6,"Denham Springs":6,"Gonzales":6
+};
+const TECHS={
+  2:{name:"Jimmy",region:"TN",home:"Antioch"},
+  4:{name:"Lee",region:"TN",home:"Bellevue"},
+  3:{name:"Andre",region:"LA",home:"New Orleans"},
+  5:{name:"Billy",region:"LA",home:"Hammond"},
+  6:{name:"John",region:"LA",home:"Walker"}
+};
+
+function haversineMiles(a,b){const R=3958.8,r=d=>d*Math.PI/180;
+  const dLat=r(b[0]-a[0]),dLng=r(b[1]-a[1]);
+  const s=Math.sin(dLat/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));}
+function driveMin(A,B){if(A===B)return 0;const a=TOWNS[A],b=TOWNS[B];if(!a||!b)return MIN_HOP_MIN;
+  return Math.max(MIN_HOP_MIN,Math.round(haversineMiles(a,b)/AVG_MPH*60));}
+function driveMiles(A,B){if(A===B||!TOWNS[A]||!TOWNS[B])return 0;return haversineMiles(TOWNS[A],TOWNS[B]);}
+
+function evaluateRoute(home,route){
+  let curTown=home,curTime=DAY_START,totalDrive=0;const stops=[];
+  for(const job of route){
+    const d=driveMin(curTown,job.town);totalDrive+=d;const arrive=curTime+d;let start;
+    if(job.window){start=Math.max(arrive,job.window[0]);
+      if(start>job.window[1])return{feasible:false};
+      if(start+SERVICE_MIN>DAY_END)return{feasible:false};}
+    else{start=Math.max(arrive,DAY_START);if(start+SERVICE_MIN>DAY_END)return{feasible:false};}
+    const end=start+SERVICE_MIN;stops.push({job,arrive,start,end,driveIn:d});
+    curTown=job.town;curTime=end;}
+  return{feasible:true,stops,totalDrive,dayEnd:curTime};
+}
+function buildDay(home,jobs){
+  const anchored=jobs.filter(j=>j.window).sort((a,b)=>a.window[0]-b.window[0]||a.window[1]-b.window[1]);
+  const flexible=jobs.filter(j=>!j.window);
+  let route=[];const overflow=[];
+  for(const a of anchored){
+    if(route.length>=CAP){overflow.push({job:a,reason:"cap"});continue;}
+    const test=evaluateRoute(home,[...route,a]);
+    if(test.feasible)route.push(a);else overflow.push({job:a,reason:"window-conflict"});}
+  let pending=[...flexible];
+  while(pending.length&&route.length<CAP){
+    let best=null;
+    for(let pi=0;pi<pending.length;pi++){
+      const job=pending[pi];const base=evaluateRoute(home,route);
+      const baseDrive=base.feasible?base.totalDrive:Infinity;
+      for(let pos=0;pos<=route.length;pos++){
+        const trial=[...route.slice(0,pos),job,...route.slice(pos)];
+        const ev=evaluateRoute(home,trial);if(!ev.feasible)continue;
+        const added=ev.totalDrive-baseDrive;
+        if(!best||added<best.added)best={pi,pos,added};}}
+    if(!best)break;
+    const job=pending.splice(best.pi,1)[0];
+    route=[...route.slice(0,best.pos),job,...route.slice(best.pos)];}
+  for(const j of pending)overflow.push({job:j,reason:route.length>=CAP?"cap":"no-fit"});
+  return{eval:evaluateRoute(home,route),overflow};
+}
+function scheduleAll(jobs){
+  const byTech={},unrouted=[];
+  for(const j of jobs){const tid=TOWN_TECH[j.town];if(!tid){unrouted.push(j);continue;}
+    (byTech[tid]=byTech[tid]||[]).push(j);}
+  const result={};
+  for(const tid of Object.keys(byTech)){const t=TECHS[tid];
+    result[tid]={tech:t,...buildDay(t.home,byTech[tid])};}
+  return{result,unrouted};
+}
+
+/* ---- mock SMS builders (techs only; customers suppressed) ---- */
+function buildMockSms(result){
+  const msgs=[];let custSuppressed=0;
+  for(const tid of Object.keys(result)){
+    const r=result[tid];if(!r.eval.feasible)continue;
+    if(r.eval.stops.length){
+      const lines=r.eval.stops.map(s=>`${fmt(s.start)} ${s.job.customer} · ${s.job.town}`).join("\n");
+      msgs.push({kind:"summary",to:r.tech.name,via:TELNYX_TECH,
+        body:`MOCK · ${r.tech.name}'s schedule (${r.eval.stops.length} jobs)\n${lines}`});
+      custSuppressed+=r.eval.stops.length;
+    }
+    for(const o of r.overflow){
+      msgs.push({kind:"offer",to:r.tech.name,via:TELNYX_TECH,
+        body:`MOCK OFFER · Extra job: ${o.job.customer}, ${o.job.town} (${label(o.job.type)}). Reply Y to add.`});
+    }
+  }
+  return{msgs,custSuppressed};
+}
+
+/* ---- render ---- */
+const fmt=m=>`${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+const label=t=>({squaretrade:"SquareTrade",selfpay:"Self-pay",ahs:"AHS"}[t]||t);
+const cls=t=>({squaretrade:"st",selfpay:"selfpay",ahs:"ahs"}[t]||"selfpay");
+
+let SMS_CACHE=null;
+function run(){
+  let jobs;
+  try{jobs=JSON.parse(document.getElementById("jobsInput").value);
+    document.getElementById("parseErr").textContent="";}
+  catch(e){document.getElementById("parseErr").textContent="JSON error: "+e.message;return;}
+  const {result,unrouted}=scheduleAll(jobs);
+  const {msgs,custSuppressed}=buildMockSms(result);
+  SMS_CACHE={msgs,custSuppressed,unrouted};
+  renderBoard(result,unrouted);
+  renderSms(msgs,custSuppressed,unrouted);
+  renderStats(result);
+}
+
+/* ---- live mode: fetch from /.netlify/functions/mock-scheduler ---- */
+async function loadFromXano(){
+  const err=document.getElementById("parseErr");
+  err.textContent="";
+  const limit=parseInt(document.getElementById("limitInput").value||"30",10);
+  const dryRun=document.getElementById("dryRunInput").checked;
+  err.textContent=`Loading from Xano (limit=${limit} dry_run=${dryRun})…`;
+  try{
+    const r=await fetch(`/.netlify/functions/mock-scheduler?limit=${limit}&dry_run=${dryRun}&force_mock=1`,
+      {signal:AbortSignal.timeout(60000)});
+    const d=await r.json();
+    if(!d.ok){throw new Error(d.error||"backend error");}
+    // Hydrate TECHS map from response so renderBoard's sort works
+    for(const tid of Object.keys(d.result||{})){
+      const r2=d.result[tid];
+      if(r2 && r2.tech){TECHS[tid]={name:r2.tech.name,region:r2.tech.region||"",home:r2.tech.home||""};}
+    }
+    SMS_CACHE={msgs:d.mock_sms||[],custSuppressed:d.summary.customer_notifications_suppressed||0,unrouted:d.unrouted||[]};
+    renderBoard(d.result||{},d.unrouted||[]);
+    renderSms(d.mock_sms||[],d.summary.customer_notifications_suppressed||0,d.unrouted||[]);
+    renderStats(d.result||{});
+    err.textContent=`Loaded run_id=${d.run_id} in ${d.summary.elapsed_ms}ms · ${d.summary.flexible_in} flexible + ${d.summary.anchors_in} anchors → ${d.summary.plan_rows_written} plan rows ${dryRun?"(DRY-RUN, no writes)":"(written to mock_assignment)"}`;
+  }catch(e){
+    err.textContent="Xano load failed: "+e.message;
+  }
+}
+function renderStats(result){
+  let jobs=0,drive=0,ovf=0,techs=0;
+  for(const tid of Object.keys(result)){const r=result[tid];if(!r.eval.feasible)continue;
+    techs++;jobs+=r.eval.stops.length;drive+=r.eval.totalDrive;ovf+=r.overflow.length;}
+  document.getElementById("sJobs").textContent=jobs;
+  document.getElementById("sTechs").textContent=techs;
+  document.getElementById("sDrive").textContent=drive;
+  document.getElementById("sOvf").textContent=ovf;
+}
+function renderBoard(result,unrouted){
+  const board=document.getElementById("board");board.innerHTML="";
+  const ids=Object.keys(result).sort((a,b)=>{
+    const A=TECHS[a],B=TECHS[b];return A.region===B.region?A.name.localeCompare(B.name):A.region.localeCompare(B.region);});
+  for(const tid of ids){
+    const r=result[tid],t=r.tech;
+    const card=document.createElement("div");card.className="tech";
+    let miles=0,prev=t.home;
+    let stopsHtml="",prevTown=t.home;
+    if(r.eval.feasible&&r.eval.stops.length){
+      r.eval.stops.forEach((s,i)=>{
+        const d=driveMin(prevTown,s.job.town);
+        if(i===0) stopsHtml+=`<div class="home">▷ depart ${t.home} · ${fmt(DAY_START)}</div>`;
+        if(d>0) stopsHtml+=`<div class="drive">↓ drive ${d} min · ${driveMiles(prevTown,s.job.town).toFixed(1)} mi</div>`;
+        miles+=driveMiles(prev,s.job.town);prev=s.job.town;
+        stopsHtml+=`<div class="stop">
+          <span class="tick" style="background:var(--${cls(s.job.type)})"></span>
+          <span class="t">${fmt(s.start)}<br>${fmt(s.end)}</span>
+          <span class="meta">
+            <div class="cust">${s.job.customer}</div>
+            <div class="sub">${s.job.town}${s.job.appliance?" · "+s.job.appliance:""}</div>
+            <span class="badge b-${cls(s.job.type)}">${label(s.job.type)}</span>
+            ${s.job.window?`<span class="win"> committed ${fmt(s.job.window[0])}–${fmt(s.job.window[1])}</span>`:""}
+          </span></div>`;
+        prevTown=s.job.town;
+      });
+    }else{
+      stopsHtml=`<div class="empty">No jobs scheduled</div>`;
+    }
+    const sub=r.eval.feasible&&r.eval.stops.length
+      ? `<span><b>${r.eval.stops.length}</b>/${CAP} jobs</span><span><b>${r.eval.totalDrive}</b> drive min</span><span>~<b>${miles.toFixed(0)}</b> mi</span><span>ends <b>${fmt(r.eval.dayEnd)}</b></span>`
+      : `<span>idle</span>`;
+    let ovfHtml="";
+    if(r.overflow.length){
+      ovfHtml=`<div class="overflow"><h4>Overflow — offered via mock SMS</h4>`+
+        r.overflow.map(o=>`<div class="ovf-item"><b>${o.job.customer}</b> · ${o.job.town} · ${label(o.job.type)}<span class="ovf-tag">${o.reason}</span></div>`).join("")+`</div>`;
+    }
+    card.innerHTML=`<div class="tech-head">
+        <div class="tech-name">${t.name}<span class="rg">${t.region}</span></div>
+        <div class="tech-sub">${sub}</div></div>
+      <div class="stops">${stopsHtml}</div>${ovfHtml}`;
+    board.appendChild(card);
+  }
+  if(unrouted.length){
+    const card=document.createElement("div");card.className="tech";
+    card.innerHTML=`<div class="tech-head"><div class="tech-name" style="color:var(--bad)">Unrouted<span class="rg">no cluster</span></div></div>
+      <div class="stops">`+unrouted.map(j=>`<div class="stop"><span class="tick" style="background:var(--bad)"></span><span class="meta"><div class="cust">${j.customer}</div><div class="sub">${j.town} — no tech cluster match</div></span></div>`).join("")+`</div>`;
+    board.appendChild(card);
+  }
+}
+function renderSms(msgs,custSuppressed,unrouted){
+  const list=document.getElementById("smsList");list.innerHTML="";
+  msgs.forEach(m=>{
+    const row=document.createElement("div");row.className="sms-row";
+    row.innerHTML=`<span class="sms-to"><b>${m.to}</b>${m.via}</span>
+      <span class="sms-body">${m.body}</span>
+      <span class="sms-kind ${m.kind==="offer"?"k-offer":"k-summary"}">${m.kind}</span>`;
+    list.appendChild(row);
+  });
+  const cust=document.createElement("div");cust.className="sms-row";
+  cust.innerHTML=`<span class="sms-to"><b>Customers</b>—</span>
+    <span class="sms-body">${custSuppressed} customer notifications generated and SUPPRESSED (mock mode — no customer contact).</span>
+    <span class="sms-kind k-suppress">suppressed</span>`;
+  list.appendChild(cust);
+  document.getElementById("smsNote").textContent=
+    `Mock mode: ${msgs.length} tech message(s) logged, 0 sent. Tech route = Telnyx ${TELNYX_TECH}. Customers untouched.`;
+}
+function toggleSms(){const p=document.getElementById("smsPanel");
+  p.style.display=p.style.display==="none"?"":"none";}
+
+/* ---- sample data (shape matches a Xano Needs-Scheduled row) ----
+   window: [startMin, endMin] for SquareTrade committed bands. Omit for flexible. */
+function sampleJobs(){return [
+  // ---- TN · Jimmy cluster ----
+  {id:101,customer:"R. Mathis",town:"Murfreesboro",appliance:"Dryer",type:"squaretrade",window:[8*60,12*60]},
+  {id:102,customer:"T. Cole",town:"Hermitage",appliance:"Washer",type:"squaretrade",window:[10*60,11*60]},
+  {id:103,customer:"D. Pham",town:"Mt Juliet",appliance:"Fridge",type:"squaretrade",window:[12*60,16*60]},
+  {id:104,customer:"G. Ruiz",town:"Antioch",appliance:"Range",type:"selfpay"},
+  {id:105,customer:"S. Bell",town:"South Nashville",appliance:"Dishwasher",type:"ahs"},
+  {id:106,customer:"K. Long",town:"Murfreesboro",appliance:"Dryer",type:"selfpay"},
+  {id:107,customer:"A. Webb",town:"Hermitage",appliance:"Microwave",type:"ahs"},
+  {id:108,customer:"M. Frost",town:"Antioch",appliance:"Washer",type:"selfpay"},
+  // ---- TN · Lee cluster ----
+  {id:120,customer:"E. Pruett",town:"Bellevue",appliance:"Fridge",type:"squaretrade",window:[9*60,13*60]},
+  {id:121,customer:"H. Daly",town:"Ashland City",appliance:"Range",type:"selfpay"},
+  {id:122,customer:"V. Nash",town:"Clarksville",appliance:"Dryer",type:"ahs"},
+  // ---- LA · Andre cluster ----
+  {id:201,customer:"B. Trahan",town:"Metairie",appliance:"Washer",type:"squaretrade",window:[13*60,15*60]},
+  {id:202,customer:"J. Comeaux",town:"Kenner",appliance:"Dishwasher",type:"selfpay"},
+  {id:203,customer:"P. Guidry",town:"New Orleans",appliance:"Fridge",type:"ahs"},
+  // ---- LA · Billy cluster ----
+  {id:301,customer:"L. Boudreaux",town:"Hammond",appliance:"Range",type:"squaretrade",window:[8*60,12*60]},
+  {id:302,customer:"C. Landry",town:"Covington",appliance:"Washer",type:"ahs"},
+  {id:303,customer:"D. Hebert",town:"Slidell",appliance:"Dryer",type:"selfpay"},
+  // ---- LA · John cluster ----
+  {id:401,customer:"R. Aucoin",town:"Baton Rouge",appliance:"Fridge",type:"squaretrade",window:[10*60,14*60]},
+  {id:402,customer:"S. Melancon",town:"Denham Springs",appliance:"Washer",type:"selfpay"}
+];}
+function loadSample(){document.getElementById("jobsInput").value=JSON.stringify(sampleJobs(),null,2);run();}
+
+loadSample();
+</script>
+</body>
+</html>
