@@ -132,9 +132,9 @@
     </div>
     <div class="stage" id="stage-4">
       <h3>④ Tech Completes</h3>
-      <div class="h-sub">tech-ant.html submit → office bucket route</div>
+      <div class="h-sub">tech-ant-chat FINISH → office bucket route</div>
       <div class="count" id="c-complete">–</div>
-      <div class="meta" id="m-complete">Submit a TDR via tech-ant to verify</div>
+      <div class="meta" id="m-complete">Tap FINISH in tech-ant-chat to verify</div>
     </div>
   </div>
 
@@ -277,8 +277,8 @@ function showLinks() {
   document.getElementById('link-tech').href = '/tech-daily-dashboard.html?tech_id=2';
   if (lastGenJobs.length) {
     const j = lastGenJobs[0];
-    document.getElementById('link-job').href = `/tech-ant.html?job_id=${j.job_id}&tech_id=2`;
-    document.getElementById('link-job').textContent = `→ first job (#${j.job_id}, ${j.city}) tech-ant`;
+    document.getElementById('link-job').href = `/tech-ant-chat.html?job_id=${j.job_id}&tech_id=2`;
+    document.getElementById('link-job').textContent = `→ first job (#${j.job_id}, ${j.city}) tech-ant-chat`;
   }
 }
 </script>

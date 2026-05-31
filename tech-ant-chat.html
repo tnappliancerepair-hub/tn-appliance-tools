@@ -737,7 +737,38 @@
     <button class="action-btn primary" id="btn-start" title="Start Job">
       <span class="emoji">▶</span><span>START</span>
     </button>
+    <button class="action-btn primary" id="btn-finish" title="Finish Job" style="background:#3a7d3a;border-color:#4a9d4a">
+      <span class="emoji">✅</span><span>FINISH</span>
+    </button>
   </div>
+
+  <!-- 2026-05-31: 4-button completion overlay (ported from tech-ant.html).
+       Each button maps to a completion_type that routes the job to its
+       correct office bucket (Needs Invoiced / Needs Parts / Needs Scheduled
+       / No Fix Possible). -->
+  <div id="completion-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px">
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:24px;max-width:480px;width:100%;color:#f5f5f5">
+      <h3 style="margin:0 0 6px;font-size:18px">How did this job finish?</h3>
+      <p style="margin:0 0 18px;color:#888;font-size:13px">Pick one. Submits and routes the job.</p>
+      <button class="cbtn" data-ct="repair_complete">✅ Job Complete</button>
+      <button class="cbtn" data-ct="parts_needed">📦 Parts Needed</button>
+      <button class="cbtn" data-ct="reassignment_needed">🔄 Reassignment Needed</button>
+      <button class="cbtn" data-ct="no_repair">❌ Not Worth Fixing</button>
+      <button class="cbtn cbtn-cancel" id="cbtn-cancel">Cancel</button>
+    </div>
+  </div>
+  <style>
+    #completion-overlay.show { display:flex !important }
+    .cbtn { display:block; width:100%; padding:14px 16px; margin:8px 0; font-size:15px;
+      background:#2a2a2a; color:#f5f5f5; border:1px solid #444; border-radius:8px;
+      cursor:pointer; text-align:left; transition:background .15s }
+    .cbtn:hover { background:#383838 }
+    .cbtn[data-ct="repair_complete"] { border-color:#3a7d3a; }
+    .cbtn[data-ct="parts_needed"] { border-color:#7d6e3a; }
+    .cbtn[data-ct="reassignment_needed"] { border-color:#3a5d7d; }
+    .cbtn[data-ct="no_repair"] { border-color:#7d3a3a; }
+    .cbtn-cancel { margin-top:14px; background:transparent; border-color:#555; color:#888; }
+  </style>
 
   <!-- Chat stage -->
   <main class="chat-stage" id="chat-stage">
@@ -822,6 +853,7 @@
   const btnOtw = $('btn-otw');
   const btnCall = $('btn-call');
   const btnStart = $('btn-start');
+  const btnFinish = $('btn-finish');
 
   // ── HUD clock ─────────────────────────────────────────────────────
   function tickClock() {
@@ -1880,6 +1912,82 @@
       btnStart.disabled = false;
     }
   });
+
+  // ── FINISH → completion overlay → tech_job_complete OR tech-request-reassignment
+  // Routes the job to its correct office bucket. Server-side gate on
+  // tech_job_complete may block repair_complete + warranty without a full TDR.
+  const COMPLETION_LABEL = {
+    repair_complete: 'Job Complete',
+    parts_needed: 'Parts Needed',
+    reassignment_needed: 'Reassignment Needed',
+    no_repair: 'Not Worth Fixing'
+  };
+  let __isFinishing = false;
+  const completionOverlay = $('completion-overlay');
+  function openCompletionOverlay() {
+    if (__isFinishing) return;
+    completionOverlay.classList.add('show');
+  }
+  function closeCompletionOverlay() {
+    completionOverlay.classList.remove('show');
+  }
+  btnFinish.addEventListener('click', openCompletionOverlay);
+  $('cbtn-cancel').addEventListener('click', closeCompletionOverlay);
+  completionOverlay.addEventListener('click', (e) => {
+    if (e.target === completionOverlay) closeCompletionOverlay();
+  });
+  document.querySelectorAll('#completion-overlay .cbtn[data-ct]').forEach((b) => {
+    b.addEventListener('click', () => finalizeWithCompletion(b.dataset.ct));
+  });
+
+  async function finalizeWithCompletion(completionType) {
+    if (__isFinishing) return;
+    if (!COMPLETION_LABEL[completionType]) return;
+    __isFinishing = true;
+    closeCompletionOverlay();
+    btnFinish.disabled = true;
+    addMsg('assistant', `Submitting (${COMPLETION_LABEL[completionType]})...`);
+    try {
+      let res, data;
+      if (completionType === 'reassignment_needed') {
+        res = await fetch('/.netlify/functions/tech-request-reassignment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: JOB_ID,
+            technician_id: TECH_ID,
+            reason: 'Tech requested reassignment via FINISH'
+          })
+        });
+      } else {
+        res = await fetch(XANO_BASE + '/tech_job_complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: JOB_ID,
+            technician_id: TECH_ID,
+            completion_type: completionType
+          })
+        });
+      }
+      data = await res.json().catch(() => ({}));
+      if (data && data.success) {
+        addMsg('assistant', `✅ Job routed: ${COMPLETION_LABEL[completionType]}.`);
+        speak(`Submitted. ${COMPLETION_LABEL[completionType]}.`);
+        btnFinish.textContent = '';
+        btnFinish.innerHTML = '<span class="emoji">✓</span><span>DONE</span>';
+      } else {
+        const errBody = JSON.stringify(data || {}).slice(0, 200);
+        addMsg('assistant', `⚠️ Routing failed (${completionType}): ${errBody}`);
+        btnFinish.disabled = false;
+        __isFinishing = false;
+      }
+    } catch (e) {
+      addMsg('assistant', `⚠️ Network error finalizing: ${(e && e.message) || e}`);
+      btnFinish.disabled = false;
+      __isFinishing = false;
+    }
+  }
   // Also stop tracking on page hide/close so we don't drain battery if
   // the tech navigates away without tapping Start.
   window.addEventListener('pagehide', stopPositionBroadcast);
