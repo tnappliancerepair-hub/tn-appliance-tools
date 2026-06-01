@@ -733,6 +733,23 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // ORPHAN_RECONCILER — fires every hour. Self-healing for the
+  // multi-table-write gaps: jobs that should have a JOB_CREATED signal
+  // but don't, etc. Bounded at 100 fixups per run inside the agent.
+  // Light dedup: emit on minute 5 of every hour (no per-day check
+  // needed since the signal_strength is low and overlap is harmless).
+  if (now.getMinutes() < 6 && now.getMinutes() >= 5) {
+    try {
+      await xano.emitSignal({
+        signal_type: 'ORPHAN_RECONCILER',
+        signal_strength: 25,
+        payload: { fired_at_ms: Date.now(), emitted_ct: fmtCT(nowTs) },
+      });
+    } catch (err) {
+      xano.logLocal('orphan_reconciler_emit_failed', { error: err.message });
+    }
+  }
+
   // UNPAID_SELF_PAY_DIGEST — fires once per day at 10:30am CT (10-13 grace).
   // Sends Teddy a digest of self-pay jobs completed in the last 14 days
   // where payment_collected is still false. Silent skip when all paid.

@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-01T22:05:54.450Z
-// Total registered: 464
+// Generated: 2026-06-01T22:47:56.194Z
+// Total registered: 465
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -148,6 +148,7 @@ export const AGENT_REGISTRY = {
   'OFFICE_EOD_SUMMARY': './office_eod_summary.js',
   'OFFICE_MORNING_BRIEFING': './office_morning_briefing.js',
   'OPERATOR_STATUS_BRIEFING': './operator_status_briefing.js',
+  'ORPHAN_RECONCILER': './orphan_reconciler.js',
   'OUT_OF_AREA_CHECK': './out_of_area_check.js',
   'PARALLEL_INTAKE_WATCH': './parallel_intake_watch.js',
   'PARTS_ARRIVAL_CHECK': './parts_arrival_check.js',

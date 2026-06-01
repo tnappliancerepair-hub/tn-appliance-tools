@@ -268,6 +268,11 @@ export async function getUnpaidDigestFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_unpaid_digest_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function findRecentJobsMissingSignal(signal_type, hours_back = 24) {
+  const params = new URLSearchParams({ signal_type, hours_back: String(hours_back) });
+  return getJSON(`${INTAKE()}/find_recent_jobs_missing_signal?${params.toString()}`);
+}
+
 export async function getResumeChatPending(hoursSinceGreeting, limit) {
   const params = new URLSearchParams();
   if (hoursSinceGreeting) params.set('hours_since_greeting', String(hoursSinceGreeting));
