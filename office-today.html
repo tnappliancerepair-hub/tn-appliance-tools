@@ -52,6 +52,37 @@
   .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  .view-toggle {
+    display: flex; gap: 4px; padding: 8px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .view-toggle button {
+    flex: 1; padding: 8px 12px; background: transparent;
+    border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+    font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .view-toggle button.active {
+    background: var(--blue); border-color: var(--blue); color: white;
+  }
+
+  .batch-bar {
+    background: linear-gradient(135deg, rgba(180,140,255,0.12), rgba(74,158,255,0.10));
+    border: 1px solid rgba(180,140,255,0.30);
+    border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .batch-bar .label { font-size: 12px; color: var(--text); margin-right: 4px; font-weight: 600; }
+
+  .queue-card-wrapper { position: relative; }
+  .queue-card-wrapper .priority-stripe {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    border-top-left-radius: 10px; border-bottom-left-radius: 10px;
+  }
+  .priority-stripe.p1 { background: var(--red); }
+  .priority-stripe.p2 { background: var(--accent); }
+  .priority-stripe.p3 { background: var(--blue); }
+  .priority-stripe.p4 { background: var(--muted); }
+
   .counts-bar {
     display: flex; gap: 8px; padding: 10px 16px; overflow-x: auto;
     background: var(--panel); border-bottom: 1px solid var(--border);
@@ -203,6 +234,11 @@
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
 </div>
 
+<div class="view-toggle">
+  <button id="vt-queue" class="active" onclick="setViewMode('queue')">▼ Priority Queue</button>
+  <button id="vt-sections" onclick="setViewMode('sections')">▦ Sections</button>
+</div>
+
 <div class="counts-bar" id="counts-bar"></div>
 
 <div class="feed" id="feed">
@@ -313,48 +349,178 @@ function render(d) {
       <div class="count-pill" onclick="document.getElementById('section-stuck').scrollIntoView({behavior:'smooth'})"><span class="n">${c.stuck_intake||0}</span>stuck intake</div>
       <div class="count-pill" onclick="document.getElementById('section-unpaid').scrollIntoView({behavior:'smooth'})"><span class="n">${c.unpaid_self_pay||0}</span>unpaid</div>`;
 
-  // Feed: render all sections. Desktop gets a 2-column grid for the
-  // lighter sections (escalations + stuck intake + unpaid) while warranty
-  // submissions get full width because the paste-ready cards are dense.
+  __lastData = d;
+  renderFeed();
+}
+
+let __lastData = null;
+let __viewMode = 'queue'; // 'queue' | 'sections'
+try { __viewMode = localStorage.getItem('office_today_view') || 'queue'; } catch (_) {}
+
+function setViewMode(mode) {
+  __viewMode = mode;
+  try { localStorage.setItem('office_today_view', mode); } catch (_) {}
+  document.getElementById('vt-queue').classList.toggle('active', mode === 'queue');
+  document.getElementById('vt-sections').classList.toggle('active', mode === 'sections');
+  if (__lastData) renderFeed();
+}
+
+function renderFeed() {
+  const d = __lastData || {};
   const feed = document.getElementById('feed');
-  feed.innerHTML = `
-    ${(d.voicemail_queue||[]).length === 0 ? '' : `
-    <div class="section full-width" id="section-voicemail">
-      <div class="section-head"><span class="title">📞 Voicemail queue (Vapi fall-through)</span><span class="badge">${(d.voicemail_queue||[]).length} items</span></div>
+  if (__viewMode === 'queue') {
+    feed.innerHTML = renderQueueView(d);
+  } else {
+    feed.innerHTML = renderSectionsView(d);
+  }
+}
+
+// ── B + C: hide empty sections + smart warranty batch actions ────
+function renderSectionsView(d) {
+  // Each section only renders when its array is non-empty (auto-hide).
+  const blocks = [];
+
+  if ((d.voicemail_queue||[]).length > 0) {
+    blocks.push(`<div class="section full-width" id="section-voicemail">
+      <div class="section-head"><span class="title">📞 Voicemail queue (Vapi fall-through)</span><span class="badge">${d.voicemail_queue.length} items</span></div>
       ${d.voicemail_queue.map(renderVoicemail).join('')}
-    </div>
-    `}
+    </div>`);
+  }
 
-    <div class="section full-width" id="section-warranty">
-      <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${(d.warranty_submissions_due||[]).length} items</span></div>
-      ${(d.warranty_submissions_due||[]).length === 0
-        ? '<div class="empty">No warranty submissions waiting. ✓</div>'
-        : d.warranty_submissions_due.map(renderWarrantyCard).join('')}
-    </div>
+  if ((d.warranty_submissions_due||[]).length > 0) {
+    blocks.push(`<div class="section full-width" id="section-warranty">
+      <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${d.warranty_submissions_due.length} items</span></div>
+      ${renderWarrantyBatchBar(d.warranty_submissions_due)}
+      ${d.warranty_submissions_due.map(renderWarrantyCard).join('')}
+    </div>`);
+  }
 
-    <div class="grid-2">
-      <div class="section" id="section-escalations">
-        <div class="section-head"><span class="title">🚨 Escalations</span><span class="badge">${(d.escalations||[]).length} items</span></div>
-        ${(d.escalations||[]).length === 0
-          ? '<div class="empty">No urgent escalations. ✓</div>'
-          : d.escalations.map(renderEscalation).join('')}
-      </div>
+  const escAndStuck = [];
+  if ((d.escalations||[]).length > 0) {
+    escAndStuck.push(`<div class="section" id="section-escalations">
+      <div class="section-head"><span class="title">🚨 Escalations</span><span class="badge">${d.escalations.length} items</span></div>
+      ${d.escalations.map(renderEscalation).join('')}
+    </div>`);
+  }
+  if ((d.stuck_intake||[]).length > 0) {
+    escAndStuck.push(`<div class="section" id="section-stuck">
+      <div class="section-head"><span class="title">⚠️ Stuck intake</span><span class="badge">${d.stuck_intake.length} items</span></div>
+      ${d.stuck_intake.map(renderStuck).join('')}
+    </div>`);
+  }
+  if (escAndStuck.length > 0) {
+    blocks.push(`<div class="grid-2">${escAndStuck.join('')}</div>`);
+  }
 
-      <div class="section" id="section-stuck">
-        <div class="section-head"><span class="title">⚠️ Stuck intake</span><span class="badge">${(d.stuck_intake||[]).length} items</span></div>
-        ${(d.stuck_intake||[]).length === 0
-          ? '<div class="empty">No stuck intake jobs. ✓</div>'
-          : d.stuck_intake.map(renderStuck).join('')}
-      </div>
-    </div>
+  if ((d.unpaid_self_pay||[]).length > 0) {
+    blocks.push(`<div class="section full-width" id="section-unpaid">
+      <div class="section-head"><span class="title">💵 Unpaid self-pay (&gt; 7 days)</span><span class="badge">${d.unpaid_self_pay.length} items</span></div>
+      ${d.unpaid_self_pay.map(renderUnpaid).join('')}
+    </div>`);
+  }
 
-    <div class="section full-width" id="section-unpaid">
-      <div class="section-head"><span class="title">💵 Unpaid self-pay (&gt; 7 days)</span><span class="badge">${(d.unpaid_self_pay||[]).length} items</span></div>
-      ${(d.unpaid_self_pay||[]).length === 0
-        ? '<div class="empty">No overdue self-pay invoices. ✓</div>'
-        : d.unpaid_self_pay.map(renderUnpaid).join('')}
-    </div>
-  `;
+  if (blocks.length === 0) {
+    return `<div class="empty">All clear ✓ Nothing needs your attention right now.</div>`;
+  }
+  return blocks.join('');
+}
+
+// ── A: priority queue (all sections merged + sorted) ────────────
+// Priority order: escalations > voicemails > warranty > stuck intake > unpaid.
+// Within a priority, sort by age (older first for everything except
+// voicemails, where newer comes first since they're time-sensitive).
+function renderQueueView(d) {
+  const items = [];
+
+  for (const e of (d.escalations || [])) {
+    items.push({ p: 1, age: e.age_hours || 0, html: renderEscalation(e), kind: 'esc' });
+  }
+  for (const v of (d.voicemail_queue || [])) {
+    items.push({ p: 1, age: -(v.age_hours || 0), html: renderVoicemail(v), kind: 'vm' });  // negate so newer voicemails sort first
+  }
+  for (const w of (d.warranty_submissions_due || [])) {
+    items.push({ p: 2, age: w.age_hours || 0, html: renderWarrantyCard(w), kind: 'war' });
+  }
+  for (const s of (d.stuck_intake || [])) {
+    items.push({ p: 3, age: (s.age_days || 0) * 24, html: renderStuck(s), kind: 'stuck' });
+  }
+  for (const u of (d.unpaid_self_pay || [])) {
+    items.push({ p: 4, age: (u.age_days || 0) * 24, html: renderUnpaid(u), kind: 'unpaid' });
+  }
+
+  if (items.length === 0) {
+    return `<div class="empty">All clear ✓ Nothing needs your attention right now.</div>`;
+  }
+
+  // Sort by priority then by age (oldest first within priority — except VMs which were negated)
+  items.sort((a, b) => a.p - b.p || b.age - a.age);
+
+  // Optional warranty batch bar at top if any warranty items exist
+  const batchBar = (d.warranty_submissions_due || []).length > 0
+    ? `<div style="margin-bottom:14px">${renderWarrantyBatchBar(d.warranty_submissions_due)}</div>` : '';
+
+  const wrapped = items.map(it => `
+    <div class="queue-card-wrapper">
+      <div class="priority-stripe p${it.p}"></div>
+      ${it.html}
+    </div>`).join('');
+
+  return `${batchBar}<div class="section full-width">${wrapped}</div>`;
+}
+
+// ── C: warranty batch actions (paste-mass + open all portals) ────
+function renderWarrantyBatchBar(rows) {
+  if (!rows || rows.length === 0) return '';
+  const ahsRows = rows.filter(w => /ahs|frontdoor/i.test(w.warranty_company || ''));
+  const spRows  = rows.filter(w => /servicepower|squaretrade|allstate/i.test(w.warranty_company || ''));
+  const buttons = [];
+  if (ahsRows.length > 0) {
+    buttons.push(`<button class="btn btn-portal" onclick="openAllPortals('ahs', ${ahsRows.length})">Open all ${ahsRows.length} AHS portals ↗</button>`);
+  }
+  if (spRows.length > 0) {
+    buttons.push(`<button class="btn btn-portal" onclick="openAllPortals('sp', ${spRows.length})">Open all ${spRows.length} ServicePower portals ↗</button>`);
+  }
+  buttons.push(`<button class="btn btn-secondary" onclick="copyAllWarrantyPackages()">📋 Copy all ${rows.length} packages</button>`);
+  return `<div class="batch-bar"><span class="label">🪄 batch:</span>${buttons.join('')}</div>`;
+}
+
+function openAllPortals(vendor, count) {
+  if (!confirm(`Open ${count} ${vendor === 'ahs' ? 'AHS' : 'ServicePower'} portal tabs?`)) return;
+  const url = vendor === 'ahs' ? 'https://www.frontdoorpro.com/login' : 'https://hub.servicepower.com/';
+  for (let i = 0; i < Math.min(count, 8); i++) {
+    window.open(url, '_blank');
+  }
+}
+
+function copyAllWarrantyPackages() {
+  const d = __lastData || {};
+  const rows = d.warranty_submissions_due || [];
+  if (rows.length === 0) return;
+  const blocks = rows.map(w => {
+    const c = w.customer || {};
+    const t = w.tech || {};
+    const tdr = w.tdr || {};
+    const lines = [
+      `=== Job #${w.job_id} ===`,
+      `Claim #: ${w.claim_number || w.dispatch_id || '(none)'}`,
+      `Vendor: ${w.warranty_company || '(unknown)'}`,
+      `Customer: ${((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)'}`,
+      `Phone: ${c.phone || ''}`,
+      `Address: ${[c.address, c.city, c.state, c.zip].filter(Boolean).join(', ')}`,
+      `Appliance: ${[w.brand, w.appliance_type].filter(Boolean).join(' ')}`,
+      `Model #: ${w.model_number || '(not captured)'}`,
+      `Diagnosis: ${tdr.diagnosis || '(no TDR)'}`,
+      `Failed component: ${tdr.failed_component || '(none)'}`,
+      `Repair completed: ${tdr.repair_completed || '(none)'}`,
+      `Labor hours: ${tdr.labor_time_hours != null ? tdr.labor_time_hours : '(none)'}`,
+      `Tech: ${((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)'}`,
+    ];
+    return lines.join('\n');
+  });
+  const text = blocks.join('\n\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`Copied ${rows.length} packages to clipboard`);
+  }).catch(() => showToast('Copy failed — check permissions'));
 }
 
 function ageBadge(hours) {
