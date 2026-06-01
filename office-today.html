@@ -284,7 +284,7 @@
   <span class="sep">·</span>
   <span><strong id="pb-techs">0</strong> techs working</span>
   <span class="sep">·</span>
-  <span>Customer SMS: <span id="pb-gate">🔒 OFF</span></span>
+  <span>Customer SMS: <span id="pb-gate" style="cursor:pointer" onclick="toggleSmsGate()" title="Tap to toggle">🔒 OFF</span></span>
 </div>
 
 <div class="view-toggle">
@@ -923,6 +923,34 @@ function renderVoicemail(v) {
         <button class="btn btn-secondary" onclick="clearVoicemail(${v.event_id}, this)">✓ Cleared</button>
       </div>
     </div>`;
+}
+
+async function toggleSmsGate() {
+  // Read current state from the visible pill, flip it
+  const pillEl = document.getElementById('pb-gate');
+  const isOn = (pillEl.textContent || '').includes('ON');
+  const next = !isOn;
+  const confirmMsg = next
+    ? 'Turn customer SMS ON for parallel jobs?\nReal customers will start receiving messages.'
+    : 'Turn customer SMS OFF?\nAll customer-direction sends will be dropped + logged.';
+  if (!confirm(confirmMsg)) return;
+  try {
+    const r = await fetch(XANO_BASE + '/toggle_customer_sms_gate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ enabled: next, actor: 'office_today' }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      showToast(`Gate: ${next ? '🟢 ON' : '🔒 OFF'} — Teddy notified`);
+      pillEl.textContent = next ? '🟢 ON' : '🔒 OFF';
+      pillEl.className = next ? 'gate-on' : 'gate-off';
+      setTimeout(() => load(), 800);  // refresh to confirm banner state matches server
+    } else {
+      showToast('Failed: ' + (d && d.error || 'unknown'));
+    }
+  } catch (e) {
+    showToast('Network error: ' + e.message);
+  }
 }
 
 async function createJobFromVoicemail(sourceEventLogId, btn) {

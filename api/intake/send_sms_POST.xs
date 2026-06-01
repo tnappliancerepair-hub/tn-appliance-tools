@@ -169,7 +169,7 @@ query send_sms verb=POST {
     var $should_send {
       value = ($sms_enabled == true) || ($is_owner == true)
     }
-
+  
     // ============================================================
     // 5b. CUSTOMER_FACING_ENABLED gate — parallel-mode safety net
     //     For customer-direction sends (not internal staff): drop + log
@@ -177,10 +177,30 @@ query send_sms verb=POST {
     //     parallel-launch brief — zero customer messages from the new
     //     system until explicitly enabled.
     // ============================================================
-    var $customer_facing_enabled {
+    // Read the override from company_settings first (set via Office Today
+    // toggle). Falls back to env var if no row exists. This makes the
+    // gate flippable without a Xano UI env edit.
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "customer_facing_enabled"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $gate_setting_rows
+
+    var $gate_setting {
+      value = (($gate_setting_rows.items|first) ?? null)
+    }
+
+    var $gate_setting_val {
+      value = ($gate_setting != null) ? (($gate_setting.setting_value ?? "")|trim|to_lower) : ""
+    }
+
+    var $env_gate {
       value = (($env.CUSTOMER_FACING_ENABLED ?? "false") == "true")
     }
 
+    var $customer_facing_enabled {
+      value = ($gate_setting_val != "") ? ($gate_setting_val == "true") : $env_gate
+    }
+  
     conditional {
       if ($is_internal == false && $customer_facing_enabled == false) {
         // Drop + log loudly
@@ -188,31 +208,33 @@ query send_sms verb=POST {
           data = {
             action  : "dropped_customer_sms"
             metadata: {
-              recipient_last4 : ($p10 != "") ? ($p10|substr:6:4) : "?"
-              context_tag     : ($input.context_tag ?? "")
-              body_preview    : (($sms_body ?? "")|substr:0:80)
-              reason          : "CUSTOMER_FACING_ENABLED=false"
-            }
+            recipient_last4: ($p10 != "") ? ($p10|substr:6:4) : "?"
+            context_tag    : ($input.context_tag ?? "")
+            body_preview   : (($sms_body ?? "")|substr:0:80)
+            reason         : "CUSTOMER_FACING_ENABLED=false"
+          }
           }
         } as $drop_log
-
+      
         // Drop is logged to event_log above. No SMS alert — that was
         // causing per-drop spam to Teddy's phone (every gated customer
         // outbound = 1 SMS). Visibility lives in office-pulse instead.
         // If we ever want a daily digest of dropped counts, build it as
         // a separate scheduled summary, not per-drop.
-
+      
         return {
-          value = {
-            success            : false
-            provider           : "gated"
-            provider_message_id: null
-            provider_status    : null
-            twilio_sid         : null
-            twilio_status      : 0
-            error              : "dropped_customer_facing_disabled"
-            gated              : true
-          }
+          value = ```
+            {
+              success            : false
+              provider           : "gated"
+              provider_message_id: null
+              provider_status    : null
+              twilio_sid         : null
+              twilio_status      : 0
+              error              : "dropped_customer_facing_disabled"
+              gated              : true
+            }
+            ```
         }
       }
     }

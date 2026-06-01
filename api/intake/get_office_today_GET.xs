@@ -428,8 +428,25 @@ query get_office_today verb=GET {
       value = ($practice_tech_ids|unique|count)
     }
 
-    var $customer_sms_enabled {
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "customer_facing_enabled"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $gate_setting_rows
+
+    var $gate_setting {
+      value = (($gate_setting_rows.items|first) ?? null)
+    }
+
+    var $gate_setting_val {
+      value = ($gate_setting != null) ? (($gate_setting.setting_value ?? "")|trim|to_lower) : ""
+    }
+
+    var $env_gate {
       value = (($env.CUSTOMER_FACING_ENABLED ?? "false") == "true")
+    }
+
+    var $customer_sms_enabled {
+      value = ($gate_setting_val != "") ? ($gate_setting_val == "true") : $env_gate
     }
   }
 
