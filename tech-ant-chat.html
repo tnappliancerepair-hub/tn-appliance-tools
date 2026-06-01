@@ -1477,36 +1477,53 @@
       handsfreeRec.interimResults = true;
       handsfreeRec.lang = 'en-US';
       let buffer = '';              // accumulated FINAL text across sessions
-      let processedFinalTexts = new Set(); // dedup by NORMALIZED text content (survives onstart resets)
+      let lastFinalText = '';       // most recently appended final's exact text (for superset-replacement)
+      let processedFinalTexts = new Set(); // hard dedup for exact-repeat finals
       let silenceTimer = null;
       handsfreeRec.onstart = () => {
         isListening = true; setMicActive(true);
-        // 2026-06-02: do NOT reset processedFinalTexts here. iOS Safari
-        // restarts the recognizer on no-speech/aborted errors, and each
-        // restart re-emits already-captured finals at index 0..N with
-        // the SAME text. Resetting on every onstart meant the dedup set
-        // got wiped and accumulated duplicates ("what's my Napa what's
-        // my Napa..."). The set gets cleared only when buffer is consumed
-        // by the silence-timer send (single source of truth).
+        // Do NOT reset processedFinalTexts / lastFinalText here.
+        // iOS Safari restarts the recognizer on no-speech/aborted errors
+        // and re-emits already-captured finals. Resetting on onstart
+        // would let duplicates back in.
       };
       handsfreeRec.onresult = (e) => {
-        // 2026-06-01: hard gate against TTS-bleed feedback loop. If Ant's
-        // voice is currently playing through the speaker, the mic can
-        // pick it up and onresult fires with Ant's own words. Discard
-        // those events so they never reach the brain.
+        // Hard gate against TTS-bleed feedback loop. Don't transcribe
+        // Ant's own voice playing through the speaker.
         if (__ttsPlaying) return;
-        // 2026-06-02: dedup by NORMALIZED text content, not result index.
-        // iOS Safari re-emits the same final transcript at different
-        // indices after restarts, so the prior index-based dedup leaked.
+        // 2026-06-01 v3: iOS Safari emits PROGRESSIVE final results — each
+        // new final is a SUPERSET of the previous ("can you" then
+        // "can you hear" then "can you hear me"). Pure text-dedup
+        // appended all three as distinct ("can you can you hear can you
+        // hear me"). Fix: when new final EXTENDS the last appended
+        // final, REPLACE the tail of buffer with the new final.
         let interim = '';
         for (let i = 0; i < e.results.length; i++) {
           const r = e.results[i];
           const t = (r[0] && r[0].transcript) || '';
           if (r.isFinal) {
-            const key = t.trim().toLowerCase();
-            if (key && !processedFinalTexts.has(key)) {
-              processedFinalTexts.add(key);
-              buffer += (buffer ? ' ' : '') + t;
+            const tTrim = t.trim();
+            if (!tTrim) continue;
+            const tKey = tTrim.toLowerCase();
+            // Case A: exact duplicate of a previously-processed final → skip
+            if (processedFinalTexts.has(tKey)) continue;
+            // Case B: superset of last appended final → replace tail
+            const lastKey = lastFinalText.toLowerCase().trim();
+            if (lastKey && tKey.startsWith(lastKey)) {
+              // Strip the previous version from buffer's tail, then
+              // append the new (longer) version.
+              if (buffer.endsWith(lastFinalText)) {
+                buffer = buffer.slice(0, buffer.length - lastFinalText.length).trimEnd();
+              }
+              processedFinalTexts.delete(lastKey);
+              buffer += (buffer ? ' ' : '') + tTrim;
+              lastFinalText = tTrim;
+              processedFinalTexts.add(tKey);
+            } else {
+              // Case C: distinct new final → append
+              buffer += (buffer ? ' ' : '') + tTrim;
+              lastFinalText = tTrim;
+              processedFinalTexts.add(tKey);
             }
           } else {
             interim += t;
@@ -1537,6 +1554,7 @@
             const text = buffer.trim();
             if (text.length >= 2) {
               buffer = '';
+              lastFinalText = '';
               processedFinalTexts = new Set();
               composerInput.value = '';
               // Voice-intent routing for handsfree path: same as handleSend.
@@ -1897,10 +1915,17 @@
 
   btnNav.addEventListener('click', () => {
     if (!jobContext) return;
-    // Address lives on customer block per get_job_for_dashboard shape — was
-    // previously read off jobContext.job which doesn't carry service_*.
+    // 2026-06-01: address can land on either customer.{address,city,...}
+    // OR job.{service_address,service_city,...} depending on the intake
+    // path. Try customer first (post-2026-05-31 standard), fall back to
+    // job.service_* (legacy HCP-sourced jobs).
     const c = jobContext.customer || {};
-    const parts = [c.address, c.city, c.state, c.zip].filter(Boolean);
+    const j = jobContext.job || {};
+    const addrLine = (c.address || j.service_address || '').trim();
+    const city    = (c.city    || j.service_city    || '').trim();
+    const state   = (c.state   || j.service_state   || '').trim();
+    const zip     = (c.zip     || j.service_zip     || '').trim();
+    const parts = [addrLine, city, state, zip].filter(Boolean);
     const addr = parts.join(', ');
     if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
     const q = encodeURIComponent(addr.trim());
