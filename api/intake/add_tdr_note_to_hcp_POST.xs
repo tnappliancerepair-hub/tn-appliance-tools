@@ -37,32 +37,17 @@ query add_tdr_note_to_hcp verb=POST {
         """
         |sprintf:$input.technician_first_name:$input.technician_last_name:$input.confidence_level:$input.verified_part_number:$input.estimated_repair_cost_range:$input.final_recommendation
     }
-
-    // HCP cutover kill-switch — when env.HCP_PUSH_DISABLED=true the call is skipped
-    var $hcp_disabled {
-      value = (($env.HCP_PUSH_DISABLED ?? "")|lower == "true")
-    }
-
-    var $hcp_response {
-      value = {skipped: true, reason: "HCP_PUSH_DISABLED", status: 200}
-    }
-
-    conditional {
-      if (!$hcp_disabled) {
-        api.request {
-          url = $env.HCP_BASE_URL ~ "/jobs/" ~ $input.job_id ~ "/notes"
-          method = "POST"
-          params = {content: $formatted_note}
-          headers = []
-            |push:"Authorization: Token " ~ $env.HCP_API_KEY
-            |push:"Content-Type: application/json"
-            |push:"Accept: application/json"
-        } as $live_response
-        var.update $hcp_response {
-          value = $live_response
-        }
-      }
-    }
+  
+    // Send POST request to Housecall Pro notes endpoint
+    api.request {
+      url = $env.HCP_BASE_URL ~ "/jobs/" ~ $input.job_id ~ "/notes"
+      method = "POST"
+      params = {content: $formatted_note}
+      headers = []
+        |push:"Authorization: Token " ~ $env.HCP_API_KEY
+        |push:"Content-Type: application/json"
+        |push:"Accept: application/json"
+    } as $hcp_response
   }
 
   response = $hcp_response

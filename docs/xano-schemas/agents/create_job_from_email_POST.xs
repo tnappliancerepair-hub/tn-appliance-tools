@@ -397,6 +397,57 @@ query create_job_from_email verb=POST {
       }
     } as $create_log
 
+    // ── Auto-enqueue into scheduling_queue ──────────────────────────
+    // 2026-05-30: wakes up the existing scheduler for parallel-mode jobs.
+    // The scheduling_queue_worker (running every 60s when
+    // SCHEDULING_QUEUE_ENABLED=true) picks up these rows and runs the
+    // broadcast handler — SMS to cluster techs, first-claim-wins, customer
+    // auto-notified via existing APPOINTMENT_SCHEDULED chain.
+    //
+    // Skip enqueue when:
+    //   * warranty_company == "SquareTrade" — pre-scheduled by SP dispatch
+    //   * Future: any job where scheduled_start is already populated
+    //     (means the email carried the appointment time, e.g. SP DISPATCH_OFFER)
+    var $is_squaretrade {
+      value = ($warranty_clean == "SquareTrade")
+    }
+
+    conditional {
+      if ($is_squaretrade == false) {
+        db.add scheduling_queue {
+          data = {
+            job_id: $created_job_id
+            action_type: "broadcast"
+            status: "pending"
+            result_notes: "auto-enqueued from parallel email intake"
+          }
+        } as $new_queue_row
+
+        db.add job_event {
+          data = {
+            job_id: $created_job_id
+            event_type: "scheduling_queued"
+            event_source: "parallel_email"
+            event_notes: ("Action: broadcast (queue_id=" ~ ($new_queue_row.id|to_text) ~ ")")
+            created_by: "system"
+          }
+        } as $queued_event
+
+        db.add event_log {
+          data = {
+            action: "parallel_job_auto_enqueued"
+            metadata: {
+              job_id: $created_job_id
+              queue_id: $new_queue_row.id
+              action_type: "broadcast"
+              intake_source: $intake_src_clean
+              warranty_company: $warranty_clean
+            }
+          }
+        } as $enq_log
+      }
+    }
+
     // ── Danielle SMS alert ──────────────────────────────────────────
     var $dn_warranty {
       value = ($warranty_clean != "") ? $warranty_clean : "warranty"

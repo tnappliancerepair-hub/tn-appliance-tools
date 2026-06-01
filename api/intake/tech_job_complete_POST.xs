@@ -42,41 +42,41 @@ query tech_job_complete verb=POST {
         }
       }
     }
-
+  
     // Completion-photo gate: warranty + repair_complete must have ≥1
     // attachment. Insurance + audit safeguard.
     conditional {
-      if ($input.completion_type == "repair_complete" && ($job.customer_type ?? "") == "warranty") {
+      if ($input.completion_type == "repair_complete" && ($job.customer_type ? "") == "warranty") {
         db.query job_attachments {
-          where  = $db.job_attachments.job_id == $input.job_id && $db.job_attachments.upload_complete_at != null
+          where = $db.job_attachments.job_id == $input.job_id && $db.job_attachments.upload_complete_at != null
           return = {type: "count"}
         } as $att_count
-
+      
         conditional {
-          if (($att_count ?? 0) == 0) {
+          if (($att_count ? 0) == 0) {
             db.add event_log {
               data = {
                 action  : "tech_job_complete_blocked_no_photos"
                 metadata: {
-                  job_id        : $input.job_id
-                  technician_id : $input.technician_id
-                  customer_type : ($job.customer_type ?? "")
-                }
+                job_id       : $input.job_id
+                technician_id: $input.technician_id
+                customer_type: ($job.customer_type ?? "")
+              }
               }
             } as $block_log
-
+          
             return {
               value = {
-                success        : false
-                error          : "no_completion_photos"
-                error_message  : "Need at least 1 photo before completing this warranty job."
+                success      : false
+                error        : "no_completion_photos"
+                error_message: "Need at least 1 photo before completing this warranty job."
               }
             }
           }
         }
       }
     }
-
+  
     // TDR completeness gate. ONLY applies when completion_type=repair_complete
     // AND customer_type=warranty — warranty submission requires a full TDR
     // (5 fields: diagnosis, failure_cause, failed_component, repair_completed,
@@ -84,49 +84,55 @@ query tech_job_complete verb=POST {
     // transition states (parts_needed, warranty_auth_needed, no_repair) also
     // pass through because they don't trigger downstream warranty submission.
     conditional {
-      if ($input.completion_type == "repair_complete" && ($job.customer_type ?? "") == "warranty") {
+      if ($input.completion_type == "repair_complete" && ($job.customer_type ? "") == "warranty") {
         db.query technician_decision_report {
           where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $input.technician_id
           sort = {technician_decision_report.created_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1}}
         } as $tdr_gate_rows
-
+      
         var $tdr_gate {
           value = (($tdr_gate_rows.items|first) ?? null)
         }
-
+      
         var $missing_fields {
           value = []
         }
-
+      
         conditional {
           if ($tdr_gate == null) {
             var.update $missing_fields {
-              value = ["diagnosis", "failure_cause", "failed_component", "repair_completed", "labor_time_hours"]
+              value = [
+                "diagnosis"
+                "failure_cause"
+                "failed_component"
+                "repair_completed"
+                "labor_time_hours"
+              ]
             }
           }
-
+        
           else {
             var $g_diag {
               value = ($tdr_gate.diagnosis ?? "")|trim
             }
-
+          
             var $g_fail {
               value = ($tdr_gate.failure_cause ?? "")|trim
             }
-
+          
             var $g_comp {
               value = ($tdr_gate.failed_component ?? "")|trim
             }
-
+          
             var $g_repair {
               value = ($tdr_gate.repair_completed ?? "")|trim
             }
-
+          
             var $g_labor {
               value = ($tdr_gate.labor_time_hours ?? 0)
             }
-
+          
             conditional {
               if ($g_diag == "") {
                 var.update $missing_fields {
@@ -134,7 +140,7 @@ query tech_job_complete verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($g_fail == "") {
                 var.update $missing_fields {
@@ -142,7 +148,7 @@ query tech_job_complete verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($g_comp == "") {
                 var.update $missing_fields {
@@ -150,7 +156,7 @@ query tech_job_complete verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($g_repair == "") {
                 var.update $missing_fields {
@@ -158,7 +164,7 @@ query tech_job_complete verb=POST {
                 }
               }
             }
-
+          
             conditional {
               if ($g_labor <= 0) {
                 var.update $missing_fields {
@@ -168,34 +174,34 @@ query tech_job_complete verb=POST {
             }
           }
         }
-
+      
         conditional {
           if (($missing_fields|count) > 0) {
             db.add event_log {
               data = {
                 action  : "tech_job_complete_blocked_tdr_incomplete"
                 metadata: {
-                  job_id        : $input.job_id
-                  technician_id : $input.technician_id
-                  missing_fields: $missing_fields
-                  customer_type : ($job.customer_type ?? "")
-                }
+                job_id        : $input.job_id
+                technician_id : $input.technician_id
+                missing_fields: $missing_fields
+                customer_type : ($job.customer_type ?? "")
+              }
               }
             } as $block_log
-
+          
             return {
               value = {
-                success        : false
-                error          : "tdr_incomplete"
-                error_message  : "Complete the TDR before marking the job complete."
-                missing_fields : $missing_fields
+                success       : false
+                error         : "tdr_incomplete"
+                error_message : "Complete the TDR before marking the job complete."
+                missing_fields: $missing_fields
               }
             }
           }
         }
       }
     }
-
+  
     // Time on site (null-safe: skip if job_started_at is null).
     var $now_ts {
       value = now
@@ -224,32 +230,32 @@ query tech_job_complete verb=POST {
     var $new_status {
       value = "completed"
     }
-
+  
     conditional {
       if ($input.completion_type == "repair_complete") {
         var.update $new_status {
           value = "completed"
         }
       }
-
+    
       elseif ($input.completion_type == "parts_needed") {
         var.update $new_status {
           value = "awaiting_parts"
         }
       }
-
+    
       elseif ($input.completion_type == "warranty_auth_needed") {
         var.update $new_status {
           value = "held"
         }
       }
-
+    
       elseif ($input.completion_type == "no_repair") {
         var.update $new_status {
           value = "no_fix_possible"
         }
       }
-
+    
       else {
         var.update $new_status {
           value = "completed"
@@ -333,7 +339,7 @@ query tech_job_complete verb=POST {
         } as $earnings_log
       }
     }
-
+  
     // Phase 5.5B: emit JOB_COMPLETED colony signal so the Mac Mini loop
     // (warranty_submission agent + future hooks) reacts to tech-side
     // completions, not only HCP-driven ones. Always emit - the agent
@@ -341,19 +347,19 @@ query tech_job_complete verb=POST {
     var $jc_warranty_company {
       value = ($job.warranty_company ?? "")
     }
-
+  
     var $jc_claim_number {
       value = ($job.claim_number ?? "")
     }
-
+  
     var $jc_customer_type {
       value = ($job.customer_type ?? "")
     }
-
+  
     var $jc_completed_at_ms {
-      value = ($now_ts|to_ms)
+      value = $now_ts|to_ms
     }
-
+  
     var $jc_payload_obj {
       value = {
         job_id          : $input.job_id
@@ -365,11 +371,11 @@ query tech_job_complete verb=POST {
         completed_at_ms : $jc_completed_at_ms
       }
     }
-
+  
     var $jc_payload_str {
       value = $jc_payload_obj|json_encode
     }
-
+  
     db.add colony_signals {
       data = {
         signal_type    : "JOB_COMPLETED"
@@ -379,35 +385,35 @@ query tech_job_complete verb=POST {
         payload        : $jc_payload_str
       }
     } as $jc_signal
-
+  
     // SMS Teddy with the completion update. Customer + appliance for context.
     var $cust_id_val_c {
       value = ($job.customer_id ?? 0)
     }
-
+  
     var $cust_name_c {
       value = "customer"
     }
-
+  
     conditional {
       if ($cust_id_val_c > 0) {
         db.get customer {
           field_name = "id"
           field_value = $cust_id_val_c
         } as $cust_c
-
+      
         var $cust_first_c {
           value = ($cust_c.first_name ?? "")|trim
         }
-
+      
         var $cust_last_c {
           value = ($cust_c.last_name ?? "")|trim
         }
-
+      
         var $cust_joined_c {
           value = ($cust_first_c ~ " " ~ $cust_last_c)|trim
         }
-
+      
         conditional {
           if ($cust_joined_c != "") {
             var.update $cust_name_c {
@@ -417,28 +423,28 @@ query tech_job_complete verb=POST {
         }
       }
     }
-
+  
     db.get technicians {
       field_name = "id"
       field_value = $input.technician_id
     } as $tech_c
-
+  
     var $tech_first_c {
       value = ($tech_c.first_name ?? "tech")|trim
     }
-
+  
     var $appliance_str_c {
       value = ($job.appliance_type ?? "")|trim
     }
-
+  
     var $time_on_site_str {
       value = ($time_on_site_minutes != null) ? (($time_on_site_minutes|to_text) ~ "min") : "—"
     }
-
+  
     var $sms_body_c {
       value = "[ant] " ~ $tech_first_c ~ " completed job #" ~ ($input.job_id|to_text) ~ " (" ~ ($input.completion_type ?? "") ~ ") - " ~ $time_on_site_str ~ " - " ~ $cust_name_c ~ ", " ~ $appliance_str_c
     }
-
+  
     api.request {
       url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
       method = "POST"
@@ -446,6 +452,7 @@ query tech_job_complete verb=POST {
         to     : ($env.OWNER_PHONE_NUMBER ?? "")
         message: $sms_body_c
       }
+    
       headers = ["Content-Type: application/json"]
       timeout = 30
     } as $teddy_sms_c_resp

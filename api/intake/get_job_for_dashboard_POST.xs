@@ -175,7 +175,7 @@ query get_job_for_dashboard verb=POST {
       sort = {technician_decision_report.created_at: "desc"}
       return = {type: "single"}
     } as $tdr_record
-
+  
     // ALL TDRs for this job, oldest-first, with the author's first name
     // attached. tech-ant-live.html stacks these so the tech sees Teddy's
     // pre-diagnosis (technician_id=1) plus their own diagnosis side-by-side
@@ -185,25 +185,30 @@ query get_job_for_dashboard verb=POST {
       sort = {technician_decision_report.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 20}}
     } as $all_tdrs_query
-
+  
     var $all_tdrs {
       value = []
     }
-
+  
     foreach ($all_tdrs_query.items) {
       each as $t {
-        var $author_first { value = "" }
+        var $author_first {
+          value = ""
+        }
+      
         conditional {
           if ($t.technician_id != null && $t.technician_id > 0) {
             db.get technicians {
-              field_name  = "id"
+              field_name = "id"
               field_value = $t.technician_id
             } as $tdr_author
+          
             var.update $author_first {
               value = (($tdr_author.first_name ?? "")|trim)
             }
           }
         }
+      
         array.push $all_tdrs {
           value = {
             id                       : $t.id
@@ -222,7 +227,7 @@ query get_job_for_dashboard verb=POST {
         }
       }
     }
-
+  
     // Recent events for this job (filter on metadata.job_id JSON path).
     db.query event_log {
       where = $db.event_log.metadata.job_id == $input.job_id
@@ -249,32 +254,42 @@ query get_job_for_dashboard verb=POST {
     // Prior-visit count for this customer + appliance_type within 12 months,
     // excluding the current job. Tech Ant Live renders a "Nth visit" badge
     // so the tech walks in knowing the callback history.
-    var $prior_visit_count { value = 0 }
-    var $prior_visit_ids   { value = [] }
-
+    var $prior_visit_count {
+      value = 0
+    }
+  
+    var $prior_visit_ids {
+      value = []
+    }
+  
     conditional {
       if ($job.customer_id != null && $job.customer_id > 0) {
         var $pv_cutoff {
           value = ((now|to_ms) - (12 * 30 * 24 * 60 * 60 * 1000))
         }
+      
         var $pv_appl {
           value = (($job.appliance_type ?? "")|trim|to_lower)
         }
+      
         db.query jobs {
-          where  = $db.jobs.customer_id == $job.customer_id && $db.jobs.id != $input.job_id && $db.jobs.created_at >= $pv_cutoff
-          sort   = {jobs.created_at: "desc"}
+          where = $db.jobs.customer_id == $job.customer_id && $db.jobs.id != $input.job_id && $db.jobs.created_at >= $pv_cutoff
+          sort = {jobs.created_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 50}}
         } as $pv_rows
+      
         foreach ($pv_rows.items) {
           each as $pj {
             var $pj_appl {
               value = (($pj.appliance_type ?? "")|trim|to_lower)
             }
+          
             conditional {
               if ($pv_appl == "" || $pj_appl == $pv_appl) {
                 var.update $prior_visit_count {
                   value = ($prior_visit_count + 1)
                 }
+              
                 array.push $prior_visit_ids {
                   value = $pj.id
                 }
@@ -284,7 +299,7 @@ query get_job_for_dashboard verb=POST {
         }
       }
     }
-
+  
     // Earnings for this job (one row per tech who worked it).
     db.query tech_earnings {
       where = $db.tech_earnings.job_id == $input.job_id
@@ -313,8 +328,8 @@ query get_job_for_dashboard verb=POST {
     // 5. Build the clean response object.
     var $result {
       value = {
-        success      : true
-        job          : {
+        success          : true
+        job              : {
           id: $job.id,
           job_number: $job.job_number,
           created_at: $job.created_at,
@@ -342,7 +357,7 @@ query get_job_for_dashboard verb=POST {
           job_completed_at: $job.job_completed_at,
           time_on_site_minutes: $job.time_on_site_minutes
         }
-        appliance    : {
+        appliance        : {
           type: $job.appliance_type,
           brand: $job.brand,
           model_number: $job.model_number,
@@ -350,7 +365,7 @@ query get_job_for_dashboard verb=POST {
           problem_summary: $job.problem_summary,
           problem_description: $job.problem_description
         }
-        customer     : {
+        customer         : {
           id: $customer.id ?? null,
           name: $customer_name,
           first_name: $customer.first_name ?? null,
@@ -362,11 +377,11 @@ query get_job_for_dashboard verb=POST {
           state: $res_state,
           zip: $res_zip
         }
-        tech         : {
+        tech             : {
           id: $tech_record.id ?? null,
           name: $tech_name
         }
-        tdr          : {
+        tdr              : {
           diagnosis                : ($tdr_record.diagnosis ?? null)
           customer_facing_diagnosis: ($tdr_record.customer_facing_diagnosis ?? null)
           status                   : ($tdr_record.status ?? null)
@@ -377,9 +392,9 @@ query get_job_for_dashboard verb=POST {
           labor_time_hours         : ($tdr_record.labor_time_hours ?? null)
           repair_completed         : ($tdr_record.repair_completed ?? null)
         }
-        recent_events: $events_trimmed
-        earnings     : $earnings_trimmed
-        all_tdrs     : $all_tdrs
+        recent_events    : $events_trimmed
+        earnings         : $earnings_trimmed
+        all_tdrs         : $all_tdrs
         prior_visit_count: $prior_visit_count
         prior_visit_ids  : $prior_visit_ids
       }

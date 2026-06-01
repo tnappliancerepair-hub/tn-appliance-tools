@@ -17,7 +17,7 @@ query ahs_email_intake verb=POST {
       error_type = "inputerror"
       error = "rawXml is required"
     }
-
+  
     // ── Forward-only gate (2026-06-02): if PARSER_ACTIVATION_TS_MS env is
     // set and the email's received_at_ms (Gmail message internalDate from
     // the poller) is BEFORE the activation timestamp, treat it as a
@@ -27,11 +27,11 @@ query ahs_email_intake verb=POST {
     var $activation_ts {
       value = (($env.PARSER_ACTIVATION_TS_MS ?? "0")|to_int)
     }
-
+  
     var $received_at {
       value = ($input.received_at_ms ?? 0)
     }
-
+  
     conditional {
       if ($activation_ts > 0 && $received_at > 0 && $received_at < $activation_ts) {
         db.add event_log {
@@ -45,7 +45,7 @@ query ahs_email_intake verb=POST {
           }
           }
         } as $pre_log
-
+      
         return {
           value = {
             success             : true
@@ -60,11 +60,11 @@ query ahs_email_intake verb=POST {
         }
       }
     }
-
+  
     var $effective_gmail_msg_id {
       value = $input.gmail_message_id ?? ""
     }
-
+  
     db.get job_email_event {
       field_name = "gmail_message_id"
       field_value = $effective_gmail_msg_id

@@ -234,59 +234,49 @@ query create_job verb=POST {
       }
     }
   
-    // HCP cutover kill-switch — when env.HCP_PUSH_DISABLED=true the
-    // entire HCP customer+job+note push block is skipped.
-    var $hcp_disabled {
-      value = (($env.HCP_PUSH_DISABLED ?? "")|lower == "true")
+    api.request {
+      url = $env.HCP_BASE_URL ~ "/customers"
+      method = "POST"
+      params = {
+        first_name   : $first_name
+        last_name    : $last_name
+        email        : $email
+        mobile_number: $phone
+      }
+    
+      headers = [
+        "Content-Type: application/json"
+        "Authorization: Token " ~ $env.HCP_API_KEY
+      ]
+    } as $hcp_customer_response
+  
+    var $hcp_customer_id {
+      value = $hcp_customer_response.response.result.id ?? null
     }
-
+  
     conditional {
-      if (!$hcp_disabled) {
+      if ($hcp_customer_id != null) {
         api.request {
-          url = $env.HCP_BASE_URL ~ "/customers"
+          url = $env.HCP_BASE_URL ~ "/jobs"
           method = "POST"
-          params = {
-            first_name   : $first_name
-            last_name    : $last_name
-            email        : $email
-            mobile_number: $phone
-          }
-
+          params = {customer_id: $hcp_customer_id}
           headers = [
             "Content-Type: application/json"
             "Authorization: Token " ~ $env.HCP_API_KEY
           ]
-        } as $hcp_customer_response
-
-        var $hcp_customer_id {
-          value = $hcp_customer_response.response.result.id ?? null
-        }
-
+        } as $hcp_job_response
+      
         conditional {
-          if ($hcp_customer_id != null) {
+          if ($hcp_job_response.response.result.id != null) {
             api.request {
-              url = $env.HCP_BASE_URL ~ "/jobs"
+              url = $env.HCP_BASE_URL ~ "/jobs/" ~ ($hcp_job_response.response.result.id|to_text) ~ "/notes"
               method = "POST"
-              params = {customer_id: $hcp_customer_id}
+              params = {content: $problem_summary}
               headers = [
-                "Content-Type: application/json"
                 "Authorization: Token " ~ $env.HCP_API_KEY
+                "Content-Type: application/json"
               ]
-            } as $hcp_job_response
-
-            conditional {
-              if ($hcp_job_response.response.result.id != null) {
-                api.request {
-                  url = $env.HCP_BASE_URL ~ "/jobs/" ~ ($hcp_job_response.response.result.id|to_text) ~ "/notes"
-                  method = "POST"
-                  params = {content: $problem_summary}
-                  headers = [
-                    "Authorization: Token " ~ $env.HCP_API_KEY
-                    "Content-Type: application/json"
-                  ]
-                } as $hcp_job_note_response
-              }
-            }
+            } as $hcp_job_note_response
           }
         }
       }

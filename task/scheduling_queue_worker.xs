@@ -170,7 +170,7 @@ task scheduling_queue_worker {
                         } as $cand_tech
                       
                         conditional {
-                          if (($cand_tech != null) && ($cand_tech.active)) {
+                          if (($cand_tech != null) && $cand_tech.active) {
                             db.query tech_availability {
                               where = $db.tech_availability.technician_id == $cand_tech.id && $db.tech_availability.blocked_date == $today_ct_date && $db.tech_availability.full_day_off == true
                               return = {type: "exists"}
@@ -190,7 +190,7 @@ task scheduling_queue_worker {
                                 foreach ($hard_prefs.items) {
                                   each as $pref {
                                     conditional {
-                                      if ((($pref.preference_type == "geographic") || ($pref.preference_type == "both")) && (($pref.zip_or_area ? "") == ($cluster|to_lower)) && (($pref.time_window_start ? "") == "")) {
+                                      if ((($pref.preference_type == "geographic") || ($pref.preference_type == "both")) && (($pref.zip_or_area ? "" : ) == ($cluster|to_lower)) && (($pref.time_window_start ? "" : ) == "")) {
                                         var.update $blocked {
                                           value = true
                                         }
@@ -198,7 +198,7 @@ task scheduling_queue_worker {
                                     
                                       else {
                                         conditional {
-                                          if ((($pref.preference_type == "time") || ($pref.preference_type == "both")) && (($pref.day_of_week ? "") == $today_day_name) && (($pref.time_window_start ? "") == "")) {
+                                          if ((($pref.preference_type == "time") || ($pref.preference_type == "both")) && (($pref.day_of_week ? "" : ) == $today_day_name) && (($pref.time_window_start ? "" : ) == "")) {
                                             var.update $blocked {
                                               value = true
                                             }
@@ -399,25 +399,34 @@ task scheduling_queue_worker {
                 // try_auto_schedule when in autonomous mode). Calls
                 // auto_book_existing_job which writes the job + fires
                 // APPOINTMENT_SCHEDULED (customer + tech auto-SMS chain).
-                var $book_tech_id { value = (($row.metadata.tech_id ?? $row.metadata.technician_id ?? 0)|to_decimal) }
-                var $book_start_ms { value = (($row.metadata.scheduled_start_ms ?? 0)|to_decimal) }
+                var $book_tech_id {
+                  value = (($row.metadata.tech_id ?? $row.metadata.technician_id ?? 0)|to_decimal)
+                }
+              
+                var $book_start_ms {
+                  value = (($row.metadata.scheduled_start_ms ?? 0)|to_decimal)
+                }
+              
                 conditional {
                   if ($book_tech_id > 0 && $book_start_ms > 0 && $row.job_id > 0) {
                     api.request {
-                      url    = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/auto_book_existing_job"
+                      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/auto_book_existing_job"
                       method = "POST"
-                      headers = ["content-type: application/json"]
-                      params  = {
-                        job_id             : $row.job_id
-                        technician_id      : $book_tech_id
-                        scheduled_start_ms : $book_start_ms
-                        source             : "scheduling_queue_worker_book"
+                      params = {
+                        job_id            : $row.job_id
+                        technician_id     : $book_tech_id
+                        scheduled_start_ms: $book_start_ms
+                        source            : "scheduling_queue_worker_book"
                       }
+                    
+                      headers = ["content-type: application/json"]
                     } as $book_resp
+                  
                     var.update $result_notes {
                       value = "booked job " ~ ($row.job_id|to_text) ~ " tech=" ~ ($book_tech_id|to_text) ~ " start_ms=" ~ ($book_start_ms|to_text) ~ " resp_status=" ~ ($book_resp.response.status|to_text)
                     }
                   }
+                
                   else {
                     var.update $result_notes {
                       value = "[skip-book] missing fields: job_id=" ~ ($row.job_id|to_text) ~ " tech=" ~ ($book_tech_id|to_text) ~ " start=" ~ ($book_start_ms|to_text)
@@ -612,7 +621,7 @@ task scheduling_queue_worker {
                             } as $tech
                           
                             conditional {
-                              if (($tech != null) && ($tech.active)) {
+                              if (($tech != null) && $tech.active) {
                                 for (7) {
                                   each as $offset {
                                     var $day_count {
@@ -648,7 +657,7 @@ task scheduling_queue_worker {
                                         }
                                       
                                         conditional {
-                                          if (($avail != null) && ($avail.full_day_off)) {
+                                          if (($avail != null) && $avail.full_day_off) {
                                             var.update $is_off {
                                               value = true
                                             }
@@ -1403,7 +1412,7 @@ task scheduling_queue_worker {
                                             }
                                           
                                             conditional {
-                                              if (($sick_tech.phone ? "") != "") {
+                                              if (($sick_tech.phone ? "" : ) != "") {
                                                 var $gate667_sms_enabled {
                                                   value = (($env.SMS_ENABLED ?? "false") == "true")
                                                 }

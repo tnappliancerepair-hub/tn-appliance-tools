@@ -13,6 +13,7 @@ query tech_assist_chat verb=POST {
     text user_message filters=trim
     int? session_id?
     json? attachment_ids?
+  
     // Per-vendor warranty checklist (fetched by the frontend via
     // /.netlify/functions/get-warranty-requirements). When present,
     // appended to the system prompt so Ant leads the tech through the
@@ -59,23 +60,23 @@ query tech_assist_chat verb=POST {
           field_name = "id"
           field_value = $input.job_id
         } as $lazy_job
-
+      
         var $lazy_warranty_co_raw {
           value = ($lazy_job.warranty_company ?? "")|trim
         }
-
+      
         var $lazy_warranty_co {
           value = ($lazy_warranty_co_raw != "") ? $lazy_warranty_co_raw : "unknown"
         }
-
+      
         var $lazy_cust_type_raw {
           value = ($lazy_job.customer_type ?? "")|trim
         }
-
+      
         var $lazy_cust_type {
           value = ($lazy_cust_type_raw == "warranty" || $lazy_cust_type_raw == "self_pay") ? $lazy_cust_type_raw : "warranty"
         }
-
+      
         var $lazy_required_fields {
           value = [
             "model_confirmation"
@@ -84,7 +85,7 @@ query tech_assist_chat verb=POST {
             "repair_completed_status"
           ]
         }
-
+      
         db.add tech_assist_session {
           data = {
             job_id                   : $input.job_id
@@ -99,7 +100,7 @@ query tech_assist_chat verb=POST {
             updated_at               : now
           }
         } as $session
-
+      
         db.add event_log {
           data = {
             action  : "tech_assist_session_lazy_created"
@@ -231,34 +232,34 @@ query tech_assist_chat verb=POST {
     var $attachment_ids_in {
       value = ($input.attachment_ids ?? [])
     }
-
+  
     var $attachment_count {
       value = $attachment_ids_in|count
     }
-
+  
     var $image_s3_keys {
       value = []
     }
-
+  
     conditional {
       if ($attachment_count > 0) {
         foreach ($attachment_ids_in) {
           each as $att_id {
             db.get job_attachments {
-              field_name  = "id"
+              field_name = "id"
               field_value = $att_id
             } as $att
-
+          
             conditional {
               if ($att != null) {
                 var $att_ft {
                   value = ($att.file_type ?? "")|to_text
                 }
-
+              
                 var $att_key {
                   value = ($att.s3_key ?? "")|to_text
                 }
-
+              
                 conditional {
                   if (($att_ft == "image" || $att_ft == "photo") && $att_key != "") {
                     array.push $image_s3_keys {
@@ -272,35 +273,35 @@ query tech_assist_chat verb=POST {
         }
       }
     }
-
+  
     var $image_view_urls {
       value = []
     }
-
+  
     var $image_key_count {
       value = $image_s3_keys|count
     }
-
+  
     conditional {
       if ($image_key_count > 0) {
         api.request {
-          url     = "https://superlative-naiad-233aa7.netlify.app/.netlify/functions/s3-view-url"
-          method  = "POST"
-          params  = {s3_keys: $image_s3_keys}
+          url = "https://superlative-naiad-233aa7.netlify.app/.netlify/functions/s3-view-url"
+          method = "POST"
+          params = {s3_keys: $image_s3_keys}
           headers = ["Content-Type: application/json"]
           timeout = 30
         } as $sign_resp_chat
-
+      
         var $signed_chat {
           value = ($sign_resp_chat.response.result.signed_urls ?? [])
         }
-
+      
         foreach ($signed_chat) {
           each as $sg2 {
             var $url_only {
               value = ($sg2.view_url ?? "")|to_text
             }
-
+          
             conditional {
               if ($url_only != "") {
                 array.push $image_view_urls {
@@ -312,7 +313,7 @@ query tech_assist_chat verb=POST {
         }
       }
     }
-
+  
     // The just-persisted user message is NOT in $recent (querying happened before
     // the insert). Always append it as the latest user turn. If history's last
     // pushed role was already "user" (rare double-tap), Anthropic will combine.
@@ -321,13 +322,13 @@ query tech_assist_chat verb=POST {
     var $final_image_count {
       value = $image_view_urls|count
     }
-
+  
     conditional {
       if ($final_image_count > 0) {
         var $user_content_blocks {
           value = []
         }
-
+      
         foreach ($image_view_urls) {
           each as $iurl {
             array.push $user_content_blocks {
@@ -335,15 +336,16 @@ query tech_assist_chat verb=POST {
             }
           }
         }
-
+      
         array.push $user_content_blocks {
           value = {type: "text", text: $input.user_message}
         }
-
+      
         array.push $claude_messages {
           value = {role: "user", content: $user_content_blocks}
         }
       }
+    
       else {
         array.push $claude_messages {
           value = {role: "user", content: $input.user_message}
@@ -534,10 +536,11 @@ query tech_assist_chat verb=POST {
     var $checklist_raw {
       value = (($input.warranty_checklist_text ?? "")|trim)
     }
+  
     var $warranty_block {
       value = ($checklist_raw != "") ? ("\n\n# WARRANTY-SPECIFIC REQUIREMENTS\n\n" ~ $checklist_raw ~ "\n\nLEAD THE TECH THROUGH THESE IN ORDER. Confirm each captured item without re-asking. Ask for the next pending item using its prompt text. When ALL required items are captured, say 'TDR ready — tap save.' and stop asking.\n") : ""
     }
-
+  
     // VISION OVERRIDE 2026-05-29: vision IS now wired (this endpoint
     // ships image blocks via attachment_ids → s3-view-url → Claude
     // image source). Older versions of ANT_TECH_ASSIST_PROMPT told
@@ -548,7 +551,7 @@ query tech_assist_chat verb=POST {
     var $vision_note {
       value = ($final_image_count > 0) ? "\n\n# VISION ENABLED THIS TURN\n\nThe tech attached " ~ ($final_image_count|to_text) ~ " image(s) to this message. You CAN see them. Read any visible model number / serial / part number / error code / nameplate text and confirm it back to the tech. If it is a model or serial plate, capture the model and serial as TDR fields. Do not say you cannot see images." : ""
     }
-
+  
     var $context_block {
       value = "\n\n# CURRENT CONTEXT\n\nToday: " ~ $today_date_str ~ " (" ~ $today_day_str ~ ") - Central Time" ~ $calendar_text ~ "\n\nSession: id=" ~ $session_id_str ~ ", job_id=" ~ $job_id_str ~ "\nTech: " ~ $tech_first_str ~ " (tech_id=" ~ $tech_id_str ~ ")\nWarranty company: " ~ $warranty_co_str ~ "\nCustomer: " ~ $cust_display_name ~ "\nAppliance: " ~ $brand_for_ctx ~ " " ~ $appliance_type_disp ~ " (model: " ~ $model_for_ctx ~ ")\n\nCAPTURED SO FAR (json): " ~ $captured_json ~ "\nREQUIRED FIELDS REMAINING (json): " ~ $required_json ~ $warranty_block ~ $vision_note
     }
@@ -919,7 +922,7 @@ query tech_assist_chat verb=POST {
         }
       
         conditional {
-          if (($env.OWNER_PHONE_NUMBER ? "") != "") {
+          if (($env.OWNER_PHONE_NUMBER ? "" : ) != "") {
             // ── SMS_ENABLED gate (call_site: tech_assist_chat_POST.xs:629) ──
             var $gate629_recipient_e164 {
               value = ($env.OWNER_PHONE_NUMBER ?? "")|trim

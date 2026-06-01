@@ -96,11 +96,11 @@ query get_tech_daily_dashboard verb=GET {
           sort = {technician_decision_report.created_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1}}
         } as $teddy_tdr_rows
-
+      
         var $teddy_tdr {
           value = (($teddy_tdr_rows.items|first) ?? null)
         }
-
+      
         // Latest TDR for this job by ANY tech (so the on-site tech sees
         // their own submitted TDR back on the dashboard for confirmation).
         db.query technician_decision_report {
@@ -108,11 +108,11 @@ query get_tech_daily_dashboard verb=GET {
           sort = {technician_decision_report.created_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1}}
         } as $latest_tdr_rows
-
+      
         var $latest_tdr {
           value = (($latest_tdr_rows.items|first) ?? null)
         }
-
+      
         db.query job_attachments {
           where = $db.job_attachments.job_id == $job.id && $db.job_attachments.upload_complete_at != null
           sort = {job_attachments.created_at: "desc"}

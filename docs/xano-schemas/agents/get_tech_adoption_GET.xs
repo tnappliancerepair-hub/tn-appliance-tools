@@ -1,23 +1,10 @@
 // Powers tech-adoption-tracker.html.
 //
-// For each active technician, returns the count of tech_assist_session
-// rows that have technician_id == that tech_id within the 24h and 7d
-// windows, plus a last_used_at timestamp from the most-recent session.
+// 2026-05-30 v2 AUTH GATE — shared-secret key check at top of stack.
+// Caller must supply ?key=<value> matching $env.OFFICE_KEY.
 //
-// Two-query-per-tech approach (per spec fallback) - simpler XS than the
-// object-indexed accumulator the draft attempted, which the dialect
-// does not support cleanly.
-//
-// Schema corrections from the spec (verified 2026-05-30):
-//   * Source field is technician_id, NOT tech_id. The draft was wrong.
-//   * last_message_at is a stronger "last used" signal than created_at
-//     because the session row is created once at session-start but the
-//     last_message_at is updated on every tech reply. Fall back to
-//     created_at if last_message_at is null.
-//   * now returns a datetime; needs |to_ms for arithmetic.
-//
-// The response exposes tech_id (mapped from technician_id) to keep the
-// page's contract unchanged.
+// For each active technician, returns count of tech_assist_session rows
+// in 24h + 7d windows, plus a last_used_at timestamp.
 //
 // XS rules: no em-dashes, no backticks, no try/catch, no raw if, every
 // filter paren-wrapped, ?? only in value = (...).
@@ -26,9 +13,25 @@ query get_tech_adoption verb=GET {
   api_group = "intake"
 
   input {
+    text? key?
   }
 
   stack {
+    // ── AUTH GATE: shared-secret key check ──────────────────────────
+    var $key_in {
+      value = (($input.key ?? "")|trim)
+    }
+
+    var $key_expected {
+      value = (($env.OFFICE_KEY ?? "")|trim)
+    }
+
+    precondition ($key_expected != "" && $key_in == $key_expected) {
+      error_type = "accessdenied"
+      error = "Invalid or missing key"
+    }
+
+    // ── Main query ───────────────────────────────────────────────────
     var $now_ms {
       value = (now|to_ms)
     }
@@ -53,15 +56,12 @@ query get_tech_adoption verb=GET {
 
     foreach ($tech_rows.items) {
       each as $t {
-        // 7d window: get rows sorted by last_message_at desc so the
-        // first item carries the most recent activity timestamp.
         db.query tech_assist_session {
           where = $db.tech_assist_session.technician_id == $t.id && $db.tech_assist_session.created_at >= $cutoff_7d_ms
           sort = {tech_assist_session.last_message_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 500}}
         } as $sess_7d
 
-        // 24h window: just need the count.
         db.query tech_assist_session {
           where = $db.tech_assist_session.technician_id == $t.id && $db.tech_assist_session.created_at >= $cutoff_24h_ms
           sort = {tech_assist_session.id: "desc"}
@@ -80,7 +80,6 @@ query get_tech_adoption verb=GET {
           value = (($sess_7d.items|first) ?? null)
         }
 
-        // Prefer last_message_at; fall back to created_at if null.
         var $last_used_at {
           value = null
         }
@@ -127,5 +126,5 @@ query get_tech_adoption verb=GET {
     cutoff_7d_ms: $cutoff_7d_ms
   }
 
-  guid = "get-tech-adoption-v1"
+  guid = "IgYxd6_b1WoNJiy9QjYHIGFKs_s"
 }

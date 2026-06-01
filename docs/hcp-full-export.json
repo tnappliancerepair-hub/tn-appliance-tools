@@ -1,0 +1,2285 @@
+{
+  "summary": {
+    "started_at_iso": "2026-05-29T13:13:16.802Z",
+    "completed_window_days": 30,
+    "completed_since_iso": "2026-04-29T13:13:16.802Z",
+    "open_jobs": 10,
+    "completed_jobs": 10,
+    "open_statuses_pulled": [
+      "scheduled",
+      "in progress",
+      "schedule appointment",
+      "pending",
+      "needs scheduling"
+    ],
+    "completed_statuses_pulled": [
+      "complete",
+      "completed",
+      "complete unrated",
+      "complete rated"
+    ],
+    "failed_window_pulls": [],
+    "unique_jobs_total": 20,
+    "finished_at_iso": "2026-05-29T13:13:18.219Z"
+  },
+  "jobs": [
+    {
+      "id": "job_e967698dd34c45b2a6f097edacccdf57",
+      "invoice_number": "22630-2",
+      "description": "",
+      "customer": {
+        "id": "cus_d2e49a59eb3e4e9b87e4435edd11a5ca",
+        "first_name": "Barry",
+        "last_name": "Greer Sr",
+        "email": "mattie.greer@comcast.net",
+        "mobile_number": "6155943308",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2024-06-26T20:42:25Z",
+        "updated_at": "2024-06-26T20:42:25Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_fc137f32ac834d25b1998325805f0dbb",
+        "type": "service",
+        "street": "3821 LUNN DR",
+        "street_line_2": null,
+        "city": "NASHVILLE",
+        "state": "TN",
+        "zip": "37218",
+        "country": "CA"
+      },
+      "notes": [],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-29T16:00:00Z",
+        "scheduled_end": "2026-05-29T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_a5c9d8b438b843e3adfbdf810ffe0155",
+          "first_name": "Lee",
+          "last_name": "Harding",
+          "email": "lorddragula30@yahoo.com",
+          "mobile_number": "6158291654",
+          "color_hex": "e65100",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/754/132/thumb_web_round/avatar_1667515301.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-10-17T20:06:44Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "Parts @ Customer"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-29T00:00:34Z",
+      "updated_at": "2026-05-29T00:01:12Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_9669f32e318345f88d50e6b16ef14e88",
+      "invoice_number": "22774",
+      "description": "",
+      "customer": {
+        "id": "cus_98f62359859c4c2dbc26bb021a5ea133",
+        "first_name": "Tim",
+        "last_name": "Vantrease",
+        "email": null,
+        "mobile_number": "6158049341",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T23:48:54Z",
+        "updated_at": "2026-05-28T23:48:54Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_34df8d205e7b4b28b4d071830d7a7d02",
+        "type": "billing",
+        "street": "2317 Verde Ct",
+        "street_line_2": null,
+        "city": "Murfreesboro",
+        "state": "TN",
+        "zip": "37128",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_d6dd88c16560403e937c051194824315",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_1a26aad50e714e9dbc41b8512db2d38c",
+          "content": "Call #\t 077161174130\nSource\t SQUARE TRADE\nBrand\t Lg\nProduct\t Refrigerator\nModel #\t LRYKC2606S\nSerial #\t \nSchedule Date\t 06/08/2026\nSchedule Period\t 8:00 - 10:00\nCall Taken\t 05/28/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 01/13/2025\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Tim Vantrease\nConsumer Address\t 2317 Verde Ct\nCity\t Murfreesboro\nState\t Tn\nZip Code\t 37128\nHome Phone\t 6158049341\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nICE MAKER IS NOT MAKING ICE"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-08T13:00:00Z",
+        "scheduled_end": "2026-06-08T16:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "LG",
+        "FRIDGE"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T23:49:27Z",
+      "updated_at": "2026-05-28T23:52:16Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_3dc34b6bfdf147e0bea3c899df997a67",
+      "invoice_number": "22773",
+      "description": "",
+      "customer": {
+        "id": "cus_89c8968ff09f435180ecf79dc22d166f",
+        "first_name": "Thomas",
+        "last_name": "Hubble",
+        "email": null,
+        "mobile_number": "2257333819",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T23:38:07Z",
+        "updated_at": "2026-05-28T23:38:07Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_6fa1e57a599c4495b8c8fa22544cf20f",
+        "type": "billing",
+        "street": "2642 Seneca St",
+        "street_line_2": null,
+        "city": "Baton Rouge",
+        "state": "LA",
+        "zip": "70805",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_7a3b815583794d2480c5c94cdfeb16f4",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_0e2fdd3a0930404ea6642c3bd84dfa01",
+          "content": "Call #\t 078480274136\nSource\t SQUARE TRADE\nBrand\t Whirlpool\nProduct\t Washer\nModel #\t WTW5105HW\nSerial #\t \nSchedule Date\t 06/02/2026\nSchedule Period\t 10:00 - 12:00\nCall Taken\t 05/28/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 04/01/2023\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Thomas Hubble\nConsumer Address\t 2642 Seneca St\nCity\t Baton Rouge\nState\t La\nZip Code\t 70805\nHome Phone\t 2257333819\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nPOWERS ON BUT IS NOT STARTING THE CYCLE AND IS STUCK ON SENSING AS WELL"
+        },
+        {
+          "id": "nte_5af50d617dec4583ba22e109bdaa1b3b",
+          "content": "https://www.searspartsdirect.com/model/3audsbt67x-001198/whirlpool-wtw5105hw0-washer-parts"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-02T20:00:00Z",
+        "scheduled_end": "2026-06-02T23:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_cf9d2663844a4be686b0edd55b5091c7",
+          "first_name": "John",
+          "last_name": "Houk",
+          "email": "john.tnappliance@gmail.com",
+          "mobile_number": "8133527686",
+          "color_hex": "837717",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/862/020/thumb_web_round/avatar_1743615321.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": true,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-26T14:42:23Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "WASHER",
+        "WHIRLPOOL"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T23:38:12Z",
+      "updated_at": "2026-05-28T23:40:06Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_445473ad34b3453986a44558424c88b7",
+      "invoice_number": "22772",
+      "description": "",
+      "customer": {
+        "id": "cus_d015bfe68c194248a1a39dd0de3a3f31",
+        "first_name": "Wanda",
+        "last_name": "Coats",
+        "email": null,
+        "mobile_number": "6152897350",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T23:32:28Z",
+        "updated_at": "2026-05-28T23:32:28Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_089cce67e7de40f1aba88b3b867aea0d",
+        "type": "billing",
+        "street": "5724 Wilkins Branch Rd",
+        "street_line_2": null,
+        "city": "Franklin",
+        "state": "TN",
+        "zip": "37064",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_3024df931bde44bf85deca45d9961737",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_306e4793de3740019706b7b5c9675dce",
+          "content": "Call #\t 026888274135\nSource\t SQUARE TRADE\nBrand\t Maytag\nProduct\t Washer\nModel #\t MVW5035MW\nSerial #\t \nSchedule Date\t 06/02/2026\nSchedule Period\t 8:00 - 10:00\nCall Taken\t 05/28/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 03/30/2023\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Wanda Coats\nConsumer Address\t 5724 Wilkins Branch Rd\nCity\t Franklin\nState\t Tn\nZip Code\t 37064\nHome Phone\t 6152897350\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nNOT DRAINING PROPERLY"
+        },
+        {
+          "id": "nte_91cb15c884b74d4da800972e52342054",
+          "content": "https://www.searspartsdirect.com/model/2vpnnsw14r-003048/maytag-mvw5035mw1-washer-parts"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-03T13:00:00Z",
+        "scheduled_end": "2026-06-03T16:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "WASHER",
+        "MAYTAG"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T23:33:08Z",
+      "updated_at": "2026-05-28T23:34:00Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_08473ef9c046443d9dc96b4392a9fd41",
+      "invoice_number": "22770",
+      "description": "",
+      "customer": {
+        "id": "cus_afd150dd40be4f0ab436e4c164f3ae77",
+        "first_name": "Stacey",
+        "last_name": "Kennedy",
+        "email": "staceykennedy595@gmail.com",
+        "mobile_number": "9856405896",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T22:19:46Z",
+        "updated_at": "2026-05-28T22:19:46Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_40cddcd9240c40078978a940ea15f99c",
+        "type": "service",
+        "street": "1580 HARBOR DR",
+        "street_line_2": "Unit 219",
+        "city": "SLIDELL",
+        "state": "LA",
+        "zip": "70458",
+        "country": "CA"
+      },
+      "notes": [
+        {
+          "id": "nte_f0ad7ac6e99d4415945b3fe469cbabde",
+          "content": "<a href=\"http://dispa.me/07Lzk1ORuQmj\" target=\"_blank\">Ahs Authorization Link</a>\n<a href=\"http://dispa.me/X9L4D8iprBOH\" target=\"_blank\">Open in web</a>\nahs:47893399 \n47893399 APL Normal:NORMAL\n# Job Brand Information\n\nThis is an AHS customer.\n\n# Customer Information\n\n **STACEY KENNEDY** (Dispatch Contact)\n\n**HOME:**[\\(985\\) 640-5896](tel:+19856405896)\n\n**STACEY KENNEDY** (Contract Contact)\n\n**Home:**[\\(985\\) 640-5896](tel:+19856405896)\n\n# Autho Link\n\nAuthorization Link: [Click Here] (https://contractor.frontdoorhome.com/redirect?dest=ER&amp;dispatch=47893399&amp;svcReq=9894479&amp;tenant=AHS&amp;vendorId=822418&amp;tradeCode=APL)\n\n# Vendor\n\n**Vendor ID**:822418\n\n# Contract Information\n\n**Contract ID:**6316629\n\n**Listing Effective Date:** 2017-04-21\n\n**Listing Expiration Date:** 2017-04-27\n\n**Contract Effective Date:** 2026-04-28\n\n**Contract Expiration Date:** 2027-04-28\n\n\n# Covered Property Address\n\n1580  HARBOR DR\nUnit219\nSLIDELL, LA 70458\n\n# Work Order Information\n\n**Dispatch Priority:**Normal\n\n**Autho Required?:** False \n\n ## **Items** \n\n## Item 1: Refrigerator Ice Maker\n\n**Problem:**\nLeaking water, \n\n\n**Status:** Open\n\nBrand: Whirlpool\n\n# Coverage Information\n\n## Coverage Notes\n\n\n\nSHIELDPLUS HOME WARRANTY\n\n30-DAY RECALL APPLIES TO THE SERVICE WORK PERFORMED ON THE PREVIOUS DISPATCH REQUEST\n\nREMINDER: COMPLETION DATE MUST BE PROVIDED TO AHS FOR ALL SERVICE CALLS\n\nHVAC REFRIGERANT: $10 PER POUND LIMIT PER OCCURRENCE\n\n*** DO NOT COLLECT TRADE SERVICE FEE ***\n\n*** Payment Type : PREPAY ***\n## Coverage Details\n\nThe following are some added coverage provisions provided for this Customer:\n\n\n- Rust and Corrosion\n- Built-In Microwave Ovens - Additional Coverage\n- Air Conditioning Systems - Additional Coverage\n- Heating Systems - Additional Coverage\n- Ductwork - Additional Coverage\n- Garage Door Openers - Additional Coverage\n- Plumbing - Additional Coverage\n- Ranges, Ovens, Cooktops - Additional Coverage\n- Removal of Defective Equipment\n- Improper Install, Repair, or Modifications\n- Lack of Maintenance\n- Mismatched Systems\n- Refrigerant Recapture and Disposal\n- Undetectable Pre-Existing Conditions\n# Payment\n\n**Total: $125\n\n**Paid: $0\n\n**Remaining: $125"
+        },
+        {
+          "id": "nte_39a2afa2d98649998987b7cb7c173fb6",
+          "content": "Item:\tRefrigerator Ice Maker\nBrand:\tWhirlpool\nIssue:\tThe icemaker isn't working either. And the seal on the door is bad\nAttributes:\tBrand - Whirlpool"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-29T16:00:00Z",
+        "scheduled_end": "2026-05-29T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_cf9d2663844a4be686b0edd55b5091c7",
+          "first_name": "John",
+          "last_name": "Houk",
+          "email": "john.tnappliance@gmail.com",
+          "mobile_number": "8133527686",
+          "color_hex": "837717",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/862/020/thumb_web_round/avatar_1743615321.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": true,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-26T14:42:23Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "AHS",
+        "WHIRLPOOL",
+        "FRIDGE"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T22:19:49Z",
+      "updated_at": "2026-05-28T23:28:24Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_e2a37dbb491b4e0fbb62b35015634db2",
+      "invoice_number": "22472-4",
+      "description": "",
+      "customer": {
+        "id": "cus_584ac8ca376444e5b8d272be870791c5",
+        "first_name": "Nick",
+        "last_name": "And Heather Nunez",
+        "email": "nsnunez67@yahoo.com",
+        "mobile_number": "5042893375",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-01T17:43:23Z",
+        "updated_at": "2026-05-01T17:43:23Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_7bdd0723f71e4d299211582438ed2e16",
+        "type": "service",
+        "street": "5212 WADE DR",
+        "street_line_2": null,
+        "city": "METAIRIE",
+        "state": "LA",
+        "zip": "70003",
+        "country": "CA"
+      },
+      "notes": [
+        {
+          "id": "nte_c8e09ae0adb740698f8073db3e6e70dd",
+          "content": "Ice tray does not seem to have any water in it. Made 1 tray and nothing since"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-29T15:00:00Z",
+        "scheduled_end": "2026-05-29T18:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_7f6119d83a7e4d0fb2c7009a66bde45b",
+          "first_name": "Andre",
+          "last_name": "Pivacek",
+          "email": "andre.tnappliance@gmail.com",
+          "mobile_number": "6157280196",
+          "color_hex": "fb0202",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/855/940/thumb_web_round/avatar_1752792359.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": false,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-17T15:03:40Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T22:06:35Z",
+      "updated_at": "2026-05-28T22:07:08Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_ab283105df0147d3a78b634da9f97e46",
+      "invoice_number": "22656-2",
+      "description": "",
+      "customer": {
+        "id": "cus_017da8bbdc164de08d043dd3ef3e07df",
+        "first_name": "Charles",
+        "last_name": "Poteet",
+        "email": "csp22855@outlook.com",
+        "mobile_number": "9318016549",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-18T23:20:45Z",
+        "updated_at": "2026-05-18T23:20:45Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_7dfbc3e956a544fa85a5d47a1e364249",
+        "type": "service",
+        "street": "1216 STARLIGHT LN",
+        "street_line_2": null,
+        "city": "CLARKSVILLE",
+        "state": "TN",
+        "zip": "37043",
+        "country": "CA"
+      },
+      "notes": [],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-01T20:00:00Z",
+        "scheduled_end": "2026-06-01T23:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_a5c9d8b438b843e3adfbdf810ffe0155",
+          "first_name": "Lee",
+          "last_name": "Harding",
+          "email": "lorddragula30@yahoo.com",
+          "mobile_number": "6158291654",
+          "color_hex": "e65100",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/754/132/thumb_web_round/avatar_1667515301.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-10-17T20:06:44Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T18:08:43Z",
+      "updated_at": "2026-05-28T18:09:04Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_c27a0d794354448a8f19dcb775771022",
+      "invoice_number": "22563-3",
+      "description": "",
+      "customer": {
+        "id": "cus_7ff4a5a999594af1801a1015a85b28c9",
+        "first_name": "Pete",
+        "last_name": "Long Laura Cutting",
+        "email": "pete.long@att.net",
+        "mobile_number": "4438227327",
+        "home_number": "6153868833",
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2023-03-22T16:29:36Z",
+        "updated_at": "2025-01-13T23:40:48Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_8e0bdbb52f2d4be19c438ebb7c18ef95",
+        "type": "service",
+        "street": "1701 PRIMROSE AVE",
+        "street_line_2": null,
+        "city": "NASHVILLE",
+        "state": "TN",
+        "zip": "37212",
+        "country": "CA"
+      },
+      "notes": [],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-02T16:00:00Z",
+        "scheduled_end": "2026-06-02T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_a5c9d8b438b843e3adfbdf810ffe0155",
+          "first_name": "Lee",
+          "last_name": "Harding",
+          "email": "lorddragula30@yahoo.com",
+          "mobile_number": "6158291654",
+          "color_hex": "e65100",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/754/132/thumb_web_round/avatar_1667515301.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-10-17T20:06:44Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T16:32:52Z",
+      "updated_at": "2026-05-28T16:33:14Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_f5b3919f61554c94a179db3516559649",
+      "invoice_number": "22767",
+      "description": "",
+      "customer": {
+        "id": "cus_d71fba50962c420e82c139673ab88f13",
+        "first_name": "Elbert",
+        "last_name": "Garner",
+        "email": null,
+        "mobile_number": "6154157493",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T16:26:26Z",
+        "updated_at": "2026-05-28T16:26:26Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_e58812368e954e3b9d81539fe4300028",
+        "type": "billing",
+        "street": "1001 Eden Park Dr",
+        "street_line_2": null,
+        "city": "Franklin",
+        "state": "TN",
+        "zip": "37067",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_1c5b0f6fb98543f89efc1909458f5003",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_c387cd11e2414653a7d7115366f3a6d6",
+          "content": "Call #\t 086269274130\nSource\t SQUARE TRADE\nBrand\t Kitchenaid\nProduct\t Refrigerator\nModel #\t KRFC704FBS\nSerial #\t \nSchedule Date\t 06/02/2026\nSchedule Period\t 8:00 - 10:00\nCall Taken\t 05/27/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 05/11/2024\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Elbert Garner\nConsumer Address\t 1001 Eden Park Dr\nCity\t Franklin\nState\t Tn\nZip Code\t 37067\nHome Phone\t 6154157493\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nLAST NIGHT WHEN I OPENED REFRIGERATOR DOOR THE LIGHT DIDN'T COME ON. THE ICE MAKER WILL NOT DISPERSE ICE AND WATER IN DOOR IS NOT WORKING. NOT OF THE LIGHTS ON FRONT PANEL ARE WORKING."
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-02T16:00:00Z",
+        "scheduled_end": "2026-06-02T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_a5c9d8b438b843e3adfbdf810ffe0155",
+          "first_name": "Lee",
+          "last_name": "Harding",
+          "email": "lorddragula30@yahoo.com",
+          "mobile_number": "6158291654",
+          "color_hex": "e65100",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/754/132/thumb_web_round/avatar_1667515301.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-10-17T20:06:44Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "FRIDGE",
+        "KITCHEN AID"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T16:26:47Z",
+      "updated_at": "2026-05-28T16:29:32Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_19763f41408f495ebabba94dd70a93f0",
+      "invoice_number": "22766",
+      "description": "",
+      "customer": {
+        "id": "cus_5bf561fb2d8d4ac694d2f17cc49f8645",
+        "first_name": "Kimberly",
+        "last_name": "Yokoyama",
+        "email": null,
+        "mobile_number": "5097107583",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-28T15:57:07Z",
+        "updated_at": "2026-05-28T15:57:07Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_6dc124e2d00845a8ad97d49294a78469",
+        "type": "billing",
+        "street": "312 Wisteria Dr",
+        "street_line_2": null,
+        "city": "Franklin",
+        "state": "TN",
+        "zip": "37064",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_88b9fe801968470796b464a80f37445f",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_513ec1d08339454e9d117bee57b92ec8",
+          "content": "Call #\t 048226174136\nSource\t SQUARE TRADE\nBrand\t Whirlpool\nProduct\t Dishwasher\nModel #\t WDT750SAKZ\nSerial #\t \nSchedule Date\t 06/02/2026\nSchedule Period\t 8:00 - 10:00\nCall Taken\t 05/28/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 02/13/2025\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Kimberly Yokoyama\nConsumer Address\t 312 Wisteria Dr\nCity\t Franklin\nState\t Tn\nZip Code\t 37064\nHome Phone\t 5097107583\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nERROR CODE: E1 F6"
+        },
+        {
+          "id": "nte_88d7a79b880843d198cedb5790be098d",
+          "content": "https://www.searspartsdirect.com/model/41ntz360co-001198/whirlpool-wdt750sakz1-dishwasher-parts"
+        }
+      ],
+      "work_status": "scheduled",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": null
+      },
+      "schedule": {
+        "scheduled_start": "2026-06-02T13:00:00Z",
+        "scheduled_end": "2026-06-02T16:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_a5c9d8b438b843e3adfbdf810ffe0155",
+          "first_name": "Lee",
+          "last_name": "Harding",
+          "email": "lorddragula30@yahoo.com",
+          "mobile_number": "6158291654",
+          "color_hex": "e65100",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/754/132/thumb_web_round/avatar_1667515301.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-10-17T20:06:44Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "DISHWASHER",
+        "WHIRLPOOL"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-28T15:57:18Z",
+      "updated_at": "2026-05-28T15:59:58Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_e45688df4ad240db909893aeff513c97",
+      "invoice_number": "22669-2",
+      "description": "",
+      "customer": {
+        "id": "cus_80bc6cc9dcf1435082adf606658f9c85",
+        "first_name": "Audrey",
+        "last_name": "Julian",
+        "email": "shontelljulian@yahoo.com",
+        "mobile_number": "5042505360",
+        "home_number": "5042861634",
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-19T22:41:00Z",
+        "updated_at": "2026-05-19T22:48:20Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_bda36d62b81546fc90e6654dec0cc9a4",
+        "type": "billing",
+        "street": "4816 Odin St",
+        "street_line_2": null,
+        "city": "New Orleans",
+        "state": "LA",
+        "zip": "70126",
+        "country": "US"
+      },
+      "notes": [],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-27T13:48:42Z",
+        "started_at": null,
+        "completed_at": "2026-05-27T15:01:00Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-27T14:00:00Z",
+        "scheduled_end": "2026-05-27T17:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_7f6119d83a7e4d0fb2c7009a66bde45b",
+          "first_name": "Andre",
+          "last_name": "Pivacek",
+          "email": "andre.tnappliance@gmail.com",
+          "mobile_number": "6157280196",
+          "color_hex": "fb0202",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/855/940/thumb_web_round/avatar_1752792359.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": false,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-17T15:03:40Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "parts @ johns",
+        "Parts from Warranty"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-26T18:19:09Z",
+      "updated_at": "2026-05-27T15:01:00Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_1a7cf8676fe446f8b984600b6b57ad0c",
+      "invoice_number": "22611-3",
+      "description": "",
+      "customer": {
+        "id": "cus_80bd821c84334ac993136a49f2b4da2c",
+        "first_name": "Maryse Deslorgs",
+        "last_name": null,
+        "email": null,
+        "mobile_number": "6157303910",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2025-09-30T19:09:04Z",
+        "updated_at": "2025-09-30T19:09:04Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_ec27c4e29a2e49b6bdabac94befc0395",
+        "type": "billing",
+        "street": "341 Sarna Dr",
+        "street_line_2": null,
+        "city": "La Vergne",
+        "state": "TN",
+        "zip": "37086",
+        "country": "US"
+      },
+      "notes": [],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-28T18:17:50Z",
+        "started_at": "2026-05-28T19:20:20Z",
+        "completed_at": "2026-05-28T19:20:30Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-28T18:00:00Z",
+        "scheduled_end": "2026-05-28T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_62f343b05fc74db29b0f18a6f406a9f3",
+          "first_name": "Teddy",
+          "last_name": "Pivacek",
+          "email": "jpivacek@gmail.com",
+          "mobile_number": "6154855795",
+          "color_hex": "253239",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/727/841/thumb_web_round/avatar_1729206255.png",
+          "role": "office staff",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": true,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": true,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-08-22T17:03:36Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "Parts @ Customer"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-26T15:52:35Z",
+      "updated_at": "2026-05-28T19:20:30Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_0b61fc85468a459ca9a183deae36f7c9",
+      "invoice_number": "22565-2",
+      "description": "",
+      "customer": {
+        "id": "cus_8b916e27fae34b1fb0a8d872c9b02d3c",
+        "first_name": "Juan Villalobos",
+        "last_name": null,
+        "email": null,
+        "mobile_number": "6153495975",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-11T15:29:21Z",
+        "updated_at": "2026-05-11T15:29:21Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_1377eeba8b3040e59e37f9306059909e",
+        "type": "billing",
+        "street": "1630 W Wilson Blvd",
+        "street_line_2": null,
+        "city": "Mt. Juliet",
+        "state": "TN",
+        "zip": "37122",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_dab22d551b25472cadae1a248efdc61d",
+          "content": "PART IS IN TES SM BOX"
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-26T17:15:36Z",
+        "started_at": "2026-05-26T17:32:19Z",
+        "completed_at": "2026-05-26T17:43:58Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-26T16:00:00Z",
+        "scheduled_end": "2026-05-26T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-26T01:18:52Z",
+      "updated_at": "2026-05-26T17:43:58Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_d49789f52f244a088f67d43e605fe951",
+      "invoice_number": "22237-3",
+      "description": "",
+      "customer": {
+        "id": "cus_16c36380ef2b414cb41ecb3860169786",
+        "first_name": "Melana",
+        "last_name": "Schexnider",
+        "email": "mschexnider@proton.me",
+        "mobile_number": "3374228982",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-04-16T16:25:36Z",
+        "updated_at": "2026-04-16T16:25:36Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_ac3874cd60b24d9a9dc5107c72069f57",
+        "type": "service",
+        "street": "227 EIGHTH STREET DR",
+        "street_line_2": null,
+        "city": "PONCHATOULA",
+        "state": "LA",
+        "zip": "70454",
+        "country": "CA"
+      },
+      "notes": [
+        {
+          "id": "nte_4937ac0c99da4cc98ec17dd4204d388f",
+          "content": "Call when otw you should have gotten part already"
+        },
+        {
+          "id": "nte_c6862864664a47ad8077ad6419888b24",
+          "content": "install drain pump tested machine everything working fine now job is complete"
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": null,
+        "started_at": null,
+        "completed_at": "2026-05-26T18:51:46Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-26T18:00:00Z",
+        "scheduled_end": "2026-05-26T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_cf9d2663844a4be686b0edd55b5091c7",
+          "first_name": "John",
+          "last_name": "Houk",
+          "email": "john.tnappliance@gmail.com",
+          "mobile_number": "8133527686",
+          "color_hex": "837717",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/862/020/thumb_web_round/avatar_1743615321.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": true,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": false,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-26T14:42:23Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T23:54:42Z",
+      "updated_at": "2026-05-26T18:51:46Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_b8222618e996478280b1398ff9affb2c",
+      "invoice_number": "22472-3",
+      "description": "",
+      "customer": {
+        "id": "cus_584ac8ca376444e5b8d272be870791c5",
+        "first_name": "Nick",
+        "last_name": "And Heather Nunez",
+        "email": "nsnunez67@yahoo.com",
+        "mobile_number": "5042893375",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-01T17:43:23Z",
+        "updated_at": "2026-05-01T17:43:23Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_7bdd0723f71e4d299211582438ed2e16",
+        "type": "service",
+        "street": "5212 WADE DR",
+        "street_line_2": null,
+        "city": "METAIRIE",
+        "state": "LA",
+        "zip": "70003",
+        "country": "CA"
+      },
+      "notes": [
+        {
+          "id": "nte_159c5a262a2c4898b8fd7a3ee04a5948",
+          "content": "Ordered Whirlpool Refrigerator Water Inlet Valve WPW10341320\nfrom Marcones per Johns note on last appointment"
+        },
+        {
+          "id": "nte_641a2c021ecb4c338be1fd7eb5e78f79",
+          "content": "Customer had broken wires by the door, got that all back together and noticed the black wire that I repair and the yellow wire repair went to the harness and to the icemaker switch job complete"
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-27T18:31:22Z",
+        "started_at": null,
+        "completed_at": "2026-05-27T19:19:43Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-27T18:00:00Z",
+        "scheduled_end": "2026-05-27T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_7f6119d83a7e4d0fb2c7009a66bde45b",
+          "first_name": "Andre",
+          "last_name": "Pivacek",
+          "email": "andre.tnappliance@gmail.com",
+          "mobile_number": "6157280196",
+          "color_hex": "fb0202",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/855/940/thumb_web_round/avatar_1752792359.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": false,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-17T15:03:40Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "PART @ MARCONES"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T23:47:18Z",
+      "updated_at": "2026-05-27T19:19:43Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_ac5dfaf64d634e96896b8fb875245760",
+      "invoice_number": "22730",
+      "description": "",
+      "customer": {
+        "id": "cus_d7a4186ce5a64d199e0a65802182acce",
+        "first_name": "Jules Adams",
+        "last_name": null,
+        "email": null,
+        "mobile_number": "5048124619",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": "LiveSwitch Leads",
+        "notes": "LiveSwitch contact record: https://app.contact.liveswitch.com/contacts/4fa6f11a-ef5d-4976-98d6-913908f45fed",
+        "kind": "homeowner",
+        "created_at": "2026-02-02T20:06:39Z",
+        "updated_at": "2026-02-16T18:21:58Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_290888c4242847af98e1160e340d7860",
+        "type": "billing",
+        "street": "4740 Dodt Ave",
+        "street_line_2": null,
+        "city": "New Orleans",
+        "state": "LA",
+        "zip": "70126",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_beea3ffe5e5041feaefaebf83941b692",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_f5c1664854b941348d22b69998ab46fc",
+          "content": "Call #\t 038866174139\nSource\t SQUARE TRADE\nBrand\t Hotpoint\nProduct\t Washer\nModel #\t HTW240ASKWS\nSerial #\t \nSchedule Date\t 05/28/2026\nSchedule Period\t 8:00 - 10:00\nCall Taken\t 05/23/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 05/25/2023\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Jules Adams\nConsumer Address\t 4740 Dodt Ave\nCity\t New Orleans\nState\t La\nZip Code\t 70126\nHome Phone\t 5048124619\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nNOW THE ITEM DOES NOT SPIN"
+        },
+        {
+          "id": "nte_21dec0edc4de45e8a6d2d8d2445a0801",
+          "content": "I did a board update with it and also noticed there was a lot of grease on the belt was causing it to slip. When you have bigger loads wiped off all that grease residue job complete no additional parts."
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-28T16:49:38Z",
+        "started_at": null,
+        "completed_at": "2026-05-28T17:41:53Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-28T16:00:00Z",
+        "scheduled_end": "2026-05-28T19:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_7f6119d83a7e4d0fb2c7009a66bde45b",
+          "first_name": "Andre",
+          "last_name": "Pivacek",
+          "email": "andre.tnappliance@gmail.com",
+          "mobile_number": "6157280196",
+          "color_hex": "fb0202",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/855/940/thumb_web_round/avatar_1752792359.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": false,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-17T15:03:40Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "WASHER",
+        "HOTPOINT"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T22:44:57Z",
+      "updated_at": "2026-05-28T17:41:53Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_3cf3585548854a4291594cc2dd5cfd58",
+      "invoice_number": "22729",
+      "description": "",
+      "customer": {
+        "id": "cus_74cbd4d8277248e18ba34f3a39020b42",
+        "first_name": "Judith",
+        "last_name": "Stone-Collins",
+        "email": null,
+        "mobile_number": "5049137151",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-25T22:35:09Z",
+        "updated_at": "2026-05-25T22:35:09Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_eb6821d359644b4a9bc5d752a931b605",
+        "type": "billing",
+        "street": "1227 Calhoun St",
+        "street_line_2": null,
+        "city": "New Orleans",
+        "state": "LA",
+        "zip": "70118",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_68436011f4d74b34b8b8bc5e285b1d2d",
+          "content": "Diagnosis :\n\nParts : \n\nCause of failure : \n\nTime : "
+        },
+        {
+          "id": "nte_73a63eb4ddce414fb143ad2de89e38c8",
+          "content": "Call #\t 048505174130\nSource\t SQUARE TRADE\nBrand\t Lg\nProduct\t Washer\nModel #\t WM3900HBA\nSerial #\t \nSchedule Date\t 05/29/2026\nSchedule Period\t 12:00 - 17:00\nCall Taken\t 05/22/2026\nCall Type\t Service Contract\nServiceType\t Rep\nAuthority Number\t \nCo-Pay\t 0\nContract #\t \nInstall Date\t 11/18/2021\nRepeat Call\t NO\nCall Status\t Accepted\nConsumer Name\t Judith Stone-Collins\nConsumer Address\t 1227 Calhoun St\nCity\t New Orleans\nState\t La\nZip Code\t 70118\nHome Phone\t 5049137151\nCell Phone\t \nWork Phone\t \nCustomer Problem:\nI AM FACING THE ISSUE THAT THE WASHER WON'T DRAIN AND COMPLETE THE WASH CYCLE."
+        },
+        {
+          "id": "nte_d747465e88ff4b289435366859a45ff4",
+          "content": "Call before hitting otw. May not be there. She tried to reschedule "
+        },
+        {
+          "id": "nte_30e7eb3b58894f599fb99c6db43b2f16",
+          "content": "Installed drain pump motor it was seized up not working properly And rusted up charge for a 2 man on this one it was just me here "
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-28T15:43:00Z",
+        "started_at": null,
+        "completed_at": "2026-05-28T15:46:29Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-28T13:00:00Z",
+        "scheduled_end": "2026-05-28T16:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_7f6119d83a7e4d0fb2c7009a66bde45b",
+          "first_name": "Andre",
+          "last_name": "Pivacek",
+          "email": "andre.tnappliance@gmail.com",
+          "mobile_number": "6157280196",
+          "color_hex": "fb0202",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/855/940/thumb_web_round/avatar_1752792359.png",
+          "role": "field tech",
+          "tags": [],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": false,
+            "can_see_street_view_data": false,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": false,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2023-04-17T15:03:40Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "SQUARE TRADE",
+        "WASHER",
+        "LG"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T22:35:14Z",
+      "updated_at": "2026-05-28T15:46:29Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_7a5c30135cee48cbb0a6d56358ef492e",
+      "invoice_number": "22487-3",
+      "description": "",
+      "customer": {
+        "id": "cus_13763f85087d4cc7b2380e1c54586089",
+        "first_name": "Julie",
+        "last_name": "Chang",
+        "email": "smcsmc90@gmail.com",
+        "mobile_number": "6153360992",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2024-08-16T14:37:53Z",
+        "updated_at": "2024-08-16T14:37:53Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_1b73d072c0fa499ebce25563bd0280a4",
+        "type": "service",
+        "street": "3524 DOVE CREEK RD",
+        "street_line_2": null,
+        "city": "ANTIOCH",
+        "state": "TN",
+        "zip": "37013",
+        "country": "CA"
+      },
+      "notes": [
+        {
+          "id": "nte_bcace567fcd0400ca43ad480320a4b24",
+          "content": "job complete "
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-28T21:54:11Z",
+        "started_at": "2026-05-28T21:54:11Z",
+        "completed_at": "2026-05-28T22:12:01Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-28T18:00:00Z",
+        "scheduled_end": "2026-05-28T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "Parts @ Customer"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T21:57:17Z",
+      "updated_at": "2026-05-28T22:12:01Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_e7ef90169a5545dfb015554913e86857",
+      "invoice_number": "22646-2",
+      "description": "",
+      "customer": {
+        "id": "cus_d45c258b9c214acf963287005beba828",
+        "first_name": "Wayne",
+        "last_name": "Gillow",
+        "email": null,
+        "mobile_number": "6024887534",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-05-18T18:46:41Z",
+        "updated_at": "2026-05-18T18:46:41Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_d30af2431b024074ad488e9b9d5a4e58",
+        "type": "billing",
+        "street": "3803 Carriage Dr",
+        "street_line_2": null,
+        "city": "Murfreesboro",
+        "state": "TN",
+        "zip": "37128",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_77b975c89c054cfc975b5fc06651ed6f",
+          "content": "job complete "
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-28T19:28:50Z",
+        "started_at": "2026-05-28T19:58:19Z",
+        "completed_at": "2026-05-28T20:02:33Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-28T18:00:00Z",
+        "scheduled_end": "2026-05-28T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [
+        "Parts @ Customer"
+      ],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-25T19:16:31Z",
+      "updated_at": "2026-05-28T20:02:33Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    },
+    {
+      "id": "job_07227f18b2084bb0b077b4d00984de57",
+      "invoice_number": "22332-5",
+      "description": "",
+      "customer": {
+        "id": "cus_78b8922e9b094ca987e0422f7ae8a6f2",
+        "first_name": "Noemi Otero",
+        "last_name": null,
+        "email": null,
+        "mobile_number": "6154969715",
+        "home_number": null,
+        "work_number": null,
+        "company": null,
+        "notifications_enabled": true,
+        "lead_source": null,
+        "notes": null,
+        "kind": "homeowner",
+        "created_at": "2026-04-22T15:12:09Z",
+        "updated_at": "2026-04-22T15:12:09Z",
+        "company_name": "TN APPLIANCE EXCHANGE LLC",
+        "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+        "tags": []
+      },
+      "address": {
+        "id": "adr_b3d6c8b420744250a348a4521506872c",
+        "type": "billing",
+        "street": "122 Pana Dr",
+        "street_line_2": null,
+        "city": "Hendersonville",
+        "state": "TN",
+        "zip": "37075",
+        "country": "US"
+      },
+      "notes": [
+        {
+          "id": "nte_c499a7308ace44ba81696225771f35ba",
+          "content": "job complete "
+        }
+      ],
+      "work_status": "complete unrated",
+      "work_timestamps": {
+        "on_my_way_at": "2026-05-26T18:11:08Z",
+        "started_at": "2026-05-26T20:53:19Z",
+        "completed_at": "2026-05-26T20:53:40Z"
+      },
+      "schedule": {
+        "scheduled_start": "2026-05-26T18:00:00Z",
+        "scheduled_end": "2026-05-26T21:00:00Z",
+        "arrival_window": 180,
+        "appointments": []
+      },
+      "total_amount": 0,
+      "outstanding_balance": 0,
+      "assigned_employees": [
+        {
+          "id": "pro_e4e4a77e88be413bb2d9ec2335f579da",
+          "first_name": "Jimmy",
+          "last_name": "P",
+          "email": "jimmypiva1118@gmail.com",
+          "mobile_number": "6159671304",
+          "color_hex": "1777d3",
+          "avatar_url": "https://housecall-attachments-production.s3.us-west-1.amazonaws.com/service_pros/avatars/000/742/519/thumb_web_round/avatar_1667515249.png",
+          "role": "field tech",
+          "tags": [
+            "Senior Tech"
+          ],
+          "permissions": {
+            "can_add_and_edit_job": true,
+            "can_call_and_text_with_customers": true,
+            "can_chat_with_customers": true,
+            "can_delete_and_cancel_job": false,
+            "can_edit_message_on_invoice": true,
+            "can_see_street_view_data": true,
+            "can_take_payment_see_prices": true,
+            "can_see_customers": true,
+            "can_see_marketing_campaigns": false,
+            "can_see_reporting": false,
+            "can_edit_settings": false,
+            "can_be_booked_online": true,
+            "can_share_job": false,
+            "can_see_full_schedule": true,
+            "can_see_future_jobs": true,
+            "is_point_of_contact": false,
+            "is_admin": false
+          },
+          "created_at": "2022-09-22T15:09:52Z",
+          "company_name": "TN APPLIANCE EXCHANGE LLC",
+          "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d"
+        }
+      ],
+      "tags": [],
+      "original_estimate_id": null,
+      "original_estimate_uuids": [],
+      "subtotal": 0,
+      "lead_source": null,
+      "job_fields": {
+        "job_type": null,
+        "business_unit": null
+      },
+      "locked_at": null,
+      "created_at": "2026-05-22T19:45:25Z",
+      "updated_at": "2026-05-26T20:53:41Z",
+      "canceled_at": null,
+      "deleted_at": null,
+      "assigned_route_template_id": null,
+      "company_name": "TN APPLIANCE EXCHANGE LLC",
+      "company_id": "2653b6e1-943b-49a3-8c18-1a95ef0ab18d",
+      "recurrence_number": null,
+      "recurrence_rule": null
+    }
+  ]
+}

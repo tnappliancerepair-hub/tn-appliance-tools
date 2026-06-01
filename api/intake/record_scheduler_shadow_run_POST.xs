@@ -22,25 +22,21 @@ query record_scheduler_shadow_run verb=POST {
       data = {
         action  : "scheduler_shadow_run"
         metadata: {
-          run_id         : ($input.run_id ?? "")
-          target_date    : (($input.target_date ?? "")|trim)
-          total_jobs_in  : ($input.total_jobs_in ?? 0)
-          flexible_in    : ($input.flexible_in ?? 0)
-          anchors_in     : ($input.anchors_in ?? 0)
-          techs_active   : ($input.techs_active ?? 0)
-          unrouted_count : ($input.unrouted_count ?? 0)
-          plan_size      : ($input.plan_size ?? 0)
-          tech_rollup    : (($input.tech_rollup ?? "")|trim)
-          fired_at_ms    : (now|to_ms)
-        }
+        run_id        : ($input.run_id ?? "")
+        target_date   : (($input.target_date ?? "")|trim)
+        total_jobs_in : ($input.total_jobs_in ?? 0)
+        flexible_in   : ($input.flexible_in ?? 0)
+        anchors_in    : ($input.anchors_in ?? 0)
+        techs_active  : ($input.techs_active ?? 0)
+        unrouted_count: ($input.unrouted_count ?? 0)
+        plan_size     : ($input.plan_size ?? 0)
+        tech_rollup   : (($input.tech_rollup ?? "")|trim)
+        fired_at_ms   : now|to_ms
+      }
       }
     } as $audit
   }
 
-  response = {
-    success: true
-    id     : $audit.id
-  }
-
+  response = {success: true, id: $audit.id}
   guid = "record-scheduler-shadow-run-v1"
 }

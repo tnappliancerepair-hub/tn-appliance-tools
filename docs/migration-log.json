@@ -1,0 +1,73 @@
+{
+  "started_at_iso": "2026-05-27T10:35:25.170Z",
+  "started_at_ms": 1779878125170,
+  "args": {
+    "dryRun": true,
+    "maxPages": 100,
+    "statuses": "scheduled,in progress,schedule appointment",
+    "perPage": 200
+  },
+  "base_url": "https://api.housecallpro.com",
+  "xano_base": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
+  "pages_seen": 1,
+  "total_hcp_jobs": 10,
+  "created": 0,
+  "updated": 0,
+  "skipped": 10,
+  "failed": 0,
+  "failures": [],
+  "by_action": [
+    {
+      "hcp_job_id": "job_c5fa574c12854bdea11976aa31ec1e42",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_8b80169e10874a15bae90021c2d486b9",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_911e1fc5f17e43cfa90aba0a10385d8d",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_d402e482ec034b68973be64773ad49ae",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_08c2430f559248bd85e86face32698cf",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_2fa51d50575744699aebce4e4735ed7a",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_e45688df4ad240db909893aeff513c97",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_c6375ee283cc4618b6a00970d7617fa3",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_91005786e62a40f2a03feb90097d6bfe",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    },
+    {
+      "hcp_job_id": "job_e8f8127965084f6bae4b1dc4d730c433",
+      "action_taken": "dry_run",
+      "work_status": "scheduled"
+    }
+  ],
+  "finished_at_iso": "2026-05-27T10:35:25.896Z",
+  "elapsed_ms": 726
+}

@@ -1,0 +1,53 @@
+table technicians {
+  auth = false
+
+  schema {
+    int id
+    timestamp created_at?=now {
+      visibility = "private"
+    }
+  
+    text first_name? filters=trim
+    text last_name? filters=trim
+    text phone? filters=trim
+    text email? filters=trim
+    bool active?=true
+    text hcp_id? filters=trim
+    text pin? filters=trim
+  
+    // Time of day when Ant Tech Scheduler sends this tech's daily summary. HH:MM format (24-hour).
+    text daily_summary_time? filters=trim
+  
+    // Tech's preferred shift start time. HH:MM format. Overrides bootstrapped 8am if set.
+    text preferred_hours_start? filters=trim
+  
+    // Tech's preferred shift end time. HH:MM format. Overrides bootstrapped 4pm if set.
+    text preferred_hours_end? filters=trim
+  
+    // Opt-in personal context the tech shared during onboarding (family, life events, etc.). Free-text.
+    text personal_context?
+  
+    // When the tech completed Ant Tech Scheduler onboarding. Null = not yet onboarded.
+    timestamp onboarding_completed_at?
+  
+    // Pending pattern offer surfaced by the nightly ledger task. Set when 3+
+    // declines in the last 14 days share a dimension (city/day_of_week/time_window)
+    // and the tech doesn't already have a matching preference. Daily-mode CONTEXT
+    // block reads this field; Ant brings it up casually. Cleared when an
+    // __ADD_PREFERENCE__ with source=pattern_detected fires.
+    // Shape: {dimension, value, match_count, detected_at}.
+    json? pending_pattern_offer?
+  
+    // Minutes the tech needs to pack tools + drive away from the current job before starting the next leg. Used by On My Way ETA calc. Default 8.
+    int? tool_pack_minutes?=8
+  
+    int company_id?=1
+  }
+
+  index = [
+    {type: "primary", field: [{name: "id"}]}
+    {type: "btree", field: [{name: "created_at", op: "desc"}]}
+  ]
+
+  guid = "3DPVenNvngHiVbrWUAJz8xmYc7s"
+}

@@ -167,55 +167,64 @@ query qc_cockpit_load verb=GET {
     // timeline so Teddy and every tech can see what's been tried before
     // diagnosing anything new — eliminates duplicate parts ordering.
     db.query technician_decision_report {
-      where  = $db.technician_decision_report.job_id == $input.job_id
-      sort   = {technician_decision_report.created_at: "asc"}
+      where = $db.technician_decision_report.job_id == $input.job_id
+      sort = {technician_decision_report.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 20}}
     } as $all_tdrs_query
-
+  
     var $all_tdrs {
       value = []
     }
-
+  
     foreach ($all_tdrs_query.items) {
       each as $t {
-        var $author_first { value = "" }
-        var $author_last { value = "" }
+        var $author_first {
+          value = ""
+        }
+      
+        var $author_last {
+          value = ""
+        }
+      
         conditional {
           if ($t.technician_id != null && $t.technician_id > 0) {
             db.get technicians {
-              field_name  = "id"
+              field_name = "id"
               field_value = $t.technician_id
             } as $tdr_author
+          
             var.update $author_first {
               value = (($tdr_author.first_name ?? "")|trim)
             }
+          
             var.update $author_last {
               value = (($tdr_author.last_name ?? "")|trim)
             }
           }
         }
+      
         array.push $all_tdrs {
           value = {
-            id                       : $t.id
-            technician_id            : ($t.technician_id ?? null)
-            technician_first_name    : $author_first
-            technician_last_name     : $author_last
-            diagnosis                : ($t.diagnosis ?? null)
-            failure_cause            : ($t.failure_cause ?? null)
-            failed_component         : ($t.failed_component ?? null)
-            verified_part_number     : ($t.verified_part_number ?? null)
-            parts_used               : ($t.parts_used ?? null)
-            labor_time_hours         : ($t.labor_time_hours ?? null)
-            repair_completed         : ($t.repair_completed ?? null)
-            technician_notes         : ($t.technician_notes ?? null)
-            status                   : ($t.status ?? null)
-            report_date              : ($t.report_date ?? null)
-            created_at               : $t.created_at
+            id                   : $t.id
+            technician_id        : ($t.technician_id ?? null)
+            technician_first_name: $author_first
+            technician_last_name : $author_last
+            diagnosis            : ($t.diagnosis ?? null)
+            failure_cause        : ($t.failure_cause ?? null)
+            failed_component     : ($t.failed_component ?? null)
+            verified_part_number : ($t.verified_part_number ?? null)
+            parts_used           : ($t.parts_used ?? null)
+            labor_time_hours     : ($t.labor_time_hours ?? null)
+            repair_completed     : ($t.repair_completed ?? null)
+            technician_notes     : ($t.technician_notes ?? null)
+            status               : ($t.status ?? null)
+            report_date          : ($t.report_date ?? null)
+            created_at           : $t.created_at
           }
         }
       }
     }
-
+  
     db.query job_attachments {
       where = $db.job_attachments.job_id == $input.job_id
       sort = {created_at: "desc"}

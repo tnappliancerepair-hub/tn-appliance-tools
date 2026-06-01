@@ -31,7 +31,7 @@ query cancel_job verb=POST {
       field_value = $input.job_id
       data = {scheduling_status: "canceled"}
     } as $updated
-
+  
     db.add event_log {
       data = {
         action  : "job_canceled"
@@ -42,26 +42,26 @@ query cancel_job verb=POST {
       }
       }
     } as $log
-
+  
     // Emit JOB_CANCELED for the colony loop. customer_cancel_sms agent
     // SMSes the customer; future agents (e.g. tech-side reschedule fill,
     // warranty cancellation, refund pipeline) can listen to the same signal.
     var $jc_cancel_payload_obj {
       value = {
-        job_id              : $input.job_id
-        prior_status        : $prior_status
+        job_id               : $input.job_id
+        prior_status         : $prior_status
         prior_scheduled_start: ($job.scheduled_start ?? 0)
-        technician_id       : ($job.technician_id ?? 0)
-        customer_id         : ($job.customer_id ?? 0)
-        reason              : (($input.reason ?? "")|trim)
-        source              : "office_cancel"
+        technician_id        : ($job.technician_id ?? 0)
+        customer_id          : ($job.customer_id ?? 0)
+        reason               : (($input.reason ?? "")|trim)
+        source               : "office_cancel"
       }
     }
-
+  
     var $jc_cancel_payload_str {
       value = $jc_cancel_payload_obj|json_encode
     }
-
+  
     db.add colony_signals {
       data = {
         signal_type    : "JOB_CANCELED"
@@ -71,15 +71,15 @@ query cancel_job verb=POST {
         payload        : $jc_cancel_payload_str
       }
     } as $jc_cancel_signal
-
+  
     db.add event_log {
       data = {
         action  : "job_canceled_signal_emitted"
         metadata: {
-          job_id   : $input.job_id
-          signal_id: $jc_cancel_signal.id
-          source   : "office_cancel"
-        }
+        job_id   : $input.job_id
+        signal_id: $jc_cancel_signal.id
+        source   : "office_cancel"
+      }
       }
     } as $jc_cancel_log
   }

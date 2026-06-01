@@ -10,21 +10,21 @@ query get_stuck_intake_progress_fired_today verb=GET {
     var $since_ts {
       value = ($input.since_ts_ms / 1000)|to_timestamp
     }
-
+  
     db.query event_log {
       where = $db.event_log.action == "stuck_intake_progress_emitted" && $db.event_log.created_at >= $since_ts
       sort = {event_log.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $rows
-
+  
     var $row {
       value = (($rows.items|first) ?? null)
     }
-
+  
     var $fired {
       value = ($row != null)
     }
-
+  
     var $last_at {
       value = ($row != null ? $row.created_at : null)
     }

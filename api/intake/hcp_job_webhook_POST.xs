@@ -81,24 +81,28 @@ query hcp_job_webhook verb=POST {
     // this flag in Xano env vars when Phase 1 launches. Default: not set
     // → webhook continues to work (rollback safety).
     conditional {
-      if ((($env.HCP_WEBHOOK_DISABLED ?? "")|lower) == "true") {
+      if (($env.HCP_WEBHOOK_DISABLED ? "") == "true") {
         db.add event_log {
           data = {
             action  : "hcp_webhook_disabled_noop"
             metadata: {
-              event_type: ($input.event ?? "")
-              hcp_id    : ($input.id ?? "")
-              reason    : "HCP_WEBHOOK_DISABLED=true — parallel ANT Phase 1"
-            }
+            event_type: ($input.event ?? "")
+            hcp_id    : ($input.id ?? "")
+            reason    : "HCP_WEBHOOK_DISABLED=true — parallel ANT Phase 1"
+          }
           }
         } as $disabled_noop_log
-
+      
         return {
-          value = {success: true, disabled: true, message: "hcp_webhook_disabled"}
+          value = {
+            success : true
+            disabled: true
+            message : "hcp_webhook_disabled"
+          }
         }
       }
     }
-
+  
     // PHASE 1c diagnostic - REMOVE AFTER FIRST REAL HCP DELIVERY VERIFIED.
     // Check event_log for action='hcp_webhook_raw_input_capture' to see actual
     // data shape, then update $body reconstruction accordingly.
@@ -490,20 +494,20 @@ query hcp_job_webhook verb=POST {
               }
               }
             } as $log_job_created
-
+          
             // Phase B: emit JOB_CREATED for colony loop greeting (see docs/colony-loop-design.md section 16).
             var $jc_phone {
               value = $cust_phone
             }
-
+          
             var $jc_first {
               value = $cust_first
             }
-
+          
             var $jc_appliance {
               value = ($derived_appliance ?? "")
             }
-
+          
             var $jc_payload_obj {
               value = {
                 job_id             : $new_job.id
@@ -513,11 +517,11 @@ query hcp_job_webhook verb=POST {
                 source             : "hcp_webhook"
               }
             }
-
+          
             var $jc_payload_str {
               value = $jc_payload_obj|json_encode
             }
-
+          
             db.add colony_signals {
               data = {
                 signal_type    : "JOB_CREATED"
@@ -527,18 +531,18 @@ query hcp_job_webhook verb=POST {
                 payload        : $jc_payload_str
               }
             } as $jc_signal
-
+          
             db.add event_log {
               data = {
                 action  : "job_created_signal_emitted"
                 metadata: {
-                  job_id   : $new_job.id
-                  signal_id: $jc_signal.id
-                  source   : "hcp_webhook"
-                }
+                job_id   : $new_job.id
+                signal_id: $jc_signal.id
+                source   : "hcp_webhook"
+              }
               }
             } as $jc_log
-
+          
             // Phase 5.5A.1: emit TECH_ASSIGNED so the loop SMSes the assigned tech.
             var $ta_payload_obj {
               value = {
@@ -546,14 +550,14 @@ query hcp_job_webhook verb=POST {
                 technician_id      : $resolved_tech_id
                 prior_technician_id: null
                 source             : "hcp_appointment_scheduled"
-                assigned_at_ms     : (now|to_ms)
+                assigned_at_ms     : now|to_ms
               }
             }
-
+          
             var $ta_payload_str {
               value = $ta_payload_obj|json_encode
             }
-
+          
             db.add colony_signals {
               data = {
                 signal_type    : "TECH_ASSIGNED"
@@ -563,19 +567,19 @@ query hcp_job_webhook verb=POST {
                 payload        : $ta_payload_str
               }
             } as $ta_signal
-
+          
             db.add event_log {
               data = {
                 action  : "tech_assigned_signal_emitted"
                 metadata: {
-                  job_id       : $new_job.id
-                  signal_id    : $ta_signal.id
-                  technician_id: $resolved_tech_id
-                  source       : "hcp_appointment_scheduled"
-                }
+                job_id       : $new_job.id
+                signal_id    : $ta_signal.id
+                technician_id: $resolved_tech_id
+                source       : "hcp_appointment_scheduled"
+              }
               }
             } as $ta_log
-
+          
             var.update $job_appt {
               value = $new_job
             }
@@ -738,7 +742,7 @@ query hcp_job_webhook verb=POST {
             service_eta_window: $derived_window
           }
         } as $updated_job
-
+      
         // Phase 5.5C: emit APPOINTMENT_SCHEDULED for customer + tech confirmation SMS.
         var $as_payload_obj {
           value = {
@@ -749,11 +753,11 @@ query hcp_job_webhook verb=POST {
             source            : "hcp_webhook"
           }
         }
-
+      
         var $as_payload_str {
           value = $as_payload_obj|json_encode
         }
-
+      
         db.add colony_signals {
           data = {
             signal_type    : "APPOINTMENT_SCHEDULED"
@@ -763,19 +767,19 @@ query hcp_job_webhook verb=POST {
             payload        : $as_payload_str
           }
         } as $as_signal
-
+      
         db.add event_log {
           data = {
             action  : "appointment_scheduled_signal_emitted"
             metadata: {
-              job_id            : $job_appt.id
-              signal_id         : $as_signal.id
-              scheduled_start_ms: $start_ts
-              source            : "hcp_webhook"
-            }
+            job_id            : $job_appt.id
+            signal_id         : $as_signal.id
+            scheduled_start_ms: $start_ts
+            source            : "hcp_webhook"
+          }
           }
         } as $as_log
-
+      
         db.add event_log {
           data = {
             action  : "job_scheduled"
@@ -923,26 +927,26 @@ query hcp_job_webhook verb=POST {
           field_value = $job.id
           data = {scheduling_status: "completed"}
         }
-
+      
         // Phase 5A: emit JOB_COMPLETED for warranty-submission agent (warranty jobs only).
         var $jcc_is_warranty {
           value = (($job.customer_type ?? "") == "warranty")
         }
-
+      
         conditional {
           if ($jcc_is_warranty) {
             var $jcc_warranty_company {
               value = ($job.warranty_company ?? "")
             }
-
+          
             var $jcc_claim_number {
               value = ($job.claim_number ?? "")
             }
-
+          
             var $jcc_completed_at_ms {
-              value = (now|to_ms)
+              value = now|to_ms
             }
-
+          
             var $jcc_payload_obj {
               value = {
                 job_id          : $job.id
@@ -952,11 +956,11 @@ query hcp_job_webhook verb=POST {
                 completed_at_ms : $jcc_completed_at_ms
               }
             }
-
+          
             var $jcc_payload_str {
               value = $jcc_payload_obj|json_encode
             }
-
+          
             db.add colony_signals {
               data = {
                 signal_type    : "JOB_COMPLETED"
@@ -966,16 +970,16 @@ query hcp_job_webhook verb=POST {
                 payload        : $jcc_payload_str
               }
             } as $jcc_signal
-
+          
             db.add event_log {
               data = {
                 action  : "job_completed_signal_emitted"
                 metadata: {
-                  job_id          : $job.id
-                  signal_id       : $jcc_signal.id
-                  source          : "hcp_webhook_completed"
-                  warranty_company: $jcc_warranty_company
-                }
+                job_id          : $job.id
+                signal_id       : $jcc_signal.id
+                source          : "hcp_webhook_completed"
+                warranty_company: $jcc_warranty_company
+              }
               }
             } as $jcc_log
           }

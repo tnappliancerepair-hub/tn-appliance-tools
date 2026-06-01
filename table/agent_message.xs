@@ -1,0 +1,37 @@
+// Stores individual messages within conversation threads.
+table agent_message {
+  auth = false
+
+  schema {
+    int id
+    timestamp created_at?=now {
+      visibility = "private"
+    }
+  
+    // Reference to the parent conversation thread.
+    int conversation_id? {
+      table = "agent_conversation"
+    }
+  
+    // The role of the message sender (e.g., system, user, assistant, tool).
+    enum role? {
+      values = ["system", "user", "assistant", "tool"]
+    }
+  
+    // The content of the message, compatible with AI SDK.
+    json content?
+  
+    // Where this message came from. Values: tech_assist, customer_ant,
+    // tech_scheduler, manual. Lets us partition conversations by surface
+    // without joining through agent_conversation.
+    text source? filters=trim
+  }
+
+  index = [
+    {type: "primary", field: [{name: "id"}]}
+    {type: "btree", field: [{name: "created_at", op: "desc"}]}
+  ]
+
+  tags = ["xano:quick-start"]
+  guid = "XTvoWGqGigdiS7BP7psEEdjN7MY"
+}

@@ -1,5 +1,8 @@
 // Powers warranty-submission-dashboard.html.
 //
+// 2026-05-30 v2 AUTH GATE — shared-secret key check at top of stack.
+// Caller must supply ?key=<value> matching $env.OFFICE_KEY.
+//
 // Returns completed warranty jobs in a recent window, INCLUDING
 // already-submitted ones. The page's "show submitted" toggle and the
 // undo button both need those rows present, so this endpoint deliberately
@@ -9,25 +12,6 @@
 //   scheduling_status == "completed"
 //   AND warranty_company != ""
 //   AND (job_completed_at >= cutoff  OR  warranty_submitted_at >= cutoff)
-//   where cutoff = now - days_back * 86400000 ms (default 14 days)
-//
-// Hydrates customer info per row from the customer table.
-//
-// Contract:
-//   Request: GET ?days_back=N (optional, default 14, max 60)
-//   Response: {
-//     success: true,
-//     count: N,
-//     items: [
-//       {
-//         id, customer_name, customer_phone, address, city,
-//         appliance, brand, model_number, problem_summary,
-//         claim_number, warranty_company, technician_id,
-//         scheduling_status, job_completed_at,
-//         warranty_submitted_at, warranty_submitted: bool
-//       }, ...
-//     ]
-//   }
 //
 // XS rules: no em-dashes, no backticks, no try/catch, no raw if, every
 // filter paren-wrapped, ?? only in value = (...).
@@ -36,10 +20,26 @@ query list_warranty_jobs verb=GET {
   api_group = "intake"
 
   input {
+    text? key?
     int? days_back?
   }
 
   stack {
+    // ── AUTH GATE: shared-secret key check ──────────────────────────
+    var $key_in {
+      value = (($input.key ?? "")|trim)
+    }
+
+    var $key_expected {
+      value = (($env.OFFICE_KEY ?? "")|trim)
+    }
+
+    precondition ($key_expected != "" && $key_in == $key_expected) {
+      error_type = "accessdenied"
+      error = "Invalid or missing key"
+    }
+
+    // ── Main query ───────────────────────────────────────────────────
     var $window_days_raw {
       value = ($input.days_back ?? 14)
     }
@@ -155,5 +155,5 @@ query list_warranty_jobs verb=GET {
     jobs: $items
   }
 
-  guid = "list-warranty-jobs-v1"
+  guid = "bLqgSnNZ1LEDxUQyWYrpmlsxXuw"
 }

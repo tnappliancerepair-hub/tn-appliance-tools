@@ -12,52 +12,56 @@ query get_job_resume_context verb=POST {
   stack {
     precondition ($input.job_id != null && $input.job_id > 0) {
       error_type = "inputerror"
-      error      = "job_id is required"
+      error = "job_id is required"
     }
-
+  
     db.get jobs {
-      field_name  = "id"
+      field_name = "id"
       field_value = $input.job_id
     } as $job
-
+  
     precondition ($job != null) {
       error_type = "notfound"
-      error      = "Job not found"
+      error = "Job not found"
     }
-
-    var $customer { value = null }
-
+  
+    var $customer {
+      value = null
+    }
+  
     conditional {
       if ($job.customer_id != null && $job.customer_id > 0) {
         db.get customer {
-          field_name  = "id"
+          field_name = "id"
           field_value = $job.customer_id
         } as $customer
       }
     }
-
+  
     var $first_name {
       value = (($customer.first_name ?? "")|trim)
     }
-
+  
     var $phone_digits {
       value = (($customer.phone ?? "")|replace:"+":""|replace:"-":""|replace:"(":""|replace:")":""|replace:" ":"")
     }
-
+  
     var $phone_len {
-      value = ($phone_digits|strlen)
+      value = $phone_digits|strlen
     }
-
+  
     var $last4_start {
       value = ($phone_len - 4)
     }
-
-    var $phone_last4 { value = "" }
-
+  
+    var $phone_last4 {
+      value = ""
+    }
+  
     conditional {
       if ($phone_len >= 4) {
         var.update $phone_last4 {
-          value = ($phone_digits|substr:$last4_start)
+          value = $phone_digits|substr:$last4_start
         }
       }
     }

@@ -1,15 +1,17 @@
 // Powers office-kanban.html - the live "jobs moving by themselves"
 // board for Danielle.
 //
+// 2026-05-30 v3 AUTH GATE — shared-secret key check at top of stack.
+// Caller must supply ?key=<value> matching $env.OFFICE_KEY. Wrong or
+// missing key -> accessdenied. Token-session approach abandoned.
+//
 // Returns a flat list of every job that should appear on the board:
 //   * scheduling_status in (not_ready, needs_scheduled, scheduled,
 //     in_progress, awaiting_parts, held)  -- all active states
 //   * OR scheduling_status=completed AND warranty_company set AND
-//     updated_at in the last 7 days  (recent warranty completions
-//     that still need submission, even if "done" from a tech POV)
+//     job_completed_at in the last days_back days (default 7)
 //
-// Capped at 300 rows for sanity. The page buckets client-side into
-// columns and polls every 30s.
+// Capped at 300 rows. Page polls every 30s.
 //
 // XS rules: no em-dashes, no backticks, no try/catch, no raw if,
 // every filter paren-wrapped, ?? only in value = (...).
@@ -18,10 +20,26 @@ query get_office_kanban verb=GET {
   api_group = "intake"
 
   input {
+    text? key?
     int? days_back?
   }
 
   stack {
+    // ── AUTH GATE: shared-secret key check ──────────────────────────
+    var $key_in {
+      value = (($input.key ?? "")|trim)
+    }
+
+    var $key_expected {
+      value = (($env.OFFICE_KEY ?? "")|trim)
+    }
+
+    precondition ($key_expected != "" && $key_in == $key_expected) {
+      error_type = "accessdenied"
+      error = "Invalid or missing key"
+    }
+
+    // ── Main query ───────────────────────────────────────────────────
     var $window_days {
       value = ($input.days_back ?? 7)
     }
@@ -98,5 +116,5 @@ query get_office_kanban verb=GET {
     fetched_at_ms: $now_ms
   }
 
-  guid = "get-office-kanban-v1"
+  guid = "AdihdxEe6DMB5XGP-mamBqs1G9c"
 }
