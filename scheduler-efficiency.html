@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduler Efficiency — Ant Office</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0e1118; color:#e8edf5; padding:20px; max-width:1100px; margin:0 auto }
+  h1 { font-size:20px; margin-bottom:6px }
+  .sub { color:#8a93aa; font-size:12px; font-family:'IBM Plex Mono',monospace; margin-bottom:16px }
+  .card { background:#1e2433; border:1px solid #2a3040; border-radius:10px; padding:14px; margin-bottom:10px }
+  .pill { display:inline-block; background:#2a3040; border:1px solid #3a4050; padding:3px 10px; border-radius:14px; font-size:11px; font-weight:600; margin-right:6px }
+  .pill.good { background:rgba(116,227,196,0.15); border-color:#74e3c4; color:#74e3c4 }
+  .pill.warn { background:rgba(245,166,35,0.15); border-color:#f5a623; color:#f5a623 }
+  .pill.bad  { background:rgba(248,113,113,0.15); border-color:#f87171; color:#f87171 }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; font-size:12px; margin-top:6px }
+  .kv .k { color:#5a6480; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase }
+  .kv .v { color:#e8edf5; font-weight:500 }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px }
+  th { text-align:left; color:#5a6480; font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid #2a3040 }
+  td { padding:6px 8px; border-bottom:1px solid #2a3040 }
+  td.right, th.right { text-align:right }
+  .agg { background:linear-gradient(135deg, rgba(74,158,255,0.10), rgba(180,140,255,0.08)); border:1px solid rgba(74,158,255,0.30); padding:18px; border-radius:12px; margin-bottom:18px }
+  .agg h2 { font-size:14px; color:#4a9eff; margin-bottom:8px }
+  .agg .row { display:flex; gap:14px; flex-wrap:wrap; font-size:13px }
+  .agg .row strong { font-size:18px; font-weight:900 }
+  .empty { color:#8a93aa; text-align:center; padding:40px }
+</style>
+</head>
+<body>
+<h1>🧪 Scheduler efficiency</h1>
+<div class="sub" id="sub">loading…</div>
+
+<div id="agg-container"></div>
+<div id="list"></div>
+
+<script src="/office-nav.js?v=20260601-2"></script>
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const TECH_NAMES = { 1:'Teddy', 2:'Jimmy', 3:'Andre', 4:'Lee', 5:'Billy', 6:'John' };
+function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtCT(ms) { try { return new Date(ms).toLocaleString('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }).replace(/\s/g,' '); } catch (_) { return String(ms); } }
+
+async function load() {
+  try {
+    const r = await fetch(XANO + '/list_scheduler_shadow_runs?limit=200&hours_back=168');
+    const d = await r.json();
+    const items = d.items || [];
+    document.getElementById('sub').textContent = `${items.length} runs in last 7 days · refreshed ${new Date().toLocaleTimeString()}`;
+    if (items.length === 0) {
+      document.getElementById('list').innerHTML = '<div class="empty">no shadow-mode runs recorded yet — cron fires every 15 min</div>';
+      return;
+    }
+    let m = {};
+    for (const it of items) {
+      try {
+        m = (typeof it.metadata === 'string') ? JSON.parse(it.metadata) : (it.metadata || {});
+      } catch (_) { m = {}; }
+      it.parsed = m;
+    }
+    renderAggregates(items);
+    renderList(items);
+  } catch (e) {
+    document.getElementById('list').innerHTML = '<div class="empty">⚠️ ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function renderAggregates(items) {
+  const totalRuns = items.length;
+  const totalPlanned = items.reduce((a,b) => a + (b.parsed.plan_size || 0), 0);
+  const totalFlexIn = items.reduce((a,b) => a + (b.parsed.flexible_in || 0), 0);
+  const totalUnrouted = items.reduce((a,b) => a + (b.parsed.unrouted_count || 0), 0);
+  const placementRate = totalFlexIn > 0 ? Math.round((totalPlanned / totalFlexIn) * 100) : 0;
+  const html = `
+    <div class="agg">
+      <h2>Last 7 days, shadow mode</h2>
+      <div class="row">
+        <span><strong>${totalRuns}</strong> runs</span>
+        <span><strong>${totalFlexIn}</strong> flex-in</span>
+        <span><strong>${totalPlanned}</strong> planned</span>
+        <span><strong>${placementRate}%</strong> placement rate</span>
+        <span><strong>${totalUnrouted}</strong> unrouted</span>
+      </div>
+    </div>`;
+  document.getElementById('agg-container').innerHTML = html;
+}
+
+function renderList(items) {
+  const html = items.slice(0, 50).map(it => {
+    const m = it.parsed;
+    let rollup = m.tech_rollup;
+    if (rollup && typeof rollup === 'string') { try { rollup = JSON.parse(rollup); } catch(_){ rollup = []; } }
+    if (!Array.isArray(rollup)) rollup = [];
+    const placementRate = (m.flexible_in > 0) ? Math.round((m.plan_size / m.flexible_in) * 100) : 0;
+    const rateClass = placementRate >= 90 ? 'good' : (placementRate >= 60 ? 'warn' : 'bad');
+    const techRows = rollup.map(t => `<tr><td>${escapeHtml(TECH_NAMES[t.technician_id] || ('tech ' + t.technician_id))}</td><td class="right">${t.jobs_placed}</td><td class="right">${t.distinct_zips}</td><td class="right">${t.distinct_cities}</td></tr>`).join('');
+    return `<div class="card">
+      <div>
+        <span class="pill">${fmtCT(it.created_at)}</span>
+        <span class="pill">${escapeHtml(m.target_date || '')}</span>
+        <span class="pill ${rateClass}">${placementRate}% placed</span>
+      </div>
+      <div class="kv">
+        <div class="k">flex-in / placed</div><div class="v">${m.flexible_in || 0} → ${m.plan_size || 0}</div>
+        <div class="k">anchors</div><div class="v">${m.anchors_in || 0}</div>
+        <div class="k">unrouted</div><div class="v">${m.unrouted_count || 0}</div>
+        <div class="k">techs active</div><div class="v">${m.techs_active || 0}</div>
+      </div>
+      ${techRows ? `<table><thead><tr><th>tech</th><th class="right">jobs</th><th class="right">zips</th><th class="right">cities</th></tr></thead><tbody>${techRows}</tbody></table>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('list').innerHTML = html;
+}
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
