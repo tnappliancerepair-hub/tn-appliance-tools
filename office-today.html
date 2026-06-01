@@ -573,7 +573,7 @@ function openAllPortals(vendor, count) {
   if (!confirm(`Open ${count} ${vendor === 'ahs' ? 'AHS' : 'ServicePower'} portal tabs?`)) return;
   const url = vendor === 'ahs'
     ? 'https://login.frontdoorhome.com/'
-    : 'https://fss.servicepower.com/FSS7/LoginUserAction.do?MainMenu=Main';
+    : 'https://hub.servicepower.com/dashboard/workorders';
   for (let i = 0; i < Math.min(count, 8); i++) {
     window.open(url, '_blank');
   }
@@ -622,8 +622,8 @@ function vendorPortalUrl(company) {
   const c = (company || '').toLowerCase();
   // AHS / Frontdoor contractor portal — OAuth flow
   if (c.includes('ahs') || c.includes('frontdoor')) return 'https://login.frontdoorhome.com/';
-  // ServicePower FSS7 (Allstate / SquareTrade route through here)
-  if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://fss.servicepower.com/FSS7/LoginUserAction.do?MainMenu=Main';
+  // ServicePower Hub work-orders dashboard (Allstate / SquareTrade route here)
+  if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://hub.servicepower.com/dashboard/workorders';
   return null;
 }
 
