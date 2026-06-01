@@ -384,14 +384,115 @@ query transition_job_state verb=POST {
         }
       }
     } as $audit
+
+    // ============================================================
+    // SIGNAL EMISSION (based on target_state)
+    // ============================================================
+    // Skip when actor=admin force_revert OR actor=scheduler (silent mode).
+    // Both bypasses preserve existing behavior: admin reverts shouldn't
+    // re-fire customer SMS chains, and the scheduler bypasses signals
+    // since it processes many jobs at once and we don't want batch SMS.
+    var $silent_actor {
+      value = ($actor == "scheduler") || ($can_force_revert == true)
+    }
+
+    var $reason_clean {
+      value = (($input.reason ?? "")|trim)
+    }
+
+    // Map target_state to the canonical signal name.
+    var $signal_name {
+      value = ""
+    }
+
+    conditional {
+      if ($target == "intake_complete") {
+        var.update $signal_name { value = "JOB_INTAKE_COMPLETE" }
+      }
+    }
+    conditional {
+      if ($target == "scheduled") {
+        var.update $signal_name { value = "APPOINTMENT_SCHEDULED" }
+      }
+    }
+    conditional {
+      if ($target == "in_progress") {
+        var.update $signal_name { value = "JOB_STARTED" }
+      }
+    }
+    conditional {
+      if ($target == "completed") {
+        var.update $signal_name { value = "JOB_COMPLETED" }
+      }
+    }
+    conditional {
+      if ($target == "canceled") {
+        var.update $signal_name { value = "JOB_CANCELED" }
+      }
+    }
+    conditional {
+      if ($target == "awaiting_parts") {
+        var.update $signal_name { value = "PARTS_ORDER_DUE" }
+      }
+    }
+    conditional {
+      if ($target == "escalated") {
+        var.update $signal_name { value = "JOB_ESCALATED" }
+      }
+    }
+
+    var $should_emit {
+      value = ($signal_name != "") && ($silent_actor == false)
+    }
+
+    var $signal_payload_obj {
+      value = {
+        job_id              : $input.job_id
+        prior_status        : $current
+        from_state          : $current
+        to_state            : $target
+        actor               : $actor
+        reason              : $reason_clean
+        technician_id       : $final_tech
+        customer_id         : ($job.customer_id ?? 0)
+        scheduled_start_ms  : $final_sched
+        source              : ("state_machine_" ~ $actor)
+        emitted_at_ms       : (now|to_ms)
+      }
+    }
+
+    var $signal_payload_str {
+      value = $signal_payload_obj|json_encode
+    }
+
+    var $emitted_signal_id { value = 0 }
+
+    conditional {
+      if ($should_emit == true) {
+        db.add colony_signals {
+          data = {
+            signal_type    : $signal_name
+            signal_strength: 60
+            source_colony  : ""
+            target_colonies: ""
+            payload        : $signal_payload_str
+          }
+        } as $sig_row
+
+        var.update $emitted_signal_id { value = $sig_row.id }
+      }
+    }
   }
 
   response = {
-    success     : true
-    job_id      : $input.job_id
-    from_state  : $current
-    to_state    : $target
-    audit_id    : $audit.id
+    success      : true
+    job_id       : $input.job_id
+    from_state   : $current
+    to_state     : $target
+    audit_id     : $audit.id
+    signal_name  : $signal_name
+    signal_id    : $emitted_signal_id
+    silent       : $silent_actor
   }
 
   guid = "transition-job-state-v1"
