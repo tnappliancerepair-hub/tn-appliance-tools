@@ -11,7 +11,7 @@ const SITE_BASE =
   process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
 
 exports.handler = async function () {
-  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?apply=true&confirm_apply=1&practice_mode=1&day_offset=1&limit=50&force_mock=1&run_id=practice_cron_${Date.now()}`;
+  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?apply=true&confirm_apply=1&practice_mode=1&day_offset=1&limit=200&force_mock=1&run_id=practice_cron_${Date.now()}`;
 
   try {
     const r = await fetch(url);
