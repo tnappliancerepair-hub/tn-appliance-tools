@@ -306,6 +306,16 @@
   <button class="refresh-btn" id="refresh-btn" onclick="loadJobs()" title="Refresh" aria-label="Refresh">↻</button>
 </div>
 
+<div id="practice-banner" style="display:none; background:linear-gradient(135deg, rgba(180,140,255,0.10), rgba(74,158,255,0.06)); border-bottom:1px solid rgba(180,140,255,0.25); color:#e8edf5; padding:8px 16px; font-size:11px; gap:14px; align-items:center; flex-wrap:wrap; font-family:'IBM Plex Mono',monospace">
+  <span style="color:#b48cff; font-weight:700">🧪 PRACTICE MODE</span>
+  <span style="color:#7a6e54">·</span>
+  <span><strong id="pb-jobs">0</strong> jobs auto-routed today</span>
+  <span style="color:#7a6e54">·</span>
+  <span><strong id="pb-techs">0</strong> techs working</span>
+  <span style="color:#7a6e54">·</span>
+  <span>Customer SMS: <span id="pb-gate" style="cursor:pointer; font-weight:700" onclick="toggleSmsGate()" title="Tap to toggle">🔒 OFF</span></span>
+</div>
+
 <div class="filter-tabs" id="filter-tabs"></div>
 
 <div style="display:flex; gap:8px; padding:8px 16px; align-items:center; font-size:11px">
@@ -422,6 +432,7 @@ async function __verifyOfficePassword(pw) {
 //   completed, escalated, canceled, held, not_ready, booked, needs_pre_diagnosis,
 //   intake_complete, prediagnosis_pending, needs_more_info, no_fix_possible
 const TABS = [
+  { id: 'today',         label: '🐜 Today',         filter: 'today' },
   { id: 'all',           label: 'All',              filter: { date_filter: 'all' } },
   { id: 'unscheduled',   label: 'Needs Scheduled',  filter: { date_filter: 'unscheduled' } },
   { id: 'scheduled',     label: 'Scheduled',        filter: { status: 'scheduled', date_filter: 'all' } },
@@ -433,7 +444,7 @@ const TABS = [
   { id: 'mock',          label: '🧪 Mock',          filter: null }
 ];
 
-let activeTab = 'all';
+let activeTab = 'today';
 let isLoading = false;
 
 function onHideCanceledToggle() {
@@ -447,8 +458,14 @@ function init() {
     const pref = localStorage.getItem('office_dashboard_hide_canceled');
     document.getElementById('hide-canceled').checked = pref !== '0';
   } catch (_) {}
+  // Allow ?tab=foo deep-linking (also drives the office.html → today redirect)
+  try {
+    const qsTab = new URLSearchParams(location.search).get('tab');
+    if (qsTab && TABS.find(t => t.id === qsTab)) activeTab = qsTab;
+  } catch (_) {}
   renderTabs();
-  loadJobs();
+  if (activeTab === 'today') loadOfficeToday();
+  else loadJobs();
 }
 
 function renderTabs() {
@@ -464,7 +481,8 @@ function renderTabs() {
       const isMock = activeTab === 'mock';
       document.getElementById('job-list').style.display = isMock ? 'none' : 'flex';
       document.getElementById('mock-panel').style.display = isMock ? 'block' : 'none';
-      if (!isMock) loadJobs();
+      if (activeTab === 'today') loadOfficeToday();
+      else if (!isMock) loadJobs();
     });
   });
 }
@@ -819,6 +837,210 @@ if (localStorage.getItem(AUTH_KEY) === '1') {
   init();
 } else {
   document.getElementById('auth-input').focus();
+}
+
+// ── Today tab: queue of items that need human action ──
+async function loadOfficeToday() {
+  if (isLoading) return;
+  isLoading = true;
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.disabled = true;
+  refreshBtn.classList.add('spinning');
+  const list = document.getElementById('job-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading today\'s priorities...</div></div>';
+  try {
+    const r = await fetch(XANO_BASE + '/get_office_today');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (!d || !d.success) throw new Error(d && d.error || 'no success flag');
+    // Practice banner
+    const ps = d.practice_status || {};
+    const pbJobs = Number(ps.practice_jobs_today || 0);
+    const pbTechs = Number(ps.techs_active || 0);
+    const pbGateOn = !!ps.customer_sms_enabled;
+    const showBanner = pbJobs > 0 || !pbGateOn;
+    const banner = document.getElementById('practice-banner');
+    if (showBanner) {
+      document.getElementById('pb-jobs').textContent = pbJobs;
+      document.getElementById('pb-techs').textContent = pbTechs;
+      const g = document.getElementById('pb-gate');
+      g.textContent = pbGateOn ? '🟢 ON' : '🔒 OFF';
+      g.style.color = pbGateOn ? '#15803d' : '#d97706';
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+    // Render priority items as cards (escalations + voicemails + warranty + stuck + unpaid)
+    const items = [];
+    for (const e of (d.escalations || [])) items.push({ p:1, age:e.age_hours||0, html: renderTodayEscalation(e), kind:'esc' });
+    for (const v of (d.voicemail_queue || [])) items.push({ p:1, age:-(v.age_hours||0), html: renderTodayVoicemail(v), kind:'vm' });
+    for (const w of (d.warranty_submissions_due || [])) items.push({ p:2, age:w.age_hours||0, html: renderTodayWarranty(w), kind:'war' });
+    for (const s of (d.stuck_intake || [])) items.push({ p:3, age:(s.age_days||0)*24, html: renderTodayStuck(s), kind:'stuck' });
+    for (const u of (d.unpaid_self_pay || [])) items.push({ p:4, age:(u.age_days||0)*24, html: renderTodayUnpaid(u), kind:'unpaid' });
+    items.sort((a,b) => a.p - b.p || b.age - a.age);
+    const todayStr = new Date().toLocaleDateString('en-US', { timeZone:'America/Chicago', weekday:'short', month:'short', day:'numeric' });
+    document.getElementById('header-sub').textContent = `${todayStr} • ${items.length} need attention`;
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty-jobs">✅ All clear today — nothing needs your attention</div>';
+    } else {
+      list.innerHTML = items.map(it => it.html).join('');
+    }
+  } catch (err) {
+    list.innerHTML = `<div class="empty-jobs">⚠️ ${escapeHtml(err.message)}</div>`;
+  } finally {
+    isLoading = false;
+    refreshBtn.disabled = false;
+    refreshBtn.classList.remove('spinning');
+  }
+}
+
+function ageChip(hours) {
+  if (hours < 24) return `${Math.round(hours)}h old`;
+  const d = Math.round(hours / 24);
+  return `${d}d old`;
+}
+
+function vendorPortalUrl(company) {
+  const c = (company || '').toLowerCase();
+  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://contractor.frontdoorhome.com/home';
+  if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://hub.servicepower.com/dashboard/workorders';
+  return null;
+}
+
+function renderTodayEscalation(e) {
+  let m = {}; try { m = JSON.parse(e.metadata || '{}'); } catch(_){}
+  const label = ({
+    warranty_claim_action_persisted: 'Warranty claim escalated',
+    customer_feedback_low_rating_alert: 'Low rating from customer',
+    tech_late_alert: 'Tech is running late',
+    customer_vent_submitted: 'Customer vent submitted',
+  })[e.action] || e.action;
+  const jobId = m.job_id || m.jobId || null;
+  return `<div class="job-card" style="border-left:4px solid #ff4757">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <strong style="color:#ff4757">🚨 ${escapeHtml(label)}</strong>
+      <span style="color:#8a93aa; font-size:11px">${ageChip(e.age_hours||0)}</span>
+    </div>
+    <div style="color:#8a93aa; font-size:13px; margin-bottom:8px">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0,200) || '(see event log)')}</div>
+    ${jobId ? `<div style="display:flex; gap:8px; flex-wrap:wrap">
+      <a class="btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+    </div>` : ''}
+  </div>`;
+}
+function renderTodayVoicemail(v) {
+  let m = {}; try { m = JSON.parse(v.metadata || '{}'); } catch(_){}
+  const phone = m.caller_phone || '';
+  const transcript = m.transcript || '';
+  const matchedId = m.matched_customer_id || 0;
+  const tel = phone ? `tel:${phone.replace(/[^\d+]/g,'')}` : null;
+  let draftMeta = v.draft || null;
+  if (draftMeta && typeof draftMeta === 'string') { try { draftMeta = JSON.parse(draftMeta); } catch(_){ draftMeta = null; } }
+  const draft = (draftMeta && draftMeta.draft) ? draftMeta.draft : null;
+  const draftBlock = draft ? `<div style="background:rgba(180,140,255,0.10); border:1px solid rgba(180,140,255,0.30); border-radius:6px; padding:8px 10px; margin:8px 0; font-size:12px">
+    <div style="color:#b48cff; font-weight:700; text-transform:uppercase; font-size:10px; margin-bottom:3px">🐜 Ant pre-read</div>
+    ${[draft.first_name && `👤 ${escapeHtml(draft.first_name)}`, draft.appliance_type && `🔧 ${escapeHtml(draft.appliance_type)}${draft.brand?' ('+escapeHtml(draft.brand)+')':''}`, draft.zip && `📍 ${escapeHtml(draft.zip)}`].filter(Boolean).join(' · ')}
+    ${draft.problem_summary ? `<div style="margin-top:3px">${escapeHtml(draft.problem_summary)}</div>` : ''}
+  </div>` : '';
+  return `<div class="job-card" style="border-left:4px solid #ff4757">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <strong>📞 ${escapeHtml(phone)} ${matchedId ? '✓ known' : '(new)'}</strong>
+      <span style="color:#8a93aa; font-size:11px">${ageChip(v.age_hours||0)}</span>
+    </div>
+    ${draftBlock}
+    <div style="color:#8a93aa; font-size:12px; white-space:pre-wrap; margin-bottom:8px">${escapeHtml(transcript.slice(0,400))}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      ${tel ? `<a href="${tel}" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">📞 Call back</a>` : ''}
+      ${draft ? `<button onclick="todayCreateJobFromVoicemail(${v.event_id}, this)" style="background:#15803d; color:#fff; padding:6px 12px; border:0; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer">⚡ Create job from draft</button>` : ''}
+    </div>
+  </div>`;
+}
+function renderTodayWarranty(w) {
+  const c = w.customer || {};
+  const name = ((c.first_name||'')+' '+(c.last_name||'')).trim() || '(no name)';
+  const portalUrl = vendorPortalUrl(w.warranty_company);
+  const claimNo = w.claim_number || w.dispatch_id || '';
+  return `<div class="job-card" style="border-left:4px solid #d97706">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <strong>📋 #${w.job_id} · ${escapeHtml(w.warranty_company||'vendor')}${claimNo?' · '+escapeHtml(claimNo):''}</strong>
+      <span style="color:#8a93aa; font-size:11px">${ageChip(w.age_hours||0)}</span>
+    </div>
+    <div style="margin-bottom:8px">${escapeHtml(name)} — ${escapeHtml([w.brand,w.appliance_type].filter(Boolean).join(' ') || 'appliance')}</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      ${portalUrl ? `<a href="${portalUrl}" target="_blank" rel="noopener" style="background:#7c3aed; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open ${escapeHtml(w.warranty_company||'vendor')} portal ↗</a>` : ''}
+      <a href="/job-detail.html?job_id=${w.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+    </div>
+  </div>`;
+}
+function renderTodayStuck(s) {
+  const c = s.customer || {};
+  const name = ((c.first_name||'')+' '+(c.last_name||'')).trim() || '(no name yet)';
+  return `<div class="job-card" style="border-left:4px solid #4a9eff">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <strong>⚠️ #${s.job_id} stuck intake</strong>
+      <span style="color:#8a93aa; font-size:11px">${Math.round((s.age_days||0))}d old</span>
+    </div>
+    <div style="margin-bottom:8px">${escapeHtml(name)} — ${escapeHtml(s.intake_source || 'intake')} · ${escapeHtml(s.appliance_type || 'appliance')}</div>
+    <a href="/needs-scheduled.html" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open queue ↗</a>
+  </div>`;
+}
+function renderTodayUnpaid(u) {
+  const c = u.customer || {};
+  const name = ((c.first_name||'')+' '+(c.last_name||'')).trim() || '(no name)';
+  return `<div class="job-card" style="border-left:4px solid #8a93aa">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
+      <strong>💵 #${u.job_id} unpaid</strong>
+      <span style="color:#8a93aa; font-size:11px">${Math.round((u.age_days||0))}d old</span>
+    </div>
+    <div style="margin-bottom:8px">${escapeHtml(name)}</div>
+    <a href="/job-detail.html?job_id=${u.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+  </div>`;
+}
+
+async function todayCreateJobFromVoicemail(srcId, btn) {
+  if (!srcId) return;
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/create_job_from_voicemail', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ source_event_log_id: srcId }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      setTimeout(() => { window.open(d.job_detail_url || ('/job-detail.html?job_id='+d.job_id), '_blank'); loadOfficeToday(); }, 400);
+    } else {
+      alert('Failed: ' + (d && d.message || d.error || 'unknown'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+async function toggleSmsGate() {
+  const pillEl = document.getElementById('pb-gate');
+  const isOn = (pillEl.textContent || '').includes('ON');
+  const next = !isOn;
+  const confirmMsg = next
+    ? 'Turn customer SMS ON for parallel jobs?\nReal customers will start receiving messages.'
+    : 'Turn customer SMS OFF?\nAll customer-direction sends will be dropped + logged.';
+  if (!confirm(confirmMsg)) return;
+  try {
+    const r = await fetch(XANO_BASE + '/toggle_customer_sms_gate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ enabled: next, actor: 'office_dashboard' }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      pillEl.textContent = next ? '🟢 ON' : '🔒 OFF';
+      pillEl.style.color = next ? '#15803d' : '#d97706';
+      setTimeout(() => { if (activeTab === 'today') loadOfficeToday(); }, 600);
+    } else {
+      alert('Failed: ' + (d && d.error || 'unknown'));
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
 }
 
 // ── Purge test + stale jobs ──
