@@ -10,17 +10,14 @@
   if (window.__OFFICE_NAV_LOADED__) return;
   window.__OFFICE_NAV_LOADED__ = true;
 
+  // Caveman simple: 4 pills. Everything else is reachable from links
+  // inside these pages (warranty review from Today's warranty section,
+  // payouts/leaderboard/feedback/loop-health from inside All Jobs, etc.).
   const NAV = [
-    { id: 'today',      label: '🐜 Today',           href: '/office-today.html',       color: '#b48cff' },
-    { id: 'needs',      label: '🗓 Needs Scheduled', href: '/needs-scheduled.html',    color: '#4a9eff' },
-    { id: 'calendar',   label: '📅 Calendar',        href: '/office-calendar.html',    color: '#4a9eff' },
-    { id: 'dashboard',  label: '📊 All Jobs',        href: '/office-dashboard.html',   color: '#4a9eff' },
-    { id: 'warranty',   label: '📋 Warranty Review', href: '/warranty-review.html',    color: '#f5a623' },
-    { id: 'payouts',    label: '💵 Payouts',         href: '/tech-payouts.html',       color: '#74e3c4' },
-    { id: 'feedback',   label: '⭐ Feedback',        href: '/customer-feedback.html',  color: '#f5a623' },
-    { id: 'leaderboard',label: '🏆 Leaderboard',     href: '/tech-leaderboard.html',   color: '#74e3c4' },
-    { id: 'search',     label: '🔍 Search',          href: '/customer-search.html',    color: '#8a93aa' },
-    { id: 'health',     label: '🩺 Loop Health',     href: '/health-check.html',       color: '#8a93aa' },
+    { id: 'today',     label: '🐜 Today',    href: '/office-today.html',     color: '#b48cff' },
+    { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
+    { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
+    { id: 'dashboard', label: '📊 All Jobs', href: '/office-dashboard.html', color: '#f5a623' },
   ];
 
   function currentPath() {
@@ -41,19 +38,21 @@
     bar.id = 'office-topnav';
     bar.style.cssText = [
       'position:sticky', 'top:0', 'z-index:9000',
-      'display:flex', 'gap:6px', 'padding:8px 12px',
-      'overflow-x:auto', 'overflow-y:hidden',
+      'display:flex', 'gap:8px', 'padding:10px 14px',
       'background:#131720', 'border-bottom:1px solid #2a3040',
-      '-webkit-overflow-scrolling:touch',
       "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
     ].join(';');
 
     bar.innerHTML = NAV.map(p => {
       const active = isActive(p);
       const bg = active ? p.color : (p.color + '22');
-      const border = active ? p.color : (p.color + '66');
+      const border = active ? p.color : (p.color + '88');
       const fg = active ? '#0e1118' : p.color;
-      return `<a href="${p.href}" style="background:${bg}; border:1px solid ${border}; color:${fg}; padding:7px 13px; border-radius:18px; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; flex-shrink:0; transition:transform 0.05s">${p.label}</a>`;
+      // Larger tap targets + bigger font so it reads at a glance.
+      const size = active ? '15px' : '14px';
+      const padding = active ? '10px 18px' : '10px 16px';
+      const weight = active ? '900' : '700';
+      return `<a href="${p.href}" style="background:${bg}; border:2px solid ${border}; color:${fg}; padding:${padding}; border-radius:22px; font-size:${size}; font-weight:${weight}; text-decoration:none; white-space:nowrap; flex-shrink:0; flex:1; text-align:center; min-width:0; transition:transform 0.05s">${p.label}</a>`;
     }).join('');
 
     // Inject style for tap feedback
