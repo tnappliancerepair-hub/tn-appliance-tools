@@ -250,6 +250,16 @@
     border-color: #4a9eff;
     color: white;
   }
+  .job-actions button.danger {
+    background: rgba(255,71,87,0.15);
+    border-color: #ff4757;
+    color: #ff4757;
+    flex: 0 0 auto;
+    padding: 0 14px;
+  }
+  .job-actions button.danger:hover {
+    background: rgba(255,71,87,0.25);
+  }
 
   /* Password gate */
   .auth-overlay {
@@ -623,6 +633,7 @@ function buildJobCard(it) {
       <div class="job-actions">
         <button ${callDisabled ? 'disabled title="no phone on file"' : `onclick="window.location.href='tel:${escapeAttr(phoneE164)}'"`}>📞 Call Customer</button>
         <a class="primary" href="${escapeAttr(openUrl)}">📋 Open Job</a>
+        <button class="danger" onclick="cancelJobInline(${job.id || 0}, this)" title="Cancel this job">❌ Cancel</button>
       </div>
     </div>
   `;
@@ -1040,6 +1051,42 @@ async function toggleSmsGate() {
     }
   } catch (e) {
     alert('Network error: ' + e.message);
+  }
+}
+
+// ── One-tap cancel from a job card ──
+async function cancelJobInline(jobId, btn) {
+  if (!jobId) return;
+  if (!confirm('Cancel this job?\n\nCustomer + assigned tech will get an automatic cancellation SMS.')) return;
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '…';
+  try {
+    const r = await fetch(XANO_BASE + '/cancel_job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: jobId,
+        reason: 'office dashboard inline cancel',
+      }),
+    });
+    const d = await r.json();
+    if (d && (d.success || d.job_id)) {
+      // Fade card out, remove on transition end
+      const card = btn.closest('.job-card');
+      if (card) {
+        card.style.transition = 'opacity 0.3s, transform 0.3s';
+        card.style.opacity = '0.3';
+        card.style.transform = 'translateX(40px)';
+        setTimeout(() => { try { card.remove(); } catch (_) {} }, 320);
+      }
+    } else {
+      alert('Cancel failed: ' + (d && (d.message || d.error) || 'unknown'));
+      btn.disabled = false; btn.textContent = orig;
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
   }
 }
 
