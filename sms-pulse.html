@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMS Pulse — Live</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0e1118; color:#e8edf5; padding:16px; max-width:1100px; margin:0 auto }
+  h1 { font-size:18px; margin-bottom:4px }
+  .sub { color:#8a93aa; font-size:11px; font-family:'IBM Plex Mono', monospace; margin-bottom:18px }
+  .gate-banner { background:linear-gradient(135deg, rgba(180,140,255,0.10), rgba(74,158,255,0.06)); border:1px solid rgba(180,140,255,0.30); border-radius:12px; padding:14px; margin-bottom:14px }
+  .gate-banner.gate-on { background:linear-gradient(135deg, rgba(116,227,196,0.10), rgba(74,158,255,0.06)); border-color:rgba(116,227,196,0.5) }
+  .gate-banner h2 { font-size:14px; color:#8a93aa; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px }
+  .gate-banner .state { font-size:24px; font-weight:800 }
+  .gate-banner .state.gate-off { color:#f5a623 }
+  .gate-banner .state.gate-on { color:#74e3c4 }
+  .stats { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:18px }
+  .stat { background:#1e2433; border:1px solid #2a3040; border-radius:10px; padding:12px; text-align:center }
+  .stat .n { font-size:24px; font-weight:800 }
+  .stat .label { font-size:11px; color:#8a93aa; text-transform:uppercase; letter-spacing:0.4px; margin-top:4px }
+  .stat.sent .n { color:#74e3c4 }
+  .stat.dropped .n { color:#f5a623 }
+  .stat.errors .n { color:#f87171 }
+  .stat.inbound .n { color:#4a9eff }
+  .stat.owner .n { color:#b48cff }
+  .stat.gated .n { color:#8a93aa }
+  h3 { font-size:13px; color:#8a93aa; text-transform:uppercase; letter-spacing:0.4px; margin:18px 0 8px }
+  .event { background:#1e2433; border:1px solid #2a3040; border-left:4px solid #8a93aa; border-radius:8px; padding:10px 12px; margin-bottom:6px; font-size:12px; display:flex; gap:14px; align-items:start; flex-wrap:wrap }
+  .event.sent { border-left-color:#74e3c4 }
+  .event.dropped { border-left-color:#f5a623 }
+  .event.errors { border-left-color:#f87171 }
+  .event.owner_bypass { border-left-color:#b48cff }
+  .event .ts { font-family:'IBM Plex Mono', monospace; color:#8a93aa; flex:0 0 80px }
+  .event .action { font-weight:700; flex:0 0 120px }
+  .event .body { color:#8a93aa; word-break:break-word; flex:1; min-width:200px }
+  @media (max-width:780px) {
+    .stats { grid-template-columns:repeat(3,1fr) }
+    .event .ts { flex:0 0 100% }
+  }
+  @media (max-width:520px) {
+    .stats { grid-template-columns:repeat(2,1fr) }
+  }
+  .empty { color:#8a93aa; padding:20px; text-align:center; font-style:italic }
+  .controls { display:flex; gap:8px; margin-bottom:14px; align-items:center }
+  .pill-toggle { display:inline-flex; gap:2px; background:#1e2433; padding:3px; border-radius:18px }
+  .pill-toggle button { background:transparent; color:#8a93aa; border:0; padding:6px 14px; border-radius:14px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit }
+  .pill-toggle button.active { background:#4a9eff; color:#fff }
+  .refresh-status { color:#8a93aa; font-size:11px; font-family:'IBM Plex Mono', monospace; margin-left:auto }
+</style>
+</head>
+<body>
+<h1>📡 SMS Pulse</h1>
+<div class="sub" id="header-sub">loading…</div>
+
+<div class="controls">
+  <div class="pill-toggle" id="window-toggle">
+    <button data-w="15" class="active">15 min</button>
+    <button data-w="60">1 hr</button>
+    <button data-w="240">4 hr</button>
+    <button data-w="1440">24 hr</button>
+  </div>
+  <div class="refresh-status" id="refresh-status">auto-refresh 10s</div>
+</div>
+
+<div id="gate-banner" class="gate-banner">
+  <h2>Customer SMS Gate</h2>
+  <div class="state gate-off" id="gate-state">checking…</div>
+  <div class="sub" id="gate-sub" style="margin-top:6px"></div>
+</div>
+
+<div class="stats">
+  <div class="stat sent"><div class="n" id="s-sent">0</div><div class="label">Sent</div></div>
+  <div class="stat dropped"><div class="n" id="s-dropped">0</div><div class="label">Gated/Dropped</div></div>
+  <div class="stat errors"><div class="n" id="s-errors">0</div><div class="label">Errors</div></div>
+  <div class="stat inbound"><div class="n" id="s-inbound">0</div><div class="label">Inbound</div></div>
+  <div class="stat owner"><div class="n" id="s-owner">0</div><div class="label">Owner Bypass</div></div>
+  <div class="stat gated"><div class="n" id="s-gated">0</div><div class="label">Master Gate</div></div>
+</div>
+
+<h3>Recent activity</h3>
+<div id="event-list"></div>
+
+<script src="/office-nav.js?v=20260601-2"></script>
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+let windowMins = 15;
+let pollTimer = null;
+
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtCT(ms){ try { return new Date(ms).toLocaleTimeString('en-US', { timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true }); } catch(_){ return ''; } }
+function actionClass(a){ return ({sms_sent:'sent', dropped_customer_sms:'dropped', sms_provider_error:'errors', sms_owner_bypass:'owner_bypass', sms_gated:'errors'})[a] || ''; }
+
+async function load() {
+  document.getElementById('refresh-status').textContent = 'refreshing…';
+  try {
+    const r = await fetch(`${XANO}/get_sms_pulse?minutes_back=${windowMins}`);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'failed');
+    render(d);
+    document.getElementById('refresh-status').textContent = `next refresh in 10s · ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    document.getElementById('event-list').innerHTML = `<div class="empty">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+
+function render(d) {
+  const c = d.counts || {};
+  document.getElementById('s-sent').textContent = c.sent||0;
+  document.getElementById('s-dropped').textContent = c.dropped||0;
+  document.getElementById('s-errors').textContent = c.errors||0;
+  document.getElementById('s-inbound').textContent = c.inbound||0;
+  document.getElementById('s-owner').textContent = c.owner_bypass||0;
+  document.getElementById('s-gated').textContent = c.gated||0;
+  document.getElementById('header-sub').textContent = `last ${windowMins} min · ${new Date().toLocaleTimeString()} CT`;
+
+  // Gate banner
+  const banner = document.getElementById('gate-banner');
+  const state = document.getElementById('gate-state');
+  const gateSub = document.getElementById('gate-sub');
+  if (d.gate_on) {
+    banner.classList.add('gate-on');
+    state.textContent = '🟢 ON — customers can receive SMS';
+    state.className = 'state gate-on';
+    gateSub.textContent = `${c.sent||0} sends went out in the last ${windowMins} min`;
+  } else {
+    banner.classList.remove('gate-on');
+    state.textContent = '🔒 OFF — customer SMS dropped';
+    state.className = 'state gate-off';
+    gateSub.textContent = `${c.dropped||0} customer messages dropped in the last ${windowMins} min`;
+  }
+
+  // Event list
+  const list = document.getElementById('event-list');
+  const events = (d.recent_sample || []).slice().reverse();
+  if (events.length === 0) {
+    list.innerHTML = `<div class="empty">no SMS activity in this window</div>`;
+    return;
+  }
+  list.innerHTML = events.map(e => {
+    let m = {};
+    try { m = (typeof e.metadata === 'string') ? JSON.parse(e.metadata) : (e.metadata || {}); } catch(_){}
+    const cls = actionClass(e.action);
+    const body = m.body_preview || m.body || m.message || (e.action === 'dropped_customer_sms' ? `to last4=${m.recipient_last4 || '?'} · context=${m.context_tag || ''}` : '');
+    return `<div class="event ${cls}">
+      <div class="ts">${esc(fmtCT(e.created_at))}</div>
+      <div class="action">${esc(e.action)}</div>
+      <div class="body">${esc(body).slice(0,300)}</div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('window-toggle').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  document.querySelectorAll('#window-toggle button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  windowMins = Number(b.dataset.w);
+  load();
+});
+
+load();
+pollTimer = setInterval(load, 10000);
+</script>
+</body>
+</html>
