@@ -18,7 +18,13 @@ const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 
 exports.handler = async function () {
   const runId = `shadow_cron_${Date.now()}`;
-  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?dry_run=true&practice_mode=1&day_offset=1&limit=500&force_mock=1&run_id=${runId}`;
+  // APPLY MODE: writes technician_id + scheduled_start to jobs via
+  // Metadata API direct-PATCH. That bypasses the XS endpoints that
+  // would emit APPOINTMENT_SCHEDULED / TECH_ASSIGNED — so NO tech SMS
+  // and NO customer SMS fire even though the rows are mutated.
+  // Jobs appear on tech-daily-dashboard.html because that endpoint
+  // reads the columns directly.
+  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?apply=true&confirm_apply=1&practice_mode=1&day_offset=1&limit=500&force_mock=1&run_id=${runId}`;
 
   try {
     const r = await fetch(url);
