@@ -935,18 +935,35 @@
   // makes playback essentially silent. Pause the mic while Ant speaks,
   // resume after — this releases iOS audio routing back to the loud
   // speaker.
+  // __ttsPlaying = hard gate. handsfreeRec / nativeRec onresult check this
+  // and discard any captured speech while it's true. Belt + suspenders with
+  // suspendMicForPlayback: handsfreeRec.stop() doesn't reliably drain the
+  // result queue on iOS Safari, so even after .stop() a few transcript
+  // events fire from the TTS-bleed audio that was already captured. Without
+  // this gate, those events would feed the brain → reply → speak → bleed
+  // loop.
+  let __ttsPlaying = false;
   function suspendMicForPlayback() {
+    __ttsPlaying = true;
     if (handsfreeRec) {
       try { handsfreeRec.stop(); } catch (_) {}
     }
+    if (nativeRec) {
+      try { nativeRec.stop(); } catch (_) {}
+    }
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      try { mediaRecorder.stop(); } catch (_) {}
+    }
   }
   function resumeMicAfterPlayback() {
-    if (handsfreeOn) {
-      // Small delay so iOS finishes routing back to loud speaker
-      setTimeout(() => {
+    // 350ms drain window: lets iOS finish flushing any in-flight transcript
+    // events from the TTS bleed before we clear the gate + reopen the mic.
+    setTimeout(() => {
+      __ttsPlaying = false;
+      if (handsfreeOn) {
         try { if (handsfreeRec) handsfreeRec.start(); } catch (_) {}
-      }, 250);
-    }
+      }
+    }, 350);
   }
   // Pre-create + attach a single audio element to the DOM (some iOS
   // versions refuse to play() elements that aren't already in the
@@ -1443,6 +1460,11 @@
         processedFinalIdx = new Set();
       };
       handsfreeRec.onresult = (e) => {
+        // 2026-06-01: hard gate against TTS-bleed feedback loop. If Ant's
+        // voice is currently playing through the speaker, the mic can
+        // pick it up and onresult fires with Ant's own words. Discard
+        // those events so they never reach the brain.
+        if (__ttsPlaying) return;
         // BUG FIX 2026-05-29: previous version accumulated repeats when
         // the recognizer re-emitted a finalized result. Now we track
         // which result indices have already been folded into `buffer`
@@ -1557,6 +1579,8 @@
           nativeProcessedIdx = new Set();
         };
         nativeRec.onresult = (e) => {
+          // 2026-06-01: same TTS-bleed gate as handsfree path.
+          if (__ttsPlaying) return;
           // BUG FIX 2026-05-29: don't double-add re-emitted final results.
           // Rebuild display = finalText + interim every event.
           let interim = '';
