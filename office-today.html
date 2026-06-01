@@ -188,6 +188,19 @@
   .glance-pill.warn   { background: rgba(245,166,35,0.15); border-color: var(--accent); color: var(--accent); }
   .glance-pill.calm   { background: rgba(116,227,196,0.15); border-color: var(--green); color: var(--green); }
   .glance-pill.zero   { opacity: 0.5; }
+
+  /* Practice-mode trust banner — sticky between header and view-toggle */
+  .practice-banner {
+    background: linear-gradient(135deg, rgba(180,140,255,0.10), rgba(74,158,255,0.06));
+    border-bottom: 1px solid rgba(180,140,255,0.25);
+    color: var(--text); padding: 8px 16px; font-size: 12px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .practice-banner .label { color: var(--violet); font-weight: 700; }
+  .practice-banner .sep   { color: var(--muted); }
+  .practice-banner .gate-off { color: var(--accent); font-weight: 700; }
+  .practice-banner .gate-on  { color: var(--green);  font-weight: 700; }
   .btn:hover { opacity: 0.92; }
   .btn:active { transform: scale(0.97); }
 
@@ -262,6 +275,16 @@
     <div class="sub" id="header-sub">Loading...</div>
   </div>
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
+</div>
+
+<div class="practice-banner" id="practice-banner" style="display:none">
+  <span class="label">🧪 PRACTICE MODE</span>
+  <span class="sep">·</span>
+  <span><strong id="pb-jobs">0</strong> jobs auto-routed today</span>
+  <span class="sep">·</span>
+  <span><strong id="pb-techs">0</strong> techs working</span>
+  <span class="sep">·</span>
+  <span>Customer SMS: <span id="pb-gate">🔒 OFF</span></span>
 </div>
 
 <div class="view-toggle">
@@ -403,6 +426,26 @@ function render(d) {
   const c = d.counts || {};
   document.getElementById('header-sub').textContent =
     new Date(d.as_of_ms).toLocaleTimeString('en-US', {timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit'}) + ' CT';
+
+  // Practice-mode trust banner — show whenever the practice cron is
+  // touching jobs OR the customer-SMS gate is still off. Hidden once
+  // both are zero (real mode, gate open) so the banner doesn't linger.
+  const ps = d.practice_status || {};
+  const pbJobs = Number(ps.practice_jobs_today || 0);
+  const pbTechs = Number(ps.techs_active || 0);
+  const pbGateOn = !!ps.customer_sms_enabled;
+  const showBanner = pbJobs > 0 || !pbGateOn;
+  const banner = document.getElementById('practice-banner');
+  if (showBanner) {
+    document.getElementById('pb-jobs').textContent = pbJobs;
+    document.getElementById('pb-techs').textContent = pbTechs;
+    const g = document.getElementById('pb-gate');
+    g.textContent = pbGateOn ? '🟢 ON' : '🔒 OFF';
+    g.className = pbGateOn ? 'gate-on' : 'gate-off';
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
 
   // Glance bar (decisive headline + per-category pills, zero counts hidden)
   const countsBar = document.getElementById('counts-bar');

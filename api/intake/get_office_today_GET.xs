@@ -349,6 +349,66 @@ query get_office_today verb=GET {
         }
       }
     }
+
+    // ============================================================
+    // SECTION 6 — PRACTICE-MODE TRUST BANNER
+    // Count jobs scheduled today that the practice-auto-schedule-cron
+    // touched (test_run_id starts with "PRACTICE_") + distinct techs
+    // assigned. Surfaced as the dashboard's "system is working" signal.
+    // ============================================================
+    var $today_start_ms {
+      value = (($now_ms - ($now_ms|to_int|mod:86400000)))
+    }
+
+    db.query jobs {
+      where = $db.jobs.scheduled_start >= $today_start_ms && $db.jobs.scheduled_start <= ($today_start_ms + 86400000)
+      sort = {jobs.scheduled_start: "asc"}
+      return = {type: "list", paging: {page: 1, per_page: 200}}
+    } as $today_rows
+
+    var $practice_count {
+      value = 0
+    }
+
+    var $practice_tech_ids {
+      value = []
+    }
+
+    foreach ($today_rows.items) {
+      each as $tj {
+        var $tj_run {
+          value = (($tj.test_run_id ?? "")|trim)
+        }
+
+        conditional {
+          if ($tj_run != "") {
+            var.update $practice_count {
+              value = ($practice_count + 1)
+            }
+
+            var $tj_tech_id {
+              value = ($tj.technician_id ?? 0)
+            }
+
+            conditional {
+              if ($tj_tech_id > 0) {
+                var.update $practice_tech_ids {
+                  value = $practice_tech_ids|push:$tj_tech_id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    var $practice_tech_count {
+      value = ($practice_tech_ids|unique|count)
+    }
+
+    var $customer_sms_enabled {
+      value = (($env.CUSTOMER_FACING_ENABLED ?? "false") == "true")
+    }
   }
 
   response = {
@@ -365,6 +425,11 @@ query get_office_today verb=GET {
       stuck_intake             : ($stuck_intake|count)
       unpaid_self_pay          : ($unpaid_self_pay|count)
       voicemail_queue          : ($voicemail_queue|count)
+    }
+    practice_status          : {
+      practice_jobs_today      : $practice_count
+      techs_active             : $practice_tech_count
+      customer_sms_enabled     : $customer_sms_enabled
     }
   }
 
