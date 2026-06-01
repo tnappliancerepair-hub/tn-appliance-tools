@@ -82,6 +82,21 @@ query get_office_today verb=GET {
 
     foreach ($war_rows.items) {
       each as $job {
+        // Skip if a warranty_submitted_<job_id> event_log row exists —
+        // Danielle (or future autopilot) already submitted it. Action
+        // string carries the job_id since metadata is JSON and not
+        // queryable with simple filters.
+        var $war_action_key {
+          value = "warranty_submitted_" ~ ($job.id|to_text)
+        }
+
+        db.query event_log {
+          where = $db.event_log.action == $war_action_key
+          return = {type: "exists"}
+        } as $already_submitted
+
+        conditional {
+          if (!$already_submitted) {
         // Look up the customer for paste-ready contact info.
         var $cust_id {
           value = ($job.customer_id ?? 0)
@@ -158,6 +173,8 @@ query get_office_today verb=GET {
 
         var.update $warranty_submissions {
           value = $warranty_submissions|push:$war_item
+        }
+          }
         }
       }
     }

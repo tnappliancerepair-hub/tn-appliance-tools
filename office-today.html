@@ -130,6 +130,29 @@
   .btn:hover { opacity: 0.92; }
   .btn:active { transform: scale(0.97); }
 
+  /* Mark submitted modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px; z-index: 10001;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; max-width: 460px; width: 100%;
+  }
+  .modal h3 { font-size: 16px; margin-bottom: 4px; }
+  .modal .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .modal label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+  .modal input, .modal textarea {
+    width: 100%; padding: 10px 12px; background: var(--panel-2);
+    color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px; margin-bottom: 12px; font-family: inherit;
+  }
+  .modal textarea { resize: vertical; min-height: 60px; }
+  .modal .actions { margin-top: 4px; }
+  .btn-success { background: var(--green); color: black; }
+
   .empty {
     background: var(--panel); border: 1px dashed var(--border);
     padding: 24px; text-align: center; border-radius: 10px;
@@ -190,6 +213,22 @@
 </div>
 
 <div class="toast" id="toast">Copied!</div>
+
+<!-- Mark submitted modal -->
+<div class="modal-overlay" id="submit-modal">
+  <div class="modal">
+    <h3>Mark submission complete</h3>
+    <div class="sub">Job #<span id="sm-job-id"></span> · <span id="sm-vendor"></span></div>
+    <label>Vendor confirmation # (required)</label>
+    <input id="sm-conf" type="text" placeholder="e.g. AHS123456789" autocomplete="off">
+    <label>Notes (optional)</label>
+    <textarea id="sm-notes" placeholder="anything to remember about this submission"></textarea>
+    <div class="actions">
+      <button class="btn btn-success" id="sm-confirm">✓ Mark submitted</button>
+      <button class="btn btn-secondary" onclick="closeSubmitModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -372,6 +411,7 @@ function renderWarrantyCard(w) {
         ${portalUrl ? `<a class="btn btn-portal" href="${portalUrl}" target="_blank" rel="noopener">Open ${escapeHtml(w.warranty_company || 'vendor')} portal ↗</a>` : ''}
         <a class="btn btn-primary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
         <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all fields</button>
+        <button class="btn btn-success" onclick="openSubmitModal(${w.job_id}, '${escapeAttr(w.warranty_company || 'vendor')}')">✓ Mark submitted</button>
       </div>
     </div>`;
 }
@@ -466,6 +506,68 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 1800);
 }
+
+// ── Mark submitted modal ─────────────────────────────────────────
+let __currentSubmitJobId = null;
+let __currentSubmitVendor = '';
+
+function openSubmitModal(jobId, vendor) {
+  __currentSubmitJobId = jobId;
+  __currentSubmitVendor = vendor || 'vendor';
+  document.getElementById('sm-job-id').textContent = jobId;
+  document.getElementById('sm-vendor').textContent = vendor;
+  document.getElementById('sm-conf').value = '';
+  document.getElementById('sm-notes').value = '';
+  document.getElementById('submit-modal').classList.add('show');
+  setTimeout(() => document.getElementById('sm-conf').focus(), 50);
+}
+
+function closeSubmitModal() {
+  document.getElementById('submit-modal').classList.remove('show');
+  __currentSubmitJobId = null;
+  __currentSubmitVendor = '';
+}
+
+document.getElementById('submit-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'submit-modal') closeSubmitModal();
+});
+
+document.getElementById('sm-confirm').addEventListener('click', async () => {
+  const jobId = __currentSubmitJobId;
+  if (!jobId) return;
+  const conf = document.getElementById('sm-conf').value.trim();
+  const notes = document.getElementById('sm-notes').value.trim();
+  if (!conf) { showToast('Confirmation # required'); document.getElementById('sm-conf').focus(); return; }
+  const btn = document.getElementById('sm-confirm');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/record_warranty_submission', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        job_id: jobId,
+        confirmation_id: conf,
+        vendor: __currentSubmitVendor,
+        notes: notes,
+      }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      showToast(`✓ Marked submitted (${conf})`);
+      closeSubmitModal();
+      load();  // refresh — card will disappear from the list
+    } else {
+      showToast('Failed: ' + (d.error || 'unknown'));
+    }
+  } catch (e) {
+    showToast('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '✓ Mark submitted';
+  }
+});
+
+document.getElementById('sm-conf').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') document.getElementById('sm-confirm').click();
+});
 
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
