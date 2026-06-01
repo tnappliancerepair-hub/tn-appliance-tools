@@ -730,18 +730,34 @@ query hcp_job_webhook verb=POST {
           }
         }
       
+        // Side fields (scheduled_end, hcp_assigned_to, service_eta_window)
+        // direct-write — not part of state machine's concern.
         db.edit jobs {
           field_name = "id"
           field_value = $job_appt.id
           data = {
-            scheduled_start   : $start_ts
             scheduled_end     : $end_ts
-            technician_id     : $resolved_tech_id
             hcp_assigned_to   : $hcp_pro_id_now
-            scheduling_status : "scheduled"
             service_eta_window: $derived_window
           }
         } as $updated_job
+
+        // Delegate the state transition (scheduling_status + scheduled_start
+        // + technician_id) to the state machine.
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+          method = "POST"
+          params = {
+            job_id            : $job_appt.id
+            target_state      : "scheduled"
+            actor             : "vendor"
+            reason            : "hcp webhook appointment.scheduled"
+            technician_id     : $resolved_tech_id
+            scheduled_start_ms: $start_ts
+          }
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $hcp_sched_transition
       
         // Phase 5.5C: emit APPOINTMENT_SCHEDULED for customer + tech confirmation SMS.
         var $as_payload_obj {
@@ -922,12 +938,22 @@ query hcp_job_webhook verb=POST {
           }
         }
       
-        db.edit jobs {
-          field_name = "id"
-          field_value = $job.id
-          data = {scheduling_status: "completed"}
-        }
-      
+        // Delegate to state machine. HCP webhook acts on behalf of the
+        // tech in the field. The state machine validates the transition
+        // and writes the audit row.
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+          method = "POST"
+          params = {
+            job_id      : $job.id
+            target_state: "completed"
+            actor       : "vendor"
+            reason      : "hcp webhook job.completed"
+          }
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $hcp_complete_transition
+
         // Phase 5A: emit JOB_COMPLETED for warranty-submission agent (warranty jobs only).
         var $jcc_is_warranty {
           value = (($job.customer_type ?? "") == "warranty")
