@@ -302,6 +302,7 @@
     <div class="title">Ant Office</div>
     <div class="sub" id="header-sub">Loading...</div>
   </div>
+  <button onclick="openPurgeModal()" title="Clean test + old jobs" style="background:rgba(255,71,87,0.12); border:1px solid #ff4757; color:#ff4757; padding:6px 12px; border-radius:14px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; margin-right:6px">🧹 Clean</button>
   <button class="refresh-btn" id="refresh-btn" onclick="loadJobs()" title="Refresh" aria-label="Refresh">↻</button>
 </div>
 
@@ -313,6 +314,24 @@
     Hide canceled
   </label>
   <span id="hidden-count" style="color:#7a6e54; font-style:italic"></span>
+</div>
+
+<!-- Purge test/stale jobs modal -->
+<div id="purge-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); display:none; align-items:center; justify-content:center; padding:20px; z-index:10001">
+  <div style="background:#ffffff; border:1px solid #d8cdb4; border-radius:12px; padding:22px; max-width:460px; width:100%; color:#1f1a12; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+    <h3 style="font-size:16px; margin:0 0 4px">🧹 Clean test + old jobs</h3>
+    <div style="color:#7a6e54; font-size:12px; margin-bottom:14px">Bulk-cancels jobs across queues. Reversible (sets scheduling_status="canceled", no row deletion).</div>
+    <div style="background:#fff4e0; padding:12px; border-radius:8px; margin-bottom:12px; font-size:13px">
+      <div style="margin-bottom:8px"><strong>Test data</strong> — claim # starts with TEST, phone 555-555-XXXX, ServicePower placeholder, voicemail caller, test_run_id set</div>
+      <div><strong>Stale data</strong> — not_ready jobs older than <input id="purge-stale-days" type="number" value="30" min="7" max="365" style="width:60px; padding:2px 6px; border:1px solid #d8cdb4; border-radius:4px"> days</div>
+    </div>
+    <div id="purge-preview" style="background:#f6f1e3; padding:10px 12px; border-radius:8px; margin-bottom:12px; font-size:13px; color:#7a6e54">Tap "Preview" to see counts</div>
+    <div style="display:flex; gap:8px">
+      <button id="purge-preview-btn" onclick="purgePreview()" style="background:#fff; color:#1f1a12; border:1px solid #d8cdb4; padding:10px 16px; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit">👀 Preview</button>
+      <button id="purge-confirm-btn" onclick="purgeRun()" disabled style="background:#b91c1c; color:#fff; border:0; padding:10px 16px; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; opacity:0.5">🧹 Purge</button>
+      <button onclick="closePurgeModal()" style="background:#fff; color:#1f1a12; border:1px solid #d8cdb4; padding:10px 16px; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; margin-left:auto">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div class="job-list" id="job-list">
@@ -800,6 +819,80 @@ if (localStorage.getItem(AUTH_KEY) === '1') {
   init();
 } else {
   document.getElementById('auth-input').focus();
+}
+
+// ── Purge test + stale jobs ──
+function openPurgeModal() {
+  document.getElementById('purge-preview').textContent = 'Tap "Preview" to see counts';
+  document.getElementById('purge-preview').style.color = '#7a6e54';
+  const cbtn = document.getElementById('purge-confirm-btn');
+  cbtn.disabled = true; cbtn.style.opacity = '0.5';
+  document.getElementById('purge-modal').style.display = 'flex';
+}
+function closePurgeModal() {
+  document.getElementById('purge-modal').style.display = 'none';
+}
+document.getElementById('purge-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'purge-modal') closePurgeModal();
+});
+async function purgePreview() {
+  const days = Number(document.getElementById('purge-stale-days').value || 30);
+  const btn = document.getElementById('purge-preview-btn');
+  const pre = document.getElementById('purge-preview');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/purge_test_and_stale_jobs', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ dry_run: true, mode: 'both', stale_days: days, max_cancel: 2000 }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const t = d.test_candidates || 0;
+      const s = d.stale_candidates || 0;
+      pre.innerHTML = `Would cancel <strong>${t} test jobs</strong> and <strong>${s} stale jobs (&gt;${days}d)</strong> — total <strong style="color:#b91c1c">${t+s}</strong>`;
+      pre.style.color = '#1f1a12';
+      const cbtn = document.getElementById('purge-confirm-btn');
+      cbtn.disabled = (t+s) === 0;
+      cbtn.style.opacity = (t+s) === 0 ? '0.5' : '1';
+    } else {
+      pre.textContent = 'Failed: ' + (d && d.error || 'unknown');
+      pre.style.color = '#b91c1c';
+    }
+  } catch (e) {
+    pre.textContent = 'Network error: ' + e.message;
+    pre.style.color = '#b91c1c';
+  } finally {
+    btn.disabled = false; btn.textContent = '👀 Preview';
+  }
+}
+async function purgeRun() {
+  const days = Number(document.getElementById('purge-stale-days').value || 30);
+  if (!confirm('Cancel all matching test + stale jobs?\n\nReversible (no row deletion).')) return;
+  const btn = document.getElementById('purge-confirm-btn');
+  const pre = document.getElementById('purge-preview');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/purge_test_and_stale_jobs', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ dry_run: false, mode: 'both', stale_days: days, max_cancel: 2000 }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const t = d.test_canceled || 0;
+      const s = d.stale_canceled || 0;
+      pre.innerHTML = `✅ Canceled <strong>${t} test</strong> + <strong>${s} stale</strong> = <strong style="color:#15803d">${t+s}</strong> jobs`;
+      pre.style.color = '#15803d';
+      setTimeout(() => { closePurgeModal(); loadJobs(); }, 1500);
+    } else {
+      pre.textContent = 'Failed: ' + (d && d.error || 'unknown');
+      pre.style.color = '#b91c1c';
+      btn.disabled = false; btn.textContent = '🧹 Purge';
+    }
+  } catch (e) {
+    pre.textContent = 'Network error: ' + e.message;
+    pre.style.color = '#b91c1c';
+    btn.disabled = false; btn.textContent = '🧹 Purge';
+  }
 }
 </script>
 <script src="/office-search.js?v=20260528-1"></script>
