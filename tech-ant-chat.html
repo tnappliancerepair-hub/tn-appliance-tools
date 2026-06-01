@@ -1315,11 +1315,36 @@
   }
 
   // ── Send text to brain ────────────────────────────────────────────
+  // Voice-command intent router: when tech says "open the map" / "navigate" /
+  // "call customer" / "on my way" / "start the job", trigger the matching
+  // action-bar button directly instead of routing to the chat brain (which
+  // has no tool to invoke UI buttons). Returns true if an intent was handled.
+  function tryHandleVoiceIntent(text) {
+    const t = (text || '').toLowerCase().trim();
+    if (!t) return false;
+    const NAV_RE = /\b(map|maps|navigate|navigation|directions?|address|where('?s| is)|pull up.*map|open.*map|show.*(map|address)|gps|drive to|take me)\b/;
+    const OTW_RE = /\b(on (my|the) way|on the way|otw|i'?m heading|heading (out|over)|leaving now|en route|leaving for|i'?m on)\b/;
+    const CALL_RE = /\b(call|ring|phone|dial).{0,8}(customer|client|them|her|him)\b|\bcall (her|him|them|the customer)\b/;
+    const START_RE = /\b(start|begin|arrived|i'?m here|on site).{0,8}(job|work|repair|now)\b|^\s*(start|started)\s*(the)?\s*job\s*$/;
+    const FINISH_RE = /\b(finish|done|complete|wrap up|submit).{0,8}(job|tdr|repair)\b|^\s*(finish|done|complete)\s*$/;
+    if (NAV_RE.test(t))     { btnNav.click();   return true; }
+    if (OTW_RE.test(t))     { btnOtw.click();   return true; }
+    if (CALL_RE.test(t))    { btnCall.click();  return true; }
+    if (START_RE.test(t))   { btnStart.click(); return true; }
+    if (FINISH_RE.test(t) && typeof openCompletionOverlay === 'function') { openCompletionOverlay(); return true; }
+    return false;
+  }
+
   async function handleSend() {
     const text = (composerInput.value || '').trim();
     if (!text) return;
     composerInput.value = '';
     composerInput.style.height = 'auto';
+    if (tryHandleVoiceIntent(text)) {
+      // Echo what the tech said so the chat history reflects it
+      addMsg('user', text);
+      return;
+    }
     await sendToBrain(text);
   }
   // ?debug=1 in URL → real errors surface in the chat instead of the
@@ -1452,12 +1477,17 @@
       handsfreeRec.interimResults = true;
       handsfreeRec.lang = 'en-US';
       let buffer = '';              // accumulated FINAL text across sessions
-      let processedFinalIdx = new Set(); // per-session: which result idx we already added to buffer
+      let processedFinalTexts = new Set(); // dedup by NORMALIZED text content (survives onstart resets)
       let silenceTimer = null;
       handsfreeRec.onstart = () => {
         isListening = true; setMicActive(true);
-        // Each session has its own result indices — wipe processed set
-        processedFinalIdx = new Set();
+        // 2026-06-02: do NOT reset processedFinalTexts here. iOS Safari
+        // restarts the recognizer on no-speech/aborted errors, and each
+        // restart re-emits already-captured finals at index 0..N with
+        // the SAME text. Resetting on every onstart meant the dedup set
+        // got wiped and accumulated duplicates ("what's my Napa what's
+        // my Napa..."). The set gets cleared only when buffer is consumed
+        // by the silence-timer send (single source of truth).
       };
       handsfreeRec.onresult = (e) => {
         // 2026-06-01: hard gate against TTS-bleed feedback loop. If Ant's
@@ -1465,17 +1495,17 @@
         // pick it up and onresult fires with Ant's own words. Discard
         // those events so they never reach the brain.
         if (__ttsPlaying) return;
-        // BUG FIX 2026-05-29: previous version accumulated repeats when
-        // the recognizer re-emitted a finalized result. Now we track
-        // which result indices have already been folded into `buffer`
-        // (per session) and rebuild `interim` fresh every event.
+        // 2026-06-02: dedup by NORMALIZED text content, not result index.
+        // iOS Safari re-emits the same final transcript at different
+        // indices after restarts, so the prior index-based dedup leaked.
         let interim = '';
         for (let i = 0; i < e.results.length; i++) {
           const r = e.results[i];
           const t = (r[0] && r[0].transcript) || '';
           if (r.isFinal) {
-            if (!processedFinalIdx.has(i)) {
-              processedFinalIdx.add(i);
+            const key = t.trim().toLowerCase();
+            if (key && !processedFinalTexts.has(key)) {
+              processedFinalTexts.add(key);
               buffer += (buffer ? ' ' : '') + t;
             }
           } else {
@@ -1507,8 +1537,13 @@
             const text = buffer.trim();
             if (text.length >= 2) {
               buffer = '';
-              processedFinalIdx = new Set();
+              processedFinalTexts = new Set();
               composerInput.value = '';
+              // Voice-intent routing for handsfree path: same as handleSend.
+              if (tryHandleVoiceIntent(text)) {
+                addMsg('user', text);
+                return;
+              }
               await sendToBrain(text);
             }
           }, 2500);
