@@ -1327,12 +1327,75 @@
     const CALL_RE = /\b(call|ring|phone|dial).{0,8}(customer|client|them|her|him)\b|\bcall (her|him|them|the customer)\b/;
     const START_RE = /\b(start|begin|arrived|i'?m here|on site).{0,8}(job|work|repair|now)\b|^\s*(start|started)\s*(the)?\s*job\s*$/;
     const FINISH_RE = /\b(finish|done|complete|wrap up|submit).{0,8}(job|tdr|repair)\b|^\s*(finish|done|complete)\s*$/;
+    const PARTS_ORDER_RE = /\b(order.{0,8}parts?|parts? ordered|just ordered|placed.{0,8}order|i ordered)\b/;
     if (NAV_RE.test(t))     { btnNav.click();   return true; }
     if (OTW_RE.test(t))     { btnOtw.click();   return true; }
     if (CALL_RE.test(t))    { btnCall.click();  return true; }
     if (START_RE.test(t))   { btnStart.click(); return true; }
     if (FINISH_RE.test(t) && typeof openCompletionOverlay === 'function') { openCompletionOverlay(); return true; }
+    if (PARTS_ORDER_RE.test(t)) { openPartsOrderModal(); return true; }
     return false;
+  }
+
+  // ── #3: Parts order modal — tech taps or says "order parts" ──────
+  function openPartsOrderModal() {
+    if (!jobContext) { addMsg('assistant', 'No job loaded.'); return; }
+    let overlay = document.getElementById('parts-order-overlay');
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = 'parts-order-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+    const cust = (jobContext.customer || {});
+    const apl = (jobContext.appliance || {});
+    overlay.innerHTML = `
+      <div style="background:#1a1d24;border:1px solid #2a3040;border-radius:14px;padding:22px 20px;max-width:420px;width:100%;color:#e8edf5">
+        <div style="font-weight:700;font-size:17px;margin-bottom:4px">📦 Order parts</div>
+        <div style="color:#8a93aa;font-size:12px;margin-bottom:18px">for ${escapeHtml(((cust.first_name||'') + ' ' + (cust.last_name||'')).trim() || 'customer')} - ${escapeHtml([apl.brand, apl.type].filter(Boolean).join(' ') || 'appliance')}</div>
+
+        <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">Supplier</label>
+        <input id="po-supplier" type="text" placeholder="Marcone / Sears / Triple S / etc." style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
+
+        <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">Part #</label>
+        <input id="po-part-num" type="text" placeholder="e.g. WPW10310240" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
+
+        <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">ETA (date or "Tue Jun 5")</label>
+        <input id="po-eta" type="text" placeholder="Tue Jun 5" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:14px;font-family:inherit">
+
+        <button id="po-submit" style="width:100%;padding:12px;background:#15803d;color:white;border:0;border-radius:6px;font-weight:700;font-size:15px;cursor:pointer">✓ Mark parts ordered (notify customer)</button>
+        <button id="po-cancel" style="width:100%;padding:10px;margin-top:8px;background:transparent;color:#8a93aa;border:0;font-size:13px;cursor:pointer">Cancel</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('po-cancel').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('po-submit').addEventListener('click', async () => {
+      const supplier = document.getElementById('po-supplier').value.trim();
+      const partNum  = document.getElementById('po-part-num').value.trim();
+      const eta      = document.getElementById('po-eta').value.trim();
+      const btn = document.getElementById('po-submit');
+      btn.disabled = true; btn.textContent = '...';
+      try {
+        const r = await fetch(XANO_BASE + '/emit_parts_event', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            job_id: JOB_ID,
+            status: 'ordered',
+            eta_date: eta,
+            note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : ''].filter(Boolean).join(' / '),
+          }),
+        });
+        const d = await r.json();
+        if (d && d.success) {
+          addMsg('assistant', `📦 Parts ordered logged${eta ? ' (ETA ' + eta + ')' : ''}. Customer ${d.sms_attempted ? 'will be notified' : 'SMS held (gate off)'}.`);
+          overlay.remove();
+        } else {
+          addMsg('assistant', '⚠️ Could not log: ' + JSON.stringify(d).slice(0, 200));
+          btn.disabled = false; btn.textContent = '✓ Mark parts ordered (notify customer)';
+        }
+      } catch (e) {
+        addMsg('assistant', '⚠️ Network error: ' + (e.message || 'unknown'));
+        btn.disabled = false; btn.textContent = '✓ Mark parts ordered (notify customer)';
+      }
+    });
   }
 
   async function handleSend() {
