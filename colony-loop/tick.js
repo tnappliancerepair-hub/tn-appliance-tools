@@ -738,7 +738,8 @@ async function maybeEmitTimeSignals() {
   // but don't, etc. Bounded at 100 fixups per run inside the agent.
   // Light dedup: emit on minute 5 of every hour (no per-day check
   // needed since the signal_strength is low and overlap is harmless).
-  if (now.getMinutes() < 6 && now.getMinutes() >= 5) {
+  const minuteCt = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: '2-digit', hour12: false }).format(new Date(nowTs)), 10);
+  if (minuteCt >= 5 && minuteCt < 6) {
     try {
       await xano.emitSignal({
         signal_type: 'ORPHAN_RECONCILER',
