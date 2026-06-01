@@ -1,5 +1,91 @@
 # Appliance Ant
 
+## 🎯 OPERATIONAL PLAN — week of 2026-06-01 (saved end-of-day 2026-05-31)
+
+End-of-day state and the aggressive plan to kill HCP this week + harden the office for Danielle's possible departure. Tomorrow's session should read this first.
+
+### State at end of 2026-05-31 (Sun, late)
+
+**Operational — parallel to HCP, customer-silent.**
+
+| Surface | State |
+|---|---|
+| FINISH overlay on `tech-ant-chat.html` | ✅ 4-button + inline 5-field TDR form. Job Complete + Parts Needed + Not Worth Fixing verified end-to-end on real test job → office bucket. Reassignment Needed code path same as fixed PUT path. |
+| `office-dashboard.html` | ✅ Bucket tabs visible (grid bug fixed). Linked from `office.html` hub via new "🗂 Buckets" tile. |
+| `needs-scheduled.html` | ✅ Schedule modal → `danielle_schedule_parallel_job` → `APPOINTMENT_SCHEDULED` chain → tech SMS lands. Verified live with Jim Eley (#18259). |
+| `tech-daily-dashboard.html` | ✅ Renders 🧪 PRACTICE badge AND 📋 Tech TDR card (shows TDR by any author, including empty submissions). |
+| Practice auto-scheduler | ✅ `mock-scheduler` `practice_mode=1` + `practice-auto-schedule-cron` every 15 min via Netlify. Auto-places not_ready jobs (created since 5/30 cutoff) on round-robin techs in their cluster. |
+| Pre-weekend backlog | ✅ `cancel_pre_weekend_backlog_POST` archived 1,609 jobs in 4 passes. Queue now ~13 weekend-forward not_ready remaining. |
+| Customer SMS gate | 🔒 `CUSTOMER_FACING_ENABLED=false`. No customer messaged tonight. |
+| Tech heads-up | ✅ SMS sent to all 5 techs (Jimmy/Andre/Lee/Billy/John) explaining the PRACTICE badge + asking them to play. |
+
+### KEY FOOTGUN learned tonight — Xano metadata API uses PUT, not PATCH
+
+`PATCH /api:meta/workspace/1/table/{id}/content/{rowId}` returns **404 ERROR_CODE_NOT_FOUND**. Same URL + body with **PUT** returns 200 and updates the row, preserving other fields. Diagnosed via a temporary `diag-patch.js` (since deleted) that ran both methods side-by-side. Fixed in `mock-scheduler.js applyPlanToLiveJobs` and `tech-request-reassignment.js`. **Means**: every prior "test harness apply" with mock-scheduler was silently no-op'ing the PATCHes — Teddy's earlier dashboard sightings were existing HCP-sourced jobs, not test harness placements. Real "operational" only started this evening once PUT landed.
+
+Add this to `docs/xanoscript-footguns.md` next session.
+
+### 🚀 AGGRESSIVE HCP-KILL PLAN — week of 2026-06-01
+
+**MON (6/1) — practice all morning, escalate to "real" mid-day**
+- Practice cron stays on. Techs work practice jobs through the morning.
+- Watch tech behavior. Fix UX surprises in real-time.
+- Mid-day: if practice looks clean, drop the `PRACTICE_` prefix from `test_run_id` writes (or just stop writing the prefix). Same code path, jobs become "real" routing for techs.
+- Customer SMS gate stays OFF.
+
+**TUE (6/2) — flip the customer gate**
+- Flip `CUSTOMER_FACING_ENABLED=true` (scope to `parallel_mode=true` jobs only — blast-radius gate so HCP-sourced jobs don't double-fire).
+- First customer Ant-confirmation SMSes go out for parallel-mode jobs.
+- Watch `event_log` every 30 min. If anything weird, flip the gate back OFF in 5 sec.
+- HCP intake still untouched. Two systems in lockstep.
+
+**WED-FRI (6/3-6/5) — volume ramp + parity audit**
+- Every new AHS / ServicePower / web-chat job flows exclusively through Ant.
+- Teddy + Danielle must kill the muscle memory of manually re-entering jobs in HCP.
+- Build a **parity dashboard** — single page that shows today's Ant jobs vs HCP jobs side-by-side, plus gap counts and lifecycle event coverage.
+- Track every life-cycle event: confirm ✓ ETA ✓ arrive ✓ complete ✓ invoice ⚠️ (the Needs Invoiced bucket exists but no invoice generation yet — flag for cut-decision).
+
+**SAT (6/6 or following Sat) — cut day**
+- HCP goes read-only. All new intake exclusively to Ant.
+- Migrate any open HCP jobs into Ant via `import_hcp_job_POST` (run Friday night for a full snapshot).
+- Monitor obsessively for 24h.
+- HCP fully decommissioned the following Monday if all green.
+
+**Two must-haves before cut**:
+1. **Invoice generation** — today HCP does this. Needs Invoiced bucket exists in Ant but no actual invoice-out step. Need a Tue/Wed sprint to add Stripe-backed PDF + customer SMS link.
+2. **Warranty portal automation** — see office-simplification plan below.
+
+### 🏢 OFFICE SIMPLIFICATION PLAN — preparing for Danielle's possible departure
+
+Personnel risk: Danielle may not be working with us much longer. Need the office to run without her (or with someone less trained).
+
+**What Danielle does today + automation gap**
+
+| Job | Automation state |
+|---|---|
+| Schedule new jobs onto techs | ✅ Auto-schedule cron does this in practice mode. Easy to make real. |
+| Warranty submissions (AHS / ServicePower / Frontdoor portals) | 🔴 **BIG GAP.** Currently SMS digest to her; she enters via portal. No automation. |
+| Customer SMS Q&A | 🟡 SMS responder agents scaffolded but mostly dormant. |
+| Reschedule / cancel customer requests | 🟡 RESCHEDULE keyword captured; human-judgment side hers. |
+| Parts arrival → re-schedule revisit | 🟡 `parts_arrival_check` agent fires but call is hers. |
+| Exception handling (weird emails, lost customers, complaints, refunds) | 🔴 Hard to automate; needs escalation channel to Teddy. |
+
+**Three phases (aligned with HCP-kill timeline)**
+
+- **Phase 1 (Mon-Tue 6/1-6/2)**: Auto-schedule real (no PRACTICE tag) → Danielle stops opening `needs-scheduled.html` for 95% of cases. Build a single **"Office Today"** page — one URL, one scroll, priority-ordered list of everything needing human action (warranty needs submission · parts arrived · stuck intake · escalations). Kills 5-page juggling.
+- **Phase 2 (Wed-Fri 6/3-6/5)**: **Warranty portal automation** — biggest single Danielle-replacement lever. Build adapters for AHS / ServicePower / Frontdoor that, when `JOB_COMPLETED` with full TDR fires, log into the portal and submit the claim package. Brittle (vendor portals change), high-value. Self-warranty PDF generator for owner-side warranty jobs.
+- **Phase 3 (next week)**: Smart-escalation SMSes to Teddy in place of "Danielle needs to handle X" alerts. Structured decision SMSes: *"Customer Jane Doe wants to move from Mon 10am to Wed — reply A for Wed 11am, B for Thu 9am, C decline."* Teddy handles exceptions in 30 sec from phone. Connects directly to the office autopilot design Teddy has been developing.
+
+### NEXT-SESSION TODOS (in order)
+
+1. **Cron-fire verification** — at next quarter hour (7:30 PM CT and onward), confirm `practice-auto-schedule-cron` is firing via Netlify scheduled functions. Look at the latest `event_log` row with `action="mock_scheduler_apply"`.
+2. **Document the PUT-not-PATCH footgun** in `docs/xanoscript-footguns.md`.
+3. **Build "Office Today" page** (Phase 1 of office simplification).
+4. **Build invoice generation** (last gap before HCP cut).
+5. **Scope warranty portal automation** — needs research on whether AHS/ServicePower expose APIs or require web-scraping.
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-05-31 (Day 4 — operating path reset)
 
 Yesterday burned 4 hours on an auth gate side-quest that ultimately got abandoned. Lesson logged. The real story is that the **scheduler is built but dormant in production** — confirmed by direct query. **One paste wakes it up.** Today's focus: flip the operating system on for real customer traffic.
