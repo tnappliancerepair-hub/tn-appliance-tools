@@ -288,7 +288,7 @@
   <span style="margin-left:auto"><button onclick="openPurgeModal()" style="background:rgba(248,113,113,0.15); border:1px solid var(--red); color:var(--red); padding:4px 10px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">🧹 Clean test/old</button></span>
 </div>
 
-<div class="view-toggle">
+<div class="view-toggle" id="view-toggle">
   <button id="vt-queue" class="active" onclick="setViewMode('queue')">▼ Priority Queue</button>
   <button id="vt-sections" onclick="setViewMode('sections')">▦ Sections</button>
   <button id="vt-walk" onclick="setViewMode('walk')">🐜 Walk me through</button>
@@ -500,7 +500,7 @@ function render(d) {
 }
 
 let __lastData = null;
-let __viewMode = 'queue'; // 'queue' | 'sections'
+let __viewMode = 'queue'; // 'queue' | 'sections' | 'walk'
 try { __viewMode = localStorage.getItem('office_today_view') || 'queue'; } catch (_) {}
 
 function setViewMode(mode) {
@@ -1310,6 +1310,7 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) { return escapeHtml(s); }
 </script>
+<script src="/office-nav.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260528-1"></script>
 <script src="/office-home-button.js?v=1"></script>
 </body>
