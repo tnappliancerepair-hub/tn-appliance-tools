@@ -796,11 +796,16 @@
       <button class="composer-btn" id="btn-photo" title="Take photo" aria-label="Take photo">📷</button>
       <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
       <button class="composer-btn" id="btn-library" title="Upload from photo library" aria-label="Upload from library">🖼</button>
-      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
-      <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
+      <!-- In-app voice buttons hidden 2026-06-01 — Web Speech API was
+           unreliable across iOS Safari + Android Chrome (accumulation,
+           feedback loops, progressive-final misbehavior). Techs dictate
+           via their phone keyboard's built-in mic icon instead — way
+           more robust speech engine. Reversible: remove style="display:none". -->
+      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice" style="display:none">🎤</button>
+      <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free" style="display:none">🎙</button>
       <textarea class="composer-input" id="composer-input"
         rows="1"
-        placeholder="talk to ant..."
+        placeholder="tap to type — or use your keyboard's 🎤 to dictate"
         aria-label="Talk to Ant"></textarea>
       <button class="composer-btn send" title="Send" aria-label="Send">↑</button>
     </div>
