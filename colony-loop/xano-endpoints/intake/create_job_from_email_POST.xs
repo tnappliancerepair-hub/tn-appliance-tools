@@ -257,6 +257,47 @@ query create_job_from_email verb=POST {
       }
     } as $create_log
 
+    // Emit JOB_CREATED so job_created.js agent fires the customer
+    // intake-greeting SMS (gated by CUSTOMER_FACING_ENABLED).
+    // 2026-06-01 — closes the gap where consolidated-path jobs didn't
+    // get the auto-fired customer SMS (Step 1 of Teddy-alone office).
+    var $jc_phone {
+      value = (($input.customer_phone ?? "")|trim)
+    }
+
+    var $jc_first {
+      value = (($input.customer_first_name ?? "")|trim)
+    }
+
+    var $jc_appliance {
+      value = (($input.appliance_type ?? "")|trim)
+    }
+
+    var $jc_payload_obj {
+      value = {
+        job_id             : $new_job.id
+        customer_phone     : $jc_phone
+        customer_first_name: $jc_first
+        appliance_type     : $jc_appliance
+        customer_type      : "warranty"
+        source             : $intake_src_clean
+      }
+    }
+
+    var $jc_payload_str {
+      value = $jc_payload_obj|json_encode
+    }
+
+    db.add colony_signals {
+      data = {
+        signal_type    : "JOB_CREATED"
+        signal_strength: 70
+        source_colony  : ""
+        target_colonies: ""
+        payload        : $jc_payload_str
+      }
+    } as $jc_signal
+
     // SMS Danielle (615-485-0713) — internal recipient, bypasses CUSTOMER_FACING gate.
     var $dn_warranty { value = (($input.warranty_company ?? "warranty")|trim) }
     var $dn_first { value = (($input.customer_first_name ?? "")|trim) }

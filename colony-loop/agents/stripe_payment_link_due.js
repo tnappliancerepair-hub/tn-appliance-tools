@@ -87,10 +87,21 @@ export async function run(signal, ctx) {
   // pre-fill technicians.tip_handle column). Falls back to no tip clause.
   const tipHandle = String(payload.tech_tip_handle || '').trim();
   const tipClause = tipHandle ? ` Want to tip ${payload.tech_first || 'your tech'}? ${tipHandle}` : '';
+  // Invoice receipt link — 2026-06-01: wire customer-invoice.js
+  // (existed but wasn't called from any chain). Customer gets an
+  // itemized receipt alongside the Stripe pay link.
+  const digitsOnly = String(phone || '').replace(/[^\d]/g, '');
+  const last4 = digitsOnly.slice(-4);
+  const invoiceBase = (config.publicSiteBase || 'https://tnapplianceexchange.net').replace(/\/+$/, '');
+  const invoiceUrl = last4
+    ? `${invoiceBase}/.netlify/functions/customer-invoice?job_id=${jobId}&last4=${last4}`
+    : '';
+  const invoiceClause = invoiceUrl ? `\nView your invoice: ${invoiceUrl}` : '';
   const body =
     `Hi ${firstName} - thanks for trusting us with your repair! ` +
-    `Pay your $${dollars} balance securely here: ${linkData.url} ` +
-    `Questions? Call 615-280-2949.${tipClause}`;
+    `Pay your $${dollars} balance securely here: ${linkData.url}` +
+    invoiceClause +
+    `\nQuestions? Call 615-280-2949.${tipClause}`;
 
   let smsRes = null;
   try {
