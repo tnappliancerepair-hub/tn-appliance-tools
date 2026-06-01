@@ -1,9 +1,27 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
+import { AGENT_REGISTRY } from './agents/registry.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AGENTS_DIR = join(HERE, 'agents');
+
+// Startup validation: every registered agent must point to a file that
+// exists. Fail loud if any are missing — that's the bug class the
+// registry exists to catch. Skipping validation is a footgun, so it
+// runs on first import and throws.
+(function validateRegistry() {
+  const missing = [];
+  for (const [type, rel] of Object.entries(AGENT_REGISTRY)) {
+    const path = join(AGENTS_DIR, rel.replace(/^\.\//, ''));
+    if (!existsSync(path)) missing.push({ type, rel });
+  }
+  if (missing.length > 0) {
+    const lines = missing.slice(0, 10).map((m) => `  ${m.type} → ${m.rel}`).join('\n');
+    const extra = missing.length > 10 ? `\n  ... and ${missing.length - 10} more` : '';
+    throw new Error(`Registry validation failed: ${missing.length} agents have missing files:\n${lines}${extra}\n\nRun: node scripts/build-registry.js`);
+  }
+})();
 
 // Signal TTL — drops signals that have been unprocessable for longer
 // than this many ms. Catches: deadline_ms typos that put signals 100
@@ -41,9 +59,19 @@ export async function dispatch(signal, ctx) {
     return { success: false, action: 'ttl_expired' };
   }
 
-  const path = join(AGENTS_DIR, `${type}.js`);
-  if (!existsSync(path)) {
+  // Registry-based lookup (replaces filename derivation that historically
+  // silently mis-fired when conventions drifted). signal_type lookup is
+  // by UPPER_CASE key, so we normalize before look up.
+  const signalKey = (signal.signal_type || '').toUpperCase();
+  const registered = AGENT_REGISTRY[signalKey];
+  if (!registered) {
     return { success: false, action: 'no_agent_yet' };
+  }
+  const path = join(AGENTS_DIR, registered.replace(/^\.\//, ''));
+  if (!existsSync(path)) {
+    // Should never hit this because startup validation prevents it,
+    // but defense in depth.
+    return { success: false, action: 'agent_file_missing' };
   }
 
   // Hot reload: re-import when the file mtime has changed since cache.
