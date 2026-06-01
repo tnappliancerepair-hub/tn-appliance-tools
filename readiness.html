@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tuesday Readiness — Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0e1118; color:#e8edf5; padding:20px; max-width:900px; margin:0 auto }
+  h1 { font-size:22px; margin-bottom:6px }
+  .sub { color:#8a93aa; font-size:12px; font-family:'IBM Plex Mono', monospace; margin-bottom:24px }
+  .verdict { padding:24px; border-radius:14px; margin-bottom:20px; text-align:center }
+  .verdict.go { background:linear-gradient(135deg, rgba(116,227,196,0.15), rgba(74,158,255,0.08)); border:2px solid #74e3c4 }
+  .verdict.nogo { background:linear-gradient(135deg, rgba(248,113,113,0.15), rgba(245,166,35,0.08)); border:2px solid #f87171 }
+  .verdict.gate { background:linear-gradient(135deg, rgba(180,140,255,0.10), rgba(74,158,255,0.06)); border:1px solid rgba(180,140,255,0.30); margin-bottom:14px }
+  .verdict h2 { font-size:32px; font-weight:900; margin-bottom:4px }
+  .verdict .go h2, .verdict.go h2 { color:#74e3c4 }
+  .verdict .nogo h2, .verdict.nogo h2 { color:#f87171 }
+  .verdict.gate h2 { font-size:18px; color:#b48cff }
+  .verdict p { color:#8a93aa; font-size:14px }
+  .checks { display:grid; gap:10px; margin-bottom:24px }
+  .check { background:#1e2433; border:1px solid #2a3040; border-left:4px solid #8a93aa; border-radius:10px; padding:14px 16px; display:flex; align-items:center; gap:14px }
+  .check.ok { border-left-color:#74e3c4 }
+  .check.fail { border-left-color:#f87171 }
+  .check .indicator { font-size:24px; flex:0 0 32px }
+  .check .body { flex:1 }
+  .check .name { font-size:14px; font-weight:700 }
+  .check .detail { font-size:12px; color:#8a93aa; margin-top:2px }
+  .check .ts { font-family:'IBM Plex Mono', monospace; color:#5a6480; font-size:11px; margin-top:2px }
+  .gate-toggle { display:inline-flex; gap:8px; align-items:center; padding:8px 16px; background:rgba(180,140,255,0.10); border:1px solid rgba(180,140,255,0.30); border-radius:18px; font-size:13px; font-weight:700; color:#b48cff; cursor:pointer; text-decoration:none }
+  .gate-toggle:hover { background:rgba(180,140,255,0.18) }
+  .refresh-status { color:#8a93aa; font-size:11px; font-family:'IBM Plex Mono', monospace; margin-bottom:14px }
+</style>
+</head>
+<body>
+<h1>🎯 Tuesday Readiness</h1>
+<div class="sub" id="header-sub">checking…</div>
+
+<div id="verdict" class="verdict">
+  <h2 id="verdict-icon">⏳</h2>
+  <p id="verdict-text">Loading…</p>
+</div>
+
+<div class="verdict gate" id="gate-banner" style="display:none">
+  <h2 id="gate-state">🔒 Customer SMS Gate: OFF</h2>
+  <p style="margin-top:8px"><a class="gate-toggle" href="/office-today.html">→ Flip gate from office-today</a></p>
+</div>
+
+<div class="refresh-status" id="refresh-status">auto-refresh 30s</div>
+
+<div class="checks" id="checks"></div>
+
+<script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
+<script>
+function fmtCT(ms){
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleString('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }); }
+  catch(_){ return ''; }
+}
+
+async function load() {
+  document.getElementById('refresh-status').textContent = 'refreshing…';
+  try {
+    const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_readiness_status');
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'failed');
+    render(d);
+    document.getElementById('refresh-status').textContent = `last checked ${new Date().toLocaleTimeString()} · auto-refresh 30s`;
+  } catch (e) {
+    document.getElementById('checks').innerHTML = `<div class="check fail"><div class="indicator">⚠️</div><div class="body"><div class="name">Could not load</div><div class="detail">${e.message}</div></div></div>`;
+  }
+}
+
+function render(d) {
+  document.getElementById('header-sub').textContent = `as of ${new Date(d.as_of_ms).toLocaleString('en-US', { timeZone:'America/Chicago', hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true })} CT`;
+
+  const v = document.getElementById('verdict');
+  const vi = document.getElementById('verdict-icon');
+  const vt = document.getElementById('verdict-text');
+  if (d.overall_ready) {
+    v.className = 'verdict go';
+    vi.textContent = '✅ GO';
+    vt.textContent = 'All systems healthy. Safe to flip the customer SMS gate ON.';
+  } else {
+    v.className = 'verdict nogo';
+    vi.textContent = '⛔ HOLD';
+    vt.textContent = `${d.blockers} blocker${d.blockers===1?'':'s'} below. Investigate before flipping.`;
+  }
+
+  // Gate banner
+  const gateOn = d.checks.gate.gate_on;
+  const gb = document.getElementById('gate-banner');
+  const gs = document.getElementById('gate-state');
+  gb.style.display = 'block';
+  gs.innerHTML = gateOn ? '🟢 Customer SMS Gate: ON' : '🔒 Customer SMS Gate: OFF';
+
+  const checks = d.checks || {};
+  const order = ['backup','heartbeat','pollers','errors_quiet','state_machine','scheduler'];
+  const labels = {
+    backup: 'Nightly Backup',
+    heartbeat: 'Colony Loop Heartbeat',
+    pollers: 'Email Pollers',
+    errors_quiet: 'Errors in Last Hour',
+    state_machine: 'State Machine Reachable',
+    scheduler: 'Scheduler Ran in Last 24h',
+  };
+  document.getElementById('checks').innerHTML = order.map(k => {
+    const c = checks[k] || {};
+    const ok = !!c.ok;
+    const ts = c.last_ts_ms ? `last: ${fmtCT(c.last_ts_ms)}` : (c.error_count != null ? `${c.error_count} error${c.error_count===1?'':'s'}` : '');
+    return `<div class="check ${ok?'ok':'fail'}">
+      <div class="indicator">${ok?'✅':'❌'}</div>
+      <div class="body">
+        <div class="name">${labels[k]||k}</div>
+        <div class="detail">${c.detail||''}</div>
+        ${ts?`<div class="ts">${ts}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>
