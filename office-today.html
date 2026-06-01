@@ -285,6 +285,7 @@
   <span><strong id="pb-techs">0</strong> techs working</span>
   <span class="sep">·</span>
   <span>Customer SMS: <span id="pb-gate" style="cursor:pointer" onclick="toggleSmsGate()" title="Tap to toggle">🔒 OFF</span></span>
+  <span style="margin-left:auto"><button onclick="openPurgeModal()" style="background:rgba(248,113,113,0.15); border:1px solid var(--red); color:var(--red); padding:4px 10px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">🧹 Clean test/old</button></span>
 </div>
 
 <div class="view-toggle">
@@ -338,6 +339,24 @@
     <div class="actions">
       <button class="btn btn-success" id="esc-send">🚨 Send to Teddy</button>
       <button class="btn btn-secondary" onclick="closeEscalateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Purge test/stale jobs modal -->
+<div class="modal-overlay" id="purge-modal">
+  <div class="modal">
+    <h3>🧹 Clean test + old jobs</h3>
+    <div class="sub">Bulk-cancels jobs across all queues. Reversible (sets scheduling_status="canceled", no row deletion).</div>
+    <div style="background:var(--panel-2); padding:12px; border-radius:8px; margin-bottom:12px; font-size:13px">
+      <div style="margin-bottom:8px"><strong>Test data</strong> — claim # starts with TEST, phone 555-555-XXXX, ServicePower placeholder, voicemail caller, test_run_id set</div>
+      <div><strong>Stale data</strong> — not_ready jobs older than <input id="purge-stale-days" type="number" value="30" min="7" max="365" style="width:60px; padding:2px 6px; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:4px; font-family:inherit"> days</div>
+    </div>
+    <div id="purge-preview" style="background:var(--panel-2); padding:10px 12px; border-radius:8px; margin-bottom:12px; font-size:13px; color:var(--muted)">Tap "Preview" to see counts</div>
+    <div class="actions">
+      <button class="btn btn-secondary" id="purge-preview-btn" onclick="purgePreview()">👀 Preview</button>
+      <button class="btn btn-warn" id="purge-confirm-btn" onclick="purgeRun()" disabled>🧹 Purge</button>
+      <button class="btn btn-secondary" onclick="closePurgeModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -923,6 +942,80 @@ function renderVoicemail(v) {
         <button class="btn btn-secondary" onclick="clearVoicemail(${v.event_id}, this)">✓ Cleared</button>
       </div>
     </div>`;
+}
+
+// ── Purge test + stale jobs ──
+function openPurgeModal() {
+  document.getElementById('purge-preview').textContent = 'Tap "Preview" to see counts';
+  document.getElementById('purge-preview').style.color = 'var(--muted)';
+  document.getElementById('purge-confirm-btn').disabled = true;
+  document.getElementById('purge-modal').classList.add('show');
+}
+function closePurgeModal() {
+  document.getElementById('purge-modal').classList.remove('show');
+}
+document.getElementById('purge-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'purge-modal') closePurgeModal();
+});
+
+async function purgePreview() {
+  const days = Number(document.getElementById('purge-stale-days').value || 30);
+  const btn = document.getElementById('purge-preview-btn');
+  const pre = document.getElementById('purge-preview');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/purge_test_and_stale_jobs', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ dry_run: true, mode: 'both', stale_days: days, max_cancel: 2000 }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const t = d.test_candidates || 0;
+      const s = d.stale_candidates || 0;
+      pre.innerHTML = `Would cancel <strong>${t} test jobs</strong> and <strong>${s} stale jobs (>${days}d)</strong> — total <strong style="color:var(--accent)">${t+s}</strong>`;
+      pre.style.color = 'var(--text)';
+      document.getElementById('purge-confirm-btn').disabled = (t+s) === 0;
+    } else {
+      pre.textContent = 'Failed: ' + (d && d.error || 'unknown');
+      pre.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    pre.textContent = 'Network error: ' + e.message;
+    pre.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false; btn.textContent = '👀 Preview';
+  }
+}
+
+async function purgeRun() {
+  const days = Number(document.getElementById('purge-stale-days').value || 30);
+  if (!confirm('Cancel all matching test + stale jobs?\n\nReversible (no row deletion).')) return;
+  const btn = document.getElementById('purge-confirm-btn');
+  const pre = document.getElementById('purge-preview');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/purge_test_and_stale_jobs', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ dry_run: false, mode: 'both', stale_days: days, max_cancel: 2000 }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const t = d.test_canceled || 0;
+      const s = d.stale_canceled || 0;
+      pre.innerHTML = `✅ Canceled <strong>${t} test</strong> + <strong>${s} stale</strong> = <strong style="color:var(--green)">${t+s}</strong> jobs`;
+      pre.style.color = 'var(--green)';
+      showToast(`🧹 Purged ${t+s} jobs`);
+      setTimeout(() => { closePurgeModal(); load(); }, 1500);
+    } else {
+      pre.textContent = 'Failed: ' + (d && d.error || 'unknown');
+      pre.style.color = 'var(--red)';
+      btn.disabled = false; btn.textContent = '🧹 Purge';
+    }
+  } catch (e) {
+    pre.textContent = 'Network error: ' + e.message;
+    pre.style.color = 'var(--red)';
+    btn.disabled = false; btn.textContent = '🧹 Purge';
+  }
 }
 
 async function toggleSmsGate() {
