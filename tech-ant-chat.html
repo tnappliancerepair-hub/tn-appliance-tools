@@ -1929,7 +1929,13 @@
     const addr = parts.join(', ');
     if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
     const q = encodeURIComponent(addr.trim());
-    window.open('https://maps.apple.com/?daddr=' + q, '_blank');
+    // Google Maps universal directions deep link — works on Android
+    // (opens Google Maps app), iOS (opens Google Maps app or Safari
+    // fallback), desktop (web). Origin defaults to device current
+    // location. Earlier Apple Maps URL only worked on iOS and showed
+    // a static page on Android with no navigate-from-here flow.
+    const url = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
+    window.open(url, '_blank');
   });
   btnCall.addEventListener('click', () => {
     if (!jobContext || !jobContext.customer || !jobContext.customer.phone) {
