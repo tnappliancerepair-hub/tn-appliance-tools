@@ -571,7 +571,7 @@ function renderWarrantyBatchBar(rows) {
 
 function openAllPortals(vendor, count) {
   if (!confirm(`Open ${count} ${vendor === 'ahs' ? 'AHS' : 'ServicePower'} portal tabs?`)) return;
-  const url = vendor === 'ahs' ? 'https://www.frontdoorpro.com/login' : 'https://hub.servicepower.com/';
+  const url = vendor === 'ahs' ? 'https://login.frontdoorhome.com/' : 'https://hub.servicepower.com/';
   for (let i = 0; i < Math.min(count, 8); i++) {
     window.open(url, '_blank');
   }
@@ -618,7 +618,9 @@ function ageBadge(hours) {
 
 function vendorPortalUrl(company) {
   const c = (company || '').toLowerCase();
-  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://www.frontdoorpro.com/login';
+  // AHS / Frontdoor contractor portal — login redirects to OAuth flow
+  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://login.frontdoorhome.com/';
+  // ServicePower (Allstate / SquareTrade route through here)
   if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://hub.servicepower.com/';
   return null;
 }
