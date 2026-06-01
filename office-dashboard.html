@@ -328,12 +328,17 @@
 
 <div class="filter-tabs" id="filter-tabs"></div>
 
-<div style="display:flex; gap:8px; padding:8px 16px; align-items:center; font-size:11px">
-  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#7a6e54; font-weight:600">
+<div style="display:flex; gap:10px; padding:8px 16px; align-items:center; font-size:11px; flex-wrap:wrap">
+  <div id="region-toggle" style="display:inline-flex; gap:3px; background:#1e2433; padding:3px; border-radius:8px">
+    <button onclick="setRegion('all')" id="rg-all" style="background:#4a9eff; color:#fff; border:0; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">All</button>
+    <button onclick="setRegion('tn')"  id="rg-tn"  style="background:transparent; color:#8a93aa; border:0; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">TN</button>
+    <button onclick="setRegion('la')"  id="rg-la"  style="background:transparent; color:#8a93aa; border:0; padding:5px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">LA</button>
+  </div>
+  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#8a93aa; font-weight:600">
     <input type="checkbox" id="hide-canceled" checked onchange="onHideCanceledToggle()">
     Hide canceled
   </label>
-  <span id="hidden-count" style="color:#7a6e54; font-style:italic"></span>
+  <span id="hidden-count" style="color:#8a93aa; font-style:italic"></span>
 </div>
 
 <!-- Purge test/stale jobs modal -->
@@ -462,6 +467,38 @@ function onHideCanceledToggle() {
   loadJobs();
 }
 
+// Region split. TN = customer state TN OR tech ∈ {1,2,4} (Teddy/Jimmy/Lee).
+// LA = customer state LA OR tech ∈ {3,5,6} (Andre/Billy/John).
+let __region = 'all';
+try { __region = localStorage.getItem('office_dashboard_region') || 'all'; } catch (_) {}
+
+const TN_TECH_IDS = new Set([1, 2, 4]);
+const LA_TECH_IDS = new Set([3, 5, 6]);
+
+function setRegion(r) {
+  __region = r;
+  try { localStorage.setItem('office_dashboard_region', r); } catch (_) {}
+  for (const id of ['rg-all', 'rg-tn', 'rg-la']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const active = ('rg-' + r) === id;
+    el.style.background = active ? '#4a9eff' : 'transparent';
+    el.style.color = active ? '#fff' : '#8a93aa';
+  }
+  // Reload whichever view is active
+  if (activeTab === 'today') loadOfficeToday();
+  else if (activeTab !== 'mock') loadJobs();
+}
+
+function jobMatchesRegion(it) {
+  if (__region === 'all') return true;
+  const st = String((it.customer && it.customer.state) || '').trim().toUpperCase();
+  const techId = Number(it.job && it.job.technician_id || 0);
+  if (__region === 'tn') return st === 'TN' || TN_TECH_IDS.has(techId);
+  if (__region === 'la') return st === 'LA' || LA_TECH_IDS.has(techId);
+  return true;
+}
+
 function init() {
   // Restore hide-canceled preference (default ON)
   try {
@@ -473,6 +510,14 @@ function init() {
     const qsTab = new URLSearchParams(location.search).get('tab');
     if (qsTab && TABS.find(t => t.id === qsTab)) activeTab = qsTab;
   } catch (_) {}
+  // Sync region toggle visual state without triggering an extra load
+  for (const id of ['rg-all', 'rg-tn', 'rg-la']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const active = ('rg-' + __region) === id;
+    el.style.background = active ? '#4a9eff' : 'transparent';
+    el.style.color = active ? '#fff' : '#8a93aa';
+  }
   renderTabs();
   if (activeTab === 'today') loadOfficeToday();
   else loadJobs();
@@ -547,22 +592,27 @@ async function loadJobs() {
     let items = Array.isArray(data.items) ? data.items : [];
     const originalCount = items.length;
 
-    // Hard-cap to last 4 days. Older jobs are noise — clean up via the
-    // Clean button or per-card Cancel if anything legit slips through.
+    // Hard-cap to last 4 days.
     const MAX_DAYS = 4;
     items = items.filter(j => (j.days_since_created || 0) <= MAX_DAYS);
     const tooOldCount = originalCount - items.length;
 
-    // Client-side hide-canceled filter (default ON).
+    // Region filter (TN / LA / all)
+    const beforeRegion = items.length;
+    items = items.filter(jobMatchesRegion);
+    const wrongRegionCount = beforeRegion - items.length;
+
+    // Hide-canceled (default ON).
     const hideCanceled = document.getElementById('hide-canceled').checked;
     const beforeCancelCount = items.length;
     if (hideCanceled) {
-      items = items.filter(j => (j.scheduling_status || '').toLowerCase() !== 'canceled');
+      items = items.filter(j => (j.job && j.job.scheduling_status || '').toLowerCase() !== 'canceled' && (j.scheduling_status || '').toLowerCase() !== 'canceled');
     }
     const canceledHiddenCount = beforeCancelCount - items.length;
 
     const hiddenParts = [];
     if (tooOldCount > 0) hiddenParts.push(`${tooOldCount} older than ${MAX_DAYS}d`);
+    if (wrongRegionCount > 0) hiddenParts.push(`${wrongRegionCount} ${__region === 'tn' ? 'LA' : 'TN'}`);
     if (canceledHiddenCount > 0) hiddenParts.push(`${canceledHiddenCount} canceled`);
     document.getElementById('hidden-count').textContent = hiddenParts.length > 0 ? hiddenParts.join(' · ') + ' hidden' : '';
 
