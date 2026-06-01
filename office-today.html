@@ -159,6 +159,35 @@
   .btn-portal   { background: var(--violet);  color: white; }
   .btn-secondary{ background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
   .btn-warn     { background: var(--red);     color: white; }
+
+  /* Collapsible warranty paste-fields */
+  .paste-fields { margin: 8px 0 4px; }
+  .paste-fields.collapsed { display: none; }
+  .paste-toggle {
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 12px; border-radius: 14px;
+    font-size: 11px; font-weight: 600; cursor: pointer; margin: 8px 0;
+    font-family: inherit; -webkit-appearance: none;
+  }
+  .paste-toggle:active { transform: scale(0.97); }
+
+  /* Glance bar at the very top of the feed */
+  .glance-bar {
+    display: flex; gap: 8px; padding: 12px 16px; flex-wrap: wrap;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    align-items: center;
+  }
+  .glance-pill {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 18px; font-size: 13px; font-weight: 600;
+    color: var(--text); white-space: nowrap; display: inline-flex;
+    align-items: center; gap: 6px;
+  }
+  .glance-pill .n { font-size: 16px; font-weight: 800; }
+  .glance-pill.urgent { background: rgba(248,113,113,0.15); border-color: var(--red); color: var(--red); }
+  .glance-pill.warn   { background: rgba(245,166,35,0.15); border-color: var(--accent); color: var(--accent); }
+  .glance-pill.calm   { background: rgba(116,227,196,0.15); border-color: var(--green); color: var(--green); }
+  .glance-pill.zero   { opacity: 0.5; }
   .btn:hover { opacity: 0.92; }
   .btn:active { transform: scale(0.97); }
 
@@ -375,17 +404,34 @@ function render(d) {
   document.getElementById('header-sub').textContent =
     new Date(d.as_of_ms).toLocaleTimeString('en-US', {timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit'}) + ' CT';
 
-  // Counts bar (jump-to-section)
+  // Glance bar (decisive headline + per-category pills, zero counts hidden)
   const countsBar = document.getElementById('counts-bar');
-  const totalUrgent = (c.escalations||0) + (c.warranty_submissions_due||0) + (c.stuck_intake||0) + (c.unpaid_self_pay||0) + (c.voicemail_queue||0);
-  countsBar.innerHTML = totalUrgent === 0
-    ? `<div class="count-pill" style="background:rgba(116,227,196,0.15); border-color:rgba(116,227,196,0.4); color:var(--green)">✓ all clear</div>`
-    : `
-      <div class="count-pill" onclick="document.getElementById('section-escalations').scrollIntoView({behavior:'smooth'})"><span class="n">${c.escalations||0}</span>escalations</div>
-      <div class="count-pill" onclick="document.getElementById('section-voicemail').scrollIntoView({behavior:'smooth'})"><span class="n">${c.voicemail_queue||0}</span>voicemails</div>
-      <div class="count-pill" onclick="document.getElementById('section-warranty').scrollIntoView({behavior:'smooth'})"><span class="n">${c.warranty_submissions_due||0}</span>warranty</div>
-      <div class="count-pill" onclick="document.getElementById('section-stuck').scrollIntoView({behavior:'smooth'})"><span class="n">${c.stuck_intake||0}</span>stuck intake</div>
-      <div class="count-pill" onclick="document.getElementById('section-unpaid').scrollIntoView({behavior:'smooth'})"><span class="n">${c.unpaid_self_pay||0}</span>unpaid</div>`;
+  const esc  = c.escalations||0;
+  const vm   = c.voicemail_queue||0;
+  const war  = c.warranty_submissions_due||0;
+  const stk  = c.stuck_intake||0;
+  const unp  = c.unpaid_self_pay||0;
+  const urgentCount = esc + vm;
+  const totalCount  = urgentCount + war + stk + unp;
+
+  let headline;
+  if (totalCount === 0) {
+    headline = `<div class="glance-pill calm"><span class="n">✅</span>All clear today</div>`;
+  } else if (urgentCount > 0) {
+    headline = `<div class="glance-pill urgent"><span class="n">🚨 ${urgentCount}</span>urgent · ${totalCount} total</div>`;
+  } else {
+    headline = `<div class="glance-pill warn"><span class="n">📋 ${totalCount}</span>need your attention</div>`;
+  }
+
+  const pills = [];
+  if (esc > 0) pills.push(`<div class="glance-pill urgent" onclick="(document.getElementById('section-escalations')||document.body).scrollIntoView({behavior:'smooth'})" style="cursor:pointer"><span class="n">${esc}</span>escalations</div>`);
+  if (vm  > 0) pills.push(`<div class="glance-pill urgent" onclick="(document.getElementById('section-voicemail')||document.body).scrollIntoView({behavior:'smooth'})" style="cursor:pointer"><span class="n">${vm}</span>voicemails</div>`);
+  if (war > 0) pills.push(`<div class="glance-pill warn"   onclick="(document.getElementById('section-warranty')||document.body).scrollIntoView({behavior:'smooth'})" style="cursor:pointer"><span class="n">${war}</span>warranty</div>`);
+  if (stk > 0) pills.push(`<div class="glance-pill warn"   onclick="(document.getElementById('section-stuck')||document.body).scrollIntoView({behavior:'smooth'})" style="cursor:pointer"><span class="n">${stk}</span>stuck intake</div>`);
+  if (unp > 0) pills.push(`<div class="glance-pill warn"   onclick="(document.getElementById('section-unpaid')||document.body).scrollIntoView({behavior:'smooth'})" style="cursor:pointer"><span class="n">${unp}</span>unpaid</div>`);
+
+  countsBar.className = 'glance-bar';
+  countsBar.innerHTML = headline + pills.join('');
 
   __lastData = d;
   renderFeed();
@@ -693,29 +739,48 @@ function renderWarrantyCard(w) {
     { lbl: 'Tech',             val: ((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)' },
   ];
 
+  const vendorLabel = w.warranty_company || 'vendor';
+  const claimNo = w.claim_number || w.dispatch_id || '';
+
   return `
     <div class="card">
       <div class="top">
         <div class="jobid">#${w.job_id}</div>
         ${ageBadge(ageH)}
-        <div class="reason" style="margin:0">awaiting portal submission</div>
+        <div class="reason" style="margin:0">${escapeHtml(vendorLabel)}${claimNo ? ' · ' + escapeHtml(claimNo) : ''}</div>
       </div>
       <div class="name">${escapeHtml(custName)}</div>
-      ${fields.map((f,i) => `
-        <div class="field-row">
-          <div class="label">${escapeHtml(f.lbl)}</div>
-          <div class="value">${escapeHtml(f.val)}</div>
-          <button class="copy-btn" onclick="copyField(this, ${i}, '${w.job_id}')" data-val="${escapeAttr(f.val)}" title="Copy">📋</button>
-        </div>
-      `).join('')}
+      <button class="paste-toggle" onclick="toggleWarrantyFields(${w.job_id}, this)" id="ptg-${w.job_id}">▸ Show paste fields (${fields.length})</button>
+      <div class="paste-fields collapsed" id="pf-${w.job_id}">
+        ${fields.map((f,i) => `
+          <div class="field-row">
+            <div class="label">${escapeHtml(f.lbl)}</div>
+            <div class="value">${escapeHtml(f.val)}</div>
+            <button class="copy-btn" onclick="copyField(this, ${i}, '${w.job_id}')" data-val="${escapeAttr(f.val)}" title="Copy">📋</button>
+          </div>
+        `).join('')}
+      </div>
       <div class="actions">
-        ${portalUrl ? `<a class="btn btn-portal" href="${portalUrl}" target="_blank" rel="noopener">Open ${escapeHtml(w.warranty_company || 'vendor')} portal ↗</a>` : ''}
-        <a class="btn btn-primary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
-        <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all fields</button>
-        <button class="btn btn-success" onclick="openSubmitModal(${w.job_id}, '${escapeAttr(w.warranty_company || 'vendor')}')">✓ Mark submitted</button>
+        ${portalUrl ? `<a class="btn btn-portal" href="${portalUrl}" target="_blank" rel="noopener">Open ${escapeHtml(vendorLabel)} portal ↗</a>` : ''}
+        <button class="btn btn-success" onclick="openSubmitModal(${w.job_id}, '${escapeAttr(vendorLabel)}')">✓ Mark submitted</button>
         <button class="btn btn-warn" onclick="openEscalateModal(${w.job_id})">🚨 Escalate</button>
+        <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all</button>
+        <a class="btn btn-secondary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
       </div>
     </div>`;
+}
+
+function toggleWarrantyFields(jobId, btn) {
+  const el = document.getElementById('pf-' + jobId);
+  if (!el) return;
+  const isOpen = !el.classList.contains('collapsed');
+  if (isOpen) {
+    el.classList.add('collapsed');
+    btn.textContent = btn.textContent.replace('▾ Hide', '▸ Show');
+  } else {
+    el.classList.remove('collapsed');
+    btn.textContent = btn.textContent.replace('▸ Show', '▾ Hide');
+  }
 }
 
 function renderEscalation(e) {
