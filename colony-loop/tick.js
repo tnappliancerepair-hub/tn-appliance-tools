@@ -707,6 +707,32 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // STUCK_INTAKE_PROGRESS_BATCH — fires once per day at 10:45am CT (10-13 grace).
+  // Sweeps parallel-mode not_ready jobs older than 48h with empty
+  // customer_preference_text and SMSes the customer "morning or afternoon?"
+  // Single-nudge-per-job dedup inside the agent.
+  if (hour >= 10 && hour < 13) {
+    let stuckFired;
+    try {
+      stuckFired = await xano.getStuckIntakeProgressFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('stuck_intake_progress_dedup_failed', { error: err.message });
+      stuckFired = null;
+    }
+    if (stuckFired && !stuckFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'STUCK_INTAKE_PROGRESS_BATCH',
+          signal_strength: 55,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        try { await xano.recordEventLog('stuck_intake_progress_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+      } catch (err) {
+        xano.logLocal('stuck_intake_progress_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // UNPAID_SELF_PAY_DIGEST — fires once per day at 10:30am CT (10-13 grace).
   // Sends Teddy a digest of self-pay jobs completed in the last 14 days
   // where payment_collected is still false. Silent skip when all paid.

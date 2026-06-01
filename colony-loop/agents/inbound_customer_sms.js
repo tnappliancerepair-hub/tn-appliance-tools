@@ -23,6 +23,11 @@
 // missing context gracefully.
 
 const KEYWORD_ROUTES = [
+  // Bare M / A / MORNING / AFTERNOON / ANYTIME — reply to the stuck-intake
+  // progress nudge. Exact-letter match avoids false positives on
+  // conversational messages. Routes to a dedicated handler that updates
+  // the customer's open job and advances scheduling_status.
+  { type: 'SMS_RESPONSE_TIME_PREFERENCE', re: /^\s*(M|A|MORNING|AFTERNOON|ANYTIME|EITHER|EVENING)\s*[.!]?\s*$/i },
   // Bare RESCHEDULE keyword (as prompted in appointment confirmation +
   // reminder SMS) takes priority — exact-word match avoids false positives
   // on conversational "reschedule" mentions.

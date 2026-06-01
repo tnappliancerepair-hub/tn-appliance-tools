@@ -280,6 +280,18 @@ export async function getResumeNudgeFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_resume_nudge_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function listStuckIntakeForProgress({ limit = 50, min_age_hours = 48 } = {}) {
+  return getJSON(`${INTAKE()}/list_stuck_intake_for_progress?limit=${limit}&min_age_hours=${min_age_hours}`);
+}
+
+export async function getStuckIntakeProgressFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_stuck_intake_progress_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function applyTimePreference({ customer_id, preference_text, raw_reply = '' }) {
+  return postJSON(`${INTAKE()}/apply_time_preference`, { customer_id, preference_text, raw_reply });
+}
+
 export async function getTechsLateToFirstJob(cutoffHourCt) {
   let url = `${INTAKE()}/get_techs_late_to_first_job`;
   if (cutoffHourCt) url += `?cutoff_hour_ct=${cutoffHourCt}`;
