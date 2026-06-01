@@ -545,17 +545,26 @@ async function loadJobs() {
     if (!data.success) throw new Error(data.error || 'no success flag');
 
     let items = Array.isArray(data.items) ? data.items : [];
-
-    // Client-side hide-canceled filter (default ON). The 'Canceled' bucket
-    // doesn't exist as its own tab; canceled jobs leak into All otherwise.
-    const hideCanceled = document.getElementById('hide-canceled').checked;
     const originalCount = items.length;
+
+    // Hard-cap to last 4 days. Older jobs are noise — clean up via the
+    // Clean button or per-card Cancel if anything legit slips through.
+    const MAX_DAYS = 4;
+    items = items.filter(j => (j.days_since_created || 0) <= MAX_DAYS);
+    const tooOldCount = originalCount - items.length;
+
+    // Client-side hide-canceled filter (default ON).
+    const hideCanceled = document.getElementById('hide-canceled').checked;
+    const beforeCancelCount = items.length;
     if (hideCanceled) {
       items = items.filter(j => (j.scheduling_status || '').toLowerCase() !== 'canceled');
     }
-    const hiddenCount = originalCount - items.length;
-    document.getElementById('hidden-count').textContent =
-      hiddenCount > 0 ? `${hiddenCount} canceled hidden` : '';
+    const canceledHiddenCount = beforeCancelCount - items.length;
+
+    const hiddenParts = [];
+    if (tooOldCount > 0) hiddenParts.push(`${tooOldCount} older than ${MAX_DAYS}d`);
+    if (canceledHiddenCount > 0) hiddenParts.push(`${canceledHiddenCount} canceled`);
+    document.getElementById('hidden-count').textContent = hiddenParts.length > 0 ? hiddenParts.join(' · ') + ' hidden' : '';
 
     // Client-side resort: oldest first (days_since_created DESC).
     items.sort((a, b) => (b.days_since_created || 0) - (a.days_since_created || 0));
