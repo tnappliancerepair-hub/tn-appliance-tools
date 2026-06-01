@@ -28,23 +28,37 @@ exports.handler = async function () {
 
     const summary = (body && body.summary) || {};
     const targetDate = body && body.target_date;
-    const planRows = (body && body.plan) || [];
-
-    // Lean per-tech rollup for the efficiency report
-    const byTech = {};
-    for (const row of planRows) {
-      const tid = row.technician_id || 0;
-      if (!byTech[tid]) byTech[tid] = { count: 0, zips: new Set(), cities: new Set() };
-      byTech[tid].count++;
-      if (row.service_zip) byTech[tid].zips.add(row.service_zip);
-      if (row.service_city) byTech[tid].cities.add(row.service_city);
+    // mock-scheduler returns plan as result[tech_id].eval.stops, plus
+    // result[tech_id].overflow for jobs that didn't fit (capacity cap).
+    const result = (body && body.result) || {};
+    const techRollup = [];
+    let totalPlaced = 0;
+    let totalOverflow = 0;
+    let totalDrive = 0;
+    for (const tid of Object.keys(result)) {
+      const t = result[tid] || {};
+      const stops = (t.eval && t.eval.stops) || [];
+      const overflow = t.overflow || [];
+      const cities = new Set();
+      for (const s of stops) {
+        const town = (s.job && s.job.town) || '';
+        if (town) cities.add(town);
+      }
+      const drive = (t.eval && t.eval.totalDrive) || 0;
+      totalPlaced += stops.length;
+      totalOverflow += overflow.length;
+      totalDrive += drive;
+      techRollup.push({
+        technician_id: Number(tid),
+        tech_name: (t.tech && t.tech.name) || '',
+        cluster: (t.tech && t.tech.cluster) || '',
+        jobs_placed: stops.length,
+        overflow: overflow.length,
+        drive_minutes: drive,
+        distinct_cities: cities.size,
+        cities: Array.from(cities).join(', '),
+      });
     }
-    const techRollup = Object.entries(byTech).map(([tid, x]) => ({
-      technician_id: Number(tid),
-      jobs_placed: x.count,
-      distinct_zips: x.zips.size,
-      distinct_cities: x.cities.size,
-    }));
 
     // Audit-log the plan summary so the report page can read it
     try {
@@ -59,8 +73,10 @@ exports.handler = async function () {
           anchors_in: summary.anchors_in || 0,
           techs_active: summary.techs_active || 0,
           unrouted_count: summary.unrouted_count || 0,
-          plan_size: planRows.length,
-          tech_rollup: techRollup,
+          plan_size: totalPlaced,
+          overflow_total: totalOverflow,
+          drive_total_minutes: totalDrive,
+          tech_rollup: JSON.stringify(techRollup),
         }),
       });
     } catch (_) { /* fail-open, not fatal */ }
@@ -72,7 +88,9 @@ exports.handler = async function () {
         triggered_at: new Date().toISOString(),
         run_id: runId,
         target_date: targetDate,
-        plan_size: planRows.length,
+        plan_size: totalPlaced,
+        overflow_total: totalOverflow,
+        drive_total_minutes: totalDrive,
         tech_rollup: techRollup,
         summary,
       }),
