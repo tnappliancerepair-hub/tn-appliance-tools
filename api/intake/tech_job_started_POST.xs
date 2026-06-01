@@ -30,15 +30,47 @@ query tech_job_started verb=POST {
       }
     }
   
+    // Stamp the start timestamp + current_status mirror separately —
+    // those aren't part of the state machine's scheduling_status concern.
     db.edit jobs {
       field_name = "id"
       field_value = $input.job_id
       data = {
-        job_started_at   : now
-        scheduling_status: "in_progress"
-        current_status   : "in_progress"
+        job_started_at: now
+        current_status: "in_progress"
       }
     } as $job_updated
+
+    // Delegate the scheduling_status write to the state machine.
+    // actor=tech. If illegal (e.g., job not in 'scheduled' state) the
+    // transition rejects + audits; we propagate the error.
+    api.request {
+      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+      method = "POST"
+      params = {
+        job_id      : $input.job_id
+        target_state: "in_progress"
+        actor       : "tech"
+        reason      : "tech_job_started"
+      }
+      headers = ["Content-Type: application/json"]
+      timeout = 30
+    } as $transition_resp
+
+    var $transition_ok {
+      value = (($transition_resp.response.result.success ?? false) == true)
+    }
+
+    conditional {
+      if ($transition_ok == false) {
+        return {
+          value = {
+            success: false
+            error  : (($transition_resp.response.result.error ?? "transition_failed")|to_text)
+          }
+        }
+      }
+    }
   
     db.add event_log {
       data = {

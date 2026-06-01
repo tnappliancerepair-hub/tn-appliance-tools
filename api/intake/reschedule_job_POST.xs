@@ -31,14 +31,37 @@ query reschedule_job verb=POST {
       value = $job.scheduling_status
     }
   
-    db.edit jobs {
-      field_name = "id"
-      field_value = $input.job_id
-      data = {
-        scheduled_start  : $input.new_start_ms
-        scheduling_status: "scheduled"
+    // Delegate to state machine — handles validation + audit + status write.
+    // Pass the new scheduled_start in the payload so the transition sets
+    // it atomically with the status flip.
+    api.request {
+      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+      method = "POST"
+      params = {
+        job_id            : $input.job_id
+        target_state      : "scheduled"
+        actor             : "office"
+        reason            : "reschedule_job"
+        scheduled_start_ms: $input.new_start_ms
       }
-    } as $updated
+      headers = ["Content-Type: application/json"]
+      timeout = 30
+    } as $transition_resp
+
+    var $transition_ok {
+      value = (($transition_resp.response.result.success ?? false) == true)
+    }
+
+    conditional {
+      if ($transition_ok == false) {
+        return {
+          value = {
+            success: false
+            error  : (($transition_resp.response.result.error ?? "transition_failed")|to_text)
+          }
+        }
+      }
+    }
   
     db.add event_log {
       data = {

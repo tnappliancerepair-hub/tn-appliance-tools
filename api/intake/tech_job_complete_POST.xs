@@ -263,16 +263,45 @@ query tech_job_complete verb=POST {
       }
     }
   
+    // Stamp the completion timestamp + current_status mirror separately.
     db.edit jobs {
       field_name = "id"
       field_value = $input.job_id
       data = {
         job_completed_at    : $now_ts
         time_on_site_minutes: $time_on_site_minutes
-        scheduling_status   : $new_status
         current_status      : $new_status
       }
     } as $job_updated
+
+    // Delegate the scheduling_status write to the state machine.
+    api.request {
+      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+      method = "POST"
+      params = {
+        job_id      : $input.job_id
+        target_state: $new_status
+        actor       : "tech"
+        reason      : ("tech_job_complete: " ~ ($input.completion_type ?? ""))
+      }
+      headers = ["Content-Type: application/json"]
+      timeout = 30
+    } as $transition_resp
+
+    var $transition_ok {
+      value = (($transition_resp.response.result.success ?? false) == true)
+    }
+
+    conditional {
+      if ($transition_ok == false) {
+        return {
+          value = {
+            success: false
+            error  : (($transition_resp.response.result.error ?? "transition_failed")|to_text)
+          }
+        }
+      }
+    }
   
     db.add event_log {
       data = {
