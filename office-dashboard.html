@@ -592,8 +592,8 @@ async function loadJobs() {
     let items = Array.isArray(data.items) ? data.items : [];
     const originalCount = items.length;
 
-    // Hard-cap to last 4 days.
-    const MAX_DAYS = 4;
+    // Hard-cap to last 7 days.
+    const MAX_DAYS = 7;
     items = items.filter(j => (j.days_since_created || 0) <= MAX_DAYS);
     const tooOldCount = originalCount - items.length;
 
