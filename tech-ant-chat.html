@@ -1764,16 +1764,14 @@
     e.target.value = '';
   });
 
-  // LIBRARY picker — same shape as above but WITHOUT capture="environment".
-  // Omitting `capture` tells iOS Safari + Android Chrome to open the native
-  // picker sheet which lets the user pick from their photo library OR take
-  // a fresh photo / pick a file. Accepts both images and videos so one
-  // button covers both. Multiple selection enabled so techs can batch
-  // upload everything they captured earlier in the day.
+  // LIBRARY picker — opens the native picker sheet for the photo library.
+  // 2026-06-02 fix: iOS Safari refuses to open the picker when both
+  // `multiple` and `accept="image/*,video/*"` are set together (silent fail
+  // on some iOS versions). Simplified to images-only single-select. Techs
+  // who need video have the dedicated 🎥 button.
   const libraryInput = document.createElement('input');
   libraryInput.type = 'file';
-  libraryInput.accept = 'image/*,video/*';
-  libraryInput.multiple = true;
+  libraryInput.accept = 'image/*';
   libraryInput.style.display = 'none';
   document.body.appendChild(libraryInput);
   libraryInput.addEventListener('change', async (e) => {
@@ -1784,6 +1782,8 @@
   });
   if (btnLibrary) {
     btnLibrary.addEventListener('click', () => libraryInput.click());
+  } else {
+    console.error('[tech-ant-chat] btn-library element missing — library picker not wired');
   }
 
   btnPhoto.addEventListener('click', () => {

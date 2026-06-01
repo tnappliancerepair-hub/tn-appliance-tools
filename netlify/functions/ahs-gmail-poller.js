@@ -160,6 +160,7 @@ exports.handler = async (event) => {
           sender: baseMsg.sender,
           subject: baseMsg.subject,
           payload_json: JSON.stringify(parsed),
+          received_at_ms: baseMsg.receivedAtMs,
         };
       } else {
         // Dispatch branch — XML attachment required (legacy flow).
@@ -183,6 +184,7 @@ exports.handler = async (event) => {
           gmail_thread_id: baseMsg.threadId,
           sender: baseMsg.sender,
           subject: baseMsg.subject,
+          received_at_ms: baseMsg.receivedAtMs,
         };
       }
 
@@ -279,12 +281,17 @@ async function fetchMessage(gmail, messageId) {
     acc[h.name.toLowerCase()] = h.value;
     return acc;
   }, {});
+  // Gmail internalDate is milliseconds since epoch (string from API). Used by
+  // the forward-only PARSER_ACTIVATION_TS_MS gate on the Xano side to skip
+  // pre-activation backlog without re-fetching.
+  const receivedAtMs = parseInt(msg.data.internalDate || '0', 10) || 0;
   return {
     payload: msg.data.payload,
     threadId: msg.data.threadId || '',
     sender: headers.from || '',
     subject: headers.subject || '',
     body: extractTextBody(msg.data.payload),
+    receivedAtMs,
   };
 }
 

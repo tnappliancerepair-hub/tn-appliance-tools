@@ -138,6 +138,8 @@ exports.handler = async (event) => {
     const subject = headers.subject || '';
     const sender = headers.from || '';
     const threadId = msg.data.threadId || '';
+    // For PARSER_ACTIVATION_TS_MS forward-only gate on the Xano side.
+    const receivedAtMs = parseInt(msg.data.internalDate || '0', 10) || 0;
 
     const body = extractTextBody(msg.data.payload);
     if (!body) {
@@ -171,6 +173,7 @@ exports.handler = async (event) => {
           // payload_json: XanoScript requires schema blocks for object
           // inputs; we stringify and json_decode on the Xano side.
           payload_json: JSON.stringify(parsed),
+          received_at_ms: receivedAtMs,
         };
       } else {
         // Dispatch flow (existing) → servicepower_email_intake.
@@ -184,6 +187,7 @@ exports.handler = async (event) => {
           email_type: parsed.email_type,
           dispatches_json: JSON.stringify(parsed.dispatches),
           body_excerpt: body.slice(0, 500),
+          received_at_ms: receivedAtMs,
         };
       }
     } catch (e) {

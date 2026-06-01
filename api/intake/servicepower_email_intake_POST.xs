@@ -39,6 +39,7 @@ query servicepower_email_intake verb=POST {
     text? body_excerpt?
     text dispatches_json
     text? test_run_id?
+    int? received_at_ms?
   }
 
   stack {
@@ -46,7 +47,42 @@ query servicepower_email_intake verb=POST {
       error_type = "inputerror"
       error = "gmail_message_id is required"
     }
-  
+
+    // Forward-only gate (2026-06-02). See ahs_email_intake for details.
+    var $activation_ts {
+      value = (($env.PARSER_ACTIVATION_TS_MS ?? "0")|to_int)
+    }
+
+    var $received_at {
+      value = ($input.received_at_ms ?? 0)
+    }
+
+    conditional {
+      if ($activation_ts > 0 && $received_at > 0 && $received_at < $activation_ts) {
+        db.add event_log {
+          data = {
+            action  : "servicepower_email_intake_pre_activation"
+            metadata: {
+            gmail_message_id: $input.gmail_message_id
+            activation_ts   : $activation_ts
+            received_at_ms  : $received_at
+            subject_preview : (($input.subject ?? "")|substr:0:120)
+          }
+          }
+        } as $sp_pre_log
+
+        return {
+          value = {
+            success         : true
+            duplicate       : true
+            reason          : "pre_activation"
+            gmail_message_id: $input.gmail_message_id
+            resolution      : "skipped — pre PARSER_ACTIVATION_TS_MS"
+          }
+        }
+      }
+    }
+
     var $dispatches {
       value = $input.dispatches_json|json_decode
     }
