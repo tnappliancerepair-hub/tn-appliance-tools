@@ -76,37 +76,46 @@ function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pad4() { return String(Math.floor(Math.random() * 10000)).padStart(4, '0'); }
 function pad3() { return String(Math.floor(Math.random() * 1000)).padStart(3, '0'); }
 
-// Generate an AHS XML payload matching the format ahs_email_intake_POST.xs parses.
-// The parser walks the XML by `|split:` markers, so we only need the attributes it
-// reads: Vendor/Customer/ServiceLocation/Dispatch[Id, DispatchDateTime, dispatchTypeValueList,
-// ServiceFeeAmount]. Other XML body is decorative.
+// Build an AHS XML payload matching the REAL Frontdoor dispatch shape that
+// ahs_email_intake_POST.xs parses (verified against docs/ahs-sample-dispatch-2026-05-11.xml).
+// The parser splits on these tags:
+//   <CoveredProperty StreetNumber StreetName CityName StateCode ZipPostCode />
+//   <ContractCustomer Name>...<PhoneNumber Number /></ContractCustomer>
+//   <DispatchList Id DispatchDateTime dispatchTypeValueList ServiceFeeAmount />
+// Earlier synthetic shape used <ServiceLocation> + <Customer> + <Dispatch> which
+// the parser silently ignored (service_zip + service_city ended up empty),
+// breaking the mock-scheduler routing chain.
+function splitStreet(address) {
+  // "1234 Main St" → { number: "1234", name: "Main St" }
+  const m = (address || '').match(/^(\d+)\s+(.+)$/);
+  return m ? { number: m[1], name: m[2] } : { number: '', name: address || '' };
+}
+
 function buildAhsXml({ claimNumber, customerFirst, customerLast, customerPhone, address, city, state, zip, applianceLabel, brand, problem, dispatchDate }) {
   const dispatchDateStr = dispatchDate.toISOString().split('T')[0] + 'T08:00:00';
+  const street = splitStreet(address);
+  // Strip leading + from phone for the Number attribute (real AHS uses bare digits)
+  const phoneBare = (customerPhone || '').replace(/[^\d]/g, '');
+  const customerNameFull = `${customerFirst} ${customerLast}`.trim();
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VendorDispatch xsi:noNamespaceSchemaLocation="Dispatch.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Vendor Id="822218" Name="TN APPLIANCE EXCHANGE LLC">
-    <PhoneNumber Type="OFF" Number="6152802949"/>
+    <PhoneNumber Type="OFF" Number="6152802949"></PhoneNumber>
   </Vendor>
-  <DepartmentList>
-    <Department Id="1" Name="Appliance">
-      <Customer FirstName="${customerFirst}" LastName="${customerLast}">
-        <Phone Type="HOME" Number="${customerPhone}"/>
-      </Customer>
-      <ServiceLocation StreetAddress="${address}" City="${city}" State="${state}" ZipPostCode="${zip}"/>
-      <CallNotes>
-        <Message>${problem}. ${applianceLabel} brand ${brand}.</Message>
-      </CallNotes>
-      <DispatchList>
-        <Dispatch Id="${claimNumber}" DispatchDateTime="${dispatchDateStr}" dispatchTypeValueList="Service" ServiceFeeAmount="100.00" Status="OPEN"/>
-      </DispatchList>
-      <CoverageNotes>
-        <Note>Standard warranty coverage applies.</Note>
-      </CoverageNotes>
-      <ProductRemarks>
-        <Remark>${applianceLabel}, brand ${brand}. ${problem}.</Remark>
-      </ProductRemarks>
-    </Department>
-  </DepartmentList>
+  <CoveredProperty StreetNumber="${street.number}" StreetDirection="" StreetName="${street.name}" UnitType="" UnitNumber="" CityName="${city}" StateCode="${state}" ZipPostCode="${zip}" ZipPlus4=""></CoveredProperty>
+  <ContractCustomerList>
+    <ContractCustomer Name="${customerNameFull}">
+      <PhoneNumber Type="HOME" Number="${phoneBare}"></PhoneNumber>
+    </ContractCustomer>
+  </ContractCustomerList>
+  <Contract Number="${claimNumber}" EffectiveDate="${dispatchDateStr}"></Contract>
+  <DispatchList Id="${claimNumber}" dispatchPriorityValueList="NORMAL" dispatchTypeValueList="NORMAL" DispatchDateTime="${dispatchDateStr}" Trade="APL" ServiceFeeAmount="100.00" ServiceFeePaidAmount="0.00" ServiceFeeOpenAmount="100.00"></DispatchList>
+  <CallNotes>
+    <Message>${problem}. ${applianceLabel} brand ${brand}.</Message>
+  </CallNotes>
+  <ProductRemarks>
+    <Remark>${applianceLabel}, brand ${brand}. ${problem}.</Remark>
+  </ProductRemarks>
 </VendorDispatch>`;
 }
 
