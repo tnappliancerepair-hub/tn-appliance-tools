@@ -333,11 +333,33 @@ query get_office_today verb=GET {
 
         conditional {
           if (!$vm_cleared) {
+            // Look for Claude's pre-drafted job structure (written by
+            // voicemail_received.js agent). Lets the UI surface a
+            // "Create job from draft" pill so Danielle skips transcribe.
+            var $draft_key {
+              value = "voicemail_draft_" ~ ($vm.id|to_text)
+            }
+
+            db.query event_log {
+              where = $db.event_log.action == $draft_key
+              sort = {event_log.created_at: "desc"}
+              return = {type: "list", paging: {page: 1, per_page: 1}}
+            } as $vm_draft_rows
+
+            var $vm_draft_row {
+              value = (($vm_draft_rows.items|first) ?? null)
+            }
+
+            var $vm_draft {
+              value = ($vm_draft_row != null) ? $vm_draft_row.metadata : null
+            }
+
             var $vm_item {
               value = {
                 event_id   : $vm.id
                 created_at : $vm.created_at
                 metadata   : $vm.metadata
+                draft      : $vm_draft
                 age_hours  : (($now_ms - $vm.created_at) / 3600000)
               }
             }

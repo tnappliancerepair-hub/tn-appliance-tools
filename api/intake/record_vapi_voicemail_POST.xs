@@ -73,6 +73,29 @@ query record_vapi_voicemail verb=POST {
       headers = ["Content-Type: application/json"]
       timeout = 30
     } as $owner_alert
+
+    // Emit colony signal so voicemail_received.js can have Claude
+    // pre-draft a job from the transcript. Surfaces on the Office
+    // Today voicemail card as "appliance · symptom · zip" + "Create job"
+    // pill — saves Danielle the manual transcribe step.
+    var $signal_payload {
+      value = {
+        event_log_id        : $audit.id
+        caller_phone        : $phone_clean
+        transcript          : $transcript_clean
+        matched_customer_id : $matched_customer_id
+      }
+    }
+
+    db.add colony_signals {
+      data = {
+        signal_type      : "VOICEMAIL_RECEIVED"
+        signal_strength  : 65
+        source_colony    : "vapi_intake"
+        target_colonies  : ""
+        payload          : ($signal_payload|json_encode)
+      }
+    } as $signal_row
   }
 
   response = {
