@@ -223,6 +223,29 @@ export async function run(signal, ctx) {
     log('maintenance_reminder_emit_failed', { job_id: jobId, error: String(err.message || err) });
   }
 
+  // ── Chain: INVOICE_DUE (self-pay only, immediate) ──
+  // Auto-SMS the customer their printable invoice link the moment the
+  // tech taps Complete. Used to be Danielle's manual step; now zero-touch.
+  try {
+    const ct = String(payload.customer_type || '').toLowerCase();
+    if (ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay') {
+      await xano.emitSignal({
+        signal_type: 'INVOICE_DUE',
+        signal_strength: 70,
+        payload: {
+          job_id: jobId,
+          customer_id: payload.customer_id || null,
+          customer_phone: payload.customer_phone || '',
+          first_name: payload.customer_first_name || '',
+          source: 'job_completed_chain',
+          source_signal_id: signal.id,
+        },
+      });
+    }
+  } catch (err) {
+    log('invoice_due_emit_failed', { job_id: jobId, error: String(err.message || err) });
+  }
+
   // ── Chain: SERVICE_AGREEMENT_OFFER (1h post-completion, self-pay) ──
   try {
     const ct = String(payload.customer_type || '').toLowerCase();
