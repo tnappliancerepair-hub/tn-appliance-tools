@@ -1293,14 +1293,27 @@ query ahs_email_intake verb=POST {
       }
     }
   
-    db.add scheduling_queue {
-      data = {
-        job_id     : $new_job.id
-        action_type: "propose"
-        status     : "pending"
-        metadata   : $sq_meta_obj
+    // Auto-enqueue to scheduling_queue retired 2026-06-01 (#3 of Phase 1).
+    // Mock-scheduler now reads jobs directly from the jobs table and
+    // schedules without needing the queue. The XS scheduling_queue_worker
+    // task is being retired. This enqueue stays behind a feature flag so
+    // Teddy can re-enable if any downstream consumer still depends on it.
+    var $sq_enabled {
+      value = (($env.SCHEDULING_QUEUE_ENABLED ?? "false") == "true")
+    }
+
+    conditional {
+      if ($sq_enabled == true) {
+        db.add scheduling_queue {
+          data = {
+            job_id     : $new_job.id
+            action_type: "propose"
+            status     : "pending"
+            metadata   : $sq_meta_obj
+          }
+        } as $sq_row
       }
-    } as $sq_row
+    }
   
     db.add event_log {
       data = {

@@ -297,14 +297,24 @@ query create_job_from_chat verb=POST {
           }
         }
       
-        db.add scheduling_queue {
-          data = {
-            job_id      : $new_job.id
-            action_type : $queue_action
-            status      : "pending"
-            result_notes: "auto-enqueued from chat intake"
+        // Auto-enqueue retired 2026-06-01. Mock-scheduler reads jobs
+        // directly. See ahs_email_intake_POST for the same pattern.
+        var $cjfc_sq_enabled {
+          value = (($env.SCHEDULING_QUEUE_ENABLED ?? "false") == "true")
+        }
+
+        conditional {
+          if ($cjfc_sq_enabled == true) {
+            db.add scheduling_queue {
+              data = {
+                job_id      : $new_job.id
+                action_type : $queue_action
+                status      : "pending"
+                result_notes: "auto-enqueued from chat intake"
+              }
+            } as $new_queue_row
           }
-        } as $new_queue_row
+        }
       
         db.add job_event {
           data = {
