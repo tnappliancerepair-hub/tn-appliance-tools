@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Lifecycle — Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0e1118; color:#e8edf5; padding:16px; max-width:760px; margin:0 auto }
+  h1 { font-size:20px; margin-bottom:6px }
+  .header-sub { color:#8a93aa; font-size:12px; font-family:'IBM Plex Mono', monospace; margin-bottom:18px }
+  .job-card { background:#1e2433; border:1px solid #2a3040; border-radius:12px; padding:14px; margin-bottom:18px }
+  .job-card h2 { font-size:14px; color:#8a93aa; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px }
+  .status-pill { display:inline-block; padding:3px 10px; border-radius:14px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; background:#2a3040; color:#e8edf5; border:1px solid #3a4050 }
+  .status-pill.scheduled { background:rgba(74,158,255,0.18); color:#4a9eff; border-color:#4a9eff }
+  .status-pill.in_progress { background:rgba(245,166,35,0.18); color:#f5a623; border-color:#f5a623 }
+  .status-pill.completed { background:rgba(116,227,196,0.15); color:#74e3c4; border-color:#74e3c4 }
+  .status-pill.canceled { background:rgba(248,113,113,0.15); color:#f87171; border-color:#f87171 }
+  .timeline { position:relative; padding-left:30px }
+  .timeline::before { content:''; position:absolute; left:11px; top:8px; bottom:8px; width:2px; background:#2a3040 }
+  .ev { position:relative; margin-bottom:14px }
+  .ev::before { content:''; position:absolute; left:-24px; top:8px; width:10px; height:10px; border-radius:50%; background:#1e2433; border:2px solid #4a9eff }
+  .ev.success::before { border-color:#74e3c4 }
+  .ev.warn::before { border-color:#f5a623 }
+  .ev.fail::before { border-color:#f87171 }
+  .ev.special::before { border-color:#b48cff; background:#b48cff }
+  .ev-card { background:#1e2433; border:1px solid #2a3040; border-radius:8px; padding:10px 12px }
+  .ev-time { color:#8a93aa; font-size:11px; font-family:'IBM Plex Mono', monospace; margin-bottom:4px }
+  .ev-title { font-weight:700; font-size:13px }
+  .ev-detail { color:#8a93aa; font-size:12px; margin-top:4px }
+  .input-row { display:flex; gap:8px; margin-bottom:18px }
+  input[type=number] { flex:1; background:#1e2433; border:1px solid #2a3040; color:#e8edf5; border-radius:8px; padding:10px 12px; font-size:14px; font-family:inherit }
+  button { background:#4a9eff; color:#fff; border:0; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit }
+  button:active { transform:scale(0.97) }
+  .empty { color:#8a93aa; padding:20px; text-align:center }
+  .ts { font-family:'IBM Plex Mono', monospace; font-size:11px; color:#5a6480 }
+</style>
+</head>
+<body>
+<h1>📜 Job Lifecycle</h1>
+<div class="header-sub" id="header-sub">Enter a job ID to see its full state-machine history</div>
+
+<div class="input-row">
+  <input id="job-id-input" type="number" placeholder="job ID" min="1">
+  <button onclick="loadJob()">Load</button>
+</div>
+
+<div id="job-info"></div>
+<div id="timeline-container"></div>
+
+<script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
+<script src="/office-nav.js?v=20260601-2"></script>
+<script>
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtCT(ms){
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleString('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }); }
+  catch(_){ return ''; }
+}
+
+function transitionDescription(m) {
+  const actor = esc(m.actor || '?');
+  const from = esc(m.from_state || '?');
+  const to = esc(m.to_state || '?');
+  return `<strong>${from}</strong> → <strong>${to}</strong> · by <em>${actor}</em>${m.reason_text?` · ${esc(m.reason_text)}`:''}`;
+}
+
+function evClass(action, m) {
+  if (action === 'job_state_transition_rejected') return 'fail';
+  if (action === 'job_state_transition') {
+    if (m.to_state === 'canceled' || m.to_state === 'no_fix_possible') return 'fail';
+    if (m.to_state === 'completed') return 'success';
+    if (m.to_state === 'in_progress' || m.to_state === 'scheduled') return 'success';
+    return '';
+  }
+  if (action.includes('canceled')) return 'fail';
+  if (action.includes('completed') || action.includes('sent')) return 'success';
+  return 'special';
+}
+
+function evTitle(action, m) {
+  if (action === 'job_state_transition') {
+    return transitionDescription(m);
+  }
+  if (action === 'job_state_transition_rejected') {
+    return `❌ <strong>Rejected</strong>: ${esc(m.error||'')}`;
+  }
+  if (action === 'lifecycle_smoke_job_seeded') return '🌱 Smoke job seeded';
+  if (action === 'office_ant_job_created') return '📋 Job created from office';
+  if (action === 'parallel_job_created_from_email') return '📬 Job created from email';
+  if (action === 'appointment_confirmation_sent') return '📞 Appointment confirmation sent';
+  return esc(action.replace(/_/g, ' '));
+}
+
+async function loadJob() {
+  const id = Number(document.getElementById('job-id-input').value || 0);
+  if (!id) return;
+  document.getElementById('timeline-container').innerHTML = '<div class="empty">loading…</div>';
+
+  try {
+    const r = await fetch(`https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_lifecycle?job_id=${id}`);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'failed');
+    render(d);
+    document.getElementById('header-sub').textContent = `Job #${id} · ${d.count} events`;
+  } catch (e) {
+    document.getElementById('timeline-container').innerHTML = `<div class="empty">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+
+function render(d) {
+  // Current state card
+  const c = d.current || {};
+  const status = c.scheduling_status || 'unknown';
+  document.getElementById('job-info').innerHTML = `<div class="job-card">
+    <h2>Current state</h2>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <span class="status-pill ${status}">${esc(status.replace(/_/g, ' '))}</span>
+      ${c.technician_id > 0 ? `<span class="ts">tech ${c.technician_id}</span>` : ''}
+      ${c.scheduled_start > 0 ? `<span class="ts">scheduled ${fmtCT(c.scheduled_start)}</span>` : ''}
+      ${c.customer_id > 0 ? `<span class="ts">customer ${c.customer_id}</span>` : ''}
+    </div>
+  </div>`;
+
+  // Timeline
+  const tl = d.timeline || [];
+  if (tl.length === 0) {
+    document.getElementById('timeline-container').innerHTML = '<div class="empty">no lifecycle events yet</div>';
+    return;
+  }
+  const html = `<div class="timeline">${tl.map(e => {
+    let m = e.metadata || {};
+    if (typeof m === 'string') { try { m = JSON.parse(m); } catch(_){ m = {}; } }
+    return `<div class="ev ${evClass(e.action, m)}">
+      <div class="ev-card">
+        <div class="ev-time">${fmtCT(e.created_at)}</div>
+        <div class="ev-title">${evTitle(e.action, m)}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+  document.getElementById('timeline-container').innerHTML = html;
+}
+
+// Allow loading via ?job_id=X URL
+const qs = new URLSearchParams(location.search);
+const initJob = qs.get('job_id');
+if (initJob) {
+  document.getElementById('job-id-input').value = initJob;
+  loadJob();
+}
+document.getElementById('job-id-input').addEventListener('keypress', e => {
+  if (e.key === 'Enter') loadJob();
+});
+</script>
+</body>
+</html>
