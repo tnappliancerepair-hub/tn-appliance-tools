@@ -307,6 +307,14 @@
 
 <div class="filter-tabs" id="filter-tabs"></div>
 
+<div style="display:flex; gap:8px; padding:8px 16px; align-items:center; font-size:11px">
+  <label style="display:flex; align-items:center; gap:6px; cursor:pointer; color:#7a6e54; font-weight:600">
+    <input type="checkbox" id="hide-canceled" checked onchange="onHideCanceledToggle()">
+    Hide canceled
+  </label>
+  <span id="hidden-count" style="color:#7a6e54; font-style:italic"></span>
+</div>
+
 <div class="job-list" id="job-list">
   <div class="loading">
     <div class="spinner"></div>
@@ -409,7 +417,17 @@ const TABS = [
 let activeTab = 'all';
 let isLoading = false;
 
+function onHideCanceledToggle() {
+  try { localStorage.setItem('office_dashboard_hide_canceled', document.getElementById('hide-canceled').checked ? '1' : '0'); } catch (_) {}
+  loadJobs();
+}
+
 function init() {
+  // Restore hide-canceled preference (default ON)
+  try {
+    const pref = localStorage.getItem('office_dashboard_hide_canceled');
+    document.getElementById('hide-canceled').checked = pref !== '0';
+  } catch (_) {}
   renderTabs();
   loadJobs();
 }
@@ -479,7 +497,18 @@ async function loadJobs() {
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'no success flag');
 
-    const items = Array.isArray(data.items) ? data.items : [];
+    let items = Array.isArray(data.items) ? data.items : [];
+
+    // Client-side hide-canceled filter (default ON). The 'Canceled' bucket
+    // doesn't exist as its own tab; canceled jobs leak into All otherwise.
+    const hideCanceled = document.getElementById('hide-canceled').checked;
+    const originalCount = items.length;
+    if (hideCanceled) {
+      items = items.filter(j => (j.scheduling_status || '').toLowerCase() !== 'canceled');
+    }
+    const hiddenCount = originalCount - items.length;
+    document.getElementById('hidden-count').textContent =
+      hiddenCount > 0 ? `${hiddenCount} canceled hidden` : '';
 
     // Client-side resort: oldest first (days_since_created DESC).
     items.sort((a, b) => (b.days_since_created || 0) - (a.days_since_created || 0));
