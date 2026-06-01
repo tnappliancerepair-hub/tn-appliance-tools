@@ -241,17 +241,33 @@ query servicepower_email_intake verb=POST {
                           value = (($sched_date ~ " 08:00:00")|to_timestamp)|transform_timestamp:"+5 hours"
                         }
                       
+                        // Side fields stay on the direct write — they're
+                        // not part of the state machine's scheduling_status concern.
                         db.edit jobs {
                           field_name = "id"
                           field_value = $existing_job.id
                           data = {
-                            scheduled_start  : $sched_ts
-                            scheduling_status: "scheduled"
                             scheduling_type  : "slot"
                             vendor_locked    : true
                             current_status   : "rescheduled"
                           }
                         } as $sched_update
+
+                        // Delegate the state transition to the state machine
+                        // (with scheduled_start in payload).
+                        api.request {
+                          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+                          method = "POST"
+                          params = {
+                            job_id            : $existing_job.id
+                            target_state      : "scheduled"
+                            actor             : "vendor"
+                            reason            : "servicepower SCHEDULE_CHANGE"
+                            scheduled_start_ms: $sched_ts
+                          }
+                          headers = ["Content-Type: application/json"]
+                          timeout = 30
+                        } as $sched_transition
                       
                         // Phase 5.5C: emit APPOINTMENT_SCHEDULED for SP-side reschedule.
                         var $as_sp_resched_obj {
@@ -304,16 +320,30 @@ query servicepower_email_intake verb=POST {
               
                 conditional {
                   if ($input.email_type == "CANCELLATION") {
+                    // Side fields direct-write (state machine doesn't own them).
                     db.edit jobs {
                       field_name = "id"
                       field_value = $existing_job.id
                       data = {
                         job_status       : "canceled"
-                        scheduling_status: "canceled"
                         current_status   : "canceled"
                         friendly_status  : "Cancelled by warranty company"
                       }
                     } as $cancel_update
+
+                    // Delegate the cancel transition to the state machine.
+                    api.request {
+                      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+                      method = "POST"
+                      params = {
+                        job_id      : $existing_job.id
+                        target_state: "canceled"
+                        actor       : "vendor"
+                        reason      : "servicepower CANCELLATION"
+                      }
+                      headers = ["Content-Type: application/json"]
+                      timeout = 30
+                    } as $cancel_transition
                   
                     var.update $action_label {
                       value = "updated_job_status"
