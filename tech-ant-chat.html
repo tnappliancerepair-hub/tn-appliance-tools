@@ -1838,7 +1838,11 @@
 
   btnNav.addEventListener('click', () => {
     if (!jobContext) return;
-    const addr = jobContext.job && (jobContext.job.service_address || '') + ' ' + (jobContext.job.service_city || '');
+    // Address lives on customer block per get_job_for_dashboard shape — was
+    // previously read off jobContext.job which doesn't carry service_*.
+    const c = jobContext.customer || {};
+    const parts = [c.address, c.city, c.state, c.zip].filter(Boolean);
+    const addr = parts.join(', ');
     if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
     const q = encodeURIComponent(addr.trim());
     window.open('https://maps.apple.com/?daddr=' + q, '_blank');
@@ -1886,17 +1890,29 @@
   btnOtw.addEventListener('click', async () => {
     btnOtw.disabled = true;
     try {
-      await fetch(XANO_BASE + '/tech_on_the_way', {
+      const r = await fetch(XANO_BASE + '/tech_on_the_way', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
       });
-      addMsg('assistant', 'On My Way logged. Customer notified with ETA + live tracking link.');
-      speak('On the way logged.');
-      // Start broadcasting GPS for the customer's live map
-      startPositionBroadcast();
+      const d = await r.json().catch(() => ({}));
+      if (d && d.success === false && d.error === 'already sent') {
+        addMsg('assistant', 'OTW already logged for this job. (Customer SMS only fires once.)');
+        startPositionBroadcast();
+      } else if (d && d.sms_sent === true) {
+        addMsg('assistant', 'On My Way logged ✓ Customer notified.');
+        speak('On the way logged.');
+        startPositionBroadcast();
+      } else {
+        // Logged but customer SMS gated (CUSTOMER_FACING_ENABLED=false) OR no phone on file
+        const custPhone = (jobContext && jobContext.customer && jobContext.customer.phone) || '';
+        const phoneLine = custPhone ? `Call customer: ${custPhone}` : '(no phone on file)';
+        addMsg('assistant', `OTW logged ✓ Customer SMS held (parallel mode — flips on Tue). ${phoneLine}`);
+        speak('On the way logged. Customer notification held.');
+        startPositionBroadcast();
+      }
     } catch (e) {
-      addMsg('assistant', 'Could not log OTW.');
+      addMsg('assistant', 'Could not log OTW. Try again or call customer directly.');
     } finally {
       btnOtw.disabled = false;
     }
