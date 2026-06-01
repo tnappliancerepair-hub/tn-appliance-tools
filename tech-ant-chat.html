@@ -2296,8 +2296,46 @@
   };
   let __isFinishing = false;
   const completionOverlay = $('completion-overlay');
+  // ── TDR draft autosave to localStorage so partial fills survive
+  // navigation, app switches, and tab close. Keyed per {job_id, tech_id}.
+  const TDR_DRAFT_KEY = JOB_ID ? `tech_ant_tdr_draft_v1_${JOB_ID}_${TECH_ID}` : '';
+  const TDR_FIELD_IDS = ['tdr-diagnosis', 'tdr-failed-component', 'tdr-failure-cause', 'tdr-labor-hours', 'tdr-repair-completed'];
+  function saveTdrDraft() {
+    if (!TDR_DRAFT_KEY) return;
+    try {
+      const obj = {};
+      for (const id of TDR_FIELD_IDS) {
+        const el = document.getElementById(id);
+        if (el) obj[id] = el.value || '';
+      }
+      localStorage.setItem(TDR_DRAFT_KEY, JSON.stringify(obj));
+    } catch (_) {}
+  }
+  function restoreTdrDraft() {
+    if (!TDR_DRAFT_KEY) return;
+    try {
+      const raw = localStorage.getItem(TDR_DRAFT_KEY);
+      if (!raw) return;
+      const obj = JSON.parse(raw);
+      for (const id of TDR_FIELD_IDS) {
+        const el = document.getElementById(id);
+        if (el && obj && typeof obj[id] === 'string') el.value = obj[id];
+      }
+    } catch (_) {}
+  }
+  function clearTdrDraft() {
+    if (!TDR_DRAFT_KEY) return;
+    try { localStorage.removeItem(TDR_DRAFT_KEY); } catch (_) {}
+  }
+  // Wire autosave on every keystroke in any TDR field
+  for (const id of TDR_FIELD_IDS) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', saveTdrDraft);
+  }
+
   function openCompletionOverlay() {
     if (__isFinishing) return;
+    restoreTdrDraft();
     completionOverlay.classList.add('show');
   }
   function closeCompletionOverlay() {
@@ -2343,6 +2381,7 @@
         });
         const rd = await rr.json().catch(() => ({}));
         if (rd && rd.success) {
+          clearTdrDraft();  // job no longer this tech's responsibility
           addMsg('assistant', `✅ Job routed: Reassignment Needed.`);
           speak('Submitted. Reassignment needed.');
           btnFinish.innerHTML = '<span class="emoji">✓</span><span>DONE</span>';
@@ -2395,6 +2434,7 @@
         addMsg('assistant', `✅ TDR #${tdrId} saved. Job routed: ${COMPLETION_LABEL[completionType]}.`);
         speak(`Submitted. ${COMPLETION_LABEL[completionType]}.`);
         btnFinish.innerHTML = '<span class="emoji">✓</span><span>DONE</span>';
+        clearTdrDraft();  // TDR persisted server-side — drop the local draft
       } else {
         addMsg('assistant', `⚠️ TDR saved (#${tdrId}) but routing failed: ${JSON.stringify(cd).slice(0,200)}`);
         btnFinish.disabled = false; __isFinishing = false;
