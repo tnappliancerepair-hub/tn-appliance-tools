@@ -72,22 +72,13 @@
   style.textContent = css;
   document.head.appendChild(style);
 
-  // Inject bar at the top of <body>. Includes the TN/LA region toggle so
-  // it's always visible (the original page header gets covered by this
-  // sticky bar — putting the toggle here means the user always sees it).
-  const pathname = (location.pathname || '').toLowerCase();
-  const activeRegion = pathname.includes('office-la') ? 'la' : 'tn';
-  const toggleHtml = `
-    <div class="ofc-region-toggle" style="display:inline-flex;gap:3px;background:rgba(255,255,255,0.08);padding:2px;border-radius:7px;margin-right:6px;flex-shrink:0;">
-      <a href="/office-tn.html" style="text-decoration:none;background:${activeRegion === 'tn' ? '#fff' : 'transparent'};color:${activeRegion === 'tn' ? '#1a1f2c' : 'rgba(255,255,255,0.7)'};padding:5px 10px;border-radius:5px;font-size:12px;font-weight:700;font-family:inherit;">TN</a>
-      <a href="/office-la.html" style="text-decoration:none;background:${activeRegion === 'la' ? '#fff' : 'transparent'};color:${activeRegion === 'la' ? '#1a1f2c' : 'rgba(255,255,255,0.7)'};padding:5px 10px;border-radius:5px;font-size:12px;font-weight:700;font-family:inherit;">LA</a>
-    </div>
-  `;
+  // Inject bar at the top of <body>. (TN/LA region toggle retired
+  // 2026-06-01 along with office-tn.html / office-la.html — region split
+  // folded into the unified dashboard.)
   const bar = document.createElement('div');
   bar.className = 'ofc-search-bar';
   bar.innerHTML = `
     <div style="max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px;">
-      ${toggleHtml}
       <input class="ofc-search-input" id="ofcSearch" placeholder="Search name, phone, address…" autocomplete="off" inputmode="search" style="flex:1; max-width:none; margin:0;">
     </div>
     <div class="ofc-search-results" id="ofcSearchResults"></div>
