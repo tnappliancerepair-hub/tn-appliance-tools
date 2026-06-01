@@ -303,11 +303,12 @@ function render(d) {
 
   // Counts bar (jump-to-section)
   const countsBar = document.getElementById('counts-bar');
-  const totalUrgent = (c.escalations||0) + (c.warranty_submissions_due||0) + (c.stuck_intake||0) + (c.unpaid_self_pay||0);
+  const totalUrgent = (c.escalations||0) + (c.warranty_submissions_due||0) + (c.stuck_intake||0) + (c.unpaid_self_pay||0) + (c.voicemail_queue||0);
   countsBar.innerHTML = totalUrgent === 0
     ? `<div class="count-pill" style="background:rgba(116,227,196,0.15); border-color:rgba(116,227,196,0.4); color:var(--green)">✓ all clear</div>`
     : `
       <div class="count-pill" onclick="document.getElementById('section-escalations').scrollIntoView({behavior:'smooth'})"><span class="n">${c.escalations||0}</span>escalations</div>
+      <div class="count-pill" onclick="document.getElementById('section-voicemail').scrollIntoView({behavior:'smooth'})"><span class="n">${c.voicemail_queue||0}</span>voicemails</div>
       <div class="count-pill" onclick="document.getElementById('section-warranty').scrollIntoView({behavior:'smooth'})"><span class="n">${c.warranty_submissions_due||0}</span>warranty</div>
       <div class="count-pill" onclick="document.getElementById('section-stuck').scrollIntoView({behavior:'smooth'})"><span class="n">${c.stuck_intake||0}</span>stuck intake</div>
       <div class="count-pill" onclick="document.getElementById('section-unpaid').scrollIntoView({behavior:'smooth'})"><span class="n">${c.unpaid_self_pay||0}</span>unpaid</div>`;
@@ -317,6 +318,13 @@ function render(d) {
   // submissions get full width because the paste-ready cards are dense.
   const feed = document.getElementById('feed');
   feed.innerHTML = `
+    ${(d.voicemail_queue||[]).length === 0 ? '' : `
+    <div class="section full-width" id="section-voicemail">
+      <div class="section-head"><span class="title">📞 Voicemail queue (Vapi fall-through)</span><span class="badge">${(d.voicemail_queue||[]).length} items</span></div>
+      ${d.voicemail_queue.map(renderVoicemail).join('')}
+    </div>
+    `}
+
     <div class="section full-width" id="section-warranty">
       <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${(d.warranty_submissions_due||[]).length} items</span></div>
       ${(d.warranty_submissions_due||[]).length === 0
@@ -457,6 +465,29 @@ function renderStuck(s) {
     </div>`;
 }
 
+function renderVoicemail(v) {
+  let m = {};
+  try { m = JSON.parse(v.metadata || '{}'); } catch (_) {}
+  const phone = m.caller_phone || '';
+  const transcript = m.transcript || '';
+  const intent = m.intent || '';
+  const matchedId = m.matched_customer_id || 0;
+  const telHref = phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null;
+  return `
+    <div class="card">
+      <div class="top">
+        ${ageBadge(v.age_hours || 0)}
+        ${intent ? `<div class="age">${escapeHtml(intent)}</div>` : ''}
+      </div>
+      <div class="name">${escapeHtml(phone)} ${matchedId ? '✓ known customer' : '(unknown)'}</div>
+      <div class="reason" style="white-space:pre-wrap; margin-top:8px">${escapeHtml(transcript.slice(0, 500))}</div>
+      <div class="actions">
+        ${telHref ? `<a class="btn btn-primary" href="${telHref}">📞 Call back</a>` : ''}
+        <button class="btn btn-success" onclick="clearVoicemail(${v.event_id}, this)">✓ Cleared</button>
+      </div>
+    </div>`;
+}
+
 function renderUnpaid(u) {
   const c = u.customer || {};
   const name = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)';
@@ -568,6 +599,29 @@ document.getElementById('sm-confirm').addEventListener('click', async () => {
 document.getElementById('sm-conf').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') document.getElementById('sm-confirm').click();
 });
+
+// Voicemail clear handler
+async function clearVoicemail(eventLogId, btn) {
+  if (!eventLogId) return;
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/clear_voicemail', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ event_log_id: eventLogId, cleared_by: 'Office Today' }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      showToast('✓ Cleared');
+      load();
+    } else {
+      showToast('Failed: ' + (d.error || 'unknown'));
+      btn.disabled = false; btn.textContent = '✓ Cleared';
+    }
+  } catch (e) {
+    showToast('Network error: ' + e.message);
+    btn.disabled = false; btn.textContent = '✓ Cleared';
+  }
+}
 
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

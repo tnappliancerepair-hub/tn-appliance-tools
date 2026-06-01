@@ -298,6 +298,57 @@ query get_office_today verb=GET {
         }
       }
     }
+
+    // ============================================================
+    // SECTION 5 — VOICEMAIL QUEUE (Vapi fall-through)
+    // Vapi voicemails captured in the last 72h that haven't been
+    // cleared. Each row in event_log with action="vapi_voicemail_received"
+    // is filtered if a corresponding "vapi_voicemail_cleared_<id>" row
+    // exists.
+    // ============================================================
+    var $vm_cutoff {
+      value = ($now_ms - ($day_ms * 3))
+    }
+
+    db.query event_log {
+      where = $db.event_log.action == "vapi_voicemail_received" && $db.event_log.created_at > $vm_cutoff
+      sort = {event_log.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 30}}
+    } as $vm_rows
+
+    var $voicemail_queue {
+      value = []
+    }
+
+    foreach ($vm_rows.items) {
+      each as $vm {
+        var $clear_key {
+          value = "vapi_voicemail_cleared_" ~ ($vm.id|to_text)
+        }
+
+        db.query event_log {
+          where = $db.event_log.action == $clear_key
+          return = {type: "exists"}
+        } as $vm_cleared
+
+        conditional {
+          if (!$vm_cleared) {
+            var $vm_item {
+              value = {
+                event_id   : $vm.id
+                created_at : $vm.created_at
+                metadata   : $vm.metadata
+                age_hours  : (($now_ms - $vm.created_at) / 3600000)
+              }
+            }
+
+            var.update $voicemail_queue {
+              value = $voicemail_queue|push:$vm_item
+            }
+          }
+        }
+      }
+    }
   }
 
   response = {
@@ -307,11 +358,13 @@ query get_office_today verb=GET {
     warranty_submissions_due : $warranty_submissions
     stuck_intake             : $stuck_intake
     unpaid_self_pay          : $unpaid_self_pay
+    voicemail_queue          : $voicemail_queue
     counts                   : {
       escalations              : ($escalations|count)
       warranty_submissions_due : ($warranty_submissions|count)
       stuck_intake             : ($stuck_intake|count)
       unpaid_self_pay          : ($unpaid_self_pay|count)
+      voicemail_queue          : ($voicemail_queue|count)
     }
   }
 
