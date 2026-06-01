@@ -131,7 +131,17 @@ export async function run(signal, ctx) {
   // ── Pre-diagnosis-request SMS to Teddy + (optional) assigned tech ──
   // Goal: parts ordered before the first visit, eliminating -2/-3/-4/-5
   // repeat-visit cycles. Dedup on a 48h window per get_prediag_sent_for_job.
+  //
+  // SHADOW-MODE SKIP: test/synthetic jobs (claim_number starts with TEST,
+  // or phone is in the 555-555-XXXX fake range) never trigger prediag SMS.
+  // Lets scheduler-efficiency testing run without spamming Teddy/techs.
+  const claimNo = String(payload.claim_number || '').toUpperCase();
+  const phoneDigits = String(payload.customer_phone || '').replace(/\D/g, '');
+  const isTestJob = claimNo.startsWith('TEST') || phoneDigits.startsWith('15555550') || phoneDigits.startsWith('5555550');
   try {
+    if (isTestJob) {
+      // Silent skip — never page anyone for synthetic jobs.
+    } else {
     const dedup = await xano.getPrediagSentForJob(jobId);
     if (dedup && dedup.sent) {
       // Already requested in the last 48h — skip silently.
@@ -204,6 +214,7 @@ export async function run(signal, ctx) {
         tech_sms_ok: techRes && techRes.success ? true : (techRes === null ? null : false),
       });
     }
+    }  // close isTestJob else
   } catch (err) {
     log('prediag_request_failed', { job_id: jobId, error: String(err.message || err) });
   }
