@@ -1913,29 +1913,102 @@
     offlineLink.href = '/tech-ant-offline.html?tech_id=' + TECH_ID;
   }
 
-  btnNav.addEventListener('click', () => {
-    if (!jobContext) return;
-    // 2026-06-01: address can land on either customer.{address,city,...}
-    // OR job.{service_address,service_city,...} depending on the intake
-    // path. Try customer first (post-2026-05-31 standard), fall back to
-    // job.service_* (legacy HCP-sourced jobs).
+  // ── NAV maps-app picker (persistent per device) ──
+  // Tech picks Google Maps / Apple Maps / Waze once; preference saved
+  // to localStorage. Long-press NAV (>650ms) re-opens the picker.
+  const MAPS_PREF_KEY = 'tech_maps_app_pref_v1';
+
+  function buildMapsUrl(pref, addr) {
+    const q = encodeURIComponent(addr);
+    switch (pref) {
+      case 'apple':
+        return 'https://maps.apple.com/?daddr=' + q;
+      case 'waze':
+        return 'https://www.waze.com/ul?q=' + q + '&navigate=yes';
+      case 'google':
+      default:
+        return 'https://www.google.com/maps/dir/?api=1&destination=' + q;
+    }
+  }
+
+  function openMapsPicker(addr, onPick) {
+    // Build a minimal inline modal
+    let overlay = document.getElementById('maps-picker-overlay');
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = 'maps-picker-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+    overlay.innerHTML = `
+      <div style="background:#1a1d24;border:1px solid #2a3040;border-radius:14px;padding:22px 18px;max-width:380px;width:100%;color:#e8edf5">
+        <div style="font-weight:700;font-size:17px;margin-bottom:4px">Which map app?</div>
+        <div style="color:#8a93aa;font-size:12px;margin-bottom:18px">we'll remember your pick (long-press 📍 NAV to change later)</div>
+        <button data-pick="google" style="width:100%;padding:14px;margin:6px 0;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:8px;font-size:15px;cursor:pointer;text-align:left">🟢  Google Maps  <span style="opacity:.6">(works on both, default)</span></button>
+        <button data-pick="apple"  style="width:100%;padding:14px;margin:6px 0;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:8px;font-size:15px;cursor:pointer;text-align:left">🍎  Apple Maps  <span style="opacity:.6">(iPhone only)</span></button>
+        <button data-pick="waze"   style="width:100%;padding:14px;margin:6px 0;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:8px;font-size:15px;cursor:pointer;text-align:left">🚗  Waze  <span style="opacity:.6">(if installed)</span></button>
+        <button data-pick="cancel" style="width:100%;padding:10px;margin-top:10px;background:transparent;color:#8a93aa;border:0;font-size:13px;cursor:pointer">Cancel</button>
+      </div>`;
+    overlay.addEventListener('click', (e) => {
+      const pick = e.target && e.target.dataset && e.target.dataset.pick;
+      if (!pick) {
+        // Click outside cancels
+        if (e.target === overlay) overlay.remove();
+        return;
+      }
+      if (pick === 'cancel') { overlay.remove(); return; }
+      try { localStorage.setItem(MAPS_PREF_KEY, pick); } catch (_) {}
+      overlay.remove();
+      onPick(pick);
+    });
+    document.body.appendChild(overlay);
+  }
+
+  function getJobAddress() {
+    if (!jobContext) return '';
     const c = jobContext.customer || {};
     const j = jobContext.job || {};
     const addrLine = (c.address || j.service_address || '').trim();
     const city    = (c.city    || j.service_city    || '').trim();
     const state   = (c.state   || j.service_state   || '').trim();
     const zip     = (c.zip     || j.service_zip     || '').trim();
-    const parts = [addrLine, city, state, zip].filter(Boolean);
-    const addr = parts.join(', ');
-    if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
-    const q = encodeURIComponent(addr.trim());
-    // Google Maps universal directions deep link — works on Android
-    // (opens Google Maps app), iOS (opens Google Maps app or Safari
-    // fallback), desktop (web). Origin defaults to device current
-    // location. Earlier Apple Maps URL only worked on iOS and showed
-    // a static page on Android with no navigate-from-here flow.
-    const url = 'https://www.google.com/maps/dir/?api=1&destination=' + q;
-    window.open(url, '_blank');
+    return [addrLine, city, state, zip].filter(Boolean).join(', ').trim();
+  }
+
+  let __navLongPressTimer = null;
+  let __navLongPressFired = false;
+
+  btnNav.addEventListener('pointerdown', () => {
+    __navLongPressFired = false;
+    __navLongPressTimer = setTimeout(() => {
+      __navLongPressFired = true;
+      const addr = getJobAddress();
+      if (!addr) { addMsg('assistant', 'No address on file yet.'); return; }
+      openMapsPicker(addr, (pick) => {
+        window.open(buildMapsUrl(pick, addr), '_blank');
+      });
+    }, 650);
+  });
+
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+    btnNav.addEventListener(evt, () => {
+      if (__navLongPressTimer) { clearTimeout(__navLongPressTimer); __navLongPressTimer = null; }
+    });
+  });
+
+  btnNav.addEventListener('click', () => {
+    if (__navLongPressFired) { __navLongPressFired = false; return; }
+    if (!jobContext) return;
+    const addr = getJobAddress();
+    if (!addr) { addMsg('assistant', 'No address on file yet.'); return; }
+    let pref = '';
+    try { pref = localStorage.getItem(MAPS_PREF_KEY) || ''; } catch (_) {}
+    if (!pref) {
+      // First time → ask which app
+      openMapsPicker(addr, (pick) => {
+        window.open(buildMapsUrl(pick, addr), '_blank');
+      });
+      return;
+    }
+    window.open(buildMapsUrl(pref, addr), '_blank');
   });
   btnCall.addEventListener('click', () => {
     if (!jobContext || !jobContext.customer || !jobContext.customer.phone) {
