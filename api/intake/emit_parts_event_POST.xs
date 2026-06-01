@@ -19,6 +19,8 @@ query emit_parts_event verb=POST {
     text? tracking_url?
     text? new_eta_date?
     text? note?
+    text? parts_link?
+    bool? vendor_confirmed?
   }
 
   stack {
@@ -223,11 +225,49 @@ query emit_parts_event verb=POST {
         eta_date    : $eta_clean
         new_eta_date: $new_eta_clean
         tracking_url: $track_clean
+        parts_link  : (($input.parts_link ?? "")|trim)
         note        : $note_clean
         sms_attempted: $sms_sent
       }
       }
     } as $audit
+
+    // For status=ordered without a vendor confirmation, alert the
+    // office that this part still needs to be MANUALLY ordered. Until
+    // Marcone / Triple S APIs land, every 'ordered' tap surfaces a
+    // manual-placement task. Customer SMS already went out promising
+    // the order — office has to make it real.
+    var $vendor_confirmed_flag {
+      value = ($input.vendor_confirmed ?? false)
+    }
+
+    var $parts_link_clean {
+      value = (($input.parts_link ?? "")|trim)
+    }
+
+    conditional {
+      if ($status_lower == "ordered" && !$vendor_confirmed_flag) {
+        var $office_link_phrase {
+          value = ($parts_link_clean != "") ? ("\nLink: " ~ $parts_link_clean) : ""
+        }
+
+        var $office_note_phrase {
+          value = ($note_clean != "") ? ("\nNote: " ~ $note_clean) : ""
+        }
+
+        var $office_body {
+          value = "[ant] manual parts order needed - job #" ~ ($input.job_id|to_text) ~ $office_link_phrase ~ $office_note_phrase ~ "\nCustomer has been told parts are on the way - please place the order."
+        }
+
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
+          method = "POST"
+          params = {to: "+16154850713", message: $office_body, context_tag: "manual_parts_order_needed"}
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $office_alert
+      }
+    }
   }
 
   response = {

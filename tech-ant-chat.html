@@ -1359,7 +1359,10 @@
         <input id="po-part-num" type="text" placeholder="e.g. WPW10310240" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
 
         <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">ETA (date or "Tue Jun 5")</label>
-        <input id="po-eta" type="text" placeholder="Tue Jun 5" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:14px;font-family:inherit">
+        <input id="po-eta" type="text" placeholder="Tue Jun 5" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
+
+        <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">Link to part (optional - sent to office)</label>
+        <input id="po-link" type="text" placeholder="https://... if you found the part online" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:14px;font-family:inherit;font-size:13px">
 
         <button id="po-submit" style="width:100%;padding:12px;background:#15803d;color:white;border:0;border-radius:6px;font-weight:700;font-size:15px;cursor:pointer">✓ Mark parts ordered (notify customer)</button>
         <button id="po-cancel" style="width:100%;padding:10px;margin-top:8px;background:transparent;color:#8a93aa;border:0;font-size:13px;cursor:pointer">Cancel</button>
@@ -1371,6 +1374,7 @@
       const supplier = document.getElementById('po-supplier').value.trim();
       const partNum  = document.getElementById('po-part-num').value.trim();
       const eta      = document.getElementById('po-eta').value.trim();
+      const link     = document.getElementById('po-link').value.trim();
       const btn = document.getElementById('po-submit');
       btn.disabled = true; btn.textContent = '...';
       try {
@@ -1380,6 +1384,7 @@
             job_id: JOB_ID,
             status: 'ordered',
             eta_date: eta,
+            parts_link: link,
             note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : ''].filter(Boolean).join(' / '),
           }),
         });

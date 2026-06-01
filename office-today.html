@@ -237,6 +237,7 @@
 <div class="view-toggle">
   <button id="vt-queue" class="active" onclick="setViewMode('queue')">▼ Priority Queue</button>
   <button id="vt-sections" onclick="setViewMode('sections')">▦ Sections</button>
+  <button id="vt-walk" onclick="setViewMode('walk')">🐜 Walk me through</button>
 </div>
 
 <div class="counts-bar" id="counts-bar"></div>
@@ -370,10 +371,94 @@ function renderFeed() {
   const feed = document.getElementById('feed');
   if (__viewMode === 'queue') {
     feed.innerHTML = renderQueueView(d);
+  } else if (__viewMode === 'walk') {
+    feed.innerHTML = renderWalkView(d);
   } else {
     feed.innerHTML = renderSectionsView(d);
   }
 }
+
+// ── D: walk-me-through mode — one card at a time, big, with prev/next ──
+let __walkIdx = 0;
+function renderWalkView(d) {
+  const items = buildPriorityList(d);
+  if (items.length === 0) {
+    return `<div class="empty" style="text-align:center; padding:60px 24px">
+      <div style="font-size:48px; margin-bottom:14px">🐜</div>
+      <div style="font-size:18px; font-weight:700; margin-bottom:6px">All clear ✓</div>
+      <div style="color:var(--muted)">Nothing needs you right now. Go do real life.</div>
+    </div>`;
+  }
+  if (__walkIdx >= items.length) __walkIdx = 0;
+  const it = items[__walkIdx];
+  const prevIdx = (__walkIdx - 1 + items.length) % items.length;
+  const nextIdx = (__walkIdx + 1) % items.length;
+
+  return `
+    <div style="display:flex; flex-direction:column; gap:14px; max-width:680px; margin:0 auto">
+      <div style="display:flex; justify-content:center; gap:8px; align-items:center">
+        <span class="count-pill" style="background:var(--panel-2)">${__walkIdx + 1} of ${items.length}</span>
+        <span class="count-pill" style="background:rgba(180,140,255,0.18); border-color:rgba(180,140,255,0.4); color:var(--violet)">${kindLabel(it.kind)}</span>
+      </div>
+
+      <div class="queue-card-wrapper">
+        <div class="priority-stripe p${it.p}"></div>
+        ${it.html}
+      </div>
+
+      <div style="display:flex; gap:8px; justify-content:center; padding:8px 0 24px">
+        <button class="count-pill" onclick="walkPrev()" style="cursor:pointer; padding:10px 16px">← previous</button>
+        <button class="count-pill" onclick="walkSkip()" style="cursor:pointer; padding:10px 16px; background:rgba(245,166,35,0.12); border-color:rgba(245,166,35,0.3); color:var(--accent)">skip for now</button>
+        <button class="count-pill" onclick="walkNext()" style="cursor:pointer; padding:10px 16px; background:var(--blue); border-color:var(--blue); color:white">next →</button>
+      </div>
+    </div>
+  `;
+}
+
+function buildPriorityList(d) {
+  const items = [];
+  for (const e of (d.escalations || [])) {
+    items.push({ p: 1, age: e.age_hours || 0, html: renderEscalation(e), kind: 'esc' });
+  }
+  for (const v of (d.voicemail_queue || [])) {
+    items.push({ p: 1, age: -(v.age_hours || 0), html: renderVoicemail(v), kind: 'vm' });
+  }
+  for (const w of (d.warranty_submissions_due || [])) {
+    items.push({ p: 2, age: w.age_hours || 0, html: renderWarrantyCard(w), kind: 'war' });
+  }
+  for (const s of (d.stuck_intake || [])) {
+    items.push({ p: 3, age: (s.age_days || 0) * 24, html: renderStuck(s), kind: 'stuck' });
+  }
+  for (const u of (d.unpaid_self_pay || [])) {
+    items.push({ p: 4, age: (u.age_days || 0) * 24, html: renderUnpaid(u), kind: 'unpaid' });
+  }
+  items.sort((a, b) => a.p - b.p || b.age - a.age);
+  return items;
+}
+
+function kindLabel(k) {
+  return ({
+    esc: '🚨 escalation',
+    vm: '📞 voicemail',
+    war: '📋 warranty',
+    stuck: '⚠️ stuck',
+    unpaid: '💵 unpaid'
+  })[k] || k;
+}
+
+function walkPrev() {
+  const items = buildPriorityList(__lastData || {});
+  if (items.length === 0) return;
+  __walkIdx = (__walkIdx - 1 + items.length) % items.length;
+  renderFeed();
+}
+function walkNext() {
+  const items = buildPriorityList(__lastData || {});
+  if (items.length === 0) return;
+  __walkIdx = (__walkIdx + 1) % items.length;
+  renderFeed();
+}
+function walkSkip() { walkNext(); }
 
 // ── B + C: hide empty sections + smart warranty batch actions ────
 function renderSectionsView(d) {
