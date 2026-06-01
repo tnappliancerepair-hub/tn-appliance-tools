@@ -734,16 +734,52 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMo
       const { stop, tech_id } = stops[i];
       const startMs = stopTimestampMs(targetDateMs, stop.start);
       const endMs = stopTimestampMs(targetDateMs, stop.end);
-      const patch = {
-        technician_id: tech_id,
-        scheduled_start: startMs,
-        scheduled_end: endMs,
-        scheduling_status: 'scheduled',
-      };
-      // Only set test_run_id if provided AND the column exists; safe to include — Xano
-      // will ignore unknown fields on PATCH per past behavior. (Confirmed via parallel_mode.)
-      if (testRunId) patch.test_run_id = testRunId;
-      else if (practiceMode) patch.test_run_id = `PRACTICE_${practiceTagYmd}`;
+      // ROUTE A: state transition via canonical state machine endpoint.
+      // The scheduler is now a first-class XS-endpoint caller. The state
+      // machine validates the transition (e.g., refuses to re-schedule
+      // a completed job), writes the audit row, sets scheduling_status +
+      // technician_id + scheduled_start atomically.
+      let transitionOk = false;
+      try {
+        const tr = await fetch(
+          'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_id: stop.job.id,
+              target_state: 'scheduled',
+              actor: 'scheduler',
+              reason: 'mock-scheduler placement',
+              technician_id: tech_id,
+              scheduled_start_ms: startMs,
+            }),
+          },
+        );
+        const trBody = await tr.json().catch(() => ({}));
+        transitionOk = !!trBody.success;
+        if (!transitionOk) {
+          writes.failed++;
+          writes.errors.push({
+            job_id: stop.job.id,
+            stage: 'transition',
+            error: trBody.error || 'unknown',
+            current_state: trBody.current_state,
+          });
+          continue;
+        }
+      } catch (e) {
+        writes.failed++;
+        writes.errors.push({ job_id: stop.job.id, stage: 'transition', err: String(e.message || e) });
+        continue;
+      }
+
+      // ROUTE B: side fields not owned by the state machine — scheduled_end
+      // + test_run_id practice tag. These stay on the Metadata API direct
+      // path since they're metadata, not state.
+      const sideFieldPatch = { scheduled_end: endMs };
+      if (testRunId) sideFieldPatch.test_run_id = testRunId;
+      else if (practiceMode) sideFieldPatch.test_run_id = `PRACTICE_${practiceTagYmd}`;
 
       try {
         const r = await fetch(
@@ -754,20 +790,33 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMo
               Authorization: `Bearer ${process.env.XANO_METADATA_TOKEN}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(patch),
+            body: JSON.stringify(sideFieldPatch),
           },
         );
         if (!r.ok) {
-          const t = await r.text();
-          writes.failed++;
-          writes.errors.push({ job_id: stop.job.id, status: r.status, body: t.slice(0, 200) });
+          // Side-field write failed but state machine already succeeded.
+          // Count as ok (the canonical state is right), log warning.
+          writes.ok++;
+          placedJobIds.push(stop.job.id);
+          writes.errors.push({
+            job_id: stop.job.id,
+            stage: 'side_fields',
+            status: r.status,
+            warning: 'state machine succeeded but side-field write failed',
+          });
         } else {
           writes.ok++;
           placedJobIds.push(stop.job.id);
         }
       } catch (e) {
-        writes.failed++;
-        writes.errors.push({ job_id: stop.job.id, err: String(e.message || e) });
+        // Same — state machine canon is correct, just log
+        writes.ok++;
+        placedJobIds.push(stop.job.id);
+        writes.errors.push({
+          job_id: stop.job.id,
+          stage: 'side_fields',
+          warning: String(e.message || e),
+        });
       }
     }
   };
