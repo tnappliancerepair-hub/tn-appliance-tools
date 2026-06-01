@@ -1573,26 +1573,40 @@
             const tTrim = t.trim();
             if (!tTrim) continue;
             const tKey = tTrim.toLowerCase();
-            // Case A: exact duplicate of a previously-processed final → skip
+            // Case A: exact duplicate → skip
             if (processedFinalTexts.has(tKey)) continue;
-            // Case B: superset of last appended final → replace tail
+            // Case B (extended 2026-06-01 v4): new final is a longer
+            // interpretation of the prior one. Android Chrome (Jimmy's
+            // device) emits chunks where each new final CONTAINS the
+            // previous as a substring but doesn't always start with it
+            // (the recognizer may add a missing word at the front like
+            // "has a bad ..." preceding the previously-captured tail).
+            // Check both directions:
+            //   - if new contains last → new is a better interpretation
+            //   - if last contains new → new is shorter than last, skip
             const lastKey = lastFinalText.toLowerCase().trim();
-            if (lastKey && tKey.startsWith(lastKey)) {
-              // Strip the previous version from buffer's tail, then
-              // append the new (longer) version.
-              if (buffer.endsWith(lastFinalText)) {
-                buffer = buffer.slice(0, buffer.length - lastFinalText.length).trimEnd();
+            if (lastKey) {
+              if (lastKey.includes(tKey)) {
+                // New is a SHORTER version of what we already have. Skip.
+                processedFinalTexts.add(tKey);
+                continue;
               }
-              processedFinalTexts.delete(lastKey);
-              buffer += (buffer ? ' ' : '') + tTrim;
-              lastFinalText = tTrim;
-              processedFinalTexts.add(tKey);
-            } else {
-              // Case C: distinct new final → append
-              buffer += (buffer ? ' ' : '') + tTrim;
-              lastFinalText = tTrim;
-              processedFinalTexts.add(tKey);
+              if (tKey.includes(lastKey)) {
+                // New is longer / better. Replace tail of buffer.
+                if (buffer.endsWith(lastFinalText)) {
+                  buffer = buffer.slice(0, buffer.length - lastFinalText.length).trimEnd();
+                }
+                processedFinalTexts.delete(lastKey);
+                buffer += (buffer ? ' ' : '') + tTrim;
+                lastFinalText = tTrim;
+                processedFinalTexts.add(tKey);
+                continue;
+              }
             }
+            // Case C: distinct new final → append
+            buffer += (buffer ? ' ' : '') + tTrim;
+            lastFinalText = tTrim;
+            processedFinalTexts.add(tKey);
           } else {
             interim += t;
           }

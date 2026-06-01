@@ -572,7 +572,7 @@ function renderWarrantyBatchBar(rows) {
 function openAllPortals(vendor, count) {
   if (!confirm(`Open ${count} ${vendor === 'ahs' ? 'AHS' : 'ServicePower'} portal tabs?`)) return;
   const url = vendor === 'ahs'
-    ? 'https://login.frontdoorhome.com/'
+    ? 'https://www.frontdoorpro.com/'
     : 'https://hub.servicepower.com/dashboard/workorders';
   for (let i = 0; i < Math.min(count, 8); i++) {
     window.open(url, '_blank');
@@ -620,8 +620,11 @@ function ageBadge(hours) {
 
 function vendorPortalUrl(company) {
   const c = (company || '').toLowerCase();
-  // AHS / Frontdoor contractor portal — OAuth flow
-  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://login.frontdoorhome.com/';
+  // AHS / Frontdoor contractor portal — 'frontdoorpro.com' is the contractor
+  // brand front door; triggers OAuth flow through login.frontdoorhome.com
+  // back into the portal. Direct login.frontdoorhome.com link lands on
+  // FusionAuth welcome page going nowhere.
+  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://www.frontdoorpro.com/';
   // ServicePower Hub work-orders dashboard (Allstate / SquareTrade route here)
   if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://hub.servicepower.com/dashboard/workorders';
   return null;
