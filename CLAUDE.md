@@ -81,8 +81,29 @@ Personnel risk: Danielle may not be working with us much longer. Need the office
 1. **Cron-fire verification** — at next quarter hour (7:30 PM CT and onward), confirm `practice-auto-schedule-cron` is firing via Netlify scheduled functions. Look at the latest `event_log` row with `action="mock_scheduler_apply"`.
 2. **Document the PUT-not-PATCH footgun** in `docs/xanoscript-footguns.md`.
 3. **Build "Office Today" page** (Phase 1 of office simplification).
-4. **Build invoice generation** (last gap before HCP cut).
-5. **Scope warranty portal automation** — needs research on whether AHS/ServicePower expose APIs or require web-scraping.
+4. **Wire `customer-invoice.js` to JOB_COMPLETED chain** — endpoint exists, just not called. Tuesday sprint per activation plan.
+5. **Ship customer vent channel** — design in `docs/customer-vent-channel-design-2026-05-31.md`. Wednesday sprint.
+6. **Ship refund handling** — design in `docs/refund-handling-design-2026-05-31.md`. Thursday sprint.
+7. **Activate dormant BI agents** (Wed): cash_position_watcher, ar_aging_reporter, warranty_reimbursement_lag, daily_revenue_tracker.
+8. **Scope warranty portal automation** — design + research in `docs/warranty-portal-automation-scoping-2026-05-31.md`. 1-2 week parallel workstream after the cut.
+
+### 📚 FINANCIAL + LIFECYCLE LAYER — READING ORDER
+
+The financial layer has substantial existing planning AND substantial existing code, but they don't fully match. Reconciliation + activation sequence lives in:
+
+1. **`docs/financial-layer-activation-plan-2026-05-31.md`** ← MASTER — read this first. Maps lifecycle stages to existing code, identifies wiring gaps, gives the 6/1-6/6 activation sequence.
+2. **`docs/refund-handling-design-2026-05-31.md`** — design for the missing refund workflow
+3. **`docs/customer-vent-channel-design-2026-05-31.md`** — design for the customer-facing 1-2 star capture page
+4. **`docs/warranty-portal-automation-scoping-2026-05-31.md`** — scoping doc for the AHS/ServicePower portal-submission automation (biggest single Danielle-replacement lever)
+
+Background context already in repo:
+- `docs/financial-system-design-2026-05-15.md` — 5/15 Phase 0 design (aspirational; partially built)
+- `docs/financial-flags-open.md` — open items pending Alyse review
+- `docs/warranty-operations-strategy.md` — vendor strategy + ServicePower mechanics
+- `docs/automation-inventory-2026-05-20.md` — comprehensive 5/20 inventory of every automation path
+- `docs/dawn-workflow-spec-2026-05-11.md` + `docs/danielle-runbook.md` — office personnel workflows
+- `docs/hcp-cutover-playbook-2026-05-27.md` — 3-day cut plan
+- `docs/first-day-operating-playbook.md` — go-live playbook (today's, 5/31)
 
 ---
 
