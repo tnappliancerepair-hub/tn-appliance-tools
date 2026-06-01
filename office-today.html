@@ -158,6 +158,7 @@
   .btn-primary  { background: var(--blue);    color: white; }
   .btn-portal   { background: var(--violet);  color: white; }
   .btn-secondary{ background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-warn     { background: var(--red);     color: white; }
   .btn:hover { opacity: 0.92; }
   .btn:active { transform: scale(0.97); }
 
@@ -263,6 +264,42 @@
     <div class="actions">
       <button class="btn btn-success" id="sm-confirm">✓ Mark submitted</button>
       <button class="btn btn-secondary" onclick="closeSubmitModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Escalate to Teddy modal -->
+<div class="modal-overlay" id="escalate-modal">
+  <div class="modal">
+    <h3>🚨 Escalate to Teddy</h3>
+    <div class="sub">Job #<span id="esc-job-id"></span></div>
+    <label>Section (what kind of decision)</label>
+    <input id="esc-section" type="text" placeholder="e.g. parts cost, customer demand, refund" autocomplete="off">
+    <label>The question (one line, the actual ask)</label>
+    <input id="esc-question" type="text" placeholder="e.g. Customer wants free OEM upgrade — approve?" autocomplete="off">
+    <label>A — option A (short text he can reply with)</label>
+    <input id="esc-opt-a" type="text" placeholder="e.g. Approve free upgrade" autocomplete="off">
+    <label>B — option B</label>
+    <input id="esc-opt-b" type="text" placeholder="e.g. Stick to scope, charge for upgrade" autocomplete="off">
+    <label>C — option C (optional)</label>
+    <input id="esc-opt-c" type="text" placeholder="optional" autocomplete="off">
+    <div class="actions">
+      <button class="btn btn-success" id="esc-send">🚨 Send to Teddy</button>
+      <button class="btn btn-secondary" onclick="closeEscalateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Smart reschedule modal -->
+<div class="modal-overlay" id="reschedule-modal">
+  <div class="modal">
+    <h3>📅 Smart reschedule</h3>
+    <div class="sub">Job #<span id="rs-job-id"></span> — sends customer A/B/C slot offer</div>
+    <label>Why are we rescheduling?</label>
+    <input id="rs-reason" type="text" placeholder="e.g. parts delayed, tech sick, customer requested" autocomplete="off">
+    <div class="actions">
+      <button class="btn btn-success" id="rs-send">📅 Send slot offer</button>
+      <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -676,6 +713,7 @@ function renderWarrantyCard(w) {
         <a class="btn btn-primary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
         <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all fields</button>
         <button class="btn btn-success" onclick="openSubmitModal(${w.job_id}, '${escapeAttr(w.warranty_company || 'vendor')}')">✓ Mark submitted</button>
+        <button class="btn btn-warn" onclick="openEscalateModal(${w.job_id})">🚨 Escalate</button>
       </div>
     </div>`;
 }
@@ -698,7 +736,11 @@ function renderEscalation(e) {
       </div>
       <div class="name">${escapeHtml(label)}</div>
       <div class="reason">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0, 200) || '(see event log for detail)')}</div>
-      ${jobId ? `<div class="actions"><a class="btn btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank">Open job ↗</a></div>` : ''}
+      ${jobId ? `<div class="actions">
+        <a class="btn btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank">Open job ↗</a>
+        <button class="btn btn-warn" onclick="openEscalateModal(${jobId})">🚨 Escalate</button>
+        <button class="btn btn-secondary" onclick="openRescheduleModal(${jobId})">📅 Reschedule</button>
+      </div>` : ''}
     </div>`;
 }
 
@@ -717,6 +759,7 @@ function renderStuck(s) {
       <div class="actions">
         <a class="btn btn-primary" href="/needs-scheduled.html" target="_blank">Open queue ↗</a>
         ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
+        <button class="btn btn-warn" onclick="openEscalateModal(${s.job_id})">🚨 Escalate</button>
       </div>
     </div>`;
 }
@@ -759,6 +802,7 @@ function renderUnpaid(u) {
       <div class="actions">
         <a class="btn btn-primary" href="/job-detail.html?job_id=${u.job_id}" target="_blank">Open job ↗</a>
         ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
+        <button class="btn btn-warn" onclick="openEscalateModal(${u.job_id})">🚨 Escalate</button>
       </div>
     </div>`;
 }
@@ -854,6 +898,107 @@ document.getElementById('sm-confirm').addEventListener('click', async () => {
 
 document.getElementById('sm-conf').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') document.getElementById('sm-confirm').click();
+});
+
+// ── Escalate to Teddy modal ───────────────────────────────────────
+let __currentEscalateJobId = null;
+function openEscalateModal(jobId) {
+  __currentEscalateJobId = jobId || null;
+  document.getElementById('esc-job-id').textContent = jobId || '—';
+  document.getElementById('esc-section').value = '';
+  document.getElementById('esc-question').value = '';
+  document.getElementById('esc-opt-a').value = '';
+  document.getElementById('esc-opt-b').value = '';
+  document.getElementById('esc-opt-c').value = '';
+  document.getElementById('escalate-modal').classList.add('show');
+  setTimeout(() => document.getElementById('esc-section').focus(), 50);
+}
+function closeEscalateModal() {
+  document.getElementById('escalate-modal').classList.remove('show');
+  __currentEscalateJobId = null;
+}
+document.getElementById('escalate-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'escalate-modal') closeEscalateModal();
+});
+document.getElementById('esc-send').addEventListener('click', async () => {
+  const section  = document.getElementById('esc-section').value.trim();
+  const question = document.getElementById('esc-question').value.trim();
+  const a = document.getElementById('esc-opt-a').value.trim();
+  const b = document.getElementById('esc-opt-b').value.trim();
+  const c = document.getElementById('esc-opt-c').value.trim();
+  if (!question) { showToast('Question required'); document.getElementById('esc-question').focus(); return; }
+  if (!a || !b)  { showToast('At least options A and B required'); document.getElementById('esc-opt-a').focus(); return; }
+  const btn = document.getElementById('esc-send');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/escalate_to_teddy', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        job_id  : __currentEscalateJobId,
+        section : section || 'office',
+        question: question,
+        option_a: a,
+        option_b: b,
+        option_c: c || null,
+      }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      showToast('🚨 Sent to Teddy');
+      closeEscalateModal();
+    } else {
+      showToast('Failed: ' + (d && d.error || 'unknown'));
+    }
+  } catch (e) {
+    showToast('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '🚨 Send to Teddy';
+  }
+});
+
+// ── Smart reschedule modal ────────────────────────────────────────
+let __currentRescheduleJobId = null;
+function openRescheduleModal(jobId) {
+  __currentRescheduleJobId = jobId || null;
+  document.getElementById('rs-job-id').textContent = jobId || '—';
+  document.getElementById('rs-reason').value = '';
+  document.getElementById('reschedule-modal').classList.add('show');
+  setTimeout(() => document.getElementById('rs-reason').focus(), 50);
+}
+function closeRescheduleModal() {
+  document.getElementById('reschedule-modal').classList.remove('show');
+  __currentRescheduleJobId = null;
+}
+document.getElementById('reschedule-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'reschedule-modal') closeRescheduleModal();
+});
+document.getElementById('rs-send').addEventListener('click', async () => {
+  if (!__currentRescheduleJobId) { showToast('Job ID missing'); return; }
+  const reason = document.getElementById('rs-reason').value.trim();
+  const btn = document.getElementById('rs-send');
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await fetch(XANO_BASE + '/smart_reschedule_customer', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        job_id      : __currentRescheduleJobId,
+        reason      : reason,
+        initiated_by: 'office_today',
+      }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const slots = (d.slots && [d.slots.A_label, d.slots.B_label, d.slots.C_label].filter(Boolean).join(' / ')) || '';
+      showToast('📅 Sent: ' + (slots || 'A/B/C offer'));
+      closeRescheduleModal();
+    } else {
+      showToast('Failed: ' + (d && d.error || 'unknown'));
+    }
+  } catch (e) {
+    showToast('Network error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '📅 Send slot offer';
+  }
 });
 
 // Voicemail clear handler
