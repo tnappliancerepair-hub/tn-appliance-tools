@@ -1,0 +1,308 @@
+# Ant API specification (foundation sprint 2026-06-01).
+# 10 most-used endpoints documented; remaining ~70 incremental.
+openapi: 3.0.0
+info:
+  title: TN Appliance Exchange — Ant Platform API
+  version: "0.1.0"
+  description: |
+    The single source of truth for every endpoint the office, tech, and
+    customer browser surfaces consume. Built so Xano-side internals can
+    refactor without breaking the UI.
+
+servers:
+  - url: https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA
+    description: Intake API group (canonical production)
+
+paths:
+  /get_office_today:
+    get:
+      summary: Office Today bundle — escalations, voicemails, warranty, stuck, unpaid + practice status
+      x-version: "1.0"
+      x-used-by: ["office-today.html", "office-dashboard.html"]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OfficeTodayBundle" }
+
+  /get_jobs_for_dashboard:
+    post:
+      summary: Bucket-filtered job list for the dashboard
+      x-version: "1.0"
+      x-used-by: ["office-dashboard.html", "office-today.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                page:        { type: integer, default: 1 }
+                per_page:    { type: integer, default: 100 }
+                status:      { type: string, description: "scheduling_status filter" }
+                date_filter: { type: string, enum: [all, unscheduled, today, this_week] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobListResponse" }
+
+  /transition_job_state:
+    post:
+      summary: Canonical state transition — every scheduling_status write flows through here
+      x-version: "1.0"
+      x-used-by: ["cancel_job_POST", "tech_job_started_POST", "tech_job_complete_POST", "reschedule_job_POST", "mock-scheduler", "servicepower_email_intake", "hcp_job_webhook"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id, target_state, actor]
+              properties:
+                job_id:             { type: integer }
+                target_state:       { $ref: "#/components/schemas/JobState" }
+                actor:              { type: string, enum: [tech, office, customer, system, scheduler, vendor, admin] }
+                reason:             { type: string }
+                technician_id:      { type: integer }
+                scheduled_start_ms: { type: integer }
+                force_revert:       { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StateTransitionResponse" }
+
+  /cancel_job:
+    post:
+      summary: Office cancel — delegates to transition_job_state
+      x-version: "1.0"
+      x-used-by: ["office-dashboard.html", "office-today.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id]
+              properties:
+                job_id: { type: integer }
+                reason: { type: string }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SimpleSuccess" } } }
+
+  /reschedule_job:
+    post:
+      summary: Office reschedule — delegates to transition_job_state
+      x-version: "1.0"
+      x-used-by: ["office-calendar.html", "office-today.html", "office-dashboard.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id, new_start_ms]
+              properties:
+                job_id:       { type: integer }
+                new_start_ms: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SimpleSuccess" } } }
+
+  /tech_job_started:
+    post:
+      summary: Tech "Start Job" — delegates to transition_job_state
+      x-version: "1.0"
+      x-used-by: ["tech-ant-chat.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id, technician_id]
+              properties:
+                job_id:        { type: integer }
+                technician_id: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SimpleSuccess" } } }
+
+  /tech_job_complete:
+    post:
+      summary: Tech "Complete Job" — delegates to transition_job_state, fires invoice + warranty chain
+      x-version: "1.0"
+      x-used-by: ["tech-ant-chat.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [job_id, technician_id, completion_type]
+              properties:
+                job_id:          { type: integer }
+                technician_id:   { type: integer }
+                completion_type: { type: string, enum: [repair_complete, parts_needed, warranty_auth_needed, no_repair, other] }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SimpleSuccess" } } }
+
+  /get_tech_daily_dashboard:
+    get:
+      summary: A tech's day plan — jobs assigned for a given date
+      x-version: "1.0"
+      x-used-by: ["tech-daily-dashboard.html"]
+      parameters:
+        - in: query
+          name: tech_id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: date
+          schema: { type: string, format: date, description: "YYYY-MM-DD; defaults to today CT" }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/TechDailyBundle" } } }
+
+  /get_sms_pulse:
+    get:
+      summary: Real-time SMS activity dashboard data
+      x-version: "1.0"
+      x-used-by: ["sms-pulse.html"]
+      parameters:
+        - in: query
+          name: minutes_back
+          schema: { type: integer, default: 60 }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SmsPulseBundle" } } }
+
+  /toggle_customer_sms_gate:
+    post:
+      summary: Flip the customer-facing SMS gate
+      x-version: "1.0"
+      x-used-by: ["office-today.html", "sms-pulse.html"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+                actor:   { type: string, default: "office_today" }
+      responses:
+        "200":
+          description: OK
+          content: { application/json: { schema: { $ref: "#/components/schemas/SimpleSuccess" } } }
+
+components:
+  schemas:
+    JobState:
+      type: string
+      enum:
+        - not_ready
+        - needs_more_info
+        - prediagnosis_pending
+        - intake_complete
+        - broadcasting
+        - scheduled
+        - awaiting_parts
+        - held
+        - in_progress
+        - escalated
+        - completed
+        - no_fix_possible
+        - canceled
+      description: |
+        One of 13 legal scheduling_status values. Transitions enforced by
+        transition_job_state per docs/job-state-machine.md.
+
+    SimpleSuccess:
+      type: object
+      properties:
+        success: { type: boolean }
+        error:   { type: string }
+
+    StateTransitionResponse:
+      allOf:
+        - $ref: "#/components/schemas/SimpleSuccess"
+        - type: object
+          properties:
+            job_id:       { type: integer }
+            from_state:   { $ref: "#/components/schemas/JobState" }
+            to_state:     { $ref: "#/components/schemas/JobState" }
+            audit_id:     { type: integer }
+            current_state: { $ref: "#/components/schemas/JobState", description: "On error, the state the job is currently at" }
+            allowed:       { type: array, items: { $ref: "#/components/schemas/JobState" }, description: "On illegal_transition error, the legal next states" }
+
+    JobListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SimpleSuccess"
+        - type: object
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/JobBundle" } }
+
+    JobBundle:
+      type: object
+      description: One row from get_jobs_for_dashboard — job + customer + tech denormalized
+      properties:
+        job:                 { type: object }
+        customer:            { type: object }
+        tech:                { type: object }
+        days_since_created:  { type: number }
+
+    OfficeTodayBundle:
+      allOf:
+        - $ref: "#/components/schemas/SimpleSuccess"
+        - type: object
+          properties:
+            as_of_ms:                  { type: integer }
+            escalations:               { type: array, items: { type: object } }
+            voicemail_queue:           { type: array, items: { type: object } }
+            warranty_submissions_due:  { type: array, items: { type: object } }
+            stuck_intake:              { type: array, items: { type: object } }
+            unpaid_self_pay:           { type: array, items: { type: object } }
+            counts:                    { type: object }
+            practice_status:           { type: object }
+
+    TechDailyBundle:
+      allOf:
+        - $ref: "#/components/schemas/SimpleSuccess"
+        - type: object
+          properties:
+            tech: { type: object }
+            date_ct: { type: string }
+            job_count: { type: integer }
+            jobs: { type: array, items: { type: object } }
+
+    SmsPulseBundle:
+      allOf:
+        - $ref: "#/components/schemas/SimpleSuccess"
+        - type: object
+          properties:
+            minutes_back:   { type: integer }
+            gate_on:        { type: boolean }
+            counts:
+              type: object
+              properties:
+                sent:         { type: integer }
+                dropped:      { type: integer }
+                errors:       { type: integer }
+                gated:        { type: integer }
+                owner_bypass: { type: integer }
+                inbound:      { type: integer }
+            recent_sample: { type: array, items: { type: object } }
