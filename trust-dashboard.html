@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trust Dashboard — Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#0e1118; color:#e8edf5; padding:20px; max-width:1000px; margin:0 auto }
+  h1 { font-size:22px; margin-bottom:4px }
+  .sub { color:#8a93aa; font-size:12px; font-family:'IBM Plex Mono', monospace; margin-bottom:24px }
+  .verdict { padding:24px; border-radius:14px; margin-bottom:24px; text-align:center; background:linear-gradient(135deg, rgba(116,227,196,0.10), rgba(74,158,255,0.06)); border:1px solid rgba(116,227,196,0.40) }
+  .verdict.warn { background:linear-gradient(135deg, rgba(245,166,35,0.10), rgba(74,158,255,0.06)); border-color:rgba(245,166,35,0.40) }
+  .verdict.bad { background:linear-gradient(135deg, rgba(248,113,113,0.15), rgba(245,166,35,0.06)); border-color:#f87171 }
+  .verdict h2 { font-size:30px; font-weight:900; margin-bottom:6px }
+  .verdict .pct { color:#74e3c4 }
+  .verdict.warn .pct { color:#f5a623 }
+  .verdict.bad .pct { color:#f87171 }
+  .verdict p { color:#8a93aa; font-size:14px }
+  h3 { font-size:13px; color:#8a93aa; text-transform:uppercase; letter-spacing:0.5px; margin:24px 0 10px; font-weight:700 }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px }
+  .card { background:#1e2433; border:1px solid #2a3040; border-radius:12px; padding:14px 16px }
+  .card .label { color:#8a93aa; font-size:11px; text-transform:uppercase; letter-spacing:0.4px; font-weight:700 }
+  .card .n { font-size:28px; font-weight:800; margin-top:4px }
+  .card.good .n { color:#74e3c4 }
+  .card.warn .n { color:#f5a623 }
+  .card.bad .n { color:#f87171 }
+  .card.info .n { color:#4a9eff }
+  .card.muted .n { color:#8a93aa }
+  .card .sub { color:#8a93aa; font-size:11px; margin-top:4px; font-family:inherit }
+  .activity { display:flex; flex-direction:column; gap:8px; margin-top:10px }
+  .ev { background:#1e2433; border:1px solid #2a3040; border-left:4px solid #4a9eff; border-radius:8px; padding:10px 14px; display:flex; gap:14px; align-items:start; font-size:12px }
+  .ev.good { border-left-color:#74e3c4 }
+  .ev.warn { border-left-color:#f5a623 }
+  .ev.bad { border-left-color:#f87171 }
+  .ev .ts { font-family:'IBM Plex Mono', monospace; color:#5a6480; flex:0 0 90px }
+  .ev .body { flex:1 }
+  .ev .title { font-weight:600 }
+  .ev .meta { color:#8a93aa; font-size:11px; margin-top:2px }
+  .controls { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap }
+  .pill-toggle { display:inline-flex; gap:3px; background:#1e2433; padding:3px; border-radius:18px }
+  .pill-toggle button { background:transparent; color:#8a93aa; border:0; padding:6px 14px; border-radius:14px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit }
+  .pill-toggle button.active { background:#4a9eff; color:#fff }
+  .refresh-status { color:#8a93aa; font-size:11px; font-family:'IBM Plex Mono', monospace; margin-left:auto; align-self:center }
+  .empty { color:#8a93aa; text-align:center; padding:20px; font-style:italic }
+</style>
+</head>
+<body>
+<h1>🤖 Trust Dashboard</h1>
+<div class="sub" id="sub">loading…</div>
+
+<div class="controls">
+  <div class="pill-toggle" id="window-toggle">
+    <button data-h="1" >1 hr</button>
+    <button data-h="6" >6 hr</button>
+    <button data-h="24" class="active">24 hr</button>
+    <button data-h="168">7 days</button>
+  </div>
+  <div class="refresh-status" id="refresh-status">auto-refresh 60s</div>
+</div>
+
+<div class="verdict" id="verdict">
+  <h2 id="verdict-text">⏳ calculating…</h2>
+  <p id="verdict-detail"></p>
+</div>
+
+<h3>Activity (last <span id="hours-label">24h</span>)</h3>
+<div class="grid" id="stats"></div>
+
+<h3>Recent transitions</h3>
+<div class="activity" id="transitions"></div>
+
+<h3>Errors needing attention</h3>
+<div id="errors"></div>
+
+<script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
+<script src="/office-nav.js?v=20260601-2"></script>
+<script>
+let windowHours = 24;
+
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtCT(ms){
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleString('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }); }
+  catch(_){ return ''; }
+}
+
+async function load() {
+  document.getElementById('refresh-status').textContent = 'refreshing…';
+  try {
+    const r = await fetch(`https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_trust_dashboard?hours_back=${windowHours}`);
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'failed');
+    render(d);
+    document.getElementById('refresh-status').textContent = `last ${new Date().toLocaleTimeString()} · auto 60s`;
+  } catch (e) {
+    document.getElementById('verdict-text').textContent = '⚠️ Could not load';
+    document.getElementById('verdict-detail').textContent = e.message;
+  }
+}
+
+function render(d) {
+  const s = d.summary || {};
+  document.getElementById('sub').textContent = `as of ${fmtCT(d.as_of_ms)} CT`;
+  document.getElementById('hours-label').textContent = windowHours < 24 ? windowHours + 'h' : (windowHours/24 + 'd');
+
+  // ── Verdict ──
+  const clean = s.clean_jobs || 0;
+  const needed = s.needed_human || 0;
+  const total = clean + needed;
+  const trustPct = total > 0 ? Math.round((clean / total) * 100) : 100;
+  const verdict = document.getElementById('verdict');
+  const vText = document.getElementById('verdict-text');
+  const vDetail = document.getElementById('verdict-detail');
+  if (s.transitions === 0) {
+    verdict.className = 'verdict';
+    vText.innerHTML = '😴 Quiet window';
+    vDetail.textContent = `No state-machine activity in the last ${windowHours < 24 ? windowHours+'h' : windowHours/24+'d'}.`;
+  } else if (trustPct >= 90) {
+    verdict.className = 'verdict';
+    vText.innerHTML = `<span class="pct">${trustPct}%</span> clean automation`;
+    vDetail.textContent = `${clean} job action${clean===1?'':'s'} completed without intervention. ${needed} needed human input.`;
+  } else if (trustPct >= 70) {
+    verdict.className = 'verdict warn';
+    vText.innerHTML = `<span class="pct">${trustPct}%</span> automated · improving`;
+    vDetail.textContent = `${clean} clean · ${needed} needed intervention. Watch the errors below.`;
+  } else {
+    verdict.className = 'verdict bad';
+    vText.innerHTML = `<span class="pct">${trustPct}%</span> · humans still doing heavy work`;
+    vDetail.textContent = `${needed} of ${total} actions needed humans. Don't trust Ant unmonitored yet.`;
+  }
+
+  // ── Stats grid ──
+  const stats = [
+    { label: 'Jobs Created', n: s.jobs_created || 0, klass: 'info', sub: 'all intake sources' },
+    { label: 'Transitions', n: s.transitions || 0, klass: 'good', sub: 'through state machine' },
+    { label: 'Needed Human', n: s.needed_human || 0, klass: (s.needed_human||0) > 5 ? 'warn' : 'muted', sub: 'rejected transitions' },
+    { label: 'Errors', n: s.errors || 0, klass: (s.errors||0) > 0 ? 'bad' : 'muted', sub: 'loop / sms / intake' },
+    { label: 'Escalations', n: s.escalations || 0, klass: (s.escalations||0) > 0 ? 'warn' : 'muted', sub: 'to Teddy' },
+    { label: 'Scheduler Runs', n: s.scheduler_runs || 0, klass: 'muted', sub: 'cron + manual' },
+    { label: 'SMS Sent', n: s.sms_sent || 0, klass: 'info', sub: 'all directions' },
+    { label: 'SMS Dropped', n: s.sms_dropped || 0, klass: 'muted', sub: 'customer gate off' },
+    { label: 'Inbound SMS', n: s.sms_inbound || 0, klass: 'info', sub: 'customer replies' },
+  ];
+  document.getElementById('stats').innerHTML = stats.map(c => `
+    <div class="card ${c.klass}">
+      <div class="label">${c.label}</div>
+      <div class="n">${c.n}</div>
+      <div class="sub">${c.sub}</div>
+    </div>
+  `).join('');
+
+  // ── Recent transitions ──
+  const trans = d.recent_transitions || [];
+  if (trans.length === 0) {
+    document.getElementById('transitions').innerHTML = '<div class="empty">no transitions in this window</div>';
+  } else {
+    document.getElementById('transitions').innerHTML = trans.map(t => {
+      let m = t.metadata || {};
+      if (typeof m === 'string') { try { m = JSON.parse(m); } catch(_){ m = {}; } }
+      const cls = m.actor === 'admin' ? 'warn' : (m.to_state === 'completed' || m.to_state === 'scheduled' ? 'good' : '');
+      return `<div class="ev ${cls}">
+        <div class="ts">${fmtCT(t.created_at)}</div>
+        <div class="body">
+          <div class="title">Job #${m.job_id||'?'}: <strong>${esc(m.from_state||'?')}</strong> → <strong>${esc(m.to_state||'?')}</strong></div>
+          <div class="meta">by ${esc(m.actor||'?')} ${m.reason_text?` · "${esc(m.reason_text)}"`:''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Errors ──
+  const errs = d.recent_errors || [];
+  if (errs.length === 0) {
+    document.getElementById('errors').innerHTML = '<div class="empty">no errors — clean window</div>';
+  } else {
+    document.getElementById('errors').innerHTML = errs.map(e => {
+      let m = e.metadata || {};
+      if (typeof m === 'string') { try { m = JSON.parse(m); } catch(_){ m = {}; } }
+      const detail = m.error || m.message || JSON.stringify(m).slice(0,120);
+      return `<div class="ev bad">
+        <div class="ts">${fmtCT(e.created_at)}</div>
+        <div class="body">
+          <div class="title">${esc(e.action)}</div>
+          <div class="meta">${esc(detail)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+document.getElementById('window-toggle').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  document.querySelectorAll('#window-toggle button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  windowHours = Number(b.dataset.h);
+  load();
+});
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>

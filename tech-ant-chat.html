@@ -1316,9 +1316,9 @@
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       const date = `${yyyy}-${mm}-${dd}`;
-      const r = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${TECH_ID}&date=${date}`, { signal: AbortSignal.timeout(8000) });
-      if (!r.ok) return;
-      const data = await r.json();
+      let data;
+      try { data = await window.Ant.api.getTechDailyDashboard({ tech_id: TECH_ID, date }); }
+      catch (_) { return; }
       const jobs = (data && data.jobs) || [];
       // Write to IndexedDB using the same schema tech-ant-offline.html reads
       await new Promise((resolve) => {
@@ -1349,10 +1349,10 @@
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         const date = `${yyyy}-${mm}-${dd}`;
-        const r = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${TECH_ID}&date=${date}`);
-        if (r.ok) {
-          const data = await r.json();
+        try {
+          const data = await window.Ant.api.getTechDailyDashboard({ tech_id: TECH_ID, date });
           const jobs = (data && data.jobs) || [];
+          if (true) {
           if (jobs.length > 0) {
             // Prefer in_progress, then next-by-time, then any
             const now = Date.now();
@@ -1375,12 +1375,7 @@
       return;
     }
     try {
-      const r = await fetch(XANO_BASE + '/get_job_for_dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: JOB_ID })
-      });
-      const d = await r.json();
+      const d = await window.Ant.api.getJobForDashboard({ job_id: JOB_ID });
       jobContext = d;
       // OFFLINE BACKUP — stash today's full schedule into IndexedDB so
       // tech-ant-offline.html can render even when Xano is unreachable.
@@ -1482,17 +1477,13 @@
       const btn = document.getElementById('po-submit');
       btn.disabled = true; btn.textContent = '...';
       try {
-        const r = await fetch(XANO_BASE + '/emit_parts_event', {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            job_id: JOB_ID,
-            status: 'ordered',
-            eta_date: eta,
-            parts_link: link,
-            note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : ''].filter(Boolean).join(' / '),
-          }),
+        const d = await window.Ant.api.emitPartsEvent({
+          job_id: JOB_ID,
+          status: 'ordered',
+          eta_date: eta,
+          parts_link: link,
+          note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : ''].filter(Boolean).join(' / '),
         });
-        const d = await r.json();
         if (d && d.success) {
           addMsg('assistant', `📦 Parts ordered logged${eta ? ' (ETA ' + eta + ')' : ''}. Customer ${d.sms_attempted ? 'will be notified' : 'SMS held (gate off)'}.`);
           overlay.remove();
@@ -2220,18 +2211,14 @@
     if (Date.now() - __lastPingMs < 25000) return;  // rate-limit
     __lastPingMs = Date.now();
     try {
-      await fetch(XANO_BASE + '/record_tech_position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tech_id: TECH_ID,
-          job_id: JOB_ID,
-          lat: String(pos.coords.latitude),
-          lng: String(pos.coords.longitude),
-          accuracy_m: String(Math.round(pos.coords.accuracy || 0)),
-          speed_mps: pos.coords.speed != null ? String(pos.coords.speed) : '',
-          heading_deg: pos.coords.heading != null ? String(pos.coords.heading) : '',
-        }),
+      await window.Ant.api.recordTechPosition({
+        tech_id: TECH_ID,
+        job_id: JOB_ID,
+        lat: String(pos.coords.latitude),
+        lng: String(pos.coords.longitude),
+        accuracy_m: String(Math.round(pos.coords.accuracy || 0)),
+        speed_mps: pos.coords.speed != null ? String(pos.coords.speed) : '',
+        heading_deg: pos.coords.heading != null ? String(pos.coords.heading) : '',
       });
     } catch (_) {}
   }
