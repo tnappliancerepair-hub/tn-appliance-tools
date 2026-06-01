@@ -1101,7 +1101,7 @@
       window.scrollTo({ top: target, behavior: 'smooth' });
     });
   }
-  function addMsg(role, text) {
+  function addMsg(role, text, skipCache) {
     if (!text) return;
     hideEmpty();
     const wrap = document.createElement('div');
@@ -1116,6 +1116,11 @@
     wrap.appendChild(bubble);
     chatStage.appendChild(wrap);
     scrollChatToBottom();
+    // Persist to localStorage so the chat survives tab close / app switch.
+    // skipCache=true when WE just restored the message from cache itself.
+    if (!skipCache && typeof saveCachedMessage === 'function') {
+      saveCachedMessage(role === 'user' ? 'user' : 'assistant', text);
+    }
   }
   let typingEl = null;
   function showTyping() {
@@ -1211,11 +1216,53 @@
   // ── Offline-backup: stash today's full schedule into IndexedDB ───
   // Pure best-effort. Called after a successful job load. Lets
   // tech-ant-offline.html render the schedule even when Xano is dark.
-  // Restore chat history so the tech doesn't lose their place when they
-  // background the app or hard-refresh. Pulls the most-recent active
-  // tech_assist_session for this {job, tech} pair and replays the
-  // agent_message rows into the chat. Continues that session ID so new
-  // turns append to the existing conversation server-side.
+  // ── Chat persistence — instant via localStorage, syncs server in bg ──
+  // 'permanent link' issue: tech opens job, types, navigates away (maps,
+  // call, app switch), comes back to same URL — chat was empty. Now:
+  //   1) every message written to localStorage as it lands
+  //   2) on page load, localStorage cache replays instantly (no flash of empty)
+  //   3) server-side history call merges in any messages the local cache
+  //      didn't have (multi-device, or this is a fresh device)
+  const CHAT_CACHE_KEY = JOB_ID ? `tech_ant_chat_v1_${JOB_ID}_${TECH_ID}` : '';
+  function loadCachedMessages() {
+    if (!CHAT_CACHE_KEY) return [];
+    try {
+      const raw = localStorage.getItem(CHAT_CACHE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.messages) ? parsed.messages : [];
+    } catch (_) { return []; }
+  }
+  function saveCachedMessage(role, text) {
+    if (!CHAT_CACHE_KEY) return;
+    try {
+      const raw = localStorage.getItem(CHAT_CACHE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      const arr = Array.isArray(parsed.messages) ? parsed.messages : [];
+      arr.push({ role, text, ts: Date.now() });
+      // Cap at 200 messages so cache doesn't grow unbounded
+      if (arr.length > 200) arr.splice(0, arr.length - 200);
+      parsed.messages = arr;
+      parsed.session_id = sessionId || parsed.session_id || 0;
+      localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(parsed));
+    } catch (_) {}
+  }
+  function restoreChatFromCache() {
+    const cached = loadCachedMessages();
+    if (cached.length === 0) return;
+    if (emptyState) emptyState.style.display = 'none';
+    for (const m of cached) {
+      if (m && m.text) addMsg(m.role || 'assistant', m.text, /*skipCache*/ true);
+    }
+    // Adopt the cached session_id so new turns extend that session
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CHAT_CACHE_KEY) || '{}');
+      if (parsed.session_id) sessionId = parsed.session_id;
+    } catch (_) {}
+  }
+
+  // Restore chat history server-side (in case localStorage is empty, this
+  // is a fresh device, or messages exist only server-side from another path).
   async function restoreChatHistory() {
     if (!JOB_ID || !TECH_ID) return;
     try {
@@ -1226,17 +1273,38 @@
       if (!d || !d.success) return;
       const msgs = d.messages || [];
       if (msgs.length === 0) return;
-      // Hide the empty state if it's visible
-      if (emptyState) emptyState.style.display = 'none';
-      // Replay in chronological order. Messages have role + content.
-      for (const m of msgs) {
-        const role = (m.role || m.sender || '').toLowerCase();
-        const txt = (m.content || m.message || '').trim();
-        if (!txt) continue;
-        addMsg(role === 'user' || role === 'tech' ? 'user' : 'assistant', txt);
+      // Don't double-render if local cache already populated the chat.
+      const cachedCount = loadCachedMessages().length;
+      if (cachedCount > 0) {
+        // Server may have NEWER messages than cache — append any beyond
+        // what we already have. Simple length-based merge.
+        if (msgs.length > cachedCount) {
+          if (emptyState) emptyState.style.display = 'none';
+          for (let i = cachedCount; i < msgs.length; i++) {
+            const m = msgs[i];
+            const role = (m.role || m.sender || '').toLowerCase();
+            const txt = (m.content || m.message || '').trim();
+            if (!txt) continue;
+            addMsg(role === 'user' || role === 'tech' ? 'user' : 'assistant', txt);
+          }
+        }
+      } else {
+        if (emptyState) emptyState.style.display = 'none';
+        for (const m of msgs) {
+          const role = (m.role || m.sender || '').toLowerCase();
+          const txt = (m.content || m.message || '').trim();
+          if (!txt) continue;
+          addMsg(role === 'user' || role === 'tech' ? 'user' : 'assistant', txt);
+        }
       }
-      // Pick up the same session_id so new turns extend this conversation
-      if (d.session_id) sessionId = d.session_id;
+      if (d.session_id) {
+        sessionId = d.session_id;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(CHAT_CACHE_KEY) || '{}');
+          parsed.session_id = sessionId;
+          localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(parsed));
+        } catch (_) {}
+      }
     } catch (_) {}
   }
 
@@ -2512,6 +2580,9 @@
   }
 
   // ── Boot ──────────────────────────────────────────────────────────
+  // Restore cached messages instantly (before loadJob fetch). Server-side
+  // sync happens inside loadJob → restoreChatHistory.
+  if (typeof restoreChatFromCache === 'function') restoreChatFromCache();
   loadJob();
   initUploadQueue();
   // Show voice test card on first visit (until tech dismisses it).
