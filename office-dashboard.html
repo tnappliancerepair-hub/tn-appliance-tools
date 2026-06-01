@@ -314,6 +314,50 @@
   </div>
 </div>
 
+<!-- Mock Scheduler panel — shown when activeTab='mock'. Wraps the
+     test-harness flow (generate → schedule → reset) inline so office
+     never leaves the dashboard. Standalone /test-harness.html still works. -->
+<div id="mock-panel" style="display:none; overflow-y:auto; padding:16px; color:#e8edf5; font-family:inherit">
+  <div style="max-width:720px; margin:0 auto">
+    <div style="background:#131720; border:1px solid #2a3040; border-radius:10px; padding:16px; margin-bottom:14px">
+      <div style="font-weight:700; font-size:14px; margin-bottom:8px">🧪 Mock Scheduler — Practice Run</div>
+      <div style="font-size:12px; color:#8a93aa; line-height:1.5">
+        Generates synthetic AHS jobs, routes them via the mock scheduler with cluster geography enforced.
+        Tagged <code style="background:#1e2433; padding:1px 5px; border-radius:3px">PRACTICE_&lt;date&gt;</code>
+        on tech dashboards. No customer SMS, no real scheduling. Standalone version:
+        <a href="/test-harness.html" target="_blank" style="color:#4a9eff">/test-harness.html ↗</a>
+      </div>
+    </div>
+
+    <div style="background:#131720; border:1px solid #2a3040; border-radius:10px; padding:14px; margin-bottom:14px">
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:12px">
+        <label>Count
+          <input id="m-count" type="number" min="1" max="20" value="6" style="width:100%; padding:8px; background:#1e2433; border:1px solid #2a3040; color:#e8edf5; border-radius:5px; margin-top:4px">
+        </label>
+        <label>Region
+          <select id="m-region" style="width:100%; padding:8px; background:#1e2433; border:1px solid #2a3040; color:#e8edf5; border-radius:5px; margin-top:4px">
+            <option value="mixed">Mixed (TN+LA)</option>
+            <option value="TN">TN only</option>
+            <option value="LA">LA only</option>
+          </select>
+        </label>
+        <label>Day offset
+          <input id="m-day-offset" type="number" min="0" max="14" value="1" style="width:100%; padding:8px; background:#1e2433; border:1px solid #2a3040; color:#e8edf5; border-radius:5px; margin-top:4px">
+        </label>
+      </div>
+      <div style="margin-top:8px; font-size:11px; color:#8a93aa">test_run_id: <code id="m-run-id" style="background:#1e2433; padding:2px 6px; border-radius:3px">(auto on Generate)</code></div>
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px">
+      <button id="m-btn-gen" style="flex:1; min-width:140px; background:#1d4ed8; color:white; border:0; padding:12px 14px; border-radius:6px; font-weight:600; cursor:pointer">① Generate Emails</button>
+      <button id="m-btn-sched" style="flex:1; min-width:140px; background:#15803d; color:white; border:0; padding:12px 14px; border-radius:6px; font-weight:600; cursor:pointer">② Run Scheduler</button>
+      <button id="m-btn-reset" style="flex:0; min-width:90px; background:#7c2d12; color:white; border:0; padding:12px 14px; border-radius:6px; font-weight:600; cursor:pointer">↺ Reset</button>
+    </div>
+
+    <div id="m-log" style="background:#0a0d14; border:1px solid #2a3040; border-radius:8px; padding:12px; font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.6; max-height:340px; overflow-y:auto"></div>
+  </div>
+</div>
+
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const AUTH_KEY = 'tn_office_auth_v1';
@@ -358,7 +402,8 @@ const TABS = [
   { id: 'needs_parts',   label: 'Needs Parts',      filter: { status: 'awaiting_parts', date_filter: 'all' } },
   { id: 'held',          label: 'Held',             filter: { status: 'held', date_filter: 'all' } },
   { id: 'needs_invoiced',label: 'Needs Invoiced',   filter: { status: 'completed', date_filter: 'all' } },
-  { id: 'no_fix',        label: 'No Fix Possible',  filter: { status: 'no_fix_possible', date_filter: 'all' } }
+  { id: 'no_fix',        label: 'No Fix Possible',  filter: { status: 'no_fix_possible', date_filter: 'all' } },
+  { id: 'mock',          label: '🧪 Mock',          filter: null }
 ];
 
 let activeTab = 'all';
@@ -378,7 +423,11 @@ function renderTabs() {
     btn.addEventListener('click', () => {
       activeTab = btn.dataset.tab;
       renderTabs();
-      loadJobs();
+      // Switch panel visibility: Mock tab shows the mock-panel + hides job-list
+      const isMock = activeTab === 'mock';
+      document.getElementById('job-list').style.display = isMock ? 'none' : 'flex';
+      document.getElementById('mock-panel').style.display = isMock ? 'block' : 'none';
+      if (!isMock) loadJobs();
     });
   });
 }
@@ -394,6 +443,14 @@ async function loadJobs() {
   list.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading jobs...</div></div>';
 
   const tab = TABS.find(t => t.id === activeTab) || TABS[0];
+  // Mock tab has no data filter — short-circuit. (Should not be reached
+  // because the tab click handler skips loadJobs for 'mock' but defensive.)
+  if (!tab.filter) {
+    isLoading = false;
+    refreshBtn.disabled = false;
+    refreshBtn.classList.remove('spinning');
+    return;
+  }
   const payload = { page: 1, per_page: 100 };
   if (tab.filter.status) payload.status = tab.filter.status;
   if (tab.filter.date_filter) payload.date_filter = tab.filter.date_filter;
@@ -603,6 +660,110 @@ function dbg(msg, data) {
 document.getElementById('auth-input').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') submitAuth();
 });
+
+// ── Mock Scheduler panel handlers (P6 — inline office dashboard tab) ──
+(function wireMockPanel() {
+  const FN_BASE = '/.netlify/functions';
+  let runId = '';
+  const $ = (id) => document.getElementById(id);
+  function hhmmss() {
+    const d = new Date();
+    return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+  }
+  function log(msg, cls) {
+    const el = $('m-log');
+    if (!el) return;
+    const div = document.createElement('div');
+    const color = cls === 'ok' ? '#74e3c4' : cls === 'err' ? '#f87171' : cls === 'warn' ? '#fbbf24' : '#e8edf5';
+    div.innerHTML = `<span style="color:#8a93aa">${hhmmss()}</span> <span style="color:${color}">${escapeHtml(msg)}</span>`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+  function ensureRunId() {
+    if (!runId) {
+      runId = 'office_' + Date.now();
+      $('m-run-id').textContent = runId;
+    }
+    return runId;
+  }
+  function btn(id) { return $(id); }
+  function busy(disabled) {
+    ['m-btn-gen', 'm-btn-sched', 'm-btn-reset'].forEach(id => { if (btn(id)) btn(id).disabled = disabled; });
+  }
+
+  if (btn('m-btn-gen')) btn('m-btn-gen').addEventListener('click', async () => {
+    const rid = ensureRunId();
+    const count = parseInt($('m-count').value, 10) || 6;
+    const region = $('m-region').value;
+    log(`generating ${count} synthetic AHS jobs (region=${region}, run_id=${rid})...`);
+    busy(true);
+    try {
+      const r = await fetch(`${FN_BASE}/synthetic-payload-generator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_run_id: rid, count, region, vendor: 'ahs' }),
+      });
+      const d = await r.json();
+      if (!d.ok) { log(`generator error: ${d.error || 'unknown'}`, 'err'); return; }
+      log(`✓ created ${d.count_created} jobs (${d.count_dedup_skipped} dedup, ${d.count_errors} errors)`, d.count_errors ? 'warn' : 'ok');
+      for (const j of (d.jobs || [])) log(`   #${j.job_id} ${j.city} ${j.zip}`);
+    } catch (e) {
+      log(`fetch failed: ${e.message}`, 'err');
+    } finally {
+      busy(false);
+    }
+  });
+
+  if (btn('m-btn-sched')) btn('m-btn-sched').addEventListener('click', async () => {
+    if (!runId) { log('no active run — generate first', 'warn'); return; }
+    const dayOffset = parseInt($('m-day-offset').value, 10) || 1;
+    log(`running scheduler apply (test_run_id=${runId}, day_offset=${dayOffset})...`);
+    busy(true);
+    try {
+      const qp = new URLSearchParams({
+        apply: 'true', confirm_apply: '1', test_run_id: runId,
+        day_offset: String(dayOffset), limit: '50', force_mock: '1',
+      });
+      const r = await fetch(`${FN_BASE}/mock-scheduler?${qp}`);
+      const d = await r.json();
+      if (!d.ok) { log(`scheduler error: ${d.error || 'unknown'}`, 'err'); return; }
+      const s = d.summary || {};
+      log(`✓ placed ${s.applied_jobs_patched} / failed ${s.applied_jobs_failed} / unrouted ${s.unrouted_count}`, s.applied_jobs_failed ? 'warn' : 'ok');
+      log(`   techs_active=${s.techs_active}, target_date=${d.target_date}`);
+      for (const [tid, r2] of Object.entries(d.result || {})) {
+        const stops = (r2.eval && r2.eval.stops) || [];
+        if (stops.length) log(`   tech ${tid} (${(r2.tech || {}).name}): ${stops.length} jobs`);
+      }
+    } catch (e) {
+      log(`fetch failed: ${e.message}`, 'err');
+    } finally {
+      busy(false);
+    }
+  });
+
+  if (btn('m-btn-reset')) btn('m-btn-reset').addEventListener('click', async () => {
+    if (!runId) { log('no active run to reset', 'warn'); return; }
+    if (!confirm(`Reset run "${runId}"? This deletes all jobs + customers tagged with that run_id.`)) return;
+    log(`resetting ${runId}...`, 'warn');
+    busy(true);
+    try {
+      const r = await fetch(`${FN_BASE}/reset-run`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_run_id: runId, dry_run: false }),
+      });
+      const d = await r.json();
+      if (!d.ok) { log(`reset error: ${d.error}`, 'err'); return; }
+      const c = d.counts || {};
+      log(`✓ reset: ${c.jobs_deleted} jobs, ${c.tdrs} tdrs, ${c.customers_deleted} customers`, 'ok');
+      runId = '';
+      $('m-run-id').textContent = '(auto on Generate)';
+    } catch (e) {
+      log(`reset failed: ${e.message}`, 'err');
+    } finally {
+      busy(false);
+    }
+  });
+})();
 
 // Skip auth if previously unlocked on this device.
 if (localStorage.getItem(AUTH_KEY) === '1') {
