@@ -994,9 +994,17 @@ function renderTodayEscalation(e) {
     <div style="color:#8a93aa; font-size:13px; margin-bottom:8px">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0,200) || '(see event log)')}</div>
     ${jobId ? `<div style="display:flex; gap:8px; flex-wrap:wrap">
       <a class="btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      ${todayCancelBtn(jobId)}
     </div>` : ''}
   </div>`;
 }
+
+// Shared cancel pill for Today cards.
+function todayCancelBtn(jobId) {
+  if (!jobId) return '';
+  return `<button onclick="cancelJobInline(${jobId}, this)" style="background:rgba(255,71,87,0.15); border:1px solid #ff4757; color:#ff4757; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit">❌ Cancel</button>`;
+}
+
 function renderTodayVoicemail(v) {
   let m = {}; try { m = JSON.parse(v.metadata || '{}'); } catch(_){}
   const phone = m.caller_phone || '';
@@ -1038,6 +1046,7 @@ function renderTodayWarranty(w) {
     <div style="display:flex; gap:8px; flex-wrap:wrap">
       ${portalUrl ? `<a href="${portalUrl}" target="_blank" rel="noopener" style="background:#7c3aed; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open ${escapeHtml(w.warranty_company||'vendor')} portal ↗</a>` : ''}
       <a href="/job-detail.html?job_id=${w.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      ${todayCancelBtn(w.job_id)}
     </div>
   </div>`;
 }
@@ -1050,7 +1059,10 @@ function renderTodayStuck(s) {
       <span style="color:#8a93aa; font-size:11px">${Math.round((s.age_days||0))}d old</span>
     </div>
     <div style="margin-bottom:8px">${escapeHtml(name)} — ${escapeHtml(s.intake_source || 'intake')} · ${escapeHtml(s.appliance_type || 'appliance')}</div>
-    <a href="/needs-scheduled.html" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open queue ↗</a>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <a href="/needs-scheduled.html" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open queue ↗</a>
+      ${todayCancelBtn(s.job_id)}
+    </div>
   </div>`;
 }
 function renderTodayUnpaid(u) {
@@ -1062,7 +1074,10 @@ function renderTodayUnpaid(u) {
       <span style="color:#8a93aa; font-size:11px">${Math.round((u.age_days||0))}d old</span>
     </div>
     <div style="margin-bottom:8px">${escapeHtml(name)}</div>
-    <a href="/job-detail.html?job_id=${u.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+    <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <a href="/job-detail.html?job_id=${u.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      ${todayCancelBtn(u.job_id)}
+    </div>
   </div>`;
 }
 
