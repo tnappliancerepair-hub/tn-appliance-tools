@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Office Today — TN Appliance Exchange</title>
+<style>
+  :root {
+    --bg: #0e1118;
+    --panel: #131720;
+    --panel-2: #1e2433;
+    --border: #2a3040;
+    --text: #e8edf5;
+    --muted: #8a93aa;
+    --accent: #f5a623;
+    --green: #74e3c4;
+    --blue: #4a9eff;
+    --red: #f87171;
+    --violet: #b48cff;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.4; }
+
+  .auth-overlay {
+    position: fixed; inset: 0; background: var(--bg); display: flex;
+    align-items: center; justify-content: center; z-index: 9999; padding: 20px;
+  }
+  .auth-overlay.hidden { display: none; }
+  .auth-card { background: var(--panel); padding: 28px; border-radius: 12px; border: 1px solid var(--border); max-width: 360px; width: 100%; }
+  .auth-card h2 { font-size: 18px; margin-bottom: 6px; }
+  .auth-card .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .auth-card input { width: 100%; padding: 10px 12px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 15px; margin-bottom: 10px; }
+  .auth-card button { width: 100%; padding: 12px; background: var(--blue); color: white; border: 0; border-radius: 6px; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .auth-card .err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+  .header {
+    background: linear-gradient(135deg, var(--bg), #131a2a);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header .icon { font-size: 22px; }
+  .header h1 { font-size: 16px; font-weight: 700; }
+  .header .sub { color: var(--muted); font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .header .refresh-btn {
+    margin-left: auto; background: transparent; border: 1px solid var(--border);
+    color: var(--text); width: 32px; height: 32px; border-radius: 50%;
+    font-size: 16px; cursor: pointer; -webkit-appearance: none;
+  }
+  .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .counts-bar {
+    display: flex; gap: 8px; padding: 10px 16px; overflow-x: auto;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .counts-bar::-webkit-scrollbar { display: none; }
+  .count-pill {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;
+    color: var(--muted); white-space: nowrap; flex-shrink: 0; cursor: pointer;
+    user-select: none;
+  }
+  .count-pill.active { background: var(--blue); border-color: var(--blue); color: white; }
+  .count-pill .n { font-weight: 700; margin-right: 4px; }
+
+  .feed { padding: 12px; max-width: 1100px; margin: 0 auto; }
+
+  .section { margin-bottom: 24px; }
+  .section-head {
+    display: flex; align-items: baseline; gap: 8px; padding: 0 4px 8px;
+    border-bottom: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .section-head .title { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
+  .section-head .badge {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 1px 8px; border-radius: 10px; font-size: 11px; color: var(--muted);
+  }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 10px;
+  }
+  .card .top {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .card .top .jobid {
+    background: var(--panel-2); padding: 2px 8px; border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
+  }
+  .card .top .age {
+    background: var(--panel-2); padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; color: var(--muted); border: 1px solid var(--border);
+  }
+  .card .top .age.warn { color: var(--warn); border-color: rgba(251,191,36,0.3); }
+  .card .top .age.bad  { color: var(--red);  border-color: rgba(248,113,113,0.3); }
+  .card .name { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .card .reason { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+
+  /* Paste-ready field row (Danielle's desktop workflow) */
+  .field-row {
+    display: grid; grid-template-columns: 140px 1fr auto;
+    gap: 6px; padding: 6px 0; align-items: center;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px;
+  }
+  .field-row:first-of-type { border-top: 0; }
+  .field-row .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+  .field-row .value { color: var(--text); word-break: break-word; user-select: text; }
+  .field-row .copy-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); width: 28px; height: 28px; border-radius: 4px;
+    cursor: pointer; font-size: 12px; padding: 0;
+  }
+  .field-row .copy-btn:hover { background: var(--panel-2); color: var(--accent); }
+  .field-row .copy-btn.copied { background: var(--green); color: black; border-color: var(--green); }
+
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .btn {
+    padding: 8px 14px; border: 0; border-radius: 6px; font-weight: 600;
+    font-size: 13px; cursor: pointer; -webkit-appearance: none;
+    font-family: inherit;
+  }
+  .btn-primary  { background: var(--blue);    color: white; }
+  .btn-portal   { background: var(--violet);  color: white; }
+  .btn-secondary{ background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .btn:hover { opacity: 0.92; }
+  .btn:active { transform: scale(0.97); }
+
+  .empty {
+    background: var(--panel); border: 1px dashed var(--border);
+    padding: 24px; text-align: center; border-radius: 10px;
+    color: var(--muted); font-size: 13px;
+  }
+
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner {
+    width: 28px; height: 28px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 0 auto 10px;
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: black; padding: 10px 18px;
+    border-radius: 6px; font-weight: 700; font-size: 13px; z-index: 10000;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Desktop: 2-column when wide enough */
+  @media (min-width: 920px) {
+    .feed { padding: 20px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .section.full-width { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-card">
+    <h2>🐜 Office Today</h2>
+    <div class="sub">enter office password to continue</div>
+    <input id="auth-input" type="password" autocomplete="current-password" placeholder="password">
+    <button id="auth-submit" onclick="submitAuth()">Unlock</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="icon">🐜</div>
+  <div>
+    <h1>Office Today</h1>
+    <div class="sub" id="header-sub">Loading...</div>
+  </div>
+  <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
+</div>
+
+<div class="counts-bar" id="counts-bar"></div>
+
+<div class="feed" id="feed">
+  <div class="loading">
+    <div class="spinner"></div>
+    <div>Loading your priorities...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const AUTH_KEY = 'tn_office_auth_v1';
+
+async function __verifyOfficePassword(pw) {
+  const r = await fetch(XANO_BASE + '/verify_office_password', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({password: pw}),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const d = await r.json();
+  return d && d.success === true;
+}
+
+async function submitAuth() {
+  const btn = document.getElementById('auth-submit');
+  const err = document.getElementById('auth-err');
+  const pw = document.getElementById('auth-input').value.trim();
+  err.textContent = '';
+  if (!pw) return;
+  btn.disabled = true; btn.textContent = 'Authenticating…';
+  try {
+    const ok = await __verifyOfficePassword(pw);
+    if (!ok) { err.textContent = 'Wrong password.'; return; }
+    localStorage.setItem(AUTH_KEY, '1');
+    document.getElementById('auth-overlay').classList.add('hidden');
+    load();
+  } catch (e) {
+    err.textContent = 'Server error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Unlock';
+  }
+}
+
+document.getElementById('auth-input').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') submitAuth();
+});
+
+if (localStorage.getItem(AUTH_KEY) === '1') {
+  document.getElementById('auth-overlay').classList.add('hidden');
+  load();
+} else {
+  setTimeout(() => document.getElementById('auth-input').focus(), 100);
+}
+
+let pollTimer = null;
+
+async function load() {
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.classList.add('spinning');
+  try {
+    const r = await fetch(XANO_BASE + '/get_office_today');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    render(d);
+  } catch (e) {
+    document.getElementById('feed').innerHTML = `<div class="empty">⚠️ Could not load: ${escapeHtml(e.message)}</div>`;
+  } finally {
+    refreshBtn.classList.remove('spinning');
+  }
+  // Auto-refresh every 30s
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = setTimeout(load, 30000);
+}
+
+function render(d) {
+  const c = d.counts || {};
+  document.getElementById('header-sub').textContent =
+    new Date(d.as_of_ms).toLocaleTimeString('en-US', {timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit'}) + ' CT';
+
+  // Counts bar (jump-to-section)
+  const countsBar = document.getElementById('counts-bar');
+  const totalUrgent = (c.escalations||0) + (c.warranty_submissions_due||0) + (c.stuck_intake||0) + (c.unpaid_self_pay||0);
+  countsBar.innerHTML = totalUrgent === 0
+    ? `<div class="count-pill" style="background:rgba(116,227,196,0.15); border-color:rgba(116,227,196,0.4); color:var(--green)">✓ all clear</div>`
+    : `
+      <div class="count-pill" onclick="document.getElementById('section-escalations').scrollIntoView({behavior:'smooth'})"><span class="n">${c.escalations||0}</span>escalations</div>
+      <div class="count-pill" onclick="document.getElementById('section-warranty').scrollIntoView({behavior:'smooth'})"><span class="n">${c.warranty_submissions_due||0}</span>warranty</div>
+      <div class="count-pill" onclick="document.getElementById('section-stuck').scrollIntoView({behavior:'smooth'})"><span class="n">${c.stuck_intake||0}</span>stuck intake</div>
+      <div class="count-pill" onclick="document.getElementById('section-unpaid').scrollIntoView({behavior:'smooth'})"><span class="n">${c.unpaid_self_pay||0}</span>unpaid</div>`;
+
+  // Feed: render all sections. Desktop gets a 2-column grid for the
+  // lighter sections (escalations + stuck intake + unpaid) while warranty
+  // submissions get full width because the paste-ready cards are dense.
+  const feed = document.getElementById('feed');
+  feed.innerHTML = `
+    <div class="section full-width" id="section-warranty">
+      <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${(d.warranty_submissions_due||[]).length} items</span></div>
+      ${(d.warranty_submissions_due||[]).length === 0
+        ? '<div class="empty">No warranty submissions waiting. ✓</div>'
+        : d.warranty_submissions_due.map(renderWarrantyCard).join('')}
+    </div>
+
+    <div class="grid-2">
+      <div class="section" id="section-escalations">
+        <div class="section-head"><span class="title">🚨 Escalations</span><span class="badge">${(d.escalations||[]).length} items</span></div>
+        ${(d.escalations||[]).length === 0
+          ? '<div class="empty">No urgent escalations. ✓</div>'
+          : d.escalations.map(renderEscalation).join('')}
+      </div>
+
+      <div class="section" id="section-stuck">
+        <div class="section-head"><span class="title">⚠️ Stuck intake</span><span class="badge">${(d.stuck_intake||[]).length} items</span></div>
+        ${(d.stuck_intake||[]).length === 0
+          ? '<div class="empty">No stuck intake jobs. ✓</div>'
+          : d.stuck_intake.map(renderStuck).join('')}
+      </div>
+    </div>
+
+    <div class="section full-width" id="section-unpaid">
+      <div class="section-head"><span class="title">💵 Unpaid self-pay (&gt; 7 days)</span><span class="badge">${(d.unpaid_self_pay||[]).length} items</span></div>
+      ${(d.unpaid_self_pay||[]).length === 0
+        ? '<div class="empty">No overdue self-pay invoices. ✓</div>'
+        : d.unpaid_self_pay.map(renderUnpaid).join('')}
+    </div>
+  `;
+}
+
+function ageBadge(hours) {
+  if (hours < 24) return `<span class="age">${Math.round(hours)}h</span>`;
+  const days = Math.round(hours / 24);
+  if (days < 3) return `<span class="age">${days}d</span>`;
+  if (days < 7) return `<span class="age warn">${days}d</span>`;
+  return `<span class="age bad">${days}d</span>`;
+}
+
+function vendorPortalUrl(company) {
+  const c = (company || '').toLowerCase();
+  if (c.includes('ahs') || c.includes('frontdoor')) return 'https://www.frontdoorpro.com/login';
+  if (c.includes('servicepower') || c.includes('squaretrade') || c.includes('allstate')) return 'https://hub.servicepower.com/';
+  return null;
+}
+
+function renderWarrantyCard(w) {
+  const c = w.customer || {};
+  const t = w.tech || {};
+  const tdr = w.tdr || {};
+  const custName = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)';
+  const addr = [c.address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+  const portalUrl = vendorPortalUrl(w.warranty_company);
+  const ageH = w.age_hours || 0;
+
+  const fields = [
+    { lbl: 'Claim #',          val: w.claim_number || w.dispatch_id || '(none)' },
+    { lbl: 'Vendor',           val: w.warranty_company || '(unknown)' },
+    { lbl: 'Customer',         val: custName },
+    { lbl: 'Phone',            val: c.phone || '(none)' },
+    { lbl: 'Address',          val: addr || '(none)' },
+    { lbl: 'Email',            val: c.email || '(none)' },
+    { lbl: 'Appliance',        val: [w.brand, w.appliance_type].filter(Boolean).join(' ') || '(unknown)' },
+    { lbl: 'Model #',          val: w.model_number || '(not captured)' },
+    { lbl: 'Serial #',         val: w.serial_number || '(not captured)' },
+    { lbl: 'Problem',          val: w.problem_summary || '(none)' },
+    { lbl: 'Diagnosis',        val: tdr.diagnosis || '(no TDR)' },
+    { lbl: 'Failed component', val: tdr.failed_component || '(none)' },
+    { lbl: 'Failure cause',    val: tdr.failure_cause || '(none)' },
+    { lbl: 'Repair completed', val: tdr.repair_completed || '(none)' },
+    { lbl: 'Labor (hrs)',      val: (tdr.labor_time_hours != null) ? String(tdr.labor_time_hours) : '(none)' },
+    { lbl: 'Tech',             val: ((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)' },
+  ];
+
+  return `
+    <div class="card">
+      <div class="top">
+        <div class="jobid">#${w.job_id}</div>
+        ${ageBadge(ageH)}
+        <div class="reason" style="margin:0">awaiting portal submission</div>
+      </div>
+      <div class="name">${escapeHtml(custName)}</div>
+      ${fields.map((f,i) => `
+        <div class="field-row">
+          <div class="label">${escapeHtml(f.lbl)}</div>
+          <div class="value">${escapeHtml(f.val)}</div>
+          <button class="copy-btn" onclick="copyField(this, ${i}, '${w.job_id}')" data-val="${escapeAttr(f.val)}" title="Copy">📋</button>
+        </div>
+      `).join('')}
+      <div class="actions">
+        ${portalUrl ? `<a class="btn btn-portal" href="${portalUrl}" target="_blank" rel="noopener">Open ${escapeHtml(w.warranty_company || 'vendor')} portal ↗</a>` : ''}
+        <a class="btn btn-primary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
+        <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all fields</button>
+      </div>
+    </div>`;
+}
+
+function renderEscalation(e) {
+  let m = {};
+  try { m = JSON.parse(e.metadata || '{}'); } catch (_) {}
+  const label = ({
+    warranty_claim_action_persisted     : 'Warranty claim escalated',
+    customer_feedback_low_rating_alert  : 'Low rating from customer',
+    tech_late_alert                     : 'Tech is running late',
+    customer_vent_submitted             : 'Customer vent submitted',
+  })[e.action] || e.action;
+  const jobId = m.job_id || m.jobId || null;
+  return `
+    <div class="card">
+      <div class="top">
+        ${jobId ? `<div class="jobid">#${jobId}</div>` : ''}
+        ${ageBadge(e.age_hours || 0)}
+      </div>
+      <div class="name">${escapeHtml(label)}</div>
+      <div class="reason">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0, 200) || '(see event log for detail)')}</div>
+      ${jobId ? `<div class="actions"><a class="btn btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank">Open job ↗</a></div>` : ''}
+    </div>`;
+}
+
+function renderStuck(s) {
+  const c = s.customer || {};
+  const name = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name yet)';
+  const phone = c.phone || '';
+  return `
+    <div class="card">
+      <div class="top">
+        <div class="jobid">#${s.job_id}</div>
+        ${ageBadge((s.age_days||0) * 24)}
+      </div>
+      <div class="name">${escapeHtml(name)}</div>
+      <div class="reason">${escapeHtml(s.intake_source || 'intake')} · ${escapeHtml(s.appliance_type || 'appliance')}${s.warranty_company ? ' · ' + escapeHtml(s.warranty_company) : ''}</div>
+      <div class="actions">
+        <a class="btn btn-primary" href="/needs-scheduled.html" target="_blank">Open queue ↗</a>
+        ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderUnpaid(u) {
+  const c = u.customer || {};
+  const name = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)';
+  const phone = c.phone || '';
+  return `
+    <div class="card">
+      <div class="top">
+        <div class="jobid">#${u.job_id}</div>
+        ${ageBadge((u.age_days||0) * 24)}
+      </div>
+      <div class="name">${escapeHtml(name)}</div>
+      <div class="reason">${escapeHtml(u.appliance_type || 'appliance')}${u.problem_summary ? ' · ' + escapeHtml(u.problem_summary.slice(0,80)) : ''}</div>
+      <div class="actions">
+        <a class="btn btn-primary" href="/job-detail.html?job_id=${u.job_id}" target="_blank">Open job ↗</a>
+        ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
+      </div>
+    </div>`;
+}
+
+function copyField(btn, idx, jobId) {
+  const val = btn.dataset.val || '';
+  navigator.clipboard.writeText(val).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '✓';
+    showToast(`Copied: ${val.slice(0, 40)}${val.length > 40 ? '…' : ''}`);
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
+  }).catch(() => showToast('Copy failed — select manually'));
+}
+
+function copyAllFields(btn) {
+  const card = btn.closest('.card');
+  const rows = card.querySelectorAll('.field-row');
+  const lines = [];
+  rows.forEach(r => {
+    const lbl = r.querySelector('.label').textContent.trim();
+    const val = r.querySelector('.value').textContent.trim();
+    lines.push(`${lbl}: ${val}`);
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    showToast(`Copied all ${lines.length} fields`);
+  }).catch(() => showToast('Copy failed'));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+</script>
+<script src="/office-search.js?v=20260528-1"></script>
+<script src="/office-home-button.js?v=1"></script>
+</body>
+</html>
