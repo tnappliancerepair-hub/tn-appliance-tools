@@ -35,8 +35,20 @@ query list_needs_scheduled_parallel verb=GET {
     //  so parallel_mode never lands true and the queue stays empty. We
     //  now filter on intake_source (text column, writes land cleanly)
     //  matching the parallel-only intake sources.
+    // 2026-06-02 FIX: intake_source naming was REVERSED — Gmail pollers
+    // write 'ahs_email' / 'servicepower_email' / 'allstate_email' (vendor
+    // first), not the reversed forms this filter was looking for. The
+    // result: every email-sourced job was INVISIBLE in needs-scheduled.
+    //
+    // Also broadened scheduling_status to include 'broadcasting' /
+    // 'intake_complete' / 'needs_more_info' (jobs in those states with
+    // no tech assigned still need scheduling attention). And widened to
+    // also include jobs with scheduled_start set but technician_id=0
+    // (vendor-locked time but no tech claimed).
+    //
+    // Kept the OLD reversed names in the filter too (backward compat).
     db.query jobs {
-      where = ($db.jobs.intake_source == "email_ahs" || $db.jobs.intake_source == "email_servicepower" || $db.jobs.intake_source == "email_allstate" || $db.jobs.intake_source == "web_chat" || $db.jobs.intake_source == "manual" || $db.jobs.intake_source == "phone_call") && ($db.jobs.scheduled_start == null || $db.jobs.scheduled_start == 0) && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled")
+      where = ($db.jobs.intake_source == "ahs_email" || $db.jobs.intake_source == "servicepower_email" || $db.jobs.intake_source == "allstate_email" || $db.jobs.intake_source == "email_ahs" || $db.jobs.intake_source == "email_servicepower" || $db.jobs.intake_source == "email_allstate" || $db.jobs.intake_source == "web_chat" || $db.jobs.intake_source == "manual" || $db.jobs.intake_source == "phone_call") && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "broadcasting" || $db.jobs.scheduling_status == "intake_complete" || $db.jobs.scheduling_status == "needs_more_info" || $db.jobs.scheduling_status == "scheduled") && $db.jobs.technician_id == 0
       sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: $lim}}
     } as $job_rows
