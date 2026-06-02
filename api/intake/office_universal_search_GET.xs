@@ -34,31 +34,37 @@ query office_universal_search verb=GET {
       error = "query must be at least 2 chars"
     }
   
-    // Phone-only detection: strip formatting, see if mostly digits
+    // 2026-06-02 BUGFIX: previous version only stripped formatting chars
+    // (- space ( ) . +). Letters were never removed, so "Ray Gedert"
+    // → q_digits="RayGedert" (9 chars) → is_phone_query=true. Name
+    // search never ran for any query 7+ chars. Now actually strip
+    // non-digits.
     var $q_digits {
-      value = $q_raw
-        |replace:"-":""
-        |replace:" ":""
-        |replace:"(":""
-        |replace:")":""
-        |replace:".":""
-        |replace:"+":""
+      value = "/[^0-9]/"|regex_replace:"":$q_raw
     }
-  
+
     var $q_digits_len {
       value = $q_digits|strlen
     }
-  
+
     var $q_raw_len {
       value = $q_raw|strlen
     }
-  
+
     var $q_diff {
       value = $q_raw_len - $q_digits_len
     }
-  
+
+    // Phone query if ALL or near-all chars are digits and total length 7+
     var $is_phone_query {
-      value = ($q_digits_len >= 7) && ($q_diff <= 6)
+      value = ($q_digits_len >= 7) && ($q_raw_len <= ($q_digits_len + 4))
+    }
+
+    // WO-number query: 6+ digits AND not classified as phone. WO numbers
+    // are typically 6-10 digits (HCP), 9-12 chars (ServicePower like
+    // "012594274132"), or alphanumeric ("ARW20260635154946" — NSA).
+    var $is_wo_query {
+      value = ($q_digits_len >= 5) && (! $is_phone_query)
     }
   
     // Address keyword detection — pre-bind all lengths to dodge XS filter
@@ -199,6 +205,31 @@ query office_universal_search verb=GET {
       }
     }
   
+    // 2026-06-02 NEW: WO# search. Hits jobs.claim_number, dispatch_source_id,
+    // housecall_pro_job_id, job_number — adds the customer_id of any match
+    // to the matched set. Danielle's most-common search pattern.
+    conditional {
+      if ($is_wo_query) {
+        db.query jobs {
+          where = $db.jobs.claim_number == $q_raw || $db.jobs.dispatch_source_id == $q_raw || $db.jobs.housecall_pro_job_id == $q_raw || $db.jobs.job_number == $q_raw
+          sort = {jobs.id: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 25}}
+        } as $wo_job_rows
+
+        foreach ($wo_job_rows.items) {
+          each as $woj {
+            conditional {
+              if (($woj.customer_id ?? 0) > 0) {
+                var.update $matched_customer_ids {
+                  value = $matched_customer_ids|push:$woj.customer_id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Now fetch most-recent jobs for each matched customer
     var $items {
       value = []

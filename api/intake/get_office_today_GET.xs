@@ -188,10 +188,15 @@ query get_office_today verb=GET {
       value = ($now_ms - $day_ms)
     }
   
+    // 2026-06-02 expanded: also pull email_generic_warranty + ahs_email +
+    // servicepower_email drafts in needs_more_info status REGARDLESS of
+    // age, so fresh warranty captures are visible immediately (not after
+    // 24h). Existing stuck_intake "not_ready > 24h" semantics preserved
+    // for HCP-origin and older intake-path jobs.
     db.query jobs {
-      where = $db.jobs.scheduling_status == "not_ready" && $db.jobs.created_at < $stuck_cutoff && $db.jobs.scheduled_start == null
-      sort = {jobs.created_at: "asc"}
-      return = {type: "list", paging: {page: 1, per_page: 30}}
+      where = ($db.jobs.scheduling_status == "not_ready" && $db.jobs.created_at < $stuck_cutoff && $db.jobs.scheduled_start == null) || ($db.jobs.scheduling_status == "needs_more_info" && ($db.jobs.intake_source == "email_generic_warranty" || $db.jobs.intake_source == "ahs_email" || $db.jobs.intake_source == "servicepower_email" || $db.jobs.intake_source == "allstate_email"))
+      sort = {jobs.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 100}}
     } as $stuck_rows
   
     var $stuck_intake {
