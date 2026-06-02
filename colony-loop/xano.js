@@ -238,6 +238,10 @@ export async function getDailyEmailIntakeFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_email_intake_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getDailyHcpCoverageFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_hcp_coverage_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function getWarrantyCardBundleForJobs(jobIdsCsv) {
   return postJSON(`${INTAKE()}/get_warranty_card_bundle_for_jobs`, { job_ids_csv: jobIdsCsv });
 }

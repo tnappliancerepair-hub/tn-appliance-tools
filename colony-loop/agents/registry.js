@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-02T15:08:52.288Z
-// Total registered: 476
+// Generated: 2026-06-02T16:02:14.334Z
+// Total registered: 477
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -81,6 +81,7 @@ export const AGENT_REGISTRY = {
   'DAILY_BRIEFING': './daily_briefing.js',
   'DAILY_CLAUDE_SPEND_CHECK': './daily_claude_spend_check.js',
   'DAILY_EMAIL_INTAKE_DIGEST': './daily_email_intake_digest.js',
+  'DAILY_HCP_COVERAGE_CHECK': './daily_hcp_coverage_check.js',
   'DAILY_JOB_PREP': './daily_job_prep.js',
   'DAILY_REVENUE_SUMMARY': './daily_revenue_summary.js',
   'DAILY_TECH_BRIEFING': './daily_tech_briefing.js',

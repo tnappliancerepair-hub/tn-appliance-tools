@@ -70,6 +70,31 @@ const FINGERPRINTS = [
       tracking_number: matchFirst(snip, /1Z[A-Z0-9]{16}|\b\d{12,22}\b/i),
     }),
   },
+  // Amazon — ordered confirmation. Two-step capture: 'Your Amazon.com
+  // order #XXX' on placement, and 'Your package has arrived' on delivery.
+  // Different from Marcone/Tribles because Amazon doesn't have a single
+  // canonical 'delivered' subject; matches on 'arrived' / 'has been
+  // delivered' / 'was delivered'.
+  {
+    name: 'amazon_ordered',
+    vendor: 'Amazon',
+    query: 'from:(auto-confirm@amazon.com) subject:"Your Amazon.com order"',
+    extract: (subj, snip) => ({
+      vendor: 'Amazon',
+      // Amazon order # format: '111-1234567-1234567' (17 chars including dashes)
+      order_number: matchFirst(subj + ' ' + snip, /(\d{3}-\d{7}-\d{7})/),
+    }),
+  },
+  {
+    name: 'amazon_delivered',
+    vendor: 'Amazon',
+    query: 'from:(shipment-tracking@amazon.com OR auto-shipping@amazon.com) (subject:delivered OR "has been delivered" OR "package has arrived" OR "was delivered")',
+    extract: (subj, snip) => ({
+      vendor: 'Amazon',
+      order_number: matchFirst(subj + ' ' + snip, /(\d{3}-\d{7}-\d{7})/),
+      tracking_number: matchFirst(snip, /TBA\d{12,16}|1Z[A-Z0-9]{16}|\b\d{12,22}\b/i),
+    }),
+  },
   // FedEx delivery notification — generic shipping carrier, matches
   // anything we've shipped to the customer.
   {
