@@ -107,6 +107,72 @@ Background context already in repo:
 
 ---
 
+## 🧬 THE UNIFIED WORKSPACE — short-term spine (saved 2026-06-01 per Teddy)
+
+**This IS what "operating cleanly" means. Stop thinking 4 tools. Start thinking ONE workspace with 4 role-specific lenses.**
+
+Tech, office, customer, owner are not separate apps — they're 4 views of the same job, same customer, same conversation, filtered for what each role needs to see and do. Each lens has its own Ant assistant tuned for that role's tasks. This isn't future vision — this is the next 1-2 weeks of work, in parallel with HCP-kill week.
+
+### The wedge insight
+
+**Internal communication seamlessness = customer experience.** The customer wins biggest because they get back to normal faster (one truck roll instead of three) with clear comms throughout. Internal efficiency and customer outcome are the same metric viewed from different sides. That's the moat — not the AI, not the automation, the integration.
+
+### Pain map (operating reality)
+
+Communication holes → delays → bad completion times → bad commissions. Specific gaps:
+
+1. **Danielle chases TDRs from techs** — tech hasn't submitted → office can't process warranty → revenue + commission delayed → her time spent chasing instead of processing
+2. **Techs hunt for parts status** — vendor tracking emails exist in the system but don't surface to the tech in his work flow
+3. **Techs drive to "look" instead of going to "fix"** — diagnose-only trip pattern, the single most expensive line item (2x drive time, 2x wait, 1/2 commission per trip)
+4. **Customer doesn't know what's happening** — calls in for status, phone burden on office, tech interrupted
+
+Each pain traces to: **information that exists in the system, not flowing to where it's needed without human re-entry.**
+
+### Architectural principle: single-write events, many reactive views
+
+The job grows as a chronological stream — customer says X, owner pre-diagnoses Y, tech sees both before he rolls, tech writes Z, Danielle sees warranty draft populated by Z, warranty pays $W, ledger updates by W, vendor gets paid out of W. **Nobody types anything twice.**
+
+Every future feature has to answer: "Does this require human re-entry? If yes, can it be derived from something already in the system?" If yes, derive it. If no, then it's a true new input.
+
+### Channel cascade rule
+
+**Portal > SMS > Vapi calls.** Use the cheapest async channel that gets the job done. Calls become rare exceptions, not default. Test of success: calls per 100 jobs falls month over month.
+
+### North-star metrics — these prove the concept works
+
+1. **First-visit-fix rate** — % of jobs that complete on the first truck roll. THE north star. Currently not tracked consistently — fix that first.
+2. **Days from intake to "back to normal"** — customer's actual experience metric.
+3. **Inbound calls per 100 jobs** — friction proxy.
+
+If these don't move as the unified-workspace work lands, we're building the wrong thing.
+
+### Short-term concrete moves (next few days, in priority order)
+
+1. **TDR ↔ warranty-portal real-time pre-stage** — as tech writes TDR fields, `warranty_submissions` draft row updates. By job-completion time, Danielle's job is "click Submit + confirm portal paste." Foundation: `warranty_submissions` table shipped 2026-06-01.
+2. **Customer intake → Tech TDR auto-fill** — customer's problem_summary + media maps to TDR diagnosis hints + failed_component hints. Tech edits/confirms instead of starting blank.
+3. **Parts ordering surfaces feeding `parts_orders` ledger** — quick-entry pill on tech-ant-chat (tech ordered on the way) + office-today entry + parts-vendor-gmail-poller auto-pull. Four entry points, one ledger, zero double-entry. Foundation: `parts_orders` table shipped 2026-06-01.
+4. **Embed Teddy Tool primitive in tech-ant-chat + office + customer-portal** — ONE component renders TDR-composition + AI assist. Lens-filtered by role. Today it's a separate page only Teddy uses.
+5. **Communication cascade rule wired** — system tries portal update first, escalates to SMS if portal unread + time-sensitive, Vapi call as last resort.
+6. **Cross-tool deep-link strip on every per-job page** — "📋 Teddy Tool · 🔧 Tech View · 👤 Customer View · 📦 Warranty Submit" deep-linked. Two-line addition, mobility win.
+7. **Unified SMS thread per customer/job** — every inbound + outbound text in one feed. Tech sees their slice, office sees full, customer sees their side.
+
+### The bigger picture — why this isn't optional
+
+The unified workspace is the SPINE that everything else depends on:
+
+- **Office simplification / Danielle-risk insurance** — if office runs without chasing, Alyse or Teddy handle 30 min/day instead of needing dedicated office staff
+- **Financial automation phases** (see "NEXT PHASES" below) — single-write events flow into the ledger automatically. Phase B parts-cost capture IS a unified-workspace write that lands in the ledger.
+- **Wealth strategy** — every minute saved + every customer impressed compounds. System replacing human re-entry wherever possible = capital efficiency.
+- **SaaS direction** — what we ship for TN works for the next 5 tenant categories. The single-workspace concept IS the product story.
+
+### End-state visual
+
+ONE URL per job: `/job/18537`. Lens auto-detects who you are (tech via session, customer via tokenized link, office via password, owner via PIN). Renders the right slice + actions for that role. Ant in the corner knows your role + what's open + recent activity, answers like a colleague who's caught up.
+
+Today: 4 separate URLs (`tech-ant-chat.html`, `customer-portal.html`, `warranty-review.html`, `teddy-tdr-tool.html`) for the same job, each doing its own fetch, each with its own state, none reacting to others' changes. The consolidation goal is ONE URL with role-filtered rendering.
+
+---
+
 ## 📈 NEXT PHASES — financial automation + bookkeeper elimination (saved 2026-06-01 per Teddy)
 
 After the current operational push lands (tech tool + office tool + customer tool all operating cleanly), the next major arc is **full financial automation** — running in parallel with the office work so nothing slows down.
