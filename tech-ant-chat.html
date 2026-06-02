@@ -836,12 +836,11 @@
       <button class="composer-btn" id="btn-photo" title="Take photo" aria-label="Take photo">📷</button>
       <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
       <button class="composer-btn" id="btn-library" title="Upload from photo library" aria-label="Upload from library">🖼</button>
-      <!-- In-app voice buttons hidden 2026-06-01 — Web Speech API was
-           unreliable across iOS Safari + Android Chrome (accumulation,
-           feedback loops, progressive-final misbehavior). Techs dictate
-           via their phone keyboard's built-in mic icon instead — way
-           more robust speech engine. Reversible: remove style="display:none". -->
-      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice" style="display:none">🎤</button>
+      <!-- 2026-06-02: Mic re-enabled with Whisper-first routing for
+           reliability. Native Web Speech API kept as offline fallback.
+           Handsfree remains hidden until we've validated push-to-talk works
+           cleanly first (it's the more failure-prone of the two paths). -->
+      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
       <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free" style="display:none">🎙</button>
       <textarea class="composer-input" id="composer-input"
         rows="1"
@@ -2082,10 +2081,42 @@
       if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
       return;
     }
-    // FIELD RELIABILITY: native SR runs ON-DEVICE — no network needed.
-    // Whisper is gold-standard but needs cell signal which techs don't
-    // always have. Use native first; fall back to Whisper only if it
-    // isn't supported (older Android, some embedded browsers).
+    // 2026-06-02: PREFER WHISPER. Native Web Speech API was the source
+    // of every reliability complaint (accumulation, TTS-bleed feedback,
+    // progressive-final misbehavior). Whisper takes longer (~1-2s post-
+    // stop) but transcribes cleanly. Only fall back to native SR when
+    // network is genuinely offline so the tech still has SOME voice path.
+    const preferWhisper = (typeof navigator !== 'undefined') && (navigator.onLine !== false);
+    const canRecord = navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
+    if (preferWhisper && canRecord) {
+      try {
+        mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        addMsg('assistant', '🎤 mic permission needed — enable in Safari Settings → Microphone, then retry.');
+        return;
+      }
+      const candidates = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+      let mime = '';
+      for (const c of candidates) {
+        try { if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) { mime = c; break; } } catch (_) {}
+      }
+      try {
+        mediaRecorder = mime ? new MediaRecorder(mrStream, { mimeType: mime }) : new MediaRecorder(mrStream);
+      } catch (e) {
+        mrStream.getTracks().forEach((t) => t.stop());
+        addMsg('assistant', '🎤 recorder init failed: ' + (e.message || 'unknown'));
+        return;
+      }
+      mrChunks = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
+      mediaRecorder.onstop = handleMicStop;
+      mediaRecorder.start();
+      isListening = true;
+      setMicActive(true);
+      return;
+    }
+    // OFFLINE FALLBACK: native SR runs on-device. Buggy in some browsers
+    // but better than nothing when the tech is in a basement with no signal.
     if (SR) {
       try {
         nativeRec = new SR();
@@ -2257,7 +2288,10 @@
   // who need video have the dedicated 🎥 button.
   const libraryInput = document.createElement('input');
   libraryInput.type = 'file';
-  libraryInput.accept = 'image/*';
+  // 2026-06-02: Use specific image MIME types instead of 'image/*' so
+  // iOS Safari shows the photo picker WITHOUT the 'Choose File' (iCloud
+  // Drive browser) option in the native sheet. Tech wants photo-only.
+  libraryInput.accept = 'image/jpeg,image/png,image/heic,image/heif,image/webp';
   libraryInput.style.display = 'none';
   document.body.appendChild(libraryInput);
   libraryInput.addEventListener('change', async (e) => {
