@@ -173,6 +173,7 @@
     .header h1 { font-size: 20px; }
   }
 </style>
+<script src="/capture-overlay.js?v=1"></script>
 </head>
 <body>
 <div class="container">
@@ -184,18 +185,28 @@
   <div id="role-banner" class="role-banner" style="display:none;"></div>
   <div id="error-banner" class="error-banner"></div>
 
-  <div class="upload-zone" id="upload-zone">
-    <div class="icon">📷</div>
-    <div class="text">Tap to select photos or videos</div>
-    <div class="hint">Photos help us prepare the right parts</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0">
+    <button type="button" id="btn-photo" style="padding:18px 12px;border-radius:14px;border:2px solid #4cc9c0;background:linear-gradient(135deg,#4cc9c0,#38a89d);color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="font-size:30px">📷</div>
+      <div>Take Photo</div>
+      <div style="font-size:11px;opacity:0.9;font-weight:500">Model tag works best</div>
+    </button>
+    <button type="button" id="btn-video" style="padding:18px 12px;border-radius:14px;border:2px solid #ff8c61;background:linear-gradient(135deg,#ff8c61,#ff6b35);color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="font-size:30px">🎥</div>
+      <div>Record Video</div>
+      <div style="font-size:11px;opacity:0.9;font-weight:500">10 seconds max</div>
+    </button>
   </div>
 
-  <input type="file" id="file-input" multiple accept="image/*,video/*">
+  <!-- Fallback file picker for desktop / browsers without CaptureOverlay -->
+  <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none">
+  <div style="text-align:center;margin:8px 0">
+    <button type="button" onclick="document.getElementById('file-input').click()" style="background:transparent;border:none;color:#888;font-size:13px;text-decoration:underline;cursor:pointer">or pick from gallery</button>
+  </div>
 
   <div class="file-list" id="file-list"></div>
 
   <div class="actions">
-    <button class="btn-secondary" id="btn-add" onclick="document.getElementById('file-input').click()">+ Add More</button>
     <button class="btn-primary" id="btn-done" onclick="markDone()" disabled>Done</button>
   </div>
 
@@ -228,8 +239,8 @@ let successCount = 0;
 function init() {
   if (!JOB_ID) {
     showError('No job ID provided. Please use the link sent to you via SMS or email.');
-    document.getElementById('upload-zone').style.pointerEvents = 'none';
-    document.getElementById('btn-add').disabled = true;
+    const ph = document.getElementById('btn-photo'); if (ph) ph.disabled = true;
+    const vi = document.getElementById('btn-video'); if (vi) vi.disabled = true;
     return;
   }
 
@@ -249,21 +260,50 @@ function init() {
 }
 
 function setupListeners() {
-  const zone = document.getElementById('upload-zone');
+  const btnPhoto = document.getElementById('btn-photo');
+  const btnVideo = document.getElementById('btn-video');
   const input = document.getElementById('file-input');
 
-  zone.addEventListener('click', () => input.click());
+  // Use CaptureOverlay (proven 10s video cap, same as tech-ant-chat).
+  // Fall back to native file picker if it didn't load.
+  if (btnPhoto) {
+    btnPhoto.addEventListener('click', () => {
+      if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
+        window.CaptureOverlay.openPhotoCapture(async (blob, mimeType) => {
+          if (!blob) return;
+          const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: mimeType || 'image/jpeg' });
+          handleFiles([file]);
+        });
+      } else {
+        input.setAttribute('accept', 'image/*');
+        input.setAttribute('capture', 'environment');
+        input.click();
+      }
+    });
+  }
+
+  if (btnVideo) {
+    btnVideo.addEventListener('click', () => {
+      if (window.CaptureOverlay && typeof window.CaptureOverlay.openVideoCapture === 'function') {
+        window.CaptureOverlay.openVideoCapture(async (blob, mimeType) => {
+          if (!blob) return;
+          let ext = 'mp4';
+          if (mimeType && mimeType.includes('webm')) ext = 'webm';
+          else if (mimeType && mimeType.includes('quicktime')) ext = 'mov';
+          const file = new File([blob], 'video-' + Date.now() + '.' + ext, { type: mimeType || 'video/mp4' });
+          handleFiles([file]);
+        });
+      } else {
+        input.setAttribute('accept', 'video/*');
+        input.setAttribute('capture', 'environment');
+        input.click();
+      }
+    });
+  }
 
   input.addEventListener('change', (e) => {
     handleFiles(Array.from(e.target.files));
     input.value = '';
-  });
-
-  ['dragover', 'dragenter'].forEach(ev => {
-    zone.addEventListener(ev, (e) => {
-      e.preventDefault();
-      zone.classList.add('dragover');
-    });
   });
   ['dragleave', 'drop'].forEach(ev => {
     zone.addEventListener(ev, (e) => {
