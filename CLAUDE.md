@@ -107,6 +107,46 @@ Background context already in repo:
 
 ---
 
+## 📈 NEXT PHASES — financial automation + bookkeeper elimination (saved 2026-06-01 per Teddy)
+
+After the current operational push lands (tech tool + office tool + customer tool all operating cleanly), the next major arc is **full financial automation** — running in parallel with the office work so nothing slows down.
+
+**Order is locked. Don't start any of this until Phase A above is verified clean end-to-end.**
+
+### Phase B — financial automation, in this exact order
+
+1. **Parts costs** — every part ordered captured in `parts_orders` table (created 2026-06-01). Per-job parts-spend ledger becomes the source of truth.
+2. **Parts upcharge difference** — markup math per job + per supplier: what we paid (parts_orders.cost_cents) vs what we billed the customer (parts_orders.sold_to_customer_cents). Surfaces where margin is thin or fat.
+3. **Tax costs** — sales tax collected on each job, business tax owed, tracked per job + rolled up monthly.
+4. **Tax to be paid** — forward-looking calendar of upcoming tax liabilities so cash doesn't get surprised. Quarterly estimated payments included.
+5. **Commissions per tech** — partial today (`tech_earnings` table exists). Finish: auto-calc on every JOB_COMPLETED, verification loop, exception flagging.
+
+### Phase C — batch payments broken down + paid regularly
+
+When Phase B is producing clean numbers:
+- Split a single warranty-vendor remittance email into per-job + per-tech commission pieces
+- Schedule weekly / bi-weekly auto-payouts to techs
+- Generate customer refunds when applicable (refund flow design already in `docs/refund-handling-design-2026-05-31.md`)
+
+### Phase D — owner's budget for all costs
+
+Once income + cost lines are all auto-captured:
+- Operator P&L view: revenue · parts cost · labor cost · tax · overhead · net
+- Forecast view: projected next 30/60/90 days
+- Alert when categories spike vs baseline (e.g., parts spend doubled, labor cost up 25%)
+
+### The end goal
+
+Teddy's current bookkeeper is weak — Alyse (Teddy's wife) constantly has to correct and update what's entered. Once Phases B + C + D land, **bookkeeping becomes manageable enough for Alyse to handle herself**, potentially eliminating the bookkeeper role and the recurring cost it carries. Real "save money + remove a friction person" outcome — directly tied to the wealth strategy.
+
+### What's NOT in scope here
+
+- Stripe SaaS billing (separate Phase 5 work tied to tenant onboarding)
+- Customer-facing payment portal (`customer-invoice.js` exists, just needs wiring — different track)
+- Bookkeeper hand-off design (build it for Alyse-as-operator from day one)
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-05-31 (Day 4 — operating path reset)
 
 Yesterday burned 4 hours on an auth gate side-quest that ultimately got abandoned. Lesson logged. The real story is that the **scheduler is built but dormant in production** — confirmed by direct query. **One paste wakes it up.** Today's focus: flip the operating system on for real customer traffic.
