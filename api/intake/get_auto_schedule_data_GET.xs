@@ -50,18 +50,71 @@ query get_auto_schedule_data verb=GET {
       sort = {tech_availability.blocked_date: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 500}}
     } as $avail
+
+    // Cluster lookup: service_zone (zip → cluster) → cluster_assignment
+    // (cluster → tech_id + rank). Lets the matcher only consider techs
+    // who cover this customer's zip area. Lower rank = higher priority
+    // (1 = primary, 3 = overflow).
+    var $job_zip {
+      value = (($job.service_zip|to_text) ?? "")|trim
+    }
+
+    db.query service_zone {
+      where = $db.service_zone.zip_code == $job_zip
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $sz_rows
+
+    var $cluster_name {
+      value = ""
+    }
+
+    conditional {
+      if (($sz_rows.items|count) > 0) {
+        var $first_sz {
+          value = ($sz_rows.items|get:0)
+        }
+        var.update $cluster_name {
+          value = (($first_sz.cluster|to_text) ?? "")|trim
+        }
+      }
+    }
+
+    var $cluster_techs_out {
+      value = []
+    }
+
+    conditional {
+      if ($cluster_name != "") {
+        db.query cluster_assignment {
+          where = $db.cluster_assignment.cluster == $cluster_name && $db.cluster_assignment.active == true
+          sort = {cluster_assignment.rank: "asc"}
+          return = {type: "list", paging: {page: 1, per_page: 30}}
+        } as $ca_rows
+
+        foreach ($ca_rows.items) {
+          each as $ca {
+            var.update $cluster_techs_out {
+              value = $cluster_techs_out|push:{technician_id: ($ca.technician_id ?? 0), rank: ($ca.rank ?? 99)}
+            }
+          }
+        }
+      }
+    }
   }
 
   response = {
     success                  : true
     job_id                   : $job.id
     customer_id              : ($job.customer_id ?? 0)
-    service_zip              : (($job.service_zip|to_text) ?? "")
+    service_zip              : $job_zip
     appliance_type           : (($job.appliance_type|to_text) ?? "")
     customer_availability_grid: (($job.customer_availability_grid|to_text) ?? "")
     today_ct                 : $today_str
     techs                    : $techs.items
     availability_blocks      : $avail.items
+    preassigned_tech_id      : ($job.technician_id ?? 0)
+    cluster                  : $cluster_name
+    cluster_techs            : $cluster_techs_out
   }
 
   guid = "get-auto-schedule-data-v1"

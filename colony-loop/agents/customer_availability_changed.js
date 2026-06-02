@@ -45,9 +45,38 @@ function computeStartMs(dateStr, hour) {
   return new Date(iso).getTime();
 }
 
-function findBestMatch(grid, techs, availBlocks, nowMs) {
-  // Iterate days chronologically, blocks morning→afternoon→evening,
-  // techs in id order. First match wins.
+function findBestMatch(grid, bundle, availBlocks, nowMs) {
+  // Tech candidate order:
+  //   1. If job has a preassigned technician_id → only consider that tech.
+  //      (Manual office assignment wins — don't rebook to someone else.)
+  //   2. Else if zip resolves to a cluster → iterate cluster_techs in
+  //      rank ASC (primary tech first, then overflow).
+  //   3. Else fall back to all active techs in id order (legacy).
+  const techs = bundle.techs || [];
+  const techById = new Map(techs.map((t) => [t.id, t]));
+
+  const preassigned = Number(bundle.preassigned_tech_id || 0);
+  const clusterTechs = Array.isArray(bundle.cluster_techs) ? bundle.cluster_techs : [];
+
+  let candidateIds;
+  let matchMode;
+  if (preassigned > 0 && techById.has(preassigned)) {
+    candidateIds = [preassigned];
+    matchMode = 'preassigned';
+  } else if (clusterTechs.length > 0) {
+    candidateIds = clusterTechs
+      .slice()
+      .sort((a, b) => Number(a.rank || 99) - Number(b.rank || 99))
+      .map((c) => Number(c.technician_id))
+      .filter((id) => id > 0 && techById.has(id));
+    matchMode = 'cluster';
+  } else {
+    candidateIds = techs.map((t) => t.id);
+    matchMode = 'all_active_fallback';
+  }
+
+  if (!candidateIds.length) return { error: 'no_eligible_techs', match_mode: matchMode };
+
   const sortedGrid = [...grid].sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   for (const entry of sortedGrid) {
@@ -61,11 +90,11 @@ function findBestMatch(grid, techs, availBlocks, nowMs) {
       const blockStart = BLOCK_START_HOUR[block];
       const blockEnd = BLOCK_END_HOUR[block];
 
-      for (const tech of techs) {
+      for (const candId of candidateIds) {
+        const tech = techById.get(candId);
         if (!tech || tech.active !== true) continue;
 
-        // Saturday opt-in: only book Sat if tech.works_saturdays = true.
-        // Sunday is fully closed company-wide.
+        // Sunday closed company-wide. Saturday only if tech opted in.
         if (dow === 0) continue;
         if (dow === 6 && tech.works_saturdays !== true) continue;
 
@@ -87,6 +116,8 @@ function findBestMatch(grid, techs, availBlocks, nowMs) {
           date: dateStr,
           block,
           start_hour: startHour,
+          match_mode: matchMode,
+          cluster: bundle.cluster || '',
         };
       }
     }
@@ -142,7 +173,7 @@ export async function run(signal, ctx) {
     return { success: true, action: 'no_grid_yet' };
   }
 
-  const match = findBestMatch(grid, bundle.techs || [], bundle.availability_blocks || [], Date.now());
+  const match = findBestMatch(grid, bundle, bundle.availability_blocks || [], Date.now());
 
   if (!match) {
     // No tech × block match found. SMS Teddy so he can decide.
