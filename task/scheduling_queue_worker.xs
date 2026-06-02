@@ -26,9 +26,12 @@ task scheduling_queue_worker {
       }
     }
   
+    // Ant Scheduler Block 4 — sort by priority DESC first (flex_score-driven)
+    // so customers with wider availability windows process sooner; created_at
+    // ASC is the FIFO tiebreaker.
     db.query scheduling_queue {
       where = $db.scheduling_queue.status == "pending"
-      sort = {scheduling_queue.created_at: "asc"}
+      sort = {scheduling_queue.priority: "desc", scheduling_queue.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 10}}
     } as $pending_rows
   

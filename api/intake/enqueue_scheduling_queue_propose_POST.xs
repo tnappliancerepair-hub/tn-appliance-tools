@@ -31,19 +31,23 @@ query enqueue_scheduling_queue_propose verb=POST {
       value = (($input.source ?? "")|trim)
     }
   
+    // Ant Scheduler Block 4 — queue priority = customer's flex_score
+    // (0-100) so flexible customers process sooner. Input override wins,
+    // then job.flex_score, then default 50.
     var $priority_val {
-      value = ($input.priority ?? 1)
+      value = ($input.priority ?? ($job.flex_score ?? 50))
     }
-  
+
     var $sq_meta_obj {
-      value = {priority: $priority_val, source: $source_str}
+      value = {priority: $priority_val, source: $source_str, flex_score: ($job.flex_score ?? 0)}
     }
-  
+
     db.add scheduling_queue {
       data = {
         job_id     : $input.job_id
         action_type: "propose"
         status     : "pending"
+        priority   : $priority_val
         metadata   : $sq_meta_obj
       }
     } as $row
