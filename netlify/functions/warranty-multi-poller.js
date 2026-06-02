@@ -15,7 +15,10 @@ const XANO_DRAFT_ENDPOINT =
   'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_warranty_email_draft';
 
 const PROCESSED_LABEL = 'Warranty-Multi-Processed';
-const MAX_PER_RUN = 25;
+// 6 per run × every 5 min = 72/hour throughput which clears any
+// realistic backlog within an hour while staying safely under Netlify's
+// 10s sync timeout (typical run: ~6s for 6 messages).
+const MAX_PER_RUN = 6;
 
 // Each sender pattern feeds the same generic capture endpoint. The XS
 // endpoint identifies vendor from sender domain.
