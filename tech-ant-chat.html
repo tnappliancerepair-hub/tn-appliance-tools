@@ -835,7 +835,8 @@
     <div class="composer-inner">
       <button class="composer-btn" id="btn-photo" title="Take photo" aria-label="Take photo">📷</button>
       <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
-      <button class="composer-btn" id="btn-library" title="Upload from photo library" aria-label="Upload from library">🖼</button>
+      <!-- Library picker removed 2026-06-02 per Teddy — camera + video direct-capture is enough for field documentation -->
+
       <!-- 2026-06-02: Mic re-enabled with Whisper-first routing for
            reliability. Native Web Speech API kept as offline fallback.
            Handsfree remains hidden until we've validated push-to-talk works
@@ -2250,7 +2251,7 @@
   // isn't loaded.
   const btnPhoto = document.getElementById('btn-photo');
   const btnVideo = document.getElementById('btn-video');
-  const btnLibrary = document.getElementById('btn-library');
+  // btnLibrary removed 2026-06-02 — see composer block
 
   // Native fallback picker for photo
   const photoInput = document.createElement('input');
@@ -2280,30 +2281,9 @@
     e.target.value = '';
   });
 
-  // LIBRARY picker — opens the native picker sheet for the photo library.
-  // 2026-06-02 fix: iOS Safari refuses to open the picker when both
-  // `multiple` and `accept="image/*,video/*"` are set together (silent fail
-  // on some iOS versions). Simplified to images-only single-select. Techs
-  // who need video have the dedicated 🎥 button.
-  const libraryInput = document.createElement('input');
-  libraryInput.type = 'file';
-  // 2026-06-02: Use specific image MIME types instead of 'image/*' so
-  // iOS Safari shows the photo picker WITHOUT the 'Choose File' (iCloud
-  // Drive browser) option in the native sheet. Tech wants photo-only.
-  libraryInput.accept = 'image/jpeg,image/png,image/heic,image/heif,image/webp';
-  libraryInput.style.display = 'none';
-  document.body.appendChild(libraryInput);
-  libraryInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    for (const f of files) await uploadMedia(f);
-    e.target.value = '';
-  });
-  if (btnLibrary) {
-    btnLibrary.addEventListener('click', () => libraryInput.click());
-  } else {
-    console.error('[tech-ant-chat] btn-library element missing — library picker not wired');
-  }
+  // Library picker fully removed 2026-06-02 — camera (📷) + video (🎥)
+  // direct-capture cover field documentation. Photo library upload was
+  // creating iOS picker confusion (Choose File / iCloud Drive option).
 
   btnPhoto.addEventListener('click', () => {
     if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
