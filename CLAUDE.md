@@ -1678,6 +1678,105 @@ System sleep was already 0 (Never); display sleep is 10min but actively prevente
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-06-01 evening + overnight (customer intake + warranty Phase 0)
+
+Big session: customer intake bundle SMS routing, tech-ant-chat 3-panel briefing, warranty-review.html nerve center upgrades, SquareTrade pending-accept flow, and Phase 0 warranty submission automation. Late-overnight work happened while Teddy was on break.
+
+### Customer intake bundle — when a customer uploads media, the right humans get pinged
+
+Customer does Ant intake (text + photo + video) → first attachment upload fires `CUSTOMER_INTAKE_BUNDLE_READY` from `save_attachment_POST.xs` → `customer_intake_bundle_ready.js` picks recipients:
+
+- **Teddy always** → SMS with Teddy-Tool deep-link
+- **Tech IF assigned OR sole-cluster-tech** → same link
+- **Danielle IF warranty + media** → SMS with warranty-review.html link (media ready for portal submission)
+
+24h dedup per job via `get_customer_intake_bundle_handled`. Verified end-to-end with synthetic photo on job 18537 (Robin Carubba): owner_sms=ok, tech_sms=skipped_no_cluster_techs, danielle_sms=ok.
+
+**Tech-ant-chat 3-panel briefing stack** added above the chat:
+1. 🧠 **Teddy's Pre-Diagnosis** (orange, highest trust) — `d.all_tdrs` filtered to `technician_id===1`
+2. 👤 **Customer Intake** (blue) — problem_summary + tap-to-open media thumbnails (signed S3 URLs)
+3. 🤖 **Ant's Guess** (teal, dashed) — latest `tdr_suggestion_drafted` from event_log via new `get_predicted_failure_for_job_GET`. Kept visible so Teddy can grade Claude over time.
+
+New helpers: `get_customer_intake_bundle_context_GET` / `get_customer_intake_bundle_handled_GET` / `get_predicted_failure_for_job_GET` / `list_attachment_counts_POST`.
+
+### SquareTrade pending-accept gating
+
+ServicePower's SquareTrade dispatches require human Accept click in Gmail. Now:
+- `servicepower_email_intake_POST.xs` lands SquareTrade dispatches at `scheduling_status: "needs_more_info"` with `friendly_status: "SquareTrade — Needs Accept"`
+- New `list_pending_accept_jobs_GET`
+- `office-today.html` shows violet 🤝 "Needs Accept" cards at **priority 0** with "📧 Open in Gmail" + "✓ Mark Accepted" buttons
+- One tap → `transition_job_state` to `scheduled`, downstream signals fire
+
+### Phase 0 warranty submission automation
+
+**New table `warranty_submissions` (id 46)** — 12 columns tracking full lifecycle: status (submitted/failed/manual_required/paid/denied/pending) · confirmation_id · submission_method · attempts · paid_amount · paid_at · submitted_by · vendor · job_id · notes.
+
+**New / enhanced XS endpoints:**
+- `record_warranty_submission_POST` — idempotent upsert by (job_id, vendor). Back-compat with the office-today caller (preserves `warranty_submitted_<job_id>` audit pattern)
+- `get_warranty_submission_for_job_GET` — fetch latest for a job
+- `list_warranty_submissions_for_jobs_POST` — batch lookup for badge rendering
+- `get_warranty_card_bundle_for_jobs_POST` — same field shape as office-today's warranty card, batched
+- `find_job_by_claim_number_GET` — vendor-email → job_id resolver
+
+**warranty-review.html — Danielle's new nerve center:**
+- Per-job submission status badges (submitted / paid $X / denied / failed / pending) with confirmation # inline
+- "✓ Mark submitted" inline form — vendor confirmation # + status select + paid amount + notes. Saves via `record_warranty_submission`.
+- Per-field paste cards with one-tap copy buttons (16 fields). Tab through vendor form, Cmd-V each field — 3x faster than typing.
+- Vendor portal direct deep-links (AHS / ServicePower / Frontdoor / SquareTrade / Allstate / NSA)
+- "⇩ Download photos zip" button — JSZip client-side bundle with sane filenames (`job-X-photo-1.jpg`) for drag-drop into portal upload
+- Customer media strip (from earlier today) — tap-to-open thumbnails + "Open all (N)" tab-spammer
+
+**office-today.html** — 📎 N media badges on every queue card with customer-uploaded media (top-right corner, tap → teddy-tdr-tool.html).
+
+**Gmail vendor-status watcher** (`netlify/functions/warranty-status-gmail-watcher.js`):
+- Every 10 min, scans Gmail with `label:"warranty-companies"`
+- Multi-vendor pattern matching:
+  - "Claim X received / submitted / confirmed" → status=submitted
+  - "Payment of $X for claim Y" / "remittance" → status=paid (extracts amount)
+  - "Claim X denied / rejected" → status=denied
+- Vendor inferred from sender domain
+- **Defaults to DRY-RUN** — parses + logs `warranty_status_watcher_parsed` to event_log for pattern review
+- Flip live by setting `WARRANTY_STATUS_WATCHER_LIVE=true` in Netlify env
+- Live path resolves claim → job_id via `find_job_by_claim_number`, calls `record_warranty_submission` with `submission_method: "email"`
+- Ambiguous claim matches bail to event_log instead of auto-applying
+
+### CSP update
+
+Added `https://*.amazonaws.com` to connect-src so photo-zip can fetch signed S3 URLs.
+
+### Critical XanoScript footguns surfaced this session
+
+1. **XS has no `else`** — `} else {` fails with "unexpected '{'". Use two separate `conditional { if (...) {...} }` blocks.
+2. **Inline `//` comments after input declarations break parsing** — `int? foo?    // description` fails. Move comments above or omit.
+3. **`signal.payload_obj` doesn't exist** — dispatch.js parses raw JSON and replaces `signal.payload` with the parsed object before calling `run()`. Read `signal.payload` directly.
+4. **`ahs_claim_number` is a phantom column** — actual column is `claim_number`. Multiple endpoints use `($job.ahs_claim_number ?? "")` which silently returns "" forever.
+5. **Loop module cache requires kickstart for new agents** — registry imports are frozen at process start. Hot-reload via mtime works for EDITS to existing agents. New agents: `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`.
+
+### Operator TODOs from this session
+
+1. **Set `WARRANTY_STATUS_WATCHER_LIVE=true` in Netlify env** — after 1-2 days of dry-run review (filter event_log for `action="warranty_status_watcher_parsed"`)
+2. **Verify Gmail label "warranty-companies"** auto-applies to vendor dispatches
+3. **Test warranty-review.html UI on a real phone/browser** — paste cards + Mark submitted + photo zip + portal deep-links all live but not eyeballed
+4. **Test the 3-panel briefing stack on tech-ant-chat** — open `tnapplianceexchange.net/tech-ant-chat.html?job_id=18526&tech_id=1` on a phone
+
+### What's STILL queued for Phase 1 warranty automation
+
+- ServicePower API research — 30-min check on the contractor portal for "API access" / "Developers" tab
+- If API exists → 1-2 days for ServicePower API adapter agent
+- If no API → 3-5 days for Playwright submission adapter
+- AHS adapter — 3-5 days regardless of path
+- All Phase 0 work gets reused — only the form-fill step gets replaced
+
+### Part-number finding tool (discussed, not built)
+
+Teddy flagged this as the #1 time killer (~40% accuracy on AI-only today). Agreed architecture: multi-source voting — query 4-6 sources in parallel ({Marcone API, Triple S API} when available + {Sears Parts Direct, RepairClinic, AppliancePartsPros, PartSelect} via scrape + Claude web-search as backstop). Score by source-agreement: 3+ agree = HIGH (auto-accept), 2 = MEDIUM (surface dissents), all disagree = LOW (human breaks tie + system learns). Store every verified resolution in `parts_resolutions` as proprietary corpus. Embed in Teddy Tool + tech-ant-chat + standalone parts-lookup.html.
+
+Phase 1 (today's possible build) waits on:
+- Vendor scraping legality OK from Teddy
+- Whether to wait for Marcone+Triple S APIs ("few weeks" per CLAUDE.md) or build web-scrape now
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.
