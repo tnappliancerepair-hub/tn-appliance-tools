@@ -133,8 +133,16 @@ function normalizeDate(s) {
 function classifyServicePowerSubject(subject) {
   if (!subject) return 'unknown';
   const s = subject.toLowerCase();
-  if (/payment|remittance|advice|settlement|eft/.test(s)) return 'payment';
-  if (/dispatch|new work order|service request|offer/.test(s)) return 'dispatch';
+
+  // 2026-06-02: order specific → general. Status updates first so
+  // they don't get matched as dispatch.
+  if (/estimate|status update|has been processed|not instantly approved|approval pending|reschedule notification|cancellation/.test(s)) {
+    return 'status_update';
+  }
+  if (/payment|remittance|advice|settlement|eft|reimbursement/.test(s)) return 'payment';
+  if (/new dispatch|new work order|service request|new offer|dispatch offer/.test(s)) return 'dispatch';
+  // Generic dispatch/order-containing subjects → safer default
+  if (/dispatch|work order/.test(s)) return 'status_update';
   return 'unknown';
 }
 

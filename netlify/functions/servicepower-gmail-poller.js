@@ -158,6 +158,26 @@ exports.handler = async (event) => {
     const subjectClass = classifyServicePowerSubject(subject);
     const isPayment = subjectClass === 'payment';
 
+    // Always log subject + class to results for diagnostic visibility
+    if (!results.skipped_subjects) results.skipped_subjects = [];
+    results.skipped_subjects.push({
+      id,
+      subject: (subject || '').slice(0, 120),
+      sender: (sender || '').slice(0, 80),
+      class: subjectClass,
+    });
+
+    // Skip status_update + unknown cleanly — label processed, don't
+    // try to call any Xano endpoint. Same fix as AHS poller.
+    if (subjectClass === 'status_update' || subjectClass === 'unknown') {
+      console.log(`[servicepower-gmail-poller] message ${id} class=${subjectClass} subject="${(subject || '').slice(0,80)}" — labeling processed and skipping`);
+      if (!results.skipped_status) results.skipped_status = [];
+      results.skipped_status.push({ id, class: subjectClass, subject: (subject || '').slice(0, 100) });
+      try { await labelMsg(gmail, id, processedLabelId); } catch (_) {}
+      try { await releaseClaim(gmail, id, inProgressLabelId); } catch (_) {}
+      continue;
+    }
+
     let parsed;
     let xanoEndpoint;
     let xanoPayload;
