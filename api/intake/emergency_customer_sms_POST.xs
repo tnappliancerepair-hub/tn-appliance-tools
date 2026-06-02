@@ -17,6 +17,7 @@ query emergency_customer_sms verb=POST {
     text phone
     text body
     text? source?
+    bool? force?
   }
 
   stack {
@@ -78,7 +79,7 @@ query emergency_customer_sms verb=POST {
     }
 
     conditional {
-      if ($already_sent) {
+      if ($already_sent && $input.force != true) {
         return {
           value = {
             success      : true
