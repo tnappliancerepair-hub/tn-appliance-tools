@@ -48,10 +48,21 @@ const PROBES = [
     ],
   },
   {
+    // office.html became a tiny client-side redirect to office-today.html on
+    // 2026-06-01 when the hub was consolidated. Probe checks the redirect
+    // is intact (any HTTP 200 of any size + the redirect script present) —
+    // it deliberately does NOT min-byte gate this anymore.
     url: 'https://tnapplianceexchange.net/office.html',
-    label: 'office hub',
+    label: 'office hub redirect',
+    min_bytes: 0,
+    must_contain: ['office-today.html'],
+  },
+  {
+    // The real hub Danielle uses. This is what should actually have content.
+    url: 'https://tnapplianceexchange.net/office-today.html',
+    label: 'office today (hub)',
     min_bytes: 5_000,
-    must_contain: ['Ant Office', 'office-search.js'],
+    must_contain: ['Office Today', 'office-search.js', 'getOfficeToday'],
   },
   {
     url: 'https://tnapplianceexchange.net/tech-ant-chat.html',
