@@ -279,6 +279,7 @@
   <button onclick="EmailIntakeModal.open()" style="background:rgba(157,108,243,0.15); border:1px solid rgba(157,108,243,0.45); color:#9d6cf3; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Email intake status (24h)">📡 Email intake</button>
   <button onclick="openOfficePartsOrderModal()" style="background:rgba(116,227,196,0.15); border:1px solid rgba(116,227,196,0.45); color:#4cd2c0; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Log a parts order">📦 Log parts order</button>
   <button onclick="openOfficePartsSearchModal()" style="background:rgba(76,167,255,0.15); border:1px solid rgba(76,167,255,0.45); color:#4ca7ff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Find part number">🔧 Find part</button>
+  <button onclick="openNewCustomerModal()" style="background:rgba(0,214,143,0.18); border:1px solid rgba(0,214,143,0.50); color:#00d68f; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Manually add a customer/job">＋ New customer</button>
   <button onclick="openTechMessageModal()" style="background:rgba(255,140,97,0.15); border:1px solid rgba(255,140,97,0.45); color:#ff8c61; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Message a tech">✉️ Message tech</button>
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
 </div>
@@ -378,6 +379,42 @@
       <button class="btn btn-success" id="rs-send">📅 Send slot offer</button>
       <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- + New customer/job modal -->
+<div class="modal-overlay" id="new-customer-modal">
+  <div class="modal" style="max-width:540px">
+    <h3>＋ New customer / job</h3>
+    <div class="sub">Phone call, walk-in, vendor portal — anything that didn't auto-flow. Lands in needs-scheduled queue.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <input id="nc-first" placeholder="First name *">
+      <input id="nc-last" placeholder="Last name">
+      <input id="nc-phone" placeholder="Phone * (digits)" style="grid-column:span 2">
+      <input id="nc-email" placeholder="Email" style="grid-column:span 2">
+      <input id="nc-address" placeholder="Street address" style="grid-column:span 2">
+      <input id="nc-city" placeholder="City">
+      <input id="nc-state" placeholder="State (TN)">
+      <input id="nc-zip" placeholder="ZIP" style="grid-column:span 2">
+      <hr style="grid-column:span 2;border:0;border-top:1px solid rgba(255,255,255,0.10);margin:6px 0">
+      <input id="nc-appl" placeholder="Appliance *(washer / fridge / etc)" style="grid-column:span 2">
+      <input id="nc-brand" placeholder="Brand">
+      <input id="nc-model" placeholder="Model #">
+      <textarea id="nc-problem" placeholder="Problem / Notes" rows="2" style="grid-column:span 2;resize:vertical"></textarea>
+      <hr style="grid-column:span 2;border:0;border-top:1px solid rgba(255,255,255,0.10);margin:6px 0">
+      <select id="nc-ctype">
+        <option value="self_pay">Self-pay</option>
+        <option value="warranty">Warranty</option>
+      </select>
+      <input id="nc-vendor" placeholder="Warranty co (if warranty)">
+      <input id="nc-claim" placeholder="Claim #" style="grid-column:span 2">
+      <input id="nc-dispatch" placeholder="Dispatch / WO #" style="grid-column:span 2">
+    </div>
+    <div class="actions">
+      <button class="btn btn-success" id="nc-submit">＋ Create</button>
+      <button class="btn btn-secondary" onclick="closeNewCustomerModal()">Cancel</button>
+    </div>
+    <div id="nc-result" style="font-size:13px;color:var(--muted);margin-top:10px;min-height:18px"></div>
   </div>
 </div>
 
@@ -1529,6 +1566,72 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// ── + New customer / job modal ────────────────────────────────────
+function openNewCustomerModal() {
+  ['nc-first','nc-last','nc-phone','nc-email','nc-address','nc-city','nc-state','nc-zip',
+   'nc-appl','nc-brand','nc-model','nc-problem','nc-vendor','nc-claim','nc-dispatch']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('nc-ctype').value = 'self_pay';
+  document.getElementById('nc-result').textContent = '';
+  document.getElementById('new-customer-modal').classList.add('show');
+  setTimeout(() => document.getElementById('nc-first').focus(), 80);
+}
+function closeNewCustomerModal() {
+  document.getElementById('new-customer-modal').classList.remove('show');
+}
+document.getElementById('nc-submit').addEventListener('click', async () => {
+  const get = (id) => (document.getElementById(id).value || '').trim();
+  const first = get('nc-first'), phone = get('nc-phone'), appl = get('nc-appl');
+  if (!first || !phone || !appl) {
+    document.getElementById('nc-result').innerHTML = '<span style="color:#ff6b6b">First name + phone + appliance required.</span>';
+    return;
+  }
+  let pw = '';
+  try { pw = (JSON.parse(localStorage.getItem(AUTH_KEY) || '{}')).password || ''; } catch (_) {}
+  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) return;
+  const btn = document.getElementById('nc-submit');
+  btn.disabled = true;
+  document.getElementById('nc-result').textContent = 'Creating…';
+  const payload = {
+    office_password: pw,
+    first_name: first,
+    last_name: get('nc-last'),
+    phone: phone.replace(/[^0-9]/g, ''),
+    email: get('nc-email'),
+    address: get('nc-address'),
+    city: get('nc-city'),
+    state: get('nc-state').toUpperCase().slice(0, 2),
+    zip: get('nc-zip').replace(/[^0-9]/g, '').slice(0, 5),
+    appliance_type: appl.toLowerCase(),
+    brand: get('nc-brand'),
+    model_number: get('nc-model'),
+    problem_summary: get('nc-problem'),
+    customer_type: document.getElementById('nc-ctype').value,
+    warranty_company: get('nc-vendor'),
+    claim_number: get('nc-claim'),
+    dispatch_number: get('nc-dispatch'),
+  };
+  try {
+    const r = await fetch(`${XANO_BASE}/manual_create_customer_job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      document.getElementById('nc-result').innerHTML = `<span style="color:#00d68f">✓ Created — job #${d.job_id}. Open it →</span> <a href="/job-detail.html?id=${d.job_id}" style="color:#4ca7ff">job-detail</a>`;
+      setTimeout(() => { closeNewCustomerModal(); load(); }, 2200);
+    } else {
+      document.getElementById('nc-result').innerHTML = '<span style="color:#ff6b6b">' + escapeHtml(d.error || 'failed') + '</span>';
+    }
+  } catch (e) {
+    document.getElementById('nc-result').innerHTML = '<span style="color:#ff6b6b">network error</span>';
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ── Tech Inbox composer (Tech Inbox Block C) ──────────────────────
 async function openTechMessageModal() {
