@@ -138,13 +138,127 @@
     };
   }
 
+  // ── Unified SMS thread per job ────────────────────────────────
+  // Renders every inbound + outbound SMS for a job's customer into ONE
+  // chronological feed. Each lens (tech/office/customer) can filter via
+  // opts.filterFor — 'tech' hides internal-to-internal chatter, 'customer'
+  // shows only their own thread, 'office'/'owner' shows everything.
+
+  function bubbleStyle(direction, role) {
+    const base = 'max-width:80%; padding:8px 12px; border-radius:14px; font-size:13px; line-height:1.4; margin:4px 0; word-break:break-word;';
+    if (direction === 'in') {
+      // Customer → us, or tech → us
+      const color = role === 'tech' ? '#9d6cf3' : '#4ca7ff';
+      return base + `align-self:flex-start; background:rgba(${role === 'tech' ? '157,108,243' : '76,167,255'},0.15); border:1px solid rgba(${role === 'tech' ? '157,108,243' : '76,167,255'},0.35); color:#e8eaf0;`;
+    }
+    // out (us → someone)
+    return base + 'align-self:flex-end; background:rgba(116,227,196,0.12); border:1px solid rgba(116,227,196,0.35); color:#e8eaf0;';
+  }
+
+  function classifyMessage(row) {
+    const a = row.action || '';
+    const md = row.metadata || {};
+    const cls = (md.recipient_class || '').toLowerCase();
+    const recipient = (md.recipient || '').toLowerCase();
+    const fromN = (md.from_number || '').toLowerCase();
+    if (a === 'inbound_customer_sms_received') {
+      return { direction: 'in', counterparty: 'customer' };
+    }
+    if (a === 'sms_sent' || a === 'sms_owner_bypass') {
+      const ct = cls === 'internal' ? (recipient.endsWith('4855795') ? 'owner' : 'tech') : 'customer';
+      return { direction: 'out', counterparty: ct };
+    }
+    if (a === 'sms_gated' || a === 'dropped_customer_sms') {
+      return { direction: 'out', counterparty: 'customer', blocked: true };
+    }
+    if (a === 'feedback_sms_sent' || a === 'teddy_sms_triggered') {
+      return { direction: 'out', counterparty: 'customer' };
+    }
+    return { direction: 'unknown', counterparty: 'unknown' };
+  }
+
+  function fmtTs(ms) {
+    if (!ms) return '';
+    try {
+      return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(ms));
+    } catch (_) { return ''; }
+  }
+
+  function renderThread(messages, opts) {
+    const filterFor = opts.filterFor || 'office';
+    const items = [];
+    for (const m of messages) {
+      const c = classifyMessage(m);
+      // Lens filters
+      if (filterFor === 'customer' && c.counterparty !== 'customer') continue;
+      if (filterFor === 'tech' && c.counterparty === 'owner') continue;
+      // Skip internal-to-internal noise on tech lens (owner alerts etc)
+      const md = m.metadata || {};
+      const body = (md.body_preview || md.body || md.response || '').trim();
+      if (!body && !c.blocked) continue;
+      items.push({ row: m, cls: c, body });
+    }
+    if (items.length === 0) {
+      return `<div style="padding:14px; text-align:center; color:#9aa1ad; font-size:12px;">No SMS in this thread yet.</div>`;
+    }
+    const html = items.map(({ row, cls, body }) => {
+      const tag = cls.counterparty + (cls.direction === 'in' ? ' →' : ' ←');
+      const fade = cls.blocked ? 'opacity:0.5;' : '';
+      const blockedNote = cls.blocked ? '<div style="font-size:10px; color:#ff9d4a; margin-top:4px;">⚠ blocked by gate</div>' : '';
+      return `
+        <div style="display:flex; flex-direction:column; padding:0 4px; ${fade}">
+          <div style="${bubbleStyle(cls.direction, cls.counterparty)}">
+            <div style="font-size:10px; color:#9aa1ad; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">${tag} · ${fmtTs(row.ts_ms)}</div>
+            <div>${(body || '(blocked)').replace(/[<>&]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]))}</div>
+            ${blockedNote}
+          </div>
+        </div>`;
+    }).join('');
+    return `<div style="display:flex; flex-direction:column; gap:2px; padding:8px; max-height:50vh; overflow-y:auto;">${html}</div>`;
+  }
+
+  async function fetchSmsThread(jobId, hoursBack) {
+    const h = Number(hoursBack || 720);
+    const r = await fetch(`${XANO_BASE}/get_sms_thread_for_job?job_id=${jobId}&hours_back=${h}`, { cache: 'no-store' });
+    const d = await r.json();
+    return (d && d.messages) || [];
+  }
+
+  async function mountSmsThread(jobId, mountElOrId, opts) {
+    if (!jobId) return null;
+    const mount = typeof mountElOrId === 'string' ? root.document.getElementById(mountElOrId) : mountElOrId;
+    if (!mount) return null;
+    const options = opts || {};
+    const filterFor = options.filterFor || detectRole();
+    mount.innerHTML = '<div style="padding:14px; text-align:center; color:#9aa1ad; font-size:12px;">Loading SMS thread…</div>';
+    try {
+      const messages = await fetchSmsThread(jobId, options.hoursBack);
+      mount.innerHTML = renderThread(messages, { filterFor });
+      // Re-render on live awareness updates
+      if (!mount._antSmsListener) {
+        mount._antSmsListener = async () => {
+          try {
+            const msgs = await fetchSmsThread(jobId, options.hoursBack);
+            mount.innerHTML = renderThread(msgs, { filterFor });
+          } catch (_) {}
+        };
+        root.addEventListener('ant:state-changed', mount._antSmsListener);
+      }
+      return { rerender: mount._antSmsListener };
+    } catch (err) {
+      mount.innerHTML = `<div style="padding:14px; text-align:center; color:#ff6b6b; font-size:12px;">SMS thread load failed: ${err.message}</div>`;
+      return null;
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────
   root.Ant = root.Ant || {};
   root.Ant.role = detectRole;
   root.Ant.jobId = detectJobId;
   root.Ant.deepLinkStrip = injectStrip;
   root.Ant.startLiveAwareness = startLiveAwareness;
-  root.Ant.spineVersion = '1.0.0';
+  root.Ant.mountSmsThread = mountSmsThread;
+  root.Ant.spineVersion = '1.1.0';
 
   // ── Auto-init ──────────────────────────────────────────────────
   // If the page opted in by setting window.ANT_SPINE_AUTO=true OR has a
@@ -159,6 +273,11 @@
     if (jobId) {
       try { injectStrip(jobId, role); } catch (_) {}
       try { root._antSpineHandle = startLiveAwareness(jobId); } catch (_) {}
+      // Auto-mount SMS thread if the page has a sentinel element.
+      const smsMount = root.document.getElementById('ant-sms-thread');
+      if (smsMount) {
+        try { mountSmsThread(jobId, smsMount, { filterFor: role }); } catch (_) {}
+      }
     }
   }
 
