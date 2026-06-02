@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Intake Status — Ant Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="/office-search.js" defer></script>
+<style>
+  :root {
+    --bg: #0a0d12; --panel: #131720; --border: #2a3040; --text: #e8edf5;
+    --muted: #8a93aa; --green: #4cd2c0; --red: #ff6b6b; --orange: #ff9d4a;
+    --blue: #4ca7ff; --yellow: #f5a623;
+    --mono: 'IBM Plex Mono', monospace; --display: 'Bebas Neue', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+  .header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--panel); }
+  .header h1 { margin: 0; font-family: var(--display); letter-spacing: 0.06em; font-size: 22px; }
+  .header .sub { color: var(--muted); font-family: var(--mono); font-size: 11px; margin-left: auto; }
+  .content { padding: 18px; max-width: 1100px; margin: 0 auto; }
+  .tier-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .tier-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .tier-card .label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .tier-card .num   { font-family: var(--display); font-size: 38px; line-height: 1; color: var(--text); }
+  .tier-card.email .num { color: var(--blue); }
+  .tier-card.alert .num { color: var(--orange); }
+  .tier-card.good  .num { color: var(--green); }
+  .section { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .section h2 { margin: 0 0 12px; font-family: var(--display); letter-spacing: 0.04em; font-size: 18px; color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .src-badge { display: inline-block; padding: 2px 7px; border-radius: 8px; font-size: 10px; font-weight: 700; }
+  .src-ahs       { background: rgba(76,167,255,0.15); color: var(--blue); }
+  .src-sp        { background: rgba(245,166,35,0.15); color: var(--yellow); }
+  .src-allstate  { background: rgba(255,107,107,0.15); color: var(--red); }
+  .src-hcp       { background: rgba(138,147,170,0.15); color: var(--muted); }
+  .src-web       { background: rgba(76,210,192,0.15); color: var(--green); }
+  .src-manual    { background: rgba(255,255,255,0.05); color: var(--text); }
+  a.job-link { color: var(--blue); text-decoration: none; font-weight: 700; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); font-style: italic; }
+  .auth-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 9000; }
+  .auth-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 32px 28px; max-width: 360px; text-align: center; }
+  .auth-card input { width: 100%; box-sizing: border-box; padding: 12px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-family: var(--mono); margin-top: 14px; }
+  .auth-card button { width: 100%; padding: 12px; margin-top: 10px; background: var(--green); color: var(--bg); border: none; border-radius: 8px; cursor: pointer; font-family: var(--display); letter-spacing: 0.05em; font-size: 16px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; }
+  .controls button { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; color: var(--text); font-family: var(--mono); cursor: pointer; }
+  .controls button.active { background: var(--green); color: var(--bg); border-color: var(--green); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="auth-overlay" id="auth-overlay">
+  <div class="auth-card">
+    <div style="font-size:42px">📡</div>
+    <h2 style="margin: 6px 0">Email Intake Status</h2>
+    <div style="color:var(--muted);font-family:var(--mono);font-size:11px">office password</div>
+    <input id="auth-input" type="password" placeholder="password">
+    <button onclick="submitAuth()">Unlock</button>
+    <div id="auth-err" style="color:var(--red);font-size:12px;min-height:14px;margin-top:6px"></div>
+  </div>
+</div>
+
+<div class="header">
+  <div style="font-size:24px">📡</div>
+  <h1>Email Intake Status</h1>
+  <div class="sub" id="sub">Loading...</div>
+</div>
+
+<div class="content">
+  <div class="controls">
+    <button data-h="24" onclick="setHours(24, this)" class="active">Last 24h</button>
+    <button data-h="48" onclick="setHours(48, this)">48h</button>
+    <button data-h="168" onclick="setHours(168, this)">7d</button>
+    <button data-h="720" onclick="setHours(720, this)">30d</button>
+    <button onclick="load()" style="margin-left:auto">↻ Refresh</button>
+  </div>
+
+  <div class="tier-row" id="tier-row"></div>
+
+  <div class="section">
+    <h2>Recent jobs from email intake</h2>
+    <div id="email-jobs-tbl"></div>
+  </div>
+
+  <div class="section">
+    <h2>Recent jobs (all sources)</h2>
+    <div id="all-jobs-tbl"></div>
+  </div>
+
+  <div class="section">
+    <h2>Warranty status watcher — DRY-RUN matches</h2>
+    <div id="watcher-tbl"></div>
+  </div>
+</div>
+
+<script>
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+let hoursBack = 24;
+
+async function submitAuth() {
+  const pwd = document.getElementById('auth-input').value.trim();
+  const err = document.getElementById('auth-err');
+  err.textContent = '';
+  if (!pwd) { err.textContent = 'Enter password'; return; }
+  try {
+    const r = await fetch(XANO_BASE + '/verify_office_password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      try { localStorage.setItem('office_auth_v1', '1'); } catch (_) {}
+      document.getElementById('auth-overlay').style.display = 'none';
+      load();
+    } else {
+      err.textContent = 'Incorrect password';
+    }
+  } catch (e) {
+    err.textContent = 'Server error: ' + (e.message || e);
+  }
+}
+
+function checkAuth() {
+  try {
+    if (localStorage.getItem('office_auth_v1') === '1') {
+      document.getElementById('auth-overlay').style.display = 'none';
+      return true;
+    }
+  } catch (_) {}
+  document.getElementById('auth-input').focus();
+  document.getElementById('auth-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+  return false;
+}
+
+function setHours(h, btn) {
+  hoursBack = h;
+  document.querySelectorAll('.controls button[data-h]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  load();
+}
+
+async function load() {
+  document.getElementById('sub').textContent = 'Loading...';
+  try {
+    const r = await fetch(XANO_BASE + '/get_email_intake_summary?hours_back=' + hoursBack, { cache: 'no-store' });
+    const d = await r.json();
+    if (!d.success) {
+      document.getElementById('sub').textContent = 'Load failed: ' + (d.error || 'unknown');
+      return;
+    }
+    render(d);
+    const updated = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date());
+    document.getElementById('sub').textContent = 'Updated ' + updated + ' CT · ' + hoursBack + 'h window';
+  } catch (err) {
+    document.getElementById('sub').textContent = 'Network error: ' + (err.message || err);
+  }
+}
+
+function srcBadge(src) {
+  const s = (src || '').toLowerCase();
+  if (s === 'ahs_email')            return '<span class="src-badge src-ahs">AHS Email</span>';
+  if (s === 'servicepower_email')   return '<span class="src-badge src-sp">SP Email</span>';
+  if (s === 'allstate_email')       return '<span class="src-badge src-allstate">Allstate Email</span>';
+  if (s.startsWith('hcp'))          return '<span class="src-badge src-hcp">' + s + '</span>';
+  if (s === 'web_chat')             return '<span class="src-badge src-web">Web Chat</span>';
+  if (s === 'manual')               return '<span class="src-badge src-manual">Manual</span>';
+  return '<span class="src-badge src-manual">' + (src || '?') + '</span>';
+}
+
+function fmtTime(ms) {
+  if (!ms) return '';
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(ms));
+  } catch (_) { return ''; }
+}
+
+function render(d) {
+  const by = d.jobs_by_source || {};
+  const tierRow = document.getElementById('tier-row');
+  const emailTotal = Number(d.email_only_total || 0);
+  const watcher = Number(d.watcher_total || 0);
+  const partsGmail = Number(d.parts_orders_from_gmail || 0);
+  const alertClass = emailTotal < 2 ? 'alert' : 'good';
+  tierRow.innerHTML = `
+    <div class="tier-card email">
+      <div class="label">Email-only jobs</div>
+      <div class="num">${emailTotal}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)">AHS ${by.ahs_email||0} · SP ${by.servicepower_email||0}${by.allstate_email ? ' · Allstate '+by.allstate_email : ''}</div>
+    </div>
+    <div class="tier-card">
+      <div class="label">All sources</div>
+      <div class="num">${d.jobs_total || 0}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)">HCP ${by.hcp_poll||0} · Web ${by.web_chat||0} · Manual ${by.manual||0}</div>
+    </div>
+    <div class="tier-card ${partsGmail > 0 ? 'good' : ''}">
+      <div class="label">Parts deliveries (Gmail)</div>
+      <div class="num">${partsGmail}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)">parts_orders total: ${d.parts_orders_total || 0}</div>
+    </div>
+    <div class="tier-card ${alertClass}">
+      <div class="label">Warranty watcher (DRY-RUN)</div>
+      <div class="num">${watcher}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:var(--mono)">vendor confirmations parsed</div>
+    </div>
+  `;
+
+  // Email-only jobs table
+  const emailJobs = (d.recent_jobs || []).filter(j => {
+    const s = (j.intake_source || '').toLowerCase();
+    return s === 'ahs_email' || s === 'servicepower_email' || s === 'allstate_email';
+  });
+  document.getElementById('email-jobs-tbl').innerHTML = emailJobs.length === 0
+    ? '<div class="empty">No email-intake jobs in this window.</div>'
+    : tableHtml(emailJobs);
+
+  // All jobs table (limit 30)
+  document.getElementById('all-jobs-tbl').innerHTML = (d.recent_jobs || []).length === 0
+    ? '<div class="empty">No jobs in this window.</div>'
+    : tableHtml((d.recent_jobs || []).slice(0, 30));
+
+  // Watcher table
+  const watcherRows = (d.watcher_events || []).slice(0, 20);
+  if (watcherRows.length === 0) {
+    document.getElementById('watcher-tbl').innerHTML = '<div class="empty">No warranty status emails parsed yet. <br>Pollers fire every 10 min — patterns light up as vendor confirmations arrive.</div>';
+  } else {
+    document.getElementById('watcher-tbl').innerHTML = watcherTableHtml(watcherRows);
+  }
+}
+
+function tableHtml(jobs) {
+  return `
+    <table>
+      <thead><tr><th>Job #</th><th>When</th><th>Source</th><th>Vendor</th><th>Claim #</th><th>Customer</th></tr></thead>
+      <tbody>
+        ${jobs.map(j => `
+          <tr>
+            <td><a class="job-link" href="/job-detail.html?job_id=${j.id}" target="_blank">#${j.id}</a></td>
+            <td>${fmtTime(j.created_at)}</td>
+            <td>${srcBadge(j.intake_source)}</td>
+            <td>${escapeHtml(j.warranty_company || '')}</td>
+            <td>${escapeHtml(j.claim_number || '')}</td>
+            <td>${escapeHtml((j.problem_summary || '').slice(0, 40))}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function watcherTableHtml(rows) {
+  return `
+    <table>
+      <thead><tr><th>When</th><th>Action</th><th>Vendor</th><th>Status</th><th>Claim</th><th>Subject snippet</th></tr></thead>
+      <tbody>
+        ${rows.map(r => {
+          const md = r.metadata || {};
+          return `
+            <tr>
+              <td>${fmtTime(r.created_at)}</td>
+              <td>${escapeHtml((r.action || '').replace('warranty_status_watcher_', ''))}</td>
+              <td>${escapeHtml(md.vendor || '')}</td>
+              <td>${escapeHtml(md.status || '')}</td>
+              <td>${escapeHtml(md.claim || '')}</td>
+              <td>${escapeHtml((md.subject || '').slice(0, 60))}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+if (checkAuth()) load();
+</script>
+</body>
+</html>

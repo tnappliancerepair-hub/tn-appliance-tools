@@ -693,6 +693,29 @@ async function maybeEmitTimeSignals() {
         xano.logLocal('daily_revenue_emit_failed', { error: err.message });
       }
     }
+
+    // DAILY_EMAIL_INTAKE_DIGEST — same 6-9pm window. SMS Teddy a
+    // one-liner on the day's email intake (AHS / SP / parts deliveries
+    // / warranty watcher activity). Catches stuck pollers same day.
+    let emailFired;
+    try {
+      emailFired = await xano.getDailyEmailIntakeFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_email_intake_dedup_failed', { error: err.message });
+      emailFired = null;
+    }
+    if (emailFired && !emailFired.fired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'DAILY_EMAIL_INTAKE_DIGEST',
+          signal_strength: 60,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        try { await xano.recordEventLog('daily_email_intake_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+      } catch (err) {
+        xano.logLocal('daily_email_intake_emit_failed', { error: err.message });
+      }
+    }
   }
 
   // CAPACITY_CHECK — fires once per day at 10am CT (10am-12pm grace).
