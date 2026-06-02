@@ -48,7 +48,7 @@ query list_needs_scheduled_parallel verb=GET {
     //
     // Kept the OLD reversed names in the filter too (backward compat).
     db.query jobs {
-      where = ($db.jobs.intake_source == "ahs_email" || $db.jobs.intake_source == "servicepower_email" || $db.jobs.intake_source == "allstate_email" || $db.jobs.intake_source == "email_ahs" || $db.jobs.intake_source == "email_servicepower" || $db.jobs.intake_source == "email_allstate" || $db.jobs.intake_source == "web_chat" || $db.jobs.intake_source == "manual" || $db.jobs.intake_source == "phone_call") && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "broadcasting" || $db.jobs.scheduling_status == "intake_complete" || $db.jobs.scheduling_status == "needs_more_info" || $db.jobs.scheduling_status == "scheduled") && $db.jobs.technician_id == 0
+      where = ($db.jobs.intake_source == "ahs_email" || $db.jobs.intake_source == "servicepower_email" || $db.jobs.intake_source == "allstate_email" || $db.jobs.intake_source == "email_ahs" || $db.jobs.intake_source == "email_servicepower" || $db.jobs.intake_source == "email_allstate" || $db.jobs.intake_source == "email_generic_warranty" || $db.jobs.intake_source == "web_chat" || $db.jobs.intake_source == "manual" || $db.jobs.intake_source == "phone_call") && ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "broadcasting" || $db.jobs.scheduling_status == "intake_complete" || $db.jobs.scheduling_status == "needs_more_info" || $db.jobs.scheduling_status == "scheduled") && $db.jobs.technician_id == 0
       sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: $lim}}
     } as $job_rows
@@ -108,27 +108,36 @@ query list_needs_scheduled_parallel verb=GET {
           value = (($j.service_zip ?? "")|trim)
         }
       
+        // Resolve final address by preferring service_address, falling
+        // back to customer address. Computed via vars not inline ternary
+        // (inline ternary mixed with ?? was returning null for placeholder
+        // customers and silently truncating the entire response row).
+        var $final_addr  { value = ($svc_addr != "") ? $svc_addr : (($cust_address|to_text) ?? "") }
+        var $final_city  { value = ($svc_city != "") ? $svc_city : (($cust_city|to_text) ?? "") }
+        var $final_state { value = ($svc_state != "") ? $svc_state : (($cust_state|to_text) ?? "") }
+        var $final_zip   { value = ($svc_zip != "") ? $svc_zip : (($cust_zip|to_text) ?? "") }
+
         var $row {
           value = {
             id                       : $j.id
             created_at               : ($j.created_at ?? 0)
-            customer_first           : (($cust_first ?? "")|trim)
-            customer_last            : (($cust_last ?? "")|trim)
-            customer_phone           : (($cust_phone ?? "")|trim)
-            service_address          : ($svc_addr != "") ? $svc_addr : (($cust_address ?? "")|trim)
-            service_city             : ($svc_city != "") ? $svc_city : (($cust_city ?? "")|trim)
-            service_state            : ($svc_state != "") ? $svc_state : (($cust_state ?? "")|trim)
-            service_zip              : ($svc_zip != "") ? $svc_zip : (($cust_zip ?? "")|trim)
-            appliance                : (($j.appliance_type ?? "")|trim)
-            brand                    : (($j.brand ?? "")|trim)
-            model_number             : (($j.model_number ?? "")|trim)
-            problem_summary          : (($j.problem_summary ?? "")|trim)
-            warranty_company         : (($j.warranty_company ?? "")|trim)
-            claim_number             : (($j.claim_number ?? "")|trim)
-            intake_source            : (($j.intake_source ?? "")|trim)
+            customer_first           : (($cust_first|to_text) ?? "")
+            customer_last            : (($cust_last|to_text) ?? "")
+            customer_phone           : (($cust_phone|to_text) ?? "")
+            service_address          : (($final_addr|to_text) ?? "")
+            service_city             : (($final_city|to_text) ?? "")
+            service_state            : (($final_state|to_text) ?? "")
+            service_zip              : (($final_zip|to_text) ?? "")
+            appliance                : (($j.appliance_type|to_text) ?? "")
+            brand                    : (($j.brand|to_text) ?? "")
+            model_number             : (($j.model_number|to_text) ?? "")
+            problem_summary          : (($j.problem_summary|to_text) ?? "")
+            warranty_company         : (($j.warranty_company|to_text) ?? "")
+            claim_number             : (($j.claim_number|to_text) ?? "")
+            intake_source            : (($j.intake_source|to_text) ?? "")
             flex_score               : ($j.flex_score ?? 0)
-            customer_availability_grid: (($j.customer_availability_grid ?? "")|trim)
-            customer_preference_text : (($j.customer_preference_text ?? "")|trim)
+            customer_availability_grid: (($j.customer_availability_grid|to_text) ?? "")
+            customer_preference_text : (($j.customer_preference_text|to_text) ?? "")
           }
         }
       

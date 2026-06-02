@@ -131,5 +131,5 @@ query list_needs_scheduled_parallel verb=GET {
     items: $items
   }
 
-  guid = "list-needs-scheduled-parallel-v2"
+  guid = "list-needs-scheduled-parallel-v1"
 }

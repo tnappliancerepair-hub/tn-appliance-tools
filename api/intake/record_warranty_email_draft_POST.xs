@@ -97,11 +97,18 @@ query record_warranty_email_draft verb=POST {
     }
 
     // Create draft customer (placeholder — Danielle fills name/phone on review)
+    // All optional address fields set to empty string so downstream
+    // queue endpoints don't trip on null reads.
     db.add customer {
       data = {
         first_name: "(Pending review)"
         last_name : ""
         phone     : ""
+        email     : ""
+        address   : ""
+        city      : ""
+        state     : ""
+        zip       : ""
         company_id: 1
       }
     } as $new_customer
