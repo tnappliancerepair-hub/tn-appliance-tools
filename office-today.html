@@ -298,6 +298,26 @@
   <span style="margin-left:auto"><button onclick="openPurgeModal()" style="background:rgba(248,113,113,0.15); border:1px solid var(--red); color:var(--red); padding:4px 10px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; font-family:inherit">🧹 Clean test/old</button></span>
 </div>
 
+<!-- Workflow stage banner — quick visual separation of "what to do next" -->
+<div id="workflow-bar" style="display:flex;gap:10px;padding:10px 12px;margin:0 0 6px 0;flex-wrap:wrap;align-items:stretch">
+  <a href="#" onclick="event.preventDefault(); EmailIntakeModal.open()" style="flex:1;min-width:240px;background:linear-gradient(135deg,rgba(157,108,243,0.16),rgba(157,108,243,0.06));border:1px solid rgba(157,108,243,0.45);color:#9d6cf3;padding:14px 16px;border-radius:12px;text-decoration:none;display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;cursor:pointer">
+    <div style="font-size:22px">📡</div>
+    <div style="flex:1">
+      <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85">Step 1 — Triage email captures</div>
+      <div style="font-size:13px;color:#cbd2e0;margin-top:2px">Fill in customer info / dismiss noise</div>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:#9d6cf3;min-width:60px;text-align:right" id="wf-intake-count">…</div>
+  </a>
+  <a href="/needs-scheduled.html" target="_blank" style="flex:1;min-width:240px;background:linear-gradient(135deg,rgba(74,158,255,0.16),rgba(74,158,255,0.06));border:1px solid rgba(74,158,255,0.45);color:#4a9eff;padding:14px 16px;border-radius:12px;text-decoration:none;display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace">
+    <div style="font-size:22px">🗂</div>
+    <div style="flex:1">
+      <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85">Step 2 — Schedule them</div>
+      <div style="font-size:13px;color:#cbd2e0;margin-top:2px">Pick tech + time</div>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:#4a9eff;min-width:60px;text-align:right" id="wf-sched-count">…</div>
+  </a>
+</div>
+
 <div class="view-toggle" id="view-toggle">
   <button id="vt-queue" class="active" onclick="setViewMode('queue')">▼ Priority Queue</button>
   <button id="vt-sections" onclick="setViewMode('sections')">▦ Sections</button>
@@ -1601,6 +1621,24 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// Refresh the workflow-bar counts every 30s — Step 1 (email captures
+// needing triage) + Step 2 (jobs in needs-scheduled). Wires the page
+// glance so Danielle always knows what's next.
+async function refreshWorkflowCounts() {
+  try {
+    const [intakeRes, schedRes] = await Promise.all([
+      fetch(`${XANO_BASE}/get_email_intake_summary?hours=24`).then(r => r.json()).catch(() => null),
+      fetch(`${XANO_BASE}/list_needs_scheduled_parallel?limit=500`).then(r => r.json()).catch(() => null),
+    ]);
+    const intakeEl = document.getElementById('wf-intake-count');
+    const schedEl  = document.getElementById('wf-sched-count');
+    if (intakeEl) intakeEl.textContent = (intakeRes && intakeRes.email_only_total != null) ? intakeRes.email_only_total : '–';
+    if (schedEl)  schedEl.textContent  = (schedRes && schedRes.count != null) ? schedRes.count : '–';
+  } catch (_) { /* offline ok */ }
+}
+refreshWorkflowCounts();
+setInterval(refreshWorkflowCounts, 30000);
 
 // ── + New customer / job modal ────────────────────────────────────
 function openNewCustomerModal() {
