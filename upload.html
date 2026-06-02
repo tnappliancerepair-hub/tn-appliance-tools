@@ -177,6 +177,7 @@
 </head>
 <body>
 <div class="container">
+  <a id="back-to-portal" href="#" style="display:inline-flex;align-items:center;gap:6px;color:#4cc9c0;text-decoration:none;font-weight:600;padding:10px 12px;font-size:15px;margin:8px 0">← Back to your portal</a>
   <div class="header">
     <h1 id="page-title">Upload Photos & Videos</h1>
     <p class="subtitle" id="page-subtitle">Helping us diagnose your appliance</p>
@@ -237,6 +238,22 @@ let successCount = 0;
 
 // Initialize page
 function init() {
+  // Wire the back link to the customer portal for the same job + last4 param
+  // (or to tech-ant-chat for tech-role uploads). Helps older customers
+  // who might not realize they can use the browser back button.
+  const back = document.getElementById('back-to-portal');
+  if (back) {
+    const last4 = params.get('last4') || params.get('phone_last4') || '';
+    if (ROLE === 'tech') {
+      back.href = `/tech-ant-chat.html?job_id=${JOB_ID || ''}${TECH_ID ? '&tech_id=' + TECH_ID : ''}`;
+      back.textContent = '← Back to Tech Ant';
+    } else if (JOB_ID) {
+      back.href = `/customer-portal.html?job_id=${JOB_ID}${last4 ? '&last4=' + last4 : ''}`;
+    } else {
+      back.style.display = 'none';
+    }
+  }
+
   if (!JOB_ID) {
     showError('No job ID provided. Please use the link sent to you via SMS or email.');
     const ph = document.getElementById('btn-photo'); if (ph) ph.disabled = true;
