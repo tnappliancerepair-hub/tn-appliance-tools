@@ -1,7 +1,7 @@
 import { config } from './config.js';
 import * as xano from './xano.js';
 import { dispatch } from './dispatch.js';
-import { ctMidnightMs, ctHour, fmtCT } from './time.js';
+import { ctMidnightMs, ctHour, ctParts, fmtCT } from './time.js';
 import * as sms from './sms.js';
 import * as claude from './claude.js';
 import { escalate } from './escalate.js';
@@ -667,6 +667,26 @@ async function maybeEmitTimeSignals() {
         try { await xano.recordEventLog('daily_tech_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_tech_briefing_emit_failed', { error: err.message });
+      }
+    }
+  }
+
+  // Ant Scheduler Block 5 — TECH_PACE_CHECK every 30 min during business
+  // hours (9am-5:30pm CT). tech_pace_watcher computes ahead/behind per
+  // active tech, emits TECH_RUNNING_AHEAD / TECH_RUNNING_BEHIND which
+  // Block 6 inserter / swapper consume.
+  {
+    const ctMinute = ctParts(nowTs).minute;
+    if (hour >= 9 && hour <= 17 && (ctMinute === 0 || ctMinute === 30)) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TECH_PACE_CHECK',
+          signal_strength: 60,
+          payload: { emitted_ct: fmtCT(nowTs), hour, minute: ctMinute },
+        });
+        try { await xano.recordEventLog('tech_pace_check_emitted', { hour, minute: ctMinute }); } catch (_e) {}
+      } catch (err) {
+        xano.logLocal('tech_pace_check_emit_failed', { error: err.message });
       }
     }
   }
