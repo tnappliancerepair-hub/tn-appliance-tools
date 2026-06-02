@@ -37,12 +37,13 @@
     }[tier] || { border: '#444', bg: '#222', text: '#aaa' };
   }
 
-  function tierBadge(tier, agreeing) {
+  function tierBadge(tier, agreeing, sources) {
     const c = tierColor(tier);
-    const label = tier === 'HIGH' ? `${agreeing}/${agreeing} sources agree`
-      : tier === 'MEDIUM' ? `${agreeing}/N sources agree`
+    const srcList = (sources || []).length ? ` (${(sources || []).join(', ')})` : '';
+    const label = tier === 'HIGH' ? `${agreeing} sources agree${srcList}`
+      : tier === 'MEDIUM' ? `${agreeing} sources agree${srcList}`
       : tier === 'GUESS' ? 'GUESS — low confidence'
-      : '1 source (Claude solo)';
+      : `${agreeing || 1} source${srcList}`;
     return `<span style="display:inline-block; padding:2px 8px; border-radius:10px; background:${c.bg}; border:1px solid ${c.border}; color:${c.text}; font-size:10px; font-weight:700; letter-spacing:0.5px; margin-left:6px;">${tier} · ${label}</span>`;
   }
 
@@ -65,7 +66,7 @@
       <div style="background:${tColor.bg}; border:1px solid ${tColor.border}; border-radius:10px; padding:12px 14px; margin-bottom:10px; ${isPrimary ? '' : 'opacity:0.85;'}">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div style="font-family:monospace; font-size:18px; font-weight:700; color:#fff;">${c.part_number || '(no part #)'}</div>
-          ${tierBadge(tier, c.sources_agreeing || 1)}
+          ${tierBadge(tier, c.sources_agreeing || 1, c.sources)}
         </div>
         <div style="font-size:13px; color:#e8eaf0; margin-top:4px;">${c.name || ''}</div>
         ${supersedes}${aftermarket}
@@ -178,8 +179,15 @@
           return;
         }
         let html = '';
-        html += `<div style="font-size:11px; color:#9aa1ad; margin-bottom:10px; padding:8px 10px; background:#0a0d12; border-radius:6px; border:1px solid #1f2530;">📡 Sources queried: ${data.sources_queried.join(', ')}<br>${data.note}</div>`;
-        if (data.confidence_notes) html += `<div style="font-size:12px; color:#cbd2e0; margin-bottom:12px; padding:8px; background:rgba(255,193,7,0.06); border:1px solid rgba(255,193,7,0.25); border-radius:6px;">💡 ${data.confidence_notes}</div>`;
+        const succeeded = (data.sources_succeeded || []);
+        const errors = (data.fetch_errors || []);
+        const queried = (data.sources_queried || []);
+        let sourcesLine = `📡 Sources: ${succeeded.length}/${queried.length} responded`;
+        if (succeeded.length) sourcesLine += ` (${succeeded.join(', ')})`;
+        if (errors.length) sourcesLine += `<br><span style="color:#ff9d4a;">⚠ Errored: ${errors.join(' · ')}</span>`;
+        html += `<div style="font-size:11px; color:#9aa1ad; margin-bottom:10px; padding:8px 10px; background:#0a0d12; border-radius:6px; border:1px solid #1f2530;">${sourcesLine}<br>${data.note || ''}</div>`;
+        const guessReasoning = data.best_guess_reasoning || data.confidence_notes;
+        if (guessReasoning) html += `<div style="font-size:12px; color:#cbd2e0; margin-bottom:12px; padding:8px; background:rgba(255,193,7,0.06); border:1px solid rgba(255,193,7,0.25); border-radius:6px;">💡 ${guessReasoning}</div>`;
         candidates.forEach((c, i) => { html += renderCandidate(c, i === 0); });
         results.innerHTML = html;
         results.querySelectorAll('.ps-copy').forEach((b) => {

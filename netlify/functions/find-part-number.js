@@ -1,72 +1,90 @@
-// Multi-source part number finder. Phase 1: Claude reasoning as primary
-// source. Phase 2 (when Marcone + Tribles Appliance Parts APIs land): those become the
-// anchors and Claude becomes the backstop / disambiguator.
+// Multi-source part number finder. Phase 2: real parallel web scraping
+// across 4 consumer parts sites + Claude reasoning as a 5th source.
+// Anchor sources (Marcone API, Tribles Appliance Parts API) plug in as
+// additional voters when those integrations land.
 //
-// Architecture for the "unanimous answer" pattern Teddy laid out:
+// "Unanimous answer" pattern Teddy laid out:
 //   - Query N sources in parallel
-//   - Extract candidate part numbers from each
-//   - Score by source-agreement: 3+ agree = HIGH, 2 = MEDIUM, 1 = LOW
+//   - Extract part numbers from each
+//   - Score by agreement: 3+ agree = HIGH, 2 = MEDIUM, 1 = LOW, GUESS = bad
 //
-// Today: 1 source (Claude). All results are LOW confidence by default.
-// As sources are added below, the agreement scoring kicks in naturally.
+// Latency budget: ~5-7s total
+//   - Parallel fetch all sources: 3-5s (slowest-source bound)
+//   - Single Claude call to parse all HTML: 2-3s
+//   - Aggregation: negligible
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
-const TIMEOUT_MS = 30000;
+const FETCH_TIMEOUT_MS = 8000;
+const CLAUDE_TIMEOUT_MS = 25000;
+const MAX_HTML_PER_SOURCE = 60000; // cap raw HTML so Claude context stays sane
 
-const SYSTEM_PROMPT = `You are an appliance-parts expert helping a repair tech identify the
-correct OEM part number for a failed component.
+// User-Agent that consumer sites accept. Generic mobile Safari string —
+// passes basic bot-checks on most sites without anti-bot middleware.
+const USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
-Given: {brand, appliance_type, model_number, failed_component, symptoms}
-Return: ranked candidate part numbers with reasoning.
+const SOURCES = [
+  {
+    id: 'sears',
+    name: 'Sears Parts Direct',
+    buildUrl: (q) => `https://www.searspartsdirect.com/search?q=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'repairclinic',
+    name: 'RepairClinic',
+    buildUrl: (q) => `https://www.repairclinic.com/Shop-For-Parts?search=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'partspros',
+    name: 'AppliancePartsPros',
+    buildUrl: (q) => `https://www.appliancepartspros.com/search.aspx?searchterm=${encodeURIComponent(q)}`,
+  },
+  {
+    id: 'partselect',
+    name: 'PartSelect',
+    buildUrl: (q) => `https://www.partselect.com/search/?searchterm=${encodeURIComponent(q)}`,
+  },
+];
 
-For each candidate, surface:
-  - OEM part number (the canonical one — Whirlpool W-prefix, GE WR-prefix, etc.)
-  - Common aftermarket / supersession equivalents (if any)
-  - Why you believe this is the right part (1-2 sentences)
-  - Confidence (0.0-1.0) based on certainty given the inputs
-  - Likely price range (USD)
-  - Where the tech can verify (Sears Parts Direct URL pattern, etc.)
+const HTML_PARSE_PROMPT = `You are parsing search-result HTML from appliance-parts retailers
+to extract candidate part numbers. You will be given HTML from 4
+different sites for the SAME query, plus context about what part
+the user is looking for.
 
-CRITICAL HONESTY RULES:
-  - If the model number is ambiguous (e.g. wildcard or partial), say so
-  - If you're guessing, say so — never invent a confident part number
-  - If multiple plausible parts exist, list ALL of them ranked by likelihood
-  - Note when a part has been superseded (old → new) and pick the new one
-  - Brand naming: Whirlpool / Maytag / KitchenAid / Amana / JennAir all
-    share the Whirlpool catalog (W-prefix). GE / Hotpoint / Cafe / Profile
-    all share the GE catalog (WR-prefix). Group by family in your response.
+For each site, extract up to 3 candidate part numbers shown on the
+results page. Focus on parts that match the failed_component the
+user described.
 
-Return your output as a JSON object only — no preamble, no markdown:
+Return a single JSON object — no preamble, no markdown:
 
 {
-  "primary_candidate": {
-    "part_number": "W10876537",
-    "name": "Drain Pump Motor",
-    "confidence_0_1": 0.85,
-    "reasoning": "...",
-    "estimated_price_usd_low": 60,
-    "estimated_price_usd_high": 110,
-    "supersedes": ["WPW10876537"],
-    "aftermarket_equivalents": ["SUP-W10876537"]
+  "by_source": {
+    "sears":        [{"part_number": "...", "name": "...", "price_usd": 89.99}],
+    "repairclinic": [...],
+    "partspros":    [...],
+    "partselect":   [...]
   },
-  "alternates": [
-    { ...same shape... }
-  ],
-  "verify_at": [
-    "https://www.searspartsdirect.com/search?q=W10876537",
-    "https://www.repairclinic.com/Shop-For-Parts?search=W10876537"
-  ],
-  "confidence_notes": "Why this confidence level — what's known vs guessed"
-}`;
+  "fetch_errors": ["sears: 503", ...],
+  "best_guess_oem": "W10876537",
+  "best_guess_reasoning": "All 4 sites return the same OEM part for this model+component, matching Whirlpool's W-prefix convention."
+}
+
+Rules:
+  - Only return part numbers that are clearly identified as the OEM
+    part number on the page (or the SKU shown next to the part name)
+  - If a source returned no relevant results, set its array to []
+  - If a source's HTML is an anti-bot/captcha page, note in fetch_errors
+  - best_guess_oem should be the part number that appears across the
+    MOST sources (with the same number). If multiple parts tie, pick
+    the one with the most matches and note alternatives in reasoning.
+  - Normalize part numbers: uppercase, strip leading zeros, no dashes
+    unless they're part of the canonical number
+  - Brand-family note: Whirlpool/Maytag/KitchenAid/Amana/JennAir share
+    W-prefix; GE/Hotpoint/Cafe share WR-prefix; group equivalents.`;
 
 exports.handler = async (event) => {
-  if (event.httpMethod === 'OPTIONS') {
-    return cors(200, '');
-  }
-  if (event.httpMethod !== 'POST') {
-    return cors(405, JSON.stringify({ error: 'method_not_allowed' }));
-  }
+  if (event.httpMethod === 'OPTIONS') return cors(200, '');
+  if (event.httpMethod !== 'POST') return cors(405, JSON.stringify({ error: 'method_not_allowed' }));
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
@@ -85,20 +103,84 @@ exports.handler = async (event) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return cors(500, JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }));
 
-  const userMessage =
-    `Brand: ${brand || '(unknown)'}\n` +
-    `Appliance: ${appliance || '(unknown)'}\n` +
-    `Model number: ${model || '(unknown)'}\n` +
-    `Failed component: ${component || '(unknown)'}\n` +
-    (symptoms ? `Symptoms: ${symptoms}\n` : '') +
-    `\nReturn the JSON object only.`;
+  // ── Step 1: build a search query that works across all 4 sites ───
+  // Model + component is the most universally-effective shape.
+  // Brand-only or component-only is too broad. Model alone misses the
+  // specific part.
+  const queryParts = [brand, model, component].filter(Boolean);
+  const query = queryParts.join(' ');
+
+  // ── Step 2: parallel HTML fetch ──────────────────────────────────
+  const fetched = await Promise.all(
+    SOURCES.map(async (s) => {
+      const url = s.buildUrl(query);
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': USER_AGENT,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+          },
+          signal: ac.signal,
+        });
+        clearTimeout(timer);
+        const text = await res.text();
+        return {
+          source_id: s.id,
+          source_name: s.name,
+          url,
+          status: res.status,
+          html: text.slice(0, MAX_HTML_PER_SOURCE),
+          error: res.ok ? null : `HTTP ${res.status}`,
+        };
+      } catch (err) {
+        clearTimeout(timer);
+        return {
+          source_id: s.id,
+          source_name: s.name,
+          url,
+          status: 0,
+          html: '',
+          error: (err && err.name === 'AbortError') ? 'timeout' : (err.message || 'fetch_failed'),
+        };
+      }
+    })
+  );
+
+  // ── Step 3: Claude parses all HTML in one call ──────────────────
+  // Build a multi-source context block. We give Claude one chunk per
+  // source. For failed fetches, we include the error so Claude can
+  // report fetch_errors rather than hallucinating.
+  const contextLines = [];
+  contextLines.push(`Query: ${query}`);
+  contextLines.push(`Brand: ${brand || '(unknown)'}`);
+  contextLines.push(`Model: ${model || '(unknown)'}`);
+  contextLines.push(`Appliance: ${appliance || '(unknown)'}`);
+  contextLines.push(`Failed component: ${component || '(unknown)'}`);
+  if (symptoms) contextLines.push(`Symptoms: ${symptoms}`);
+
+  let htmlSection = '';
+  for (const f of fetched) {
+    htmlSection += `\n\n--- SOURCE: ${f.source_id} (${f.source_name}) ---\n`;
+    htmlSection += `URL: ${f.url}\n`;
+    if (f.error) {
+      htmlSection += `FETCH ERROR: ${f.error}\n`;
+    } else {
+      htmlSection += `STATUS: ${f.status}\n`;
+      htmlSection += `HTML (truncated to ${MAX_HTML_PER_SOURCE} chars):\n${f.html}\n`;
+    }
+  }
+
+  const userMessage = contextLines.join('\n') + htmlSection + '\n\nReturn the JSON object only.';
 
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
-
-  let resp;
+  const timer = setTimeout(() => ac.abort(), CLAUDE_TIMEOUT_MS);
+  let claudeResp;
   try {
-    resp = await fetch(ANTHROPIC_URL, {
+    claudeResp = await fetch(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -108,7 +190,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1500,
-        system: SYSTEM_PROMPT,
+        system: HTML_PARSE_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       }),
       signal: ac.signal,
@@ -119,57 +201,100 @@ exports.handler = async (event) => {
   }
   clearTimeout(timer);
 
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => '');
-    return cors(resp.status, JSON.stringify({ error: 'claude_non_2xx', detail: errText.slice(0, 300) }));
+  if (!claudeResp.ok) {
+    const errText = await claudeResp.text().catch(() => '');
+    return cors(claudeResp.status, JSON.stringify({ error: 'claude_non_2xx', detail: errText.slice(0, 300) }));
   }
 
-  const data = await resp.json();
+  const data = await claudeResp.json();
   const blocks = data.content || [];
   const rawText = blocks.find((b) => b.type === 'text')?.text || '';
-
-  // Strip code fences if Claude wrapped its JSON
   const stripped = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
   let parsed = null;
   try { parsed = JSON.parse(stripped); }
   catch (_) { /* fall through */ }
 
-  // Source-agreement scoring: today we have 1 source (Claude). All
-  // candidates get a single 'sources_agreeing' = 1. When more sources
-  // land (Marcone API, Tribles Appliance Parts API, scrape sources), the parts that
-  // appear in multiple source responses get sources_agreeing bumped.
-  let candidates = [];
-  if (parsed && parsed.primary_candidate) {
-    candidates.push({ ...parsed.primary_candidate, sources: ['claude'], sources_agreeing: 1, confidence_tier: 'LOW' });
-    for (const a of (parsed.alternates || [])) {
-      candidates.push({ ...a, sources: ['claude'], sources_agreeing: 1, confidence_tier: 'LOW' });
+  if (!parsed) {
+    return cors(200, JSON.stringify({
+      success: false,
+      error: 'claude_parse_failed',
+      raw_preview: stripped.slice(0, 400),
+      fetch_summary: fetched.map((f) => ({ source: f.source_id, status: f.status, error: f.error, html_chars: f.html.length })),
+    }));
+  }
+
+  // ── Step 4: agreement scoring ────────────────────────────────────
+  // Roll up by part number across all sources.
+  const partAgreement = new Map(); // part_number → { sources: Set, names: [], prices: [] }
+  const bySource = parsed.by_source || {};
+  for (const [sourceId, candidates] of Object.entries(bySource)) {
+    for (const c of (candidates || [])) {
+      const pn = normalizePartNumber(c.part_number || '');
+      if (!pn) continue;
+      if (!partAgreement.has(pn)) partAgreement.set(pn, { sources: new Set(), names: [], prices: [] });
+      const entry = partAgreement.get(pn);
+      entry.sources.add(sourceId);
+      if (c.name) entry.names.push(c.name);
+      if (c.price_usd != null) entry.prices.push(Number(c.price_usd));
     }
   }
 
-  // Confidence tier:
-  //   HIGH = sources_agreeing >= 3
-  //   MEDIUM = sources_agreeing == 2
-  //   LOW = sources_agreeing == 1 (Claude solo)
-  // Plus: if Claude's confidence is < 0.5, downgrade to GUESS.
-  candidates = candidates.map((c) => {
+  const aggregated = Array.from(partAgreement.entries()).map(([pn, m]) => {
+    const sourcesAgreeing = m.sources.size;
     let tier = 'LOW';
-    if (c.sources_agreeing >= 3) tier = 'HIGH';
-    else if (c.sources_agreeing === 2) tier = 'MEDIUM';
-    if ((c.confidence_0_1 || 0) < 0.5 && tier === 'LOW') tier = 'GUESS';
-    return { ...c, confidence_tier: tier };
-  });
+    if (sourcesAgreeing >= 3) tier = 'HIGH';
+    else if (sourcesAgreeing === 2) tier = 'MEDIUM';
+    const priceLow = m.prices.length ? Math.min(...m.prices) : null;
+    const priceHigh = m.prices.length ? Math.max(...m.prices) : null;
+    // Best name = the most common one (just pick the first for now)
+    const name = m.names[0] || '';
+    return {
+      part_number: pn,
+      name,
+      sources: Array.from(m.sources),
+      sources_agreeing: sourcesAgreeing,
+      confidence_tier: tier,
+      estimated_price_usd_low: priceLow,
+      estimated_price_usd_high: priceHigh,
+    };
+  }).sort((a, b) => b.sources_agreeing - a.sources_agreeing);
+
+  // If Claude provided a "best_guess_oem" and it's not in the aggregated
+  // list (because no source listed it explicitly), add it as a LOW tier
+  // entry — Claude's reasoning is still a useful signal.
+  const guess = parsed.best_guess_oem ? normalizePartNumber(parsed.best_guess_oem) : '';
+  if (guess && !aggregated.find((a) => a.part_number === guess)) {
+    aggregated.push({
+      part_number: guess,
+      name: '',
+      sources: ['claude_reasoning'],
+      sources_agreeing: 1,
+      confidence_tier: 'LOW',
+      reasoning: parsed.best_guess_reasoning || '',
+    });
+  }
+
+  const sourcesQueried = SOURCES.map((s) => s.id);
+  const fetchErrors = fetched.filter((f) => f.error).map((f) => `${f.source_id}: ${f.error}`);
 
   return cors(200, JSON.stringify({
     success: true,
     input: { brand, appliance_type: appliance, model_number: model, failed_component: component, symptoms },
-    candidates,
-    verify_at: (parsed && parsed.verify_at) || [],
-    confidence_notes: (parsed && parsed.confidence_notes) || '',
-    sources_queried: ['claude'],
-    note: 'Phase 1 — Claude solo. Marcone + Tribles Appliance Parts API integration pending. Source-agreement scoring upgrades automatically when more sources land.',
-    raw_preview: stripped.slice(0, 600),
+    query,
+    candidates: aggregated,
+    sources_queried: sourcesQueried,
+    sources_succeeded: fetched.filter((f) => !f.error).map((f) => f.source_id),
+    fetch_errors: fetchErrors,
+    best_guess_reasoning: parsed.best_guess_reasoning || '',
+    fetch_summary: fetched.map((f) => ({ source: f.source_id, status: f.status, error: f.error, html_chars: f.html.length })),
+    note: 'Phase 2 — 4 web sources + Claude HTML parser. Marcone + Tribles Appliance Parts APIs slot in as anchor sources when available.',
   }, null, 2));
 };
+
+function normalizePartNumber(s) {
+  return String(s || '').toUpperCase().replace(/\s+/g, '').replace(/^0+/, '');
+}
 
 function cors(status, body) {
   return {
