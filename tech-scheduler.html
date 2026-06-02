@@ -1,1815 +1,485 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<title>Ant Scheduler</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<title>My Schedule · Ant</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    width: 100%;
-    max-width: 100vw;
-    overflow-x: hidden;
-    background: #000000;
-    color: #e8edf5;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  html { height: 100%; }
-  body { min-height: 100%; }
-
-  /* Wrap-with-cutout palette: pure black wrap, stainless steel cutout,
-     LED-white accent (Cybertruck headlight feel — not blue, not cyan, pure cold white). */
   :root {
-    --bg-0: #000000;       /* matte black wrap */
-    --bg-1: #050505;
-    --bg-2: #0a0a0a;
-    --led: #f0f5ff;        /* LED cold white */
-    --led-dim: rgba(240,245,255,0.5);
-    --led-glow: rgba(240,245,255,0.18);
-    --steel-1: #f5f7fa;
-    --steel-2: #cfd4dd;
-    --steel-3: #7a8190;
-    --steel-4: #1a1d24;
-    --text: #e8edf5;
-    --text-dim: #7a8190;
-    --line: rgba(240,245,255,0.06);
+    --bg: #0a0e14;
+    --bg-elev: #131922;
+    --bg-elev2: #1c2330;
+    --line: #2a3344;
+    --text: #e6edf3;
+    --muted: #8a96a8;
+    --accent: #4cc9c0;
+    --accent-2: #ffb454;
+    --danger: #ff6b6b;
+    --good: #6bcb77;
   }
-
-  /* ── 1. Background canvas: deep space + faint grid + radial glow ───── */
-  /* Pure-black wrap base. Subtle radial highlight ONLY behind the ANT so
-     it looks like LED ambient bleed from behind a milled-steel cutout. */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background:
-      radial-gradient(ellipse 60% 45% at 50% 50%, rgba(240,245,255,0.08), transparent 65%),
-      #000000;
-    z-index: -3;
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 12px 14px 80px; }
+  header.bar { display: flex; align-items: center; gap: 10px; padding: 10px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .h-title { font-size: 19px; font-weight: 700; }
+  .h-sub { color: var(--muted); font-size: 13px; margin-left: auto; }
+  /* PIN gate */
+  .gate { padding: 32px 16px; text-align: center; max-width: 400px; margin: 40px auto; background: var(--bg-elev); border-radius: 14px; border: 1px solid var(--line); }
+  .gate h2 { margin: 0 0 8px; }
+  .gate p { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  .gate input { font-size: 18px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 200px; text-align: center; letter-spacing: 2px; }
+  .gate button { font-size: 16px; padding: 12px 22px; margin-top: 12px; border-radius: 10px; border: 0; background: var(--accent); color: #0a0e14; font-weight: 700; cursor: pointer; }
+  .gate .err { color: var(--danger); margin-top: 10px; font-size: 13px; min-height: 18px; }
+  /* sections */
+  section { background: var(--bg-elev); border-radius: 14px; border: 1px solid var(--line); margin-bottom: 14px; }
+  .sec-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; user-select: none; }
+  .sec-head h3 { margin: 0; font-size: 15px; font-weight: 700; flex: 1; }
+  .sec-head .toggle { color: var(--muted); font-size: 13px; }
+  .sec-body { padding: 0 14px 14px; }
+  /* profile cards */
+  .pf-grid { display: grid; gap: 10px; grid-template-columns: 1fr; }
+  @media (min-width: 560px) { .pf-grid { grid-template-columns: 1fr 1fr; } }
+  .pf-card { background: var(--bg-elev2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .pf-card label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .pf-card input[type=text], .pf-card input[type=time], .pf-card input[type=number], .pf-card textarea, .pf-card select {
+    width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 8px;
   }
-  /* Subtle brushed-metal noise texture across the page */
-  body::after {
-    content: '';
-    position: fixed; inset: 0;
-    background:
-      repeating-linear-gradient(90deg, transparent 0px, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 3px);
-    z-index: -2;
-    pointer-events: none;
-  }
-
-  /* ── 2. Hero backdrop: massive chrome ANT text + ant silhouette ───── */
-  .hero-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    width: 100vw;
-    max-width: 100vw;
-  }
-  /* Stainless-steel ANT cutout: brushed steel gradient inside the letters,
-     LED ambient glow bleeding from behind (as if light is leaking through
-     a milled-out section of the black wrap). */
-  .hero-ant-text {
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 900;
-    letter-spacing: 0.02em;
-    /* Constrain so 3 letters + letter-spacing fit ≤90vw — no horizontal shift */
-    font-size: clamp(160px, 28vw, 420px);
-    line-height: 0.9;
-    max-width: 90vw;
-    text-align: center;
-    background:
-      /* highlight band (top of letter polish) */
-      linear-gradient(
-        180deg,
-        #ffffff 0%,
-        #e8eef5 8%,
-        #cfd4dd 22%,
-        #7a8190 42%,
-        #1a1d24 58%,
-        #7a8190 72%,
-        #cfd4dd 86%,
-        #f0f2f5 96%,
-        #ffffff 100%
-      );
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    opacity: 0.85;
-    /* dual drop shadows = inner LED bleed + carved-edge depth */
-    filter:
-      drop-shadow(0 0 80px rgba(240,245,255,0.25))
-      drop-shadow(0 0 30px rgba(240,245,255,0.12))
-      drop-shadow(0 6px 0 rgba(0,0,0,0.9));
-    user-select: none;
-    text-align: center;
-    animation: ledPulse 5s ease-in-out infinite;
-  }
-  @keyframes ledPulse {
-    0%, 100% {
-      filter:
-        drop-shadow(0 0 80px rgba(240,245,255,0.25))
-        drop-shadow(0 0 30px rgba(240,245,255,0.12))
-        drop-shadow(0 6px 0 rgba(0,0,0,0.9));
-    }
-    50% {
-      filter:
-        drop-shadow(0 0 120px rgba(240,245,255,0.45))
-        drop-shadow(0 0 50px rgba(240,245,255,0.22))
-        drop-shadow(0 6px 0 rgba(0,0,0,0.9));
-    }
-  }
-
-  /* Brushed-metal stripe overlay across the ANT letters (subtle) */
-  .hero-backdrop::before {
-    content: '';
-    position: absolute;
-    inset: 25% 5% 25% 5%;
-    background: repeating-linear-gradient(
-      90deg,
-      transparent 0px,
-      transparent 1px,
-      rgba(255,255,255,0.03) 1px,
-      rgba(255,255,255,0.03) 2px
-    );
-    pointer-events: none;
-    mix-blend-mode: overlay;
-  }
-  /* Single thin LED sweep across the ANT (slow horizontal pass) */
-  .hero-backdrop::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(240,245,255,0.7), transparent);
-    box-shadow: 0 0 12px rgba(240,245,255,0.6);
-    animation: ledSweep 8s ease-in-out infinite;
-    pointer-events: none;
-  }
-  @keyframes ledSweep {
-    0%   { transform: translateX(-100%); opacity: 0; }
-    15%  { opacity: 1; }
-    85%  { opacity: 1; }
-    100% { transform: translateX(100%); opacity: 0; }
-  }
-
-  /* ── HUD frame: corner brackets that frame the entire viewport ───── */
-  .hud-corners {
-    position: fixed; inset: 8px;
-    z-index: 5;
-    pointer-events: none;
-  }
-  .hud-corners::before,
-  .hud-corners::after,
-  .hud-corners .br,
-  .hud-corners .bl {
-    content: '';
-    position: absolute;
-    width: 18px; height: 18px;
-    border-color: rgba(240,245,255,0.4);
-    border-style: solid;
-    border-width: 0;
-  }
-  .hud-corners::before { top: 0; left: 0;  border-top-width: 2px; border-left-width: 2px; }
-  .hud-corners::after  { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
-  .hud-corners .bl     { bottom: 0; left: 0;  border-bottom-width: 2px; border-left-width: 2px; }
-  .hud-corners .br     { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
-
-  /* HUD status bar at the very top — 2090 system readout */
-  .hud-statusbar {
-    position: fixed;
-    top: 6px; left: 32px; right: 32px;
-    z-index: 12;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
-    font-size: 9px;
-    letter-spacing: 0.18em;
-    color: rgba(240,245,255,0.55);
-    text-transform: uppercase;
-    pointer-events: none;
-  }
-  .hud-statusbar .group { display: flex; gap: 14px; align-items: center; }
-  .hud-statusbar .dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    background: var(--led);
-    border-radius: 50%;
-    margin-right: 6px;
-    box-shadow: 0 0 6px var(--led-glow), 0 0 12px var(--led-glow);
-    animation: dotPulse 2s ease-in-out infinite;
-  }
-  @keyframes dotPulse {
-    0%, 100% { opacity: 0.5; }
-    50%      { opacity: 1; }
-  }
-  .hud-statusbar .signal { color: rgba(240,245,255,0.7); }
-
-  /* ── 3. App shell ──────────────────────────────────────────────── */
-  .app {
-    position: relative;
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    z-index: 1;
-    /* Reserve space at the bottom for the fixed composer so the chat
-       area never gets covered. 56px input + 16px padding + safe-area
-       + extra cushion so growing textarea doesn't clip messages. */
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
-  }
-
-  /* ── 3.5 Primary action bar — NAV + OTW + CALL + START JOB ── */
-  .action-bar {
-    padding: 8px 10px;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1.4fr;
-    gap: 6px;
-    background: rgba(0,0,0,0.55);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--line);
-    width: 100%;
-    max-width: 100vw;
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-  .action-btn {
-    position: relative;
-    min-width: 0;
-    height: 44px;
-    background: linear-gradient(180deg, rgba(30,38,55,0.85), rgba(14,22,40,0.85));
-    border: 1px solid rgba(255,255,255,0.10);
-    color: var(--text);
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.10em;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 0 6px;
-    /* Cybertruck angular cut corners (smaller for narrow phones) */
-    clip-path: polygon(
-      8px 0,
-      calc(100% - 8px) 0,
-      100% 8px,
-      100% calc(100% - 8px),
-      calc(100% - 8px) 100%,
-      8px 100%,
-      0 calc(100% - 8px),
-      0 8px
-    );
-    transition: all 0.15s;
-    -webkit-appearance: none;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .action-btn .emoji {
-    font-size: 14px;
-    filter: drop-shadow(0 0 4px rgba(240,245,255,0.4));
-  }
-  .action-btn:active { transform: scale(0.98); }
-  .action-btn.primary {
-    background: linear-gradient(180deg, rgba(240,245,255,0.18), rgba(54,205,255,0.10));
-    border-color: rgba(240,245,255,0.55);
-    color: var(--cyan);
-    text-shadow: 0 0 6px rgba(240,245,255,0.4);
-    box-shadow:
-      0 0 0 1px rgba(240,245,255,0.10),
-      0 0 18px rgba(240,245,255,0.18) inset,
-      0 0 22px rgba(240,245,255,0.18);
-  }
-  .action-btn.primary:hover { box-shadow: 0 0 0 1px rgba(240,245,255,0.20), 0 0 28px rgba(240,245,255,0.28); }
-
-  /* Header — sticky so chat scrolls UNDER it with backdrop blur. */
-  .topbar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.82) 100%);
-    backdrop-filter: blur(14px) saturate(150%);
-    -webkit-backdrop-filter: blur(14px) saturate(150%);
-    width: 100%;
-    max-width: 100vw;
-    box-sizing: border-box;
-    overflow: hidden;
-  }
-  /* Action bar also sticky so it stays visible while chat scrolls. */
-  .action-bar {
-    position: sticky;
-    z-index: 9;
-  }
-  .topbar-row1 {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .ant-mark {
-    width: 36px; height: 36px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #1a1f2c, #0a1020);
-    border: 1px solid rgba(240,245,255,0.35);
-    display: flex; align-items: center; justify-content: center;
-    box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.06),
-      0 0 12px rgba(240,245,255,0.22);
-    flex-shrink: 0;
-    position: relative;
-  }
-  .ant-mark::before {
-    content: '🐜';
-    font-size: 20px;
-    filter: drop-shadow(0 0 4px rgba(240,245,255,0.6));
-  }
-  .ant-mark::after {
-    content: '';
-    position: absolute; inset: -2px;
-    border-radius: 12px;
-    border: 1px solid rgba(240,245,255,0.18);
-    animation: pulseRing 2.8s ease-in-out infinite;
-  }
-  @keyframes pulseRing {
-    0%, 100% { opacity: 0.3; transform: scale(1); }
-    50%      { opacity: 0.8; transform: scale(1.06); }
-  }
-  .topbar-title-block { flex: 1; min-width: 0; }
-  .topbar-title {
-    font-family: 'Orbitron', sans-serif;
-    font-weight: 700;
-    font-size: 18px;
-    letter-spacing: 0.12em;
-    background: linear-gradient(180deg, #ffffff 0%, #d8dde6 50%, #8a93aa 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .topbar-tagline {
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    margin-top: 2px;
-    font-family: 'Inter', monospace;
-  }
-  .topbar-tagline .cyan { color: var(--cyan); }
-  .topbar-row2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--text-dim);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .topbar-row2::-webkit-scrollbar { display: none; }
-  .ctx-pill {
-    padding: 5px 11px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    white-space: nowrap;
-    font-family: 'Inter', sans-serif;
-    font-size: 11px;
-    color: var(--text-dim);
-    flex-shrink: 0;
-  }
-  .ctx-pill.cyan {
-    border-color: rgba(240,245,255,0.30);
-    color: var(--cyan);
-    background: rgba(240,245,255,0.06);
-  }
-  .ctx-pill .label {
-    color: rgba(138,147,170,0.7);
-    margin-right: 4px;
-    font-weight: 500;
-  }
-
-  /* Quick action chips inside header */
-  .topbar-actions {
-    display: flex;
-    gap: 6px;
-    margin-left: auto;
-    flex-shrink: 0;
-  }
-  .topbar-action {
-    width: 34px; height: 34px;
-    border-radius: 9px;
-    border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(255,255,255,0.04);
-    color: var(--text);
-    font-size: 15px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    -webkit-appearance: none;
-    transition: all 0.15s;
-  }
-  .topbar-action:hover { border-color: var(--cyan-dim); background: rgba(240,245,255,0.08); }
-  .topbar-action:active { transform: scale(0.94); }
-
-  /* ── 4. Chat area ──────────────────────────────────────────────── */
-  .chat-stage {
-    flex: 1 1 auto;
-    overflow-y: visible;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    padding: 18px 16px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    position: relative;
-    min-height: 200px;
-  }
-  .chat-stage::-webkit-scrollbar { width: 3px; }
-  .chat-stage::-webkit-scrollbar-thumb { background: rgba(240,245,255,0.18); border-radius: 2px; }
-
-  /* Empty state — sits centered in the chat area when there are no messages */
-  .empty-state {
-    margin: auto;
-    max-width: 360px;
-    text-align: center;
-    color: var(--text);
-    padding: 40px 16px;
-    user-select: none;
-    position: relative;
-    z-index: 2;
-  }
-  .empty-state .glyph {
-    font-size: 64px;
-    margin-bottom: 16px;
-    opacity: 0.95;
-    filter: drop-shadow(0 0 24px rgba(240,245,255,0.45));
-    animation: float 4s ease-in-out infinite;
-  }
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-10px); }
-  }
-  .empty-state .line1 {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 16px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(240,245,255,0.92);
-    margin-bottom: 14px;
-    text-shadow: 0 0 12px rgba(240,245,255,0.3);
-  }
-  .empty-state .line2 {
-    font-size: 14px;
-    color: rgba(240,245,255,0.65);
-    line-height: 1.6;
-    margin-bottom: 24px;
-  }
-  .empty-state .hint-row {
-    display: flex;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 18px;
-    font-size: 12px;
-    color: rgba(240,245,255,0.5);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-family: 'Orbitron', sans-serif;
-  }
-  .empty-state .hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: rgba(240,245,255,0.04);
-    border: 1px solid rgba(240,245,255,0.12);
-    border-radius: 999px;
-  }
-  .empty-state .hint .ico { font-size: 14px; }
-
-  /* Message bubble (template — for later wiring) */
-  .msg {
-    display: flex;
-    gap: 10px;
-    animation: msgIn 0.3s ease forwards;
-    max-width: 92%;
-  }
-  .msg.ant { align-self: flex-start; }
-  .msg.you { align-self: flex-end; flex-direction: row-reverse; }
-  @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-  .msg-av {
-    width: 28px; height: 28px;
-    border-radius: 8px;
-    flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px;
-    margin-top: 2px;
-  }
-  .msg.ant .msg-av {
-    background: linear-gradient(135deg, rgba(240,245,255,0.16), rgba(240,245,255,0.06));
-    border: 1px solid rgba(240,245,255,0.35);
-  }
-  .msg.you .msg-av {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.10);
-    font-size: 10px;
-    color: var(--text-dim);
-    letter-spacing: 0.04em;
-  }
-
-  .msg-bubble {
-    padding: 12px 14px;
-    border-radius: 14px;
-    font-size: 14px;
-    line-height: 1.55;
-    word-wrap: break-word;
-    overflow-wrap: anywhere;
-  }
-  .msg.ant .msg-bubble {
-    background: linear-gradient(180deg, rgba(20,28,46,0.94), rgba(14,20,34,0.94));
-    border: 1px solid rgba(240,245,255,0.18);
-    border-top-left-radius: 4px;
-    color: var(--text);
-    box-shadow: 0 2px 12px rgba(240,245,255,0.06);
-  }
-  .msg.you .msg-bubble {
-    background: linear-gradient(180deg, rgba(240,245,255,0.92), rgba(54,205,255,0.92));
-    border-top-right-radius: 4px;
-    color: #03060c;
-    font-weight: 500;
-  }
-
-  /* ── 5. Composer ──────────────────────────────────────────────── */
-  /* Composer pinned to the actual bottom of the visible viewport.
-     position: fixed dodges the iOS 100vh / dynamic-URL-bar issue
-     that was hiding the composer below the visible area. */
-  .composer {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    z-index: 20;
-    padding: 0 0 env(safe-area-inset-bottom) 0;
-    border-top: 1px solid rgba(240,245,255,0.25);
-    background: linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,1) 100%);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    width: 100vw;
-    max-width: 100vw;
-    box-sizing: border-box;
-  }
-  .composer-inner {
-    display: flex;
-    align-items: flex-end;
-    gap: 6px;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    padding: 8px 8px;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    width: 100%;
-    max-width: 100vw;
-    box-sizing: border-box;
-  }
-  .composer-inner:focus-within {
-    border-color: var(--cyan-dim);
-    box-shadow: 0 0 0 3px var(--cyan-glow);
-  }
-  .composer-btn {
-    width: 42px; height: 42px;
-    flex-shrink: 0;
-    border-radius: 11px;
-    background: rgba(240,245,255,0.06);
-    border: 1px solid rgba(240,245,255,0.20);
-    color: var(--text);
-    font-size: 18px;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    -webkit-appearance: none;
-    transition: all 0.15s;
-  }
-  .composer-btn:hover { border-color: rgba(240,245,255,0.50); background: rgba(240,245,255,0.10); }
-  .composer-btn:active { transform: scale(0.94); }
-  .composer-btn.mic {
-    background: rgba(240,245,255,0.10);
-    border-color: rgba(240,245,255,0.45);
-    box-shadow: 0 0 14px rgba(240,245,255,0.18);
-  }
-  .composer-btn.handsfree { font-size: 18px; }
-  .composer-btn.handsfree.active {
-    background: rgba(74,245,255,0.18);
-    border-color: rgba(74,245,255,0.6);
-    color: #4af5ff;
-    box-shadow: 0 0 18px rgba(74,245,255,0.35);
-    animation: hfPulse 1.4s ease-in-out infinite;
-  }
-  @keyframes hfPulse {
-    0%, 100% { box-shadow: 0 0 14px rgba(74,245,255,0.30); }
-    50%      { box-shadow: 0 0 28px rgba(74,245,255,0.55); }
-  }
-  .composer-btn.send {
-    background: linear-gradient(135deg, #f5f7fa, #cfd4dd);
-    color: #000;
-    border-color: #f5f7fa;
-    box-shadow: 0 0 18px rgba(240,245,255,0.45);
-  }
-  .composer-btn.send:hover { box-shadow: 0 0 26px rgba(240,245,255,0.65); }
-  .composer-input {
-    flex: 1;
-    min-width: 0;
-    background: rgba(10,16,32,0.6);
-    border: 1px solid rgba(240,245,255,0.10);
-    border-radius: 12px;
-    outline: none;
-    color: var(--text);
-    font-family: 'Inter', sans-serif;
-    font-size: 16px;
-    line-height: 1.4;
-    padding: 10px 12px;
-    resize: none;
-    max-height: 120px;
-    min-height: 40px;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .composer-input:focus {
-    border-color: rgba(240,245,255,0.50);
-    box-shadow: 0 0 0 2px rgba(240,245,255,0.10);
-  }
-  .composer-input::placeholder { color: rgba(138,147,170,0.5); }
-
-  /* Typing dots (Ant thinking indicator) */
-  .typing-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: rgba(240,245,255,0.7);
-    margin: 0 2px;
-    animation: typingBounce 1.2s infinite ease-in-out;
-  }
-  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes typingBounce {
-    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
-    40%           { transform: translateY(-4px); opacity: 1; }
-  }
-
-  /* Reduced-motion respect */
-  @media (prefers-reduced-motion: reduce) {
-    .hero-ant-text, .ant-mark::after, .empty-state .glyph, .typing-dot { animation: none !important; }
-  }
+  .pf-card textarea { min-height: 72px; resize: vertical; }
+  .pf-card.full { grid-column: 1 / -1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 8px 12px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; transition: 0.15s; }
+  .chip.on { background: var(--accent); color: #0a0e14; border-color: var(--accent); font-weight: 600; }
+  .chip.num { min-width: 38px; text-align: center; }
+  .toggle-row { display: flex; align-items: center; gap: 12px; }
+  .toggle-row .tg { width: 52px; height: 30px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; position: relative; cursor: pointer; transition: 0.15s; flex-shrink: 0; }
+  .toggle-row .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; background: var(--muted); border-radius: 50%; transition: 0.15s; }
+  .toggle-row .tg.on { background: var(--accent); border-color: var(--accent); }
+  .toggle-row .tg.on::after { left: 27px; background: #0a0e14; }
+  .toggle-row .tg-label { flex: 1; font-size: 14px; }
+  .radio-row { display: flex; gap: 6px; }
+  .radio-row .chip { flex: 1; text-align: center; }
+  /* save banner */
+  .save-banner { position: sticky; bottom: 0; background: var(--accent); color: #0a0e14; padding: 12px; font-weight: 700; font-size: 14px; text-align: center; border-radius: 10px; margin: 8px 14px; box-shadow: 0 -2px 12px rgba(76, 201, 192, 0.3); display: none; }
+  .save-banner.dirty { display: block; }
+  .save-banner.saved { background: var(--good); }
+  /* quick actions */
+  .quick-actions { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; margin-bottom: 14px; }
+  .qa { padding: 14px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-elev2); color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; }
+  .qa:active { transform: scale(0.97); border-color: var(--accent); }
+  /* calendar */
+  .cal-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .cal-day { background: var(--bg-elev2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .cal-day.today { border-color: var(--accent); }
+  .cal-day.off { opacity: 0.55; border-style: dashed; }
+  .cal-day-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .cal-dow { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; min-width: 40px; }
+  .cal-date { font-size: 16px; font-weight: 700; flex: 1; }
+  .cal-count { font-size: 12px; color: var(--muted); }
+  .cal-offbtn { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+  .cal-offbtn.on { background: var(--danger); color: white; border-color: var(--danger); }
+  .cal-jobs { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .cal-job { background: var(--bg); padding: 6px 10px; border-radius: 6px; font-size: 13px; display: flex; gap: 8px; }
+  .cal-job .t { color: var(--accent); font-weight: 600; min-width: 60px; }
+  .cal-job .who { flex: 1; }
+  .cal-job .what { color: var(--muted); font-size: 12px; }
+  .cal-off-label { color: var(--danger); font-size: 13px; font-weight: 600; }
+  /* SMS reference */
+  .sms-list { display: grid; gap: 8px; }
+  .sms-row { background: var(--bg-elev2); padding: 10px 12px; border-radius: 8px; }
+  .sms-row code { background: var(--bg); padding: 2px 8px; border-radius: 4px; color: var(--accent); font-family: "SF Mono", Menlo, monospace; font-size: 13px; }
+  .sms-row .ex { color: var(--muted); font-size: 13px; display: block; margin-top: 4px; }
+  .err { color: var(--danger); padding: 12px; text-align: center; }
+  .spinner { text-align: center; color: var(--muted); padding: 40px; }
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<!-- HUD frame: corner brackets + top status bar — 2090 sci-fi readout -->
-<div class="hud-corners" aria-hidden="true"><i class="bl"></i><i class="br"></i></div>
-<div class="hud-statusbar" aria-hidden="true">
-  <div class="group">
-    <span><span class="dot"></span>ONLINE</span>
-  </div>
-  <div class="group">
-    <span id="hud-time">--:--</span>
-  </div>
+<!-- PIN gate -->
+<div id="pinGate" class="gate" style="display:none">
+  <h2>My Schedule</h2>
+  <p>Enter your PIN to view + edit your profile.</p>
+  <input id="pinInput" type="tel" inputmode="numeric" maxlength="6" placeholder="••••">
+  <br>
+  <button id="pinSubmit">Unlock →</button>
+  <div id="pinErr" class="err"></div>
 </div>
 
-<!-- Hero backdrop: giant centered stainless ANT cutout with LED bleed -->
-<div class="hero-backdrop" aria-hidden="true">
-  <div class="hero-ant-text">ANT</div>
-</div>
+<!-- Main UI -->
+<div id="main" style="display:none">
 
-<!-- App shell -->
-<div class="app">
-
-  <!-- Header -->
-  <header class="topbar">
-    <div class="topbar-row1">
-      <div class="ant-mark" aria-hidden="true"></div>
-      <div class="topbar-title-block">
-        <div class="topbar-title">ANT &middot; SCHEDULER</div>
-        <div class="topbar-tagline">move jobs &middot; reach customers &middot; <span class="cyan">your dispatch</span></div>
-      </div>
-    </div>
-    <div class="topbar-row2" id="ctx-pills">
-      <span class="ctx-pill cyan"><span class="label">JOB</span>#18270</span>
-      <span class="ctx-pill"><span class="label">CUST</span>Shenouda Kaleeny</span>
-      <span class="ctx-pill"><span class="label">APPL</span>—</span>
-      <span class="ctx-pill"><span class="label">TIME</span>11:00 AM</span>
-    </div>
+  <header class="bar">
+    <div class="h-title">📅 <span id="tname">My Schedule</span></div>
+    <div class="h-sub" id="today"></div>
   </header>
 
-  <!-- Primary action bar — scheduler-specific quick prompts -->
-  <div class="action-bar">
-    <button class="action-btn" data-prompt="Show my schedule for today">
-      <span class="emoji">📅</span><span>TODAY</span>
-    </button>
-    <button class="action-btn primary" data-prompt="I'm running ahead of schedule. For each of my customers scheduled later today, draft a customer SMS asking if they would like to move their appointment up to an earlier slot today since I have time available. Then ask me which ones you should reach out to first.">
-      <span class="emoji">⚡</span><span>AHEAD</span>
-    </button>
-    <button class="action-btn" data-prompt="I'm running about an hour behind. For each of my customers scheduled later today, draft a 'running behind' SMS letting them know to expect about a 1 hour delay and giving them an updated ETA.">
-      <span class="emoji">⏰</span><span>+1HR</span>
-    </button>
-    <button class="action-btn" data-prompt="Show me the rest of this week for me">
-      <span class="emoji">🗓</span><span>WEEK</span>
-    </button>
+  <!-- Quick actions -->
+  <div class="quick-actions">
+    <div class="qa" data-action="sick">🤒 Sick today</div>
+    <div class="qa" data-action="off_tomorrow">📅 Off tomorrow</div>
+    <div class="qa" data-action="off_friday">🌴 Take next Friday</div>
+    <div class="qa" data-action="more_work">💪 More work today</div>
   </div>
 
-  <!-- Chat stage -->
-  <main class="chat-stage" id="chat-stage">
-    <div class="empty-state" id="empty-state">
-      <div class="glyph">🗓</div>
-      <div class="line1">scheduler ready</div>
-      <div class="line2">tell me what to move. try things like:<br>&ldquo;push my afternoon by an hour&rdquo;<br>&ldquo;reassign 3pm Smith to Jimmy&rdquo;<br>&ldquo;Mark me off tomorrow&rdquo;</div>
-      <div class="hint-row">
-        <span class="hint"><span class="ico">⚡</span>running ahead</span>
-        <span class="hint"><span class="ico">⏰</span>running late</span>
+  <!-- Profile section -->
+  <section id="profileSec">
+    <div class="sec-head" data-target="profileBody">
+      <h3>My Profile</h3>
+      <span class="toggle">tap to collapse ▾</span>
+    </div>
+    <div class="sec-body" id="profileBody">
+      <div class="pf-grid">
+        <div class="pf-card">
+          <label>Start time</label>
+          <input type="time" id="fStart" data-field="preferred_hours_start">
+        </div>
+        <div class="pf-card">
+          <label>End time</label>
+          <input type="time" id="fEnd" data-field="preferred_hours_end">
+        </div>
+        <div class="pf-card">
+          <label>Max stops per day</label>
+          <div class="chips" id="fStops"></div>
+        </div>
+        <div class="pf-card">
+          <label>Max drive (miles)</label>
+          <input type="number" id="fDrive" data-field="max_drive_distance" placeholder="e.g. 60" min="0" max="200">
+        </div>
+        <div class="pf-card full">
+          <label>Appliance specialties</label>
+          <div class="chips" id="fSpec"></div>
+        </div>
+        <div class="pf-card full">
+          <label>Brand exclusions (free text)</label>
+          <textarea id="fBrand" data-field="brand_exclusions" placeholder="e.g. Bosch dishwashers, Sub-Zero ice makers"></textarea>
+        </div>
+        <div class="pf-card">
+          <label>Geographic strategy</label>
+          <div class="radio-row" id="fStrat">
+            <div class="chip" data-strategy="linear">Linear</div>
+            <div class="chip" data-strategy="zone_commit">Single Zone</div>
+          </div>
+        </div>
+        <div class="pf-card">
+          <label>Home zone</label>
+          <input type="text" id="fHome" data-field="home_zone" placeholder="e.g. Antioch">
+        </div>
+        <div class="pf-card full">
+          <div class="toggle-row">
+            <div class="tg-label">Work Saturdays (TN closes Sat/Sun by default — turn on if you want Sat work)</div>
+            <div class="tg" id="fSat" data-field="works_saturdays"></div>
+          </div>
+        </div>
+        <div class="pf-card full">
+          <label>Personal context (anything Ant should know)</label>
+          <textarea id="fContext" data-field="personal_context" placeholder="e.g. kids Wednesdays, no late jobs after 3pm, prefer warranty work"></textarea>
+        </div>
       </div>
     </div>
-  </main>
+  </section>
 
-  <!-- Composer -->
-  <footer class="composer">
-    <div class="composer-inner">
-      <button class="composer-btn mic" title="Tap to talk" aria-label="Voice">🎤</button>
-      <button class="composer-btn handsfree" id="btn-handsfree" title="Hands-free / continuous mic" aria-label="Hands-free">🎙</button>
-      <textarea class="composer-input" id="composer-input"
-        rows="1"
-        placeholder="talk to ant..."
-        aria-label="Talk to Ant"></textarea>
-      <button class="composer-btn send" title="Send" aria-label="Send">↑</button>
+  <!-- Save banner -->
+  <div class="save-banner" id="saveBanner">Saving…</div>
+
+  <!-- Calendar section -->
+  <section>
+    <div class="sec-head"><h3>Next 14 Days</h3><span class="toggle"></span></div>
+    <div class="sec-body">
+      <div class="cal-grid" id="calGrid"><div class="spinner">Loading…</div></div>
     </div>
-  </footer>
+  </section>
 
-</div>
+  <!-- SMS reference -->
+  <section>
+    <div class="sec-head" data-target="smsBody">
+      <h3>Quick SMS Commands</h3>
+      <span class="toggle">tap to expand ▾</span>
+    </div>
+    <div class="sec-body" id="smsBody" style="display:none">
+      <div class="sms-list">
+        <div class="sms-row"><code>OFF FRIDAY</code><span class="ex">Block next Friday entirely</span></div>
+        <div class="sms-row"><code>SICK TODAY</code><span class="ex">Emergency — reassign today's jobs</span></div>
+        <div class="sms-row"><code>HOURS 7-3</code><span class="ex">Update your working hours</span></div>
+        <div class="sms-row"><code>MAX 5</code><span class="ex">Cap daily stops at 5</span></div>
+        <div class="sms-row"><code>MORE WORK</code><span class="ex">Ask Ant to find more jobs today</span></div>
+        <div class="sms-row"><code>STATUS</code><span class="ex">See your current settings</span></div>
+        <div class="sms-row"><code>SKIP HAMMOND</code><span class="ex">Exclude a zone</span></div>
+        <div class="sms-row"><code>NO MICROWAVE</code><span class="ex">Decline an appliance type</span></div>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin:14px 0 0">Text these to <strong>615-857-8800</strong> anytime.</p>
+    </div>
+  </section>
 
-<!-- IndexedDB-backed upload queue: photos+videos persist across page
-     reloads and auto-retry when network returns. Critical for techs
-     in low-signal driveways. -->
-<script src="/tech-upload-manager.js?v=1"></script>
-<!-- CaptureOverlay — proven photo/video capture UI from the public
-     website. Full-screen overlay with retry / gallery fallback / live
-     preview / 10s MP4 cap. Same code the public chat has been
-     hardening since the website launch. -->
-<script src="/capture-overlay.js?v=1"></script>
+</div><!-- /main -->
+</div><!-- /wrap -->
+
 <script>
-// ═══════════════════════════════════════════════════════════════════
-//  TECH-ANT-CHAT — LIVE WIRING
-//  Text · Voice · Photo · Video · Spoken replies
-// ═══════════════════════════════════════════════════════════════════
-(function () {
-  'use strict';
+const API = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
+const SPEC_OPTS = ["washer","dryer","refrigerator","range","dishwasher","microwave","hvac","ice_maker","dryer_vent"];
+const SPEC_LABELS = {washer:"Washer",dryer:"Dryer",refrigerator:"Refrigerator",range:"Range/Oven",dishwasher:"Dishwasher",microwave:"Microwave",hvac:"HVAC",ice_maker:"Ice Maker",dryer_vent:"Dryer Vent"};
 
-  // ── Config + state ────────────────────────────────────────────────
-  const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const params = new URLSearchParams(location.search);
-  const JOB_ID = parseInt(params.get('job_id') || '0', 10);
-  const TECH_ID = parseInt(params.get('tech_id') || '1', 10);
+const qs = new URLSearchParams(location.search);
+const TECH_ID = parseInt(qs.get("tech_id") || "0");
+let PIN = localStorage.getItem("tn_tech_pin_" + TECH_ID) || "";
+let TECH = null;
+let DATA = null;
+let DIRTY = {};
+let SAVE_TIMER = null;
 
-  let sessionId = null;
-  let jobContext = null;
-  let warrantyChecklist = null;      // {vendor, items, next_pending, ...}
-  let warrantyChecklistText = '';    // pre-formatted string sent to brain
-  let isMuted = (localStorage.getItem('ant_muted') === '1');
-  let mediaRecorder = null;
-  let mrChunks = [];
-  let mrStream = null;
-  let voicesReady = false;
-  let preferredVoice = null;
-  let uploadQueue = null;            // tech-upload-manager IndexedDB queue
+const $ = (id) => document.getElementById(id);
+const banner = $("saveBanner");
 
-  // ── Element refs ──────────────────────────────────────────────────
-  const $ = (id) => document.getElementById(id);
-  const chatStage = $('chat-stage');
-  const emptyState = $('empty-state');
-  const composerInput = $('composer-input');
-  const hudTime = $('hud-time');
-  const ctxPills = $('ctx-pills');
+function showGate(msg) {
+  $("pinGate").style.display = "block";
+  $("main").style.display = "none";
+  if (msg) $("pinErr").textContent = msg;
+  $("pinInput").focus();
+}
+function hideGate() {
+  $("pinGate").style.display = "none";
+  $("main").style.display = "block";
+}
 
-  // Wire the scheduler quick-prompt buttons (TODAY / WEEK / PUSH / NEW)
-  document.querySelectorAll('.action-bar .action-btn[data-prompt]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const txt = btn.getAttribute('data-prompt') || '';
-      if (txt) sendToBrain(txt);
-    });
-  });
+$("pinSubmit").addEventListener("click", () => {
+  const v = $("pinInput").value.trim();
+  if (!v) return;
+  PIN = v;
+  localStorage.setItem("tn_tech_pin_" + TECH_ID, v);
+  loadAll();
+});
+$("pinInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("pinSubmit").click();
+});
 
-  // ── HUD clock ─────────────────────────────────────────────────────
-  function tickClock() {
-    if (!hudTime) return;
-    hudTime.textContent = new Date().toLocaleTimeString('en-US', {
-      timeZone: 'America/Chicago',
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-    }) + ' CT';
-  }
-  tickClock(); setInterval(tickClock, 1000);
-
-  // ── Composer textarea autogrow ────────────────────────────────────
-  composerInput.addEventListener('input', () => {
-    composerInput.style.height = 'auto';
-    composerInput.style.height = Math.min(composerInput.scrollHeight, 120) + 'px';
-  });
-  composerInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  });
-  document.querySelector('.composer-btn.send').addEventListener('click', handleSend);
-
-  // ── Text-to-speech (browser SpeechSynthesis) ─────────────────────
-  function loadVoices() {
-    if (!('speechSynthesis' in window)) return;
-    const voices = speechSynthesis.getVoices();
-    if (voices.length === 0) return;
-    voicesReady = true;
-    // Prefer natural-sounding English voices on iOS / macOS / Chrome
-    const order = [
-      /Samantha/i, /Karen/i, /Moira/i, /Ava/i, /Allison/i,
-      /Google US English/i, /Google UK English Female/i,
-      /Microsoft Aria/i, /en-US/i, /en-GB/i,
-    ];
-    for (const re of order) {
-      const v = voices.find(v => re.test(v.name) || re.test(v.lang || ''));
-      if (v) { preferredVoice = v; return; }
-    }
-    preferredVoice = voices[0];
-  }
-  if ('speechSynthesis' in window) {
-    loadVoices();
-    speechSynthesis.onvoiceschanged = loadVoices;
-  }
-  // ── iOS audio unlock: Safari requires a user gesture before audio
-  // playback. First tap on the page silently plays an empty audio
-  // to unlock the audio context. After that all TTS plays.
-  let __audioUnlocked = false;
-  function unlockAudioOnce() {
-    if (__audioUnlocked) return;
-    __audioUnlocked = true;
-    try {
-      // 1-frame silent audio. Playing it on a user gesture unlocks
-      // the audio context for the rest of the page lifetime.
-      const a = new Audio('data:audio/wav;base64,UklGRhgAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
-      a.volume = 0.001;
-      a.play().catch(() => {});
-    } catch (_) {}
-  }
-  ['touchstart','click','keydown'].forEach((evt) => {
-    document.addEventListener(evt, unlockAudioOnce, { once: true, passive: true });
-  });
-
-  // OpenAI TTS first (premium voice, consistent across devices). Falls
-  // back to browser SpeechSynthesis if the API call fails (or returns
-  // unavailable when OPENAI_API_KEY isn't set).
-  let __currentAudio = null;
-  // iOS quirk: when SpeechRecognition or MediaRecorder owns the mic,
-  // audio output gets routed to the earpiece (telephony mode), which
-  // makes playback essentially silent. Pause the mic while Ant speaks,
-  // resume after — this releases iOS audio routing back to the loud
-  // speaker.
-  function suspendMicForPlayback() {
-    if (handsfreeRec) {
-      try { handsfreeRec.stop(); } catch (_) {}
-    }
-  }
-  function resumeMicAfterPlayback() {
-    if (handsfreeOn) {
-      // Small delay so iOS finishes routing back to loud speaker
-      setTimeout(() => {
-        try { if (handsfreeRec) handsfreeRec.start(); } catch (_) {}
-      }, 250);
-    }
-  }
-  // Pre-create + attach a single audio element to the DOM (some iOS
-  // versions refuse to play() elements that aren't already in the
-  // document tree). Reuse the same element for every reply.
-  const __sharedAudio = document.createElement('audio');
-  __sharedAudio.preload = 'auto';
-  __sharedAudio.playsInline = true;
-  __sharedAudio.setAttribute('webkit-playsinline', 'true');
-  __sharedAudio.setAttribute('playsinline', 'true');
-  __sharedAudio.style.display = 'none';
-  document.body.appendChild(__sharedAudio);
-
-  async function speak(text) {
-    if (isMuted || !text) return;
-    if ('speechSynthesis' in window) speechSynthesis.cancel();
-    suspendMicForPlayback();
-    try {
-      const voicePref = localStorage.getItem('ant_voice') || 'onyx';
-      const r = await fetch('/.netlify/functions/tts-speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.slice(0, 1800), voice: voicePref }),
-      });
-      if (!r.ok) {
-        addSystem('error', '🔊 TTS HTTP ' + r.status + ' — falling back to native voice');
-        speakNative(text);
-        return;
-      }
-      const ct = r.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        let info = '';
-        try { const j = await r.json(); info = j.error || JSON.stringify(j).slice(0, 100); } catch (_) {}
-        addSystem('error', '🔊 TTS returned JSON instead of audio: ' + info);
-        speakNative(text);
-        return;
-      }
-      const blob = await r.blob();
-      if (blob.size < 100) {
-        addSystem('error', '🔊 TTS audio empty (size=' + blob.size + ')');
-        speakNative(text);
-        return;
-      }
-      // Revoke any prior URL we created
-      if (__currentAudio && __currentAudio._objUrl) {
-        try { URL.revokeObjectURL(__currentAudio._objUrl); } catch (_) {}
-      }
-      const url = URL.createObjectURL(blob);
-      __sharedAudio.src = url;
-      __sharedAudio._objUrl = url;
-      __currentAudio = __sharedAudio;
-      __sharedAudio.onended = () => { resumeMicAfterPlayback(); };
-      __sharedAudio.onerror = () => {
-        const err = __sharedAudio.error;
-        addSystem('error', '🔊 audio element error: ' + (err ? 'code ' + err.code : 'unknown'));
-        resumeMicAfterPlayback();
-      };
-      try {
-        const p = __sharedAudio.play();
-        if (p && typeof p.then === 'function') {
-          await p;
-        }
-      } catch (playErr) {
-        const ua = navigator.userAgent || '';
-        const browser = /iPhone|iPad|iPod/.test(ua) ? 'Safari' : /Android/i.test(ua) ? 'Chrome' : 'your browser';
-        addSystem('error', '🔊 play() rejected: ' + (playErr.name || '') + ' — ' + (playErr.message || 'unknown') + '. Open this link in ' + browser + ' (not a chat-app in-app preview) so audio can play.');
-        resumeMicAfterPlayback();
-        // Try browser fallback voice too
-        speakNative(text);
-      }
-    } catch (e) {
-      addSystem('error', '🔊 TTS fetch failed: ' + (e.message || 'unknown'));
-      resumeMicAfterPlayback();
-      speakNative(text);
-    }
-  }
-  function speakNative(text) {
-    if (!('speechSynthesis' in window)) return;
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.rate = 1.04; utt.pitch = 1.0; utt.volume = 1.0;
-    if (preferredVoice) utt.voice = preferredVoice;
-    speechSynthesis.speak(utt);
-  }
-  // ── Voice on/off toggle (per-device via localStorage) ────────────
-  const onlineNode = document.querySelector('.hud-statusbar .group:first-child');
-  let voiceLabelEl = null;
-  function renderVoiceLabel() {
-    if (!voiceLabelEl) return;
-    voiceLabelEl.textContent = isMuted ? '🔇 VOICE OFF' : '🔊 VOICE ON';
-  }
-  if (onlineNode) {
-    onlineNode.style.cursor = 'pointer';
-    onlineNode.title = 'Tap toggle voice · double-tap to test playback';
-    voiceLabelEl = document.createElement('span');
-    voiceLabelEl.style.marginLeft = '10px';
-    voiceLabelEl.style.color = 'rgba(240,245,255,0.85)';
-    renderVoiceLabel();
-    onlineNode.appendChild(voiceLabelEl);
-    let lastTap = 0;
-    onlineNode.addEventListener('click', () => {
-      const now = Date.now();
-      if (now - lastTap < 400) {
-        // Double-tap = test playback (helps diagnose iOS audio routing)
-        lastTap = 0;
-        const wasMuted = isMuted;
-        isMuted = false;
-        speak("Audio test — if you can hear this, Ant's voice is working.");
-        if (wasMuted) {
-          setTimeout(() => { isMuted = true; renderVoiceLabel(); }, 4000);
-        }
-        return;
-      }
-      lastTap = now;
-      isMuted = !isMuted;
-      localStorage.setItem('ant_muted', isMuted ? '1' : '0');
-      renderVoiceLabel();
-      if (isMuted) {
-        if ('speechSynthesis' in window) speechSynthesis.cancel();
-        if (__currentAudio) { try { __currentAudio.pause(); } catch (_) {} __currentAudio = null; }
-      }
-    });
-  }
-
-  // ── Chat rendering ────────────────────────────────────────────────
-  function hideEmpty() { if (emptyState) emptyState.style.display = 'none'; }
-  function scrollChatToBottom() {
-    // Page-level scroll (chat-stage no longer scrolls internally).
-    // Use requestAnimationFrame so the new message is laid out first.
-    requestAnimationFrame(() => {
-      const target = document.documentElement.scrollHeight;
-      window.scrollTo({ top: target, behavior: 'smooth' });
-    });
-  }
-  function addMsg(role, text) {
-    if (!text) return;
-    hideEmpty();
-    const wrap = document.createElement('div');
-    wrap.className = 'msg ' + (role === 'user' ? 'you' : 'ant');
-    const av = document.createElement('div');
-    av.className = 'msg-av';
-    av.textContent = role === 'user' ? 'YOU' : '🐜';
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.textContent = text;
-    wrap.appendChild(av);
-    wrap.appendChild(bubble);
-    chatStage.appendChild(wrap);
-    scrollChatToBottom();
-  }
-  let typingEl = null;
-  function showTyping() {
-    hideEmpty();
-    if (typingEl) return;
-    typingEl = document.createElement('div');
-    typingEl.className = 'msg ant';
-    typingEl.innerHTML =
-      '<div class="msg-av">🐜</div>' +
-      '<div class="msg-bubble" style="font-style:italic;opacity:0.7">' +
-      '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
-    chatStage.appendChild(typingEl);
-    chatStage.scrollTop = chatStage.scrollHeight;
-  }
-  function hideTyping() { if (typingEl) { typingEl.remove(); typingEl = null; } }
-
-  // Scheduler doesn't use warranty checklists — keep stubs so the
-  // shared boot code (loadJob → renderHeader) doesn't blow up.
-  async function loadWarrantyChecklist() {}
-
-  // ── Job context boot ──────────────────────────────────────────────
-  async function loadJob() {
-    if (!JOB_ID) {
-      renderHeader({ id: 0, customer: 'no job', appliance: '—', time: '' });
-      return;
-    }
-    try {
-      const r = await fetch(XANO_BASE + '/get_job_for_dashboard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: JOB_ID })
-      });
-      const d = await r.json();
-      jobContext = d;
-      const job = d.job || {};
-      const cust = d.customer || {};
-      const appl = d.appliance || {};
-      const fullName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || 'customer';
-      const applShort = [appl.brand, appl.type].filter(Boolean).join(' ') || (job.appliance_type || '—');
-      let timeStr = '—';
-      if (job.scheduled_start) {
-        try {
-          timeStr = new Date(job.scheduled_start).toLocaleTimeString('en-US', {
-            timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true
-          });
-        } catch (_) {}
-      }
-      renderHeader({ id: job.id || JOB_ID, customer: fullName, appliance: applShort, time: timeStr });
-    } catch (e) {
-      console.warn('loadJob failed', e);
-      renderHeader({ id: JOB_ID, customer: 'load failed', appliance: '—', time: '' });
-    }
-  }
-  function renderHeader({ id, customer, appliance, time }) {
-    ctxPills.innerHTML =
-      '<span class="ctx-pill cyan"><span class="label">JOB</span>#' + escapeHtml(String(id)) + '</span>' +
-      '<span class="ctx-pill"><span class="label">CUST</span>' + escapeHtml(customer) + '</span>' +
-      '<span class="ctx-pill"><span class="label">APPL</span>' + escapeHtml(appliance || '—') + '</span>' +
-      '<span class="ctx-pill"><span class="label">TIME</span>' + escapeHtml(time || '—') + '</span>';
-  }
-  function escapeHtml(s) {
-    return String(s||'').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  }
-
-  // ── Send text to brain ────────────────────────────────────────────
-  async function handleSend() {
-    const text = (composerInput.value || '').trim();
-    if (!text) return;
-    composerInput.value = '';
-    composerInput.style.height = 'auto';
-    await sendToBrain(text);
-  }
-  // Scheduler brain conversation history — pass each turn so Claude
-  // remembers context across messages.
-  const __schedHistory = [];
-
-  async function sendToBrain(text) {
-    addMsg('user', text);
-    showTyping();
-    try {
-      const r = await fetch('/.netlify/functions/tech-scheduler-brain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tech_id: TECH_ID,
-          tech_first_name: (jobContext && jobContext.tech && jobContext.tech.first_name) || '',
-          message: text,
-          history: __schedHistory,
-        })
-      });
-      const data = await r.json();
-      hideTyping();
-      const reply = (data && data.reply) || '';
-      if (reply) {
-        addMsg('assistant', reply);
-        speak(reply);
-        // Keep history compact — last 12 turns
-        __schedHistory.push({ role: 'user', content: text });
-        __schedHistory.push({ role: 'assistant', content: reply });
-        while (__schedHistory.length > 24) __schedHistory.shift();
-      } else if (data && data.error) {
-        addMsg('assistant', 'Brain error: ' + data.error);
-      } else {
-        addMsg('assistant', 'I hit an error — try again in a sec.');
-      }
-    } catch (e) {
-      hideTyping();
-      addMsg('assistant', 'Network hiccup. Try again?');
-    }
-  }
-
-  // ── Voice input: native browser speech first (works without API key),
-  //    Whisper as upgrade when OPENAI_API_KEY is set in Netlify. ──────
-  const micBtn = document.querySelector('.composer-btn.mic');
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let nativeRec = null;
-  let isListening = false;
-
-  micBtn.addEventListener('click', toggleMic);
-
-  function setMicActive(on) {
-    if (on) {
-      micBtn.style.background = 'rgba(255,80,80,0.25)';
-      micBtn.style.borderColor = '#ff5050';
-      micBtn.style.boxShadow = '0 0 18px rgba(255,80,80,0.5)';
-      micBtn.textContent = '⏹';
+document.querySelectorAll(".sec-head[data-target]").forEach(h => {
+  h.addEventListener("click", () => {
+    const body = $(h.dataset.target);
+    if (!body) return;
+    const tog = h.querySelector(".toggle");
+    if (body.style.display === "none") {
+      body.style.display = "block";
+      if (tog) tog.textContent = "tap to collapse ▾";
     } else {
-      micBtn.style.background = '';
-      micBtn.style.borderColor = '';
-      micBtn.style.boxShadow = '';
-      micBtn.textContent = '🎤';
+      body.style.display = "none";
+      if (tog) tog.textContent = "tap to expand ▾";
     }
-  }
+  });
+});
 
-  // ── Hands-free mode (continuous mic) ─────────────────────────────
-  // When ON: native SR runs continuous=true, transcribes each utterance
-  // automatically + sends to brain at sentence boundaries. Stays on
-  // until tech taps 🎙 again or closes the page.
-  let handsfreeOn = (localStorage.getItem('ant_handsfree') === '1');
-  const btnHandsfree = document.getElementById('btn-handsfree');
-  function renderHandsfree() {
-    if (!btnHandsfree) return;
-    btnHandsfree.classList.toggle('active', handsfreeOn);
-    btnHandsfree.title = handsfreeOn
-      ? 'Hands-free ON — tap to stop continuous listening'
-      : 'Hands-free OFF — tap to keep mic on the whole time';
+async function loadAll() {
+  if (!TECH_ID) {
+    showGate("Tech ID missing — open this page from your daily dashboard.");
+    return;
   }
-  renderHandsfree();
-  if (btnHandsfree) {
-    btnHandsfree.addEventListener('click', async () => {
-      handsfreeOn = !handsfreeOn;
-      localStorage.setItem('ant_handsfree', handsfreeOn ? '1' : '0');
-      renderHandsfree();
-      if (handsfreeOn) {
-        // Kick off continuous listening immediately
-        await startHandsfree();
-      } else {
-        stopHandsfree();
-      }
+  try {
+    const r = await fetch(`${API}/get_tech_scheduler_data?tech_id=${TECH_ID}&days_forward=14`);
+    const d = await r.json();
+    if (!d.success) { showGate(d.error === "tech_not_found" ? "Tech not found" : "Load failed"); return; }
+    DATA = d;
+    TECH = d.tech;
+    hideGate();
+    $("tname").textContent = (TECH.first_name || "My") + "'s Schedule";
+    $("today").textContent = "Today: " + d.today_ct;
+    renderProfile();
+    renderCalendar();
+  } catch (e) {
+    showGate("Network error — try again.");
+  }
+}
+
+function renderProfile() {
+  $("fStart").value = TECH.preferred_hours_start || "";
+  $("fEnd").value = TECH.preferred_hours_end || "";
+  $("fDrive").value = TECH.max_drive_distance || "";
+  $("fBrand").value = TECH.brand_exclusions || "";
+  $("fHome").value = TECH.home_zone || "";
+  $("fContext").value = TECH.personal_context || "";
+
+  const stopsCt = $("fStops");
+  stopsCt.innerHTML = "";
+  const currentStops = TECH.max_stops_per_day || 0;
+  for (let i = 4; i <= 10; i++) {
+    const chip = document.createElement("div");
+    chip.className = "chip num" + (i === currentStops ? " on" : "");
+    chip.textContent = i;
+    chip.addEventListener("click", () => {
+      stopsCt.querySelectorAll(".chip").forEach(c => c.classList.remove("on"));
+      chip.classList.add("on");
+      queueSave({ max_stops_per_day: i });
     });
-  }
-  let handsfreeRec = null;
-  async function startHandsfree() {
-    if (!SR) {
-      addMsg('assistant', 'Hands-free needs the browser voice API (iOS Safari + Android Chrome). Use push-to-talk instead.');
-      handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
-      return;
-    }
-    try {
-      handsfreeRec = new SR();
-      handsfreeRec.continuous = true;
-      handsfreeRec.interimResults = true;
-      handsfreeRec.lang = 'en-US';
-      let buffer = '';
-      let silenceTimer = null;
-      handsfreeRec.onstart = () => { isListening = true; setMicActive(true); };
-      handsfreeRec.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const r = e.results[i];
-          if (r.isFinal) {
-            buffer += (r[0] && r[0].transcript) || '';
-            composerInput.value = buffer.trim();
-            // Wait 1.2s of silence before sending — handles "uh", "um"
-            if (silenceTimer) clearTimeout(silenceTimer);
-            silenceTimer = setTimeout(async () => {
-              const text = buffer.trim();
-              if (text.length >= 2) {
-                buffer = '';
-                composerInput.value = '';
-                await sendToBrain(text);
-              }
-            }, 1200);
-          } else {
-            composerInput.value = (buffer + ((r[0] && r[0].transcript) || '')).trim();
-          }
-        }
-      };
-      handsfreeRec.onerror = (e) => {
-        // iOS sometimes throws 'no-speech' — just restart
-        if (e.error === 'no-speech' || e.error === 'aborted') {
-          if (handsfreeOn) { try { handsfreeRec.start(); } catch (_) {} }
-          return;
-        }
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          addMsg('assistant', '🎙 mic permission needed. Hands-free off.');
-          handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
-        }
-        isListening = false; setMicActive(false);
-      };
-      handsfreeRec.onend = () => {
-        // Browser auto-stops after some idle time even with continuous=true.
-        // Re-start if hands-free is still on.
-        if (handsfreeOn) {
-          try { handsfreeRec.start(); } catch (_) {}
-        } else {
-          isListening = false; setMicActive(false);
-        }
-      };
-      handsfreeRec.start();
-    } catch (err) {
-      addMsg('assistant', '🎙 hands-free failed: ' + (err.message || 'unknown'));
-      handsfreeOn = false; localStorage.setItem('ant_handsfree', '0'); renderHandsfree();
-    }
-  }
-  function stopHandsfree() {
-    if (handsfreeRec) {
-      try { handsfreeRec.continuous = false; handsfreeRec.stop(); } catch (_) {}
-      handsfreeRec = null;
-    }
-    isListening = false; setMicActive(false);
+    stopsCt.appendChild(chip);
   }
 
-  async function toggleMic() {
-    // Hands-free mode owns the mic when on — push-to-talk button does nothing
-    if (handsfreeOn) {
-      addMsg('assistant', '🎙 hands-free is on — just talk. Tap 🎙 again to stop.');
-      return;
-    }
-    // Tap to stop if already recording (push-to-talk path)
-    if (isListening) {
-      if (nativeRec) { try { nativeRec.stop(); } catch (_) {} }
-      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-      return;
-    }
-    // FIELD RELIABILITY: native SR runs ON-DEVICE — no network needed.
-    // Whisper is gold-standard but needs cell signal which techs don't
-    // always have. Use native first; fall back to Whisper only if it
-    // isn't supported (older Android, some embedded browsers).
-    if (SR) {
-      try {
-        nativeRec = new SR();
-        nativeRec.continuous = false;
-        nativeRec.interimResults = true;
-        nativeRec.lang = 'en-US';
-        nativeRec.maxAlternatives = 1;
-        let finalText = '';
-        nativeRec.onstart = () => { isListening = true; setMicActive(true); };
-        nativeRec.onresult = (e) => {
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const r = e.results[i];
-            if (r.isFinal) finalText += (r[0] && r[0].transcript) || '';
-            else composerInput.value = (r[0] && r[0].transcript) || '';
-          }
-        };
-        nativeRec.onerror = (e) => {
-          isListening = false; setMicActive(false);
-          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            addMsg('assistant', '🎤 mic permission needed — Settings → Safari → Microphone.');
-          } else if (e.error === 'no-speech') {
-            addMsg('assistant', "Didn't catch that — try again.");
-          } else if (e.error === 'network') {
-            // iOS native SR sometimes wants network. Fall back to Whisper.
-            addMsg('assistant', '🎤 native voice needs signal — recording for Whisper instead, hold + speak.');
-          }
-        };
-        nativeRec.onend = async () => {
-          isListening = false; setMicActive(false);
-          const text = (finalText || composerInput.value || '').trim();
-          if (text) { composerInput.value = ''; await sendToBrain(text); }
-        };
-        nativeRec.start();
-        return;
-      } catch (err) {
-        console.warn('native speech failed, trying whisper', err);
-      }
-    }
-    // Whisper fallback (needs network)
-    const canRecord = navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
-    if (canRecord) {
-      try {
-        mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
-        addMsg('assistant', '🎤 mic permission needed — enable in Safari Settings → Microphone, then retry.');
-        return;
-      }
-      const candidates = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
-      let mime = '';
-      for (const c of candidates) {
-        try {
-          if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) { mime = c; break; }
-        } catch (_) {}
-      }
-      try {
-        mediaRecorder = mime ? new MediaRecorder(mrStream, { mimeType: mime }) : new MediaRecorder(mrStream);
-      } catch (e) {
-        mrStream.getTracks().forEach((t) => t.stop());
-        addMsg('assistant', '🎤 recorder init failed: ' + (e.message || 'unknown'));
-        return;
-      }
-      mrChunks = [];
-      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) mrChunks.push(e.data); };
-      mediaRecorder.onstop = handleMicStop;
-      mediaRecorder.start();
-      isListening = true;
-      setMicActive(true);
-      return;
-    }
-    addMsg('assistant', '🎤 voice not supported in this browser.');
-  }
-
-  async function handleMicStop() {
-    if (mrStream) mrStream.getTracks().forEach(t => t.stop());
-    mrStream = null;
-    isListening = false;
-    setMicActive(false);
-    const mime = (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm';
-    const blob = new Blob(mrChunks, { type: mime });
-    if (blob.size < 600) {
-      addMsg('assistant', '🎤 too short — hold the button + speak, then tap again.');
-      return;
-    }
-    showTyping();
-    try {
-      // Pick a filename extension matching the mime so Whisper accepts it.
-      let ext = 'webm';
-      if (mime.includes('mp4')) ext = 'm4a';
-      else if (mime.includes('ogg')) ext = 'ogg';
-      const fd = new FormData();
-      fd.append('file', blob, 'voice.' + ext);
-      const r = await fetch('/.netlify/functions/whisper-transcribe', { method: 'POST', body: fd });
-      let data;
-      try { data = await r.json(); }
-      catch (_) { data = { error: 'bad whisper response' }; }
-      hideTyping();
-      if (data && data.text) {
-        composerInput.value = '';
-        await sendToBrain(data.text);
-      } else if (data && data.unavailable) {
-        addMsg('assistant', 'Whisper offline — set OPENAI_API_KEY in Netlify.');
-      } else {
-        addMsg('assistant', '🎤 transcription failed: ' + (data.error || 'unknown'));
-      }
-    } catch (e) {
-      hideTyping();
-      addMsg('assistant', '🎤 transcription error: ' + (e.message || 'unknown'));
-    }
-  }
-
-  // ── Photo / video capture — DISABLED on scheduler page ──────────
-  // Camera buttons removed per Teddy: scheduler is text/voice only.
-  const btnPhoto = null;
-  const btnVideo = null;
-  if (false) {  // dead code below — kept so var refs stay legal
-
-  // Native fallback picker for photo
-  const photoInput = document.createElement('input');
-  photoInput.type = 'file';
-  photoInput.accept = 'image/*';
-  photoInput.capture = 'environment';
-  photoInput.style.display = 'none';
-  document.body.appendChild(photoInput);
-  photoInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    for (const f of files) await uploadMedia(f);
-    e.target.value = '';
-  });
-
-  // Native fallback picker for video
-  const videoInput = document.createElement('input');
-  videoInput.type = 'file';
-  videoInput.accept = 'video/*';
-  videoInput.capture = 'environment';
-  videoInput.style.display = 'none';
-  document.body.appendChild(videoInput);
-  videoInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    for (const f of files) await uploadMedia(f);
-    e.target.value = '';
-  });
-
-  btnPhoto.addEventListener('click', () => {
-    if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {
-      window.CaptureOverlay.openPhotoCapture(async (blob, mimeType) => {
-        if (!blob) return;
-        const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: mimeType || 'image/jpeg' });
-        await uploadMedia(file);
-      });
-    } else {
-      photoInput.click();
-    }
-  });
-
-  btnVideo.addEventListener('click', () => {
-    if (window.CaptureOverlay && typeof window.CaptureOverlay.openVideoCapture === 'function') {
-      window.CaptureOverlay.openVideoCapture(async (blob, mimeType) => {
-        if (!blob) return;
-        // Pick extension matching the mime so save_attachment + S3 are happy
-        let ext = 'mp4';
-        if (mimeType && mimeType.includes('webm')) ext = 'webm';
-        else if (mimeType && mimeType.includes('quicktime')) ext = 'mov';
-        const file = new File([blob], 'video-' + Date.now() + '.' + ext, { type: mimeType || 'video/mp4' });
-        await uploadMedia(file);
-      });
-    } else {
-      videoInput.click();
-    }
-  });
-  }  // end of disabled photo/video block (if false)
-
-  async function uploadMedia(file) {
-    const isVideo = (file.type || '').startsWith('video/');
-    const subject = isVideo ? 'video' : 'photo';
-
-    // Use the IndexedDB queue if it's loaded — handles low-signal areas:
-    // file persists across page reload, retries when network returns.
-    // The bubble updates in real time so the tech sees uploading 0% → 100%
-    // → uploaded ✓ (or retrying / failed).
-    if (uploadQueue) {
-      try {
-        await uploadQueue.enqueue(file, { fileType: subject });
-        return;  // onUpdate handler renders the bubble + notifies brain
-      } catch (e) {
-        addSystem('error', '📷 queue enqueue failed: ' + (e.message || 'unknown') + ' — falling back to direct upload');
-      }
-    }
-
-    // Direct upload fallback (no queue — used if IndexedDB unavailable)
-    addMsg('user', '📤 sending ' + subject + '…');
-    showTyping();
-    try {
-      const filename = file.name || (subject + '-' + Date.now() + (isVideo ? '.mp4' : '.jpg'));
-      const genRes = await fetch(XANO_BASE + '/generate_upload_url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: JOB_ID, tech_id: TECH_ID,
-          attachment_type: subject,
-          file_type: isVideo ? 'video' : 'image',
-          original_filename: filename,
-          mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
-          uploaded_by: 'tech'
-        })
-      });
-      const gen = await genRes.json();
-      if (!gen || !gen.s3_key || !gen.attachment_id) throw new Error('upload init failed');
-      const presRes = await fetch('/.netlify/functions/s3-presign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ s3_key: gen.s3_key, mime_type: file.type || 'image/jpeg' })
-      });
-      const pres = await presRes.json();
-      if (!pres || !pres.upload_url) throw new Error('presign failed');
-      await fetch(pres.upload_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'image/jpeg' },
-        body: file
-      });
-      await fetch(XANO_BASE + '/save_attachment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
-      });
-      hideTyping();
-      await sendToBrain(isVideo
-        ? "I just sent a video. Take a look and tell me what you see."
-        : "I just sent a photo. Take a look and tell me what you see."
-      );
-    } catch (err) {
-      hideTyping();
-      addMsg('assistant', 'Upload failed: ' + (err.message || 'unknown') + ' — your photo is saved on your phone, try again when signal improves.');
-    }
-  }
-
-  // ── Header action buttons ────────────────────────────────────────
-  btnNav.addEventListener('click', () => {
-    if (!jobContext) return;
-    const addr = jobContext.job && (jobContext.job.service_address || '') + ' ' + (jobContext.job.service_city || '');
-    if (!addr.trim()) { addMsg('assistant', 'No address on file yet.'); return; }
-    const q = encodeURIComponent(addr.trim());
-    window.open('https://maps.apple.com/?daddr=' + q, '_blank');
-  });
-  btnCall.addEventListener('click', () => {
-    if (!jobContext || !jobContext.customer || !jobContext.customer.phone) {
-      addMsg('assistant', 'No phone on file.'); return;
-    }
-    window.location.href = 'tel:' + jobContext.customer.phone;
-  });
-  // ── (no OTW / position broadcast on the scheduler page — that lives in tech-ant-chat) ──
-  /* DISABLED BLOCK BELOW — left as no-op so the file parses
-  // ── OTW + live position broadcast (Uber-style customer tracking) ──
-  let __posWatch = null;
-  let __posSafety = null;
-  let __lastPingMs = 0;
-  function startPositionBroadcast() {
-    if (__posWatch != null || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(sendPosPing, () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
-    __posWatch = navigator.geolocation.watchPosition(sendPosPing, () => {}, { enableHighAccuracy: true, maximumAge: 25000 });
-    __posSafety = setTimeout(stopPositionBroadcast, 2 * 60 * 60 * 1000);  // safety: stop after 2h
-  }
-  function stopPositionBroadcast() {
-    if (__posWatch != null) { navigator.geolocation.clearWatch(__posWatch); __posWatch = null; }
-    if (__posSafety) { clearTimeout(__posSafety); __posSafety = null; }
-  }
-  async function sendPosPing(pos) {
-    if (Date.now() - __lastPingMs < 25000) return;  // rate-limit
-    __lastPingMs = Date.now();
-    try {
-      await fetch(XANO_BASE + '/record_tech_position', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tech_id: TECH_ID,
-          job_id: JOB_ID,
-          lat: String(pos.coords.latitude),
-          lng: String(pos.coords.longitude),
-          accuracy_m: String(Math.round(pos.coords.accuracy || 0)),
-          speed_mps: pos.coords.speed != null ? String(pos.coords.speed) : '',
-          heading_deg: pos.coords.heading != null ? String(pos.coords.heading) : '',
-        }),
-      });
-    } catch (_) {}
-  }
-
-  btnOtw.addEventListener('click', async () => {
-    btnOtw.disabled = true;
-    try {
-      await fetch(XANO_BASE + '/tech_on_the_way', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
-      });
-      addMsg('assistant', 'On My Way logged. Customer notified with ETA + live tracking link.');
-      speak('On the way logged.');
-      // Start broadcasting GPS for the customer's live map
-      startPositionBroadcast();
-    } catch (e) {
-      addMsg('assistant', 'Could not log OTW.');
-    } finally {
-      btnOtw.disabled = false;
-    }
-  });
-  btnStart.addEventListener('click', async () => {
-    btnStart.disabled = true;
-    try {
-      await fetch(XANO_BASE + '/tech_job_started', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: JOB_ID, technician_id: TECH_ID })
-      });
-      addMsg('assistant', 'Job started.');
-      speak('Job started.');
-      // Tech has arrived — stop draining battery for tracking
-      stopPositionBroadcast();
-    } catch (e) {
-      addMsg('assistant', 'Could not start job.');
-    } finally {
-      btnStart.disabled = false;
-    }
-  });
-  // Also stop tracking on page hide/close so we don't drain battery if
-  // the tech navigates away without tapping Start.
-  window.addEventListener('pagehide', stopPositionBroadcast);
-  window.addEventListener('beforeunload', stopPositionBroadcast);
-  */
-  // End of disabled OTW block
-
-  // ── Upload status tracking ───────────────────────────────────────
-  // For every queued item we render a status bubble in the chat that
-  // updates in real time: queued → uploading X% → uploaded ✓ or failed.
-  // No more silent "queued and forgotten" — tech sees exactly what each
-  // file is doing.
-  const __uploadBubbles = new Map();  // queue item id → DOM element
-
-  function renderUploadBubble(item) {
-    let el = __uploadBubbles.get(item.id);
-    if (!el) {
-      // Create a new bubble for this upload
-      const wrap = document.createElement('div');
-      wrap.className = 'msg you';
-      wrap.dataset.uploadId = item.id;
-      const av = document.createElement('div');
-      av.className = 'msg-av';
-      av.textContent = 'YOU';
-      const bubble = document.createElement('div');
-      bubble.className = 'msg-bubble';
-      bubble.style.display = 'flex';
-      bubble.style.flexDirection = 'column';
-      bubble.style.gap = '4px';
-      bubble.id = 'upload-bubble-' + item.id;
-      wrap.appendChild(av);
-      wrap.appendChild(bubble);
-      chatStage.appendChild(wrap);
-      __uploadBubbles.set(item.id, bubble);
-      el = bubble;
-      scrollChatToBottom();
-    }
-    const isVideo = item.file_type === 'video';
-    const ico = isVideo ? '🎥' : '📷';
-    let statusLine = '';
-    let footerLine = '';
-    if (item.status === 'queued') {
-      statusLine = ico + ' ' + item.file_type + ' queued · waiting for signal';
-    } else if (item.status === 'uploading') {
-      const pct = Math.max(0, Math.min(100, Math.round(item.progress_pct || 0)));
-      statusLine = ico + ' uploading… ' + pct + '%';
-      footerLine = '<div style="height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden"><div style="height:100%;background:#4af5ff;width:' + pct + '%;transition:width 0.3s"></div></div>';
-    } else if (item.status === 'uploaded') {
-      statusLine = ico + ' uploaded ✓';
-      el.style.opacity = '0.85';
-    } else if (item.status === 'failed') {
-      const att = item.attempts || 0;
-      statusLine = ico + ' upload retrying (try ' + att + ')…';
-      if (item.last_error) footerLine = '<div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">last error: ' + escapeHtml(String(item.last_error).slice(0, 80)) + '</div>';
-    } else if (item.status === 'failed_permanent') {
-      statusLine = ico + ' upload failed permanently';
-      el.style.opacity = '0.6';
-      if (item.last_error) footerLine = '<div style="font-size:11px;color:rgba(255,107,107,0.85);margin-top:2px">' + escapeHtml(String(item.last_error).slice(0, 120)) + '</div>';
-    }
-    el.innerHTML = '<div>' + statusLine + '</div>' + footerLine;
-  }
-  function removeUploadBubble(id) {
-    const el = __uploadBubbles.get(id);
-    if (el && el.parentNode && el.parentNode.parentNode) {
-      el.parentNode.parentNode.remove();
-    }
-    __uploadBubbles.delete(id);
-  }
-
-  async function initUploadQueue() {
-    if (!JOB_ID || !TECH_ID) return;
-    if (typeof window.UploadQueue === 'undefined') {
-      addSystem('error', '📷 upload queue script missing — direct upload only (less reliable in low signal)');
-      return;
-    }
-    try {
-      uploadQueue = new window.UploadQueue({
-        jobId: JOB_ID,
-        techId: TECH_ID,
-        xanoBase: XANO_BASE,
-        netlifyBase: '',
-        onUpdate: async () => {
-          // Each queue mutation → refresh every visible bubble
-          try {
-            const items = await uploadQueue.list();
-            for (const item of items) renderUploadBubble(item);
-            // Tell brain when an upload lands. One-time per item.
-            for (const item of items) {
-              if (item.status === 'uploaded' && !item._notified) {
-                item._notified = true;
-                sendToBrain(item.file_type === 'video'
-                  ? "Just uploaded a video — go look."
-                  : "Just uploaded a photo — go look.");
-              }
-            }
-          } catch (e) { console.warn('upload bubble render', e); }
-        },
-      });
-      await uploadQueue.init();
-    } catch (e) {
-      console.warn('UploadQueue init failed', e);
-      addSystem('error', '📷 upload queue init failed: ' + (e.message || 'unknown'));
-      uploadQueue = null;
-    }
-  }
-
-  // ── Online / offline status pill in HUD ──────────────────────────
-  function updateOnlineState() {
-    const dot = document.querySelector('.hud-statusbar .dot');
-    const label = document.querySelector('.hud-statusbar .group:first-child > span:first-child');
-    if (!dot || !label) return;
-    if (navigator.onLine) {
-      dot.style.background = 'var(--led)';
-      dot.style.boxShadow = '0 0 6px var(--led-glow), 0 0 12px var(--led-glow)';
-      // Restore "ONLINE" label (don't clobber the mute toggle text node)
-      const first = label.firstChild;
-      if (first && first.nodeType === 3) first.nodeValue = 'ONLINE ';
-    } else {
-      dot.style.background = '#ff5050';
-      dot.style.boxShadow = '0 0 6px rgba(255,80,80,0.6), 0 0 12px rgba(255,80,80,0.4)';
-      const first = label.firstChild;
-      if (first && first.nodeType === 3) first.nodeValue = 'OFFLINE — queueing ';
-    }
-  }
-  window.addEventListener('online', updateOnlineState);
-  window.addEventListener('offline', updateOnlineState);
-  updateOnlineState();
-
-  // ── Voice test button (visible in chat as a system card) ─────────
-  // Single-tap, no timing needed. Diagnoses TTS playback issues without
-  // needing the double-tap on the HUD label.
-  function showVoiceTestCard() {
-    if (document.getElementById('voiceTestCard')) return;
-    const ua = navigator.userAgent || '';
-    const isIOS = /iPhone|iPad|iPod/.test(ua);
-    const isAndroid = /Android/i.test(ua);
-    const browser = isIOS ? 'Safari' : isAndroid ? 'Chrome' : 'your browser';
-    const inAppPreview = isIOS
-      ? 'iMessage preview / Facebook in-app browser'
-      : isAndroid
-        ? 'Gmail / Messages / Facebook in-app browser'
-        : 'in-app preview';
-    const card = document.createElement('div');
-    card.id = 'voiceTestCard';
-    card.className = 'msg system';
-    card.style.cssText = 'align-self:center;background:rgba(74,245,255,0.06);color:rgba(240,245,255,0.9);border:1px solid rgba(74,245,255,0.3);padding:14px 18px;border-radius:12px;font-size:13px;max-width:92%;text-align:center;display:flex;flex-direction:column;gap:10px;';
-    card.innerHTML =
-      '<div style="font-family:Orbitron,sans-serif;font-size:11px;letter-spacing:0.18em;color:rgba(74,245,255,0.85)">// AUDIO CHECK</div>' +
-      '<div>If you can\'t hear Ant: open this link in <b>' + browser + '</b> instead of a chat app\'s ' + inAppPreview + '. In-app previews block audio playback.</div>' +
-      '<button id="voiceTestBtn" style="background:linear-gradient(135deg,#f5f7fa,#cfd4dd);color:#000;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;-webkit-appearance:none">🔊 Tap to test Ant\'s voice</button>' +
-      '<button id="voiceTestDismiss" style="background:transparent;border:none;color:rgba(240,245,255,0.5);font-size:11px;cursor:pointer;font-family:inherit;text-decoration:underline">dismiss</button>';
-    chatStage.appendChild(card);
-    scrollChatToBottom();
-    document.getElementById('voiceTestBtn').addEventListener('click', async () => {
-      const wasMuted = isMuted;
-      isMuted = false;
-      try {
-        await speak("Audio test — if you can hear this, Ant's voice is working.");
-      } finally {
-        if (wasMuted) {
-          setTimeout(() => { isMuted = true; renderVoiceLabel(); }, 5000);
-        }
-      }
+  const specCt = $("fSpec");
+  specCt.innerHTML = "";
+  let specs = [];
+  try { specs = TECH.appliance_specialties ? JSON.parse(TECH.appliance_specialties) : []; } catch (_) { specs = []; }
+  SPEC_OPTS.forEach(opt => {
+    const chip = document.createElement("div");
+    chip.className = "chip" + (specs.includes(opt) ? " on" : "");
+    chip.textContent = SPEC_LABELS[opt];
+    chip.dataset.opt = opt;
+    chip.addEventListener("click", () => {
+      chip.classList.toggle("on");
+      const sel = [...specCt.querySelectorAll(".chip.on")].map(c => c.dataset.opt);
+      queueSave({ appliance_specialties: JSON.stringify(sel) });
     });
-    document.getElementById('voiceTestDismiss').addEventListener('click', () => {
-      card.remove();
-      localStorage.setItem('ant_voice_test_dismissed', '1');
+    specCt.appendChild(chip);
+  });
+
+  document.querySelectorAll("#fStrat .chip").forEach(c => {
+    c.classList.toggle("on", c.dataset.strategy === TECH.geographic_strategy);
+    c.addEventListener("click", () => {
+      document.querySelectorAll("#fStrat .chip").forEach(x => x.classList.remove("on"));
+      c.classList.add("on");
+      queueSave({ geographic_strategy: c.dataset.strategy });
     });
-  }
+  });
 
-  // ── Boot ──────────────────────────────────────────────────────────
-  loadJob();
-  initUploadQueue();
+  const satTg = $("fSat");
+  satTg.classList.toggle("on", !!TECH.works_saturdays);
+  satTg.addEventListener("click", () => {
+    satTg.classList.toggle("on");
+    queueSave({ works_saturdays: satTg.classList.contains("on") });
+  });
 
-  // If the URL carries ?prompt=... auto-send that as the first turn so
-  // SMS deep-links (post-stop check-in, periodic check-in) open the
-  // page already pulling the tech's status from the brain.
-  const seedPrompt = (params.get('prompt') || '').trim();
-  if (seedPrompt) {
-    // Wait a tick so the empty state + brain context are ready
-    setTimeout(() => { sendToBrain(seedPrompt); }, 350);
-  }
-  // Show voice test card on first visit (until tech dismisses it).
-  if (localStorage.getItem('ant_voice_test_dismissed') !== '1') {
-    setTimeout(showVoiceTestCard, 500);
-  }
-  // Hands-free was on at last visit? Wait for the first user gesture
-  // (browsers won't grant mic without one) then auto-resume.
-  if (handsfreeOn) {
-    const resume = () => {
-      document.removeEventListener('touchstart', resume);
-      document.removeEventListener('click', resume);
-      startHandsfree();
-    };
-    document.addEventListener('touchstart', resume, { once: true, passive: true });
-    document.addEventListener('click', resume, { once: true });
-  }
+  ["fStart","fEnd","fDrive","fBrand","fHome","fContext"].forEach(id => {
+    const el = $(id);
+    el.addEventListener("blur", () => {
+      const field = el.dataset.field;
+      let v = el.value.trim();
+      if (el.type === "number") v = v === "" ? null : parseInt(v);
+      queueSave({ [field]: v });
+    });
+  });
+}
 
-})();
+function queueSave(patch) {
+  Object.assign(DIRTY, patch);
+  banner.classList.add("dirty");
+  banner.classList.remove("saved");
+  banner.textContent = "Saving…";
+  clearTimeout(SAVE_TIMER);
+  SAVE_TIMER = setTimeout(commitSave, 800);
+}
+
+async function commitSave() {
+  if (!Object.keys(DIRTY).length) return;
+  const payload = Object.assign({ tech_id: TECH_ID, pin: PIN }, DIRTY);
+  try {
+    const r = await fetch(`${API}/update_tech_profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (d.success) {
+      Object.assign(TECH, DIRTY);
+      DIRTY = {};
+      banner.classList.add("saved");
+      banner.textContent = "✓ Saved";
+      setTimeout(() => banner.classList.remove("dirty","saved"), 1500);
+    } else if (d.error === "unauthorized") {
+      banner.textContent = "PIN check failed — re-enter PIN";
+      localStorage.removeItem("tn_tech_pin_" + TECH_ID);
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      banner.textContent = "Save failed — retrying…";
+    }
+  } catch (e) {
+    banner.textContent = "Save failed — retrying…";
+  }
+}
+
+function renderCalendar() {
+  const grid = $("calGrid");
+  grid.innerHTML = "";
+  const today = new Date(DATA.today_ct + "T00:00:00");
+  const jobsByDate = {};
+  (DATA.jobs || []).forEach(j => {
+    if (!j.scheduled_start) return;
+    const d = new Date(j.scheduled_start);
+    const k = d.toISOString().slice(0, 10);
+    (jobsByDate[k] = jobsByDate[k] || []).push(j);
+  });
+  const offByDate = {};
+  (DATA.availability || []).forEach(a => {
+    offByDate[a.blocked_date] = a;
+  });
+  for (let i = 0; i < 14; i++) {
+    const dt = new Date(today);
+    dt.setDate(today.getDate() + i);
+    const ymd = dt.toISOString().slice(0, 10);
+    const isOff = !!offByDate[ymd];
+    const dayJobs = jobsByDate[ymd] || [];
+    const card = document.createElement("div");
+    card.className = "cal-day" + (i === 0 ? " today" : "") + (isOff ? " off" : "");
+    const dow = dt.toLocaleDateString("en-US", { weekday: "short" });
+    const dstr = (dt.getMonth() + 1) + "/" + dt.getDate();
+    card.innerHTML = `
+      <div class="cal-day-head">
+        <span class="cal-dow">${dow}</span>
+        <span class="cal-date">${dstr}</span>
+        ${isOff ? '<span class="cal-off-label">OFF</span>' : `<span class="cal-count">${dayJobs.length} job${dayJobs.length === 1 ? "" : "s"}</span>`}
+        <button class="cal-offbtn ${isOff ? "on" : ""}" data-ymd="${ymd}" data-off="${isOff}">${isOff ? "✕ clear" : "+ off"}</button>
+      </div>
+      <div class="cal-jobs">${dayJobs.map(j => {
+        const t = new Date(j.scheduled_start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+        return `<div class="cal-job"><span class="t">${t}</span><span class="who">${j.job_number || "#" + j.id}</span><span class="what">${j.appliance_type || ""}</span></div>`;
+      }).join("")}</div>
+    `;
+    grid.appendChild(card);
+  }
+  grid.querySelectorAll(".cal-offbtn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const ymd = btn.dataset.ymd;
+      const wasOff = btn.dataset.off === "true";
+      btn.disabled = true;
+      try {
+        const r = await fetch(`${API}/tech_set_day_off`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ technician_id: TECH_ID, date: ymd, off: !wasOff, reason: wasOff ? "" : "self-blocked from scheduler" })
+        });
+        const d = await r.json();
+        if (d.success) await loadAll();
+        else { btn.disabled = false; alert("Couldn't update day-off"); }
+      } catch (_) { btn.disabled = false; alert("Network error"); }
+    });
+  });
+}
+
+document.querySelectorAll(".qa").forEach(b => {
+  b.addEventListener("click", async () => {
+    const a = b.dataset.action;
+    if (a === "sick") {
+      if (!confirm("Mark you sick today and start reassigning your jobs?")) return;
+      await fetch(`${API}/tech_set_day_off`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ technician_id: TECH_ID, date: DATA.today_ct, off: true, reason: "sick" }) });
+      alert("Marked sick. Ant is finding cover for today's jobs.");
+      await loadAll();
+    } else if (a === "off_tomorrow") {
+      const t = new Date(DATA.today_ct + "T00:00:00"); t.setDate(t.getDate() + 1);
+      const ymd = t.toISOString().slice(0, 10);
+      await fetch(`${API}/tech_set_day_off`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ technician_id: TECH_ID, date: ymd, off: true, reason: "off tomorrow" }) });
+      await loadAll();
+    } else if (a === "off_friday") {
+      const t = new Date(DATA.today_ct + "T00:00:00");
+      while (t.getDay() !== 5) t.setDate(t.getDate() + 1);
+      if (t.toISOString().slice(0,10) === DATA.today_ct) t.setDate(t.getDate() + 7);
+      const ymd = t.toISOString().slice(0, 10);
+      await fetch(`${API}/tech_set_day_off`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ technician_id: TECH_ID, date: ymd, off: true, reason: "Friday off" }) });
+      await loadAll();
+    } else if (a === "more_work") {
+      alert("Coming in Block 6 — Ant will scan for insertable jobs and text you the best one.");
+    }
+  });
+});
+
+if (TECH_ID && PIN) loadAll();
+else showGate(TECH_ID ? "" : "Tech ID missing — open from daily dashboard.");
 </script>
-
 </body>
 </html>
