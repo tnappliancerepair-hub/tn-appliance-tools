@@ -279,6 +279,7 @@
   <button onclick="EmailIntakeModal.open()" style="background:rgba(157,108,243,0.15); border:1px solid rgba(157,108,243,0.45); color:#9d6cf3; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Email intake status (24h)">📡 Email intake</button>
   <button onclick="openOfficePartsOrderModal()" style="background:rgba(116,227,196,0.15); border:1px solid rgba(116,227,196,0.45); color:#4cd2c0; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Log a parts order">📦 Log parts order</button>
   <button onclick="openOfficePartsSearchModal()" style="background:rgba(76,167,255,0.15); border:1px solid rgba(76,167,255,0.45); color:#4ca7ff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Find part number">🔧 Find part</button>
+  <button onclick="openTechMessageModal()" style="background:rgba(255,140,97,0.15); border:1px solid rgba(255,140,97,0.45); color:#ff8c61; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Message a tech">✉️ Message tech</button>
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
 </div>
 
@@ -377,6 +378,25 @@
       <button class="btn btn-success" id="rs-send">📅 Send slot offer</button>
       <button class="btn btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Tech Inbox composer (Tech Inbox Block C) -->
+<div class="modal-overlay" id="tech-message-modal">
+  <div class="modal">
+    <h3>✉️ Message a tech</h3>
+    <div class="sub">Lands in their 📥 Inbox on tech-daily-dashboard.</div>
+    <label>To</label>
+    <select id="tm-tech" style="width:100%;padding:10px;border-radius:8px;background:#0a0a0a;color:#fff;border:1px solid rgba(255,255,255,0.15);font-size:14px"></select>
+    <label>From (your name — optional)</label>
+    <input id="tm-sender" type="text" placeholder="e.g. Danielle" autocomplete="off">
+    <label>Message</label>
+    <textarea id="tm-body" placeholder="anything you want the tech to see when they next open the dashboard" rows="4"></textarea>
+    <div class="actions">
+      <button class="btn btn-success" id="tm-send">📤 Send</button>
+      <button class="btn btn-secondary" onclick="closeTechMessageModal()">Cancel</button>
+    </div>
+    <div id="tm-result" style="font-size:13px;color:var(--muted);margin-top:10px;min-height:18px"></div>
   </div>
 </div>
 
@@ -1509,6 +1529,66 @@ function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// ── Tech Inbox composer (Tech Inbox Block C) ──────────────────────
+async function openTechMessageModal() {
+  document.getElementById('tm-result').textContent = '';
+  document.getElementById('tm-body').value = '';
+  // populate tech dropdown
+  const sel = document.getElementById('tm-tech');
+  sel.innerHTML = '<option>Loading…</option>';
+  try {
+    const r = await fetch(`${XANO_BASE}/technicians`);
+    const techs = await r.json();
+    const active = (Array.isArray(techs) ? techs : []).filter(t => t.active && t.first_name).sort((a, b) => a.first_name.localeCompare(b.first_name));
+    sel.innerHTML = active.map(t => `<option value="${t.id}">${escapeHtml(t.first_name + ' ' + (t.last_name || ''))}</option>`).join('');
+  } catch (e) {
+    sel.innerHTML = '<option>Error loading techs</option>';
+  }
+  document.getElementById('tech-message-modal').classList.add('show');
+  setTimeout(() => document.getElementById('tm-body').focus(), 80);
+}
+function closeTechMessageModal() {
+  document.getElementById('tech-message-modal').classList.remove('show');
+}
+document.getElementById('tm-send').addEventListener('click', async () => {
+  const techId = parseInt(document.getElementById('tm-tech').value, 10);
+  const body = document.getElementById('tm-body').value.trim();
+  const senderName = document.getElementById('tm-sender').value.trim();
+  if (!techId || !body) {
+    document.getElementById('tm-result').textContent = 'Pick a tech + write a message.';
+    return;
+  }
+  // Get office password from existing auth cache
+  let pw = '';
+  try {
+    const cached = JSON.parse(localStorage.getItem(AUTH_KEY) || '{}');
+    pw = cached.password || '';
+  } catch (_) {}
+  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) return;
+  document.getElementById('tm-send').disabled = true;
+  document.getElementById('tm-result').textContent = 'Sending…';
+  try {
+    const r = await fetch(`${XANO_BASE}/send_office_to_tech_message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tech_id: techId, office_password: pw, body, sender_name: senderName || 'Office' })
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      document.getElementById('tm-result').innerHTML = '<span style="color:#00d68f">✓ Sent. They\'ll see it next time they open the dashboard.</span>';
+      setTimeout(closeTechMessageModal, 1400);
+    } else {
+      document.getElementById('tm-result').innerHTML = '<span style="color:#ff6b6b">' + escapeHtml(d.error || 'failed') + '</span>';
+    }
+  } catch (e) {
+    document.getElementById('tm-result').innerHTML = '<span style="color:#ff6b6b">network error</span>';
+  } finally {
+    document.getElementById('tm-send').disabled = false;
+  }
+});
+
 </script>
 <script src="/office-nav.js?v=20260601-2"></script>
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
