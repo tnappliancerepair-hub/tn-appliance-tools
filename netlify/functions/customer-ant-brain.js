@@ -15,10 +15,14 @@
 const { runBrainTurn } = require('./_lib/ant/brain-core');
 const { timedFetch, XANO_BASE, UNIVERSAL_TOOLS } = require('./_lib/ant/tools');
 
-// Customer-facing brain runs on the same Sonnet baseline by default,
-// env-overridable. Quality matters since this is a public-facing
-// surface, but cost matters too — keeping the baseline conservative.
-const CUSTOMER_MODEL_OVERRIDE = process.env.ANT_CUSTOMER_MODEL || '';
+// Customer-facing brain. Switched to Haiku 4.5 for speed:
+// Sonnet+tool turns were exceeding Netlify's default 10s function
+// timeout, leaving the chat UI stuck in "thinking" forever. Carrie
+// hit this twice. Haiku turn typical 1-3s vs 5-10s for Sonnet.
+const CUSTOMER_MODEL_OVERRIDE = process.env.ANT_CUSTOMER_MODEL || 'claude-haiku-4-5-20251001';
+
+// Headroom for cold start + one tool round-trip. Max sync timeout 26s.
+exports.config = { timeout: 26 };
 
 // Customer brain has its OWN tool set — scoped to one customer. Doesn't
 // share with READ_TOOLS because those are office/tech-wide (could leak

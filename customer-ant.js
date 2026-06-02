@@ -199,6 +199,8 @@
     wrap.appendChild(thinking);
     wrap.scrollTop = wrap.scrollHeight;
 
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 28000);
     try {
       const res = await fetch(BRAIN_URL, {
         method: 'POST',
@@ -209,7 +211,9 @@
           message: text,
           history: history.slice(0, -1).filter((t) => t.role === 'user' || t.role === 'assistant').map((t) => ({ role: t.role, content: t.content })),
         }),
+        signal: ctrl.signal,
       });
+      clearTimeout(timer);
       const data = await res.json();
       thinking.remove();
       if (!data.ok || !data.reply) {
@@ -220,8 +224,13 @@
       saveHistory();
       renderMessages();
     } catch (err) {
+      clearTimeout(timer);
       thinking.remove();
-      history.push({ role: 'assistant', content: "Sorry — couldn't reach our system. Please call 615-280-2949 and we'll take care of you." });
+      const wasTimeout = err && err.name === 'AbortError';
+      const msg = wasTimeout
+        ? "That took longer than expected — please try again. If it keeps happening, call 615-280-2949 and we'll take care of you."
+        : "Sorry — couldn't reach our system. Please call 615-280-2949 and we'll take care of you.";
+      history.push({ role: 'assistant', content: msg });
       saveHistory();
       renderMessages();
     } finally {
