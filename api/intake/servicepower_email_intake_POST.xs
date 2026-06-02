@@ -576,11 +576,15 @@ query servicepower_email_intake verb=POST {
                     service_zip         : $zip5
                     scheduled_start     : $sched_ts
                     current_status      : ($disp.call_status ?? "Open")
-                    friendly_status     : "New Intake (ServicePower)"
+                    friendly_status     : ($warranty_company == "SquareTrade") ? "SquareTrade — Needs Accept" : "New Intake (ServicePower)"
                     job_status          : "submitted"
                     triage_status       : "not_reviewed"
                     parts_status        : "not_needed"
-                    scheduling_status   : ($sched_ts != null) ? "scheduled" : "not_ready"
+                    // SquareTrade dispatches require a manual Accept click on the
+                    // vendor portal before we should act on them. Park at
+                    // 'needs_more_info' so they don't appear on tech dashboards
+                    // until a human transitions them via the office UI.
+                    scheduling_status   : ($warranty_company == "SquareTrade") ? "needs_more_info" : (($sched_ts != null) ? "scheduled" : "not_ready")
                     scheduling_type     : ($sched_ts != null) ? "slot" : ""
                     vendor_locked       : ($sched_ts != null)
                     payment_status      : "warranty_pending"

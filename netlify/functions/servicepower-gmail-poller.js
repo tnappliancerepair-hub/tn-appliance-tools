@@ -58,7 +58,9 @@ const XANO_PAYMENT_ENDPOINT = `${XANO_BASE}/squaretrade_payment_intake`; // paym
 // emails. Both dispatch AND payment emails come from the same ServicePower
 // sender; classification happens inside the per-message loop based on the
 // Subject header. Excludes both labels to keep the claim window narrow.
-const GMAIL_QUERY = '(from:noreply@servicepower.com OR from:NOREPLY@servicepower.com) -label:ServicePower-Processed -label:ServicePower-Processing newer_than:7d';
+// Multi-layered safety net so Danielle's manual deletes can't race the poll.
+// See ahs-gmail-poller.js header for the same rationale.
+const GMAIL_QUERY = '((from:noreply@servicepower.com OR from:NOREPLY@servicepower.com) OR label:"warranty-companies") in:anywhere -label:ServicePower-Processed -label:ServicePower-Processing newer_than:7d';
 const PROCESSED_LABEL_NAME = 'ServicePower-Processed';
 const IN_PROGRESS_LABEL_NAME = 'ServicePower-Processing';
 const MAX_MESSAGES_PER_RUN = 25;

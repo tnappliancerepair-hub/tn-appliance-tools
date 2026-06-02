@@ -40,7 +40,11 @@ const XANO_PAYMENT_ENDPOINT = `${XANO_BASE}/ahs_payment_intake`; // payment flow
 // 2026-05-15: widened from `subject:"New Dispatch Notification" has:attachment`
 // so payment / remittance emails (no attachment) also surface. Subject
 // classification routes per-message inside the loop.
-const GMAIL_QUERY = 'from:noreply@msg.frontdoor.com -label:AHS-Processed -label:AHS-Processing newer_than:7d';
+// Multi-layered safety net so Danielle's manual deletes can't race the poll:
+// - 'warranty-companies' label is auto-applied by Gmail filter on every incoming AHS/SP/SquareTrade dispatch
+// - 'in:anywhere' means we search Trash + Spam + All Mail (not just Inbox), so a delete moving the email to Trash doesn't hide it
+// - 'newer_than:7d' caps lookback to avoid re-processing old archive
+const GMAIL_QUERY = '(from:noreply@msg.frontdoor.com OR label:"warranty-companies") in:anywhere -label:AHS-Processed -label:AHS-Processing newer_than:7d';
 const PROCESSED_LABEL_NAME = 'AHS-Processed';
 // Two-phase claim label introduced 2026-05-11 after parallel "Run now" double-click
 // created duplicate jobs in production (request ids cd08e69f + a46731eb both

@@ -37,7 +37,9 @@
 # Netlify poller (commit bb269ad) forwards gmail_message_id + headers in
 # the Xano POST payload.
 [functions."ahs-gmail-poller"]
-  schedule = "*/15 * * * *"
+  # Bumped to */3 (every 3 min) 2026-06-01 — combined with label safety net,
+  # this beats Danielle's manual delete race. Was every 15 min before.
+  schedule = "*/3 * * * *"
 
 # Scheduled function: ServicePower dispatch email poller (every 15 minutes).
 # Phase A1 step 13 cleared 2026-05-13. Reads tnappliancerepair@gmail.com via
@@ -52,7 +54,8 @@
 # system. NO cutover yet — parallel running + validation phase until both
 # pollers are stable and warranty intake automation is proven.
 [functions."servicepower-gmail-poller"]
-  schedule = "*/15 * * * *"
+  # Bumped to */3 (every 3 min) 2026-06-01 — see ahs-gmail-poller note.
+  schedule = "*/3 * * * *"
 
 # Parts-vendor delivery-notification poller. Scans the same Gmail inbox
 # the AHS / SP pollers use for shipping-confirmation + delivery emails
