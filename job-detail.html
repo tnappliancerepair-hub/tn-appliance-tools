@@ -710,6 +710,15 @@ function render() {
   }
 
   document.getElementById('content').innerHTML = sections.join('');
+
+  // Auto-open the edit modal if URL has ?edit=1 (from email intake "Fill in info" button)
+  if (new URLSearchParams(location.search).get('edit') === '1' && typeof openEditJobModal === 'function') {
+    // Strip the param so manual reloads don't re-open
+    const u = new URL(location.href);
+    u.searchParams.delete('edit');
+    history.replaceState({}, '', u.toString());
+    setTimeout(openEditJobModal, 300);
+  }
 }
 
 function renderActionBar(job, cust, tech) {

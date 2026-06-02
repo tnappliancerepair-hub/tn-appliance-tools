@@ -63,16 +63,18 @@
             <th style="padding:6px 10px; text-align:left; border-bottom:1px solid #2a3040; color:#9aa1ad; font-size:10px; text-transform:uppercase; letter-spacing:0.05em;">Source</th>
             <th style="padding:6px 10px; text-align:left; border-bottom:1px solid #2a3040; color:#9aa1ad; font-size:10px; text-transform:uppercase; letter-spacing:0.05em;">Vendor / Claim</th>
             <th style="padding:6px 10px; text-align:left; border-bottom:1px solid #2a3040; color:#9aa1ad; font-size:10px; text-transform:uppercase; letter-spacing:0.05em;">Problem</th>
+            <th style="padding:6px 10px; text-align:right; border-bottom:1px solid #2a3040; color:#9aa1ad; font-size:10px; text-transform:uppercase; letter-spacing:0.05em;">Action</th>
           </tr>
         </thead>
         <tbody>
           ${jobs.map(j => `
-            <tr style="cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''" onclick="window.open('/job-detail.html?job_id=${j.id}','_blank')">
+            <tr style="cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background=''" onclick="if(event.target.tagName!=='A'&&event.target.tagName!=='BUTTON')window.open('/job-detail.html?job_id=${j.id}','_blank')">
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; font-family:'IBM Plex Mono',monospace;"><a href="/job-detail.html?job_id=${j.id}" target="_blank" style="color:#4ca7ff; text-decoration:none; font-weight:700;">#${j.id}</a></td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; font-family:'IBM Plex Mono',monospace; color:#cbd2e0;">${fmtTime(j.created_at)}</td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530;">${srcBadge(j.intake_source)}</td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; font-family:'IBM Plex Mono',monospace; color:#cbd2e0;">${esc(j.warranty_company || '')} ${j.claim_number ? '· ' + esc(j.claim_number) : ''}</td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; color:#cbd2e0; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc((j.problem_summary || '').slice(0, 80))}</td>
+              <td style="padding:7px 10px; border-bottom:1px solid #1f2530; text-align:right; white-space:nowrap;"><a href="/job-detail.html?job_id=${j.id}&edit=1" target="_blank" style="background:#ff8c61; color:#000; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; text-decoration:none;">✏️ Fill in info</a></td>
             </tr>`).join('')}
         </tbody>
       </table>`;
