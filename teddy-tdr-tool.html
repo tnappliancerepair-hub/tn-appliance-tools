@@ -641,7 +641,7 @@ function renderCockpitHeader() {
         '<div class="cockpit-section-label">Customer reported</div>' +
         (app.problem_summary
           ? '<div class="issue-text">' + escapeHtml(app.problem_summary) + '</div>'
-          : '<div class="issue-text-muted">No reported problem captured at intake.</div>') +
+          : '<div class="issue-text-muted" style="color:var(--orange,#ff9d4a); border:1px dashed rgba(255,157,74,0.4); padding:8px 12px; border-radius:6px;">⚠ No complaint captured at intake. Call the customer + ask, or check the SMS thread on tech-ant-chat.</div>') +
       '</div>' +
 
       '<div class="cockpit-row">' +
@@ -777,6 +777,7 @@ function renderReview() {
   return renderHeader() +
     '<a class="back-link" href="dashboard.html">← Back to dashboard</a>' +
     renderCockpitHeader() +
+    renderAntsGuessPanel() +
     renderPreviousAttempts() +
 
     '<div class="section-card">' +
@@ -981,6 +982,47 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) { return escapeHtml(s); }
 
+// Ant's Guess panel — fetches latest tdr_suggestion_drafted event_log
+// row for this job and displays the AI's pre-diagnosis. Useful when
+// the job is sparse (no model, no Teddy pre-diag yet) — gives the
+// operator SOMETHING to react to.
+function renderAntsGuessPanel() {
+  // Placeholder — populated async by loadAntsGuess() which kicks off
+  // from wireCockpitInteractions. Hidden until fetch completes.
+  return '<div id="ants-guess-panel" style="display:none; margin: 0 0 14px; padding: 12px 14px; background: linear-gradient(135deg, rgba(116,227,196,0.08), rgba(116,227,196,0.02)); border: 1px dashed rgba(116,227,196,0.30); border-radius: 10px; font-size: 13px; color: #d4d6dc;">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">' +
+      '<strong style="color:#74e3c4; font-size:12px; letter-spacing:0.5px;">🤖 ANT\'S GUESS</strong>' +
+      '<span style="font-size:10px; color:#9aa1ad;">AI pre-diagnosis — confirm or correct before applying</span>' +
+    '</div>' +
+    '<div id="ants-guess-body" style="line-height:1.5;"></div>' +
+  '</div>';
+}
+
+async function loadAntsGuess() {
+  const panel = document.getElementById('ants-guess-panel');
+  const body = document.getElementById('ants-guess-body');
+  if (!panel || !body || !state.jobId) return;
+  try {
+    const r = await fetch(XANO_BASE + '/get_predicted_failure_for_job?job_id=' + encodeURIComponent(state.jobId), { cache: 'no-store' });
+    const data = await r.json();
+    if (!data || !data.has_draft || !data.suggestion || !data.suggestion.metadata) return;
+    const draft = (data.suggestion.metadata.draft_text || '').trim();
+    if (!draft) return;
+    const lines = draft.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    const pick = (label) => (lines.find(l => l.toLowerCase().startsWith(label.toLowerCase() + ':')) || '').replace(/^[^:]+:\s*/, '');
+    const failed = pick('Failed component');
+    const cause  = pick('Failure cause');
+    const part   = pick('Recommended part') || pick('Pre-order parts');
+    let html = '';
+    if (failed) html += '<div><strong>Likely:</strong> ' + escapeHtml(failed) + '</div>';
+    if (cause)  html += '<div style="margin-top:4px;"><strong>Cause:</strong> ' + escapeHtml(cause) + '</div>';
+    if (part)   html += '<div style="margin-top:4px;"><strong>📦 Likely part:</strong> ' + escapeHtml(part) + '</div>';
+    if (!html) html = '<div style="color:#9aa1ad; font-style:italic;">' + escapeHtml(lines[0] || 'See draft') + '</div>';
+    body.innerHTML = html;
+    panel.style.display = '';
+  } catch (_) {}
+}
+
 function render() {
   const app = document.getElementById("app");
   let html = "";
@@ -995,9 +1037,7 @@ function render() {
   setTimeout(wireCockpitInteractions, 0);
 }
 
-// Inline editors for appliance fields + Find Part launcher.
-// Click a field with [data-editable] → opens an inline input → on
-// blur/Enter → POSTs to update_job_appliance_fields → re-renders.
+// Inline editors for appliance fields + Find Part launcher + Ant's Guess load.
 function wireCockpitInteractions() {
   document.querySelectorAll('[data-editable]').forEach((el) => {
     if (el._editWired) return;
@@ -1010,6 +1050,8 @@ function wireCockpitInteractions() {
     findBtn._wired = true;
     findBtn.addEventListener('click', launchPartsSearch);
   }
+  // Best-effort fetch + render Ant's Guess
+  loadAntsGuess().catch(() => {});
 }
 
 function openInlineEditor(el) {
