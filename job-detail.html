@@ -110,10 +110,12 @@
     inset: 0;
     background: rgba(0,0,0,0.7);
     display: none;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     z-index: 9000;
     padding: 20px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .modal-overlay.show { display: flex; }
   .modal-card {
@@ -123,9 +125,7 @@
     padding: 22px;
     width: 100%;
     max-width: 360px;
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    margin: auto;
   }
   .modal-title {
     font-size: 16px;

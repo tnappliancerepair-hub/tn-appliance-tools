@@ -207,16 +207,17 @@
   /* Mark submitted modal */
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-    display: none; align-items: center; justify-content: center;
+    display: none; align-items: flex-start; justify-content: center;
     padding: 20px; z-index: 10001;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .modal-overlay.show { display: flex; }
   .modal {
     background: var(--panel); border: 1px solid var(--border);
     border-radius: 12px; padding: 22px; max-width: 460px; width: 100%;
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    margin: auto;
+    max-height: none;
   }
   .modal h3 { font-size: 16px; margin-bottom: 4px; }
   .modal .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
