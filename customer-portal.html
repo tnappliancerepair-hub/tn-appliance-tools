@@ -278,6 +278,30 @@
     <div id="ant-sms-thread" style="margin-top: 8px; border: 1px solid #e0e4ed; border-radius: 10px; background: #fff;"></div>
   </details>
 
+  <!-- Availability tap-grid (Ant Scheduler Block 3). Customer marks
+       7-day forward blocks they're available. More flex = scheduled
+       sooner. Auto-saves + emits CUSTOMER_AVAILABILITY_CHANGED signal. -->
+  <details id="availDetails" open style="margin: 16px auto; max-width: 600px; padding: 0 16px;">
+    <summary style="cursor: pointer; padding: 12px 14px; background: #f4f6fb; border: 1px solid #e0e4ed; border-radius: 10px; font-size: 14px; color: #4a5568; font-weight: 600;">📅 When are you available?</summary>
+    <div style="margin-top: 8px; padding: 14px; border: 1px solid #e0e4ed; border-radius: 10px; background: #fff;">
+      <div style="font-size: 13px; color: #4a5568; margin-bottom: 12px; line-height: 1.5;">
+        Tap the times you're free over the next 7 days. <strong>The more you mark, the sooner we can come.</strong> Updates auto-save.
+      </div>
+      <div id="availGrid" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="availStatus" style="font-size:12px;color:#8a96a8;margin-top:10px;min-height:16px;text-align:right"></div>
+    </div>
+  </details>
+  <style>
+    .av-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #f1f3f7; }
+    .av-row:first-child { border-top: 0; }
+    .av-row.today .av-day { color: #4cc9c0; font-weight: 700; }
+    .av-day { min-width: 78px; font-size: 13px; color: #4a5568; font-weight: 600; }
+    .av-blocks { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+    .av-block { flex: 1; min-width: 80px; padding: 10px 6px; border-radius: 8px; border: 1px solid #e0e4ed; background: #f8f9fb; color: #8a96a8; font-size: 12px; cursor: pointer; text-align: center; user-select: none; transition: 0.12s; }
+    .av-block.on { background: #4cc9c0; color: #fff; border-color: #4cc9c0; font-weight: 600; }
+    .av-block:active { transform: scale(0.96); }
+  </style>
+
   <div class="actions">
     <button class="btn" id="btnReschedule">
       Reschedule
@@ -443,7 +467,131 @@
     loading.style.display = 'none';
     app.style.display = 'block';
     render(data);
+    renderAvailabilityGrid(data);
     recordPortalEvent('portal_viewed').catch(() => {});
+  }
+
+  // Ant Scheduler Block 3 — customer-facing 7-day x 3-block availability
+  // tap-grid. Auto-saves on tap with 600ms debounce, computes flex_score
+  // client-side as count_selected (out of 21), POSTs to
+  // update_customer_availability_grid which writes jobs.customer_availability_grid +
+  // jobs.flex_score + emits CUSTOMER_AVAILABILITY_CHANGED signal.
+  const AVAIL_BLOCKS = [
+    { key: 'morning',   label: '🌅 Morning',   sub: '8a-12p' },
+    { key: 'afternoon', label: '☀️ Afternoon', sub: '12-5p' },
+    { key: 'evening',   label: '🌙 Evening',   sub: '5-8p' },
+  ];
+  let availState = {};       // { 'YYYY-MM-DD': Set(['morning','afternoon']) }
+  let availSaveTimer = null;
+
+  function renderAvailabilityGrid(data) {
+    const job = (data && data.job) || {};
+    const stored = job.customer_availability_grid || '';
+    availState = {};
+    try {
+      const parsed = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(parsed)) {
+        parsed.forEach((entry) => {
+          if (entry && entry.date && Array.isArray(entry.blocks)) {
+            availState[entry.date] = new Set(entry.blocks);
+          }
+        });
+      }
+    } catch (e) {
+      availState = {};
+    }
+    const grid = document.getElementById('availGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const ymd = d.toISOString().slice(0, 10);
+      const dow = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dstr = (d.getMonth() + 1) + '/' + d.getDate();
+      const selected = availState[ymd] || new Set();
+      const row = document.createElement('div');
+      row.className = 'av-row' + (i === 0 ? ' today' : '');
+      const dayLabel = document.createElement('div');
+      dayLabel.className = 'av-day';
+      dayLabel.textContent = dow + ' ' + dstr;
+      row.appendChild(dayLabel);
+      const blocksWrap = document.createElement('div');
+      blocksWrap.className = 'av-blocks';
+      AVAIL_BLOCKS.forEach((b) => {
+        const cell = document.createElement('div');
+        cell.className = 'av-block' + (selected.has(b.key) ? ' on' : '');
+        cell.dataset.date = ymd;
+        cell.dataset.block = b.key;
+        cell.innerHTML = '<div>' + b.label + '</div><div style="font-size:10px;opacity:0.8">' + b.sub + '</div>';
+        cell.addEventListener('click', onAvailTap);
+        blocksWrap.appendChild(cell);
+      });
+      row.appendChild(blocksWrap);
+      grid.appendChild(row);
+    }
+    updateAvailStatus('');
+  }
+
+  function onAvailTap(e) {
+    const cell = e.currentTarget;
+    const ymd = cell.dataset.date;
+    const block = cell.dataset.block;
+    if (!availState[ymd]) availState[ymd] = new Set();
+    if (availState[ymd].has(block)) availState[ymd].delete(block);
+    else availState[ymd].add(block);
+    cell.classList.toggle('on');
+    queueAvailSave();
+  }
+
+  function queueAvailSave() {
+    updateAvailStatus('Saving…');
+    clearTimeout(availSaveTimer);
+    availSaveTimer = setTimeout(commitAvailSave, 600);
+  }
+
+  function updateAvailStatus(s) {
+    const el = document.getElementById('availStatus');
+    if (el) el.textContent = s;
+  }
+
+  async function commitAvailSave() {
+    // Collapse availState to canonical JSON array
+    const entries = [];
+    let total = 0;
+    Object.keys(availState).sort().forEach((date) => {
+      const blocks = Array.from(availState[date]);
+      if (blocks.length) {
+        entries.push({ date, blocks });
+        total += blocks.length;
+      }
+    });
+    const flex_score = Math.round((total / 21) * 100);
+    try {
+      const res = await fetch(`${XANO_BASE}/update_customer_availability_grid`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: Number(JOB_ID),
+          phone_last4: LAST4,
+          availability_grid: JSON.stringify(entries),
+          flex_score: flex_score,
+        }),
+      });
+      const d = await res.json();
+      if (d && d.success) {
+        const msg = total === 0
+          ? '✓ saved · mark times to be scheduled sooner'
+          : '✓ saved · flex score ' + flex_score + ' / 100';
+        updateAvailStatus(msg);
+      } else {
+        updateAvailStatus('save failed — tap again to retry');
+      }
+    } catch (e) {
+      updateAvailStatus('offline — will retry');
+    }
   }
 
   // Records portal engagement so the channel-preference engine learns
