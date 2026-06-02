@@ -32,24 +32,41 @@ exports.handler = async (event) => {
   const sinceIso = new Date(sinceMs).toISOString();
 
   // ── Step 1: pull HCP jobs (paginated) ──────────────────────────
+  // Use scheduled_start_min (jobs scheduled in the window) — this gives
+  // the real "is HCP fully synced to Xano?" picture. updated_after
+  // (previous filter) only catches jobs touched recently which dramatically
+  // undercounts (caught 10 in 7d when reality is ~170+).
+  // We fetch both the scheduled-window AND recently-updated to catch jobs
+  // that just moved status (e.g. now needs scheduling).
   const hcpJobs = [];
-  let page = 1;
-  const maxPages = 10;
-  while (page <= maxPages) {
-    try {
-      const url = `${HCP_BASE}/jobs?per_page=50&updated_after=${encodeURIComponent(sinceIso)}&page=${page}`;
-      const r = await fetch(url, { headers: { Authorization: 'Token ' + apiKey } });
-      if (!r.ok) {
-        return cors(r.status, JSON.stringify({ error: 'hcp_fetch_failed', status: r.status }));
+  const seenIds = new Set();
+  for (const filterPair of [
+    { kind: 'scheduled_start_min', value: sinceIso },
+    { kind: 'updated_after', value: sinceIso },
+  ]) {
+    let page = 1;
+    const maxPages = 20;
+    while (page <= maxPages) {
+      try {
+        const url = `${HCP_BASE}/jobs?per_page=50&${filterPair.kind}=${encodeURIComponent(filterPair.value)}&page=${page}`;
+        const r = await fetch(url, { headers: { Authorization: 'Token ' + apiKey } });
+        if (!r.ok) {
+          return cors(r.status, JSON.stringify({ error: 'hcp_fetch_failed', status: r.status, filter: filterPair.kind }));
+        }
+        const data = await r.json();
+        const jobs = data.jobs || data || [];
+        if (jobs.length === 0) break;
+        for (const j of jobs) {
+          if (j && j.id && !seenIds.has(j.id)) {
+            seenIds.add(j.id);
+            hcpJobs.push(j);
+          }
+        }
+        page += 1;
+        if (jobs.length < 50) break;
+      } catch (err) {
+        return cors(502, JSON.stringify({ error: 'hcp_fetch_threw', message: err.message, filter: filterPair.kind }));
       }
-      const data = await r.json();
-      const jobs = data.jobs || data || [];
-      if (jobs.length === 0) break;
-      hcpJobs.push(...jobs);
-      page += 1;
-      if (jobs.length < 50) break;
-    } catch (err) {
-      return cors(502, JSON.stringify({ error: 'hcp_fetch_threw', message: err.message }));
     }
   }
 
