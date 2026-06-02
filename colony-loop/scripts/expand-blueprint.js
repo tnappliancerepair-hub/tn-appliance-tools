@@ -57,7 +57,7 @@ function addAgents(colonyIndex, prefix, padDigits, newAgents) {
 // ── Parts: 5 suppliers × 7 appliance categories = 35, plus 5 cross-cutting
 const SUPPLIERS = [
   { slug: 'marcone',         display: 'Marcone' },
-  { slug: 'triple_s',        display: 'Triple S' },
+  { slug: 'tribles',        display: 'Tribles Appliance Parts' },
   { slug: 'appliancepartspros', display: 'AppliancePartsPros' },
   { slug: 'repairclinic',    display: 'RepairClinic' },
   { slug: 'partselect',      display: 'PartSelect' },

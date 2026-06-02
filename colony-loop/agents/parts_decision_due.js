@@ -18,7 +18,7 @@
 import { config } from '../config.js';
 import { toOwner, toDanielle } from '../sms.js';
 
-const AGGREGATE_PROMPT = `You are the Parts Decision Aggregator for TN Appliance Exchange. You receive 2-5 supplier intel responses for a single appliance job — each one is a Claude-generated structured block from a parts_lookup_<supplier> agent (Marcone, Triple S, RepairClinic, PartSelect, AppliancePartsPros).
+const AGGREGATE_PROMPT = `You are the Parts Decision Aggregator for TN Appliance Exchange. You receive 2-5 supplier intel responses for a single appliance job — each one is a Claude-generated structured block from a parts_lookup_<supplier> agent (Marcone, Tribles Appliance Parts, RepairClinic, PartSelect, AppliancePartsPros).
 
 Your job is to compose ONE 1-line SMS body for the shop owner with the single best part-source pick. Optimize for: (a) in-stock now, (b) fastest delivery ETA, (c) lowest verified OEM price. When two suppliers tie, prefer Marcone (default OEM distributor for the shop).
 

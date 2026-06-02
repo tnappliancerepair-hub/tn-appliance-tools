@@ -1,5 +1,5 @@
 // Multi-source part number finder. Phase 1: Claude reasoning as primary
-// source. Phase 2 (when Marcone + Triple S APIs land): those become the
+// source. Phase 2 (when Marcone + Tribles Appliance Parts APIs land): those become the
 // anchors and Claude becomes the backstop / disambiguator.
 //
 // Architecture for the "unanimous answer" pattern Teddy laid out:
@@ -136,7 +136,7 @@ exports.handler = async (event) => {
 
   // Source-agreement scoring: today we have 1 source (Claude). All
   // candidates get a single 'sources_agreeing' = 1. When more sources
-  // land (Marcone API, Triple S API, scrape sources), the parts that
+  // land (Marcone API, Tribles Appliance Parts API, scrape sources), the parts that
   // appear in multiple source responses get sources_agreeing bumped.
   let candidates = [];
   if (parsed && parsed.primary_candidate) {
@@ -166,7 +166,7 @@ exports.handler = async (event) => {
     verify_at: (parsed && parsed.verify_at) || [],
     confidence_notes: (parsed && parsed.confidence_notes) || '',
     sources_queried: ['claude'],
-    note: 'Phase 1 — Claude solo. Marcone + Triple S API integration pending. Source-agreement scoring upgrades automatically when more sources land.',
+    note: 'Phase 1 — Claude solo. Marcone + Tribles Appliance Parts API integration pending. Source-agreement scoring upgrades automatically when more sources land.',
     raw_preview: stripped.slice(0, 600),
   }, null, 2));
 };

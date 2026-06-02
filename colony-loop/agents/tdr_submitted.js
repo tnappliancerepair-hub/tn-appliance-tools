@@ -3,7 +3,7 @@
 // signals to the dormant parts-pricing agents so Teddy gets real parts
 // pricing back instead of relying on the Sears Parts Direct stopgap.
 //
-// Wired suppliers (Claude-simulated until Marcone + Triple S APIs land):
+// Wired suppliers (Claude-simulated until Marcone + Tribles Appliance Parts APIs land):
 //   - parts_marcone_pricing.js     (listens on PARTS_LOOKUP_MARCONE_PRICING)
 //   - parts_repairclinic_pricing.js (listens on PARTS_LOOKUP_REPAIRCLINIC_PRICING)
 //   - parts_partselect_pricing.js   (listens on PARTS_LOOKUP_PARTSELECT_PRICING)

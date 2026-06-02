@@ -1,5 +1,5 @@
 //  Single entry point that fires customer-facing SMS about a parts event.
-//  Called from Teddy Tool, office UI, or — eventually — Marcone/Triple S
+//  Called from Teddy Tool, office UI, or — eventually — Marcone/Tribles Appliance Parts
 //  API webhooks. Status determines the SMS body.
 // 
 //  Status values:
@@ -247,7 +247,7 @@ query emit_parts_event verb=POST {
   
     // For status=ordered without a vendor confirmation, alert the
     // office that this part still needs to be MANUALLY ordered. Until
-    // Marcone / Triple S APIs land, every 'ordered' tap surfaces a
+    // Marcone / Tribles Appliance Parts APIs land, every 'ordered' tap surfaces a
     // manual-placement task. Customer SMS already went out promising
     // the order — office has to make it real.
     var $vendor_confirmed_flag {

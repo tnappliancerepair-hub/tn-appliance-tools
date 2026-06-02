@@ -14,7 +14,7 @@
 // get_common_failures_for_model if there's TDR history for the
 // brand+model. Falls back to general brand intelligence.
 //
-// Future: when Marcone/Triple S APIs land, this agent will check stock
+// Future: when Marcone/Tribles Appliance Parts APIs land, this agent will check stock
 // + cost + ETA in the recommendation and offer a one-tap order.
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';

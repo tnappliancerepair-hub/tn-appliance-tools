@@ -25,7 +25,7 @@ that helps the owner stay ahead of:
   - New common failure-mode patterns in appliances (especially Whirlpool,
     Samsung, LG, GE, Frigidaire, Maytag — the brands they service most)
   - Recall announcements that could trigger repair surges
-  - Parts pricing / supply chain news (Marcone, Triple S, Reliable Parts)
+  - Parts pricing / supply chain news (Marcone, Tribles Appliance Parts, Reliable Parts)
   - Competitor moves in TN Metro + Hammond LA + Walker LA
 
 Format your output as a JSON object:

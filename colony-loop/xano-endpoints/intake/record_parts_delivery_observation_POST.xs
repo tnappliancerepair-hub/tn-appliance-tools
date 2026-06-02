@@ -1,7 +1,7 @@
 // Universal "parts delivery observed" entry point.
 //
 // Whatever sees the delivery first — Gmail parser scanning Marcone /
-// Triple S / Amazon emails, FedEx tracking webhook, Marcone API
+// Tribles Appliance Parts / Amazon emails, FedEx tracking webhook, Marcone API
 // poller — hits THIS endpoint to record the observation. The
 // downstream parts_delivery_observation_handler.js agent then:
 //   - tries to fuzzy-match against open awaiting_parts jobs by
@@ -22,7 +22,7 @@ query record_parts_delivery_observation verb=POST {
 
   input {
     text source filters=trim  // "gmail_marcone", "gmail_triples", "marcone_api", "manual", etc.
-    text? vendor?              // "Marcone", "Triple S", "Amazon Business"
+    text? vendor?              // "Marcone", "Tribles Appliance Parts", "Amazon Business"
     text? tracking_number?
     text? order_number?
     text? customer_name_hint?

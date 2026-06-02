@@ -10,7 +10,7 @@
 //
 // Callers today:
 //   - Danielle marks parts arrived from /needs-scheduled or warranty-review
-//   - Future: Marcone / Triple S parts-tracking integrations
+//   - Future: Marcone / Tribles Appliance Parts parts-tracking integrations
 //
 // Idempotent — if parts_status is already "arrived", we skip the
 // status write but STILL emit the signal so downstream agents can

@@ -25,7 +25,7 @@ This doc maps:
 |---|---|---|---|---|
 | 1 | Email → job creation | AHS/SP/web-chat XS intakes ✅; `create_job_from_email` post-paste auto-enqueues | LIVE | Activate broadcast vs auto-schedule decision (Tue) |
 | 2 | Pre-diagnosis request SMS | `job_created.js` agent ✅; `daily_job_prep.js` 6:30am ✅ | LIVE | None |
-| 3 | Pre-diagnosis content | Teddy Tool (`teddy-tdr-tool.html`) | LIVE manual | Parts API integration when Marcone/Triple S deliver |
+| 3 | Pre-diagnosis content | Teddy Tool (`teddy-tdr-tool.html`) | LIVE manual | Parts API integration when Marcone/Tribles Appliance Parts deliver |
 | 4 | Parts ordered before arrival | `parts_decision_aggregator` + `parts_lookup_*` agents; `parts_status` enum | LIVE for tracking; ordering manual | API integration when vendors deliver |
 | 5 | Waiver sent + signed | `waiver_due.js` 4h pre-appt ✅; Jotform webhook ✅ | LIVE | Add server-side gate at tech-side: if `waiver_signed=false` show banner "have customer sign first" before Start Job |
 | 6 | Job scheduled | Practice cron auto-schedules ✅; manual via `needs-scheduled.html` ✅; calendar ✅; `APPOINTMENT_SCHEDULED` chain → tech SMS + customer SMS (gated) ✅ | LIVE | Drop PRACTICE tag (Mon mid-day) |

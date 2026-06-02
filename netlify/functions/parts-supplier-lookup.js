@@ -1,4 +1,4 @@
-// Unified parts-supplier lookup scaffold for Marcone + Triple S APIs.
+// Unified parts-supplier lookup scaffold for Marcone + Tribles Appliance Parts APIs.
 // Both upstream integrations are pending delivery (per CLAUDE.md
 // 'Pending external integrations'). Until APIs arrive, this function
 // returns a clearly-marked placeholder so the architect's parts_lookup_*

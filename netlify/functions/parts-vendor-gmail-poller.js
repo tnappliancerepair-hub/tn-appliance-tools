@@ -2,7 +2,7 @@
 //
 // Watches the same Gmail inbox the AHS / ServicePower pollers use for
 // shipping-confirmation + delivery-notification emails from parts
-// distributors (Marcone, Triple S, Reliable Parts, Amazon Business)
+// distributors (Marcone, Tribles Appliance Parts, Reliable Parts, Amazon Business)
 // and carriers (FedEx, UPS, USPS). When a "DELIVERED" message lands,
 // extracts identifying details (vendor, tracking #, order #, customer
 // hint, zip) and POSTs to /record_parts_delivery_observation.
@@ -47,13 +47,13 @@ const FINGERPRINTS = [
       tracking_number: matchFirst(snip, /1Z[A-Z0-9]{16}|\b\d{12,22}\b/i),
     }),
   },
-  // Triple S — similar pattern.
+  // Tribles Appliance Parts — similar pattern.
   {
     name: 'triples_delivered',
-    vendor: 'Triple S',
+    vendor: 'Tribles Appliance Parts',
     query: 'from:(triplesstore.com OR triples.com) (subject:delivered OR "has been delivered")',
     extract: (subj, snip) => ({
-      vendor: 'Triple S',
+      vendor: 'Tribles Appliance Parts',
       order_number: matchFirst(subj + ' ' + snip, /order[\s#:]*(\w{6,16})/i),
       tracking_number: matchFirst(snip, /1Z[A-Z0-9]{16}|\b\d{12,22}\b/i),
     }),

@@ -11,7 +11,7 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-02T02:49:32.451Z
+// Generated: 2026-06-02T13:47:11.025Z
 // Total registered: 475
 // Skipped (no run() or import error): 0
 
@@ -224,14 +224,14 @@ export const AGENT_REGISTRY = {
   'PARTS_LOOKUP_SUPPLIER_WINDOW_MATCHER': './parts_lookup_supplier_window_matcher.js',
   'PARTS_LOOKUP_TECH_PERFORMANCE_COACH': './parts_lookup_tech_performance_coach.js',
   'PARTS_LOOKUP_TECH_SYNC_COORDINATOR': './parts_lookup_tech_sync_coordinator.js',
+  'PARTS_LOOKUP_TRIBLES_DISHWASHER': './parts_lookup_tribles_dishwasher.js',
+  'PARTS_LOOKUP_TRIBLES_DRYER': './parts_lookup_tribles_dryer.js',
+  'PARTS_LOOKUP_TRIBLES_HVAC': './parts_lookup_tribles_hvac.js',
+  'PARTS_LOOKUP_TRIBLES_MICROWAVE': './parts_lookup_tribles_microwave.js',
   'PARTS_LOOKUP_TRIBLES_PRICING': './parts_lookup_tribles_pricing.js',
-  'PARTS_LOOKUP_TRIPLE_S_DISHWASHER': './parts_lookup_triple_s_dishwasher.js',
-  'PARTS_LOOKUP_TRIPLE_S_DRYER': './parts_lookup_triple_s_dryer.js',
-  'PARTS_LOOKUP_TRIPLE_S_HVAC': './parts_lookup_triple_s_hvac.js',
-  'PARTS_LOOKUP_TRIPLE_S_MICROWAVE': './parts_lookup_triple_s_microwave.js',
-  'PARTS_LOOKUP_TRIPLE_S_RANGE': './parts_lookup_triple_s_range.js',
-  'PARTS_LOOKUP_TRIPLE_S_REFRIGERATOR': './parts_lookup_triple_s_refrigerator.js',
-  'PARTS_LOOKUP_TRIPLE_S_WASHER': './parts_lookup_triple_s_washer.js',
+  'PARTS_LOOKUP_TRIBLES_RANGE': './parts_lookup_tribles_range.js',
+  'PARTS_LOOKUP_TRIBLES_REFRIGERATOR': './parts_lookup_tribles_refrigerator.js',
+  'PARTS_LOOKUP_TRIBLES_WASHER': './parts_lookup_tribles_washer.js',
   'PARTS_PRE_ORDER_SUGGESTION': './parts_pre_order_suggestion.js',
   'PARTS_RELIABLE_PARTS_DISHWASHER': './parts_reliable_parts_dishwasher.js',
   'PARTS_RELIABLE_PARTS_DRYER': './parts_reliable_parts_dryer.js',

@@ -1133,7 +1133,7 @@ While Teddy was in the field for 5 hours, the agent shipped 5 ordered builds + f
 
 **HOUR 5 — Blueprint enumeration (+130 TO_BUILD specs)** + architect run (this commit)
 - New `colony-loop/scripts/expand-blueprint.js` generates structured TO_BUILD specs:
-  - **Colony 2 Parts**: +40 (P014..P053) — 5 suppliers (Marcone/Triple S/AppliancePartsPros/RepairClinic/PartSelect) × 7 appliance categories (washer/dryer/dishwasher/refrigerator/range/microwave/hvac) + 5 cross-cutting (arbitrage, backorder watcher, cross-ref resolver, authenticity verifier, shipping ETA predictor).
+  - **Colony 2 Parts**: +40 (P014..P053) — 5 suppliers (Marcone/Tribles Appliance Parts/AppliancePartsPros/RepairClinic/PartSelect) × 7 appliance categories (washer/dryer/dishwasher/refrigerator/range/microwave/hvac) + 5 cross-cutting (arbitrage, backorder watcher, cross-ref resolver, authenticity verifier, shipping ETA predictor).
   - **Colony 5 Voice/SMS**: +25 (V006..V030) — 25 conversation types (appointment_confirmation, reschedule_request, cancel_request, parts_arrival_eta, parts_delay, payment_due/received, technician_eta/late, tech_no_show, complaint, refund_request, warranty_question, post_job_feedback, positive/negative_review_followup, opt_out, repeat_customer_greeting, photo_request, model_number_request, address_correction, gate_code_request, callback_request, escalation_acknowledgement, after_hours_response).
   - **Colony 3 Scheduling**: +15 (S021..S035) — gap_filler, cluster_geometry_optimizer, traffic_aware_eta, tech_specialty_router, no_show_recovery, recurring_anchor, day_balancer, last_minute_filler, schedule_health_scorer, capacity_predictor, duration_learner, sick_day_cascade_refiner, weather_aware_rescheduler, preference_aligner, holiday_adjuster.
   - **Colony 14 HVAC**: +10 (H014..H023) — recovery_compliance, heat_pump_diagnostic, furnace_combustion_analyzer, ac_charge_calculator, filter_reminder, duct_loss_estimator, sizing_validator, brand_bulletin_watcher, tax_credit_surfacer, iaq_specialist.
@@ -1875,11 +1875,11 @@ Added `https://*.amazonaws.com` to connect-src so photo-zip can fetch signed S3 
 
 ### Part-number finding tool (discussed, not built)
 
-Teddy flagged this as the #1 time killer (~40% accuracy on AI-only today). Agreed architecture: multi-source voting — query 4-6 sources in parallel ({Marcone API, Triple S API} when available + {Sears Parts Direct, RepairClinic, AppliancePartsPros, PartSelect} via scrape + Claude web-search as backstop). Score by source-agreement: 3+ agree = HIGH (auto-accept), 2 = MEDIUM (surface dissents), all disagree = LOW (human breaks tie + system learns). Store every verified resolution in `parts_resolutions` as proprietary corpus. Embed in Teddy Tool + tech-ant-chat + standalone parts-lookup.html.
+Teddy flagged this as the #1 time killer (~40% accuracy on AI-only today). Agreed architecture: multi-source voting — query 4-6 sources in parallel ({Marcone API, Tribles Appliance Parts API} when available + {Sears Parts Direct, RepairClinic, AppliancePartsPros, PartSelect} via scrape + Claude web-search as backstop). Score by source-agreement: 3+ agree = HIGH (auto-accept), 2 = MEDIUM (surface dissents), all disagree = LOW (human breaks tie + system learns). Store every verified resolution in `parts_resolutions` as proprietary corpus. Embed in Teddy Tool + tech-ant-chat + standalone parts-lookup.html.
 
 Phase 1 (today's possible build) waits on:
 - Vendor scraping legality OK from Teddy
-- Whether to wait for Marcone+Triple S APIs ("few weeks" per CLAUDE.md) or build web-scrape now
+- Whether to wait for Marcone+Tribles Appliance Parts APIs ("few weeks" per CLAUDE.md) or build web-scrape now
 
 **🐜 Long Live Ant.**
 
@@ -1977,17 +1977,17 @@ Either path writes `action="prediag_request_sent"` or `action="daily_job_prep_fi
 
 ## Pending external integrations — wire when delivered
 
-### Parts APIs (Marcone + Triple S) — expected within a few weeks
+### Parts APIs (Marcone + Tribles Appliance Parts) — expected within a few weeks
 
 Two upstream parts-data integrations are committed but not yet delivered:
 
 - **Marcone API** — OEM appliance parts distributor, broad catalog coverage.
-- **Triple S API** — secondary parts source.
+- **Tribles Appliance Parts API** — secondary parts source.
 
 Currently the Teddy Tool parts-lookup flow uses a **Sears Parts Direct link** as a stopgap. When either API lands:
 
 1. **Wire into the `parts_intelligence` architect template** (currently the template generates parts agents that simulate sourcing via Claude — replace with real API calls). Generated agents in `colony-loop/agents/parts_*.js` are the wiring targets.
-2. **Replace the Sears Parts Direct link in `teddy-tdr-tool.html`** with a Marcone/Triple S lookup that pre-fills part numbers + live pricing for the diagnosed component.
+2. **Replace the Sears Parts Direct link in `teddy-tdr-tool.html`** with a Marcone/Tribles Appliance Parts lookup that pre-fills part numbers + live pricing for the diagnosed component.
 3. **Update the parts cost capture path** — currently Teddy enters OEM cost as a free-form dollar amount; with a real API it can auto-fill from the live catalog.
 4. **Track stock + ETA** — both APIs should expose inventory + arrival estimates, which the existing `parts_status` enum + `parts_eta_date` column can absorb without schema changes.
 

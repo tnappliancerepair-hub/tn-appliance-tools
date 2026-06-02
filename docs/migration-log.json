@@ -1,73 +1,83 @@
 {
-  "started_at_iso": "2026-05-27T10:35:25.170Z",
-  "started_at_ms": 1779878125170,
+  "started_at_iso": "2026-06-01T23:42:09.317Z",
+  "started_at_ms": 1780357329317,
   "args": {
-    "dryRun": true,
+    "dryRun": false,
     "maxPages": 100,
-    "statuses": "scheduled,in progress,schedule appointment",
+    "statuses": "scheduled,needs scheduling,schedule appointment,in progress,unscheduled,pending booking",
     "perPage": 200
   },
   "base_url": "https://api.housecallpro.com",
   "xano_base": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
   "pages_seen": 1,
   "total_hcp_jobs": 10,
-  "created": 0,
+  "created": 10,
   "updated": 0,
-  "skipped": 10,
+  "skipped": 0,
   "failed": 0,
   "failures": [],
   "by_action": [
     {
-      "hcp_job_id": "job_c5fa574c12854bdea11976aa31ec1e42",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_47820091f30441dd9a8b36d63dce856c",
+      "action_taken": "created",
+      "xano_job_id": 18527,
+      "xano_customer_id": 3672
     },
     {
-      "hcp_job_id": "job_8b80169e10874a15bae90021c2d486b9",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_ca866d98f410460fb1a5729e0ff48c1c",
+      "action_taken": "created",
+      "xano_job_id": 18528,
+      "xano_customer_id": 3673
     },
     {
-      "hcp_job_id": "job_911e1fc5f17e43cfa90aba0a10385d8d",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_6d720bfe6bb641e7b2432aadb4a03533",
+      "action_taken": "created",
+      "xano_job_id": 18529,
+      "xano_customer_id": 3674
     },
     {
-      "hcp_job_id": "job_d402e482ec034b68973be64773ad49ae",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_7c068f5ee7fe4ff7ad0d0fdef3c1f33b",
+      "action_taken": "created",
+      "xano_job_id": 18530,
+      "xano_customer_id": 3675
     },
     {
-      "hcp_job_id": "job_08c2430f559248bd85e86face32698cf",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_3d1f6f4e1a9347819851bf26f93ea5a7",
+      "action_taken": "created",
+      "xano_job_id": 18531,
+      "xano_customer_id": 3676
     },
     {
-      "hcp_job_id": "job_2fa51d50575744699aebce4e4735ed7a",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_f9cea30ac509491cbf8df9e89896c200",
+      "action_taken": "created",
+      "xano_job_id": 18532,
+      "xano_customer_id": 3677
     },
     {
-      "hcp_job_id": "job_e45688df4ad240db909893aeff513c97",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_14fe4476d914460fb49bfc41a25c23a5",
+      "action_taken": "created",
+      "xano_job_id": 18533,
+      "xano_customer_id": 3678
     },
     {
-      "hcp_job_id": "job_c6375ee283cc4618b6a00970d7617fa3",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_b2ad19841b2843c78580aa137bb20954",
+      "action_taken": "created",
+      "xano_job_id": 18534,
+      "xano_customer_id": 3679
     },
     {
-      "hcp_job_id": "job_91005786e62a40f2a03feb90097d6bfe",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_098f6b3200324e8bac21e2e3155d474c",
+      "action_taken": "created",
+      "xano_job_id": 18535,
+      "xano_customer_id": 3680
     },
     {
-      "hcp_job_id": "job_e8f8127965084f6bae4b1dc4d730c433",
-      "action_taken": "dry_run",
-      "work_status": "scheduled"
+      "hcp_job_id": "job_7d6ba526b3294ffab8aa2f259097f0f0",
+      "action_taken": "created",
+      "xano_job_id": 18536,
+      "xano_customer_id": 3681
     }
   ],
-  "finished_at_iso": "2026-05-27T10:35:25.896Z",
-  "elapsed_ms": 726
+  "finished_at_iso": "2026-06-01T23:42:13.100Z",
+  "elapsed_ms": 3783
 }

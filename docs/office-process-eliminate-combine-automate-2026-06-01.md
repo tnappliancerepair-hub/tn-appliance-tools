@@ -43,7 +43,7 @@ The job lifecycle has 5 phases and 4 horizontal layers that cross every phase.
 | Sub-step | Today | Target |
 |---|---|---|
 | Pre-diagnosis | **Teddy types into Teddy Tool** | AI agent generates first draft from symptom + brand + model, Teddy confirms (eventually unattended) |
-| Identify exact part | **Manual via Sears Parts Direct link** | Marcone / Triple S API auto-lookup (pending vendor delivery) |
+| Identify exact part | **Manual via Sears Parts Direct link** | Marcone / Tribles Appliance Parts API auto-lookup (pending vendor delivery) |
 | Order the part | **Manual via vendor portal** | API call (pending vendor delivery) — autonomous or confirm-and-fire |
 | Ship to customer's address | **Manual order entry** | API includes shipping address (customer's, not warehouse) |
 | Record parts cost / sell price / tax | **Not tracked today** | Auto-write to `job_financial` at order time |
@@ -172,7 +172,7 @@ Things that need to become silent automation. **Priority order = build sequence.
 | 10 | **AHS portal adapter** | 3-5d | Second vendor — covers the other half |
 | 11 | **Auto-schedule revisit when parts ETA passes** | 0.5d | Today: parts_arrival_check notifies; target: auto-bid slot |
 | 12 | **Pre-diagnosis AI agent** (symptom + brand + model → likely parts) | 2-3d | Removes Teddy's manual Teddy Tool entry |
-| 13 | **Marcone / Triple S API integration** for parts ordering | 1-2d (after vendor delivery) | End-to-end parts order automation |
+| 13 | **Marcone / Tribles Appliance Parts API integration** for parts ordering | 1-2d (after vendor delivery) | End-to-end parts order automation |
 | 14 | **Stripe Connect for auto ACH payouts** | 2d | Removes Teddy's manual Venmo sends |
 | 15 | **Customer portal as canonical status page** + link sent in every SMS | 1d | Customers self-serve "where am I at" |
 
@@ -244,7 +244,7 @@ Surprisingly much. Building this is mostly wiring, not greenfield.
 | ServicePower / AHS portal adapters | 🔴 Scoping doc only (`docs/warranty-portal-automation-scoping-2026-05-31.md`) |
 | Pre-diagnosis AI agent | 🔴 Concept only |
 | `tech_earnings.commission_earned` upstream write | 🔴 Always $0 (per financial flag #2) |
-| Marcone / Triple S parts API | 🔴 Pending vendor delivery |
+| Marcone / Tribles Appliance Parts parts API | 🔴 Pending vendor delivery |
 | Stripe Connect for ACH payouts | 🔴 Not built |
 
 **Net assessment:** ~60% of what we need already exists in some form. The work is mostly **wiring + activation**, not new construction.

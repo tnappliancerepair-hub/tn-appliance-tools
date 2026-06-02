@@ -27,9 +27,9 @@ job is in `awaiting_parts` AND `parts_status != "arrived"`. Tap → confirm prom
 which auth-checks phone last 4 then writes the same atomic flow with
 `source:"customer_portal"`.
 
-## Path C — Vendor API (future: Marcone / Triple S)
+## Path C — Vendor API (future: Marcone / Tribles Appliance Parts)
 
-When the Marcone or Triple S APIs land (CLAUDE.md "Pending external
+When the Marcone or Tribles Appliance Parts APIs land (CLAUDE.md "Pending external
 integrations" section), wire a Mac Mini poller that calls
 `POST /record_parts_delivery_observation` (NOT `mark_parts_arrived`
 directly) with the order_number it knows from the API. The handler
@@ -41,7 +41,7 @@ Netlify scheduled function (every 30 min) scans the same Gmail inbox
 the AHS/SP pollers use for delivery-notification emails:
 
 - Marcone (`from:marcone.com subject:delivered`)
-- Triple S (`from:triplesstore.com subject:delivered`)
+- Tribles Appliance Parts (`from:triplesstore.com subject:delivered`)
 - Reliable Parts (`from:reliableparts.com subject:delivered`)
 - FedEx (`from:trackingupdates@fedex.com subject:delivered`)
 - UPS (`from:mcinfo@ups.com subject:delivered`)
