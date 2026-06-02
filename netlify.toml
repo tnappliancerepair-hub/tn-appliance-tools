@@ -17,7 +17,7 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(self), microphone=(self), geolocation=(self), payment=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://xbtp-g9bh-ditq.n7e.xano.io https://api.anthropic.com https://api.openai.com https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org https://maps.googleapis.com https://api.telnyx.com https://*.netlify.app https://tnapplianceexchange.net wss:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://xbtp-g9bh-ditq.n7e.xano.io https://api.anthropic.com https://api.openai.com https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org https://maps.googleapis.com https://api.telnyx.com https://*.netlify.app https://tnapplianceexchange.net https://*.amazonaws.com wss:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
 
 # Scheduled function: AHS dispatch email poller (every 15 minutes).
 # Reads tnappliancerepair@gmail.com via Gmail API, extracts dispatch.xml
@@ -75,6 +75,16 @@
 # Disable by removing this block or changing the schedule.
 [functions."practice-auto-schedule-cron"]
   schedule = "*/15 * * * *"
+
+# Warranty-status email watcher (Phase 0 of warranty automation arc).
+# Scans Gmail for vendor confirmation/payment/denial emails. Defaults to
+# DRY-RUN — parses + logs to event_log without updating warranty_submissions.
+# Flip live by setting WARRANTY_STATUS_WATCHER_LIVE=true in Netlify env
+# (only after reviewing dry-run event_log rows for pattern accuracy).
+# Every 10 min — vendor confirmation emails aren't time-critical to the
+# minute and we want the dry-run log volume manageable.
+[functions."warranty-status-gmail-watcher"]
+  schedule = "*/10 * * * *"
 
 # Colony heartbeat watchdog. Every 5 min, verifies the Mac Mini loop
 # is firing loop_tick events. If the most recent tick is older than

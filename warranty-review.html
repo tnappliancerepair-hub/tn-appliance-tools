@@ -97,6 +97,42 @@
     .card .media-strip .download-all { display:inline-flex; align-items:center; padding:0 10px; height:56px; border-radius:6px; background:rgba(76,167,255,0.10); border:1px solid rgba(76,167,255,0.35); color:#4ca7ff; font-size:11px; font-weight:600; cursor:pointer; }
     .card .media-strip .download-all:hover { background:rgba(76,167,255,0.18); }
     .card .media-label { color:var(--muted); font-size:11px; margin-top:6px; }
+
+    /* Submission status badges (Phase 0 — warranty_submissions table) */
+    .sub-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:600; font-family:var(--mono); margin-left:6px; }
+    .sub-badge.submitted { background:rgba(76,167,255,0.15); color:#4ca7ff; border:1px solid rgba(76,167,255,0.4); }
+    .sub-badge.paid      { background:rgba(76,210,192,0.18); color:#4cd2c0; border:1px solid rgba(76,210,192,0.5); }
+    .sub-badge.denied    { background:rgba(255,107,107,0.15); color:#ff6b6b; border:1px solid rgba(255,107,107,0.4); }
+    .sub-badge.failed    { background:rgba(255,157,74,0.15); color:#ff9d4a; border:1px solid rgba(255,157,74,0.4); }
+    .sub-badge.pending   { background:rgba(255,255,255,0.05); color:#9aa1ad; border:1px solid rgba(255,255,255,0.15); }
+
+    /* Per-field paste cards (ported from office-today) */
+    .paste-fields { display:flex; flex-direction:column; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08); }
+    .paste-fields.collapsed { display:none; }
+    .field-row { display:flex; align-items:center; gap:8px; padding:6px 8px; background:rgba(255,255,255,0.03); border-radius:6px; }
+    .field-row .label { font-family:var(--mono); font-size:10px; color:var(--muted); min-width:90px; text-transform:uppercase; }
+    .field-row .value { flex:1; font-size:13px; color:#e8eaf0; word-break:break-word; }
+    .field-row .copy-btn { background:transparent; border:1px solid rgba(255,255,255,0.15); color:#9aa1ad; border-radius:5px; padding:3px 7px; font-size:12px; cursor:pointer; }
+    .field-row .copy-btn:hover { background:rgba(255,255,255,0.06); color:#fff; }
+    .field-row .copy-btn.copied { background:rgba(76,210,192,0.15); border-color:#4cd2c0; color:#4cd2c0; }
+
+    /* Action buttons */
+    .card .actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+    .card .btn { padding:7px 12px; border-radius:6px; font-size:12px; font-weight:600; font-family:var(--mono); cursor:pointer; border:1px solid; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+    .card .btn-portal { background:rgba(255,193,7,0.12); border-color:rgba(255,193,7,0.45); color:#ffc107; }
+    .card .btn-success { background:rgba(76,210,192,0.12); border-color:rgba(76,210,192,0.45); color:#4cd2c0; }
+    .card .btn-secondary { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.15); color:#d4d6dc; }
+    .card .btn-zip { background:rgba(76,167,255,0.10); border-color:rgba(76,167,255,0.35); color:#4ca7ff; }
+    .card .btn:hover { filter:brightness(1.15); }
+
+    /* Mark-submitted inline form */
+    .mark-form { display:none; flex-direction:column; gap:8px; padding:10px 12px; background:rgba(76,210,192,0.05); border:1px solid rgba(76,210,192,0.25); border-radius:6px; margin-top:10px; }
+    .mark-form.open { display:flex; }
+    .mark-form input, .mark-form textarea { background:#0a0a0a; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:5px; padding:7px 9px; font-size:13px; font-family:inherit; }
+    .mark-form textarea { min-height:50px; resize:vertical; }
+    .mark-form .row { display:flex; gap:8px; }
+    .mark-form .row > * { flex:1; }
+    .mark-form select { background:#0a0a0a; border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:5px; padding:7px 9px; font-size:13px; }
     .card pre {
       background: var(--bg); border: 1px solid var(--border-soft); border-radius: 6px;
       padding: 10px; margin-top: 10px;
@@ -114,6 +150,9 @@
     .loading { color: var(--muted); font-family: var(--mono); padding: 30px; text-align: center; }
     .err { color: var(--red); font-family: var(--mono); padding: 30px; text-align: center; }
   </style>
+  <!-- JSZip for client-side photo bundle downloads. CSP already allows
+       cdnjs.cloudflare.com (see netlify.toml). -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 </head>
 <body>
 
@@ -250,12 +289,13 @@
         : s === 'flags' ? `<span class="pill flags">${r.high_flags} flag${r.high_flags === 1 ? '' : 's'}</span>`
         : '<span class="pill clear">clear</span>';
       parts.push(`
-        <div class="card ${s}">
+        <div class="card ${s}" data-job-id="${r.job_id}">
           <div class="row1">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <a class="job-link" href="job-detail.html?job_id=${r.job_id}">Job #${r.job_id}</a>
               <span class="vendor">${escapeHtml(r.vendor || r.specialty || '?')}</span>
               ${pill}
+              <span class="sub-badge-slot" data-sub-badge="${r.job_id}"></span>
             </div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${createdStr} CT</div>
           </div>
@@ -263,9 +303,35 @@
           <div class="media-label" data-media-label="${r.job_id}" style="display:none">📎 customer media for portal submission</div>
           <div class="media-strip" data-media-strip="${r.job_id}"></div>
           <pre id="text-${r.id}" style="display:none">${escapeHtml(r.claim_action_text)}</pre>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <button class="expand" data-toggle="${r.id}">Show claim package ↓</button>
-            <button class="expand" data-correction="${r.id}" data-vendor="${escapeHtml((r.vendor || r.specialty || '').toLowerCase().replace(/\s+/g,''))}" data-job="${r.job_id}" style="background:rgba(255,193,7,0.10);border-color:rgba(255,193,7,0.4);color:#ffc107">🚩 Mark gap (teaches Ant)</button>
+          <div class="paste-fields collapsed" id="pf-${r.job_id}"></div>
+          <div class="mark-form" id="mf-${r.job_id}">
+            <input type="text" id="mf-conf-${r.job_id}" placeholder="Vendor confirmation # (paste here)">
+            <textarea id="mf-notes-${r.job_id}" placeholder="Notes (optional)"></textarea>
+            <div class="row">
+              <select id="mf-status-${r.job_id}">
+                <option value="submitted">Submitted</option>
+                <option value="paid">Paid</option>
+                <option value="denied">Denied</option>
+                <option value="failed">Failed</option>
+                <option value="pending">Pending (re-open)</option>
+              </select>
+              <input type="number" step="0.01" id="mf-amount-${r.job_id}" placeholder="$ paid (if paid)">
+            </div>
+            <div class="row">
+              <button class="btn btn-success" data-mark-save="${r.job_id}" data-vendor="${escapeAttr(r.vendor || r.specialty || '')}">💾 Save</button>
+              <button class="btn btn-secondary" data-mark-cancel="${r.job_id}">Cancel</button>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-secondary" data-toggle="${r.id}">Show claim package ↓</button>
+            <button class="btn btn-secondary" data-paste="${r.job_id}">📋 Show paste fields ↓</button>
+            ${(() => {
+              const url = vendorPortalUrl(r.vendor || r.specialty);
+              return url ? `<a class="btn btn-portal" href="${url}" target="_blank" rel="noopener">Open ${escapeHtml(r.vendor || r.specialty || 'vendor')} portal ↗</a>` : '';
+            })()}
+            <button class="btn btn-success" data-mark-open="${r.job_id}">✓ Mark submitted</button>
+            <button class="btn btn-zip" data-zip="${r.job_id}" style="display:none">⇩ Download photos zip</button>
+            <button class="btn btn-secondary" data-correction="${r.id}" data-vendor="${escapeHtml((r.vendor || r.specialty || '').toLowerCase().replace(/\s+/g,''))}" data-job="${r.job_id}" style="background:rgba(255,193,7,0.10);border-color:rgba(255,193,7,0.4);color:#ffc107">🚩 Mark gap</button>
           </div>
         </div>
       `);
@@ -291,9 +357,250 @@
       }));
     });
 
-    // Lazy-hydrate per-job media strips. One get_job_attachments call per
-    // job, then a single batch s3-view-url call to sign all keys at once.
-    hydrateMediaStrips(filtered.map((r) => r.job_id)).catch(() => {});
+    // Mark-submitted handlers
+    content.querySelectorAll('[data-mark-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const jid = btn.dataset.markOpen;
+        const form = document.getElementById('mf-' + jid);
+        if (form) form.classList.add('open');
+      });
+    });
+    content.querySelectorAll('[data-mark-cancel]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const jid = btn.dataset.markCancel;
+        const form = document.getElementById('mf-' + jid);
+        if (form) form.classList.remove('open');
+      });
+    });
+    content.querySelectorAll('[data-mark-save]').forEach((btn) => {
+      btn.addEventListener('click', () => markSubmittedSave(btn));
+    });
+
+    // Paste-fields expand
+    content.querySelectorAll('[data-paste]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const jid = btn.dataset.paste;
+        const pf = document.getElementById('pf-' + jid);
+        if (!pf) return;
+        const open = !pf.classList.contains('collapsed');
+        if (open) {
+          pf.classList.add('collapsed');
+          btn.textContent = '📋 Show paste fields ↓';
+        } else {
+          pf.classList.remove('collapsed');
+          btn.textContent = '📋 Hide paste fields ↑';
+        }
+      });
+    });
+
+    // Photo zip handlers
+    content.querySelectorAll('[data-zip]').forEach((btn) => {
+      btn.addEventListener('click', () => downloadPhotoZip(btn.dataset.zip));
+    });
+
+    // Async hydration passes
+    const allJobIds = filtered.map((r) => r.job_id);
+    hydrateMediaStrips(allJobIds).catch(() => {});
+    hydrateSubmissionStatus(allJobIds).catch(() => {});
+    hydratePasteFields(allJobIds).catch(() => {});
+  }
+
+  // Vendor-portal direct deep-links. When a real new-claim URL is known
+  // we drop the user straight into that form instead of the homepage.
+  function vendorPortalUrl(rawVendor) {
+    const v = (rawVendor || '').toLowerCase().replace(/\s+/g, '');
+    const map = {
+      ahs:            'https://contractors.ahs.com/dashboard',
+      americanhome:   'https://contractors.ahs.com/dashboard',
+      frontdoor:      'https://platform.frontdoor.com',
+      servicepower:   'https://hub.servicepower.com',
+      squaretrade:    'https://www.squaretrade.com/login',
+      allstate:       'https://hub.servicepower.com',
+      nsa:            'https://www.nsahomewarranty.com',
+    };
+    return map[v] || '';
+  }
+
+  function escapeAttr(s) {
+    return String(s||'').replace(/"/g,'&quot;').replace(/'/g,"&#39;");
+  }
+
+  async function hydrateSubmissionStatus(jobIds) {
+    const uniq = Array.from(new Set(jobIds.filter(Boolean)));
+    if (uniq.length === 0) return;
+    let subs = [];
+    try {
+      const r = await fetch(`${XANO_BASE}/list_warranty_submissions_for_jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_ids_csv: uniq.join(',') }),
+      });
+      const d = await r.json();
+      subs = (d && d.submissions) || [];
+    } catch (_) { return; }
+    for (const s of subs) {
+      const slot = document.querySelector(`[data-sub-badge="${s.job_id}"]`);
+      if (!slot) continue;
+      const status = (s.status || 'pending').toLowerCase();
+      const cls = ['submitted','paid','denied','failed','pending'].includes(status) ? status : 'pending';
+      const label = status === 'paid' && s.paid_amount
+        ? `paid $${Number(s.paid_amount).toFixed(2)}`
+        : status;
+      const confSuffix = s.confirmation_id ? ` · ${escapeHtml(s.confirmation_id)}` : '';
+      slot.innerHTML = `<span class="sub-badge ${cls}" title="submitted ${new Date(s.last_attempt_at || 0).toLocaleString('en-US',{timeZone:'America/Chicago'})}">${escapeHtml(label)}${confSuffix}</span>`;
+      // Pre-fill the inline form with prior values so re-marking is quick.
+      const confInput   = document.getElementById('mf-conf-'   + s.job_id);
+      const statusInput = document.getElementById('mf-status-' + s.job_id);
+      const amountInput = document.getElementById('mf-amount-' + s.job_id);
+      if (confInput && s.confirmation_id)  confInput.value   = s.confirmation_id;
+      if (statusInput && s.status)         statusInput.value = s.status;
+      if (amountInput && s.paid_amount)    amountInput.value = s.paid_amount;
+    }
+  }
+
+  async function hydratePasteFields(jobIds) {
+    const uniq = Array.from(new Set(jobIds.filter(Boolean)));
+    if (uniq.length === 0) return;
+    let bundles = [];
+    try {
+      const r = await fetch(`${XANO_BASE}/get_warranty_card_bundle_for_jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_ids_csv: uniq.join(',') }),
+      });
+      const d = await r.json();
+      bundles = (d && d.bundles) || [];
+    } catch (_) { return; }
+    for (const b of bundles) {
+      const host = document.getElementById('pf-' + b.job_id);
+      if (!host) continue;
+      const c = b.customer || {};
+      const t = b.tech || {};
+      const tdr = b.tdr || {};
+      const custName = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)';
+      const addr = [c.address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+      const fields = [
+        ['Claim #',          b.claim_number || b.dispatch_id || ''],
+        ['Vendor',           b.warranty_company || ''],
+        ['Customer',         custName],
+        ['Phone',            c.phone || ''],
+        ['Address',          addr],
+        ['Email',            c.email || ''],
+        ['Appliance',        [b.brand, b.appliance_type].filter(Boolean).join(' ')],
+        ['Model #',          b.model_number || ''],
+        ['Serial #',         b.serial_number || ''],
+        ['Problem',          b.problem_summary || ''],
+        ['Diagnosis',        tdr.diagnosis || ''],
+        ['Failed component', tdr.failed_component || ''],
+        ['Failure cause',    tdr.failure_cause || ''],
+        ['Repair completed', tdr.repair_completed || ''],
+        ['Labor (hrs)',      (tdr.labor_time_hours != null) ? String(tdr.labor_time_hours) : ''],
+        ['Tech',             ((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)'],
+      ];
+      host.innerHTML = fields.map((f, i) => `
+        <div class="field-row">
+          <div class="label">${escapeHtml(f[0])}</div>
+          <div class="value">${escapeHtml(f[1] || '(none)')}</div>
+          <button class="copy-btn" data-copy-val="${escapeAttr(f[1] || '')}" title="Copy">📋</button>
+        </div>
+      `).join('');
+      host.querySelectorAll('[data-copy-val]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const val = btn.dataset.copyVal || '';
+          navigator.clipboard.writeText(val).then(() => {
+            btn.classList.add('copied');
+            btn.textContent = '✓';
+            setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1200);
+          }).catch(() => alert('Clipboard write failed'));
+        });
+      });
+    }
+  }
+
+  async function markSubmittedSave(btn) {
+    const jid = Number(btn.dataset.markSave);
+    if (!jid) return;
+    const vendor = btn.dataset.vendor || '';
+    const conf = (document.getElementById('mf-conf-' + jid).value || '').trim();
+    const status = document.getElementById('mf-status-' + jid).value || 'submitted';
+    const notes = (document.getElementById('mf-notes-' + jid).value || '').trim();
+    const amount = parseFloat(document.getElementById('mf-amount-' + jid).value || '0') || 0;
+    if (!conf && status === 'submitted') {
+      if (!confirm('No confirmation # entered. Save anyway?')) return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const r = await fetch(`${XANO_BASE}/record_warranty_submission`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: jid,
+          confirmation_id: conf,
+          vendor,
+          status,
+          submission_method: 'mark_submitted_ui',
+          paid_amount: amount,
+          notes,
+          submitted_by: 'office',
+        }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'save failed');
+      // Refresh status badges for this job
+      await hydrateSubmissionStatus([jid]);
+      // Collapse the form
+      const form = document.getElementById('mf-' + jid);
+      if (form) form.classList.remove('open');
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Save';
+    }
+  }
+
+  async function downloadPhotoZip(jobId) {
+    if (typeof JSZip === 'undefined') {
+      alert('Photo zip library not loaded yet. Try again in a moment.');
+      return;
+    }
+    const zipBtn = document.querySelector(`[data-zip="${jobId}"]`);
+    if (zipBtn) { zipBtn.disabled = true; zipBtn.textContent = 'Bundling…'; }
+    try {
+      const r = await fetch(`${XANO_BASE}/get_job_attachments?job_id=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+      const j = await r.json();
+      const ready = ((j && j.attachments) || []).filter((a) => a.upload_complete_at && a.s3_key);
+      if (ready.length === 0) { alert('No customer media to zip for this job.'); return; }
+      const sigRes = await fetch('/.netlify/functions/s3-view-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_keys: ready.map((a) => a.s3_key) }),
+      });
+      const sigData = await sigRes.json();
+      const map = {};
+      (sigData.signed_urls || []).forEach((u) => { map[u.s3_key] = u.view_url; });
+      const zip = new JSZip();
+      let i = 1;
+      for (const a of ready) {
+        const url = map[a.s3_key];
+        if (!url) continue;
+        const blob = await fetch(url).then(r => r.blob());
+        const ext = (a.mime_type || a.file_type || 'jpg').toLowerCase().includes('video') ? 'mp4' : ((a.mime_type || '').split('/')[1] || 'jpg');
+        const isVid = (a.file_type || '').startsWith('video') || (a.mime_type || '').startsWith('video');
+        const label = isVid ? 'video' : 'photo';
+        zip.file(`job-${jobId}-${label}-${i++}.${ext}`, blob);
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `job-${jobId}-media.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      alert('Zip failed: ' + err.message);
+    } finally {
+      if (zipBtn) { zipBtn.disabled = false; zipBtn.textContent = '⇩ Download photos zip'; }
+    }
   }
 
   async function hydrateMediaStrips(jobIds) {
@@ -355,6 +662,9 @@
         : '';
       strip.innerHTML = html + overflow + downloadAll;
       if (label) label.style.display = '';
+      // Reveal the "Download photos zip" button now that we know media exists.
+      const zipBtn = document.querySelector(`[data-zip="${p.job_id}"]`);
+      if (zipBtn) zipBtn.style.display = '';
       // Attach handler for "open all in tabs"
       const btn = strip.querySelector(`[data-download-job="${p.job_id}"]`);
       if (btn) {
