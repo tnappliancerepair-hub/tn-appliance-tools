@@ -19,9 +19,27 @@ const FETCH_TIMEOUT_MS = 8000;
 const CLAUDE_TIMEOUT_MS = 25000;
 const MAX_HTML_PER_SOURCE = 60000; // cap raw HTML so Claude context stays sane
 
-// User-Agent that consumer sites accept. Generic mobile Safari string —
-// passes basic bot-checks on most sites without anti-bot middleware.
-const USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+// Full browser-style headers. Some consumer sites (RepairClinic,
+// PartSelect, Sears) have Cloudflare-style anti-bot middleware that
+// rejects bare Node/curl-style requests. Realistic Chrome on macOS
+// signals + a referer from google.com pass most basic challenges.
+const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const BROWSER_HEADERS = {
+  'User-Agent': USER_AGENT,
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Referer': 'https://www.google.com/',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'cross-site',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
+  'Cache-Control': 'max-age=0',
+  'Sec-Ch-Ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"macOS"',
+};
 
 const SOURCES = [
   {
@@ -118,13 +136,9 @@ exports.handler = async (event) => {
       const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await fetch(url, {
-          headers: {
-            'User-Agent': USER_AGENT,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-          },
+          headers: BROWSER_HEADERS,
           signal: ac.signal,
+          redirect: 'follow',
         });
         clearTimeout(timer);
         const text = await res.text();
