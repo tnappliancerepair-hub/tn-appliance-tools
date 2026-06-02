@@ -154,6 +154,7 @@
        cdnjs.cloudflare.com (see netlify.toml). -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
   <script src="/ant-spine.js" defer></script>
+  <script src="/parts-search-modal.js" defer></script>
 </head>
 <body>
 
@@ -498,7 +499,23 @@
         ['Labor (hrs)',      (tdr.labor_time_hours != null) ? String(tdr.labor_time_hours) : ''],
         ['Tech',             ((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)'],
       ];
-      host.innerHTML = fields.map((f, i) => `
+      // Part # row with confidence badge — LOW/GUESS badges are tappable
+      // to re-open the search modal for re-verification.
+      const partNum = tdr.verified_part_number || '';
+      const partConf = (tdr.verified_part_confidence || 'UNVERIFIED').toUpperCase();
+      let partBadgeHtml = '';
+      if (partNum && window.PartsSearch && window.PartsSearch.renderBadge) {
+        partBadgeHtml = ' ' + window.PartsSearch.renderBadge(partConf, {
+          reopenPrefill: { brand: b.brand || '', model_number: b.model_number || '', failed_component: tdr.failed_component || '', job_id: b.job_id },
+        });
+      }
+      const partsRow = `
+        <div class="field-row">
+          <div class="label">Part #</div>
+          <div class="value">${escapeHtml(partNum || '(none)')}${partBadgeHtml}</div>
+          ${partNum ? `<button class="copy-btn" data-copy-val="${escapeAttr(partNum)}" title="Copy">📋</button>` : ''}
+        </div>`;
+      host.innerHTML = partsRow + fields.map((f, i) => `
         <div class="field-row">
           <div class="label">${escapeHtml(f[0])}</div>
           <div class="value">${escapeHtml(f[1] || '(none)')}</div>

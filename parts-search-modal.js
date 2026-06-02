@@ -10,6 +10,12 @@
   'use strict';
 
   const FN_BASE = '/.netlify/functions/find-part-number';
+  const APPLY_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/apply_part_to_tdr';
+
+  // Track the currently-launched modal's job_id so the Apply button
+  // can write to that job's TDR. Set by open() when prefill.job_id given.
+  let currentJobId = 0;
+  let currentRole = 'office';
 
   function el(tag, props, children) {
     const e = document.createElement(tag);
@@ -70,6 +76,7 @@
           ${c.part_number ? `<a href="https://www.searspartsdirect.com/search?q=${encodeURIComponent(c.part_number)}" target="_blank" rel="noopener" style="font-size:11px; color:#4ca7ff;">verify on Sears ↗</a>` : ''}
           ${c.part_number ? `<a href="https://www.repairclinic.com/Shop-For-Parts?search=${encodeURIComponent(c.part_number)}" target="_blank" rel="noopener" style="font-size:11px; color:#4ca7ff;">RepairClinic ↗</a>` : ''}
           ${c.part_number ? `<a href="https://www.appliancepartspros.com/search.aspx?searchterm=${encodeURIComponent(c.part_number)}" target="_blank" rel="noopener" style="font-size:11px; color:#4ca7ff;">PartsPros ↗</a>` : ''}
+          ${currentJobId && c.part_number ? `<button class="ps-apply" data-part="${(c.part_number || '').replace(/"/g, '&quot;')}" data-tier="${tier}" data-name="${(c.name || '').replace(/"/g, '&quot;')}" style="background:rgba(76,210,192,0.15); border:1px solid rgba(76,210,192,0.5); color:#4cd2c0; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer; margin-left:auto;">✓ Apply to TDR</button>` : ''}
         </div>
       </div>
     `;
@@ -78,6 +85,10 @@
   function open(prefill) {
     const existing = document.getElementById('ps-modal');
     if (existing) existing.remove();
+
+    // Capture job_id + role so the Apply button knows where to write.
+    currentJobId = Number(prefill && prefill.job_id) || (window.Ant && window.Ant.jobId ? window.Ant.jobId() : 0) || 0;
+    currentRole = (window.Ant && window.Ant.role) ? window.Ant.role() : 'office';
 
     const overlay = el('div', {
       id: 'ps-modal',
@@ -180,6 +191,46 @@
             });
           });
         });
+        // Apply-to-TDR wiring — writes part_number + confidence_tier to
+        // the job's latest TDR (creates one if missing). Visible only
+        // when modal was opened with a job_id.
+        results.querySelectorAll('.ps-apply').forEach((b) => {
+          b.addEventListener('click', async () => {
+            if (!currentJobId) return;
+            const part = b.dataset.part || '';
+            const tier = b.dataset.tier || 'LOW';
+            const name = b.dataset.name || '';
+            b.disabled = true;
+            b.textContent = 'Applying…';
+            try {
+              const r = await fetch(APPLY_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  job_id: currentJobId,
+                  part_number: part,
+                  confidence_tier: tier,
+                  part_name: name,
+                  source_summary: 'parts_search_modal',
+                  applied_by: currentRole,
+                }),
+              });
+              const d = await r.json();
+              if (d.success) {
+                b.textContent = `✓ Applied (${tier})`;
+                b.style.background = 'rgba(76,210,192,0.30)';
+                // Tell any subscribers (e.g. the spine) so they re-render
+                window.dispatchEvent(new CustomEvent('ant:state-changed', { detail: { source: 'parts_apply', job_id: currentJobId, part_number: part, confidence_tier: tier } }));
+              } else {
+                b.textContent = '⚠ ' + (d.error || 'failed');
+                b.disabled = false;
+              }
+            } catch (err) {
+              b.textContent = '⚠ ' + (err.message || 'network');
+              b.disabled = false;
+            }
+          });
+        });
       } catch (err) {
         results.innerHTML = `<div style="background:rgba(255,107,107,0.12); border:1px solid #ff6b6b; padding:12px; border-radius:8px; color:#ff6b6b;">Network error: ${err.message || err}</div>`;
       } finally {
@@ -189,5 +240,36 @@
     });
   }
 
-  root.PartsSearch = { open };
+  // Render a confidence badge next to a part number. Clickable —
+  // tapping a LOW/GUESS badge reopens the search modal pre-filled so
+  // Danielle (or whoever) can re-verify before warranty submission.
+  // Use anywhere: PartsSearch.renderBadge('LOW') → returns HTML string.
+  function renderBadge(tier, opts) {
+    const t = (tier || 'UNVERIFIED').toUpperCase();
+    const c = tierColor(t);
+    const reopen = opts && opts.reopenPrefill;
+    const label =
+      t === 'HIGH'        ? 'verified · HIGH' :
+      t === 'MEDIUM'      ? 'verified · MED' :
+      t === 'LOW'         ? '⚠ LOW · re-verify' :
+      t === 'GUESS'       ? '🔴 GUESS · verify' :
+                            '⚪ unverified';
+    const reopenAttr = reopen ? `data-reopen='${JSON.stringify(reopen).replace(/'/g, '&#39;')}'` : '';
+    const cursor = reopen && (t === 'LOW' || t === 'GUESS' || t === 'UNVERIFIED') ? 'cursor:pointer;' : '';
+    return `<span class="ps-tier-badge" ${reopenAttr} title="${reopen ? 'Tap to re-search' : ''}" style="display:inline-block; padding:2px 9px; border-radius:11px; background:${c.bg}; border:1px solid ${c.border}; color:${c.text}; font-size:10px; font-weight:700; font-family:monospace; ${cursor}">${label}</span>`;
+  }
+
+  // Wire delegated click handler so any rendered badge can re-open the
+  // search modal with the same prefill — useful on warranty-review or
+  // teddy-tdr-tool where Danielle needs to re-verify a LOW part.
+  document.addEventListener('click', (e) => {
+    const badge = e.target && e.target.closest && e.target.closest('.ps-tier-badge[data-reopen]');
+    if (!badge) return;
+    try {
+      const prefill = JSON.parse(badge.dataset.reopen);
+      open(prefill);
+    } catch (_) {}
+  });
+
+  root.PartsSearch = { open, renderBadge };
 })(window);

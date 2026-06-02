@@ -700,7 +700,10 @@ function renderPreviousAttempts() {
       rows.push(`<div class="pa-row"><span class="pa-label">Failed component</span><span class="pa-value">${escapeHtml(t.failed_component)}</span></div>`);
     }
     if (t.verified_part_number) {
-      rows.push(`<div class="pa-row"><span class="pa-label">Verified part #</span><span class="pa-value pa-mono">${escapeHtml(t.verified_part_number)}</span></div>`);
+      const confTier = (t.verified_part_confidence || 'UNVERIFIED').toUpperCase();
+      const reopen = { brand: state.appliance?.brand || '', model_number: state.appliance?.model_number || '', failed_component: t.failed_component || '', job_id: state.jobId };
+      const badge = (window.PartsSearch && window.PartsSearch.renderBadge) ? window.PartsSearch.renderBadge(confTier, { reopenPrefill: reopen }) : '';
+      rows.push(`<div class="pa-row"><span class="pa-label">Verified part #</span><span class="pa-value pa-mono">${escapeHtml(t.verified_part_number)} ${badge}</span></div>`);
     }
     if (partsStr) {
       rows.push(`<div class="pa-row"><span class="pa-label">Parts used</span><span class="pa-value pa-mono">${escapeHtml(partsStr)}</span></div>`);
