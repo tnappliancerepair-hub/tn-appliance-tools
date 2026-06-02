@@ -22,12 +22,18 @@ const MAX_PER_RUN = 6;
 
 // Each sender pattern feeds the same generic capture endpoint. The XS
 // endpoint identifies vendor from sender domain.
+// Includes Frontdoor as belt-and-suspenders backup — the AHS poller
+// SHOULD catch those, but if it parse-errors or misses (e.g. no
+// attachment), this captures the raw dispatch so it's still in the
+// queue for Danielle to review.
 const QUERY =
   '(from:notifications@em.nationalservicealliance.com OR ' +
   'from:appliance_dispatch@squaretrade.com OR ' +
   'from:appliance_team@squaretrade.com OR ' +
-  'from:warrantysupport@squaretrade.com) ' +
+  'from:warrantysupport@squaretrade.com OR ' +
+  '(from:noreply@msg.frontdoor.com subject:"New Dispatch")) ' +
   '-label:' + PROCESSED_LABEL + ' ' +
+  '-label:AHS-Processed ' +
   'in:anywhere newer_than:7d';
 
 async function resolveOrCreateLabel(gmail, name) {
