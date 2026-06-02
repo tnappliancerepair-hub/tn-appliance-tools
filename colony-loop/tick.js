@@ -1087,6 +1087,25 @@ async function maybeEmitTimeSignals() {
       });
       try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
     }
+
+    // DAILY_CLAUDE_SPEND_CHECK — daily Claude spend audit + alert. Same
+    // 8-11am window so it lands alongside the briefing. Watchdog SMSes
+    // Teddy with last-24h cost summary + alert if over threshold
+    // (config.dailyClaudeSpendAlertUsd, env DAILY_CLAUDE_SPEND_ALERT_USD).
+    let claudeSpendFired = null;
+    try {
+      claudeSpendFired = await xano.getDailyClaudeSpendFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_claude_spend_check_failed', { error: err.message });
+    }
+    if (claudeSpendFired === null || !(claudeSpendFired && claudeSpendFired.fired)) {
+      await xano.emitSignal({
+        signal_type: 'DAILY_CLAUDE_SPEND_CHECK',
+        signal_strength: 70,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+      try { await xano.recordEventLog('daily_claude_spend_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+    }
   }
 
   // TECH_ASSIST_LOOP_WATCH — every 5 min during 7am-10pm CT. Detects

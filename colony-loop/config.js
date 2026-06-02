@@ -70,4 +70,13 @@ export const config = Object.freeze({
   // from zip + parts_eta_date) instead of just sending Teddy three
   // options to manually pick. Defaults OFF until smoke-verified live.
   autoBookEnabled: process.env.AUTO_BOOK_ENABLED === 'true',
+  // Claude call audit endpoint — fire-and-forget logged from claude.js
+  // on every API call (success, error, timeout, dry-run). Empty disables
+  // logging (back-compat). Set automatically from xanoIntakeBase below.
+  recordClaudeCallEndpoint: (process.env.XANO_INTAKE_BASE || '').replace(/\/+$/, '') + '/record_claude_call',
+  // Daily Claude spend alert threshold in $USD. The daily watchdog
+  // SMSes Teddy if yesterday's total cost_usd exceeds this. Set in
+  // Netlify / Mac Mini env. Default $25/day — adjust based on actual
+  // usage trends.
+  dailyClaudeSpendAlertUsd: Number(process.env.DAILY_CLAUDE_SPEND_ALERT_USD) || 25,
 });

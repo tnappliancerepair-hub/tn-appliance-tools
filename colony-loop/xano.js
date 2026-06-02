@@ -230,6 +230,10 @@ export async function getCustomerIntakeBundleHandled(jobId) {
   return getJSON(`${INTAKE()}/get_customer_intake_bundle_handled?job_id=${jobId}`);
 }
 
+export async function getDailyClaudeSpendFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_daily_claude_spend_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
 export async function getCustomerIntakeBundleContext(jobId) {
   return getJSON(`${INTAKE()}/get_customer_intake_bundle_context?job_id=${jobId}`);
 }
