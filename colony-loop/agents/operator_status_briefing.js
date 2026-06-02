@@ -183,6 +183,19 @@ function todayLabel() {
 export async function run(signal, ctx) {
   const { xano, log } = ctx;
 
+  // 2026-06-02: agent-level once-per-12h gate. tick.js' dedup gate
+  // failed today and emitted this signal ~1400 times between 7-8am CT.
+  // Belt-and-suspenders: even if tick spams, the agent itself skips.
+  try {
+    const recent = await xano.findRecentEventLog
+      ? await xano.findRecentEventLog('operator_status_briefing_handled', Date.now() - 12 * 60 * 60 * 1000)
+      : null;
+    if (recent && recent.found) {
+      await xano.markSignalProcessed(signal.id, 'operator_status_briefing_handled', { outcome: 'skipped_dedup_12h' });
+      return { success: true, action: 'skipped_dedup_12h' };
+    }
+  } catch (_) {}
+
   // Gather in parallel
   const [loop, queue, broadcasts, errors, intake, tier1] = await Promise.all([
     loopHealth(ctx),
