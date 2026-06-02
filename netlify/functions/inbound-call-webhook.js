@@ -19,7 +19,40 @@
 
 const XANO_RECORD_INBOUND_CALL =
   'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_inbound_call';
+const XANO_EMERGENCY_SMS =
+  'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/emergency_customer_sms';
 const XANO_TIMEOUT_MS = 9000;
+
+// Belt-and-suspenders: text the caller immediately on every inbound call
+// (deduped 6h on the Xano side). Even if Vapi takes the call, the text
+// gives the customer a way to escalate to SMS if voice doesn't work for
+// them. Routed through emergency_customer_sms which bypasses the global
+// CUSTOMER_FACING_ENABLED gate so this fires regardless of operational
+// posture. Safe by design: dedup prevents spam.
+const AUTO_ACK_TEXT = "Hi! It's TN Appliance Exchange — we got your call. If we don't pick up, just text back here with your appliance type + zip and we'll set up your repair. Or we'll call back shortly.";
+
+async function fireCustomerAutoAck(callerPhone) {
+  if (!callerPhone) return;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), XANO_TIMEOUT_MS);
+    const res = await fetch(XANO_EMERGENCY_SMS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: callerPhone,
+        body: AUTO_ACK_TEXT,
+        source: 'inbound_call_auto_ack',
+      }),
+      signal: ctl.signal,
+    });
+    clearTimeout(t);
+    const j = await res.json().catch(() => ({}));
+    console.log('[inbound-call-webhook] auto-ack', res.status, j);
+  } catch (e) {
+    console.warn('[inbound-call-webhook] auto-ack failed:', e.message);
+  }
+}
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
@@ -51,6 +84,9 @@ exports.handler = async function (event) {
   }
 
   console.log('[inbound-call-webhook] inbound from', from, 'callId', callId);
+
+  // FIRE-AND-FORGET customer auto-ack via emergency endpoint (dedup'd 6h)
+  fireCustomerAutoAck(from);
 
   // Forward to Xano with a timeout.
   const controller = new AbortController();
