@@ -1883,6 +1883,86 @@ Phase 1 (today's possible build) waits on:
 
 **🐜 Long Live Ant.**
 
+## Session log — 2026-06-01 night → 2026-06-02 (unified workspace spine + Phase 1/2/3a/3b shipped end-to-end)
+
+Continuation of 6/1 session — Teddy was up + working alongside the build. Shipped the entire spine of the unified-workspace concept: 4 separate per-job pages no longer act like islands.
+
+### What landed (in order)
+
+**Cost discipline trio (before the spine work)**
+- `claude.js` now logs every Claude call to `claude_call_log` with tokens + cost_usd (computed via embedded pricing table). Per-agent `model: 'haiku'|'sonnet'|'opus'` shorthand. Daily watchdog SMS at 8-11am CT via new `DAILY_CLAUDE_SPEND_CHECK` signal + `daily_claude_spend_check.js` agent. Yesterday's actual spend: $0.30.
+
+**8 BI agents (data-readiness audit drove pacing)**
+- `parts_orders` table (id 47, 17 columns) — the source of truth for parts spend. Now `parts_cost_optimizer.js`, `truck_inventory_reconciler.js`, etc. have a real ledger.
+- New endpoints: `record_parts_order_POST`, `get_parts_cost_analysis_GET`, `get_channel_roi_summary_GET`, `get_tech_comparison_summary_GET`, `get_zone_profitability_summary_GET`, `get_tech_burnout_signal_GET`.
+- 8 agents wired with weekly/monthly tick.js emits + event_log dedup. Three (industry_intel, tech_comparison, zone_profitability) sent real digests at smoke. Five hit honest insufficient_data branches — exactly right.
+
+**Phase 1 — Spine (event stream + role detection + deep-link strip + live polling)**
+- NEW XS endpoint `get_job_event_stream_GET` — returns current_state + chronological event_log + monotonic latest_event_id for polling.
+- NEW shared JS module `ant-spine.js` — single drop-in providing:
+  - `window.Ant.role()` → 'tech'|'office'|'customer'|'owner' from URL+context
+  - `window.Ant.jobId()` → number from ?job_id=
+  - Cross-tool deep-link strip (📋 Teddy Tool · 🔧 Tech · 📦 Warranty · 🗂 Job Detail · 👤 Customer) with you-are-here highlight
+  - 30s polling that fires `ant:state-changed` CustomEvent when latest_event_id advances. Pages listen + re-render.
+  - Pulse indicator (⚪ idle · 🟡 syncing · 🟢 live · 🔵 updated · 🟠 offline)
+- Wired into 5 per-job pages: `tech-ant-chat`, `warranty-review`, `customer-portal`, `teddy-tdr-tool`, `job-detail`.
+
+**Phase 2 — TDR ↔ warranty pre-stage**
+- `tdr_submitted.js` agent extended: every TDR write upserts a `warranty_submissions` draft row (status='pending', submission_method='auto_draft', notes=composed paste-ready block).
+- Respects finalization — if Danielle marks submitted/paid/denied/failed, subsequent TDR writes skip with `skipped_finalized_<status>`. Her work is never overwritten.
+- Added `auto_draft` to the `submission_method` enum via DELETE-then-POST recreate (only Metadata API path that works for enum updates — new XS footgun).
+- `record_warranty_submission_POST`: `confirmation_id` now optional (auto-drafts have no confirmation # yet).
+- Smoke-verified end-to-end: created_draft → refreshed_draft (TDR re-write) → skipped_finalized_submitted (after Danielle marks).
+
+**Phase 3a — Customer intake → Tech TDR auto-fill**
+- `tech-ant-chat.html` pre-fills the TDR form on page load from (priority order): Teddy's pre-diag (technician_id=1 TDR) > Ant's Guess > customer's problem_summary.
+- Pre-filled fields get yellow border + tooltip "Pre-filled from teddy/ai/customer — edit or clear". When tech edits, styling clears automatically.
+- Skips entirely if localStorage TDR draft has any prior tech work.
+- Persists pre-fills to localStorage so they survive reload/app-switch.
+
+**Phase 3b — Unified SMS thread per customer/job**
+- NEW XS endpoint `get_sms_thread_for_job_GET` — scans event_log for all SMS actions (sms_sent, inbound_customer_sms_received, sms_gated, dropped_customer_sms, sms_owner_bypass, feedback_sms_sent, teddy_sms_triggered), filters to rows mentioning this job by job_id substring OR customer_id substring OR customer's phone substring. Returns chronological feed.
+- `ant-spine.js` extended with `Ant.mountSmsThread(jobId, mountEl, opts)` — renders bubble UI with role tags + direction arrows. Re-renders automatically on `ant:state-changed`. filterFor: 'customer'|'tech'|'office'|'owner'.
+- Sentinel auto-mount: pages with `#ant-sms-thread` div get auto-rendered + auto-polling.
+- Wired into `tech-ant-chat.html` (collapsible "💬 SMS THREAD") + `customer-portal.html` ("Your conversation with us").
+
+### Tomorrow morning (2026-06-02) — Teddy's specific request
+
+Scheduled Netlify function `tech-morning-mirror-and-encourage.js` fires at **7:00am CT** (12:00 UTC, cron `0 12 * * *`):
+1. Calls `hcp_poll_recent_jobs` to refresh schedule from HCP
+2. SMSes each of the 5 active techs (Jimmy, Andre, Lee, Billy, John) with their dashboard link + Teddy's encouragement: *"been working day + night on Ant — went 7am till midnight today getting it right. we're getting there. please keep trying the assist tool, your schedule is loaded."*
+
+Date-gated inside the function — only EXECUTES on 2026-06-02. After that, no-op. Safe to leave scheduled.
+
+### New XS footguns surfaced this session
+
+1. **Nested ternaries inside object literals break the parser** — `matched_by: ($x) ? "a" : (($y) ? "b" : "c")` → "unexpected '{'" with vague error. Pre-compute vars before the literal.
+2. **Enum updates require DELETE + recreate** — Metadata API has no working PUT/PATCH for enum values. DELETE the column then POST recreate with the new values list. (Submission_method enum extension caught this.)
+3. **`else` clause was already known** — but the multi-conditional pattern surfaced in Phase 2 work as well.
+4. **xano.js helper changes require kickstart** — adding helper exports to xano.js doesn't hot-reload (imported once at startup). Only agent files hot-reload via mtime.
+
+### Operator follow-ons for tomorrow morning
+
+1. **Eyeball the deep-link strip + spine pulse on a real phone** — open `tnapplianceexchange.net/tech-ant-chat.html?job_id=18526&tech_id=1`. Should see top strip + 🟢 live pulse.
+2. **Verify tech-morning SMS landed** for all 5 techs at 7am.
+3. **Watch first daily Claude spend SMS** — should arrive 8-11am tomorrow.
+4. **Test the warranty pre-stage flow live** — have a tech submit a real TDR on a warranty job, verify Danielle sees the auto-draft on warranty-review with paste-ready notes.
+5. **Phase 4 (parts ledger surfaces) and warranty-review per-card SMS expander** are the next opportunities. Plus eyeball-test of everything shipped.
+
+### What's NOT done
+
+- warranty-review.html per-card SMS thread expander (multi-card mount complexity — single-page sentinel was the easy win)
+- Other pages don't yet listen for `ant:state-changed` to re-render their cards (event fires; subscribers are TBD). Phase 1 spine completion task.
+- Phase 4 parts ledger surfaces (tech-ant-chat parts-order pill + office-today entry + parts-vendor-gmail-poller wiring)
+
+### Session vibes (Teddy operating-mode notes)
+
+Teddy worked from 7am to midnight on the ops side while the build happened. Specifically wants techs to keep trying the assist tool — tomorrow's encouragement SMS captures that. The unified-workspace concept landed in conversation tonight and then immediately into shipped code — the rare 1:1 ratio of strategy clarification to architectural delivery.
+
+**Commit count tonight: ~27 across the full session.** Cleanest architectural night of the build to date.
+
+**🐜 Long Live Ant.**
+
 ## Standing rule — pre-diagnosis before parts
 
 **Every new job triggers an immediate pre-diagnosis request to Teddy and the assigned tech.** Goal: parts ordered before first visit. This eliminates the -2/-3/-4/-5 repeat-visit cycle.

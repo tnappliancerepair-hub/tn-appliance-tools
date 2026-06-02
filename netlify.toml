@@ -76,6 +76,14 @@
 [functions."practice-auto-schedule-cron"]
   schedule = "*/15 * * * *"
 
+# Tomorrow morning (2026-06-02) — Teddy's specific request:
+# Mirror HCP schedule + SMS each tech a link to their daily dashboard
+# with Teddy's encouragement message. Fires 7:00am CT = 12:00 UTC.
+# Date-gated inside the function — only EXECUTES on 2026-06-02.
+# After that, no-op + returns skipped:'not_target_date'. Safe to leave.
+[functions."tech-morning-mirror-and-encourage"]
+  schedule = "0 12 * * *"
+
 # Warranty-status email watcher (Phase 0 of warranty automation arc).
 # Scans Gmail for vendor confirmation/payment/denial emails. Defaults to
 # DRY-RUN — parses + logs to event_log without updating warranty_submissions.
