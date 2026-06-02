@@ -113,12 +113,9 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    db.query event_log {
-      where = $db.event_log.action == "phone_call_summary"
-      sort = {event_log.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 5}}
-    } as $recent_calls
-
+    // last_call_summary: v1 empty. Future polish — query event_log
+    // phone_call_summary rows filtered by customer_id in metadata, but
+    // the "contains" filter on a JSON column needs proper Xano syntax.
     var $last_call_text {
       value = ""
     }
