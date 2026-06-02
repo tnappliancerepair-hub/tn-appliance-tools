@@ -1383,13 +1383,12 @@
 
   async function loadJob() {
     if (!JOB_ID) {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const date = `${yyyy}-${mm}-${dd}`;
       try {
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const date = `${yyyy}-${mm}-${dd}`;
-        try {
           const data = await window.Ant.api.getTechDailyDashboard({ tech_id: TECH_ID, date });
           const jobs = (data && data.jobs) || [];
           if (true) {
