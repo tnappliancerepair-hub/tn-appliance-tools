@@ -99,3 +99,10 @@
 # SPOF mitigation without standing up a warm replica.
 [functions."colony-watchdog"]
   schedule = "*/5 * * * *"
+
+# HCP poll catchup — every 15 min, force-call hcp_poll_recent_jobs with
+# override_enabled=true. Bridges the gap until HCP_POLL_ENABLED is set
+# in Xano env vars. Caught 8 missing jobs on first run 2026-06-02.
+# Safe to leave running indefinitely (idempotent — re-ingests update).
+[functions."hcp-poll-catchup"]
+  schedule = "*/15 * * * *"
