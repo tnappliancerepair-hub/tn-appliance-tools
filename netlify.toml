@@ -114,3 +114,12 @@
 # HCP from scratch. Idempotent via Gmail label + Xano dedup.
 [functions."warranty-multi-poller"]
   schedule = "*/5 * * * *"
+
+# Parse warranty drafts — picks up placeholder (Pending review) jobs
+# from warranty-multi-poller, calls Claude Haiku to extract customer
+# name + address + phone + appliance + claim # + dispatch # from the
+# raw email body in notes_internal, writes back via
+# update_warranty_draft_parsed. Effect: Danielle sees fully-populated
+# queue cards instead of placeholders + walls of raw email text.
+[functions."parse-warranty-drafts"]
+  schedule = "*/5 * * * *"
