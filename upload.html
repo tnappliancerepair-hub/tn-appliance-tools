@@ -346,7 +346,20 @@ async function uploadFile(item) {
       job_id: parseInt(JOB_ID, 10),
       attachment_type: attachmentType,
       file_type: fileType,
-      original_filename: item.file.name,
+      original_filename: (item.file.name && item.file.name.trim()) || (function () {
+        // iOS camera captures often have an empty name → s3_key ends "_" with
+        // no suffix, S3 PUT silently lost. Fall back to ext-based default
+        // so the key always has a real filename.
+        const t = (item.file.type || '').toLowerCase();
+        const ts = Date.now();
+        if (t.startsWith('video/mp4')) return 'video-' + ts + '.mp4';
+        if (t.startsWith('video/quicktime')) return 'video-' + ts + '.mov';
+        if (t.startsWith('video/')) return 'video-' + ts + '.mp4';
+        if (t.startsWith('image/jpeg') || t.startsWith('image/jpg')) return 'photo-' + ts + '.jpg';
+        if (t.startsWith('image/heic')) return 'photo-' + ts + '.heic';
+        if (t.startsWith('image/png')) return 'photo-' + ts + '.png';
+        return 'upload-' + ts;
+      })(),
       mime_type: item.file.type || 'application/octet-stream',
       uploaded_by: uploadedBy
     };

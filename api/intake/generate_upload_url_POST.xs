@@ -98,6 +98,18 @@ query generate_upload_url verb=POST {
       value = $input.original_filename
         |regex_replace:"[^a-zA-Z0-9.-]":"_"
     }
+
+    // Server-side fallback — if upload arrived with an empty/missing
+    // filename (iOS camera capture quirk), the s3_key would end at "_"
+    // and the S3 PUT silently lost the file. Always provide a real name
+    // based on mime_type.
+    conditional {
+      if ($clean_filename == "" || $clean_filename == "_") {
+        var.update $clean_filename {
+          value = ($input.file_type == "video") ? ("video-" ~ ((now|to_ms)|to_text) ~ ".mp4") : ("photo-" ~ ((now|to_ms)|to_text) ~ ".jpg")
+        }
+      }
+    }
   
     // Create a unique timestamp for the filename
     var $timestamp {
