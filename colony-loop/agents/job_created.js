@@ -34,7 +34,7 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   const link = isWebChat || !job_id
     ? baseLink
     : `${baseLink}/?job_id=${job_id}&mode=resume`;
-  let body = `Hi ${name}, this is TN Appliance Exchange! To get ${applianceClause} started please tap here: ${link}`;
+  let body = `Hi ${name}, this is TN Appliance Exchange — we want to get you back to normal as soon as possible. Tap here to start ${applianceClause}: ${link}\n\nWhen you open it, send us a photo of the model number tag + a 10-second video of the issue + any notes. The more time windows you mark, the faster we can come. Tight on time? We'll still do everything we can.\n\nQuestions any time — just reply and Ant can answer from our database.`;
   if (shouldIncludeWarrantyNote({ source, customer_type })) {
     body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
   }

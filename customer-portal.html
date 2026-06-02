@@ -271,6 +271,34 @@
 
   <div id="infoCard" class="info-card"></div>
 
+  <!-- Help-us-help-you panel — clear ask for media + availability + Q&A.
+       Sits prominently right under the appointment info so customer sees
+       what we need from them within seconds of opening the portal. -->
+  <div style="max-width: 600px; margin: 16px auto; padding: 0 16px;">
+    <div style="background: linear-gradient(135deg, #4cc9c0, #38a89d); color: #fff; padding: 16px 18px; border-radius: 14px; box-shadow: 0 4px 12px rgba(76,201,192,0.20);">
+      <div style="font-size: 17px; font-weight: 700; margin-bottom: 10px;">🐜 Help us help you fast</div>
+      <div style="font-size: 14px; line-height: 1.5; opacity: 0.97; margin-bottom: 14px;">We want to fix this for you as soon as possible. Three quick things make us faster:</div>
+
+      <div style="display: grid; gap: 10px;">
+        <div style="background: rgba(255,255,255,0.14); padding: 10px 12px; border-radius: 10px;">
+          <div style="font-weight: 700; font-size: 14px;">📸 Send us a photo + 10-sec video</div>
+          <div style="font-size: 13px; opacity: 0.95; margin-top: 2px;">Photo of the model number tag · 10-second video of the issue · any notes you'd like to add.</div>
+          <a id="helpUploadBtn" href="#" style="display:inline-block; margin-top: 8px; background: #fff; color: #38a89d; padding: 8px 14px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px;">📷 Send them now →</a>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.14); padding: 10px 12px; border-radius: 10px;">
+          <div style="font-weight: 700; font-size: 14px;">📅 Mark your available times</div>
+          <div style="font-size: 13px; opacity: 0.95; margin-top: 2px;">The more windows you mark below, the more opportunities we have to come fast. Tight schedule? Mark what you can — we'll still do whatever we can to make it work.</div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.14); padding: 10px 12px; border-radius: 10px;">
+          <div style="font-weight: 700; font-size: 14px;">💬 Ask Ant anything anytime</div>
+          <div style="font-size: 13px; opacity: 0.95; margin-top: 2px;">Just text back — Ant can check our database to answer questions about your appliance, your repair, parts, warranty — anything.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Unified SMS thread (Phase 3b). Customer lens — shows their own
        conversation with Ant in chronological order. Collapsible. -->
   <details style="margin: 16px auto; max-width: 600px; padding: 0 16px;">
@@ -784,6 +812,9 @@
         btnUpload.style.display = 'none';
       }
     }
+    // Wire the prominent "Send them now" button in the Help-us-help-you panel
+    const helpUploadBtn = $('helpUploadBtn');
+    if (helpUploadBtn) helpUploadBtn.href = `upload.html?job_id=${job.id}`;
 
     // Add-to-calendar link for scheduled appointments
     const btnIcs = $('btnIcs');
