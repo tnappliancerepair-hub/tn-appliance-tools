@@ -18,7 +18,7 @@ query record_warranty_submission verb=POST {
 
   input {
     int job_id
-    text confirmation_id
+    text? confirmation_id?
     text? vendor?
     text? status?
     text? submission_method?

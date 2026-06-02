@@ -234,6 +234,18 @@ export async function getDailyClaudeSpendFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_claude_spend_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getWarrantyCardBundleForJobs(jobIdsCsv) {
+  return postJSON(`${INTAKE()}/get_warranty_card_bundle_for_jobs`, { job_ids_csv: jobIdsCsv });
+}
+
+export async function getWarrantySubmissionForJob(jobId) {
+  return getJSON(`${INTAKE()}/get_warranty_submission_for_job?job_id=${jobId}`);
+}
+
+export async function recordWarrantySubmission(payload) {
+  return postJSON(`${INTAKE()}/record_warranty_submission`, payload);
+}
+
 export async function getCustomerIntakeBundleContext(jobId) {
   return getJSON(`${INTAKE()}/get_customer_intake_bundle_context?job_id=${jobId}`);
 }
