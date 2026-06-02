@@ -74,7 +74,10 @@
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530;">${srcBadge(j.intake_source)}</td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; font-family:'IBM Plex Mono',monospace; color:#cbd2e0;">${esc(j.warranty_company || '')} ${j.claim_number ? '· ' + esc(j.claim_number) : ''}</td>
               <td style="padding:7px 10px; border-bottom:1px solid #1f2530; color:#cbd2e0; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc((j.problem_summary || '').slice(0, 80))}</td>
-              <td style="padding:7px 10px; border-bottom:1px solid #1f2530; text-align:right; white-space:nowrap;"><a href="/job-detail.html?job_id=${j.id}&edit=1" target="_blank" style="background:#ff8c61; color:#000; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; text-decoration:none;">✏️ Fill in info</a></td>
+              <td style="padding:7px 10px; border-bottom:1px solid #1f2530; text-align:right; white-space:nowrap;">
+                <a href="/job-detail.html?job_id=${j.id}&edit=1" target="_blank" style="background:#ff8c61; color:#000; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; text-decoration:none;">✏️ Fill in info</a>
+                <button onclick="event.stopPropagation(); EmailIntakeModal.dismiss(${j.id}, this)" style="background:transparent; border:1px solid #ff6b6b; color:#ff6b6b; padding:5px 9px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; margin-left:4px;" title="Dismiss / remove from queue">✕</button>
+              </td>
             </tr>`).join('')}
         </tbody>
       </table>`;
@@ -203,5 +206,36 @@
     load(currentHours);
   }
 
-  root.EmailIntakeModal = { open };
+  async function dismiss(jobId, btnEl) {
+    if (!confirm('Remove job #' + jobId + ' from the queue?\n\n(It stays in the DB for audit — just gets hidden from active views.)')) return;
+    let pw = '';
+    try { pw = (JSON.parse(localStorage.getItem('tn_office_auth_v1') || '{}')).password || ''; } catch (_) {}
+    if (!pw) pw = prompt('Office password:') || '';
+    if (!pw) return;
+    if (btnEl) btnEl.disabled = true;
+    try {
+      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/dismiss_job', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, office_password: pw, reason: 'Dismissed from email intake' }),
+      });
+      const d = await r.json();
+      if (d && d.success && btnEl) {
+        const row = btnEl.closest('tr');
+        if (row) {
+          row.style.opacity = '0.3';
+          row.style.transition = '0.3s';
+          setTimeout(() => row.remove(), 350);
+        }
+      } else if (!d || !d.success) {
+        alert('Dismiss failed: ' + ((d && d.error) || 'unknown'));
+        if (btnEl) btnEl.disabled = false;
+      }
+    } catch (e) {
+      alert('Network error');
+      if (btnEl) btnEl.disabled = false;
+    }
+  }
+
+  root.EmailIntakeModal = { open, dismiss };
 })(window);

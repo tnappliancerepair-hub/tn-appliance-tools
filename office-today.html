@@ -1173,11 +1173,43 @@ function renderStuck(s) {
       <div class="name">${escapeHtml(name)}</div>
       <div class="reason">${escapeHtml(s.intake_source || 'intake')} · ${escapeHtml(s.appliance_type || 'appliance')}${s.warranty_company ? ' · ' + escapeHtml(s.warranty_company) : ''}</div>
       <div class="actions">
-        <a class="btn btn-primary" href="/needs-scheduled.html" target="_blank">Open queue ↗</a>
+        <a class="btn btn-primary" href="/job-detail.html?job_id=${s.job_id}&edit=1" target="_blank">✏️ Fill in info</a>
         ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
         <button class="btn btn-warn" onclick="openEscalateModal(${s.job_id})">🚨 Escalate</button>
+        <button class="btn btn-secondary" onclick="dismissStuckJob(${s.job_id}, this)" style="color:#ff6b6b;border-color:rgba(255,107,107,0.4)">✕ Dismiss</button>
       </div>
     </div>`;
+}
+
+async function dismissStuckJob(jobId, btn) {
+  if (!confirm('Remove job #' + jobId + ' from this queue?\n\n(Stays in DB for audit; just hidden from active views.)')) return;
+  let pw = '';
+  try { pw = (JSON.parse(localStorage.getItem(AUTH_KEY) || '{}')).password || ''; } catch (_) {}
+  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${XANO_BASE}/dismiss_job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, office_password: pw, reason: 'Dismissed from office-today' }),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      const card = btn.closest('.card');
+      if (card) {
+        card.style.opacity = '0.3';
+        card.style.transition = '0.3s';
+        setTimeout(() => { card.remove(); load(); }, 350);
+      }
+    } else {
+      alert('Dismiss failed: ' + ((d && d.error) || 'unknown'));
+      btn.disabled = false;
+    }
+  } catch (e) {
+    alert('Network error');
+    btn.disabled = false;
+  }
 }
 
 function renderVoicemail(v) {
