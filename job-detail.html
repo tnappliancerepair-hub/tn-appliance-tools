@@ -446,6 +446,43 @@
   </div>
 </div>
 
+<!-- Edit job info modal — Danielle fills/corrects customer + appliance + warranty -->
+<div class="modal-overlay" id="modal-edit">
+  <div class="modal-card" style="max-width:540px">
+    <div class="modal-title">✏️ Edit job info</div>
+    <div class="modal-sub">Update any field then Save. Empty = unchanged.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+      <input id="ej-first" class="modal-input" placeholder="First name">
+      <input id="ej-last" class="modal-input" placeholder="Last name">
+      <input id="ej-phone" class="modal-input" placeholder="Phone (digits)" style="grid-column:span 2">
+      <input id="ej-email" class="modal-input" placeholder="Email" style="grid-column:span 2">
+      <input id="ej-address" class="modal-input" placeholder="Street address" style="grid-column:span 2">
+      <input id="ej-city" class="modal-input" placeholder="City">
+      <input id="ej-state" class="modal-input" placeholder="State (TN)">
+      <input id="ej-zip" class="modal-input" placeholder="ZIP" style="grid-column:span 2">
+      <hr style="grid-column:span 2;border:0;border-top:1px solid rgba(255,255,255,0.08);margin:6px 0">
+      <input id="ej-appl" class="modal-input" placeholder="Appliance (washer / fridge / etc)">
+      <input id="ej-brand" class="modal-input" placeholder="Brand">
+      <input id="ej-model" class="modal-input" placeholder="Model #" style="grid-column:span 2">
+      <textarea id="ej-problem" class="modal-input" placeholder="Problem description" rows="2" style="grid-column:span 2;resize:vertical"></textarea>
+      <hr style="grid-column:span 2;border:0;border-top:1px solid rgba(255,255,255,0.08);margin:6px 0">
+      <select id="ej-ctype" class="modal-input">
+        <option value="">Customer type...</option>
+        <option value="warranty">Warranty</option>
+        <option value="self_pay">Self-pay</option>
+      </select>
+      <input id="ej-vendor" class="modal-input" placeholder="Warranty co (AHS / SquareTrade / NSA)">
+      <input id="ej-claim" class="modal-input" placeholder="Claim #" style="grid-column:span 2">
+      <input id="ej-dispatch" class="modal-input" placeholder="Dispatch / WO #" style="grid-column:span 2">
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal('edit')">Cancel</button>
+      <button class="modal-btn primary" id="ej-submit" onclick="submitEditJob()">Save</button>
+    </div>
+    <div class="modal-err" id="ej-err"></div>
+  </div>
+</div>
+
 <!-- Office-only action modals (Reschedule, Reassign, Cancel) -->
 <div class="modal-overlay" id="modal-reschedule">
   <div class="modal-card">
@@ -653,8 +690,10 @@ function render() {
 
   const sections = [];
   sections.push(buildJobHead(job, cust));
+  sections.push(buildEditPill());
   sections.push(buildCustomerSection(cust));
   sections.push(buildApplianceSection(appliance));
+  sections.push(buildWarrantySection(job));
   sections.push(buildTechSection(tech, job));
   sections.push(buildTimelineSection(job));
   if (job.parts_decision != null && String(job.parts_decision).trim() !== '') {
@@ -748,6 +787,86 @@ function openReschedule() {
   document.getElementById('reschedule-sub').textContent =
     job.scheduled_start ? 'change scheduled time' : 'set scheduled time';
   openModal('reschedule');
+}
+
+function openEditJobModal() {
+  const job = (jobData && jobData.job) || {};
+  const cust = (jobData && jobData.customer) || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v != null ? v : ''); };
+  set('ej-first', cust.first_name);
+  set('ej-last', cust.last_name);
+  set('ej-phone', cust.phone);
+  set('ej-email', cust.email);
+  set('ej-address', job.service_address || cust.address);
+  set('ej-city', job.service_city || cust.city);
+  set('ej-state', job.service_state || cust.state);
+  set('ej-zip', job.service_zip || cust.zip);
+  set('ej-appl', job.appliance_type);
+  set('ej-brand', job.brand);
+  set('ej-model', job.model_number);
+  set('ej-problem', job.problem_summary);
+  set('ej-ctype', job.customer_type);
+  set('ej-vendor', job.warranty_company);
+  set('ej-claim', job.claim_number);
+  set('ej-dispatch', job.dispatch_source_id);
+  document.getElementById('ej-err').textContent = '';
+  document.getElementById('modal-edit').classList.add('show');
+}
+
+async function submitEditJob() {
+  const get = (id) => (document.getElementById(id).value || '').trim();
+  const job = (jobData && jobData.job) || {};
+  const errEl = document.getElementById('ej-err');
+  errEl.textContent = '';
+  const btn = document.getElementById('ej-submit');
+  btn.disabled = true;
+  // Office password — pull from existing localStorage cache or prompt
+  let pw = '';
+  try {
+    const cached = JSON.parse(localStorage.getItem('tn_office_auth_v1') || '{}');
+    pw = cached.password || '';
+  } catch (_) {}
+  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) { btn.disabled = false; return; }
+  const payload = {
+    job_id: job.id,
+    office_password: pw,
+    first_name: get('ej-first'),
+    last_name: get('ej-last'),
+    phone: get('ej-phone').replace(/[^0-9]/g, ''),
+    email: get('ej-email'),
+    address: get('ej-address'),
+    city: get('ej-city'),
+    state: get('ej-state').toUpperCase().slice(0, 2),
+    zip: get('ej-zip').replace(/[^0-9]/g, '').slice(0, 5),
+    appliance_type: get('ej-appl').toLowerCase(),
+    brand: get('ej-brand'),
+    model_number: get('ej-model'),
+    problem_summary: get('ej-problem'),
+    warranty_company: get('ej-vendor'),
+    claim_number: get('ej-claim'),
+    dispatch_number: get('ej-dispatch'),
+    customer_type: get('ej-ctype'),
+  };
+  try {
+    const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/update_job_full_info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      closeModal('edit');
+      // Refresh the page so updated info shows everywhere
+      setTimeout(() => location.reload(), 200);
+    } else {
+      errEl.textContent = d.error || 'save failed';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    errEl.textContent = 'network error';
+    btn.disabled = false;
+  }
 }
 
 async function submitReschedule() {
@@ -884,6 +1003,38 @@ function buildCustomerSection(cust) {
         <div class="k">Phone</div>   <div class="v">${phoneE164 ? `<a href="tel:${escapeAttr(phoneE164)}">${escapeHtml(phoneFmt)}</a>` : '<span class="muted">—</span>'}</div>
         <div class="k">Email</div>   <div class="v">${cust.email ? `<a href="mailto:${escapeAttr(cust.email)}">${escapeHtml(cust.email)}</a>` : '<span class="muted">—</span>'}</div>
         <div class="k">Address</div> <div class="v">${escapeHtml(fullAddr)}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildEditPill() {
+  return `
+    <div class="section" style="background:linear-gradient(135deg,rgba(255,140,97,0.10),rgba(255,140,97,0.02));border:1px solid rgba(255,140,97,0.30)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="font-size:13px;color:#ff8c61;font-weight:600;flex:1">Need to update customer or job info?</div>
+        <button onclick="openEditJobModal()" style="background:#ff8c61;border:0;color:#000;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">✏️ Edit job info</button>
+      </div>
+    </div>
+  `;
+}
+
+function buildWarrantySection(job) {
+  const wc = job.warranty_company || '';
+  const claim = job.claim_number || '';
+  const dispatch = job.dispatch_source_id || '';
+  const customerType = job.customer_type || '';
+  if (!wc && !claim && !dispatch && !customerType) {
+    return ''; // hide section if no warranty info at all (self-pay jobs)
+  }
+  return `
+    <div class="section">
+      <div class="section-title">Warranty / Vendor</div>
+      <div class="kv-grid">
+        <div class="k">Customer type</div> <div class="v">${escapeHtml(customerType || '—')}</div>
+        <div class="k">Vendor</div>        <div class="v">${escapeHtml(wc || '—')}</div>
+        <div class="k">Claim #</div>       <div class="v mono">${escapeHtml(claim || '—')}</div>
+        <div class="k">Dispatch / WO #</div> <div class="v mono">${escapeHtml(dispatch || '—')}</div>
       </div>
     </div>
   `;
