@@ -255,6 +255,7 @@
     .section.full-width { grid-column: 1 / -1; }
   }
 </style>
+  <script src="/parts-search-modal.js" defer></script>
 </head>
 <body>
 
@@ -274,6 +275,8 @@
     <h1>Office Today</h1>
     <div class="sub" id="header-sub">Loading...</div>
   </div>
+  <button onclick="openOfficePartsOrderModal()" style="background:rgba(116,227,196,0.15); border:1px solid rgba(116,227,196,0.45); color:#4cd2c0; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Log a parts order">📦 Log parts order</button>
+  <button onclick="openOfficePartsSearchModal()" style="background:rgba(76,167,255,0.15); border:1px solid rgba(76,167,255,0.45); color:#4ca7ff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Find part number">🔧 Find part</button>
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
 </div>
 
@@ -416,6 +419,144 @@ if (localStorage.getItem(AUTH_KEY) === '1') {
 }
 
 let pollTimer = null;
+
+// ── Office parts search launcher ───────────────────────────────
+// Prompts for job_id (so the search can apply to a TDR if found),
+// then opens the parts search modal pre-filled with anything we know
+// about that job. Used by Danielle when she's chasing a part.
+function openOfficePartsSearchModal() {
+  if (!window.PartsSearch || typeof window.PartsSearch.open !== 'function') {
+    alert('Parts search not loaded yet — reload + try again.');
+    return;
+  }
+  const jobIdRaw = prompt('Job # this search is for (leave empty if generic lookup):', '');
+  const jobId = jobIdRaw && jobIdRaw.trim() ? Number(jobIdRaw.trim()) : 0;
+  // If we have a job_id, try to enrich from /get_job_event_stream which
+  // returns current job state. Open modal immediately with what we have.
+  window.PartsSearch.open({ job_id: jobId });
+  if (jobId) {
+    fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_event_stream?job_id=' + jobId, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        const job = (d && d.current_state && d.current_state.job) || {};
+        const setIf = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && val && !el.value) el.value = val;
+        };
+        setIf('ps-brand',     job.brand || '');
+        setIf('ps-appliance', job.appliance_type || '');
+        setIf('ps-model',     job.model_number || '');
+        setIf('ps-symptoms',  job.problem_summary || '');
+      })
+      .catch(() => {});
+  }
+}
+
+// ── Office parts-order entry ──────────────────────────────────
+// Danielle is on the phone with a vendor. She just ordered a part.
+// Tap → form → submit → row in parts_orders → ledger gets the data.
+// Same record_parts_order endpoint the tech pill uses.
+function openOfficePartsOrderModal() {
+  const existing = document.getElementById('office-po-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'office-po-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  overlay.innerHTML = `
+    <div style="background:#13161c;border:1px solid #2a3040;border-radius:14px;padding:22px 22px;max-width:480px;width:100%;color:#e8edf5;margin-top:40px;font-family:'IBM Plex Mono', monospace;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;font-size:18px;font-family:'Bebas Neue',sans-serif;letter-spacing:0.06em;color:#4cd2c0;">📦 LOG PARTS ORDER</h2>
+        <button id="ofc-po-close" style="background:transparent;border:0;color:#aaa;font-size:24px;cursor:pointer;">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Job # <span style="color:#ff6b6b">*</span></label>
+          <input id="ofc-po-job" type="number" placeholder="e.g. 18536" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Supplier <span style="color:#ff6b6b">*</span></label>
+          <input id="ofc-po-supplier" type="text" placeholder="marcone / tribles / partspros / amazon" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Part # <span style="color:#ff6b6b">*</span></label>
+          <input id="ofc-po-part" type="text" placeholder="W10876537" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Part name</label>
+          <input id="ofc-po-name" type="text" placeholder="drain pump" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Cost ($) <span style="color:#ff6b6b">*</span></label>
+          <input id="ofc-po-cost" type="number" step="0.01" min="0" placeholder="87.50" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Shipping ($)</label>
+          <input id="ofc-po-ship" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Sold to customer ($)</label>
+          <input id="ofc-po-sold" type="number" step="0.01" min="0" placeholder="markup price" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;">Order ref</label>
+          <input id="ofc-po-ref" type="text" placeholder="vendor order #" style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;">
+        </div>
+      </div>
+      <label style="font-size:11px;color:#9aa1ad;text-transform:uppercase;margin-top:8px;display:block;">Notes</label>
+      <textarea id="ofc-po-notes" placeholder="ETA, vendor contact, etc." style="width:100%;padding:9px 11px;background:#0a0d12;color:#fff;border:1px solid #2a3040;border-radius:7px;font-size:14px;font-family:inherit;min-height:50px;resize:vertical;"></textarea>
+      <button id="ofc-po-submit" style="width:100%;padding:12px;background:#4cd2c0;color:#0a0d12;border:0;border-radius:7px;font-size:15px;font-weight:700;font-family:'Bebas Neue',sans-serif;letter-spacing:0.05em;cursor:pointer;margin-top:14px;">LOG ORDER</button>
+      <div id="ofc-po-result" style="margin-top:10px;"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('ofc-po-close').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('ofc-po-submit').addEventListener('click', async () => {
+    const job_id   = Number(document.getElementById('ofc-po-job').value || 0);
+    const supplier = (document.getElementById('ofc-po-supplier').value || '').trim().toLowerCase();
+    const part     = (document.getElementById('ofc-po-part').value || '').trim();
+    const name     = (document.getElementById('ofc-po-name').value || '').trim();
+    const cost     = parseFloat(document.getElementById('ofc-po-cost').value || '0') || 0;
+    const ship     = parseFloat(document.getElementById('ofc-po-ship').value || '0') || 0;
+    const sold     = parseFloat(document.getElementById('ofc-po-sold').value || '0') || 0;
+    const ref      = (document.getElementById('ofc-po-ref').value || '').trim();
+    const notes    = (document.getElementById('ofc-po-notes').value || '').trim();
+    const result   = document.getElementById('ofc-po-result');
+    if (!job_id || !supplier || !part || !cost) {
+      result.innerHTML = '<div style="color:#ff6b6b;padding:8px;">Job #, Supplier, Part #, and Cost are required.</div>';
+      return;
+    }
+    const btn = document.getElementById('ofc-po-submit');
+    btn.disabled = true; btn.textContent = 'SAVING…';
+    try {
+      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_parts_order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id, part_number: part, part_name: name, supplier,
+          cost_cents: Math.round(cost * 100),
+          shipping_cents: Math.round(ship * 100),
+          sold_to_customer_cents: Math.round(sold * 100),
+          order_reference: ref,
+          order_status: 'ordered',
+          source: 'office_today',
+          notes,
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        result.innerHTML = `<div style="color:#4cd2c0;padding:8px;background:rgba(76,210,192,0.10);border:1px solid rgba(76,210,192,0.35);border-radius:6px;">✓ Logged (order #${d.parts_order_id}) — $${cost.toFixed(2)} ${supplier}/${part} for job #${job_id}</div>`;
+        setTimeout(() => overlay.remove(), 1800);
+      } else {
+        result.innerHTML = `<div style="color:#ff6b6b;padding:8px;">⚠ ${d.error || 'save failed'}</div>`;
+        btn.disabled = false; btn.textContent = 'LOG ORDER';
+      }
+    } catch (err) {
+      result.innerHTML = `<div style="color:#ff6b6b;padding:8px;">⚠ Network error: ${err.message || err}</div>`;
+      btn.disabled = false; btn.textContent = 'LOG ORDER';
+    }
+  });
+}
 
 async function load() {
   const refreshBtn = document.getElementById('refresh-btn');
