@@ -60,11 +60,12 @@ query office_universal_search verb=GET {
       value = ($q_digits_len >= 7) && ($q_raw_len <= ($q_digits_len + 4))
     }
 
-    // WO-number query: 6+ digits AND not classified as phone. WO numbers
-    // are typically 6-10 digits (HCP), 9-12 chars (ServicePower like
-    // "012594274132"), or alphanumeric ("ARW20260635154946" — NSA).
+    // WO-number query: always run when 5+ digits, even if it ALSO looks
+    // like a phone. Lets searches like "49135689" hit both customer.phone
+    // AND jobs.claim_number. Alphanumeric IDs like "ARW20260635154946"
+    // (NSA) also qualify since they contain digit runs.
     var $is_wo_query {
-      value = ($q_digits_len >= 5) && (! $is_phone_query)
+      value = $q_digits_len >= 5
     }
   
     // Address keyword detection — pre-bind all lengths to dodge XS filter
