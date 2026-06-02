@@ -585,6 +585,68 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // Business-intel agents — added 2026-06-01. Each fires once per week
+  // (or month, for zone profitability) with event_log dedup. Schedule:
+  //   Sun 08-11 → TECH_BURNOUT_WATCHER, PARTS_COST_OPTIMIZER,
+  //               TRUCK_INVENTORY_RECONCILER, INDUSTRY_INTEL_WATCHER
+  //   Mon 09-12 → MARKETING_CHANNEL_ROI, TECH_COMPARISON_REPORT,
+  //               QUOTE_VARIANCE_TRACKER
+  //   1st of month, 10-12 → ZONE_PROFITABILITY_ANALYZER
+  {
+    const dayBI = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    const dateNumBI = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', day: 'numeric' }).format(new Date(nowTs)));
+
+    const weeklyEmits = [
+      { day: 'Sun', hourStart: 8,  hourEnd: 11, signal: 'TECH_BURNOUT_WATCHER',       dedupAction: 'tech_burnout_emitted',         strength: 50 },
+      { day: 'Sun', hourStart: 9,  hourEnd: 12, signal: 'PARTS_COST_OPTIMIZER',       dedupAction: 'parts_cost_optimizer_emitted', strength: 50 },
+      { day: 'Sun', hourStart: 9,  hourEnd: 12, signal: 'TRUCK_INVENTORY_RECONCILER', dedupAction: 'truck_inventory_emitted',      strength: 45 },
+      { day: 'Sun', hourStart: 11, hourEnd: 14, signal: 'INDUSTRY_INTEL_WATCHER',     dedupAction: 'industry_intel_emitted',       strength: 40 },
+      { day: 'Mon', hourStart: 9,  hourEnd: 12, signal: 'MARKETING_CHANNEL_ROI',      dedupAction: 'marketing_channel_roi_emitted',strength: 50 },
+      { day: 'Mon', hourStart: 10, hourEnd: 13, signal: 'TECH_COMPARISON_REPORT',     dedupAction: 'tech_comparison_emitted',      strength: 55 },
+      { day: 'Mon', hourStart: 11, hourEnd: 14, signal: 'QUOTE_VARIANCE_TRACKER',     dedupAction: 'quote_variance_emitted',       strength: 45 },
+    ];
+
+    for (const e of weeklyEmits) {
+      if (dayBI !== e.day) continue;
+      if (hour < e.hourStart || hour >= e.hourEnd) continue;
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: e.dedupAction,
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (fired && fired.fired_today) continue;
+        await xano.emitSignal({
+          signal_type: e.signal,
+          signal_strength: e.strength,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        try { await xano.recordEventLog(e.dedupAction, { since_ts_ms: sinceMs }); } catch (_) {}
+      } catch (err) {
+        xano.logLocal('bi_weekly_emit_failed', { signal: e.signal, error: err.message });
+      }
+    }
+
+    // Monthly: ZONE_PROFITABILITY_ANALYZER on the 1st
+    if (dateNumBI === 1 && hour >= 10 && hour < 13) {
+      try {
+        const fired = await xano.checkEventLogFiredToday({
+          action: 'zone_profitability_emitted',
+          since_ts_ms: sinceMs,
+        }).catch(() => ({ fired_today: false }));
+        if (!(fired && fired.fired_today)) {
+          await xano.emitSignal({
+            signal_type: 'ZONE_PROFITABILITY_ANALYZER',
+            signal_strength: 50,
+            payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+          });
+          try { await xano.recordEventLog('zone_profitability_emitted', { since_ts_ms: sinceMs }); } catch (_) {}
+        }
+      } catch (err) {
+        xano.logLocal('zone_profitability_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // DAILY_TECH_BRIEFING — fires once per day at 7am CT (7-10am grace window
   // covers Mac Mini wake/restart). Per-tech fan-out happens inside the agent.
   if (hour >= 7 && hour < 10) {

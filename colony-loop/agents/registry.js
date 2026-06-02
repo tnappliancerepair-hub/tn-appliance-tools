@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-02T02:29:06.670Z
-// Total registered: 467
+// Generated: 2026-06-02T02:49:32.451Z
+// Total registered: 475
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -113,6 +113,7 @@ export const AGENT_REGISTRY = {
   'HVAC_REQUEST_WARRANTY_STATUS': './hvac_request_warranty_status.js',
   'INBOUND_CALL': './inbound_call.js',
   'INBOUND_CUSTOMER_SMS': './inbound_customer_sms.js',
+  'INDUSTRY_INTEL_WATCHER': './industry_intel_watcher.js',
   'INVOICE_DUE': './invoice_due.js',
   'JOB_CANCELED': './job_canceled.js',
   'JOB_COMPLETED': './job_completed.js',
@@ -134,6 +135,7 @@ export const AGENT_REGISTRY = {
   'MARKET_INTELLIGENCE_REQUEST_MANUFACTURER_RELATIONSHIP_DATA': './market_intelligence_request_manufacturer_relationship_data.js',
   'MARKET_INTELLIGENCE_REQUEST_MARKET_EXPANSION_SCOUT': './market_intelligence_request_market_expansion_scout.js',
   'MARKET_INTELLIGENCE_REQUEST_ORIGIN_STORY_REFRESHER': './market_intelligence_request_origin_story_refresher.js',
+  'MARKETING_CHANNEL_ROI': './marketing_channel_roi.js',
   'MARKETING_SITE_WATCH': './marketing_site_watch.js',
   'MENTORSHIP_REQUEST_MARKET_BUILDER': './mentorship_request_market_builder.js',
   'MENTORSHIP_REQUEST_MENTEE_PROGRESS': './mentorship_request_mentee_progress.js',
@@ -158,6 +160,7 @@ export const AGENT_REGISTRY = {
   'PARTS_ARRIVED_QUICK_SCHEDULE': './parts_arrived_quick_schedule.js',
   'PARTS_BUSINESS_INTEL_DAILY_REVENUE_TRACKER': './parts_business_intel_daily_revenue_tracker.js',
   'PARTS_BUSINESS_INTEL_MARGIN_PER_JOB_ANALYZER': './parts_business_intel_margin_per_job_analyzer.js',
+  'PARTS_COST_OPTIMIZER': './parts_cost_optimizer.js',
   'PARTS_DECISION_DUE': './parts_decision_due.js',
   'PARTS_DELIVERY_OBSERVED': './parts_delivery_observed.js',
   'PARTS_DISCONTINUED_PART_FINDER': './parts_discontinued_part_finder.js',
@@ -265,6 +268,7 @@ export const AGENT_REGISTRY = {
   'PROACTIVE_FAILURE_WARNING': './proactive_failure_warning.js',
   'PROMPT_EVOLUTION_PROPOSER': './prompt_evolution_proposer.js',
   'PROPERTY_MANAGER_ONBOARDED': './property_manager_onboarded.js',
+  'QUOTE_VARIANCE_TRACKER': './quote_variance_tracker.js',
   'REACTIVATION_CAMPAIGN': './reactivation_campaign.js',
   'RECEIPT_OCR_EXTRACT': './receipt_ocr_extract.js',
   'RECRUITING_BACKGROUND_CHECK_COORDINATOR': './recruiting_background_check_coordinator.js',
@@ -442,6 +446,8 @@ export const AGENT_REGISTRY = {
   'TECH_ASSIGNED': './tech_assigned.js',
   'TECH_ASSIST_EOD_REPORT': './tech_assist_eod_report.js',
   'TECH_ASSIST_LOOP_WATCH': './tech_assist_loop_watch.js',
+  'TECH_BURNOUT_WATCHER': './tech_burnout_watcher.js',
+  'TECH_COMPARISON_REPORT': './tech_comparison_report.js',
   'TECH_LATE_CHECK': './tech_late_check.js',
   'TECH_LIFECYCLE_HOME_WARRANTY_VENDOR_ONBOARDING_SUGGESTOR': './tech_lifecycle_home_warranty_vendor_onboarding_suggestor.js',
   'TECH_LIFECYCLE_REQUEST_CERTIFICATION_TRACKER': './tech_lifecycle_request_certification_tracker.js',
@@ -452,6 +458,7 @@ export const AGENT_REGISTRY = {
   'TECH_SUSPENDED': './tech_suspended.js',
   'TECH_WEEKLY_RECAP': './tech_weekly_recap.js',
   'TRANSLATE_SPANISH_INTAKE': './translate_spanish_intake.js',
+  'TRUCK_INVENTORY_RECONCILER': './truck_inventory_reconciler.js',
   'UNPAID_SELF_PAY_DIGEST': './unpaid_self_pay_digest.js',
   'UPSELL_DUE': './upsell_due.js',
   'VAPI_CALL_COMPLETED': './vapi_call_completed.js',
@@ -483,6 +490,7 @@ export const AGENT_REGISTRY = {
   'WEEKLY_DANIELLE_RECEIPT': './weekly_danielle_receipt.js',
   'WEEKLY_PERFORMANCE_SUMMARY': './weekly_performance_summary.js',
   'XANO_API_WATCH': './xano_api_watch.js',
+  'ZONE_PROFITABILITY_ANALYZER': './zone_profitability_analyzer.js',
 };
 
 export const SKIPPED_FILES = [];
