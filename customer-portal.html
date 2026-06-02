@@ -288,7 +288,7 @@
 
         <div style="background: rgba(255,255,255,0.14); padding: 10px 12px; border-radius: 10px;">
           <div style="font-weight: 700; font-size: 14px;">📅 Mark your available times</div>
-          <div style="font-size: 13px; opacity: 0.95; margin-top: 2px;">The more windows you mark below, the more opportunities we have to come fast. Tight schedule? Mark what you can — we'll still do whatever we can to make it work.</div>
+          <div style="font-size: 13px; opacity: 0.95; margin-top: 2px;">Mon-Fri, mornings (8-12) and afternoons (12-4). The more windows you mark below, the more opportunities we have to come fast. Tight schedule? Mark what you can — we'll do whatever we can to make it work.</div>
         </div>
 
         <div style="background: rgba(255,255,255,0.14); padding: 10px 12px; border-radius: 10px;">
@@ -504,11 +504,14 @@
   // client-side as count_selected (out of 21), POSTs to
   // update_customer_availability_grid which writes jobs.customer_availability_grid +
   // jobs.flex_score + emits CUSTOMER_AVAILABILITY_CHANGED signal.
+  // Weekdays only (Mon-Fri), 2 blocks per day. No weekend service,
+  // no evening service. Updated 2026-06-02 per Teddy.
   const AVAIL_BLOCKS = [
     { key: 'morning',   label: '🌅 Morning',   sub: '8a-12p' },
-    { key: 'afternoon', label: '☀️ Afternoon', sub: '12-5p' },
-    { key: 'evening',   label: '🌙 Evening',   sub: '5-8p' },
+    { key: 'afternoon', label: '☀️ Afternoon', sub: '12-4p' },
   ];
+  // 5 weekdays × 2 blocks = 10 possible slots
+  const TOTAL_POSSIBLE_BLOCKS = 10;
   let availState = {};       // { 'YYYY-MM-DD': Set(['morning','afternoon']) }
   let availSaveTimer = null;
 
@@ -533,11 +536,20 @@
     grid.innerHTML = '';
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    for (let i = 0; i < 7; i++) {
+    // Show the next 5 weekdays (skip Sat/Sun). May span up to 2 calendar weeks
+    // depending on what day they open the portal.
+    let weekdayCount = 0;
+    let offset = 0;
+    while (weekdayCount < 5 && offset < 14) {
       const d = new Date(today);
-      d.setDate(today.getDate() + i);
+      d.setDate(today.getDate() + offset);
+      offset++;
+      const wd = d.getDay(); // 0=Sun, 6=Sat
+      if (wd === 0 || wd === 6) continue;
+      weekdayCount++;
       const ymd = d.toISOString().slice(0, 10);
       const dow = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const i = weekdayCount - 1;
       const dstr = (d.getMonth() + 1) + '/' + d.getDate();
       const selected = availState[ymd] || new Set();
       const row = document.createElement('div');
@@ -596,7 +608,7 @@
         total += blocks.length;
       }
     });
-    const flex_score = Math.round((total / 21) * 100);
+    const flex_score = Math.round((total / TOTAL_POSSIBLE_BLOCKS) * 100);
     try {
       const res = await fetch(`${XANO_BASE}/update_customer_availability_grid`, {
         method: 'POST',

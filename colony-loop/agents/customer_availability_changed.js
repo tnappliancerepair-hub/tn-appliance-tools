@@ -12,9 +12,11 @@
 
 import { config } from '../config.js';
 
-const BLOCK_START_HOUR = { morning: 8, afternoon: 12, evening: 17 };
-const BLOCK_END_HOUR   = { morning: 12, afternoon: 17, evening: 20 };
-const BLOCK_ORDER      = ['morning', 'afternoon', 'evening'];
+// Updated 2026-06-02 per Teddy — weekdays only, morning + afternoon only,
+// afternoon shortened to 12-4pm. No evenings, no weekends company-wide.
+const BLOCK_START_HOUR = { morning: 8, afternoon: 12 };
+const BLOCK_END_HOUR   = { morning: 12, afternoon: 16 };
+const BLOCK_ORDER      = ['morning', 'afternoon'];
 
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 
@@ -94,9 +96,10 @@ function findBestMatch(grid, bundle, availBlocks, nowMs) {
         const tech = techById.get(candId);
         if (!tech || tech.active !== true) continue;
 
-        // Sunday closed company-wide. Saturday only if tech opted in.
-        if (dow === 0) continue;
-        if (dow === 6 && tech.works_saturdays !== true) continue;
+        // Per Teddy 2026-06-02: no weekend service company-wide.
+        // (Customer portal also no longer surfaces Sat/Sun blocks, but
+        // guard server-side so any stale grid still gets filtered.)
+        if (dow === 0 || dow === 6) continue;
 
         const techStart = parseHourString(tech.preferred_hours_start);
         const techEnd = parseHourString(tech.preferred_hours_end);
