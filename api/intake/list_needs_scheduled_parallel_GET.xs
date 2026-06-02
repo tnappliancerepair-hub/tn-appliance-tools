@@ -110,22 +110,25 @@ query list_needs_scheduled_parallel verb=GET {
       
         var $row {
           value = {
-            id              : $j.id
-            created_at      : ($j.created_at ?? 0)
-            customer_first  : (($cust_first ?? "")|trim)
-            customer_last   : (($cust_last ?? "")|trim)
-            customer_phone  : (($cust_phone ?? "")|trim)
-            service_address : ($svc_addr != "") ? $svc_addr : (($cust_address ?? "")|trim)
-            service_city    : ($svc_city != "") ? $svc_city : (($cust_city ?? "")|trim)
-            service_state   : ($svc_state != "") ? $svc_state : (($cust_state ?? "")|trim)
-            service_zip     : ($svc_zip != "") ? $svc_zip : (($cust_zip ?? "")|trim)
-            appliance       : (($j.appliance_type ?? "")|trim)
-            brand           : (($j.brand ?? "")|trim)
-            model_number    : (($j.model_number ?? "")|trim)
-            problem_summary : (($j.problem_summary ?? "")|trim)
-            warranty_company: (($j.warranty_company ?? "")|trim)
-            claim_number    : (($j.claim_number ?? "")|trim)
-            intake_source   : (($j.intake_source ?? "")|trim)
+            id                       : $j.id
+            created_at               : ($j.created_at ?? 0)
+            customer_first           : (($cust_first ?? "")|trim)
+            customer_last            : (($cust_last ?? "")|trim)
+            customer_phone           : (($cust_phone ?? "")|trim)
+            service_address          : ($svc_addr != "") ? $svc_addr : (($cust_address ?? "")|trim)
+            service_city             : ($svc_city != "") ? $svc_city : (($cust_city ?? "")|trim)
+            service_state            : ($svc_state != "") ? $svc_state : (($cust_state ?? "")|trim)
+            service_zip              : ($svc_zip != "") ? $svc_zip : (($cust_zip ?? "")|trim)
+            appliance                : (($j.appliance_type ?? "")|trim)
+            brand                    : (($j.brand ?? "")|trim)
+            model_number             : (($j.model_number ?? "")|trim)
+            problem_summary          : (($j.problem_summary ?? "")|trim)
+            warranty_company         : (($j.warranty_company ?? "")|trim)
+            claim_number             : (($j.claim_number ?? "")|trim)
+            intake_source            : (($j.intake_source ?? "")|trim)
+            flex_score               : ($j.flex_score ?? 0)
+            customer_availability_grid: (($j.customer_availability_grid ?? "")|trim)
+            customer_preference_text : (($j.customer_preference_text ?? "")|trim)
           }
         }
       

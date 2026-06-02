@@ -406,6 +406,26 @@
       const name = (j.customer_first + ' ' + j.customer_last).trim() || '(no name)';
       const what = [j.appliance, j.brand].filter(Boolean).join(' • ') || '(no appliance)';
       const addr = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', ');
+      const flex = Number(j.flex_score || 0);
+      const flexColor = flex >= 71 ? '#4cc9c0' : flex >= 31 ? '#5b9bd5' : flex > 0 ? '#ffb454' : '#8a96a8';
+      const flexBg = flex >= 71 ? 'rgba(76,201,192,0.15)' : flex >= 31 ? 'rgba(91,155,213,0.15)' : flex > 0 ? 'rgba(255,180,84,0.15)' : 'rgba(138,150,168,0.12)';
+      let availSnippet = '';
+      try {
+        if (j.customer_availability_grid) {
+          const parsed = JSON.parse(j.customer_availability_grid);
+          if (Array.isArray(parsed) && parsed.length) {
+            const dayCount = parsed.length;
+            const blockCount = parsed.reduce((s, e) => s + (Array.isArray(e.blocks) ? e.blocks.length : 0), 0);
+            availSnippet = `<span class="badge" style="background:${flexBg};color:${flexColor};border-color:${flexColor}">📅 ${blockCount} blocks across ${dayCount} day${dayCount === 1 ? '' : 's'}</span>`;
+          }
+        }
+      } catch (_) {}
+      const flexBadge = flex > 0
+        ? `<span class="badge" style="background:${flexBg};color:${flexColor};border-color:${flexColor};font-weight:600">⚡ flex ${flex}</span>`
+        : '';
+      const prefBadge = j.customer_preference_text
+        ? `<span class="badge" style="background:rgba(138,150,168,0.12);color:#4a5568">💬 "${escapeHtml(j.customer_preference_text).slice(0, 80)}${j.customer_preference_text.length > 80 ? '…' : ''}"</span>`
+        : '';
       return `<div class="row" data-id="${j.id}">
         <div class="top">
           <div class="who">${escapeHtml(name)}</div>
@@ -418,7 +438,10 @@
           ${j.warranty_company ? `<span class="badge warranty">${escapeHtml(j.warranty_company)}</span>` : ''}
           ${j.claim_number ? `<span class="badge">${escapeHtml(j.claim_number)}</span>` : ''}
           ${j.customer_phone ? `<span class="badge">${escapeHtml(j.customer_phone)}</span>` : ''}
+          ${flexBadge}
+          ${availSnippet}
         </div>
+        ${prefBadge ? `<div class="meta" style="margin-top:4px">${prefBadge}</div>` : ''}
         ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
         <div class="actions">
           <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}">Schedule</button>
