@@ -226,6 +226,14 @@ export async function getTechAssignmentContext(jobId, technicianId) {
   return getJSON(`${INTAKE()}/get_tech_assignment_context?job_id=${jobId}&technician_id=${technicianId}`);
 }
 
+export async function getCustomerIntakeBundleHandled(jobId) {
+  return getJSON(`${INTAKE()}/get_customer_intake_bundle_handled?job_id=${jobId}`);
+}
+
+export async function getCustomerIntakeBundleContext(jobId) {
+  return getJSON(`${INTAKE()}/get_customer_intake_bundle_context?job_id=${jobId}`);
+}
+
 export async function getPartsArrivalDue(todayCt) {
   let url = `${INTAKE()}/get_parts_arrival_due`;
   if (todayCt) url += `?today_ct=${encodeURIComponent(todayCt)}`;

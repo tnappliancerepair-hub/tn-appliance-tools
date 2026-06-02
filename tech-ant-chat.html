@@ -721,6 +721,38 @@
         <div id="tdr-bar-fill" style="height:100%; width:0%; background:#74e3c4; transition:width .3s ease;"></div>
       </div>
     </div>
+    <!-- Pre-visit briefing stack. Three panels, populated independently:
+         1. Teddy's pre-diagnosis (human, highest trust)
+         2. Customer's intake bundle (their own video/photo/desc)
+         3. Ant's guess (AI draft — kept visible so we can grade over time) -->
+
+    <!-- 1. Teddy's pre-diagnosis -->
+    <div id="teddy-prediag" style="display:none; margin: 0 12px 8px; padding: 10px 12px; background: linear-gradient(135deg, rgba(245,166,35,0.12), rgba(245,166,35,0.04)); border: 1px solid rgba(245,166,35,0.45); border-radius: 10px; font-size: 13px; color: #e8eaf0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong style="color:#f5a623; font-size:12px; letter-spacing:0.5px;">🧠 TEDDY'S PRE-DIAGNOSIS</strong>
+      </div>
+      <div id="teddy-prediag-body" style="line-height:1.45;"></div>
+    </div>
+
+    <!-- 2. Customer intake bundle (their own words + media) -->
+    <div id="cust-intake" style="display:none; margin: 0 12px 8px; padding: 10px 12px; background: rgba(76,167,255,0.08); border: 1px solid rgba(76,167,255,0.30); border-radius: 10px; font-size: 13px; color: #e8eaf0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong style="color:#4ca7ff; font-size:12px; letter-spacing:0.5px;">👤 CUSTOMER INTAKE</strong>
+        <span id="cust-intake-count" style="color:#9aa1ad; font-size:11px;"></span>
+      </div>
+      <div id="cust-intake-desc" style="line-height:1.45; margin-bottom:8px;"></div>
+      <div id="cust-intake-thumbs" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- 3. Ant's guess (AI auto-draft — labeled honestly) -->
+    <div id="ai-prediag" style="display:none; margin: 0 12px 10px; padding: 10px 12px; background: linear-gradient(135deg, rgba(116,227,196,0.08), rgba(116,227,196,0.02)); border: 1px dashed rgba(116,227,196,0.30); border-radius: 10px; font-size: 13px; color: #d4d6dc;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <strong style="color:#74e3c4; font-size:12px; letter-spacing:0.5px;">🤖 ANT'S GUESS</strong>
+        <button id="ai-prediag-toggle" style="background:transparent; border:1px solid rgba(255,255,255,0.15); color:#9aa1ad; border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer;">expand</button>
+      </div>
+      <div id="ai-prediag-summary" style="line-height:1.4;"></div>
+      <div id="ai-prediag-full" style="display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); white-space:pre-wrap; line-height:1.5; color:#d4d6dc; font-size:12.5px;"></div>
+    </div>
   </header>
 
   <!-- Primary action bar — NAV + OTW + CALL + START JOB -->
@@ -1395,6 +1427,10 @@
         } catch (_) {}
       }
       renderHeader({ id: job.id || JOB_ID, customer: fullName, appliance: applShort, time: timeStr });
+      // Pre-visit briefing stack. Three independent panels, all best-effort.
+      try { renderTeddyPrediag(d); } catch (_) {}
+      renderCustomerIntake(d);
+      loadPrediag().catch(() => {});
       // Restore chat history so back-and-forth survives reloads/app-switching.
       restoreChatHistory().catch(() => {});
     } catch (e) {
@@ -1402,6 +1438,134 @@
       renderHeader({ id: JOB_ID, customer: 'load failed', appliance: '—', time: '' });
     }
   }
+  function renderTeddyPrediag(d) {
+    const card = $('teddy-prediag');
+    const body = $('teddy-prediag-body');
+    if (!card || !body) return;
+    const tdrs = (d && d.all_tdrs) || [];
+    // Find Teddy's TDR (technician_id === 1). Prefer the most recent.
+    const teddyTdrs = tdrs.filter(t => Number(t.technician_id) === 1);
+    if (teddyTdrs.length === 0) return;
+    teddyTdrs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    const t = teddyTdrs[0];
+    const diagnosis = (t.diagnosis || '').trim();
+    const failed = (t.failed_component || '').trim();
+    const notes = (t.technician_notes || '').trim();
+    if (!diagnosis && !failed && !notes) return;
+    let html = '';
+    if (diagnosis) html += '<div><strong>Diagnosis:</strong> ' + escapeHtml(diagnosis) + '</div>';
+    if (failed)    html += '<div style="margin-top:4px;"><strong>Failed:</strong> ' + escapeHtml(failed) + '</div>';
+    if (notes)     html += '<div style="margin-top:6px; color:#d4d6dc; font-size:12.5px;">' + escapeHtml(notes) + '</div>';
+    body.innerHTML = html;
+    card.style.display = '';
+  }
+
+  function renderCustomerIntake(d) {
+    const card = $('cust-intake');
+    const descEl = $('cust-intake-desc');
+    const thumbsEl = $('cust-intake-thumbs');
+    const countEl = $('cust-intake-count');
+    if (!card || !descEl || !thumbsEl) return;
+    const job = (d && d.job) || {};
+    const problem = (job.problem_summary || '').trim();
+    // Only show if there's actual customer content (problem text OR media)
+    let showText = false;
+    if (problem) {
+      descEl.innerHTML = '<em style="color:#cbd2e0">"</em>' + escapeHtml(problem) + '<em style="color:#cbd2e0">"</em>';
+      showText = true;
+    } else {
+      descEl.innerHTML = '<span style="color:#9aa1ad; font-style:italic;">(no description from customer)</span>';
+    }
+    // Fetch attachments and hydrate thumbs
+    fetch(XANO_BASE + '/get_job_attachments?job_id=' + encodeURIComponent(JOB_ID), { cache: 'no-store' })
+      .then(r => r.json())
+      .then(async (data) => {
+        const atts = (data && (data.attachments || data.rows || data.items)) || [];
+        // Only those with upload completed
+        const ready = atts.filter(a => a.upload_complete_at);
+        if (ready.length === 0) {
+          if (!showText) return; // truly empty
+          card.style.display = '';
+          if (countEl) countEl.textContent = '';
+          return;
+        }
+        if (countEl) countEl.textContent = ready.length + (ready.length === 1 ? ' attachment' : ' attachments');
+        const keys = ready.filter(a => a.s3_key).map(a => a.s3_key);
+        let urlMap = {};
+        try {
+          const sigRes = await fetch('/.netlify/functions/s3-view-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ s3_keys: keys })
+          });
+          const sigData = await sigRes.json();
+          if (sigData && sigData.success) {
+            (sigData.signed_urls || []).forEach(r => { urlMap[r.s3_key] = r.view_url; });
+          }
+        } catch (_) {}
+        const thumbHtml = ready.slice(0, 12).map(a => {
+          const url = urlMap[a.s3_key] || '';
+          const isVid = (a.file_type || '').startsWith('video') || (a.mime_type || '').startsWith('video');
+          const onClick = url ? `onclick="window.open('${url.replace(/'/g, "\\'")}','_blank')"` : '';
+          if (isVid) {
+            return `<div style="width:64px; height:64px; background:#000; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; border:1px solid rgba(255,255,255,0.15);" ${onClick}>
+              <span style="color:#fff; font-size:20px;">▶</span>
+            </div>`;
+          }
+          if (url) {
+            return `<div style="width:64px; height:64px; border-radius:6px; overflow:hidden; cursor:pointer; border:1px solid rgba(255,255,255,0.15);" ${onClick}>
+              <img loading="lazy" src="${url}" style="width:100%; height:100%; object-fit:cover;" alt="">
+            </div>`;
+          }
+          return `<div style="width:64px; height:64px; background:#222; border-radius:6px; border:1px solid rgba(255,255,255,0.10);"></div>`;
+        }).join('');
+        thumbsEl.innerHTML = thumbHtml;
+        card.style.display = '';
+      })
+      .catch(() => {
+        if (showText) card.style.display = '';
+      });
+  }
+
+  async function loadPrediag() {
+    const card = $('ai-prediag');
+    if (!card) return;
+    let data;
+    try {
+      const r = await fetch(XANO_BASE + '/get_predicted_failure_for_job?job_id=' + encodeURIComponent(JOB_ID), { cache: 'no-store' });
+      data = await r.json();
+    } catch (_) { return; }
+    if (!data || !data.has_draft || !data.suggestion) return;
+    const meta = data.suggestion.metadata || {};
+    const draft = (meta.draft_text || '').trim();
+    if (!draft) return;
+    // Pull first 'Failed component:' / 'Recommended part:' lines for the
+    // collapsed summary. Falls back to the first 2 non-empty lines.
+    const lines = draft.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    const pick = (label) => (lines.find(l => l.toLowerCase().startsWith(label.toLowerCase())) || '').replace(/^[^:]+:\s*/, '');
+    const failed = pick('Failed component');
+    const part   = pick('Recommended part') || pick('Pre-order parts');
+    const cause  = pick('Failure cause');
+    let summary = '';
+    if (failed) summary += '<div><strong>Likely:</strong> ' + escapeHtml(failed) + '</div>';
+    if (part)   summary += '<div style="margin-top:4px;"><strong>📦 Order:</strong> ' + escapeHtml(part) + '</div>';
+    if (!summary && cause) summary = '<div>' + escapeHtml(cause) + '</div>';
+    if (!summary) summary = '<div style="color:#9aa1ad; font-style:italic;">' + escapeHtml(lines[0] || 'pre-diagnosis available') + '</div>';
+    $('ai-prediag-summary').innerHTML = summary;
+    $('ai-prediag-full').textContent = draft;
+    card.style.display = '';
+    const toggle = $('ai-prediag-toggle');
+    if (toggle && !toggle._wired) {
+      toggle._wired = true;
+      toggle.addEventListener('click', () => {
+        const full = $('ai-prediag-full');
+        const isOpen = full.style.display !== 'none';
+        full.style.display = isOpen ? 'none' : '';
+        toggle.textContent = isOpen ? 'expand' : 'collapse';
+      });
+    }
+  }
+
   function renderHeader({ id, customer, appliance, time }) {
     ctxPills.innerHTML =
       '<span class="ctx-pill cyan"><span class="label">JOB</span>#' + escapeHtml(String(id)) + '</span>' +

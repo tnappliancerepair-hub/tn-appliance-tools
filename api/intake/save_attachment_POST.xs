@@ -82,6 +82,43 @@ query save_attachment verb=POST {
         created_at: $now_ts
       }
     } as $new_event_log
+
+    // Emit CUSTOMER_INTAKE_BUNDLE_READY for the colony loop. The agent
+    // (customer_intake_bundle_ready.js) dedupes per-job-per-24h via
+    // get_customer_intake_bundle_handled, so multiple attachment uploads
+    // for the same job only send one SMS round to Teddy + tech.
+    var $cibr_payload_obj {
+      value = {
+        job_id        : $attachment.job_id
+        attachment_id : $input.attachment_id
+        s3_key        : ($attachment.s3_key ?? "")
+        emitted_at_ms : ($now_ts|to_ms)
+        source        : "save_attachment"
+      }
+    }
+    var $cibr_payload_str { value = $cibr_payload_obj|json_encode }
+
+    db.add colony_signals {
+      data = {
+        signal_type     : "CUSTOMER_INTAKE_BUNDLE_READY"
+        signal_strength : 80
+        source_colony   : "intake"
+        target_colonies : ""
+        payload         : $cibr_payload_str
+      }
+    } as $cibr_signal
+
+    db.add event_log {
+      data = {
+        action    : "customer_intake_bundle_signal_emitted"
+        metadata  : {
+          job_id       : $attachment.job_id
+          attachment_id: $input.attachment_id
+          signal_id    : $cibr_signal.id
+        }
+        created_at: $now_ts
+      }
+    } as $cibr_audit
   }
 
   response = {
