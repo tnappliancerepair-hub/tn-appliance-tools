@@ -141,11 +141,15 @@
         </div>`;
       }).join('');
       resultsEl.querySelectorAll('.ofc-search-row').forEach(row => {
-        row.addEventListener('mousedown', (e) => {
+        row.style.cursor = 'pointer';
+        const navigate = (e) => {
           e.preventDefault();
           const jid = row.dataset.jid;
           if (jid) window.location.href = `/job-detail.html?job_id=${jid}`;
-        });
+        };
+        // click handles mouse + iOS Safari touch; touchend covers Android quirks
+        row.addEventListener('click', navigate);
+        row.addEventListener('touchend', navigate);
       });
     } catch (e) {
       clearTimeout(t);

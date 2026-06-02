@@ -426,7 +426,7 @@
       const prefBadge = j.customer_preference_text
         ? `<span class="badge" style="background:rgba(138,150,168,0.12);color:#4a5568">💬 "${escapeHtml(j.customer_preference_text).slice(0, 80)}${j.customer_preference_text.length > 80 ? '…' : ''}"</span>`
         : '';
-      return `<div class="row" data-id="${j.id}">
+      return `<div class="row" data-id="${j.id}" style="cursor:pointer">
         <div class="top">
           <div class="who">${escapeHtml(name)}</div>
           <div class="age">${fmtAge(j.created_at)}</div>
@@ -444,13 +444,26 @@
         ${prefBadge ? `<div class="meta" style="margin-top:4px">${prefBadge}</div>` : ''}
         ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
         <div class="actions">
+          <a class="btn-open-job" href="/job-detail.html?job_id=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
           <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}">Schedule</button>
         </div>
       </div>`;
     }).join('');
 
+    // Make whole row clickable → open job detail (except when tapping the Schedule button or the Open job link)
+    list.querySelectorAll('div.row[data-id]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t.closest('button.schedule') || t.closest('a.btn-open-job')) return;
+        const id = row.dataset.id;
+        if (id) window.location.href = `/job-detail.html?job_id=${id}`;
+      });
+    });
+
     list.querySelectorAll('button.schedule').forEach(b => {
-      b.addEventListener('click', () => {
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
         currentJob = { id: parseInt(b.dataset.id, 10), name: b.dataset.name, appl: b.dataset.appl };
         $('schedJobDesc').textContent = `${currentJob.name} — ${currentJob.appl}`;
         const today = new Date(); today.setDate(today.getDate() + 1);
