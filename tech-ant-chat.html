@@ -836,6 +836,8 @@
     <div class="composer-inner">
       <button class="composer-btn" id="btn-photo" title="Take photo" aria-label="Take photo">📷</button>
       <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
+      <button class="composer-btn" id="btn-parts-order" title="Log a parts order" aria-label="Log parts order">📦</button>
+      <button class="composer-btn" id="btn-parts-find" title="Find part number" aria-label="Find part number" style="font-size:16px">🔧</button>
       <!-- Library picker removed 2026-06-02 per Teddy — camera + video direct-capture is enough for field documentation -->
 
       <!-- 2026-06-02: Mic re-enabled with Whisper-first routing for
@@ -1749,6 +1751,9 @@
         <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">Part #</label>
         <input id="po-part-num" type="text" placeholder="e.g. WPW10310240" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
 
+        <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">Cost ($)</label>
+        <input id="po-cost" type="number" step="0.01" min="0" placeholder="e.g. 87.50" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
+
         <label style="display:block;font-size:11px;color:#8a93aa;text-transform:uppercase;font-weight:600;margin-bottom:4px">ETA (date or "Tue Jun 5")</label>
         <input id="po-eta" type="text" placeholder="Tue Jun 5" style="width:100%;padding:10px;background:#1e2433;color:#e8edf5;border:1px solid #2a3040;border-radius:6px;margin-bottom:10px;font-family:inherit">
 
@@ -1764,23 +1769,55 @@
     document.getElementById('po-submit').addEventListener('click', async () => {
       const supplier = document.getElementById('po-supplier').value.trim();
       const partNum  = document.getElementById('po-part-num').value.trim();
+      const cost     = parseFloat(document.getElementById('po-cost').value || '0') || 0;
       const eta      = document.getElementById('po-eta').value.trim();
       const link     = document.getElementById('po-link').value.trim();
       const btn = document.getElementById('po-submit');
       btn.disabled = true; btn.textContent = '...';
+      // Fire BOTH endpoints in parallel:
+      //  1. emitPartsEvent — legacy customer-notification + status flip
+      //  2. record_parts_order — writes the parts_orders ledger row
+      //     (feeds parts_cost_optimizer + truck_inventory_reconciler
+      //     + financial automation Phase B)
       try {
-        const d = await window.Ant.api.emitPartsEvent({
+        const apl = (jobContext && jobContext.appliance) || {};
+        const ledgerPromise = fetch(XANO_BASE + '/record_parts_order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: JOB_ID,
+            tech_id: TECH_ID,
+            part_number: partNum,
+            supplier: supplier,
+            cost_cents: Math.round(cost * 100),
+            appliance_type: apl.type || apl.appliance_type || '',
+            brand: apl.brand || '',
+            model_number: apl.model_number || '',
+            order_status: 'ordered',
+            source: 'tech_ant_chat',
+            notes: link ? ('link: ' + link) : '',
+          }),
+        }).then(r => r.json()).catch((e) => ({ success: false, error: String(e) }));
+
+        const eventPromise = window.Ant.api.emitPartsEvent({
           job_id: JOB_ID,
           status: 'ordered',
           eta_date: eta,
           parts_link: link,
-          note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : ''].filter(Boolean).join(' / '),
+          note: [supplier ? 'supplier: ' + supplier : '', partNum ? 'part: ' + partNum : '', cost ? '$' + cost.toFixed(2) : ''].filter(Boolean).join(' / '),
         });
-        if (d && d.success) {
-          addMsg('assistant', `📦 Parts ordered logged${eta ? ' (ETA ' + eta + ')' : ''}. Customer ${d.sms_attempted ? 'will be notified' : 'SMS held (gate off)'}.`);
+
+        const [ledgerRes, eventRes] = await Promise.all([ledgerPromise, eventPromise]);
+        const okLedger = ledgerRes && ledgerRes.success;
+        const okEvent  = eventRes  && eventRes.success;
+        if (okLedger || okEvent) {
+          const costStr = cost ? ` $${cost.toFixed(2)}` : '';
+          const etaStr  = eta ? ` (ETA ${eta})` : '';
+          const ledgerStr = okLedger ? ' · 📒 logged to ledger' : '';
+          addMsg('assistant', `📦 Parts ordered${costStr}${etaStr}${ledgerStr}. Customer ${eventRes && eventRes.sms_attempted ? 'will be notified' : 'SMS held (gate off)'}.`);
           overlay.remove();
         } else {
-          addMsg('assistant', '⚠️ Could not log: ' + JSON.stringify(d).slice(0, 200));
+          addMsg('assistant', '⚠️ Could not log: ' + JSON.stringify({ ledger: ledgerRes, event: eventRes }).slice(0, 250));
           btn.disabled = false; btn.textContent = '✓ Mark parts ordered (notify customer)';
         }
       } catch (e) {
@@ -2313,6 +2350,37 @@
       videoInput.click();
     }
   });
+
+  // Parts ordering pill — opens the existing parts-order overlay
+  const btnPartsOrder = document.getElementById('btn-parts-order');
+  if (btnPartsOrder) {
+    btnPartsOrder.addEventListener('click', () => openPartsOrderModal());
+  }
+
+  // Parts FIND pill — opens the parts search modal with this job's
+  // context pre-filled (brand, model, appliance, failed component from
+  // latest TDR draft if any)
+  const btnPartsFind = document.getElementById('btn-parts-find');
+  if (btnPartsFind) {
+    btnPartsFind.addEventListener('click', () => {
+      if (!window.PartsSearch || typeof window.PartsSearch.open !== 'function') {
+        addMsg('assistant', '🔧 Parts search not loaded — reload the page and try again.');
+        return;
+      }
+      const apl = (jobContext && jobContext.appliance) || {};
+      // Try to grab a failed_component from any drafted TDR fields
+      const failedEl = document.getElementById('tdr-failed-component');
+      const diagEl = document.getElementById('tdr-diagnosis');
+      window.PartsSearch.open({
+        brand: apl.brand || '',
+        model_number: apl.model_number || '',
+        appliance_type: apl.type || apl.appliance_type || '',
+        failed_component: (failedEl && failedEl.value) || '',
+        symptoms: (diagEl && diagEl.value) || apl.problem_summary || '',
+        job_id: JOB_ID,
+      });
+    });
+  }
 
   async function uploadMedia(file) {
     const isVideo = (file.type || '').startsWith('video/');
