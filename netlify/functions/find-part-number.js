@@ -1,7 +1,17 @@
-// Multi-source part number finder. Phase 2: real parallel web scraping
-// across 4 consumer parts sites + Claude reasoning as a 5th source.
-// Anchor sources (Marcone API, Tribles Appliance Parts API) plug in as
-// additional voters when those integrations land.
+// Multi-source part number finder.
+//
+// REALITY CHECK 2026-06-02: Live testing showed 9 of 10 consumer/B2B
+// appliance parts sites Cloudflare-block server-side fetches from
+// Netlify IPs. Only AppliancePartsPros sometimes responds, and even
+// then the search page requires JavaScript to render real results.
+//
+// MODE flag controls behavior:
+//   MODE='scrape' — Attempt all sources in SOURCES (current Cloudflare
+//     reality: low yield, kept for the day vendor APIs land OR we add
+//     a Cloudflare-bypass scraper service like ScraperAPI / BrightData)
+//   MODE='claude_only' — Skip scraping. Claude reasons directly about
+//     OEM part numbers using its training knowledge. Honest LOW tier.
+//     This is the working default until Marcone + Tribles APIs land.
 //
 // "Unanimous answer" pattern Teddy laid out:
 //   - Query N sources in parallel

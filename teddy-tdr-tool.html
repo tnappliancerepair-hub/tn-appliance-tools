@@ -626,10 +626,14 @@ function renderCockpitHeader() {
 
       '<div class="cockpit-row">' +
         '<div class="cockpit-section-label">Machine</div>' +
-        '<div class="machine-line">' +
-          '<span class="machine-text">' + escapeHtml(machineParts || "Unknown appliance") + '</span>' +
-          (app.model_number ? '<span class="machine-model">Model: ' + escapeHtml(app.model_number) + '</span>' : '<span class="machine-model" style="color:var(--muted);">Model: unknown</span>') +
+        '<div class="machine-line" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">' +
+          '<span class="machine-text" id="cockpit-machine-text" data-editable="appliance" title="Click to edit">' + escapeHtml(machineParts || "Unknown appliance") + ' ✎</span>' +
+          '<span id="cockpit-model-edit" data-editable="model" title="Click to edit" style="cursor:pointer;">' +
+            (app.model_number ? '<span class="machine-model">Model: ' + escapeHtml(app.model_number) + ' ✎</span>' : '<span class="machine-model" style="color:var(--orange,#ff9d4a); font-weight:600;">+ Add model # ✎</span>') +
+          '</span>' +
+          (app.brand ? '<span class="machine-brand" id="cockpit-brand-edit" data-editable="brand" title="Click to edit" style="cursor:pointer; padding:2px 8px; background:rgba(255,255,255,0.05); border-radius:10px; font-size:11px; color:var(--muted);">' + escapeHtml(app.brand) + ' ✎</span>' : '<span class="machine-brand" id="cockpit-brand-edit" data-editable="brand" title="Click to add brand" style="cursor:pointer; padding:2px 8px; background:rgba(255,157,74,0.10); border:1px dashed rgba(255,157,74,0.4); border-radius:10px; font-size:11px; color:var(--orange,#ff9d4a);">+ brand ✎</span>') +
           renderSchematicLink(app.model_number) +
+          '<button id="cockpit-find-parts" style="background:rgba(116,227,196,0.15); border:1px solid rgba(116,227,196,0.45); color:#74e3c4; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--mono);">🔧 Find Part</button>' +
         '</div>' +
       '</div>' +
 
@@ -987,6 +991,99 @@ function render() {
     case "done": html = renderDone(); break;
   }
   app.innerHTML = '<div class="container">' + html + '</div>';
+  // Wire post-render: inline editors + find-part button
+  setTimeout(wireCockpitInteractions, 0);
+}
+
+// Inline editors for appliance fields + Find Part launcher.
+// Click a field with [data-editable] → opens an inline input → on
+// blur/Enter → POSTs to update_job_appliance_fields → re-renders.
+function wireCockpitInteractions() {
+  document.querySelectorAll('[data-editable]').forEach((el) => {
+    if (el._editWired) return;
+    el._editWired = true;
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => openInlineEditor(el));
+  });
+  const findBtn = document.getElementById('cockpit-find-parts');
+  if (findBtn && !findBtn._wired) {
+    findBtn._wired = true;
+    findBtn.addEventListener('click', launchPartsSearch);
+  }
+}
+
+function openInlineEditor(el) {
+  const field = el.dataset.editable;
+  if (!field) return;
+  const app = (state.cockpit && state.cockpit.appliance) || {};
+  const current = field === 'model'     ? (app.model_number || '')
+                : field === 'brand'     ? (app.brand || '')
+                : field === 'appliance' ? (app.appliance_type || '')
+                : field === 'serial'    ? (app.serial_number || '')
+                : '';
+  const placeholder = field === 'model' ? 'WTW5000DW1' : field === 'brand' ? 'Whirlpool' : field === 'appliance' ? 'washer / dryer / refrigerator' : 'serial #';
+  el.innerHTML = '<input type="text" id="inline-edit-' + field + '" value="' + escapeAttr(current) + '" placeholder="' + escapeAttr(placeholder) + '" style="padding:5px 9px; background:#0a0d12; color:#fff; border:1px solid #f5a623; border-radius:5px; font-family:var(--mono); font-size:13px; width:200px;">';
+  const input = document.getElementById('inline-edit-' + field);
+  input.focus();
+  input.select();
+  const commit = async () => {
+    if (input._committed) return;
+    input._committed = true;
+    const v = input.value.trim();
+    if (v === current) { render(); return; }
+    el.innerHTML = 'Saving…';
+    const payload = { job_id: state.jobId, updated_by: 'teddy_tool' };
+    if (field === 'model')     payload.model_number = v;
+    if (field === 'brand')     payload.brand = v;
+    if (field === 'appliance') payload.appliance_type = v;
+    if (field === 'serial')    payload.serial_number = v;
+    try {
+      const r = await fetch(XANO_BASE + '/update_job_appliance_fields', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (d.success) {
+        // Update local state + re-render
+        if (state.cockpit && state.cockpit.appliance) {
+          if (field === 'model')     state.cockpit.appliance.model_number = d.model_number;
+          if (field === 'brand')     state.cockpit.appliance.brand = d.brand;
+          if (field === 'appliance') state.cockpit.appliance.appliance_type = d.appliance_type;
+          if (field === 'serial')    state.cockpit.appliance.serial_number = d.serial_number;
+        }
+        render();
+      } else {
+        alert('Save failed: ' + (d.error || 'unknown'));
+        render();
+      }
+    } catch (err) {
+      alert('Save failed: ' + (err.message || err));
+      render();
+    }
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { e.preventDefault(); input._committed = true; render(); }
+  });
+}
+
+function launchPartsSearch() {
+  if (!window.PartsSearch || typeof window.PartsSearch.open !== 'function') {
+    alert('Parts search not loaded — refresh the page and try again.');
+    return;
+  }
+  const app = (state.cockpit && state.cockpit.appliance) || {};
+  // Get the failed_component from the latest TDR if there is one
+  const tdrs = (state.cockpit && state.cockpit.all_tdrs) || [];
+  const latestTdr = tdrs.length ? tdrs[0] : {};
+  window.PartsSearch.open({
+    brand: app.brand || '',
+    model_number: app.model_number || '',
+    appliance_type: app.appliance_type || '',
+    failed_component: latestTdr.failed_component || '',
+    symptoms: app.problem_summary || '',
+    job_id: state.jobId,
+  });
 }
 
 function openLightbox(idx) {
