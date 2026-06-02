@@ -153,13 +153,17 @@ exports.handler = async (event) => {
       class: subjectClass,
     });
 
-    // Skip 'unknown' classes cleanly — neither dispatch nor payment.
-    // Used to fall through to dispatch branch + fail on no-attachment,
-    // which masked the real problem (label matching wrong emails).
-    if (subjectClass === 'unknown') {
-      console.log(`[ahs-gmail-poller] message ${id} class=unknown subject="${(baseMsg.subject || '').slice(0,80)}" — skipping`);
-      results.skipped_no_attachment.push(id);
-      await releaseClaim(gmail, id, inProgressLabelId);
+    // Skip 'unknown' and 'status_update' classes cleanly. Status updates
+    // are estimate-feedback / daily-summary emails — they don't create
+    // new jobs and previously fell through to the dispatch processor
+    // where they all failed on no-attachment, clogging the queue.
+    if (subjectClass === 'unknown' || subjectClass === 'status_update') {
+      console.log(`[ahs-gmail-poller] message ${id} class=${subjectClass} subject="${(baseMsg.subject || '').slice(0,80)}" — labeling processed and skipping`);
+      if (!results.skipped_status) results.skipped_status = [];
+      results.skipped_status.push({ id, class: subjectClass, subject: (baseMsg.subject || '').slice(0, 100) });
+      // Apply the terminal PROCESSED label so these don't show again next run
+      try { await labelMsg(gmail, id, processedLabelId); } catch (_) {}
+      try { await releaseClaim(gmail, id, inProgressLabelId); } catch (_) {}
       continue;
     }
 

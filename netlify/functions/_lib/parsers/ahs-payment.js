@@ -157,8 +157,31 @@ function normalizeDate(s) {
 function classifyAhsSubject(subject) {
   if (!subject) return 'unknown';
   const s = subject.toLowerCase();
-  if (/payment|remittance|advice|settlement|eft/.test(s)) return 'payment';
-  if (/dispatch|new dispatch|work order/.test(s)) return 'dispatch';
+
+  // 2026-06-02: Tightened — was matching estimate/status updates as
+  // 'dispatch' just because subject contained the word "dispatch".
+  // Order matters: check most-specific patterns first.
+
+  // Status updates ABOUT existing dispatches (NOT new dispatches).
+  // These are feedback on estimates we already submitted, daily
+  // summaries, etc. Cleanly skip — label processed + move on.
+  if (/estimate for dispatch|has been processed|not instantly approved|approval pending|daily status update|status update/.test(s)) {
+    return 'status_update';
+  }
+
+  // Payment / remittance emails — route to ahs_payment_intake.
+  if (/payment|remittance|advice|settlement|eft|reimbursement/.test(s)) return 'payment';
+
+  // NEW dispatch / work order — actually creates a new job. Requires XML
+  // attachment. Be specific: 'new dispatch' or 'new work order'.
+  if (/new dispatch notification|new dispatch|new work order/.test(s)) return 'dispatch';
+
+  // 'dispatch'-containing subjects that didn't match the specific
+  // patterns above are most likely follow-up notifications. Treat as
+  // status_update so they're handled cleanly, not routed to dispatch
+  // processor (which fails on no-XML-attachment).
+  if (/dispatch|work order/.test(s)) return 'status_update';
+
   return 'unknown';
 }
 
