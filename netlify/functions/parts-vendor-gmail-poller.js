@@ -25,6 +25,7 @@ const { google } = require('googleapis');
 
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const XANO_ENDPOINT = `${XANO_BASE}/record_parts_delivery_observation`;
+const PARTS_ORDER_ENDPOINT = `${XANO_BASE}/record_parts_order`;
 
 const PROCESSED_LABEL_NAME = 'PartsDelivery-Processed';
 const MAX_MESSAGES_PER_RUN = 25;
@@ -155,17 +156,52 @@ exports.handler = async () => {
           raw_snippet: snippet.slice(0, 400),
         };
 
-        const res = await fetch(XANO_ENDPOINT, {
+        // Fire BOTH downstream paths in parallel:
+        //  1. record_parts_delivery_observation — feeds the
+        //     parts_delivery_observed agent which matches against
+        //     open awaiting_parts queue (existing flow)
+        //  2. record_parts_order — writes a parts_orders ledger row
+        //     with order_status='delivered' (NEW for Phase 4 — feeds
+        //     parts_cost_optimizer + financial automation Phase B)
+        //
+        // The ledger row goes in WITHOUT a job_id when we can't
+        // confidently match. The parts_delivery_observed agent will
+        // later UPDATE the row with job_id once it finds the match.
+        const obsPromise = fetch(XANO_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(obs),
         });
+        const ledgerPayload = {
+          job_id: 0,
+          part_number: obs.part_number_hint || obs.order_number || '(unknown)',
+          part_name: '',
+          supplier: (obs.vendor || '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+          cost_cents: 0,
+          model_number: obs.model_number_hint || '',
+          order_reference: obs.order_number || obs.tracking_number || '',
+          order_status: 'delivered',
+          source: `gmail_poller_${fp.name}`,
+          notes: [
+            obs.tracking_number ? `tracking: ${obs.tracking_number}` : '',
+            obs.customer_name_hint ? `customer: ${obs.customer_name_hint}` : '',
+            obs.customer_zip_hint ? `zip: ${obs.customer_zip_hint}` : '',
+            `subject: ${(obs.raw_subject || '').slice(0, 100)}`,
+          ].filter(Boolean).join(' · '),
+        };
+        const ledgerPromise = fetch(PARTS_ORDER_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ledgerPayload),
+        }).catch(() => null);
+
+        const [res, ledgerRes] = await Promise.all([obsPromise, ledgerPromise]);
         if (res.ok) {
           observed += 1;
           await labelMsg(gmail, id, processedLabelId);
         } else {
           errors += 1;
-          results.push({ fp: fp.name, id, status: res.status });
+          results.push({ fp: fp.name, id, status: res.status, ledger_status: ledgerRes && ledgerRes.status });
         }
       } catch (e) {
         errors += 1;
