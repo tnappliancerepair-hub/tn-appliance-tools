@@ -46,10 +46,6 @@ query bulk_dismiss_noise_drafts verb=POST {
       value = 0
     }
 
-    var $sample_dismissed {
-      value = []
-    }
-
     foreach ($rows.items) {
       each as $j {
         var.update $reviewed_count {
@@ -88,20 +84,12 @@ query bulk_dismiss_noise_drafts verb=POST {
               field_value = $j.id
               data = {
                 scheduling_status: "canceled"
-                friendly_status  : $is_status_update ? "Dismissed (status update, not a new dispatch)" : "Dismissed (unparsed placeholder)"
+                friendly_status  : "Dismissed (noise cleanup)"
               }
             }
 
             var.update $dismissed_count {
               value = $dismissed_count + 1
-            }
-
-            conditional {
-              if (($sample_dismissed|count) < 5) {
-                var.update $sample_dismissed {
-                  value = $sample_dismissed|push:{job_id: $j.id, reason: ($is_status_update ? "status_update" : "placeholder"), sub: (($j.problem_summary|to_text) ?? "")|substring:0:80}
-                }
-              }
             }
           }
           elseif ($should_dismiss && $input.dry_run == true) {
@@ -131,7 +119,6 @@ query bulk_dismiss_noise_drafts verb=POST {
     success         : true
     reviewed_count  : $reviewed_count
     dismissed_count : $dismissed_count
-    sample_dismissed: $sample_dismissed
     dry_run         : ($input.dry_run == true)
   }
 
