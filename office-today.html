@@ -256,6 +256,7 @@
   }
 </style>
   <script src="/parts-search-modal.js" defer></script>
+  <script src="/email-intake-modal.js" defer></script>
 </head>
 <body>
 
@@ -275,6 +276,7 @@
     <h1>Office Today</h1>
     <div class="sub" id="header-sub">Loading...</div>
   </div>
+  <button onclick="EmailIntakeModal.open()" style="background:rgba(157,108,243,0.15); border:1px solid rgba(157,108,243,0.45); color:#9d6cf3; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Email intake status (24h)">📡 Email intake</button>
   <button onclick="openOfficePartsOrderModal()" style="background:rgba(116,227,196,0.15); border:1px solid rgba(116,227,196,0.45); color:#4cd2c0; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Log a parts order">📦 Log parts order</button>
   <button onclick="openOfficePartsSearchModal()" style="background:rgba(76,167,255,0.15); border:1px solid rgba(76,167,255,0.45); color:#4ca7ff; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:'IBM Plex Mono', monospace; margin-right:8px;" title="Find part number">🔧 Find part</button>
   <button class="refresh-btn" id="refresh-btn" onclick="load()" title="Refresh">↻</button>
