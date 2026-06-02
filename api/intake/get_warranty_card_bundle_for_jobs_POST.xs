@@ -65,7 +65,7 @@ query get_warranty_card_bundle_for_jobs verb=POST {
                     var.update $out {
                       value = $out|push:{
                         job_id          : $job.id
-                        claim_number    : ($job.ahs_claim_number ?? "")
+                        claim_number    : ($job.claim_number ?? "")
                         dispatch_id     : ($job.dispatch_source_id ?? "")
                         warranty_company: ($job.warranty_company ?? "")
                         customer        : $cust

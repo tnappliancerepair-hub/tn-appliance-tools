@@ -155,7 +155,7 @@ query get_office_today verb=GET {
             var $war_item {
               value = {
                 job_id          : $job.id
-                claim_number    : ($job.ahs_claim_number ?? "")
+                claim_number    : ($job.claim_number ?? "")
                 dispatch_id     : ($job.dispatch_source_id ?? "")
                 warranty_company: ($job.warranty_company ?? "")
                 customer        : $cust
@@ -228,7 +228,7 @@ query get_office_today verb=GET {
             customer_type   : ($job.customer_type ?? "")
             appliance_type  : ($job.appliance_type ?? "")
             warranty_company: ($job.warranty_company ?? "")
-            claim_number    : ($job.ahs_claim_number ?? "")
+            claim_number    : ($job.claim_number ?? "")
             intake_source   : ($job.intake_source ?? "")
             created_at      : $job.created_at
             age_days        : (($now_ms - $job.created_at) / $day_ms)
