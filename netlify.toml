@@ -106,3 +106,11 @@
 # Safe to leave running indefinitely (idempotent — re-ingests update).
 [functions."hcp-poll-catchup"]
   schedule = "*/15 * * * *"
+
+# Multi-vendor warranty dispatch poller — catches NSA + SquareTrade +
+# Allstate dispatches the AHS/SP pollers don't see (missing 25 jobs/day
+# per Teddy 2026-06-02). Creates draft jobs in needs_more_info status;
+# Danielle reviews + assigns from office-today instead of typing into
+# HCP from scratch. Idempotent via Gmail label + Xano dedup.
+[functions."warranty-multi-poller"]
+  schedule = "*/5 * * * *"
