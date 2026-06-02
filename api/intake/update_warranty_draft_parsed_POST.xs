@@ -95,6 +95,57 @@ query update_warranty_draft_parsed verb=POST {
           ```
       }
     }
+
+    // 2026-06-02 — emit JOB_CREATED so the colony loop's job_created.js
+    // picks it up and texts the customer their portal link. Only fires
+    // when (a) we just upgraded the placeholder to real info AND (b) we
+    // have a phone to text. Without these guards we'd text "(Pending
+    // review)" / no phone / wasted send.
+    var $phone_in {
+      value = (($input.phone|to_text) ?? "")
+    }
+
+    var $first_in {
+      value = (($input.first_name|to_text) ?? "")
+    }
+
+    var $should_emit {
+      value = $is_placeholder && $phone_in != "" && $first_in != ""
+    }
+
+    conditional {
+      if ($should_emit) {
+        db.get jobs {
+          field_name = "id"
+          field_value = $input.job_id
+        } as $job_after
+
+        var $payload_str {
+          value = ```
+            {
+              job_id              : $input.job_id
+              customer_id         : $input.customer_id
+              customer_first_name : $first_in
+              phone               : $phone_in
+              appliance_type      : (($job_after.appliance_type|to_text) ?? "")
+              source              : "email_generic_warranty"
+              customer_type       : "warranty"
+              warranty_company    : (($job_after.warranty_company|to_text) ?? "")
+            }|json_encode
+            ```
+        }
+
+        db.add colony_signals {
+          data = {
+            signal_type    : "JOB_CREATED"
+            signal_strength: 70
+            source_colony  : "warranty_draft_parsed"
+            target_colonies: ""
+            payload        : $payload_str
+          }
+        }
+      }
+    }
   }
 
   response = {
