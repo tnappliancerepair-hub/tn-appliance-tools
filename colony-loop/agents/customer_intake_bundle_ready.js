@@ -39,7 +39,11 @@ function shortProblem(job) {
 
 export async function run(signal, ctx) {
   const { xano, sms, log } = ctx;
-  const payload = signal.payload_obj || {};
+  // dispatch.js parses the raw JSON payload and replaces signal.payload
+  // with the parsed object before calling run(). Some older agents read
+  // signal.payload_obj — that's a no-op here; the parsed shape lives on
+  // signal.payload.
+  const payload = (signal && typeof signal.payload === 'object' && signal.payload) || {};
   const jobId = Number(payload.job_id || 0);
 
   if (!jobId) {
