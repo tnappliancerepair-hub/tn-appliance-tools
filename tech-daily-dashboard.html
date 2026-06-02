@@ -572,6 +572,10 @@
     <a id="navDayOff" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(255,107,107,0.10);border:1px solid rgba(255,107,107,0.25);color:#ff6b6b;border-radius:8px;text-decoration:none">🛑 Day Off</a>
   </div>
 
+  <!-- Tech Inbox — populated by loadInbox() in JS after PIN gate clears.
+       Auto-polls every 45s. Tap a message to expand + mark read. -->
+  <div id="inboxHost" style="padding:10px 12px 0;display:none"></div>
+
   <div id="mapHost"></div>
 
   <div class="summary" id="summary"></div>
@@ -682,8 +686,10 @@
     app.style.display = 'block';
     loading.style.display = 'block';
     // Wire sub-nav links to the same tech_id this dashboard is loading
-    const nsched = document.getElementById('navScheduler');
-    if (nsched) nsched.href = `tech-scheduler.html?tech_id=${encodeURIComponent(TECH_ID)}`;
+    // Wire ALL #navScheduler elements (there are two — featured top pill + small nav pill)
+    document.querySelectorAll('#navScheduler').forEach(el => {
+      el.href = `tech-scheduler.html?tech_id=${encodeURIComponent(TECH_ID)}`;
+    });
     const np = document.getElementById('navPerf');
     const npay = document.getElementById('navPayouts');
     const ndo = document.getElementById('navDayOff');
@@ -691,6 +697,90 @@
     if (npay) npay.href = `tech-payouts.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     if (ndo) ndo.href = `tech-day-off.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     loadDashboard();
+    loadInbox();
+    setInterval(loadInbox, 45000);
+  }
+
+  // ── Tech Inbox (Tech Inbox Block B) ────────────────────────────
+  async function loadInbox() {
+    const pin = localStorage.getItem(PIN_STORAGE_KEY);
+    if (!pin) return;
+    try {
+      const url = `${XANO_BASE}/get_tech_inbox?tech_id=${encodeURIComponent(TECH_ID)}&pin=${encodeURIComponent(pin)}&limit=20`;
+      const res = await fetch(url);
+      const d = await res.json();
+      if (!d || !d.success) return;
+      renderInbox(d);
+    } catch (e) { /* offline ok */ }
+  }
+
+  function renderInbox(d) {
+    const host = document.getElementById('inboxHost');
+    if (!host) return;
+    const msgs = d.messages || [];
+    if (!msgs.length) {
+      host.style.display = 'none';
+      return;
+    }
+    host.style.display = 'block';
+    const unreadCount = d.unread_count || 0;
+    const unreadBadge = unreadCount > 0
+      ? `<span style="background:#ff6b35;color:#000;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;margin-left:6px">${unreadCount} new</span>`
+      : '';
+    host.innerHTML = `
+      <div style="background:linear-gradient(180deg,rgba(255,107,53,0.08),rgba(255,107,53,0.02));border:1px solid rgba(255,107,53,0.25);border-radius:12px;padding:12px 14px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-family:var(--mono);font-size:12px;letter-spacing:0.08em;color:#ff8c61">
+          <span style="font-size:14px">📥</span>
+          <span style="font-weight:700">INBOX</span>
+          ${unreadBadge}
+        </div>
+        <div id="inboxList"></div>
+      </div>
+    `;
+    const list = document.getElementById('inboxList');
+    list.innerHTML = msgs.map(m => {
+      const isUnread = !m.read_at;
+      const senderRole = m.sender_role || 'office';
+      const senderIcon = senderRole === 'system' ? '🐜' : senderRole === 'customer' ? '👤' : '🏢';
+      const senderName = m.sender_name || 'Office';
+      const body = (m.body || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      const time = m.created_at ? new Date(m.created_at).toLocaleString('en-US', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+      const bg = isUnread ? 'rgba(255,107,53,0.10)' : 'rgba(255,255,255,0.03)';
+      const border = isUnread ? 'rgba(255,107,53,0.30)' : 'rgba(255,255,255,0.08)';
+      return `
+        <div data-msg-id="${m.id}" data-read="${isUnread ? 'false' : 'true'}"
+             style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 12px;margin-top:6px;cursor:pointer;transition:0.15s">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px">
+            <span>${senderIcon}</span>
+            <span style="font-weight:600;color:var(--text)">${senderName}</span>
+            ${isUnread ? '<span style="color:#ff8c61;font-weight:700;font-size:10px">●UNREAD</span>' : ''}
+            <span style="margin-left:auto;font-family:var(--mono)">${time}</span>
+          </div>
+          <div style="font-size:14px;color:var(--text);line-height:1.4">${body}</div>
+        </div>
+      `;
+    }).join('');
+    list.querySelectorAll('[data-msg-id]').forEach(card => {
+      card.addEventListener('click', async () => {
+        if (card.dataset.read === 'true') return;
+        const msgId = parseInt(card.dataset.msgId, 10);
+        const pin = localStorage.getItem(PIN_STORAGE_KEY);
+        try {
+          await fetch(`${XANO_BASE}/mark_tech_inbox_message_read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tech_id: parseInt(TECH_ID, 10), pin, message_id: msgId })
+          });
+          card.dataset.read = 'true';
+          card.style.background = 'rgba(255,255,255,0.03)';
+          card.style.borderColor = 'rgba(255,255,255,0.08)';
+          const unreadLabel = card.querySelector('[style*="UNREAD"]');
+          if (unreadLabel) unreadLabel.remove();
+          // refresh full inbox to recompute unread badge
+          setTimeout(loadInbox, 200);
+        } catch (e) { /* ignore */ }
+      });
+    });
   }
 
   // ── Data load ──────────────────────────────────────────────────
