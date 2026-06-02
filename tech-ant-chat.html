@@ -2172,8 +2172,7 @@
         console.warn('native speech failed, trying whisper', err);
       }
     }
-    // Whisper fallback (needs network)
-    const canRecord = navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined';
+    // Whisper fallback (needs network) — same canRecord check from earlier block
     if (canRecord) {
       try {
         mrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
