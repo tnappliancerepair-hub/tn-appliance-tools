@@ -110,7 +110,8 @@
     .field { margin-bottom: 14px; }
     .field:last-child { margin-bottom: 0; }
     .field label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; font-family: var(--mono); }
-    .field input, .field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
+    .field input:not([type=radio]):not([type=checkbox]), .field textarea { width: 100%; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; transition: border-color 0.2s; }
+    .field input[type=radio], .field input[type=checkbox] { width: auto; flex: 0 0 auto; }
     .field input:focus, .field textarea:focus { border-color: var(--accent); }
     .field textarea { resize: vertical; line-height: 1.5; min-height: 80px; }
     .field-hint { font-size: 11px; color: var(--muted2); margin-top: 6px; line-height: 1.4; font-family: var(--sans); }
