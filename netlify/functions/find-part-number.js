@@ -41,27 +41,55 @@ const BROWSER_HEADERS = {
   'Sec-Ch-Ua-Platform': '"macOS"',
 };
 
+// Source registry. Each has:
+//   - id: short identifier used in scoring
+//   - name: display name
+//   - buildUrl: (query, ctx) → URL to fetch. ctx has {brand_family} so
+//     brand-specific sources can opt in via the gate.
+//   - gate (optional): (ctx) → bool. If returns false, source is skipped
+//     (e.g. Whirlpool Parts only when brand is in the Whirlpool family).
+//
+// Mix is intentional:
+//   - Consumer sites (broad reach, often Cloudflared)
+//   - B2B distributors (authoritative wholesale catalogs)
+//   - Manufacturer-direct (gold standard, brand-gated)
+//
+// When Marcone API + Tribles Appliance Parts API land, they slot in here
+// with their own buildUrl (or a custom fetcher) and become anchor sources.
 const SOURCES = [
+  // ── Tier 1: working consumer source (confirmed open) ──
+  { id: 'partspros',  name: 'AppliancePartsPros',  buildUrl: (q) => `https://www.appliancepartspros.com/search.aspx?searchterm=${encodeURIComponent(q)}` },
+
+  // ── Tier 2: independent consumer sites (smaller, less likely Cloudflared) ──
+  { id: 'ereplacement', name: 'eReplacementParts',  buildUrl: (q) => `https://www.ereplacementparts.com/search?search_query=${encodeURIComponent(q)}` },
+  { id: 'partsdr',      name: 'Parts Dr',           buildUrl: (q) => `https://www.partsdr.com/search?q=${encodeURIComponent(q)}` },
+  { id: 'partsips',     name: 'PartsIPS',           buildUrl: (q) => `https://www.partsips.com/search?q=${encodeURIComponent(q)}` },
+
+  // ── Tier 3: B2B distributor catalogs (authoritative) ──
+  { id: 'encompass',  name: 'Encompass Parts',    buildUrl: (q) => `https://www.encompass.com/search?q=${encodeURIComponent(q)}` },
+  { id: 'partstown',  name: 'Parts Town',          buildUrl: (q) => `https://www.partstown.com/search?q=${encodeURIComponent(q)}` },
+
+  // ── Tier 4: manufacturer-direct (highest authority, brand-gated) ──
   {
-    id: 'sears',
-    name: 'Sears Parts Direct',
-    buildUrl: (q) => `https://www.searspartsdirect.com/search?q=${encodeURIComponent(q)}`,
+    id: 'whirlpoolparts',
+    name: 'Whirlpool Parts (OEM)',
+    buildUrl: (q) => `https://www.whirlpoolparts.com/search?q=${encodeURIComponent(q)}`,
+    gate: (ctx) => /whirlpool|maytag|kitchenaid|amana|jenn[ -]?air/i.test(ctx.brand || ''),
   },
   {
-    id: 'repairclinic',
-    name: 'RepairClinic',
-    buildUrl: (q) => `https://www.repairclinic.com/Shop-For-Parts?search=${encodeURIComponent(q)}`,
+    id: 'geappliances',
+    name: 'GE Appliance Parts (OEM)',
+    buildUrl: (q) => `https://www.geappliances.com/ge/service-and-support/parts.htm?searchTerm=${encodeURIComponent(q)}`,
+    gate: (ctx) => /^ge\b|hotpoint|monogram|cafe|profile/i.test(ctx.brand || ''),
   },
-  {
-    id: 'partspros',
-    name: 'AppliancePartsPros',
-    buildUrl: (q) => `https://www.appliancepartspros.com/search.aspx?searchterm=${encodeURIComponent(q)}`,
-  },
-  {
-    id: 'partselect',
-    name: 'PartSelect',
-    buildUrl: (q) => `https://www.partselect.com/search/?searchterm=${encodeURIComponent(q)}`,
-  },
+
+  // ── Last-resort: Sears / RepairClinic / PartSelect ──
+  // Confirmed Cloudflare 403 with current headers. Keeping them in
+  // rotation in case Cloudflare's challenge becomes solvable from
+  // Netlify IPs later — they degrade gracefully today.
+  { id: 'sears',        name: 'Sears Parts Direct', buildUrl: (q) => `https://www.searspartsdirect.com/search?q=${encodeURIComponent(q)}` },
+  { id: 'repairclinic', name: 'RepairClinic',       buildUrl: (q) => `https://www.repairclinic.com/Shop-For-Parts?search=${encodeURIComponent(q)}` },
+  { id: 'partselect',   name: 'PartSelect',         buildUrl: (q) => `https://www.partselect.com/search/?searchterm=${encodeURIComponent(q)}` },
 ];
 
 const HTML_PARSE_PROMPT = `You are parsing search-result HTML from appliance-parts retailers
@@ -77,10 +105,7 @@ Return a single JSON object — no preamble, no markdown:
 
 {
   "by_source": {
-    "sears":        [{"part_number": "...", "name": "...", "price_usd": 89.99}],
-    "repairclinic": [...],
-    "partspros":    [...],
-    "partselect":   [...]
+    "<source_id>": [{"part_number": "...", "name": "...", "price_usd": 89.99}, ...]
   },
   "fetch_errors": ["sears: 503", ...],
   "best_guess_oem": "W10876537",
@@ -129,9 +154,14 @@ exports.handler = async (event) => {
   const query = queryParts.join(' ');
 
   // ── Step 2: parallel HTML fetch ──────────────────────────────────
+  // Brand-gated sources only fire when the gate matches. Others always
+  // fire. This keeps the manufacturer-direct sources off non-matching
+  // queries (e.g. don't hit whirlpoolparts.com for a Samsung fridge).
+  const gateCtx = { brand };
+  const activeSources = SOURCES.filter((s) => !s.gate || s.gate(gateCtx));
   const fetched = await Promise.all(
-    SOURCES.map(async (s) => {
-      const url = s.buildUrl(query);
+    activeSources.map(async (s) => {
+      const url = s.buildUrl(query, gateCtx);
       const ac = new AbortController();
       const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
       try {
@@ -289,7 +319,7 @@ exports.handler = async (event) => {
     });
   }
 
-  const sourcesQueried = SOURCES.map((s) => s.id);
+  const sourcesQueried = activeSources.map((s) => s.id);
   const fetchErrors = fetched.filter((f) => f.error).map((f) => `${f.source_id}: ${f.error}`);
 
   return cors(200, JSON.stringify({
