@@ -140,6 +140,28 @@ exports.handler = async (event) => {
 
     const subjectClass = classifyAhsSubject(baseMsg.subject);
     const isPayment = subjectClass === 'payment';
+    const isDispatch = subjectClass === 'dispatch';
+
+    // Always log the subject + sender + class so we can SEE what the
+    // poller is finding. This is the diagnostic surface we need to
+    // catch label-mismatch + format-change problems early.
+    if (!results.skipped_subjects) results.skipped_subjects = [];
+    results.skipped_subjects.push({
+      id,
+      subject: (baseMsg.subject || '').slice(0, 120),
+      sender: (baseMsg.sender || '').slice(0, 80),
+      class: subjectClass,
+    });
+
+    // Skip 'unknown' classes cleanly — neither dispatch nor payment.
+    // Used to fall through to dispatch branch + fail on no-attachment,
+    // which masked the real problem (label matching wrong emails).
+    if (subjectClass === 'unknown') {
+      console.log(`[ahs-gmail-poller] message ${id} class=unknown subject="${(baseMsg.subject || '').slice(0,80)}" — skipping`);
+      results.skipped_no_attachment.push(id);
+      await releaseClaim(gmail, id, inProgressLabelId);
+      continue;
+    }
 
     let xanoStatus;
     let xanoBody;
