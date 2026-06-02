@@ -449,3 +449,90 @@ input {
 ```
 
 Referenced in: `tech_sms_assist_POST.xs` (MMS media URLs for Claude vision).
+
+## XS has no `else` clause (2026-06-01)
+
+`} else {` inside a `conditional { if (...) { ... } }` block fails with a vague `Syntax error: unexpected '{'`. There's no `else` keyword in XS — structure as **two separate conditionals**.
+
+**Wrong:**
+```xanoscript
+conditional {
+  if ($matched_id > 0) {
+    db.edit warranty_submissions { ... }
+  } else {
+    db.add warranty_submissions { ... }   // ← "unexpected '{'"
+  }
+}
+```
+
+**Correct:**
+```xanoscript
+conditional {
+  if ($matched_id > 0) {
+    db.edit warranty_submissions { ... }
+  }
+}
+
+conditional {
+  if ($matched_id == 0) {
+    db.add warranty_submissions { ... }
+  }
+}
+```
+
+Caught when building `record_warranty_submission_POST.xs` upsert logic.
+
+## Inline `//` comments after input declarations break parsing (2026-06-01)
+
+XS parser tolerates `//` comments on their own lines, but NOT trailing-after-statement inside an `input { ... }` block. The trailing slashes get eaten as part of the type expression on the NEXT line.
+
+**Wrong:**
+```xanoscript
+input {
+  text? status?              // submitted | failed | paid | denied
+  text? submission_method?   // api | playwright | manual
+  decimal? paid_amount?
+}
+```
+
+Dies with `Syntax error: unexpected '?paid_amount?'` — parser was still consuming the `// ...` from the previous line.
+
+**Correct:** move comments to their own lines above each input, or omit them.
+
+## `signal.payload` is the parsed object — `signal.payload_obj` is a phantom (2026-06-01)
+
+`colony-loop/dispatch.js` parses the raw JSON payload string and **replaces** `signal.payload` with the parsed object before calling `mod.run(signal, ctx)`. Some older agents read `signal.payload_obj` — that field doesn't exist; reads silently return `undefined`.
+
+**Symptom:** agent dispatches (event_log shows `signal_dispatched`), no error, but every dedup query says `handled: false`, no SMS landed, no agent log line. The agent went through its skip path with `job_id: 0`.
+
+**Diagnostic:** when an agent looks like it dispatched but did nothing, run it standalone via `node --input-type=module` with a hand-crafted ctx — the throw or skip path becomes obvious.
+
+**Correct read:**
+```javascript
+export async function run(signal, ctx) {
+  const payload = (signal && typeof signal.payload === 'object' && signal.payload) || {};
+  const jobId = Number(payload.job_id || 0);
+}
+```
+
+## `jobs.ahs_claim_number` is a phantom column — actual column is `claim_number` (2026-06-01)
+
+Multiple endpoints reference `$job.ahs_claim_number ?? ""` — the column does not exist. The `??` fallback silently returns `""` forever, so the bug only surfaces when you try to use the column in a `where` clause (which throws `Unsupported parameter reference - ahs_claim_number`).
+
+Affected files (grep `ahs_claim_number`):
+- `api/intake/get_office_today_GET.xs` (multiple occurrences)
+- Possibly others — sweep on the next refactor
+
+**Correct column:** `claim_number`. Real claims live there (job 18537 has `claim_number = "49135689"`).
+
+Caught when `find_job_by_claim_number_GET.xs` 400'd on the `where` clause.
+
+## Loop module cache requires kickstart for NEW agents — hot-reload only works for EDITS (2026-06-01)
+
+`colony-loop/dispatch.js` imports `AGENT_REGISTRY` from `./agents/registry.js` **once at process start**. New entries added (via `node scripts/build-registry.js`) are NOT picked up by a running loop — the running loop still has the old in-memory map.
+
+Symptom: brand-new agent dispatches as `signal_no_agent_yet` even though the file + registry entry both exist on disk.
+
+**Fix:** `launchctl kickstart -k gui/$(id -u)/com.tnappliance.colony-loop`
+
+For **edits** to existing agents, hot-reload via mtime DOES work — dispatch.js statSyncs the file and re-imports if mtime changed. Kickstart is only required when adding a brand-new agent type.
