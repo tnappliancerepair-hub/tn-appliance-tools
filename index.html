@@ -1810,6 +1810,14 @@ let smsConsentGiven = false;
 let smsConsentAt = null;
 let submitButtonShown = false;
 let warrantySubmitButtonShown = false;
+
+// Conversation memory — pushed in addUser/addAnt, sent to the proxy on
+// every send() so Claude actually sees prior turns. Without this the
+// bot re-asks the same question every turn (Teddy hit this 2026-06-02:
+// "what appliance?" → "Washer" → "what appliance?" again).
+const chatHistory = [];
+const MAX_HISTORY_TURNS = 20;
+
 const collected = {
   appliance_type: null,
   brand: null,
@@ -1917,6 +1925,7 @@ function addUser(text) {
     </div>`;
   msgs.appendChild(el);
   scrollToMsg(el);
+  chatHistory.push({ role: 'user', content: text });
 }
 
 // ── TYPEWRITER ──
@@ -2015,6 +2024,9 @@ async function addAnt(text, extra) {
     showModelPhoto = true;
     text = text.replace(/__REQUEST_MODEL_PHOTO__/g, '').trim();
   }
+
+  // Record the cleaned assistant turn for next request's history.
+  if (text) chatHistory.push({ role: 'assistant', content: text });
 
   const el = document.createElement('div');
   el.className = 'msg';
@@ -2391,7 +2403,11 @@ async function send() {
         consent_granted_at:smsConsentAt,
         consent_language_version: smsConsentGiven || consentMethod ? CONSENT_LANGUAGE_VERSION : null,
         consent_method:consentMethod,
-        collected
+        collected,
+        // Send everything EXCEPT the latest user turn (just pushed by addUser).
+        // The proxy passes this verbatim to Claude so it sees the conversation
+        // so far. Without this the bot re-asked every question.
+        history: chatHistory.slice(0, -1).slice(-MAX_HISTORY_TURNS)
       })
     });
     const data = await res.json();
