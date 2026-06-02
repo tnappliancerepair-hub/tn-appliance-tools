@@ -661,22 +661,22 @@ function renderQueueView(d) {
 
   // PRIORITY 0 (highest): SquareTrade pending-accept jobs. Single tap accept.
   for (const p of (d.__pending_accept || [])) {
-    items.push({ p: 0, age: p.age_hours || 0, html: renderPendingAccept(p), kind: 'accept' });
+    items.push({ p: 0, age: p.age_hours || 0, html: renderPendingAccept(p), kind: 'accept', job_id: p.job_id });
   }
   for (const e of (d.escalations || [])) {
-    items.push({ p: 1, age: e.age_hours || 0, html: renderEscalation(e), kind: 'esc' });
+    items.push({ p: 1, age: e.age_hours || 0, html: renderEscalation(e), kind: 'esc', job_id: e.job_id });
   }
   for (const v of (d.voicemail_queue || [])) {
-    items.push({ p: 1, age: -(v.age_hours || 0), html: renderVoicemail(v), kind: 'vm' });  // negate so newer voicemails sort first
+    items.push({ p: 1, age: -(v.age_hours || 0), html: renderVoicemail(v), kind: 'vm', job_id: v.job_id });  // negate so newer voicemails sort first
   }
   for (const w of (d.warranty_submissions_due || [])) {
-    items.push({ p: 2, age: w.age_hours || 0, html: renderWarrantyCard(w), kind: 'war' });
+    items.push({ p: 2, age: w.age_hours || 0, html: renderWarrantyCard(w), kind: 'war', job_id: w.job_id });
   }
   for (const s of (d.stuck_intake || [])) {
-    items.push({ p: 3, age: (s.age_days || 0) * 24, html: renderStuck(s), kind: 'stuck' });
+    items.push({ p: 3, age: (s.age_days || 0) * 24, html: renderStuck(s), kind: 'stuck', job_id: s.job_id });
   }
   for (const u of (d.unpaid_self_pay || [])) {
-    items.push({ p: 4, age: (u.age_days || 0) * 24, html: renderUnpaid(u), kind: 'unpaid' });
+    items.push({ p: 4, age: (u.age_days || 0) * 24, html: renderUnpaid(u), kind: 'unpaid', job_id: u.job_id });
   }
 
   if (items.length === 0) {
@@ -691,12 +691,50 @@ function renderQueueView(d) {
     ? `<div style="margin-bottom:14px">${renderWarrantyBatchBar(d.warranty_submissions_due)}</div>` : '';
 
   const wrapped = items.map(it => `
-    <div class="queue-card-wrapper">
+    <div class="queue-card-wrapper" data-job-id="${it.job_id || ''}">
       <div class="priority-stripe p${it.p}"></div>
       ${it.html}
     </div>`).join('');
 
+  // Kick off media-count hydration after render — adds 📎 N badge to
+  // cards whose jobs have customer-uploaded media. Lets Danielle see at
+  // a glance which intakes are media-rich for warranty submission.
+  const jobIds = items.map(it => it.job_id).filter(Boolean);
+  if (jobIds.length > 0) setTimeout(() => hydrateMediaBadges(jobIds), 0);
+
   return `${batchBar}<div class="section full-width">${wrapped}</div>`;
+}
+
+async function hydrateMediaBadges(jobIds) {
+  const uniq = Array.from(new Set(jobIds.filter(Boolean)));
+  if (uniq.length === 0) return;
+  let counts = [];
+  try {
+    const res = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/list_attachment_counts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_ids_csv: uniq.join(',') }),
+    });
+    const data = await res.json();
+    counts = (data && data.counts) || [];
+  } catch (_) { return; }
+  for (const c of counts) {
+    if (!c.count || c.count <= 0) continue;
+    const wrapper = document.querySelector(`.queue-card-wrapper[data-job-id="${c.job_id}"]`);
+    if (!wrapper) continue;
+    if (wrapper.querySelector('.media-badge')) continue;
+    const badge = document.createElement('div');
+    badge.className = 'media-badge';
+    badge.style.cssText = 'position:absolute; top:8px; right:8px; background:rgba(76,167,255,0.15); border:1px solid rgba(76,167,255,0.5); color:#4ca7ff; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; cursor:pointer; z-index:5;';
+    badge.title = 'Customer-uploaded media — click to open';
+    badge.textContent = '📎 ' + c.count;
+    badge.onclick = (ev) => {
+      ev.stopPropagation();
+      window.open('/teddy-tdr-tool.html?job_id=' + c.job_id, '_blank');
+    };
+    wrapper.style.position = wrapper.style.position || 'relative';
+    wrapper.appendChild(badge);
+  }
 }
 
 // ── C: warranty batch actions (paste-mass + open all portals) ────

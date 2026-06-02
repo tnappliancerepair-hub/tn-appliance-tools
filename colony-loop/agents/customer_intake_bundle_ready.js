@@ -138,6 +138,37 @@ export async function run(signal, ctx) {
     }
   }
 
+  // Danielle gets a separate SMS pointing at warranty-review.html when
+  // the job is warranty AND there's customer media she'll need for the
+  // portal submission. No-op for self-pay or media-less intakes.
+  const customerType = String(job.customer_type || '').toLowerCase();
+  const warrantyCompany = String(job.warranty_company || '').trim();
+  const isWarrantyJob = customerType === 'warranty' || warrantyCompany.length > 0;
+  let danielleResult = 'skipped_not_warranty';
+  if (isWarrantyJob) {
+    if (attachmentCount === 0) {
+      danielleResult = 'skipped_no_media';
+    } else {
+      const warrantyReviewUrl = `https://${bareDomain()}/warranty-review.html?job_id=${jobId}`;
+      const vendorLabel = warrantyCompany || 'warranty';
+      const dBody =
+        `[ant] ${vendorLabel} job #${jobId} - ${cn}, ${appl}.${mediaTag} ` +
+        `Customer media ready for portal submission: ${warrantyReviewUrl}`;
+      try {
+        const r = await sms.toDanielle(dBody, {
+          action: 'customer_intake_bundle_danielle_sms',
+          job_id: jobId,
+          warranty_company: warrantyCompany,
+          attachment_count: attachmentCount,
+          signal_id: signal.id,
+        });
+        danielleResult = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) {
+        danielleResult = String(e.message || e);
+      }
+    }
+  }
+
   const meta = {
     job_id: jobId,
     outcome: 'sent',
@@ -145,6 +176,8 @@ export async function run(signal, ctx) {
     tech_sms: techResult,
     tech_routing: techReason,
     tech_id_notified: techTarget?.id || 0,
+    danielle_sms: danielleResult,
+    is_warranty: isWarrantyJob,
     attachment_count: attachmentCount,
     cluster_id: ctxBundle.cluster_id || '',
     cluster_tech_count: clusterTechs.length,
