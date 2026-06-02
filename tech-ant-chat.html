@@ -1432,6 +1432,11 @@
       try { renderTeddyPrediag(d); } catch (_) {}
       renderCustomerIntake(d);
       loadPrediag().catch(() => {});
+      // TDR pre-fill: when the tech opens completion, the form fields are
+      // already populated from (in priority order) Teddy's pre-diag, Ant's
+      // Guess, customer's intake words. Tech edits/confirms instead of
+      // starting blank. Suggested fields get a subtle yellow border.
+      prefillTdrFromContext(d).catch((err) => console.warn('prefillTdr failed', err));
       // Restore chat history so back-and-forth survives reloads/app-switching.
       restoreChatHistory().catch(() => {});
     } catch (e) {
@@ -1526,6 +1531,121 @@
       .catch(() => {
         if (showText) card.style.display = '';
       });
+  }
+
+  // TDR pre-fill — runs once per page load. Populates the inline TDR
+  // form fields from the best available source. Tech edits/confirms.
+  // Priority order per field:
+  //   diagnosis:        Teddy.diagnosis > AntGuess > customer.problem_summary
+  //   failed_component: Teddy.failed_component > AntGuess
+  //   failure_cause:    Teddy.failure_cause > AntGuess
+  //   labor_hours + repair_completed: NEVER auto-filled (tech only)
+  //
+  // Skip the auto-fill entirely if the localStorage draft (autosave from
+  // any prior session this job) has any value — that's tech's prior
+  // work, don't overwrite.
+  async function prefillTdrFromContext(d) {
+    if (!d || !JOB_ID) return;
+    // Has the tech already started on this job?
+    let draftHasWork = false;
+    try {
+      const raw = localStorage.getItem(TDR_DRAFT_KEY);
+      if (raw) {
+        const obj = JSON.parse(raw);
+        for (const id of TDR_FIELD_IDS) {
+          if (obj && typeof obj[id] === 'string' && obj[id].trim()) { draftHasWork = true; break; }
+        }
+      }
+    } catch (_) {}
+    if (draftHasWork) return;
+
+    // Source 1: Teddy's pre-diag (technician_id===1 TDR)
+    const tdrs = (d.all_tdrs || []);
+    const teddyTdrs = tdrs.filter((t) => Number(t.technician_id) === 1);
+    teddyTdrs.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    const teddy = teddyTdrs[0] || {};
+
+    // Source 2: Ant's Guess (latest tdr_suggestion_drafted event_log row)
+    let antGuess = {};
+    try {
+      const r = await fetch(XANO_BASE + '/get_predicted_failure_for_job?job_id=' + encodeURIComponent(JOB_ID), { cache: 'no-store' });
+      const data = await r.json();
+      if (data && data.has_draft && data.suggestion && data.suggestion.metadata) {
+        const draftText = (data.suggestion.metadata.draft_text || '').trim();
+        antGuess = parseAntsGuessDraft(draftText);
+      }
+    } catch (_) {}
+
+    // Source 3: customer's raw problem_summary from the job
+    const job = d.job || {};
+    const customerWords = (job.problem_summary || '').trim();
+
+    // Compose per-field suggested values + source tag
+    const fills = {
+      'tdr-diagnosis': pickFirst([
+        [teddy.diagnosis, 'teddy'],
+        [antGuess.diagnosis, 'ai'],
+        [customerWords, 'customer'],
+      ]),
+      'tdr-failed-component': pickFirst([
+        [teddy.failed_component, 'teddy'],
+        [antGuess.failed_component, 'ai'],
+      ]),
+      'tdr-failure-cause': pickFirst([
+        [teddy.failure_cause, 'teddy'],
+        [antGuess.failure_cause, 'ai'],
+      ]),
+    };
+
+    let appliedCount = 0;
+    for (const [fieldId, picked] of Object.entries(fills)) {
+      if (!picked || !picked.value) continue;
+      const el = document.getElementById(fieldId);
+      if (!el) continue;
+      if (el.value && el.value.trim()) continue; // already populated somehow
+      el.value = picked.value;
+      el.setAttribute('data-suggested-from', picked.source);
+      el.title = `Pre-filled from ${picked.source} — edit or clear`;
+      el.style.borderColor = '#f5a623';
+      el.style.boxShadow = '0 0 0 1px rgba(245,166,35,0.25) inset';
+      // When the tech edits, clear the suggested styling
+      el.addEventListener('input', function clearSuggested() {
+        el.style.borderColor = '#444';
+        el.style.boxShadow = '';
+        el.removeAttribute('data-suggested-from');
+        el.title = '';
+        el.removeEventListener('input', clearSuggested);
+      });
+      appliedCount += 1;
+    }
+
+    if (appliedCount > 0) {
+      // Persist to localStorage so next page reload preserves the pre-fill
+      try { saveTdrDraft(); } catch (_) {}
+    }
+  }
+
+  function pickFirst(candidates) {
+    for (const [val, source] of candidates) {
+      if (val && String(val).trim()) return { value: String(val).trim(), source };
+    }
+    return null;
+  }
+
+  // Parses an Ant's Guess draft (composed by brand_intelligence agent) and
+  // extracts diagnosis / failed_component / failure_cause lines.
+  function parseAntsGuessDraft(text) {
+    if (!text) return {};
+    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    const pick = (label) => {
+      const line = lines.find((l) => l.toLowerCase().startsWith(label.toLowerCase() + ':'));
+      return line ? line.replace(/^[^:]+:\s*/, '').trim() : '';
+    };
+    return {
+      diagnosis: pick('Diagnosis'),
+      failed_component: pick('Failed component'),
+      failure_cause: pick('Failure cause'),
+    };
   }
 
   async function loadPrediag() {
