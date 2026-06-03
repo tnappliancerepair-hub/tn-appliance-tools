@@ -9,8 +9,10 @@
 // already use. Default forward target is Teddy's cell so the typical call is
 // just /.netlify/functions/setup-vanity-forwarding?token=<secret>
 //
-// Token gate: we don't want this URL to be publicly executable. Set
-// SETUP_VANITY_SECRET in Netlify env and pass it as ?token=
+// Token is hardcoded so Teddy doesn't need to set any Netlify env var.
+// Delete this whole file after the routing is set so the URL can't be
+// re-used to redirect calls.
+const HARDCODED_TOKEN = 'tn-vanity-fix-2026-06-02-x9k7q';
 
 const VANITY_NUMBERS = ['+18882688998', '+18662680111'];
 
@@ -18,17 +20,13 @@ exports.handler = async function (event) {
   const params = event.queryStringParameters || {};
   const target = params.to || '+16154855795'; // Teddy's cell default
   const supplied = params.token || '';
-  const expected = process.env.SETUP_VANITY_SECRET || '';
 
   const apiKey = process.env.TELNYX_API_KEY || '';
   if (!apiKey) {
     return { statusCode: 500, body: JSON.stringify({ error: 'TELNYX_API_KEY not set in Netlify env' }) };
   }
 
-  if (!expected) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'SETUP_VANITY_SECRET not configured. Add it in Netlify env then retry.' }) };
-  }
-  if (supplied !== expected) {
+  if (supplied !== HARDCODED_TOKEN) {
     return { statusCode: 401, body: JSON.stringify({ error: 'bad token' }) };
   }
 
