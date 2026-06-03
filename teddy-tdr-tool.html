@@ -569,9 +569,17 @@ function renderMediaSplit() {
     if (!url) {
       return '<div class="video-card" style="display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:11px;">Video unavailable</div>';
     }
-    return '<div class="video-card" onclick="openLightbox(' + a._idx + ')">' +
-      '<video src="' + escapeAttr(url) + '" muted preload="metadata"></video>' +
-      '<div class="play-big"></div>' +
+    // The video element will fail to decode if the upload is webm
+    // (Android Chrome) or if the MP4 was truncated. Provide an inline
+    // download fallback so we can at least watch it in the native player.
+    return '<div style="position:relative;">' +
+      '<div class="video-card" onclick="openLightbox(' + a._idx + ')">' +
+        '<video muted preload="metadata" playsinline>' +
+          '<source src="' + escapeAttr(url) + '" type="video/mp4">' +
+        '</video>' +
+        '<div class="play-big"></div>' +
+      '</div>' +
+      '<a href="' + escapeAttr(url) + '" download style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.65);color:#fff;font-size:10px;padding:3px 6px;border-radius:4px;text-decoration:none;font-family:var(--mono);" onclick="event.stopPropagation()">⇩ download</a>' +
     '</div>';
   };
   const renderPhoto = a => {
@@ -1136,7 +1144,19 @@ function openLightbox(idx) {
   if (!url) return;
   const lightboxContent = document.getElementById("lightbox-content");
   if (a.file_type === "video") {
-    lightboxContent.innerHTML = '<video src="' + escapeAttr(url) + '" controls autoplay></video>';
+    // playsinline is required on iOS Safari — without it the browser
+    // tries to enter fullscreen and stalls because autoplay isn't
+    // user-gesture-initiated. <source type="video/mp4"> is more
+    // forgiving than src=. Download link below for cases where the
+    // file is webm or corrupted and inline playback fails.
+    lightboxContent.innerHTML =
+      '<video controls autoplay playsinline preload="metadata" style="max-width:100%;max-height:90vh;background:#000;">' +
+        '<source src="' + escapeAttr(url) + '" type="video/mp4">' +
+        'Your browser can\'t play this video.' +
+      '</video>' +
+      '<div style="text-align:center;margin-top:10px;">' +
+        '<a href="' + escapeAttr(url) + '" download style="display:inline-block;background:#4cc9c0;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:600;">⇩ Download video</a>' +
+      '</div>';
   } else {
     lightboxContent.innerHTML = '<img src="' + escapeAttr(url) + '" alt="" />';
   }
