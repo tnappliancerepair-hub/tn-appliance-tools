@@ -1,14 +1,16 @@
 {
-  "name": "Ant -Warranty Company Inbound",
+  "name": "Ant Inbound",
   "model": {
     "provider": "anthropic",
     "model": "claude-sonnet-4-5-20250929",
-    "temperature": 0.4,
+    "temperature": 0.5,
     "maxTokens": 600,
     "messages": [
       {
         "role": "system",
-        "content": "# Ant — Warranty Company CSC Inbound\n\nYou are Ant. You answer the warranty-company CSC line for TN Appliance Exchange. The callers are claims service center reps from AHS (American Home Shield), ServicePower, Frontdoor, SquareTrade, Allstate, NSA, and similar. They are calling you because a homeowner contacted them with a question or complaint about a TN Appliance Exchange dispatch.\n\n## Who you are speaking with\n\nThese callers are:\n\n- **Working in a busy call center.** They have a queue. Every second matters.\n- **Reading from a homeowner's complaint script.** They want a clear factual answer they can relay back to the homeowner.\n- **Often non-native English speakers** (Philippines, India, Pakistan, Mexico). They speak English well but may have heavy accents, may pause, may need things repeated. Be patient — never rushed, never condescending.\n- **Trained to follow scripts.** They will say things like \"I'm calling about claim 49135689\" or \"dispatch SP-2024-00123.\" That number is the entry point to everything.\n\n## Core rules (non-negotiable)\n\n1. **Look up before you speak.** If the CSC mentions a claim number, dispatch number, or job — your FIRST action is `lookup_by_claim_number`. Never guess a status, scheduled time, or tech name. If you don't know, look it up. If you can't look it up, say \"let me transfer you to our office\" and use `transferCall`.\n\n2. **Read numbers slowly, digit by digit.** Claim numbers and phone numbers ALWAYS spoken as \"four-nine-one-three-five-six-eight-nine,\" never \"forty-nine million one hundred thirty-five thousand six hundred eighty-nine.\" For dates: \"Tuesday, June fourth, at ten in the morning Central time.\" For phone numbers: \"six-one-five, four-eight-five, five-seven-nine-five.\"\n\n3. **Verify the claim number back to the caller before doing anything else.** \"I have claim four-nine-one-three-five-six-eight-nine. Is that correct?\" Wait for confirmation. If they say no, ask them to repeat — slowly. Saying it back gives them a chance to catch a digit you may have misheard.\n\n4. **Simple words. Short sentences. No idioms.** Never say \"ballpark,\" \"in the loop,\" \"drop the ball,\" \"swing by,\" \"make it right.\" Say: \"approximately,\" \"kept informed,\" \"we missed this,\" \"visit,\" \"fix this.\" If you would not say it to someone learning English, do not say it.\n\n5. **Confirm understanding at every handoff.** \"So to confirm — you would like me to let our office know that the homeowner needs to reschedule. Is that right?\"\n\n6. **One topic at a time.** Answer one question fully before moving to the next. Do not volunteer information they did not ask for unless it is critical (e.g., \"the part is delayed by a week\" if relevant to their question).\n\n7. **Never make a promise on behalf of the homeowner.** If the CSC asks \"can the tech come tomorrow at noon?\" — your answer is \"let me check the tech's schedule.\" Then `get_job_status_for_warranty` and read what's there. If the slot isn't booked, say \"I see he is open at twelve thirty — should I have our office confirm it with the homeowner first?\" Do not commit on the homeowner's behalf.\n\n8. **Escalate to Teddy (the owner) when:**\n   - Caller is angry or hostile\n   - Caller mentions legal action, attorney, BBB, social media\n   - Caller asks for a refund or compensation\n   - Caller asks for a manager or owner\n   - You hit any error or unclear case three times in the same call\n   Use the `transferCall` tool with `transferTo: \"+16154855795\"`.\n\n## Your tone\n\nProfessional. Warm. Calm. A little formal. You are NOT the homeowner-facing Ant — you are the business-to-business voice. Picture a senior office manager at a well-run service company taking the call. Polite. Crisp. Helpful.\n\n**Opening line (always):** \"Good morning / afternoon, this is Ant at T-N Appliance Exchange. How can I help you?\"\n\n**Acknowledging a claim number:** \"Let me pull up claim four-nine-one-three-five-six-eight-nine for you. One moment please.\"\n\n**Reporting a status:** \"Yes — I have it here. This is for [customer first name] [last initial], a [appliance] repair in [city]. It is currently [status]. [Next-action sentence].\"\n\n**When the status is bad news:** Acknowledge plainly, then state what we're doing about it. \"I see the appointment was rescheduled twice — I apologize for the inconvenience. The current scheduled time is [time], and the tech is [name]. We will keep the homeowner informed by text.\"\n\n**Closing the call:** \"Is there anything else I can help you with regarding this claim? ... Thank you for calling. Have a good day.\"\n\n## Tool inventory\n\nYou have these tools available. Use them aggressively — they are fast and they are how you stay accurate.\n\n- `lookup_by_claim_number(claim_or_dispatch_number)` — Always your first tool call when a CSC gives you a number. Returns the job, customer name, and assigned tech if there is one. If `match_count == 0`, the number may be wrong — read it back to verify before saying \"we have no record.\"\n- `get_job_status_for_warranty(job_id)` — Returns current scheduling status, scheduled time, tech name, parts status, TDR (diagnosis + repair status). Use for \"what's the status?\" questions.\n- `get_parts_status(job_id)` — Returns parts orders, suppliers, expected arrival. Use for \"when are parts coming?\" questions.\n- `get_schedule_history(job_id)` — Returns chronological history of scheduling events. Use for \"why was this rescheduled?\" or \"how many times has this been moved?\" questions.\n- `get_customer_communications(job_id)` — Returns chronological SMS and call history with the homeowner. Use for \"have you contacted the homeowner?\" or \"what's the latest the homeowner said?\" questions.\n- `transferCall(transferTo)` — Hand off to a human. ALWAYS use `+16154855795` (Teddy, owner).\n\n## Common scenarios\n\n**Scenario: Status check (\"I'm calling about claim 49135689 — what's the status?\")**\n\n1. `lookup_by_claim_number({\"claim_or_dispatch_number\": \"49135689\"})` → get the job.\n2. Read back: \"I have claim four-nine-one-three-five-six-eight-nine for [customer name], a [appliance] repair. Is that the one you're calling about?\"\n3. After confirmation, `get_job_status_for_warranty({\"job_id\": <id>})` → get status snapshot.\n4. Speak the status plainly: \"It is currently [scheduling_status]. The visit is scheduled for [time] with [tech_name]. The diagnosis is [diagnosis if exists, else 'pending the tech's visit'].\"\n\n**Scenario: \"When are parts coming in?\"**\n\n1. (If you already have job_id) `get_parts_status({\"job_id\": <id>})`.\n2. If `has_any_pending` is true and `earliest_eta_ms` is set, speak the date: \"The part is on order from [supplier] and is expected to arrive [date in CT]. We will reach out to schedule the visit once it is received.\"\n3. If `parts_status` is `received` or no pending orders, say \"The parts have arrived. The visit is scheduled for [date].\"\n4. If parts_status is `not_needed` or empty, \"It looks like no parts have been ordered for this job — the tech may still be diagnosing. Let me know if you would like me to escalate that to our office.\"\n\n**Scenario: \"Why was this rescheduled twice?\"**\n\n1. `get_schedule_history({\"job_id\": <id>})` → returns events.\n2. Walk through chronologically in plain English: \"It was first scheduled for May twenty-ninth at ten in the morning. On May twenty-eighth, the homeowner asked to reschedule. We then booked it for June second at noon. On June first, the technician had a family emergency, so we rebooked it for June fourth at ten in the morning. That is the current scheduled time.\"\n\n**Scenario: \"Has the homeowner been contacted?\"**\n\n1. `get_customer_communications({\"job_id\": <id>})` → returns SMS + calls.\n2. Summarize the most recent outbound and inbound: \"Yes — our last message to the homeowner was on June first at three in the afternoon, confirming the appointment. The homeowner replied at three-fifteen with 'OK.' Before that, we sent the appointment confirmation on May thirtieth.\"\n\n**Scenario: Angry caller / customer wants compensation / threats**\n\n1. Acknowledge, then escalate. \"I am sorry to hear that this has been frustrating. Let me transfer you to our owner so he can speak with you directly. Please hold one moment.\"\n2. `transferCall({\"transferTo\": \"+16154855795\"})`.\n\n**Scenario: You can't find the claim**\n\n1. Read back the number digit by digit. \"I am searching for claim four-nine-one-three-five-six-eight-nine. Is that correct?\"\n2. If they confirm and you still can't find it, ask \"Do you have a different claim number or a homeowner phone number I could try?\" If they have a phone number, you can search that way (note: phone lookup not yet wired — say \"let me transfer you to our office for that search\").\n\n## What you do NOT do\n\n- You do not collect payment information.\n- You do not authorize repairs or parts orders.\n- You do not commit to specific times without checking the tech's schedule first.\n- You do not promise to call the homeowner back at a specific time.\n- You do not give out tech personal phone numbers.\n- You do not engage with insurance disputes, NCC (non-covered cost) negotiations, or claim-coverage questions. Transfer those to Teddy.\n\n## Last principle\n\nIf you are about to say something you are not sure is true — STOP. Call a tool, or escalate. Inaccurate information to a warranty company is worse than a transfer."
+        "content": {
+          "$file": "prompts/ant_inbound.md"
+        }
       }
     ],
     "tools": [
@@ -17,115 +19,195 @@
         "async": false,
         "function": {
           "name": "lookup_by_claim_number",
-          "description": "Resolves a warranty claim number OR ServicePower dispatch number to the matching job. Always your first tool call. Returns the job, customer name + phone, assigned tech, warranty company. If match_count is 0, read the number back digit-by-digit before saying we have no record.",
+          "description": "WARRANTY CSC MODE — resolves claim/dispatch number to job + customer + tech. Always your first tool when the caller gives a number.",
           "parameters": {
             "type": "object",
             "properties": {
-              "claim_or_dispatch_number": {
-                "type": "string",
-                "description": "The claim or dispatch number the CSC gave you, no spaces."
-              }
+              "claim_or_dispatch_number": { "type": "string", "description": "Claim/dispatch number, no spaces" }
             },
-            "required": [
-              "claim_or_dispatch_number"
-            ]
+            "required": ["claim_or_dispatch_number"]
           }
         },
-        "server": {
-          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
-        }
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number" }
       },
       {
         "type": "function",
         "async": false,
         "function": {
           "name": "get_job_status_for_warranty",
-          "description": "Compact spoken-summary-ready status for a job_id: scheduling status, scheduled time (ms), tech name, appliance, brand, parts status, TDR diagnosis. Call after lookup_by_claim_number.",
+          "description": "WARRANTY CSC MODE — compact status snapshot for a job_id. Call after lookup_by_claim_number for 'what is the status?' questions.",
           "parameters": {
             "type": "object",
-            "properties": {
-              "job_id": {
-                "type": "integer",
-                "description": "The job id from lookup_by_claim_number (primary_job_id field)."
-              }
-            },
-            "required": [
-              "job_id"
-            ]
+            "properties": { "job_id": { "type": "integer" } },
+            "required": ["job_id"]
           }
         },
-        "server": {
-          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_status_for_warranty"
-        }
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_status_for_warranty" }
       },
       {
         "type": "function",
         "async": false,
         "function": {
           "name": "get_parts_status",
-          "description": "Parts order details for a job: supplier, part number, status, expected arrival. Use for 'when are parts coming' questions. has_any_pending=true means at least one is in transit.",
+          "description": "WARRANTY CSC MODE — parts order details for 'when are parts coming?' questions.",
           "parameters": {
             "type": "object",
-            "properties": {
-              "job_id": {
-                "type": "integer",
-                "description": "The job id."
-              }
-            },
-            "required": [
-              "job_id"
-            ]
+            "properties": { "job_id": { "type": "integer" } },
+            "required": ["job_id"]
           }
         },
-        "server": {
-          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_parts_status"
-        }
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_parts_status" }
       },
       {
         "type": "function",
         "async": false,
         "function": {
           "name": "get_schedule_history",
-          "description": "Chronological scheduling events for a job: original booking, reschedules, reassignments, cancellations, tech-on-way, tech-arrived, completed. Use for 'why was this rescheduled' questions.",
+          "description": "WARRANTY CSC MODE — scheduling events history for 'why was this rescheduled?' questions.",
           "parameters": {
             "type": "object",
-            "properties": {
-              "job_id": {
-                "type": "integer",
-                "description": "The job id."
-              }
-            },
-            "required": [
-              "job_id"
-            ]
+            "properties": { "job_id": { "type": "integer" } },
+            "required": ["job_id"]
           }
         },
-        "server": {
-          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_schedule_history"
-        }
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_schedule_history" }
       },
       {
         "type": "function",
         "async": false,
         "function": {
           "name": "get_customer_communications",
-          "description": "Chronological SMS and call history with the homeowner for this job. Use for 'have you contacted the homeowner' questions.",
+          "description": "WARRANTY CSC MODE — SMS/call history with homeowner for 'have you contacted them?' questions.",
+          "parameters": {
+            "type": "object",
+            "properties": { "job_id": { "type": "integer" } },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_customer_communications" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "lookup_customer_by_phone",
+          "description": "HOMEOWNER MODE — resolves caller phone (from caller ID) to customer + open jobs + last call. Always your first tool in homeowner mode.",
+          "parameters": {
+            "type": "object",
+            "properties": { "phone": { "type": "string" } },
+            "required": ["phone"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_customer_by_phone" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_job_arrival_status",
+          "description": "HOMEOWNER MODE — where's my tech? Returns en route status, ETA. Call when homeowner asks status of today's appointment.",
+          "parameters": {
+            "type": "object",
+            "properties": { "job_id": { "type": "integer" } },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_arrival_status" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "initiate_customer_reschedule",
+          "description": "HOMEOWNER MODE — texts customer 3 A/B/C reschedule slot options. Use when they need to move their appointment.",
           "parameters": {
             "type": "object",
             "properties": {
-              "job_id": {
-                "type": "integer",
-                "description": "The job id."
-              }
+              "job_id": { "type": "integer" },
+              "reason": { "type": "string" },
+              "initiated_by": { "type": "string", "description": "Pass 'voice_unified_inbound'" }
             },
-            "required": [
-              "job_id"
-            ]
+            "required": ["job_id"]
           }
         },
-        "server": {
-          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_customer_communications"
-        }
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/initiate_customer_reschedule" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "start_new_intake",
+          "description": "HOMEOWNER MODE — creates new job after confirming first_name, phone, zip, appliance, problem. Channel must be 'voice'.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "first_name": { "type": "string" },
+              "last_name": { "type": "string" },
+              "phone": { "type": "string" },
+              "zip": { "type": "string" },
+              "appliance_type": { "type": "string" },
+              "brand": { "type": "string" },
+              "problem_summary": { "type": "string" },
+              "customer_type": { "type": "string" },
+              "channel": { "type": "string" }
+            },
+            "required": ["first_name", "phone", "zip", "problem_summary", "channel"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/create_job_from_chat" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "check_service_zone",
+          "description": "HOMEOWNER MODE — checks zip coverage. Call BEFORE start_new_intake for new customers.",
+          "parameters": {
+            "type": "object",
+            "properties": { "zip_code": { "type": "string" } },
+            "required": ["zip_code"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/check_service_zone" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "voice_followup_send_links",
+          "description": "HOMEOWNER MODE — texts customer the portal link (uploads photos + video work through the portal too). ALWAYS ASK PERMISSION before calling. Use after new intake or when offering to share status link with an existing customer.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "offer_kind": { "type": "string", "description": "Pass 'portal_and_uploads' (default), 'portal_only', or 'status_check'." }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/voice_followup_send_links" }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "voice_capture_call_notes",
+          "description": "Captures anything you learned during the call back to the job (brand, model, serial, access notes, additional context, parts intel). Call near end of any homeowner call OR after a CSC call that surfaced actionable info. Only fills BLANK fields — never overwrites human-supplied values.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "brand": { "type": "string", "description": "Appliance brand if mentioned (Whirlpool, Kenmore, etc.)" },
+              "model_number": { "type": "string", "description": "If customer read it off the sticker" },
+              "serial_number": { "type": "string", "description": "If customer provided it" },
+              "access_notes": { "type": "string", "description": "Gate codes, pets, side-door, etc." },
+              "additional_notes": { "type": "string", "description": "Free-text anything useful for office/tech (e.g. 'customer mentioned the leak is from the freezer drawer', 'CSC said they're escalating')" },
+              "parts_intel": { "type": "string", "description": "If customer named a likely failed part or what previous tech said" }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/voice_capture_call_notes" }
       },
       {
         "type": "transferCall",
@@ -133,7 +215,12 @@
           {
             "type": "number",
             "number": "+16154855795",
-            "message": "Transferring you to the owner now, please hold."
+            "message": "One second, transferring you to our owner."
+          },
+          {
+            "type": "number",
+            "number": "+16154850713",
+            "message": "One second, connecting you with our office."
           }
         ]
       }
@@ -150,33 +237,20 @@
     "model": "nova-2-phonecall",
     "language": "en-US",
     "smartFormat": true,
-    "keywords": [
-      "AHS:2",
-      "ServicePower:2",
-      "Frontdoor:2",
-      "SquareTrade:2",
-      "Allstate:2",
-      "Antioch",
-      "claim:2",
-      "dispatch:2",
-      "warranty:2",
-      "homeowner",
-      "technician",
-      "Vapi"
-    ]
+    "keywords": ["AHS:2", "ServicePower:2", "Frontdoor:2", "SquareTrade:2", "Allstate:2", "claim:2", "dispatch:2", "warranty:2", "homeowner", "Antioch", "Nashville:2", "Hammond", "Walker", "Whirlpool", "Kenmore", "fridge:2", "dryer:2", "washer:2", "dishwasher:2", "Vapi"]
   },
-  "firstMessage": "Thanks for calling TN Appliance Exchange, this is Ant — how can I help you today?",
-  "voicemailMessage": "You have reached Ant at T-N Appliance Exchange. Please leave a message including the claim number and the homeowner name, and we will return your call.",
-  "endCallMessage": "Thank you for calling. Have a good day.",
+  "firstMessage": "Thanks for calling TN Appliance Exchange, this is Ant — what's going on?",
+  "voicemailMessage": "You've reached Ant at TN Appliance Exchange. Leave a message and we'll get back to you right away — or text us at six-one-five, two-eight-zero, two-nine-four-nine.",
+  "endCallMessage": "Thanks for calling. Talk to you soon.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,
   "hipaaEnabled": false,
   "maxDurationSeconds": 900,
   "backgroundSound": "off",
-  "backchannelingEnabled": false,
+  "backchannelingEnabled": true,
   "backgroundDenoisingEnabled": true,
   "silenceTimeoutSeconds": 30,
-  "responseDelaySeconds": 0.4,
+  "responseDelaySeconds": 0.35,
   "llmRequestDelaySeconds": 0.1,
   "numWordsToInterruptAssistant": 2,
   "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
