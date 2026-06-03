@@ -1236,6 +1236,26 @@ async function maybeEmitTimeSignals() {
       });
       try { await xano.recordEventLog('daily_claude_spend_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
     }
+
+    // DAILY_VAPI_CALL_REVIEW — daily 8-11am CT window. Pulls last-24h
+    // Vapi calls via Vapi REST API, scores each one with Sonnet 4.5
+    // (rubric: outcome, tools, brand voice, accuracy, efficiency),
+    // writes per-call event_log row + SMSes Teddy the per-assistant
+    // averages + top improvement ideas. Self-improvement loop foundation.
+    let vapiReviewFired = null;
+    try {
+      vapiReviewFired = await xano.getDailyVapiCallReviewFiredToday(sinceMs);
+    } catch (err) {
+      xano.logLocal('daily_vapi_call_review_check_failed', { error: err.message });
+    }
+    if (vapiReviewFired === null || !(vapiReviewFired && vapiReviewFired.fired)) {
+      await xano.emitSignal({
+        signal_type: 'DAILY_VAPI_CALL_REVIEW',
+        signal_strength: 60,
+        payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+      });
+      try { await xano.recordEventLog('daily_vapi_call_review_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+    }
   }
 
   // TECH_ASSIST_LOOP_WATCH — every 5 min during 7am-10pm CT. Detects
