@@ -13,6 +13,7 @@
 // and a reminder for the same (job, scheduled_start) don't collide.
 import { config } from '../config.js';
 import { normalizeE164, toCustomer } from '../sms.js';
+import { placeOutboundCall, ASSISTANT_IDS } from '../vapi-out.js';
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator', fridge: 'refrigerator', washer: 'washer',
@@ -151,11 +152,46 @@ export async function run(signal, ctx) {
     smsRes = { success: false, error: String(err.message || err) };
   }
 
+  // Voice-call confirmation: in parallel with SMS, place an outbound
+  // Vapi call so the customer gets an active confirm/reschedule path.
+  // Gated by env var APPOINTMENT_REMINDER_VOICE_ENABLED (default true).
+  // If customers complain about double-touch (SMS + call), flip to false.
+  let voiceRes = null;
+  const voiceEnabled = (process.env.APPOINTMENT_REMINDER_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+  if (voiceEnabled) {
+    const region = String(job.service_state || '').toLowerCase().startsWith('la') ? 'LA' : 'TN';
+    const scheduledHuman = apptStr ? `tomorrow ${apptStr.split(' at ').slice(-1)[0]} central time` : apptStr;
+    try {
+      voiceRes = await placeOutboundCall({
+        assistantId: ASSISTANT_IDS.appointment_reminder,
+        toPhone: phone,
+        fromRegion: region,
+        variableValues: {
+          customer_first_name: firstName,
+          appliance_type: appliance,
+          scheduled_when_human: scheduledHuman || 'at the scheduled time',
+          tech_first_name: techName,
+          job_id: String(jobId),
+        },
+        metadata: {
+          source: 'appointment_reminder_due_auto',
+          job_id: jobId,
+          scheduled_start_ms: scheduledStartMs,
+        },
+      });
+    } catch (err) {
+      voiceRes = { ok: false, error: String(err.message || err) };
+    }
+  }
+
   const meta = {
     job_id: jobId,
     outcome: smsRes && smsRes.success ? 'reminder_sent' : 'send_failed',
     scheduled_start_ms: scheduledStartMs,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
+    voice_enabled: voiceEnabled,
+    voice_result: voiceRes && voiceRes.ok ? 'ok' : (voiceRes ? (voiceRes.error || 'failed') : 'skipped'),
+    voice_call_id: voiceRes && voiceRes.call_id ? voiceRes.call_id : null,
   };
   await xano.markSignalProcessed(signal.id, 'appointment_reminder_handled', meta);
   log('appointment_reminder_handled', meta);
