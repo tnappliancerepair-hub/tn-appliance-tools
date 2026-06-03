@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-02T16:02:14.334Z
-// Total registered: 477
+// Generated: 2026-06-03T20:45:23.409Z
+// Total registered: 485
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -20,6 +20,7 @@ export const AGENT_REGISTRY = {
   'APPOINTMENT_REMINDER_DUE': './appointment_reminder_due.js',
   'APPOINTMENT_SCHEDULED': './appointment_scheduled.js',
   'ASSIGN_PARALLEL_TEST_JOBS': './assign_parallel_test_jobs.js',
+  'ATTACHMENT_VISION_REQUEST': './attachment_vision_request.js',
   'BLOG_POST_GENERATOR': './blog_post_generator.js',
   'BRAIN_CAPABILITY_GAP_DIGEST': './brain_capability_gap_digest.js',
   'BRAND_INTELLIGENCE': './brand_intelligence.js',
@@ -56,9 +57,9 @@ export const AGENT_REGISTRY = {
   'CONTENT_GENERATOR_REQUEST_INDUSTRY_TREND_COMMENTARY': './content_generator_request_industry_trend_commentary.js',
   'CONTENT_GENERATOR_REQUEST_TECH_HERO': './content_generator_request_tech_hero.js',
   'CONTENT_GENERATOR_REQUEST_WHY_WE_BUILT_ANT': './content_generator_request_why_we_built_ant.js',
+  'CUSTOMER_AVAILABILITY_CHANGED': './customer_availability_changed.js',
   'CUSTOMER_FEEDBACK_RECEIVED': './customer_feedback_received.js',
   'CUSTOMER_INTAKE_BUNDLE_READY': './customer_intake_bundle_ready.js',
-  'ATTACHMENT_VISION_REQUEST': './attachment_vision_request.js',
   'CUSTOMER_INTAKE_REPLY': './customer_intake_reply.js',
   'CUSTOMER_INTEL_CUSTOMER_BIRTHDAY_WATCHER': './customer_intel_customer_birthday_watcher.js',
   'CUSTOMER_INTEL_CUSTOMER_CHURN_RISK_SCORER': './customer_intel_customer_churn_risk_scorer.js',
@@ -167,6 +168,7 @@ export const AGENT_REGISTRY = {
   'PARTS_DECISION_DUE': './parts_decision_due.js',
   'PARTS_DELIVERY_OBSERVED': './parts_delivery_observed.js',
   'PARTS_DISCONTINUED_PART_FINDER': './parts_discontinued_part_finder.js',
+  'PARTS_EARLY_OFFER': './parts_early_offer.js',
   'PARTS_GENUINE_REPLACEMENT_PARTS_DISHWASHER': './parts_genuine_replacement_parts_dishwasher.js',
   'PARTS_GENUINE_REPLACEMENT_PARTS_DRYER': './parts_genuine_replacement_parts_dryer.js',
   'PARTS_GENUINE_REPLACEMENT_PARTS_HVAC': './parts_genuine_replacement_parts_hvac.js',
@@ -408,6 +410,7 @@ export const AGENT_REGISTRY = {
   'SMS_RESPONSE_MULTI_APPLIANCE_INQUIRY': './sms_response_multi_appliance_inquiry.js',
   'SMS_RESPONSE_MULTI_CUSTOMER_BROADCAST_AGENT': './sms_response_multi_customer_broadcast_agent.js',
   'SMS_RESPONSE_NEGATIVE_REVIEW_FOLLOWUP': './sms_response_negative_review_followup.js',
+  'SMS_RESPONSE_NEW_LEAD': './sms_response_new_lead.js',
   'SMS_RESPONSE_OFFICE_INBOX_HYGIENE_SCORER': './sms_response_office_inbox_hygiene_scorer.js',
   'SMS_RESPONSE_OPT_OUT': './sms_response_opt_out.js',
   'SMS_RESPONSE_PARTS_ARRIVAL_ETA': './sms_response_parts_arrival_eta.js',
@@ -427,7 +430,6 @@ export const AGENT_REGISTRY = {
   'SMS_RESPONSE_SERVICE_AGREEMENT_ONBOARDING_COMPOSER': './sms_response_service_agreement_onboarding_composer.js',
   'SMS_RESPONSE_SERVICE_AREA_QUESTION': './sms_response_service_area_question.js',
   'SMS_RESPONSE_SMS_INTENT_GAP_AGENT': './sms_response_sms_intent_gap_agent.js',
-  'SMS_RESPONSE_NEW_LEAD': './sms_response_new_lead.js',
   'SMS_RESPONSE_TECH_NO_SHOW': './sms_response_tech_no_show.js',
   'SMS_RESPONSE_TECHNICIAN_ETA': './sms_response_technician_eta.js',
   'SMS_RESPONSE_TECHNICIAN_LATE': './sms_response_technician_late.js',
@@ -458,7 +460,10 @@ export const AGENT_REGISTRY = {
   'TECH_LIFECYCLE_REQUEST_FIRST_VISIT_FIX_RATE_TRACKER': './tech_lifecycle_request_first_visit_fix_rate_tracker.js',
   'TECH_ON_WAY': './tech_on_way.js',
   'TECH_ONBOARDED': './tech_onboarded.js',
+  'TECH_PACE_WATCHER': './tech_pace_watcher.js',
   'TECH_PERFORMANCE_ALERT': './tech_performance_alert.js',
+  'TECH_RUNNING_AHEAD': './tech_running_ahead.js',
+  'TECH_RUNNING_BEHIND': './tech_running_behind.js',
   'TECH_SUSPENDED': './tech_suspended.js',
   'TECH_WEEKLY_RECAP': './tech_weekly_recap.js',
   'TRANSLATE_SPANISH_INTAKE': './translate_spanish_intake.js',
@@ -466,6 +471,7 @@ export const AGENT_REGISTRY = {
   'UNPAID_SELF_PAY_DIGEST': './unpaid_self_pay_digest.js',
   'UPSELL_DUE': './upsell_due.js',
   'VAPI_CALL_COMPLETED': './vapi_call_completed.js',
+  'VAPI_CALL_REVIEW': './vapi_call_review.js',
   'VOICE_PROMPT_REQUEST_NEW_VAPI_AGENT_PROPOSAL': './voice_prompt_request_new_vapi_agent_proposal.js',
   'VOICE_PROMPT_REQUEST_SMS_PROMPT_PROPOSAL': './voice_prompt_request_sms_prompt_proposal.js',
   'VOICE_PROMPT_REQUEST_VAPI_PROMPT_IMPROVEMENT': './voice_prompt_request_vapi_prompt_improvement.js',

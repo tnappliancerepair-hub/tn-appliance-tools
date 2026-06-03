@@ -43,6 +43,7 @@ export const config = Object.freeze({
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   ownerPhone: process.env.OWNER_PHONE_NUMBER,
   daniellePhone: process.env.DANIELLE_PHONE_NUMBER || '+16154850713',
+  vapiPrivateKey: process.env.VAPI_PRIVATE_KEY || '',
   // Vacation mode: when set, every SMS to ownerPhone is ALSO sent to this
   // backup number. Set VACATION_BACKUP_PHONE=+16154850713 before Teddy
   // leaves; unset when he's back. Cheap insurance against missing critical
