@@ -3140,7 +3140,7 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
           <div id="co-error-msg" style="font-size:16px;line-height:1.4;margin-bottom:8px;color:#fff;font-weight:600;">Camera permission denied.</div>
           <div id="co-error-hint" style="font-size:13px;color:#bbb;margin-bottom:20px;line-height:1.5;"></div>
           <button id="co-error-retry" type="button" style="display:block;width:100%;padding:13px;background:#007bff;color:#fff;border:0;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;">Retry camera</button>
-          <button id="co-error-fallback" type="button" style="display:block;width:100%;padding:13px;background:#6c757d;color:#fff;border:0;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Or pick from gallery</button>
+          <button id="co-error-fallback" type="button" style="display:none;width:100%;padding:13px;background:#6c757d;color:#fff;border:0;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Or pick from gallery</button>
         </div>
       </div>
 
@@ -3446,6 +3446,15 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
   }
 
   function openFallbackPicker() {
+    // Photos can fall back to gallery — video CANNOT. Customer-recorded
+    // 10s clips only (consistent quality + bounded size). For video mode
+    // surface a friendly error instead of letting them upload from gallery.
+    if (mode === 'video') {
+      errorMsgEl.textContent = "We can only accept videos recorded with this 10-second tool.";
+      errorHintEl.textContent = "Refresh and try Record again, or skip the video — the tech can still help with just the photo.";
+      showError(true);
+      return;
+    }
     if (!fallbackInput) {
       fallbackInput = document.createElement('input');
       fallbackInput.type = 'file';
@@ -3476,6 +3485,10 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
 
     ensureOverlay();
     modeLabelEl.textContent = mode === 'video' ? 'Record video' : 'Take photo';
+    // Photo can fall back to gallery picker; video cannot — surface the
+    // button conditionally so it doesn't confuse the customer.
+    const fbBtn = overlay.querySelector('#co-error-fallback');
+    if (fbBtn) fbBtn.style.display = (mode === 'video') ? 'none' : 'block';
     renderToolbarEmpty();
     showOverlay();
 

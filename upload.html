@@ -199,10 +199,11 @@
     </button>
   </div>
 
-  <!-- Fallback file picker for desktop / browsers without CaptureOverlay -->
-  <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none">
+  <!-- Photo gallery fallback only — video is RECORDED via CaptureOverlay (10s cap, MP4-friendly).
+       No video file uploads allowed (file-size, codec, and bandwidth surprises). -->
+  <input type="file" id="file-input" multiple accept="image/*" style="display:none">
   <div style="text-align:center;margin:8px 0">
-    <button type="button" onclick="document.getElementById('file-input').click()" style="background:transparent;border:none;color:#888;font-size:13px;text-decoration:underline;cursor:pointer">or pick from gallery</button>
+    <button type="button" onclick="document.getElementById('file-input').click()" style="background:transparent;border:none;color:#888;font-size:13px;text-decoration:underline;cursor:pointer">or pick a photo from gallery</button>
   </div>
 
   <div class="file-list" id="file-list"></div>
@@ -311,9 +312,10 @@ function setupListeners() {
           handleFiles([file]);
         });
       } else {
-        input.setAttribute('accept', 'video/*');
-        input.setAttribute('capture', 'environment');
-        input.click();
+        // Video MUST come from our 10-sec CaptureOverlay (consistent quality,
+        // bounded size). If the overlay didn't load, surface the issue
+        // instead of falling through to gallery upload.
+        showError("Couldn't open the recorder. Refresh this page on your phone and tap Record Video again — we don't accept video uploaded from your gallery.");
       }
     });
   }
@@ -337,6 +339,15 @@ function setupListeners() {
 function handleFiles(files) {
   for (const file of files) {
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      continue;
+    }
+    // Defense in depth: even if someone drags a video file into the
+    // dropzone, refuse it. Only CaptureOverlay-produced videos are
+    // accepted, and those land here as File objects from blob — but
+    // any user-picked video MIME (the gallery path is now disabled in
+    // the file-input accept attr, but drag-drop bypasses that) is rejected.
+    if (file.type.startsWith('video/') && file.name && !file.name.startsWith('video-')) {
+      showError("Videos must be recorded with the 10-second Record button, not uploaded. Skipping " + file.name + ".");
       continue;
     }
     const item = {
