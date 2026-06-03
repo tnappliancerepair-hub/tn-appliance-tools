@@ -4,18 +4,18 @@ query create_job_from_chat verb=POST {
 
   input {
     text first_name
-    text last_name
+    text? last_name?
     text phone
     text zip
-    text appliance_type
-    text brand
-    text model_number
+    text? appliance_type?
+    text? brand?
+    text? model_number?
     text problem_summary
-    text recommended_service
+    text? recommended_service?
     text channel
     text? customer_preference_text?
     text? scheduling_type?
-    bool sms_consent?
+    bool? sms_consent?
     timestamp? sms_consent_at?
     text? customer_type?
     text? warranty_company?
