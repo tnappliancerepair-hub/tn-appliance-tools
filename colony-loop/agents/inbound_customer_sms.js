@@ -63,7 +63,18 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_empty_body' };
   }
 
-  const route = classify(body);
+  let route = classify(body);
+
+  // NEW LEAD override — when the inbound SMS comes from a phone that
+  // ISN'T on file as an existing customer (customer_id=0/null) AND no
+  // specific keyword matched, this is almost certainly a new lead
+  // responding to our auto-ack SMS ("text us your appliance type + zip").
+  // Route to the dedicated new-lead agent which pushes them to the
+  // website chat instead of the generic intent-gap path.
+  const customerIdNum = Number(payload.customer_id || 0);
+  if ((!customerIdNum || customerIdNum === 0) && route.type === FALLBACK_TYPE) {
+    route = { type: 'SMS_RESPONSE_NEW_LEAD', matched: 'no_customer_record' };
+  }
 
   // RESCHEDULE keyword (or intent match) fires an additional owner alert
   // signal in parallel — the existing sms_response_reschedule_request

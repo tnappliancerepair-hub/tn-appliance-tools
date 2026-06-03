@@ -426,6 +426,7 @@ export const AGENT_REGISTRY = {
   'SMS_RESPONSE_SERVICE_AGREEMENT_ONBOARDING_COMPOSER': './sms_response_service_agreement_onboarding_composer.js',
   'SMS_RESPONSE_SERVICE_AREA_QUESTION': './sms_response_service_area_question.js',
   'SMS_RESPONSE_SMS_INTENT_GAP_AGENT': './sms_response_sms_intent_gap_agent.js',
+  'SMS_RESPONSE_NEW_LEAD': './sms_response_new_lead.js',
   'SMS_RESPONSE_TECH_NO_SHOW': './sms_response_tech_no_show.js',
   'SMS_RESPONSE_TECHNICIAN_ETA': './sms_response_technician_eta.js',
   'SMS_RESPONSE_TECHNICIAN_LATE': './sms_response_technician_late.js',
