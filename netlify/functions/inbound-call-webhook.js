@@ -25,10 +25,12 @@ const XANO_TRANSFER_CALL =
   'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transfer_telnyx_call';
 const XANO_TIMEOUT_MS = 9000;
 
-// Forward inbound calls on the vanity numbers to Teddy's cell. Telnyx
-// Call Control requires us to issue a transfer command (not simple
-// auto-forwarding) because the numbers are attached to a Voice App.
-const TRANSFER_TO = process.env.INBOUND_TRANSFER_TO || '+16154855795';
+// Forward inbound calls on the vanity numbers to the Vapi-assigned
+// number (+16292607111) where the Ant Inbound agent is already live.
+// Telnyx Call Control requires us to issue a transfer command (not
+// simple auto-forwarding) because the vanity numbers are attached to
+// a Voice App. INBOUND_TRANSFER_TO env var overrides if needed.
+const TRANSFER_TO = process.env.INBOUND_TRANSFER_TO || '+16292607111';
 
 // Belt-and-suspenders: text the caller immediately on every inbound call
 // (deduped 6h on the Xano side). Even if Vapi takes the call, the text
