@@ -21,7 +21,14 @@ const XANO_RECORD_INBOUND_CALL =
   'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_inbound_call';
 const XANO_EMERGENCY_SMS =
   'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/emergency_customer_sms';
+const XANO_TRANSFER_CALL =
+  'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transfer_telnyx_call';
 const XANO_TIMEOUT_MS = 9000;
+
+// Forward inbound calls on the vanity numbers to Teddy's cell. Telnyx
+// Call Control requires us to issue a transfer command (not simple
+// auto-forwarding) because the numbers are attached to a Voice App.
+const TRANSFER_TO = process.env.INBOUND_TRANSFER_TO || '+16154855795';
 
 // Belt-and-suspenders: text the caller immediately on every inbound call
 // (deduped 6h on the Xano side). Even if Vapi takes the call, the text
@@ -87,6 +94,27 @@ exports.handler = async function (event) {
 
   // FIRE-AND-FORGET customer auto-ack via emergency endpoint (dedup'd 6h)
   fireCustomerAutoAck(from);
+
+  // Issue the Telnyx Call Control "transfer" command so the inbound
+  // call rings Teddy's cell. Fire-and-await with short timeout so
+  // Telnyx still gets a 200 quickly.
+  if (callId) {
+    try {
+      const tCtl = new AbortController();
+      const tTimer = setTimeout(() => tCtl.abort(), XANO_TIMEOUT_MS);
+      const tRes = await fetch(XANO_TRANSFER_CALL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ call_control_id: callId, to: TRANSFER_TO }),
+        signal: tCtl.signal,
+      });
+      clearTimeout(tTimer);
+      const tJson = await tRes.json().catch(() => ({}));
+      console.log('[inbound-call-webhook] transfer', tRes.status, tJson);
+    } catch (e) {
+      console.warn('[inbound-call-webhook] transfer failed:', e.message);
+    }
+  }
 
   // Forward to Xano with a timeout.
   const controller = new AbortController();
