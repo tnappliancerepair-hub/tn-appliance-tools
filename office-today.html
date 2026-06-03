@@ -74,6 +74,17 @@
   .batch-bar .label { font-size: 12px; color: var(--text); margin-right: 4px; font-weight: 600; }
 
   .queue-card-wrapper { position: relative; }
+  .call-cust-btn {
+    position: absolute; bottom: 10px; right: 10px;
+    background: linear-gradient(135deg, #4ad991, #38b87a);
+    color: #0b1414; font-weight: 700; font-size: 12px;
+    padding: 6px 12px; border-radius: 14px;
+    text-decoration: none; cursor: pointer;
+    border: 1px solid rgba(74, 217, 145, 0.5);
+    z-index: 6; transition: transform 0.1s;
+  }
+  .call-cust-btn:hover { transform: translateY(-1px); }
+  .call-cust-btn:active { transform: translateY(0); }
   .queue-card-wrapper .priority-stripe {
     position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
     border-top-left-radius: 10px; border-bottom-left-radius: 10px;
@@ -915,11 +926,27 @@ function renderQueueView(d) {
   const batchBar = (d.warranty_submissions_due || []).length > 0
     ? `<div style="margin-bottom:14px">${renderWarrantyBatchBar(d.warranty_submissions_due)}</div>` : '';
 
-  const wrapped = items.map(it => `
-    <div class="queue-card-wrapper" data-job-id="${it.job_id || ''}">
+  // Smart default call-type per card kind so the dispatch dropdown
+  // pre-selects something sensible.
+  const callTypeForKind = {
+    accept: 'appointment_reminder',
+    esc: 'reschedule',
+    vm: 'missed_call_callback',
+    war: 'ahs_authorization_update',
+    stuck: 'appointment_reminder',
+    unpaid: 'reschedule',
+  };
+  const wrapped = items.map(it => {
+    const ct = callTypeForKind[it.kind] || 'appointment_reminder';
+    const callBtn = it.job_id
+      ? `<a class="call-cust-btn" href="voice-dispatch.html?job_id=${it.job_id}&call_type=${ct}" target="_blank" title="Place outbound call to the customer on this job">📞 Call</a>`
+      : '';
+    return `<div class="queue-card-wrapper" data-job-id="${it.job_id || ''}">
       <div class="priority-stripe p${it.p}"></div>
       ${it.html}
-    </div>`).join('');
+      ${callBtn}
+    </div>`;
+  }).join('');
 
   // Kick off media-count hydration after render — adds 📎 N badge to
   // cards whose jobs have customer-uploaded media. Lets Danielle see at

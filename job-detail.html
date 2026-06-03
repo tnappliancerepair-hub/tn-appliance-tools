@@ -789,6 +789,10 @@ function renderActionBar(job, cust, tech) {
     }
     buttons.push('<button onclick="openReschedule()">🗓 Reschedule</button>');
     buttons.push('<button onclick="openReassign()">🔄 Reassign</button>');
+    // 🤖 Ant Call: dispatch outbound voice call via Ant agent. Pre-fills
+    // job_id; dispatch page picks the right call type based on job state.
+    const antCallUrl = `voice-dispatch.html?job_id=${job.id}`;
+    buttons.push(`<a href="${escapeAttr(antCallUrl)}" target="_blank" rel="noopener noreferrer" title="Have Ant call the customer with the right brain (Appointment Reminder, Parts ETA, Reschedule, etc.)">🤖 Ant Call</a>`);
     buttons.push('<button class="danger" onclick="openCancel()">🚫 Cancel Job</button>');
   }
   bar.innerHTML = buttons.join('');
