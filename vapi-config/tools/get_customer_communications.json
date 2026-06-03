@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me check what we have communicated with the homeowner."
+    }
+  ],
+  "function": {
+    "name": "get_customer_communications",
+    "description": "Returns a chronological list of every SMS and call between us and the homeowner for this job. Use when the CSC asks 'have you contacted the homeowner' or 'what was the latest message'. Returns up to 200 most recent messages.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id."
+        }
+      },
+      "required": ["job_id"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_customer_communications"
+  }
+}

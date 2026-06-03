@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me check the scheduling history."
+    }
+  ],
+  "function": {
+    "name": "get_schedule_history",
+    "description": "Returns a chronological list of every scheduling-related event for a job: original booking, reschedules, reassignments, cancellations, tech-on-way, tech-arrived, completed. Use when the CSC asks 'why was this rescheduled' or 'how many times has this been pushed back'. Events come back in chronological order with timestamps and metadata.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id."
+        }
+      },
+      "required": ["job_id"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_schedule_history"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me check the current status."
+    }
+  ],
+  "function": {
+    "name": "get_job_status_for_warranty",
+    "description": "Returns a compact spoken-summary-ready status snapshot for a job: scheduling status, scheduled date/time (ms), assigned tech name, appliance, brand, parts status, latest TDR diagnosis. Call this AFTER lookup_by_claim_number resolves a job_id. The CSC rep is almost always asking 'what's the status' — this answers it in one call.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id returned by lookup_by_claim_number (primary_job_id field)."
+        }
+      },
+      "required": ["job_id"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_status_for_warranty"
+  }
+}

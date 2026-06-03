@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "One moment, let me pull that up."
+    }
+  ],
+  "function": {
+    "name": "lookup_by_claim_number",
+    "description": "Resolves a warranty claim number OR ServicePower dispatch number to the matching job in our system. Always your first tool call when a CSC rep gives you a number. Returns the job, customer name + phone, assigned tech (if any), and warranty company. If match_count is 0, the number may have been misheard — read it back digit-by-digit before saying we have no record.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "claim_or_dispatch_number": {
+          "type": "string",
+          "description": "The claim or dispatch number the CSC rep gave you. Strip spaces. Examples: '49135689' (AHS), 'SP-2024-00123' (ServicePower)."
+        }
+      },
+      "required": ["claim_or_dispatch_number"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
+  }
+}

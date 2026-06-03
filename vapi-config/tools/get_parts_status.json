@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me look at the parts on this one."
+    }
+  ],
+  "function": {
+    "name": "get_parts_status",
+    "description": "Returns parts order details for a job: each order's supplier, part number, status (ordered/in_transit/received), and expected arrival date. Use when the CSC asks 'when are parts coming in' or 'are the parts here yet'. has_any_pending = true means at least one order is in transit; earliest_eta_ms is the soonest expected arrival.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id."
+        }
+      },
+      "required": ["job_id"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_parts_status"
+  }
+}

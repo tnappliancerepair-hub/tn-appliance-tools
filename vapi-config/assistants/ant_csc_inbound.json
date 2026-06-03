@@ -1,0 +1,156 @@
+{
+  "name": "Ant CSC Inbound",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-7",
+    "temperature": 0.4,
+    "maxTokens": 600,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_csc_inbound.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "lookup_by_claim_number",
+          "description": "Resolves a warranty claim number OR ServicePower dispatch number to the matching job. Always your first tool call. Returns the job, customer name + phone, assigned tech, warranty company. If match_count is 0, read the number back digit-by-digit before saying we have no record.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "claim_or_dispatch_number": {
+                "type": "string",
+                "description": "The claim or dispatch number the CSC gave you, no spaces."
+              }
+            },
+            "required": ["claim_or_dispatch_number"]
+          }
+        },
+        "server": {
+          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
+        }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_job_status_for_warranty",
+          "description": "Compact spoken-summary-ready status for a job_id: scheduling status, scheduled time (ms), tech name, appliance, brand, parts status, TDR diagnosis. Call after lookup_by_claim_number.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": {
+                "type": "integer",
+                "description": "The job id from lookup_by_claim_number (primary_job_id field)."
+              }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": {
+          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_status_for_warranty"
+        }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_parts_status",
+          "description": "Parts order details for a job: supplier, part number, status, expected arrival. Use for 'when are parts coming' questions. has_any_pending=true means at least one is in transit.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer", "description": "The job id." }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": {
+          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_parts_status"
+        }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_schedule_history",
+          "description": "Chronological scheduling events for a job: original booking, reschedules, reassignments, cancellations, tech-on-way, tech-arrived, completed. Use for 'why was this rescheduled' questions.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer", "description": "The job id." }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": {
+          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_schedule_history"
+        }
+      },
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "get_customer_communications",
+          "description": "Chronological SMS and call history with the homeowner for this job. Use for 'have you contacted the homeowner' questions.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer", "description": "The job id." }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": {
+          "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_customer_communications"
+        }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154855795",
+            "message": "Transferring you to the owner now, please hold."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "stability": 0.55,
+    "similarityBoost": 0.75,
+    "style": 0.0,
+    "useSpeakerBoost": true
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["AHS", "ServicePower", "Frontdoor", "SquareTrade", "Allstate", "TN Appliance", "Antioch", "claim", "dispatch", "warranty", "homeowner", "technician"]
+  },
+  "firstMessage": "Good morning, this is Ant at T-N Appliance Exchange. How can I help you?",
+  "firstMessageMode": "assistant-speaks-first",
+  "voicemailMessage": "You have reached Ant at T-N Appliance Exchange. Please leave a message including the claim number and the homeowner name, and we will return your call.",
+  "endCallMessage": "Thank you for calling. Have a good day.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 900,
+  "backgroundSound": "office",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 30,
+  "responseDelaySeconds": 0.4,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook"
+}
