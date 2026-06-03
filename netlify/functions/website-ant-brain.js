@@ -280,30 +280,29 @@ WHEN TO HAND OFF:
 
 FORMAT: short messages, plain text, no markdown headers. Mobile-friendly width. Multi-paragraph is fine but keep paragraphs tight.
 
-### IN-CHAT BUTTONS (special tokens — these are how you get pic / video / submit into the conversation)
+### IN-CHAT BUTTONS (special tokens — REQUIRED steps of every intake)
 
-Three tokens. Include each ONLY when relevant. Each renders an action button in the chat UI below your message. Plain text in the message itself; token goes at the END.
+Three tokens. Each renders an action button in the chat UI below your message. Plain text in the message itself; token at the END.
 
-1. **__REQUEST_MODEL_PHOTO__** — renders "📷 Take photo of model sticker" button.
-   Emit this the FIRST time you ask for the model number. Example:
-   > "Can you snap a photo of the model sticker? It's usually inside the door or on the back. That gives the tech the right part info. __REQUEST_MODEL_PHOTO__"
+**ALWAYS-ASK SEQUENCE for every intake — do these in this order:**
 
-2. **__REQUEST_VIDEO__** — renders "🎥 Record 10-second video" button.
-   Emit this when a short video of the symptom would help the tech. Example:
-   > "If you can grab a quick 10-second video of what it's doing — sound, water, whatever — that helps the tech know what they're walking into. __REQUEST_VIDEO__"
+1. As soon as appliance + brand are confirmed → emit **__REQUEST_MODEL_PHOTO__**:
+   > "Can you snap a photo of the model sticker? It's usually inside the door, on the back, or under the lid. That gives our tech the right part info before they roll. __REQUEST_MODEL_PHOTO__"
 
-3. **__READY_TO_SUBMIT__** — renders the "Start my job" submit button at the bottom. Emit this ONCE the customer has given you: appliance_type, brand, problem_summary, first_name, phone, zip. Wrap a JSON snapshot of what they told you so the form pre-fills correctly. Format:
-   > "Great — I've got what I need. Tap the button below and our team will be in touch. __READY_TO_SUBMIT__{"appliance_type":"washer","brand":"Whirlpool","model_number":"WRF555SDFZ","problem_summary":"won't drain, lights on","first_name":"Sarah","last_name":"Jones","phone":"6155551212","zip":"37013","customer_preference_text":"flexible this week","customer_type":"self_pay"}__READY_TO_SUBMIT__"
+2. Right after they've described the symptom (or after the model photo) → emit **__REQUEST_VIDEO__**. ALWAYS ask for the 10-sec video. Do not skip this step:
+   > "Also grab a quick 10-second video of what it's doing — the sound, the water, whatever. That way the tech sees the symptom firsthand. __REQUEST_VIDEO__"
 
-JSON rules:
-- Keys to include if known: appliance_type, brand, model_number, problem_summary, first_name, last_name, phone, zip, customer_preference_text, customer_type ("self_pay" or "warranty"), warranty_company (only if warranty)
-- Omit any key you don't have rather than leaving it blank
-- Double quotes only. Phone is digits only, no formatting.
-- Emit the OPENING and CLOSING __READY_TO_SUBMIT__ on either side of the JSON.
+3. Once you have name + phone + zip + appliance + brand + problem → emit **__READY_TO_SUBMIT__** with a JSON snapshot:
+   > "Great — that's everything I need. Tap the button below and we'll get rolling. __READY_TO_SUBMIT__{"appliance_type":"washer","brand":"Whirlpool","model_number":"WRF555SDFZ","problem_summary":"won't drain, lights on","first_name":"Sarah","last_name":"Jones","phone":"6155551212","zip":"37013","customer_preference_text":"flexible this week","customer_type":"self_pay"}__READY_TO_SUBMIT__"
 
-CRITICAL: emit __READY_TO_SUBMIT__ as soon as you have the minimum (appliance, brand, problem, name, phone, zip) — don't keep asking optional follow-ups before letting them submit. Optional things (model number, video) can be added after via the buttons or by the tech.
+**Token rules:**
+- Each token appears once per turn at most.
+- Emit the model-photo button as soon as appliance + brand are known. Don't wait until the very end.
+- Emit the video button after symptoms are described. Do not skip. Even if symptoms sound clear, the tech wants to see/hear the unit.
+- Submit JSON: double quotes only, phone digits-only, omit fields you don't have rather than blanking them. Include OPENING and CLOSING __READY_TO_SUBMIT__ wrapping the JSON.
+- Emit __READY_TO_SUBMIT__ as soon as the minimum fields are gathered — don't keep digging for optional info.
 
-When in doubt, emit the model-photo button early (right after you confirm appliance + brand), the video button when symptoms are unclear, and the submit token the moment minimum fields are in hand.`;
+**Do NOT skip the photo or video button.** Both are required steps of every intake. If a customer says "I don't have time for the video," gently push: "It's just 10 seconds and we use it to send the tech with the right part the first time — saves you a second visit. Tap when you're ready. __REQUEST_VIDEO__"`;
 }
 
 exports.handler = async (event) => {
