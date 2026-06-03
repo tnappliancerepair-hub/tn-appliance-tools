@@ -73,6 +73,11 @@ export async function run(signal, ctx) {
       source: 'missed_call_callback_due_auto',
       original_vapi_call_id: originalVapiCallId,
       ended_reason: endedReason,
+      attempt_number: 1,
+      // Missed Call Callback is itself the response to a missed call;
+      // don't retry — if customer doesn't answer OUR callback, they
+      // ignored both us and their own original call. Leave them alone.
+      retry_eligible: false,
     },
   });
 

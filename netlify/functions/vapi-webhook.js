@@ -272,14 +272,54 @@ exports.handler = async function (event) {
       });
     }
 
-    // 4. Missed Call Callback — when the call ended without a real
-    //    conversation (voicemail, busy, no-answer), schedule a callback
-    //    in 5 min via the Missed Call Callback Vapi assistant.
-    //    Gate by env MISSED_CALL_CALLBACK_ENABLED (default true).
+    // 4a. OUTBOUND retry — when an auto-triggered outbound call ends
+    //     in voicemail/no-answer AND the call's metadata flags it as
+    //     retry-eligible AND it was the first attempt, schedule one
+    //     retry 30 min later via OUTBOUND_RETRY_DUE signal. Smart
+    //     retry only: skip if customer-ended-call (they actively hung up).
+    const callMeta = (msg.call && msg.call.metadata) || msg.metadata || {};
+    const voicemailReasons = ['voicemail', 'customer-busy', 'customer-did-not-answer', 'no-answer', 'silence-timed-out'];
+    const isVoicemailish = voicemailReasons.some((r) => endedReason.toLowerCase().includes(r));
+    if (isVoicemailish && callMeta.retry_eligible === true && Number(callMeta.attempt_number || 1) < 2) {
+      const retryDeadlineMs = Date.now() + 30 * 60 * 1000; // 30 min from now
+      const toPhone = (msg.call && msg.call.customer && msg.call.customer.number)
+        || callMeta.to_phone
+        || callerNumber;
+      await safePost(`${XANO_BASE}/emit_colony_signal`, {
+        signal_type: 'OUTBOUND_RETRY_DUE',
+        signal_strength: 55,
+        payload_json: JSON.stringify({
+          deadline_ms: retryDeadlineMs,
+          assistant_id: callMeta.assistant_id || '',
+          to_phone: toPhone,
+          from_region: callMeta.from_region || 'TN',
+          variable_values: callMeta.variable_values || {},
+          attempt_number: Number(callMeta.attempt_number || 1) + 1,
+          original_source: callMeta.source || 'unknown',
+          original_vapi_call_id: callId,
+          original_ended_reason: endedReason,
+        }),
+      });
+      await safePost(XANO_RECORD_EVENT, {
+        action: 'outbound_retry_scheduled',
+        metadata_json: JSON.stringify({
+          original_vapi_call_id: callId,
+          original_source: callMeta.source,
+          ended_reason: endedReason,
+          retry_deadline_ms: retryDeadlineMs,
+          to_phone: toPhone,
+        }),
+      });
+    }
+
+    // 4b. Missed Call Callback — when an INBOUND call ended without a
+    //     real conversation, schedule a callback in 5 min via Ant.
+    //     Only fires for INBOUND (not outbound voicemails we just left).
     const callbackEnabled = String(process.env.MISSED_CALL_CALLBACK_ENABLED || 'true').toLowerCase() !== 'false';
+    const isOutboundLeg = callMeta.source && String(callMeta.source).includes('_auto');
     const missedReasons = ['voicemail', 'customer-busy', 'customer-did-not-answer', 'no-answer', 'silence-timed-out'];
     const isMissed = missedReasons.some((r) => endedReason.toLowerCase().includes(r));
-    if (callbackEnabled && isMissed && callerNumber && callerNumber.startsWith('+')) {
+    if (callbackEnabled && isMissed && !isOutboundLeg && callerNumber && callerNumber.startsWith('+')) {
       const deadlineMs = Date.now() + 5 * 60 * 1000; // 5 minutes from now
       await safePost(`${XANO_BASE}/emit_colony_signal`, {
         signal_type: 'MISSED_CALL_CALLBACK_DUE',

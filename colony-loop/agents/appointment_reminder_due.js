@@ -177,6 +177,17 @@ export async function run(signal, ctx) {
           source: 'appointment_reminder_due_auto',
           job_id: jobId,
           scheduled_start_ms: scheduledStartMs,
+          attempt_number: 1,
+          retry_eligible: true, // retry on voicemail/no-answer once
+          assistant_id: ASSISTANT_IDS.appointment_reminder,
+          from_region: region,
+          variable_values: {
+            customer_first_name: firstName,
+            appliance_type: appliance,
+            scheduled_when_human: scheduledHuman || 'at the scheduled time',
+            tech_first_name: techName,
+            job_id: String(jobId),
+          },
         },
       });
     } catch (err) {
