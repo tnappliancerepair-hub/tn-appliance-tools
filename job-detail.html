@@ -450,6 +450,15 @@
   </div>
 </div>
 
+<!-- Unified SMS thread (Phase 3b). Office lens — shows every SMS for
+     this job in chronological order (customer + tech + owner directions).
+     ant-spine.js auto-mounts when this div is present and the page reads
+     job_id from the URL. filterFor='office' shows the full thread. -->
+<details open style="max-width: 860px; margin: 16px auto; padding: 0 12px;">
+  <summary style="cursor: pointer; padding: 10px 14px; background: #1a1f2c; border: 1px solid #2a3040; border-radius: 10px; font-size: 14px; color: #cbd5e0; font-weight: 600;">💬 SMS thread for this job</summary>
+  <div id="ant-sms-thread" data-filter="office" style="margin-top: 8px; border: 1px solid #2a3040; border-radius: 10px; background: #131720; min-height: 80px;"></div>
+</details>
+
 <!-- Edit job info modal — Danielle fills/corrects customer + appliance + warranty -->
 <div class="modal-overlay" id="modal-edit">
   <div class="modal-card" style="max-width:540px">
