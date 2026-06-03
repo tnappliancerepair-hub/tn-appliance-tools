@@ -36,24 +36,31 @@ export const ASSISTANT_IDS = Object.freeze({
   after_hours:              'f2bb153d-71f3-4c8a-8b1f-09b01ed7ef36',
 });
 
-// Vapi phoneNumberIds. Use TN_PRIMARY for most outbound calls; LA_PRIMARY
-// when calling LA-area customers (so caller ID shows a local number).
+// Vapi phoneNumberIds for outbound dialing.
 //
-// IMPORTANT: Prefer Twilio-backed numbers for outbound dialing — they
-// route through Twilio's STIR/SHAKEN attestation pipeline and carriers
-// flag them as "Potential Spam" far less aggressively than brand-new
-// Vapi-issued numbers. Once CNAM is registered for these numbers,
-// callers will see "TN APPLIANCE EXCHANGE" instead of a bare number.
+// Priority order:
+//   TN_PRIMARY: Telnyx local with CNAM "TN APPLIANCE" (best — registered
+//     name shows on AT&T/Verizon/T-Mobile after 24-72h CNAM propagation).
+//   TN_BACKUP: Telnyx local backup, also CNAM registered.
+//   MARKETING_TOLLFREE: Telnyx toll-free for ads/cold outbound (no CNAM
+//     because toll-free isn't eligible in Telnyx, but the toll-free
+//     prefix itself signals "real business" to spam-detection ML).
+//   LA_PRIMARY: Twilio LA (CNAM registration pending).
+//   *_FALLBACK_VAPI: brand-new Vapi-issued numbers — last resort, may
+//     get "Potential Spam" carrier flagging until reputation builds.
 export const FROM_NUMBERS = Object.freeze({
-  TN_PRIMARY: 'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31', // +16292477111 (Twilio · TN, better attestation)
-  LA_PRIMARY: '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 (Twilio · LA, better attestation)
-  // Fallbacks if Twilio numbers go down
-  TN_FALLBACK_VAPI: 'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142 (Vapi-issued)
-  LA_FALLBACK_VAPI: 'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975 (Vapi-issued)
+  TN_PRIMARY:         '4006d617-26d5-45c6-b84d-46389817603a', // +16155889500 Telnyx local TN, CNAM "TN APPLIANCE"
+  TN_BACKUP:          '008f9c4b-06a9-4cef-9114-ff3ccc5636c9', // +16158578800 Telnyx local TN, CNAM "TN APPLIANCE"
+  MARKETING_TOLLFREE: '7437887a-14e1-47b4-abd6-abd33d9a710d', // +18662680111 Telnyx toll-free (no CNAM, but business prefix)
+  MARKETING_TF_888:   'c10b69c4-6aba-4b2c-97dc-569a7231b532', // +18882688998 Telnyx toll-free secondary
+  LA_PRIMARY:         '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 Twilio LA (CNAM registration pending)
+  TN_FALLBACK_VAPI:   'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142 Vapi-issued
+  LA_FALLBACK_VAPI:   'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975 Vapi-issued
 });
 
 function pickFromNumber(region) {
   if (region === 'LA') return FROM_NUMBERS.LA_PRIMARY;
+  if (region === 'MARKETING' || region === 'TOLLFREE') return FROM_NUMBERS.MARKETING_TOLLFREE;
   return FROM_NUMBERS.TN_PRIMARY;
 }
 

@@ -111,11 +111,12 @@ query dispatch_voice_call verb=POST {
     }
 
     // Choose the outbound dial-from number based on customer region.
-    // Prefer Twilio-backed numbers — they route through Twilio STIR/SHAKEN
-    // attestation pipeline and carriers flag them as spam less aggressively
-    // than brand-new Vapi-issued numbers.
+    // Prefer Telnyx-backed CNAM-registered local numbers — they show
+    // "TN APPLIANCE" on caller ID on AT&T/Verizon/T-Mobile (24-72h after
+    // CNAM submission). Higher answer rate than bare or spam-flagged
+    // numbers. LA defaults to Twilio 504-355 (CNAM pending).
     var $state { value = (($job.service_state ?? "")|to_text)|to_lowercase }
-    var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
+    var $from_number_id { value = "4006d617-26d5-45c6-b84d-46389817603a" }
     conditional {
       if ($state == "la" || $state == "louisiana") {
         var.update $from_number_id { value = "9ceaec5d-27c7-48d3-80c5-ed1028226683" }
