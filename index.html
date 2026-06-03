@@ -1804,7 +1804,12 @@ const SESSION = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,
 let started  = false;
 let busy     = false;
 let demoStep = 0;
-let conversationId = null;
+// Client-side conversation id so in-chat photo/video uploads have something
+// to attach to BEFORE the first brain response (the website-ant-brain is
+// stateless and never returns one). Date.now() is monotonic + unique enough.
+// generate_upload_url stores this as conversation_id; create_job_from_chat
+// links those orphan attachments to the new job by the same value.
+let conversationId = Date.now();
 let customerId = null;
 let smsConsentGiven = false;
 let smsConsentAt = null;
