@@ -194,23 +194,65 @@ export async function run(signal, ctx) {
   } catch (_) { currentJob = null; }
 
   const isBlank = (v) => !v || String(v).trim() === '';
+
+  // Defensive overwrite rule v2 (2026-06-03):
+  // A photo-extracted value is GROUND TRUTH from the actual appliance
+  // sticker. The intake field is often garbage typed during chat
+  // ("10-SECOND" from "10 second video", "TEST", "TBD", etc.).
+  // So: overwrite when (existing value is blank) OR (existing value
+  // looks like garbage) OR (the photo extraction has HIGH confidence
+  // and the new value is meaningfully different).
+  function looksLikeGarbage(v) {
+    if (isBlank(v)) return false;
+    const s = String(v).trim().toUpperCase();
+    if (s.length < 4) return true;
+    // Common garbage tokens that show up when humans typed in the wrong field
+    const tokens = ['SECOND', 'VIDEO', 'PHOTO', 'TEST', 'TBD', 'UNKNOWN', 'N/A', 'NA', 'NONE', 'NULL', 'TYPE HERE', 'EXAMPLE', 'ASAP', 'SAMPLE'];
+    for (const t of tokens) {
+      if (s.includes(t)) return true;
+    }
+    // Real model numbers contain at least 2 digits typically — if it's all
+    // letters / all symbols, suspicious
+    const hasDigit = /[0-9]/.test(s);
+    const hasLetter = /[A-Z]/.test(s);
+    if (!hasDigit && !hasLetter) return true;
+    return false;
+  }
+  function shouldWrite(existing, extracted, isHighConf) {
+    if (isBlank(extracted)) return false;
+    if (isBlank(existing)) return true;
+    if (looksLikeGarbage(existing)) return true;
+    if (isHighConf && String(existing).trim().toUpperCase() !== String(extracted).trim().toUpperCase()) {
+      // High-confidence override — the photo says different from what's there.
+      // Log but write. Tech can override back if needed.
+      return true;
+    }
+    return false;
+  }
+
+  const isHighConf = confidence === 'high';
   const updatePayload = { job_id: jobId };
   let updateCount = 0;
+  const overwrites = [];
 
-  if (ex.model_number && (!currentJob || isBlank(currentJob.model_number))) {
+  if (shouldWrite(currentJob && currentJob.model_number, ex.model_number, isHighConf)) {
     updatePayload.model_number = String(ex.model_number).trim();
+    if (currentJob && !isBlank(currentJob.model_number)) overwrites.push({ field: 'model_number', old: currentJob.model_number, new: ex.model_number });
     updateCount++;
   }
-  if (ex.brand && (!currentJob || isBlank(currentJob.brand))) {
+  if (shouldWrite(currentJob && currentJob.brand, ex.brand, isHighConf)) {
     updatePayload.brand = String(ex.brand).trim();
+    if (currentJob && !isBlank(currentJob.brand)) overwrites.push({ field: 'brand', old: currentJob.brand, new: ex.brand });
     updateCount++;
   }
-  if (ex.serial_number && (!currentJob || isBlank(currentJob.serial_number))) {
+  if (shouldWrite(currentJob && currentJob.serial_number, ex.serial_number, isHighConf)) {
     updatePayload.serial_number = String(ex.serial_number).trim();
+    if (currentJob && !isBlank(currentJob.serial_number)) overwrites.push({ field: 'serial_number', old: currentJob.serial_number, new: ex.serial_number });
     updateCount++;
   }
-  if (ex.appliance_type && (!currentJob || isBlank(currentJob.appliance_type))) {
+  if (shouldWrite(currentJob && currentJob.appliance_type, ex.appliance_type, isHighConf)) {
     updatePayload.appliance_type = String(ex.appliance_type).trim();
+    if (currentJob && !isBlank(currentJob.appliance_type)) overwrites.push({ field: 'appliance_type', old: currentJob.appliance_type, new: ex.appliance_type });
     updateCount++;
   }
 
@@ -267,6 +309,7 @@ export async function run(signal, ctx) {
     appliance_type: ex.appliance_type || '',
     error_code: ex.error_code || '',
     notes: ex.notes || '',
+    overwrites: overwrites.length > 0 ? overwrites : undefined,
   };
   await xano.markSignalProcessed(signal.id, 'attachment_vision_handled', meta);
   log('attachment_vision_extracted', meta);
