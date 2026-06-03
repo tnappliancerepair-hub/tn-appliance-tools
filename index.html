@@ -3174,18 +3174,19 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
   }
 
   function pickVideoMimeType() {
+    // MP4/H.264 only. iOS Safari can't decode WebM, and Teddy Tool's
+    // <video> elements run in Safari/Mac so a webm upload would render
+    // as 'play with a line through it'. If no MP4 codec is supported,
+    // return null and let open() surface a clear error.
     const candidates = [
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
       'video/mp4;codecs=h264,aac',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=vp8,opus',
-      'video/webm'
+      'video/mp4'
     ];
     for (const c of candidates) {
       if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
     }
-    return '';
+    return null;
   }
 
   function showOverlay() { overlay.style.display = 'flex'; }
@@ -3503,6 +3504,17 @@ function uploadBlobToS3(signedUrl, blob, mimeType, onProgress) {
     }
     if (mode === 'video' && typeof MediaRecorder === 'undefined') {
       handleStreamError({ name: 'NotSupportedError', message: 'MediaRecorder not available' });
+      return;
+    }
+    // Force MP4-only: if the browser can't record MP4/H.264, we can't
+    // accept the recording because Teddy Tool runs on Safari which won't
+    // decode WebM. Surface a clear error rather than letting the customer
+    // record something we can't play back.
+    if (mode === 'video' && pickVideoMimeType() === null) {
+      handleStreamError({
+        name: 'NotSupportedError',
+        message: 'This browser can\'t record MP4 video. Please open the chat on your phone (Safari or Chrome) and try again.'
+      });
       return;
     }
 

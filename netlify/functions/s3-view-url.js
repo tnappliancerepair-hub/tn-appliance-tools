@@ -31,10 +31,21 @@ exports.handler = async function (event) {
 
     const signed_urls = await Promise.all(
       s3_keys.map(async (s3_key) => {
-        const command = new GetObjectCommand({
-          Bucket: bucket,
-          Key: s3_key,
-        });
+        // Force inline disposition + sane Content-Type for video files
+        // so Safari plays inline instead of treating it like a download
+        // (which manifests as the "play button with a line through it"
+        // unsupported-media icon).
+        const k = String(s3_key || '').toLowerCase();
+        const isMp4 = k.endsWith('.mp4');
+        const isMov = k.endsWith('.mov');
+        const isJpg = k.endsWith('.jpg') || k.endsWith('.jpeg');
+        const isPng = k.endsWith('.png');
+        const params = { Bucket: bucket, Key: s3_key, ResponseContentDisposition: 'inline' };
+        if (isMp4) params.ResponseContentType = 'video/mp4';
+        else if (isMov) params.ResponseContentType = 'video/quicktime';
+        else if (isJpg) params.ResponseContentType = 'image/jpeg';
+        else if (isPng) params.ResponseContentType = 'image/png';
+        const command = new GetObjectCommand(params);
         const url = await getSignedUrl(s3, command, { expiresIn: 900 });
         return { s3_key, view_url: url };
       })
