@@ -18,10 +18,13 @@
           "description": "The job id."
         }
       },
-      "required": ["job_id"]
+      "required": [
+        "job_id"
+      ]
     }
   },
   "server": {
     "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_parts_status"
-  }
+  },
+  "id": "9d37a87e-40e6-4abf-8461-556c2d7c6cb5"
 }

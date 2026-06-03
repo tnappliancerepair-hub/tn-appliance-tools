@@ -18,10 +18,13 @@
           "description": "The job id returned by lookup_by_claim_number (primary_job_id field)."
         }
       },
-      "required": ["job_id"]
+      "required": [
+        "job_id"
+      ]
     }
   },
   "server": {
     "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_status_for_warranty"
-  }
+  },
+  "id": "52105ae9-2636-435a-a711-3227550d7677"
 }

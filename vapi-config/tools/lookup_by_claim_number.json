@@ -18,10 +18,13 @@
           "description": "The claim or dispatch number the CSC rep gave you. Strip spaces. Examples: '49135689' (AHS), 'SP-2024-00123' (ServicePower)."
         }
       },
-      "required": ["claim_or_dispatch_number"]
+      "required": [
+        "claim_or_dispatch_number"
+      ]
     }
   },
   "server": {
     "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
-  }
+  },
+  "id": "ffffb248-66cc-4dd2-ad15-3c256b41166e"
 }
