@@ -1,0 +1,81 @@
+{
+  "name": "Ant Reschedule",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "temperature": 0.5,
+    "maxTokens": 400,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_reschedule.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "initiate_customer_reschedule",
+          "description": "Texts customer 3 A/B/C reschedule options. Always call when they agree to receive the text.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "reason": { "type": "string" },
+              "initiated_by": { "type": "string" }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/initiate_customer_reschedule" }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154855795",
+            "message": "Connecting you with Teddy, our owner. One moment."
+          },
+          {
+            "type": "number",
+            "number": "+16154850713",
+            "message": "Connecting you with our office. One moment."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["reschedule:2", "cancel", "yeah", "yes", "no", "Vapi"]
+  },
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — wanted to give you a quick call. We have to push your {{appliance_type}} repair from {{original_time_human}}. Reason is {{reason_short_human}} — really sorry about that. Want to get you set up with three new times that work?",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. We had to reschedule your {{appliance_type}} repair from {{original_time_human}} — {{reason_short_human}}. I'm texting you three new times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Really sorry about this.",
+  "endCallMessage": "Thanks for being flexible. Talk to you soon.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 240,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 20,
+  "responseDelaySeconds": 0.3,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
+  "id": "5b2a4e7f-2974-4e93-81a2-8f17dc9391d2"
+}

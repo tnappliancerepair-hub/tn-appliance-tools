@@ -140,13 +140,10 @@
     ]
   },
   "voice": {
-    "provider": "11labs",
-    "voiceId": "iEBOK9alpKauGRvBSsFi",
-    "model": "eleven_turbo_v2_5",
-    "speed": 0.9,
-    "stability": 0.5,
-    "similarityBoost": 0.75,
-    "useSpeakerBoost": false
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
   },
   "transcriber": {
     "provider": "deepgram",
@@ -175,7 +172,7 @@
   "recordingEnabled": true,
   "hipaaEnabled": false,
   "maxDurationSeconds": 900,
-  "backgroundSound": "office",
+  "backgroundSound": "off",
   "backchannelingEnabled": false,
   "backgroundDenoisingEnabled": true,
   "silenceTimeoutSeconds": 30,

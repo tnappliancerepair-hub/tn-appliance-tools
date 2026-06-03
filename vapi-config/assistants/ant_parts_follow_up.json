@@ -1,0 +1,81 @@
+{
+  "name": "Ant Parts Follow-Up",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "temperature": 0.4,
+    "maxTokens": 400,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_parts_follow_up.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "record_parts_vendor_response",
+          "description": "Records the vendor's status update. Call before ending the call with outcome=shipped/backordered/order_not_found/substitute_offered.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "supplier": { "type": "string" },
+              "order_number": { "type": "string" },
+              "outcome": { "type": "string" },
+              "tracking_number": { "type": "string" },
+              "new_eta_human": { "type": "string" },
+              "substitute_suggested": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "required": ["job_id", "supplier", "outcome"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_parts_vendor_response" }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154855795",
+            "message": "One second, transferring you to our owner."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["Marcone", "Tribles", "tracking", "shipped", "backordered", "substitute", "Vapi"]
+  },
+  "firstMessage": "Hi, this is Ant calling from T-N Appliance Exchange about order {{order_number}}. We were expecting the {{part_description}} on {{expected_arrival_human}} — can you tell me the current status?",
+  "voicemailMessage": "This is T-N Appliance Exchange calling about order {{order_number}} for a {{part_description}}. We were expecting it on {{expected_arrival_human}}. Please call us back at six-one-five, eight-five-seven, eight-eight-zero-zero with a status update. Thank you.",
+  "endCallMessage": "Thank you for the update. Have a good day.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 480,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 30,
+  "responseDelaySeconds": 0.4,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
+  "id": "b71260b4-c284-4657-99a4-03c9bb1a0624"
+}

@@ -1,0 +1,80 @@
+{
+  "name": "Ant AHS Authorization Update",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "temperature": 0.4,
+    "maxTokens": 500,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_ahs_authorization_update.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "record_ahs_authorization_response",
+          "description": "Records the AHS rep's authorization decision. Call before ending the call with outcome=approved/denied/escalated.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "claim_number": { "type": "string" },
+              "outcome": { "type": "string", "description": "approved / denied / escalated / no_record" },
+              "authorization_number": { "type": "string", "description": "AHS auth number if approved" },
+              "approved_amount_cents": { "type": "integer" },
+              "denial_reason": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "required": ["job_id", "outcome"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_ahs_authorization_response" }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154855795",
+            "message": "One second, transferring you to our owner."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["AHS:2", "authorization:2", "claim:2", "approved", "denied", "supervisor", "Vapi"]
+  },
+  "firstMessage": "Hi, this is Ant calling from T-N Appliance Exchange about an authorization request. The claim number is {{claim_number}} — would you like me to read that back?",
+  "voicemailMessage": "This is T-N Appliance Exchange calling about an authorization request on claim {{claim_number}}. Our callback number is six-one-five, eight-five-seven, eight-eight-zero-zero. Thank you.",
+  "endCallMessage": "Thank you for your help. Have a good day.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 600,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 30,
+  "responseDelaySeconds": 0.4,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
+  "id": "63030edb-fb77-4106-b048-e84aba6da358"
+}

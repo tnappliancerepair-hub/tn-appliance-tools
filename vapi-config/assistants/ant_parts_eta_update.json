@@ -1,0 +1,76 @@
+{
+  "name": "Ant Parts ETA Update",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "temperature": 0.5,
+    "maxTokens": 300,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_parts_eta_update.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "initiate_customer_reschedule",
+          "description": "Texts customer 3 A/B/C revisit options. Call when they agree to receive the text.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "reason": { "type": "string" },
+              "initiated_by": { "type": "string" }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/initiate_customer_reschedule" }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154850713",
+            "message": "One second, connecting you with our office."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["parts:2", "schedule:2", "yes", "yeah", "no", "Vapi"]
+  },
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — good news, {{part_name_human}} just came in for your {{appliance_type}} repair. Want to get you on the books? I can send you three open times by text right now.",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. Good news — {{part_name_human}} for your {{appliance_type}} repair just came in. I'm texting you three open times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Talk to you soon.",
+  "endCallMessage": "Awesome. Talk to you soon.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 180,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 20,
+  "responseDelaySeconds": 0.3,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
+  "id": "86755371-9605-4370-a26e-60cdadf468e9"
+}

@@ -1,0 +1,76 @@
+{
+  "name": "Ant Tech Running Late",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "temperature": 0.5,
+    "maxTokens": 300,
+    "messages": [
+      {
+        "role": "system",
+        "content": {
+          "$file": "prompts/ant_tech_running_late.md"
+        }
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "async": false,
+        "function": {
+          "name": "initiate_customer_reschedule",
+          "description": "Texts customer 3 A/B/C reschedule slot options. Call when they can't wait for the new ETA.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "job_id": { "type": "integer" },
+              "reason": { "type": "string" },
+              "initiated_by": { "type": "string" }
+            },
+            "required": ["job_id"]
+          }
+        },
+        "server": { "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/initiate_customer_reschedule" }
+      },
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "+16154850713",
+            "message": "One second, connecting you with our office."
+          }
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "provider": "cartesia",
+    "voiceId": "b7d50908-b17c-442d-ad8d-810c63997ed9",
+    "model": "sonic-2",
+    "language": "en"
+  },
+  "transcriber": {
+    "provider": "deepgram",
+    "model": "nova-2-phonecall",
+    "language": "en-US",
+    "smartFormat": true,
+    "keywords": ["reschedule:2", "yeah", "yes", "no", "Vapi"]
+  },
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — quick heads-up, {{tech_first_name}} is running about {{minutes_behind}} minutes behind today. He'll be at your place {{new_eta_human}} instead of {{original_time_human}}. Does that still work for you?",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. {{tech_first_name}} is running about {{minutes_behind}} minutes behind for your {{appliance_type}} repair today. He'll be there {{new_eta_human}}. Give us a call back at six-one-five, eight-five-seven, eight-eight-zero-zero if that doesn't work for you. Thanks!",
+  "endCallMessage": "Thanks for being flexible. Talk to you soon.",
+  "endCallFunctionEnabled": true,
+  "recordingEnabled": true,
+  "hipaaEnabled": false,
+  "maxDurationSeconds": 180,
+  "backgroundSound": "off",
+  "backchannelingEnabled": false,
+  "backgroundDenoisingEnabled": true,
+  "silenceTimeoutSeconds": 20,
+  "responseDelaySeconds": 0.3,
+  "llmRequestDelaySeconds": 0.1,
+  "numWordsToInterruptAssistant": 2,
+  "serverUrl": "https://tnapplianceexchange.net/.netlify/functions/vapi-webhook",
+  "id": "264c14fe-118d-4cfa-af8f-b6ce761c868b"
+}
