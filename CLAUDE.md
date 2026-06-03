@@ -2002,3 +2002,145 @@ Until then: the Sears Parts Direct link stays. Don't refactor the parts-lookup f
 - **Financial open items (for Alyse):** `docs/financial-flags-open.md`.
 - **Live XS schemas (sample):** `docs/xano-schemas/2026-05-15/`.
 - **Front-end pages:** root `.html` files; Netlify functions in `netlify/functions/`.
+
+## Session log — 2026-06-03 (full-day phone-system overhaul + vacation prep)
+
+Largest single-day infrastructure delivery of the project. ~30 commits. Background: Teddy goes on vacation Friday 2026-06-05 and needs the system running with minimum babysitting.
+
+### Phone system end-state (locked at end of session)
+
+**9 inbound numbers → 1 unified Ant Inbound assistant** (id `7cc98b0c-54a7-4d19-bd48-6dfac606e55d`). Audience detection from first user turn: warranty CSC vs homeowner. 13 tools attached (5 CSC lookups + 5 consumer + voice_followup_send_links + voice_capture_call_notes + transferCall).
+
+| Number | Routes to | Notes |
+|---|---|---|
+| +1 629-260-7111 | Ant Inbound | TN CSC primary (live since this morning) |
+| +1 629-247-7111 | Ant Inbound | TN secondary |
+| +1 615-588-9500 | Ant Inbound | Telnyx, **CNAM "TN APPLIANCE"** propagating 24-72h |
+| +1 615-857-8800 | Ant Inbound | Telnyx, CNAM "TN APPLIANCE" propagating |
+| +1 866-268-0111 | Ant Inbound | Telnyx toll-free (no CNAM on toll-free) |
+| +1 888-268-8998 | Ant Inbound | Telnyx toll-free secondary |
+| +1 504-355-9111 | Ant Inbound | Twilio LA (CNAM register pending) |
+| +1 504-380-0975 | Ant Inbound | LA backup |
+| +1 731-503-1142 | Ant Inbound | West TN fallback |
+
+Pending: **+1 615-280-2949** ports from RingCentral to Telnyx June 8. Import then.
+
+**Voice + transcriber unified across all 8 production assistants**:
+- Cartesia Sonic-2 voice "Brooke" (voiceId `b7d50908-b17c-442d-ad8d-810c63997ed9`) — Teddy approved: "that voice is great"
+- Deepgram nova-2-phonecall transcriber
+- claude-sonnet-4-5-20250929 (or claude-haiku-4-5-20251001 for short outbound)
+- `backgroundSound: "off"` (was "office" — Teddy: "sounds cheap")
+
+**8 production assistants** (3 redundant ones deleted today — Ant TN Consumer, Ant LA Consumer, Ant After Hours — all replaced by the unified Ant Inbound):
+- Ant Inbound (unified, all inbound)
+- Ant Appointment Reminder (outbound, 24h before)
+- Ant Tech Running Late (outbound, scaffold for future trigger)
+- Ant Reschedule (outbound, scaffold)
+- Ant Parts ETA Update (outbound, auto-fires from parts_arrival_check)
+- Missed Call Callback (outbound, auto-fires 5min after abandoned inbound)
+- Ant AHS Authorization Update (outbound to AHS)
+- Ant Parts Follow-Up (outbound to vendor)
+
+### Auto-triggers wired today (system runs without human clicks)
+
+1. **Appointment Reminder voice** — `appointment_reminder_due.js` agent already sent SMS at 24h-before; now ALSO places Vapi call via Appointment Reminder assistant. Customer hears "Hi Sarah, calling to confirm your washer tomorrow at 10 with Jimmy — we still good?" Active confirm + reschedule. Kill switch: `APPOINTMENT_REMINDER_VOICE_ENABLED=false`.
+
+2. **Missed Call Callback** — vapi-webhook.js detects inbound calls ending in voicemail/busy/no-answer/silence-timeout, emits MISSED_CALL_CALLBACK_DUE with deadline=now+5min. New `missed_call_callback_due.js` agent holds-and-re-emits, then places call via Missed Call Callback assistant. Kill switch: `MISSED_CALL_CALLBACK_ENABLED=false`.
+
+3. **Parts ETA Update voice** — `parts_arrival_check.js` (daily 11am) already sent SMS; now ALSO places call via Parts ETA Update assistant. Gated to 9am-7pm CT to avoid calling at odd hours. Kill switch: `PARTS_ETA_VOICE_ENABLED=false`.
+
+4. **Smart retry on voicemail** — when an auto-triggered call ends in voicemail/no-answer AND metadata.retry_eligible=true AND attempt_number < 2, schedule ONE retry 30 min later via OUTBOUND_RETRY_DUE signal + new `outbound_retry_due.js` agent. Hard-capped at 2 attempts. Per-channel config: Appointment Reminder + Parts ETA = retry_eligible:true. Missed Call Callback = retry_eligible:false (already a callback).
+
+### Office UI for manual outbound dispatch
+
+- **`voice-dispatch.html`** — full-page UI: enter job_id, pick call_type, click Dispatch. Live preview shows customer + appliance + region + dial-from. Backed by `dispatch_voice_call_POST.xs` (auto-picks Telnyx 615 for TN, Twilio 504 for LA).
+- **`office-today.html` queue cards** — every card has a "📞 Call" pill bottom-right with smart-default call_type per card kind (voicemail card → missed_call_callback, warranty card → ahs_authorization_update, etc.).
+- **`job-detail.html` action bar** — "🤖 Ant Call" button next to Reschedule/Reassign/Cancel.
+
+### Outbound dispatch foundation
+
+- `colony-loop/vapi-out.js` — exports `placeOutboundCall({assistantId, toPhone, fromRegion, variableValues, metadata})` + `ASSISTANT_IDS` + `FROM_NUMBERS`.
+- `scripts/test-outbound-call.js` — CLI: `node scripts/test-outbound-call.js --assistant <key> --to +1... --vars '{...}'`
+- `colony-loop/agents/vapi_call_review.js` (DAILY_VAPI_CALL_REVIEW, fires 8-11am CT) — pulls last-24h Vapi calls, scores each on outcome/tools/brand-voice/accuracy/efficiency with Sonnet, SMSes Teddy daily digest. Self-improvement loop foundation. First digest fires tomorrow morning.
+
+### CSC inbound fixes shipped
+
+Danielle reported "WO numbers aren't going into new system" — bug confirmed. `lookup_by_claim_number` only searched claim_number + dispatch_source_id. Expanded to ALSO search:
+- `jobs.job_number` (HCP work order, "22818", "22280-3")
+- `jobs.housecall_pro_job_id` (HCP internal UUID)
+- `jobs.id` (Ant internal, numeric input only)
+
+Verified live: WO "22818" → job 18527, Ant id "18537" → 18537, AHS claim "49135689" → 18537.
+
+Footgun caught: `|in_array:` filter doesn't exist in XS. Use `|contains:` for both string-substring AND array-membership.
+
+### Carrier preference + CNAM
+
+Telnyx is the canonical carrier going forward. ~50% cheaper than Twilio on voice + SMS. Memory saved: `project_telnyx_carrier_preference.md`.
+
+CNAM registered as "TN APPLIANCE" (12 chars, fits 15-char database limit) on:
+- 615-588-9500 (Telnyx) — propagating 24-72h
+- 615-857-8800 (Telnyx) — propagating 24-72h
+
+CNAM not available on toll-free per Telnyx UI constraint. Branded Calling (paid) is the path if Teddy wants name on 866/888 later.
+
+Twilio CNAM on 504-355-9111 = pending Teddy action in Twilio Console.
+
+### Vacation prep state (Friday 6/5 → ?)
+
+**VACATION_BACKUP_PHONE wired in colony-loop/.env, commented out.** When Teddy uncomments:
+```
+VACATION_BACKUP_PHONE=+16154850713
+```
+…every owner-direction SMS also CC's to Danielle with `[bkup]` prefix. Comment back out on return.
+
+Restart loop after edit: `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`.
+
+### Vapi private key rotation — URGENT (Teddy todo)
+
+During build I accidentally exposed Teddy's Vapi private key in terminal output (`tail -10` on .env). Key value starts `547ca8ed-...`. Rotate before vacation:
+1. Vapi dashboard → API Keys → delete the leaked key
+2. Create new key "Vapi Integration v2"
+3. Update VAPI_PRIVATE_KEY in colony-loop/.env (TextEdit, replace value, save)
+4. Update VAPI_PRIVATE_KEY in Xano env
+5. Restart colony loop
+
+Future hygiene: never `cat`/`tail` env files. Use `awk -F= '{print $1}' .env` to list variable NAMES only.
+
+### Strategic decisions locked
+
+- **Telnyx > Twilio** for all voice + SMS going forward
+- **One unified Ant Inbound** — not separate CSC/Consumer/AfterHours assistants. Audience detection from first turn.
+- **MeisterTask, HCP, RingCentral all getting killed within weeks** — don't waste cycles deepening those integrations.
+- **Vacation backup pattern** is now standard for any future "Teddy unreachable" period.
+
+### Still TBD (not blocking, but logged for future sessions)
+
+**Auto-triggers**:
+- Tech Running Late — need periodic late-detection watcher (every 30 min scan for jobs past scheduled_start with no tech_en_route_at)
+- Reschedule — auto-fire when ops flags reschedule-needed
+- AHS Authorization Update — auto-fire when NCC authorization needed (depends on job-state hook)
+- Parts Follow-Up — auto-fire when parts_eta_date passes without delivery
+
+**Phone infrastructure**:
+- 615-280-2949 port completes June 8 → import to Vapi, register CNAM, decommission RingCentral
+- Twilio CNAM register 504-355-9111
+- Decision on Branded Calling for toll-free name display (paid program, $30-100/mo per number)
+
+**Cleanup**:
+- 4 orphan assistants in tnappliancerepair@gmail.com Vapi account (created earlier today before key swap to production org)
+
+**Strategic** (memory only, not building):
+- Office Manager Autopilot per project memory
+- HCP Saturday cutover playbook execution
+
+### What NOT to do (additions from today)
+
+- **Do NOT use Twilio for new voice/SMS** — Telnyx is the preferred carrier per [[telnyx-carrier-preference]] memory. Telnyx is ~50% cheaper.
+- **Do NOT `cat`/`tail`/`head` .env files** — exposes secrets in terminal output that gets logged. Use `awk -F= '{print $1}' file.env` to list variable names without values.
+- **Do NOT create new "After Hours" / "Consumer" inbound assistants** — Ant Inbound (unified) handles all inbound 24/7 with audience detection. Adding new inbound assistants reintroduces fragmentation we just removed.
+- **Do NOT enable CNAM Listing on toll-free numbers in Telnyx UI** — it's not supported (Telnyx shows the constraint message). For toll-free name display, the path is paid Branded Calling programs.
+- **Do NOT add retry counts > 2** for auto-triggered outbound calls — the smart retry system hard-caps at 2 (1 original + 1 retry) to prevent nuisance-calling. Customers who don't pick up after 2 attempts shouldn't be hammered.
+- **Do NOT skip the time-of-day gate** when adding new auto-triggered outbound calls. Parts ETA Update uses 9am-7pm CT. Appointment Reminder doesn't currently gate (fires at the 24h-before mark regardless). Adding voice triggers without a TOD gate risks calling at 3am.
+
+**🐜 Long Live Ant.** Vacation-ready.
