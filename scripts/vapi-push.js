@@ -77,6 +77,8 @@ async function pushOne(category, file) {
 
   const id = obj.id;
   const body = stripReadonly(obj);
+  // Vapi tool PATCH rejects 'type' (immutable post-creation). Strip on PATCH only.
+  if (category === 'tools' && id && body.type) delete body.type;
   const action = id ? 'PATCH' : 'POST';
 
   console.log(`  ${action} ${file}${id ? ` (id ${id.slice(0, 8)}…)` : ''}`);

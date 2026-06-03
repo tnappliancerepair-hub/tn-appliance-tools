@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me check where your tech is."
+    }
+  ],
+  "function": {
+    "name": "get_job_arrival_status",
+    "description": "Returns whether the tech is en route, has arrived, or hasn't left yet. Use when the customer asks 'where's my tech' or 'when will they get here'. Returns job_started_at, tech_en_route_at, scheduling_status, eta_ms. If tech_en_route_at is set + eta_ms is in the future, say 'your tech is on the way, ETA about X minutes'.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "Job id from the customer's open_jobs list."
+        }
+      },
+      "required": [
+        "job_id"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_job_arrival_status"
+  },
+  "id": "18a5c358-a058-4bae-bb9f-559b235795d6"
+}

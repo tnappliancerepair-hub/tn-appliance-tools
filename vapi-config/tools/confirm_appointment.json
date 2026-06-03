@@ -1,0 +1,34 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Awesome."
+    }
+  ],
+  "function": {
+    "name": "confirm_appointment",
+    "description": "Records customer confirmation of their upcoming appointment. Call when the customer affirms during a reminder call (says yes, yep, sounds good, etc.).",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id from the prompt variables."
+        },
+        "confirmed_via": {
+          "type": "string",
+          "description": "Pass 'voice_appointment_reminder' for audit."
+        }
+      },
+      "required": [
+        "job_id"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/confirm_appointment"
+  },
+  "id": "5ae07a64-4e06-4ff2-bd90-95a10ad21f36"
+}

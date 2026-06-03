@@ -1,0 +1,38 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Okay, working on that — one moment."
+    }
+  ],
+  "function": {
+    "name": "initiate_customer_reschedule",
+    "description": "Initiates a reschedule for the customer's job. Generates 3 slot options (A/B/C) and texts them to the customer. Use when the customer says they need to move their appointment. After calling, tell the customer 'you'll get a text in a moment with three options — reply A, B, or C'.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "integer",
+          "description": "The job id to reschedule (from customer's open_jobs)."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Brief reason the customer gave (e.g., 'work conflict', 'feeling sick', 'visitor in town'). Helps the office understand context. Optional but ideal."
+        },
+        "initiated_by": {
+          "type": "string",
+          "description": "Always pass 'voice_consumer_inbound' for audit trail."
+        }
+      },
+      "required": [
+        "job_id"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/initiate_customer_reschedule"
+  },
+  "id": "e92709d5-d720-45b3-a4bf-b43eb30fb090"
+}

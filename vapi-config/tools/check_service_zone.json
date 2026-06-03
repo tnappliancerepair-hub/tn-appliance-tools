@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me check coverage for that area."
+    }
+  ],
+  "function": {
+    "name": "check_service_zone",
+    "description": "Checks whether a US zip code is in our service area. Returns {covered, accepting_new_jobs, market, zone, state, notes}. Always call this BEFORE start_new_intake — if the zip is not covered, say so honestly and offer to escalate to the office to double-check for exceptions.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "zip_code": {
+          "type": "string",
+          "description": "5-digit US zip code (the appliance location's zip)."
+        }
+      },
+      "required": [
+        "zip_code"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/check_service_zone"
+  },
+  "id": "82d9dab6-477a-4425-b216-ea0c1dba4ddb"
+}

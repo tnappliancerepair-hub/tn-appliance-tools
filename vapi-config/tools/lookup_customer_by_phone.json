@@ -1,0 +1,30 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "One sec, pulling you up."
+    }
+  ],
+  "function": {
+    "name": "lookup_customer_by_phone",
+    "description": "Looks up a customer by phone number. Returns {found, customer, open_jobs[], last_call_summary}. ALWAYS call this first when a call connects — use the caller-id phone number. If found is true, greet the customer by first name and reference open jobs. If false, treat as a new customer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The caller's phone number from caller ID. Any format works — endpoint normalizes."
+        }
+      },
+      "required": [
+        "phone"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_customer_by_phone"
+  },
+  "id": "37d3b6bb-75d7-408a-8075-c7947a0f9e02"
+}

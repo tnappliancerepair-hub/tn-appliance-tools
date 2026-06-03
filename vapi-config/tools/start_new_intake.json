@@ -1,0 +1,66 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Got it. Submitting that now."
+    }
+  ],
+  "function": {
+    "name": "start_new_intake",
+    "description": "Creates a new job from a voice call. Use ONLY after you've confirmed: first name, phone, zip, appliance type, and a brief problem description. The office will follow up by text within minutes with scheduling options. Sets channel='voice' for audit trail.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "description": "Caller's first name. Ask if not yet known."
+        },
+        "last_name": {
+          "type": "string",
+          "description": "Caller's last name. Optional but ideal — ask if natural."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Callback phone. Use caller ID if confirmed, otherwise ask + verify digit by digit."
+        },
+        "zip": {
+          "type": "string",
+          "description": "5-digit US zip code where the appliance is located. Run check_service_zone first if you haven't already."
+        },
+        "appliance_type": {
+          "type": "string",
+          "description": "washer / dryer / dishwasher / refrigerator / range / oven / microwave / hvac / other"
+        },
+        "brand": {
+          "type": "string",
+          "description": "Appliance brand if the caller mentioned it (e.g., Whirlpool, LG, GE)."
+        },
+        "problem_summary": {
+          "type": "string",
+          "description": "Brief plain-English description of the problem (e.g., 'fridge not cooling', 'dryer making loud noise', 'dishwasher leaking')."
+        },
+        "customer_type": {
+          "type": "string",
+          "description": "Always pass 'self_pay' for inbound calls unless the caller explicitly says they have a warranty (AHS, ServicePower, Frontdoor, SquareTrade, Allstate)."
+        },
+        "channel": {
+          "type": "string",
+          "description": "Always pass 'voice'."
+        }
+      },
+      "required": [
+        "first_name",
+        "phone",
+        "zip",
+        "problem_summary",
+        "channel"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/create_job_from_chat"
+  },
+  "id": "d903fd33-8c9d-400a-957b-bbb3cde06a40"
+}
