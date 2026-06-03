@@ -590,6 +590,26 @@ function initAuth() {
   inputEl.focus();
 }
 
+// Office-password verifier — POSTs to verify_office_password endpoint.
+// Was MISSING from job-detail.html (regression caught 2026-06-03 when
+// Danielle couldn't open a job — clicked Unlock, nothing happened,
+// ReferenceError silently swallowed by submitAuth's try chain). Same
+// canonical inline implementation as the other office pages.
+async function __verifyOfficePassword(pw) {
+  if (!pw) return false;
+  try {
+    const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const d = await r.json();
+    return d && d.success === true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function submitAuth() {
   const errEl = document.getElementById('auth-err');
   const btn = document.getElementById('auth-submit');
