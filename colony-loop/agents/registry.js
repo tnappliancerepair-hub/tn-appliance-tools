@@ -58,6 +58,7 @@ export const AGENT_REGISTRY = {
   'CONTENT_GENERATOR_REQUEST_WHY_WE_BUILT_ANT': './content_generator_request_why_we_built_ant.js',
   'CUSTOMER_FEEDBACK_RECEIVED': './customer_feedback_received.js',
   'CUSTOMER_INTAKE_BUNDLE_READY': './customer_intake_bundle_ready.js',
+  'ATTACHMENT_VISION_REQUEST': './attachment_vision_request.js',
   'CUSTOMER_INTAKE_REPLY': './customer_intake_reply.js',
   'CUSTOMER_INTEL_CUSTOMER_BIRTHDAY_WATCHER': './customer_intel_customer_birthday_watcher.js',
   'CUSTOMER_INTEL_CUSTOMER_CHURN_RISK_SCORER': './customer_intel_customer_churn_risk_scorer.js',

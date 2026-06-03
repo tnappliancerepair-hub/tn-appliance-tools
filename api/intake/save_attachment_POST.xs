@@ -119,6 +119,48 @@ query save_attachment verb=POST {
         created_at: $now_ts
       }
     } as $cibr_audit
+
+    // Also emit ATTACHMENT_VISION_REQUEST so the vision-extract agent
+    // reads any model sticker / serial / brand off the photo and writes
+    // those fields straight to the job row. Works regardless of who
+    // uploaded the photo (customer chat, customer portal upload, tech
+    // CaptureOverlay, anywhere). Agent is defensive — only writes blank
+    // fields, never overwrites a value the tech already typed.
+    var $avr_payload_obj {
+      value = {
+        job_id        : $attachment.job_id
+        attachment_id : $input.attachment_id
+        s3_key        : ($attachment.s3_key ?? "")
+        file_type     : ($attachment.file_type ?? "photo")
+        uploaded_by   : ($attachment.uploaded_by ?? "unknown")
+        emitted_at_ms : ($now_ts|to_ms)
+        source        : "save_attachment"
+      }
+    }
+    var $avr_payload_str { value = $avr_payload_obj|json_encode }
+
+    db.add colony_signals {
+      data = {
+        signal_type     : "ATTACHMENT_VISION_REQUEST"
+        signal_strength : 60
+        source_colony   : "intake"
+        target_colonies : ""
+        payload         : $avr_payload_str
+      }
+    } as $avr_signal
+
+    db.add event_log {
+      data = {
+        action    : "attachment_vision_request_emitted"
+        metadata  : {
+          job_id       : $attachment.job_id
+          attachment_id: $input.attachment_id
+          signal_id    : $avr_signal.id
+          file_type    : ($attachment.file_type ?? "photo")
+        }
+        created_at: $now_ts
+      }
+    } as $avr_audit
   }
 
   response = {
