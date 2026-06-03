@@ -117,10 +117,10 @@
           <button id="ca-send" style="background:#e67e22;color:white;border:0;border-radius:12px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;">Send</button>
         </div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="ca-quick" data-q="I want to set my availability — when CAN'T you come?">📅 Set availability</button>
           <button class="ca-quick" data-q="When is my appointment?">📅 When is it?</button>
           <button class="ca-quick" data-q="Who is my technician?">🛠 Who's coming?</button>
           <button class="ca-quick" data-q="What's wrong with my appliance?">🔍 What's wrong?</button>
-          <button class="ca-quick" data-q="Have you been here for this before?">📋 Past visits</button>
         </div>
       </div>
     `;
@@ -156,6 +156,35 @@
       p.style.display = 'none';
     }
   }
+
+  // Public API so portal-side CTAs can open the chat + pre-fill the
+  // input (for the "tell us when you can't come" entry point).
+  window.CustomerAnt = {
+    open: function (prefill) {
+      const p = document.getElementById('ca-panel');
+      if (!p) return;
+      if (p.style.display !== 'flex') p.style.display = 'flex';
+      const inp = document.getElementById('ca-input');
+      if (inp && prefill && !inp.value) {
+        inp.value = String(prefill);
+        // Don't auto-send — let the customer review + tap Send (or tweak first).
+      }
+      if (inp) setTimeout(() => inp.focus(), 50);
+    },
+    openAndSend: function (message) {
+      const p = document.getElementById('ca-panel');
+      if (!p) return;
+      if (p.style.display !== 'flex') p.style.display = 'flex';
+      const inp = document.getElementById('ca-input');
+      if (inp && message) {
+        inp.value = String(message);
+        setTimeout(() => {
+          const btn = document.getElementById('ca-send');
+          if (btn) btn.click();
+        }, 100);
+      }
+    },
+  };
 
   function renderMessages() {
     const wrap = document.getElementById('ca-msgs');

@@ -38,6 +38,43 @@ const CUSTOMER_TOOLS = [
     description: 'Get the customer\'s past repair history with us — every prior job, what was wrong, what we fixed. Call when they ask "have you been here before?" / "what did you do last time?" / "is this a recurring issue?"',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
+  {
+    name: 'list_my_blackouts',
+    description: 'Get the list of times this customer has already told us they CAN\'T have a tech come. Call before adding a new blackout (so you know what\'s already there) and any time the customer asks "what did I already tell you" / "remind me of my availability."',
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'add_blackout',
+    description: 'Record a time the customer CAN\'T have a tech come. Use when they say things like "I work Mon-Fri 9 to 5" (recurring), "I\'m out Tuesday for a doctor visit" (one_time), "never before 10am" (recurring all weekdays with start_time). After calling, briefly read back what you captured ("Got it — Mon-Fri 9am-5pm, work hours") so they can correct.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        blackout_type: {
+          type: 'string',
+          enum: ['one_time', 'recurring_weekly'],
+          description: 'one_time = a specific date. recurring_weekly = a pattern (certain days of week, optionally with time range).'
+        },
+        description: { type: 'string', description: 'Plain-English description the customer would recognize, e.g. "work hours" or "kids\' soccer practice" or "doctor appointment".' },
+        dow_csv: { type: 'string', description: 'Comma-separated days of week for recurring_weekly: any of mon,tue,wed,thu,fri,sat,sun. Use all weekdays as "mon,tue,wed,thu,fri" when the customer says "weekdays". Empty for one_time.' },
+        start_time: { type: 'string', description: '24h HH:MM, e.g. "09:00" or "17:30". Empty for all-day blackouts.' },
+        end_time: { type: 'string', description: '24h HH:MM. Empty for all-day blackouts.' },
+        blackout_date: { type: 'string', description: 'YYYY-MM-DD for one_time blackouts. Empty for recurring_weekly.' },
+        all_day: { type: 'boolean', description: 'true if the blackout is a whole day; false if only the start_time-end_time window.' },
+      },
+      required: ['blackout_type', 'description'],
+    },
+  },
+  {
+    name: 'remove_blackout',
+    description: 'Remove a previously-recorded blackout. Use when the customer says "actually I can do Tuesday after all" or asks to delete one. Call list_my_blackouts first to get the blackout_id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        blackout_id: { type: 'string', description: 'The id field from list_my_blackouts (starts with "blk_").' },
+      },
+      required: ['blackout_id'],
+    },
+  },
   // Universal: capability gap escalation only. save_session_note +
   // load_relevant_notes are intentionally OFF for customer brain —
   // we don't want a customer-facing session reading or writing notes
@@ -45,9 +82,9 @@ const CUSTOMER_TOOLS = [
   ...UNIVERSAL_TOOLS.filter((t) => t.name === 'flag_capability_gap'),
 ];
 
-async function executeCustomerTool(toolName, ctx) {
+async function executeCustomerTool(toolName, ctx, ti) {
+  ti = ti || {};
   if (toolName === 'get_my_current_job') {
-    // Reuse the same gate-validated endpoint the portal uses
     return await timedFetch(`${XANO_BASE}/get_customer_job_view`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,11 +98,38 @@ async function executeCustomerTool(toolName, ctx) {
       body: JSON.stringify({ job_id: ctx.job_id, phone_last4: ctx.phone_last4 }),
     });
   }
-  // Universal tools delegated to a tightly-scoped subset for the
-  // customer brain. Only flag_capability_gap is allowed — saving
-  // notes about customers from inside the customer's own session
-  // crosses a privacy line. Memory READ is also off for the same
-  // reason (customer shouldn't see what we noted about them).
+  if (toolName === 'list_my_blackouts') {
+    const q = `job_id=${encodeURIComponent(ctx.job_id)}&phone_last4=${encodeURIComponent(ctx.phone_last4)}`;
+    return await timedFetch(`${XANO_BASE}/list_customer_blackouts?${q}`, { method: 'GET' });
+  }
+  if (toolName === 'add_blackout') {
+    return await timedFetch(`${XANO_BASE}/add_customer_blackout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: ctx.job_id,
+        phone_last4: ctx.phone_last4,
+        blackout_type: String(ti.blackout_type || 'one_time'),
+        description: String(ti.description || '').slice(0, 200),
+        dow_csv: String(ti.dow_csv || ''),
+        start_time: String(ti.start_time || ''),
+        end_time: String(ti.end_time || ''),
+        blackout_date: String(ti.blackout_date || ''),
+        all_day: ti.all_day === false ? false : true,
+      }),
+    });
+  }
+  if (toolName === 'remove_blackout') {
+    return await timedFetch(`${XANO_BASE}/remove_customer_blackout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: ctx.job_id,
+        phone_last4: ctx.phone_last4,
+        blackout_id: String(ti.blackout_id || ''),
+      }),
+    });
+  }
   if (toolName === 'flag_capability_gap') {
     const payload = {
       brain: 'customer_ant',
@@ -147,7 +211,7 @@ async function runCustomerBrainTurn({ systemPrompt, userContent, history, ctx, m
     messages.push({ role: 'assistant', content: blocks });
     const toolResults = [];
     for (const tu of toolUseBlocks) {
-      const result = await executeCustomerTool(tu.name, ctx);
+      const result = await executeCustomerTool(tu.name, ctx, tu.input || {});
       toolCallsLog.push({
         name: tu.name,
         result_summary: result.error ? 'error:' + result.error : 'ok:returned',
@@ -190,6 +254,36 @@ WHAT NEVER TO DO:
 - Don't share the tech's personal phone number — just their first name
 - Don't promise a specific time if you don't have one
 - Don't say "I'll send a message to your tech" — you can't, the office handles that
+
+### AVAILABILITY BLACKOUTS (this is your most important job in the portal)
+
+We schedule differently from every other repair shop. Most shops ask "what time do you want, 9 or 12 or 3?" We don't. We ask the opposite: **when CAN'T we come?** The customer is fully available by default; their job is to LIST blackouts (constraints). The matcher then picks the soonest slot that doesn't conflict.
+
+If the customer opens the portal chat with anything related to scheduling, availability, or "when can you come," lead them through capturing blackouts. Tools you'll use:
+
+1. **list_my_blackouts** — call FIRST so you know what's already there. Don't ask the customer to re-tell you something they already said.
+2. **add_blackout** — call any time the customer tells you a time they can't have us come. Read back what you captured so they can correct.
+3. **remove_blackout** — call when they say "actually I CAN do Tuesday" or want to delete one.
+
+How to translate what they say into add_blackout args:
+
+| Customer says | blackout_type | dow_csv | start_time | end_time | blackout_date | all_day | description |
+|---|---|---|---|---|---|---|---|
+| "I work 9-5 Mon-Fri" | recurring_weekly | mon,tue,wed,thu,fri | 09:00 | 17:00 | | false | work hours |
+| "Never before 10am" | recurring_weekly | mon,tue,wed,thu,fri,sat,sun | 00:00 | 10:00 | | false | mornings unavailable |
+| "Out Tuesday June 9 for a doctor" | one_time | | | | 2026-06-09 | true | doctor appointment |
+| "No Mondays" | recurring_weekly | mon | | | | true | no Mondays |
+| "Wednesday afternoons busy" | recurring_weekly | wed | 12:00 | 17:00 | | false | Wednesday afternoons |
+| "Weekends only" | recurring_weekly | mon,tue,wed,thu,fri | | | | true | weekdays unavailable |
+
+After capturing, read it back in plain English and ask "anything else?" — most people have 0-2 blackouts. When they say no more, briefly summarize what's saved and tell them roughly what the math looks like:
+- 0 blackouts → "We'll likely get a tech to you within 1-2 days."
+- 1-2 blackouts → "We'll likely get a tech to you within 2-4 days."
+- Heavy constraints → "With those windows, it might be closer to a week. We'll still do our best."
+
+DO NOT promise specific dates. DO NOT try to book. Just capture blackouts. The matcher handles the actual scheduling.
+
+If the customer says "anytime works" / "I'm wide open" / "no constraints" — that's the IDEAL answer. Call list_my_blackouts to confirm there are no existing ones, then say something like "Perfect — fully wide open is the fastest path. We'll get a tech to you ASAP."
 
 REPLY FORMAT:
 - Plain text, short, conversational
