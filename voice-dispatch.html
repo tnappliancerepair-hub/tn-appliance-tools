@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Voice Dispatch · Ant</title>
+<style>
+  :root {
+    --bg: #0b0d10; --card: #161a1f; --line: #2a2f37;
+    --text: #e6e8eb; --muted: #8b919c; --accent: #4ad991;
+    --warn: #f0b450; --danger: #ef6a6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .tag { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  input[type=number], input[type=text], select, textarea {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    background: #0d1014; border: 1px solid var(--line); color: var(--text);
+    font-size: 16px; font-family: inherit;
+  }
+  input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .row { margin-bottom: 14px; }
+  button {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    background: var(--accent); color: #0b1414; font-weight: 700;
+    font-size: 16px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: #20242b; color: var(--text); }
+  .status {
+    margin-top: 16px; padding: 14px; border-radius: 10px;
+    background: rgba(74, 217, 145, 0.1); border: 1px solid rgba(74, 217, 145, 0.3);
+    font-size: 14px; word-break: break-all;
+  }
+  .status.fail {
+    background: rgba(239, 106, 106, 0.1); border-color: rgba(239, 106, 106, 0.3);
+  }
+  .status.muted {
+    background: rgba(139, 145, 156, 0.08); border-color: rgba(139, 145, 156, 0.2);
+    color: var(--muted);
+  }
+  .preview {
+    margin-top: 12px; padding: 12px 14px; background: #0d1014;
+    border: 1px solid var(--line); border-radius: 10px;
+    font-size: 13px; color: var(--muted);
+  }
+  .preview b { color: var(--text); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  textarea { min-height: 90px; font-family: ui-monospace, monospace; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📞 Voice Dispatch</h1>
+  <p class="tag">Fire an outbound Ant call to a customer. The agent calls them from a TN/LA Vapi number based on their service state.</p>
+
+  <div class="card">
+    <div class="row">
+      <label for="job-id">Job ID</label>
+      <input id="job-id" type="number" placeholder="e.g. 18537" autocomplete="off" />
+    </div>
+
+    <div class="row">
+      <label for="call-type">Call type</label>
+      <select id="call-type">
+        <option value="appointment_reminder">Appointment Reminder (24h confirm)</option>
+        <option value="tech_running_late">Tech Running Late (delay heads-up)</option>
+        <option value="parts_eta_update">Parts Arrived — Schedule Revisit</option>
+        <option value="reschedule">System Reschedule (we need to move them)</option>
+        <option value="missed_call_callback">Missed Call Callback</option>
+        <option value="ahs_authorization_update">AHS Authorization Update (calls AHS, not customer)</option>
+        <option value="parts_follow_up">Parts Vendor Follow-Up (calls vendor)</option>
+      </select>
+    </div>
+
+    <div class="preview" id="preview">Enter a job ID to see what will happen.</div>
+
+    <details style="margin-top: 12px;">
+      <summary>Advanced — prompt variable overrides (JSON)</summary>
+      <div class="row" style="margin-top: 10px;">
+        <textarea id="overrides" placeholder='{"minutes_behind":30,"new_eta_human":"around ten forty five"}'></textarea>
+      </div>
+    </details>
+
+    <div class="row" style="margin-top: 18px;">
+      <button id="dispatch-btn">📞 Dispatch Call</button>
+    </div>
+
+    <div id="status" class="status muted" style="display:none;"></div>
+  </div>
+
+  <details>
+    <summary class="tag">What this does + safety notes</summary>
+    <div class="preview" style="margin-top: 10px;">
+      <p>• Dispatches an outbound Vapi call to the customer on the job.</p>
+      <p>• The "from" number is auto-picked: TN service → +1 (731) 503-1142, LA service → +1 (504) 380-0975.</p>
+      <p>• Customer hears the right Ant agent for the call type.</p>
+      <p>• An audit row is written to <code>event_log</code> action=<code>voice_call_dispatched</code>.</p>
+      <p>• If the customer's phone is missing on the job, the call fails clearly.</p>
+      <p>• <b>Calls are recorded</b> per Vapi assistant settings.</p>
+    </div>
+  </details>
+</div>
+
+<script>
+const BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const jobIdEl = document.getElementById('job-id');
+const callTypeEl = document.getElementById('call-type');
+const overridesEl = document.getElementById('overrides');
+const previewEl = document.getElementById('preview');
+const statusEl = document.getElementById('status');
+const btn = document.getElementById('dispatch-btn');
+
+// Pre-fill from URL: ?job_id=18537&call_type=appointment_reminder
+const params = new URLSearchParams(location.search);
+if (params.get('job_id')) jobIdEl.value = params.get('job_id');
+if (params.get('call_type')) callTypeEl.value = params.get('call_type');
+
+let lastPreviewJobId = null;
+let lastPreviewData = null;
+
+async function refreshPreview() {
+  const jid = Number(jobIdEl.value);
+  if (!jid) { previewEl.textContent = 'Enter a job ID to see what will happen.'; return; }
+  if (jid === lastPreviewJobId && lastPreviewData) renderPreview(lastPreviewData);
+  try {
+    const r = await fetch(`${BASE}/get_job?job_id=${jid}`);
+    if (!r.ok) { previewEl.textContent = `Job ${jid} not found.`; return; }
+    const d = await r.json();
+    lastPreviewJobId = jid;
+    lastPreviewData = d;
+    renderPreview(d);
+  } catch (e) { previewEl.textContent = `Preview failed: ${e.message}`; }
+}
+
+function renderPreview(d) {
+  const job = d && d.job ? d.job : (d || {});
+  const cust = d && d.customer ? d.customer : null;
+  const tech = d && d.tech ? d.tech : null;
+  const phone = cust && cust.phone ? cust.phone : '(none on file)';
+  const state = job.service_state || '';
+  const region = state && state.toLowerCase().startsWith('la') ? 'LA → +1 (504) 380-0975' : 'TN → +1 (731) 503-1142';
+  previewEl.innerHTML = `
+    <b>Customer:</b> ${(cust && cust.first_name) || '?'} ${(cust && cust.last_name) || ''}<br>
+    <b>Phone:</b> ${phone}<br>
+    <b>Appliance:</b> ${job.brand || ''} ${job.appliance_type || '?'}<br>
+    <b>Service state:</b> ${state || '?'}<br>
+    <b>Calling FROM:</b> ${region}<br>
+    <b>Assigned tech:</b> ${(tech && tech.first_name) || '(unassigned)'}<br>
+    <b>Scheduled:</b> ${job.scheduled_start ? new Date(Number(job.scheduled_start)).toLocaleString('en-US', {timeZone:'America/Chicago'}) : '(not scheduled)'}
+  `;
+}
+
+jobIdEl.addEventListener('change', refreshPreview);
+jobIdEl.addEventListener('blur', refreshPreview);
+refreshPreview();
+
+btn.addEventListener('click', async () => {
+  const jobId = Number(jobIdEl.value);
+  const callType = callTypeEl.value;
+  const overrides = overridesEl.value.trim();
+  if (!jobId) { statusEl.style.display='block'; statusEl.className='status fail'; statusEl.textContent='Enter a job ID.'; return; }
+  btn.disabled = true;
+  statusEl.style.display = 'block';
+  statusEl.className = 'status muted';
+  statusEl.textContent = 'Dispatching…';
+  try {
+    const body = { job_id: jobId, call_type: callType, dispatched_by: 'voice_dispatch_ui' };
+    if (overrides) body.overrides = overrides;
+    const r = await fetch(`${BASE}/dispatch_voice_call`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) {
+      statusEl.className = 'status fail';
+      statusEl.textContent = `Failed: ${d.message || JSON.stringify(d)}`;
+    } else {
+      statusEl.className = 'status';
+      statusEl.innerHTML = `✓ Call dispatched. Vapi call_id: <code>${d.vapi_call_id}</code><br>Calling ${d.to_phone}…`;
+    }
+  } catch (e) {
+    statusEl.className = 'status fail';
+    statusEl.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
