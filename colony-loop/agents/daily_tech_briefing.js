@@ -37,6 +37,13 @@ export async function run(signal, ctx) {
     if (!techId) continue;
     // Skip orphan rows (no name)
     if (!t.first_name || !String(t.first_name).trim()) continue;
+    // 2026-06-02: skip tech_id=1 (Teddy-as-tech). Owner already sees
+    // everything via Teddy Tool heads-ups + per-job signals; the daily
+    // briefing is pure noise on his phone (accumulated ~1340 messages).
+    if (techId === 1) {
+      results.push({ tech_id: techId, outcome: 'skipped_owner_is_tech' });
+      continue;
+    }
 
     let dash;
     try {

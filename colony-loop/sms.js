@@ -99,10 +99,70 @@ export async function toCustomer(phone, body, context = {}) {
   });
 }
 
+// 2026-06-02: per Teddy — "the guys have been complaining about it too,
+// if it's too much they just ignore them." Volume-driven signal collapse
+// is worse than not sending anything. So texts to techs become INTERRUPT
+// channel only (customer messaging them, urgent gap-filler offers, new
+// work assigned, job canceled). Daily/digest/reminder/status content
+// belongs in tech-daily-dashboard.html where they pull it on their cadence,
+// not push that interrupts their job.
+const TECH_SMS_QUIET_PATTERNS = [
+  'daily_tech_briefing',
+  'tdr_reminder',
+  'waiver_due',                // customer-side action, not tech
+  'pre_appointment_check',     // moved to dashboard pill
+  'appointment_reminder_due',  // already on dashboard
+  'google_review_request',     // customer-only
+  'parts_arrival_check',       // dashboard
+  'tech_late_check',
+  'tech_pace_watcher',         // observation, not interrupt
+  'capacity_check',
+  'schedule_gap_check',
+  'tdr_completeness_report',
+  'office_eod',
+  'office_morning_briefing',
+  'colony_architect',
+  'operator_status',
+];
+
+function isQuietedForTech(action) {
+  if (!action) return false;
+  const a = String(action).toLowerCase();
+  return TECH_SMS_QUIET_PATTERNS.some((p) => a.includes(p));
+}
+
 export async function toTech(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
+  }
+  const action = context.action || context.outcome || '';
+  const isOwnerAsTech = (e164 === config.ownerPhone) || (Number(context.tech_id) === 1);
+
+  // Owner-as-tech inherits the broader owner denylist (everything in
+  // OWNER_SMS_QUIET_PATTERNS plus the tech-specific list below).
+  if (!context.force_send && isOwnerAsTech && isQuietedForOwner(action)) {
+    try {
+      await xano.recordEventLog('owner_sms_quieted', {
+        action,
+        body_preview: String(body || '').slice(0, 240),
+        recipient_role: 'tech_owner',
+      });
+    } catch (_) {}
+    return { success: false, quieted: true, action };
+  }
+
+  // Everyone else: tech-specific denylist (digests + reminders go to
+  // dashboard, not phone).
+  if (!context.force_send && isQuietedForTech(action)) {
+    try {
+      await xano.recordEventLog('tech_sms_quieted', {
+        action,
+        body_preview: String(body || '').slice(0, 240),
+        tech_id: context.tech_id || null,
+      });
+    } catch (_) {}
+    return { success: false, quieted: true, action };
   }
   return xano.sendSms(e164, body, {
     ...context, recipient_role: 'tech', company_id: config.companyId,
