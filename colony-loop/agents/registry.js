@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-03T20:45:23.409Z
-// Total registered: 485
+// Generated: 2026-06-03T23:05:58.079Z
+// Total registered: 486
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -150,6 +150,7 @@ export const AGENT_REGISTRY = {
   'MENTORSHIP_REQUEST_MENTOR_RECOGNITION': './mentorship_request_mentor_recognition.js',
   'MENTORSHIP_REQUEST_MENTORSHIP_TRACKING': './mentorship_request_mentorship_tracking.js',
   'MENTORSHIP_REQUEST_TREE_HEALTH': './mentorship_request_tree_health.js',
+  'MISSED_CALL_CALLBACK_DUE': './missed_call_callback_due.js',
   'MONTHLY_TECH_WINNER': './monthly_tech_winner.js',
   'NEW_CUSTOMER_WELCOME': './new_customer_welcome.js',
   'NO_SHOW_CHECK': './no_show_check.js',

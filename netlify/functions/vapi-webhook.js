@@ -271,6 +271,39 @@ exports.handler = async function (event) {
         topic: 'call_summary',
       });
     }
+
+    // 4. Missed Call Callback — when the call ended without a real
+    //    conversation (voicemail, busy, no-answer), schedule a callback
+    //    in 5 min via the Missed Call Callback Vapi assistant.
+    //    Gate by env MISSED_CALL_CALLBACK_ENABLED (default true).
+    const callbackEnabled = String(process.env.MISSED_CALL_CALLBACK_ENABLED || 'true').toLowerCase() !== 'false';
+    const missedReasons = ['voicemail', 'customer-busy', 'customer-did-not-answer', 'no-answer', 'silence-timed-out'];
+    const isMissed = missedReasons.some((r) => endedReason.toLowerCase().includes(r));
+    if (callbackEnabled && isMissed && callerNumber && callerNumber.startsWith('+')) {
+      const deadlineMs = Date.now() + 5 * 60 * 1000; // 5 minutes from now
+      await safePost(`${XANO_BASE}/emit_colony_signal`, {
+        signal_type: 'MISSED_CALL_CALLBACK_DUE',
+        signal_strength: 65,
+        payload_json: JSON.stringify({
+          caller_phone: callerNumber,
+          called_phone: calledNumber,
+          customer_id: customerId,
+          ended_reason: endedReason,
+          deadline_ms: deadlineMs,
+          original_vapi_call_id: callId,
+          duration_sec: durationSec,
+        }),
+      });
+      await safePost(XANO_RECORD_EVENT, {
+        action: 'missed_call_callback_scheduled',
+        metadata_json: JSON.stringify({
+          caller_phone: callerNumber,
+          ended_reason: endedReason,
+          deadline_ms: deadlineMs,
+          original_vapi_call_id: callId,
+        }),
+      });
+    }
     return ok('ack');
   }
 
