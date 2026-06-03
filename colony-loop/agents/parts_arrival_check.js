@@ -14,6 +14,7 @@
 //   - scheduling_status != awaiting_parts → already handled
 import { config } from '../config.js';
 import { normalizeE164, toCustomer } from '../sms.js';
+import { placeOutboundCall, ASSISTANT_IDS } from '../vapi-out.js';
 import { fmtCT } from '../time.js';
 
 const APPLIANCE_NICE = {
@@ -108,6 +109,46 @@ export async function run(signal, ctx) {
       results.errors += 1;
       perJobLog.push({ job_id: jobId, outcome: 'sms_failed', error: String(err.message || err) });
       continue;
+    }
+
+    // Voice-call follow-up alongside SMS. Customer hears Ant:
+    // "Good news, the inverter compressor came in for your fridge —
+    // want me to send you three open times by text?"
+    // Voice-eligible only if the customer is human-pickable hour
+    // (don't call at 3am). Default is between 9am-7pm CT.
+    const voiceEnabled = String(process.env.PARTS_ETA_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+    const nowHourCT = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
+    const calltimeOk = Number.isFinite(nowHourCT) && nowHourCT >= 9 && nowHourCT < 19;
+    if (voiceEnabled && calltimeOk) {
+      try {
+        const region = String(j.service_state || '').toLowerCase().startsWith('la') ? 'LA' : 'TN';
+        const partNameHuman = 'your part';
+        const voiceVars = {
+          customer_first_name: first,
+          part_name_human: partNameHuman,
+          appliance_type: appl,
+          job_id: String(jobId),
+        };
+        const voiceRes = await placeOutboundCall({
+          assistantId: ASSISTANT_IDS.parts_eta_update,
+          toPhone: phone,
+          fromRegion: region,
+          variableValues: voiceVars,
+          metadata: {
+            source: 'parts_arrival_check_auto',
+            job_id: jobId,
+            parts_eta_date: partsEta,
+            attempt_number: 1,
+            retry_eligible: true,
+            assistant_id: ASSISTANT_IDS.parts_eta_update,
+            from_region: region,
+            variable_values: voiceVars,
+          },
+        });
+        perJobLog.push({ job_id: jobId, outcome: 'voice_placed', vapi_call_id: voiceRes && voiceRes.call_id || null });
+      } catch (err) {
+        perJobLog.push({ job_id: jobId, outcome: 'voice_failed', error: String(err.message || err).slice(0, 100) });
+      }
     }
 
     // Write per-(job_id, eta) dedup row using compound action key.
