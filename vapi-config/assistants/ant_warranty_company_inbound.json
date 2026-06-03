@@ -19,11 +19,11 @@
         "async": false,
         "function": {
           "name": "lookup_by_claim_number",
-          "description": "WARRANTY CSC MODE — resolves claim/dispatch number to job + customer + tech. Always your first tool when the caller gives a number.",
+          "description": "Resolves ANY of these reference numbers to a job: AHS claim number, ServicePower dispatch number, HCP work order number ('WO number'), or Ant internal job_id. Pass whatever number the caller gives you. Returns job + customer + tech.",
           "parameters": {
             "type": "object",
             "properties": {
-              "claim_or_dispatch_number": { "type": "string", "description": "Claim/dispatch number, no spaces" }
+              "claim_or_dispatch_number": { "type": "string", "description": "Any of: claim number, dispatch number, HCP work order number (e.g. '22818', '22280-3'), or Ant internal job_id. No spaces." }
             },
             "required": ["claim_or_dispatch_number"]
           }

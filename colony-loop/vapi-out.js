@@ -38,9 +38,18 @@ export const ASSISTANT_IDS = Object.freeze({
 
 // Vapi phoneNumberIds. Use TN_PRIMARY for most outbound calls; LA_PRIMARY
 // when calling LA-area customers (so caller ID shows a local number).
+//
+// IMPORTANT: Prefer Twilio-backed numbers for outbound dialing — they
+// route through Twilio's STIR/SHAKEN attestation pipeline and carriers
+// flag them as "Potential Spam" far less aggressively than brand-new
+// Vapi-issued numbers. Once CNAM is registered for these numbers,
+// callers will see "TN APPLIANCE EXCHANGE" instead of a bare number.
 export const FROM_NUMBERS = Object.freeze({
-  TN_PRIMARY: 'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142 (Vapi-issued, West TN backup, low traffic)
-  LA_PRIMARY: 'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975 (Vapi-issued, LA backup, low traffic)
+  TN_PRIMARY: 'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31', // +16292477111 (Twilio · TN, better attestation)
+  LA_PRIMARY: '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 (Twilio · LA, better attestation)
+  // Fallbacks if Twilio numbers go down
+  TN_FALLBACK_VAPI: 'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142 (Vapi-issued)
+  LA_FALLBACK_VAPI: 'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975 (Vapi-issued)
 });
 
 function pickFromNumber(region) {

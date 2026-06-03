@@ -110,13 +110,15 @@ query dispatch_voice_call verb=POST {
       error = "unknown call_type"
     }
 
-    // Choose the outbound dial-from number based on customer region (LA vs TN).
-    // Default to TN. State of LA on the job → use LA number.
+    // Choose the outbound dial-from number based on customer region.
+    // Prefer Twilio-backed numbers — they route through Twilio STIR/SHAKEN
+    // attestation pipeline and carriers flag them as spam less aggressively
+    // than brand-new Vapi-issued numbers.
     var $state { value = (($job.service_state ?? "")|to_text)|to_lowercase }
-    var $from_number_id { value = "a62d1b14-8578-4bd4-8104-be4f1d20535f" }
+    var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
     conditional {
       if ($state == "la" || $state == "louisiana") {
-        var.update $from_number_id { value = "ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6" }
+        var.update $from_number_id { value = "9ceaec5d-27c7-48d3-80c5-ed1028226683" }
       }
     }
 
