@@ -712,6 +712,18 @@
       <span class="ctx-pill"><span class="label">APPL</span>—</span>
       <span class="ctx-pill"><span class="label">TIME</span>11:00 AM</span>
     </div>
+    <!-- 📞 Talk to Ant — the headliner. Tech taps, Vapi places an
+         outbound call to their cell, Brooke picks up as their field
+         partner. Hands-free TDR composition + parts lookup + photo
+         requests via SMS during the call. Real-time TDR writes. -->
+    <div id="talk-to-ant-row" style="padding: 6px 12px 10px;">
+      <button id="btn-talk-to-ant" style="width:100%; padding:14px 16px; border-radius:12px; border:0; background:linear-gradient(135deg,#10b981,#059669); color:#fff; font-weight:800; font-size:15px; letter-spacing:0.3px; box-shadow:0 4px 12px rgba(16,185,129,0.35); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <span style="font-size:18px;">📞</span>
+        <span>Talk to Ant</span>
+        <span id="talk-to-ant-status" style="font-weight:400; font-size:12px; opacity:0.85; margin-left:4px;"></span>
+      </button>
+    </div>
+
     <!-- Real-time TDR completeness bar — visible at all times so techs
          see what's left without scrolling. Updates on every chat tick. -->
     <div id="tdr-bar" style="display:none; padding: 8px 14px 12px; font-size: 12px;">
@@ -2285,6 +2297,49 @@
       hideTyping();
       addMsg('assistant', '🎤 transcription error: ' + (e.message || 'unknown'));
     }
+  }
+
+  // ── 📞 Talk to Ant — dispatch outbound Vapi call to tech's phone
+  // Tech taps, Brooke calls their cell, real-conversation TDR
+  // composition + parts lookup + photo requests via SMS during call.
+  const btnTalkToAnt = document.getElementById('btn-talk-to-ant');
+  const talkToAntStatus = document.getElementById('talk-to-ant-status');
+  if (btnTalkToAnt) {
+    btnTalkToAnt.addEventListener('click', async () => {
+      if (!JOB_ID) { alert('No job loaded — can\'t dispatch Ant.'); return; }
+      if (!TECH_ID) { alert('No tech ID — open this page via your dashboard link.'); return; }
+      btnTalkToAnt.disabled = true;
+      const originalText = btnTalkToAnt.innerHTML;
+      talkToAntStatus.textContent = ' · calling…';
+      try {
+        const r = await fetch(`${XANO_BASE}/dispatch_ant_field_assist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, tech_id: TECH_ID })
+        });
+        const d = await r.json();
+        if (r.ok && d.success) {
+          talkToAntStatus.textContent = ' · ringing your phone';
+          btnTalkToAnt.style.background = 'linear-gradient(135deg,#0ea5e9,#0284c7)';
+          setTimeout(() => {
+            btnTalkToAnt.innerHTML = originalText;
+            btnTalkToAnt.style.background = 'linear-gradient(135deg,#10b981,#059669)';
+            talkToAntStatus.textContent = '';
+            btnTalkToAnt.disabled = false;
+          }, 10000);
+        } else {
+          talkToAntStatus.textContent = ' · failed';
+          alert('Dispatch failed: ' + (d.message || JSON.stringify(d)));
+          btnTalkToAnt.disabled = false;
+          setTimeout(() => { talkToAntStatus.textContent = ''; }, 4000);
+        }
+      } catch (e) {
+        talkToAntStatus.textContent = ' · error';
+        alert('Error: ' + e.message);
+        btnTalkToAnt.disabled = false;
+        setTimeout(() => { talkToAntStatus.textContent = ''; }, 4000);
+      }
+    });
   }
 
   // ── Photo / video capture ────────────────────────────────────────
