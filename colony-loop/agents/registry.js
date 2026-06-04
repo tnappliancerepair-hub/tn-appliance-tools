@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-03T23:13:36.000Z
-// Total registered: 487
+// Generated: 2026-06-04T00:01:02.360Z
+// Total registered: 488
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -466,6 +466,7 @@ export const AGENT_REGISTRY = {
   'TECH_PERFORMANCE_ALERT': './tech_performance_alert.js',
   'TECH_RUNNING_AHEAD': './tech_running_ahead.js',
   'TECH_RUNNING_BEHIND': './tech_running_behind.js',
+  'TECH_RUNNING_LATE_SCAN': './tech_running_late_scan.js',
   'TECH_SUSPENDED': './tech_suspended.js',
   'TECH_WEEKLY_RECAP': './tech_weekly_recap.js',
   'TRANSLATE_SPANISH_INTAKE': './translate_spanish_intake.js',

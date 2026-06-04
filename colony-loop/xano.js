@@ -238,6 +238,10 @@ export async function getDailyVapiCallReviewFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_vapi_call_review_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getRunningLateJobs(sinceMinLate = 30, maxMinLate = 120) {
+  return getJSON(`${INTAKE()}/get_running_late_jobs?since_min_late=${sinceMinLate}&max_min_late=${maxMinLate}`);
+}
+
 export async function getDailyEmailIntakeFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_email_intake_fired_today?since_ts_ms=${sinceTsMs}`);
 }

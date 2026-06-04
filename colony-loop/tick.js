@@ -1278,6 +1278,27 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // TECH_RUNNING_LATE_SCAN — every 30 min during business hours (9am-7pm
+  // CT). Scans for jobs where scheduled_start is 30-120 min ago and tech
+  // hasn't started + isn't en route. For each match, places an outbound
+  // Ant Tech Running Late call to the customer with computed
+  // minutes_behind + estimated new ETA. Per-(job, lateness-bracket) dedup
+  // so we don't call same customer multiple times in same lateness window.
+  if (hour >= 9 && hour < 19) {
+    const minuteCTrl = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
+    if (Number.isFinite(minuteCTrl) && (minuteCTrl % 30) === 0) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TECH_RUNNING_LATE_SCAN',
+          signal_strength: 55,
+          payload: { now_ms: nowTs, emitted_ct: fmtCT(nowTs) },
+        });
+      } catch (err) {
+        xano.logLocal('tech_running_late_scan_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // MARKETING_SITE_WATCH — every 5 min, 24/7. Probes tnapplianceexchange.net
   // root + key customer surfaces. Built after the 2026-05-30 incident where
   // a CSS regression hid the marketing site for 5 days under a stuck
