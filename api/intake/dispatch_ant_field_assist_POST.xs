@@ -67,11 +67,26 @@ query dispatch_ant_field_assist verb=POST {
     var $assistant_id { value = "a22edcd1-495a-4d77-a66a-fb167997c70a" }
     var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
 
+    // Voice preference per tech. Default: Brooke (female, Cartesia).
+    // Male variant: voiceId picked from Cartesia library — Teddy
+    // audits + confirms preferred male voice. Placeholder ID used
+    // until confirmed: Sonic-2 "Sonny" candidate.
+    var $voice_pref { value = (($tech.voice_preference ?? "brooke")|to_lowercase)|trim }
+    var $voice_id { value = "b7d50908-b17c-442d-ad8d-810c63997ed9" }
+    conditional {
+      if ($voice_pref == "male" || $voice_pref == "sonny" || $voice_pref == "man") {
+        var.update $voice_id { value = "79743797-2087-422f-8dc7-86f9efca85f1" }
+      }
+    }
+
     var $variables {
       value = {tech_first_name: $tech_first, customer_first_name: $cust_first, appliance_summary: $appliance_summary, job_id: ($input.job_id|to_text), tech_id: ($input.tech_id|to_text), tdr_summary_short: $tdr_summary_short}
     }
+    var $voice_override {
+      value = {provider: "cartesia", voiceId: $voice_id, model: "sonic-2", language: "en"}
+    }
     var $assistant_overrides {
-      value = {variableValues: $variables}
+      value = {variableValues: $variables, voice: $voice_override}
     }
     var $vapi_body {
       value = {assistantId: $assistant_id, phoneNumberId: $from_number_id, customer: {number: $tech.phone}, assistantOverrides: $assistant_overrides, metadata: {source: "ant_field_assist_dispatch", job_id: ($input.job_id|to_text), tech_id: ($input.tech_id|to_text)}}

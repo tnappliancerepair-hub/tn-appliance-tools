@@ -713,15 +713,24 @@
       <span class="ctx-pill"><span class="label">TIME</span>11:00 AM</span>
     </div>
     <!-- 📞 Talk to Ant — the headliner. Tech taps, Vapi places an
-         outbound call to their cell, Brooke picks up as their field
-         partner. Hands-free TDR composition + parts lookup + photo
-         requests via SMS during the call. Real-time TDR writes. -->
-    <div id="talk-to-ant-row" style="padding: 6px 12px 10px;">
+         outbound call to their cell, Brooke (or chosen voice) picks up
+         as their field partner. Hands-free TDR composition + parts
+         lookup + photo requests via SMS during the call. Real-time
+         TDR writes. -->
+    <div id="talk-to-ant-row" style="padding: 6px 12px 4px;">
       <button id="btn-talk-to-ant" style="width:100%; padding:14px 16px; border-radius:12px; border:0; background:linear-gradient(135deg,#10b981,#059669); color:#fff; font-weight:800; font-size:15px; letter-spacing:0.3px; box-shadow:0 4px 12px rgba(16,185,129,0.35); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
         <span style="font-size:18px;">📞</span>
         <span>Talk to Ant</span>
         <span id="talk-to-ant-status" style="font-weight:400; font-size:12px; opacity:0.85; margin-left:4px;"></span>
       </button>
+      <!-- Voice toggle: lets the tech pick Brooke (female) or the male
+           variant. Saves to technicians.voice_preference; next call
+           uses the chosen voice. -->
+      <div style="display:flex; justify-content:center; align-items:center; gap:14px; padding:6px 0 4px; font-size:11px; color:rgba(255,255,255,0.55);">
+        <span>VOICE:</span>
+        <button id="voice-toggle-brooke" data-pref="brooke" style="background:transparent; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.8); padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer;">🎙 Brooke</button>
+        <button id="voice-toggle-male" data-pref="male" style="background:transparent; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.8); padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer;">🎙 Sonny</button>
+      </div>
     </div>
 
     <!-- Real-time TDR completeness bar — visible at all times so techs
@@ -2298,6 +2307,33 @@
       addMsg('assistant', '🎤 transcription error: ' + (e.message || 'unknown'));
     }
   }
+
+  // ── Voice preference toggle for Ant Field Assist
+  const voiceBrookeBtn = document.getElementById('voice-toggle-brooke');
+  const voiceMaleBtn = document.getElementById('voice-toggle-male');
+  const savedVoice = localStorage.getItem('ant_voice_pref') || 'brooke';
+  function paintVoiceToggle(pref) {
+    if (!voiceBrookeBtn || !voiceMaleBtn) return;
+    const active = 'background:rgba(255,255,255,0.18); border-color:rgba(255,255,255,0.45); color:#fff;';
+    const inactive = 'background:transparent; border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.6);';
+    voiceBrookeBtn.style.cssText += (pref === 'brooke' ? active : inactive) + 'padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer;';
+    voiceMaleBtn.style.cssText += (pref === 'male' ? active : inactive) + 'padding:3px 10px; border-radius:10px; font-size:11px; cursor:pointer;';
+  }
+  paintVoiceToggle(savedVoice);
+  async function saveVoicePref(pref) {
+    localStorage.setItem('ant_voice_pref', pref);
+    paintVoiceToggle(pref);
+    if (!TECH_ID) return;
+    try {
+      await fetch(`${XANO_BASE}/set_tech_voice_preference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tech_id: TECH_ID, voice_preference: pref })
+      });
+    } catch (e) {}
+  }
+  if (voiceBrookeBtn) voiceBrookeBtn.addEventListener('click', () => saveVoicePref('brooke'));
+  if (voiceMaleBtn) voiceMaleBtn.addEventListener('click', () => saveVoicePref('male'));
 
   // ── 📞 Talk to Ant — dispatch outbound Vapi call to tech's phone
   // Tech taps, Brooke calls their cell, real-conversation TDR

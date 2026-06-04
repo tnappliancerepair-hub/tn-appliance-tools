@@ -669,3 +669,15 @@ export async function getPriorVisitsForCustomer(customerId, applianceType, exclu
 export async function getJobArrivalStatus(jobId) {
   return getJSON(`${INTAKE()}/get_job_arrival_status?job_id=${jobId}`);
 }
+
+// ── Scout army / model_intelligence corpus ──────────────────────────
+// Scout agents write findings here; Ant Field Assist + diagnose_*
+// agents read from it to surface model-specific intel mid-job.
+export async function saveModelIntelligenceFinding(finding) {
+  return postJSON(`${INTAKE()}/save_model_intelligence_finding`, finding);
+}
+
+export async function getModelIntelligenceForJob(jobId, limit = 10) {
+  const params = new URLSearchParams({ job_id: String(jobId), limit: String(limit) });
+  return getJSON(`${INTAKE()}/get_model_intelligence_for_job?${params.toString()}`);
+}

@@ -671,6 +671,31 @@ async function maybeEmitTimeSignals() {
     }
   }
 
+  // MARCONES_FIRST_BRIEF — fires once per day at 6:30am CT (6-9am
+  // grace window). Per-tech SMS: today's jobs + likely parts to grab
+  // at the supply house before rolling. Saves a midday detour.
+  if (hour >= 6 && hour < 9) {
+    let marconesFired;
+    try {
+      const fired = await xano.getJSON(`${xano.INTAKE()}/get_action_fired_today?action=marcones_first_brief_sent&since_ts_ms=${sinceMs}`).catch(() => null);
+      marconesFired = fired && fired.fired === true;
+    } catch (_err) {
+      marconesFired = false;
+    }
+    if (!marconesFired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'MARCONES_FIRST_BRIEF',
+          signal_strength: 60,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        try { await xano.recordEventLog('marcones_first_brief_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+      } catch (err) {
+        xano.logLocal('marcones_first_brief_emit_failed', { error: err.message });
+      }
+    }
+  }
+
   // Ant Scheduler Block 5 — TECH_PACE_CHECK every 30 min during business
   // hours (9am-5:30pm CT). tech_pace_watcher computes ahead/behind per
   // active tech, emits TECH_RUNNING_AHEAD / TECH_RUNNING_BEHIND which
