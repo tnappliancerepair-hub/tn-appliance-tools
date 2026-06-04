@@ -838,7 +838,12 @@
       <button class="composer-btn" id="btn-video" title="Record video (10s max)" aria-label="Record video">🎥</button>
       <button class="composer-btn" id="btn-parts-order" title="Log a parts order" aria-label="Log parts order">📦</button>
       <button class="composer-btn" id="btn-parts-find" title="Find part number" aria-label="Find part number" style="font-size:16px">🔧</button>
-      <!-- Library picker removed 2026-06-02 per Teddy — camera + video direct-capture is enough for field documentation -->
+      <!-- 🖼 Gallery — added back 2026-06-03 per Jimmy: needed when tech
+           has already left the stop but realizes he didn't capture the
+           model sticker / problem photo. Different button from camera so
+           the iOS picker confusion doesn't return (camera button stays
+           direct-capture only). -->
+      <button class="composer-btn" id="btn-library" title="Upload from photo library" aria-label="Upload from library">🖼</button>
 
       <!-- 2026-06-02: Mic re-enabled with Whisper-first routing for
            reliability. Native Web Speech API kept as offline fallback.
@@ -2319,9 +2324,30 @@
     e.target.value = '';
   });
 
-  // Library picker fully removed 2026-06-02 — camera (📷) + video (🎥)
-  // direct-capture cover field documentation. Photo library upload was
-  // creating iOS picker confusion (Choose File / iCloud Drive option).
+  // 2026-06-03 — Library picker re-added per Jimmy: he was at a job,
+  // forgot to capture the model sticker, drove away, then realized he
+  // needed it. Camera (📷) won't let him retrieve a photo from earlier
+  // because capture='environment' forces live camera only. The 🖼
+  // button below opens iOS's photo gallery picker — letting Jimmy
+  // retroactively attach a photo he already took, or grab a model
+  // sticker pic he had on his phone from a previous reference.
+  const btnLibrary = document.getElementById('btn-library');
+  const libraryInput = document.createElement('input');
+  libraryInput.type = 'file';
+  libraryInput.accept = 'image/*,video/*';
+  libraryInput.multiple = true; // multiple selections in one shot
+  // NO capture attribute — that's what enables gallery picker
+  libraryInput.style.display = 'none';
+  document.body.appendChild(libraryInput);
+  libraryInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    for (const f of files) await uploadMedia(f);
+    e.target.value = '';
+  });
+  if (btnLibrary) {
+    btnLibrary.addEventListener('click', () => libraryInput.click());
+  }
 
   btnPhoto.addEventListener('click', () => {
     if (window.CaptureOverlay && typeof window.CaptureOverlay.openPhotoCapture === 'function') {

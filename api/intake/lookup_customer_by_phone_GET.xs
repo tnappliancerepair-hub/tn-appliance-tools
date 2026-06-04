@@ -39,12 +39,67 @@ query lookup_customer_by_phone verb=GET {
       return = {type: "single"}
     } as $customer
 
+    // Compute 10-digit form (strip leading '1' if 11-digit). Technicians
+    // table stores phones as bare 10-digit strings (e.g. "6154855795").
+    var $ten_digits {
+      value = $digits
+    }
     conditional {
-      if ($customer == null) {
+      if (($digits|strlen) == 11 && ($digits|starts_with:"1")) {
+        var.update $ten_digits {
+          value = ($digits|substr:1:10)
+        }
+      }
+    }
+
+    // ALWAYS also check the technicians table — owner (Teddy) + Jimmy,
+    // Andre, Lee, Billy, John when they call from personal cells.
+    // Recognize them so Ant addresses them as staff, even if a junk
+    // customer record exists for the same number.
+    db.query technicians {
+      where = $db.technicians.phone == $clean_phone || $db.technicians.phone == $input.phone || $db.technicians.phone == $digits || $db.technicians.phone == $ten_digits
+      sort = {technicians.id: "asc"}
+      return = {type: "single"}
+    } as $internal_tech
+
+    var $is_internal { value = ($internal_tech != null) }
+    var $internal_role { value = "" }
+    conditional {
+      if ($is_internal == true) {
+        var $tid { value = ($internal_tech.id ?? 0) }
+        var.update $internal_role { value = "technician" }
+        conditional {
+          if ($tid == 1) {
+            var.update $internal_role { value = "owner" }
+          }
+        }
+      }
+    }
+
+    conditional {
+      if ($customer == null && $is_internal == false) {
         return {
           value = {
             found             : false
+            is_internal       : false
             customer          : null
+            open_jobs         : []
+            last_call_summary : ""
+          }
+        }
+      }
+    }
+
+    // Staff caller (no customer match) — return staff context.
+    conditional {
+      if ($customer == null && $is_internal == true) {
+        return {
+          value = {
+            found             : true
+            is_internal       : true
+            internal_role     : $internal_role
+            customer          : null
+            technician        : $internal_tech
             open_jobs         : []
             last_call_summary : ""
           }
@@ -123,7 +178,10 @@ query lookup_customer_by_phone verb=GET {
 
   response = {
     found             : true
+    is_internal       : $is_internal
+    internal_role     : $internal_role
     customer          : $customer
+    technician        : $internal_tech
     open_jobs         : $open_jobs_out
     last_call_summary : $last_call_text
   }
