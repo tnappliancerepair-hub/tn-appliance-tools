@@ -396,6 +396,7 @@
           <div class="vision-groups" data-vision-groups="${r.job_id}" style="margin-top:10px"></div>
           <div class="media-strip" data-media-strip="${r.job_id}"></div>
           <pre id="text-${r.id}" style="display:none">${escapeHtml(r.claim_action_text)}</pre>
+          <div style="margin-top:14px;padding:8px 10px;background:rgba(76,167,255,0.10);border-left:3px solid var(--info);border-radius:0 6px 6px 0;font-size:11px;color:var(--info);font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer" data-toggle-paste="${r.job_id}">📝 TDR NOTES + PASTE-READY FIELDS — TAP TO EXPAND</div>
           <div class="paste-fields collapsed" id="pf-${r.job_id}"></div>
           <div class="mark-form" id="mf-${r.job_id}">
             <input type="text" id="mf-conf-${r.job_id}" placeholder="Vendor confirmation # (paste here)">
@@ -439,6 +440,22 @@
         const showing = pre.style.display !== 'none';
         pre.style.display = showing ? 'none' : 'block';
         btn.textContent = showing ? 'Show claim package ↓' : 'Hide ↑';
+      });
+    });
+
+    // 📝 TDR Notes / Paste fields header toggle — makes the existing
+    // paste-fields div discoverable. Danielle reported not seeing where
+    // notes/parts info went (2026-06-04).
+    content.querySelectorAll('[data-toggle-paste]').forEach((header) => {
+      header.addEventListener('click', () => {
+        const id = header.dataset.togglePaste;
+        const pf = document.getElementById(`pf-${id}`);
+        if (!pf) return;
+        const collapsed = pf.classList.contains('collapsed');
+        pf.classList.toggle('collapsed');
+        header.textContent = collapsed
+          ? '📝 TDR NOTES + PASTE-READY FIELDS — TAP TO COLLAPSE'
+          : '📝 TDR NOTES + PASTE-READY FIELDS — TAP TO EXPAND';
       });
     });
 
