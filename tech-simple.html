@@ -69,6 +69,21 @@
 
   .loading { text-align: center; padding: 40px; color: #718096; font-size: 14px; }
 
+  /* Latest-capture banner — shows what they JUST took, big and prominent */
+  .just-captured { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(16,185,129,0.3); border: 2px solid #10b981; display: none; }
+  .just-captured.show { display: block; animation: pop 0.35s ease-out; }
+  @keyframes pop { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .just-captured .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .just-captured .head .label { font-size: 11px; color: #059669; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
+  .just-captured .head .dismiss { background: none; border: 0; color: #4a5568; font-size: 18px; cursor: pointer; padding: 0 8px; }
+  .just-captured img { width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; background: #f7fafc; }
+  .just-captured video { width: 100%; max-height: 280px; border-radius: 8px; background: #2d3748; }
+
+  /* Toast */
+  .toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: #1a202c; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; z-index: 300; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; }
+  .toast.show { display: block; animation: slideDown 0.25s ease-out; }
+  @keyframes slideDown { 0% { transform: translate(-50%, -20px); opacity: 0; } 100% { transform: translate(-50%, 0); opacity: 1; } }
+
   /* Lightbox for photos */
   .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
   .lightbox.open { display: flex; }
@@ -85,8 +100,11 @@
 <div class="bottom-bar">
   <button id="btn-camera"><span class="icon">📷</span> Photo</button>
   <button id="btn-video"><span class="icon">🎥</span> Video</button>
-  <a id="btn-full" class="full" href="#"><span class="icon">⋯</span> Full view</a>
+  <button id="btn-parts"><span class="icon">🔧</span> Find part</button>
+  <a id="btn-full" class="full" href="#"><span class="icon">⋯</span> More</a>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <div class="lightbox" id="lightbox">
   <button class="close" id="lb-close">×</button>
@@ -97,6 +115,7 @@
 <input type="file" id="video-input" accept="video/*" capture="environment" style="display:none">
 
 <script src="/api-spec/client/ant-client.js?v=20260604-2" defer></script>
+<script src="/parts-search-modal.js?v=20260604-2" defer></script>
 <script>
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
@@ -162,6 +181,14 @@ function paint(d) {
         <span>Talk to Ant</span>
       </button>
       <div class="status" id="talk-status">Tap to call · phone rings · she handles the report</div>
+    </div>
+
+    <div class="just-captured" id="just-captured">
+      <div class="head">
+        <span class="label">📷 just captured</span>
+        <button class="dismiss" id="dismiss-capture">×</button>
+      </div>
+      <div id="just-captured-media"></div>
     </div>
 
     <div class="problem-card">
@@ -262,10 +289,36 @@ async function talkToAnt(mode) {
   }
 }
 
-// Photo + video upload (delegates to existing pipeline)
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function showJustCaptured(localUrl, isVideo) {
+  const jc = document.getElementById('just-captured');
+  const media = document.getElementById('just-captured-media');
+  media.innerHTML = isVideo
+    ? `<video src="${localUrl}" controls autoplay muted></video>`
+    : `<img src="${localUrl}" alt="just captured">`;
+  jc.classList.add('show');
+  // Scroll to it so they SEE it immediately
+  jc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+document.getElementById('dismiss-capture').addEventListener('click', () => {
+  document.getElementById('just-captured').classList.remove('show');
+});
+
+// Photo + video upload — shows immediate visual confirmation
 async function uploadFile(file) {
   if (!file) return;
   const isVideo = (file.type || '').startsWith('video');
+  // Show the just-captured image IMMEDIATELY from the local file blob
+  // so the tech sees it BEFORE the upload completes
+  const localUrl = URL.createObjectURL(file);
+  showJustCaptured(localUrl, isVideo);
+  showToast(isVideo ? '🎥 Got it — uploading…' : '📷 Got it — uploading…');
   try {
     const r = await fetch(`${XANO}/generate_upload_url`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -291,11 +344,29 @@ async function uploadFile(file) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
     });
+    showToast('✅ Saved');
     loadJob();
   } catch (e) {
-    alert('Upload failed: ' + e.message);
+    showToast('❌ Upload failed — try again');
   }
 }
+
+// Parts search modal — uses the existing parts-search-modal.js
+document.getElementById('btn-parts').addEventListener('click', () => {
+  if (window.AntPartsSearch && typeof window.AntPartsSearch.open === 'function') {
+    const j = (jobData && jobData.job) || {};
+    const a = (jobData && jobData.appliance) || {};
+    window.AntPartsSearch.open({
+      job_id: JOB_ID,
+      brand: a.brand || j.appliance_brand || '',
+      model: a.model || j.appliance_model || '',
+      appliance_type: j.appliance_type || '',
+    });
+  } else {
+    // Fallback — open the full tech-ant-chat with parts panel
+    window.location.href = `/tech-ant-chat.html?job_id=${JOB_ID}&tech_id=${TECH_ID}&open=parts`;
+  }
+});
 document.getElementById('btn-camera').addEventListener('click', () => document.getElementById('photo-input').click());
 document.getElementById('btn-video').addEventListener('click', () => document.getElementById('video-input').click());
 document.getElementById('photo-input').addEventListener('change', (e) => { for (const f of e.target.files || []) uploadFile(f); e.target.value = ''; });
