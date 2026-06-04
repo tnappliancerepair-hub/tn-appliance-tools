@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Tell us how we did · TN Appliance Exchange</title>
+<style>
+  :root { --bg: #f7f8fa; --card: #ffffff; --line: #e2e6ec; --text: #1a1d22; --muted: #5e6470; --accent: #4a9eff; --warn: #f0b450; --danger: #ef6a6a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; min-height: 100vh; padding: 20px 16px 80px; }
+  .wrap { max-width: 600px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .tag { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+  input[type=text], input[type=tel], textarea {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    background: #fafbfc; border: 1px solid var(--line); color: var(--text);
+    font: inherit; font-size: 15px;
+  }
+  textarea { min-height: 130px; resize: vertical; }
+  .stars { display: flex; gap: 6px; font-size: 32px; margin: 8px 0 4px; cursor: pointer; }
+  .star { color: #d8dde3; transition: color 0.1s; }
+  .star.active { color: #f5a623; }
+  button { margin-top: 18px; width: 100%; padding: 14px; border-radius: 10px; border: none; background: var(--accent); color: white; font-weight: 700; font-size: 16px; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status { margin-top: 16px; padding: 14px; border-radius: 10px; background: rgba(74,158,255,0.08); border: 1px solid rgba(74,158,255,0.25); font-size: 14px; line-height: 1.4; }
+  .success { background: rgba(74, 217, 145, 0.1); border-color: rgba(74,217,145,0.3); color: #2a8757; }
+  .fail { background: rgba(239,106,106,0.1); border-color: rgba(239,106,106,0.3); color: #b53e3e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tell us how we did</h1>
+  <p class="tag">Honest feedback — we read every word and reach out to make things right.</p>
+  <div class="card">
+    <label>How did the service go? (tap a star)</label>
+    <div class="stars" id="stars">
+      <span class="star" data-r="1">★</span>
+      <span class="star" data-r="2">★</span>
+      <span class="star" data-r="3">★</span>
+      <span class="star" data-r="4">★</span>
+      <span class="star" data-r="5">★</span>
+    </div>
+
+    <label for="vent">What can we do better? <span style="font-weight:400; color:#9aa0aa">(or what went well)</span></label>
+    <textarea id="vent" placeholder="The honest version. We can take it."></textarea>
+
+    <label for="name">Your first name <span style="font-weight:400; color:#9aa0aa">(optional)</span></label>
+    <input id="name" type="text" autocomplete="given-name" />
+
+    <label for="phone">Phone number <span style="font-weight:400; color:#9aa0aa">(optional — so we can reach out)</span></label>
+    <input id="phone" type="tel" autocomplete="tel" placeholder="+1 615 555 0000" />
+
+    <button id="submit">Send</button>
+    <div id="status" class="status" style="display:none;"></div>
+  </div>
+</div>
+<script>
+const BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const stars = document.querySelectorAll('.star');
+let rating = 0;
+stars.forEach(s => s.addEventListener('click', () => {
+  rating = Number(s.dataset.r);
+  stars.forEach(x => x.classList.toggle('active', Number(x.dataset.r) <= rating));
+}));
+
+const params = new URLSearchParams(location.search);
+const presetJobId = Number(params.get('job_id')) || null;
+
+document.getElementById('submit').addEventListener('click', async () => {
+  const vent = document.getElementById('vent').value.trim();
+  if (!vent) { setStatus('Tell us a bit about how it went.', 'fail'); return; }
+  const payload = {
+    job_id: presetJobId || undefined,
+    customer_first_name: document.getElementById('name').value.trim() || undefined,
+    customer_phone: document.getElementById('phone').value.trim() || undefined,
+    vent_text: vent,
+    rating: rating > 0 ? String(rating) : 'unspecified',
+  };
+  const btn = document.getElementById('submit');
+  btn.disabled = true;
+  setStatus('Sending…', 'normal');
+  try {
+    const r = await fetch(`${BASE}/record_customer_vent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.success) {
+      setStatus(d.note || 'Got it — thank you.', 'success');
+      document.getElementById('vent').value = '';
+    } else {
+      setStatus('Send failed. Please call us at 6-1-5, 2-8-0, 2-9-4-9.', 'fail');
+    }
+  } catch (e) { setStatus('Send failed. Please call us at 6-1-5, 2-8-0, 2-9-4-9.', 'fail'); }
+  btn.disabled = false;
+});
+
+function setStatus(text, kind) {
+  const el = document.getElementById('status');
+  el.style.display = 'block';
+  el.className = 'status ' + (kind === 'success' ? 'success' : kind === 'fail' ? 'fail' : '');
+  el.textContent = text;
+}
+</script>
+</body>
+</html>

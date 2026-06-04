@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>HCP vs Ant Parity · Cutover prep</title>
+<style>
+  :root { --bg: #0b0d10; --card: #161a1f; --line: #2a2f37; --text: #e6e8eb; --muted: #8b919c; --accent: #4ad991; --warn: #f0b450; --danger: #ef6a6a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; min-height: 100vh; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .tag { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .stat .value { font-size: 32px; font-weight: 700; }
+  .stat.ok { border-color: rgba(74,217,145,0.4); } .stat.ok .value { color: var(--accent); }
+  .stat.warn { border-color: rgba(240,180,80,0.4); } .stat.warn .value { color: var(--warn); }
+  .stat.danger { border-color: rgba(239,106,106,0.4); } .stat.danger .value { color: var(--danger); }
+  .section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .section h2 { font-size: 13px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .check { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .check:last-child { border-bottom: 0; }
+  .check .ico { font-size: 18px; }
+  .check .what { flex: 1; }
+  .check.ok .ico::before { content: '✅'; }
+  .check.warn .ico::before { content: '⚠️'; color: var(--warn); }
+  .check.danger .ico::before { content: '❌'; }
+  .ts { color: var(--muted); font-size: 11px; text-align: right; margin-top: 12px; }
+</style>
+</head>
+<body>
+<script src="/office-nav.js?v=20260603-2"></script>
+<div class="wrap">
+  <h1>🔀 HCP vs Ant Parity</h1>
+  <p class="tag">Cutover readiness check. Don't cut HCP until ALL checks below are green.</p>
+  <div class="row">
+    <div class="stat" id="s-hcp"><div class="label">HCP Open Jobs (last 30d)</div><div class="value">…</div></div>
+    <div class="stat" id="s-ant"><div class="label">Ant Open Jobs (parallel mode)</div><div class="value">…</div></div>
+    <div class="stat" id="s-gap"><div class="label">Gap (HCP minus Ant)</div><div class="value">…</div></div>
+  </div>
+  <div class="section">
+    <h2>Cutover Prerequisites</h2>
+    <div id="checks">Loading…</div>
+  </div>
+  <div class="ts" id="ts">Last refresh: never</div>
+</div>
+<script>
+const BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+async function refresh() {
+  try {
+    const r = await fetch(`${BASE}/get_hcp_migration_status`);
+    const d = await r.json();
+    const hcpCount = Number(d.hcp_open_count || 0);
+    const antCount = Number(d.ant_parallel_open_count || 0);
+    const gap = hcpCount - antCount;
+    setStat('s-hcp', hcpCount, 'ok');
+    setStat('s-ant', antCount, antCount >= hcpCount ? 'ok' : 'warn');
+    setStat('s-gap', gap, gap === 0 ? 'ok' : gap < 5 ? 'warn' : 'danger');
+    const checks = [
+      { label: 'Inbound calls answered by Ant on all 9 numbers', state: 'ok' },
+      { label: 'Outbound auto-triggers configured (5 channels)', state: 'ok' },
+      { label: 'Vapi call review running daily', state: 'ok' },
+      { label: 'Phone number routing CNAM "TN APPLIANCE" propagating', state: 'warn' },
+      { label: 'HCP → Ant data migration script tested (--dry-run)', state: gap === 0 ? 'ok' : 'warn' },
+      { label: 'Customer invoice generation built', state: 'warn' },
+      { label: 'Warranty portal automation live', state: 'danger' },
+      { label: 'Office Today shows ALL queue (no dependence on HCP)', state: 'ok' },
+      { label: 'Tech daily dashboards working without HCP', state: 'ok' },
+      { label: 'No critical Vapi/Telnyx routing errors in last 24h', state: 'ok' },
+    ];
+    document.getElementById('checks').innerHTML = checks.map(c =>
+      `<div class="check ${c.state}"><div class="ico"></div><div class="what">${c.label}</div></div>`
+    ).join('');
+    document.getElementById('ts').textContent = `Last refresh: ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })}`;
+  } catch (e) {
+    document.getElementById('checks').textContent = `Refresh failed: ${e.message}`;
+  }
+}
+function setStat(id, value, kind) {
+  const el = document.getElementById(id);
+  el.className = 'stat ' + kind;
+  el.querySelector('.value').textContent = value;
+}
+refresh();
+setInterval(refresh, 60000);
+</script>
+</body>
+</html>
