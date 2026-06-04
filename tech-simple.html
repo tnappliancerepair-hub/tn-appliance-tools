@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Ant — Job</title>
+
+<!-- PWA install support -->
+<link rel="manifest" href="/manifest-tech.json">
+<meta name="theme-color" content="#0b0d10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ant">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/icons/ant-512.svg">
+<link rel="icon" type="image/svg+xml" href="/icons/ant-512.svg">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { background: #f4f6fb; color: #1a202c; font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; min-height: 100vh; overscroll-behavior-y: contain; }
+  body { padding: 12px 12px 100px; max-width: 540px; margin: 0 auto; }
+
+  /* Header bar — minimal HCP-style */
+  .topbar { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+  .topbar .job-id { font-size: 12px; color: #718096; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600; }
+  .topbar .customer-name { font-size: 20px; font-weight: 700; margin-top: 2px; color: #1a202c; }
+  .topbar .address { font-size: 14px; color: #4a5568; margin-top: 4px; }
+  .topbar .appliance { font-size: 14px; color: #4a5568; margin-top: 4px; }
+  .topbar .meta-row { display: flex; gap: 10px; margin-top: 10px; font-size: 13px; }
+  .topbar .meta-row a { flex: 1; padding: 8px 10px; background: #edf2f7; color: #2d3748; text-decoration: none; border-radius: 8px; text-align: center; font-weight: 600; }
+  .topbar .meta-row a:active { background: #cbd5e0; }
+
+  /* The big button — dominates the page */
+  .talk-card { background: linear-gradient(135deg, #10b981, #059669); border-radius: 14px; padding: 0; margin-bottom: 14px; box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35); overflow: hidden; }
+  .talk-btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 24px 18px; background: none; border: 0; color: #fff; font-size: 22px; font-weight: 800; letter-spacing: 0.3px; cursor: pointer; }
+  .talk-btn .icon { font-size: 28px; }
+  .talk-btn:active { background: rgba(0,0,0,0.1); }
+  .talk-card .status { padding: 0 18px 14px; color: rgba(255,255,255,0.85); font-size: 13px; text-align: center; font-weight: 500; min-height: 18px; }
+
+  /* Problem summary */
+  .problem-card { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border-left: 4px solid #f59e0b; }
+  .problem-card .label { font-size: 11px; color: #92400e; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+  .problem-card .text { font-size: 15px; line-height: 1.5; color: #1a202c; }
+  .problem-card .by { font-size: 12px; color: #718096; margin-top: 6px; font-style: italic; }
+
+  /* Photos */
+  .photos-card { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+  .photos-card .label { font-size: 11px; color: #718096; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .photos-card .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photos-card .thumb { aspect-ratio: 1; background: #e2e8f0; border-radius: 8px; overflow: hidden; position: relative; cursor: pointer; }
+  .photos-card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photos-card .thumb .vid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 28px; background: #2d3748; }
+  .photos-card .empty { color: #a0aec0; font-style: italic; padding: 14px; text-align: center; font-size: 14px; }
+
+  /* Bottom action bar */
+  .bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e2e8f0; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: center; z-index: 100; }
+  .bottom-bar button, .bottom-bar a { flex: 1; max-width: 140px; padding: 14px 8px; background: #2d3748; color: #fff; border: 0; border-radius: 10px; font-size: 13px; font-weight: 700; text-decoration: none; text-align: center; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .bottom-bar button:active, .bottom-bar a:active { background: #1a202c; }
+  .bottom-bar .icon { font-size: 18px; }
+  .bottom-bar .full { background: #4a5568; }
+
+  .loading { text-align: center; padding: 40px; color: #718096; font-size: 14px; }
+
+  /* Lightbox for photos */
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .lightbox.open { display: flex; }
+  .lightbox img, .lightbox video { max-width: 100%; max-height: 100%; }
+  .lightbox .close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 26px; background: rgba(0,0,0,0.6); border: 0; border-radius: 50%; width: 44px; height: 44px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="content">
+  <div class="loading">Loading job…</div>
+</div>
+
+<div class="bottom-bar">
+  <button id="btn-camera"><span class="icon">📷</span> Photo</button>
+  <button id="btn-video"><span class="icon">🎥</span> Video</button>
+  <a id="btn-full" class="full" href="#"><span class="icon">⋯</span> Full view</a>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="close" id="lb-close">×</button>
+  <div id="lb-content"></div>
+</div>
+
+<input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="video-input" accept="video/*" capture="environment" style="display:none">
+
+<script src="/api-spec/client/ant-client.js?v=20260604-2" defer></script>
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const params = new URLSearchParams(location.search);
+const JOB_ID = parseInt(params.get('job_id') || '0', 10);
+const TECH_ID = parseInt(params.get('tech_id') || '1', 10);
+let jobData = null;
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function loadJob() {
+  if (!JOB_ID) { document.getElementById('content').innerHTML = '<div class="loading">No job loaded. Open from your daily dashboard.</div>'; return; }
+  try {
+    const r = await fetch(`${XANO}/get_job_for_dashboard`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: JOB_ID })
+    });
+    const d = await r.json();
+    jobData = d;
+    paint(d);
+  } catch (e) {
+    document.getElementById('content').innerHTML = `<div class="loading">Couldn't load: ${e.message}</div>`;
+  }
+}
+
+function paint(d) {
+  const job = d.job || {};
+  const cust = d.customer || {};
+  const appl = d.appliance || {};
+  const tdrs = d.all_tdrs || [];
+  const atts = (d.attachments || []).filter(a => a.upload_complete_at);
+
+  const fullName = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || 'customer';
+  const addr = [cust.address, cust.city, cust.state].filter(Boolean).join(', ') || job.service_address || '';
+  const applShort = [appl.brand, appl.type].filter(Boolean).join(' ') || (job.appliance_type || 'appliance');
+  const problem = (job.problem_summary || '').trim() || 'no problem summary yet — Brooke can dig in';
+
+  // Teddy's pre-diag = TDR by technician_id=1
+  const teddyTdr = tdrs.find(t => Number(t.technician_id) === 1);
+  const prediag = teddyTdr ? (teddyTdr.diagnosis || teddyTdr.failed_component || '').trim() : '';
+
+  const phoneDigits = (cust.phone || '').replace(/[^+\d]/g, '');
+  const phoneTel = phoneDigits ? (phoneDigits.startsWith('+') ? phoneDigits : '+1' + phoneDigits) : '';
+  const navAddr = encodeURIComponent(addr);
+
+  document.getElementById('btn-full').href = `/tech-ant-chat.html?job_id=${JOB_ID}&tech_id=${TECH_ID}`;
+
+  document.getElementById('content').innerHTML = `
+    <div class="topbar">
+      <div class="job-id">Job #${JOB_ID}</div>
+      <div class="customer-name">${esc(fullName)}</div>
+      ${addr ? `<div class="address">📍 ${esc(addr)}</div>` : ''}
+      <div class="appliance">🔧 ${esc(applShort)}</div>
+      <div class="meta-row">
+        ${phoneTel ? `<a href="tel:${phoneTel}">📞 Call</a>` : ''}
+        ${phoneDigits ? `<a href="sms:${phoneDigits}">📱 Text</a>` : ''}
+        ${addr ? `<a href="https://maps.google.com/?q=${navAddr}" target="_blank">🗺 Map</a>` : ''}
+      </div>
+    </div>
+
+    <div class="talk-card">
+      <button class="talk-btn" id="btn-talk">
+        <span class="icon">🎤</span>
+        <span>Talk to Ant</span>
+      </button>
+      <div class="status" id="talk-status">Tap to call · phone rings · she handles the report</div>
+    </div>
+
+    <div class="problem-card">
+      <div class="label">What you're here for</div>
+      <div class="text">${esc(problem)}</div>
+      ${prediag ? `<div class="by">Teddy's pre-diagnosis: ${esc(prediag)}</div>` : ''}
+    </div>
+
+    <div class="photos-card">
+      <div class="label"><span>📷 Photos (${atts.length})</span></div>
+      ${atts.length === 0 ? '<div class="empty">No photos yet. Snap one when you find the model sticker.</div>' :
+        '<div class="grid">' + atts.slice(0, 9).map(a => {
+          const isVid = (a.file_type || '').startsWith('video') || (a.mime_type || '').startsWith('video');
+          const url = a._signed_url || '';
+          return `<div class="thumb" data-att-id="${a.id}" data-vid="${isVid}" data-key="${esc(a.s3_key || '')}">${isVid ? '<div class="vid">▶</div>' : (url ? `<img src="${url}" alt="">` : '<div class="vid">📷</div>')}</div>`;
+        }).join('') + '</div>'}
+    </div>
+  `;
+
+  document.getElementById('btn-talk').addEventListener('click', talkToAnt);
+  document.querySelectorAll('.thumb').forEach(t => t.addEventListener('click', () => openLightbox(t)));
+  hydrateThumbs(atts);
+}
+
+async function hydrateThumbs(atts) {
+  const keys = atts.filter(a => a.s3_key).map(a => a.s3_key);
+  if (keys.length === 0) return;
+  try {
+    const r = await fetch('/.netlify/functions/s3-view-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ s3_keys: keys })
+    });
+    const d = await r.json();
+    const map = {};
+    (d.signed_urls || []).forEach(s => { map[s.s3_key] = s.view_url; });
+    document.querySelectorAll('.thumb').forEach(t => {
+      const key = t.dataset.key;
+      const url = map[key];
+      if (url && t.dataset.vid !== 'true') {
+        t.innerHTML = `<img src="${url}" alt="">`;
+      }
+      t.dataset.url = url || '';
+    });
+  } catch (_) {}
+}
+
+function openLightbox(t) {
+  const url = t.dataset.url;
+  if (!url) return;
+  const isVid = t.dataset.vid === 'true';
+  document.getElementById('lb-content').innerHTML = isVid ? `<video src="${url}" controls autoplay></video>` : `<img src="${url}">`;
+  document.getElementById('lightbox').classList.add('open');
+}
+document.getElementById('lb-close').addEventListener('click', () => document.getElementById('lightbox').classList.remove('open'));
+document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') document.getElementById('lightbox').classList.remove('open'); });
+
+async function talkToAnt() {
+  const btn = document.getElementById('btn-talk');
+  const status = document.getElementById('talk-status');
+  btn.disabled = true;
+  status.textContent = 'Calling your phone…';
+  try {
+    const r = await fetch(`${XANO}/dispatch_ant_field_assist`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: JOB_ID, tech_id: TECH_ID })
+    });
+    const d = await r.json();
+    if (d && d.success) {
+      status.textContent = '📞 ringing your phone — pick up';
+      setTimeout(() => { btn.disabled = false; status.textContent = 'Tap to call · phone rings · she handles the report'; }, 10000);
+    } else {
+      status.textContent = 'Couldn\'t place call. Try again.';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    status.textContent = 'Couldn\'t place call. Try again.';
+    btn.disabled = false;
+  }
+}
+
+// Photo + video upload (delegates to existing pipeline)
+async function uploadFile(file) {
+  if (!file) return;
+  const isVideo = (file.type || '').startsWith('video');
+  try {
+    const r = await fetch(`${XANO}/generate_upload_url`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: JOB_ID, tech_id: TECH_ID,
+        attachment_type: 'tdr',
+        file_type: isVideo ? 'video' : 'photo',
+        original_filename: file.name || ((isVideo ? 'vid' : 'photo') + '-' + Date.now() + (isVideo ? '.mp4' : '.jpg')),
+        mime_type: file.type || (isVideo ? 'video/mp4' : 'image/jpeg'),
+        uploaded_by: 'tech'
+      })
+    });
+    const gen = await r.json();
+    if (!gen.s3_key || !gen.attachment_id) throw new Error('upload init failed');
+    const ps = await fetch('/.netlify/functions/s3-presign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ s3_key: gen.s3_key, mime_type: file.type || 'image/jpeg' })
+    });
+    const pres = await ps.json();
+    if (!pres.upload_url) throw new Error('presign failed');
+    await fetch(pres.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/jpeg' }, body: file });
+    await fetch(`${XANO}/save_attachment`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
+    });
+    loadJob();
+  } catch (e) {
+    alert('Upload failed: ' + e.message);
+  }
+}
+document.getElementById('btn-camera').addEventListener('click', () => document.getElementById('photo-input').click());
+document.getElementById('btn-video').addEventListener('click', () => document.getElementById('video-input').click());
+document.getElementById('photo-input').addEventListener('change', (e) => { for (const f of e.target.files || []) uploadFile(f); e.target.value = ''; });
+document.getElementById('video-input').addEventListener('change', (e) => { for (const f of e.target.files || []) uploadFile(f); e.target.value = ''; });
+
+// Service worker for PWA install
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/tech-sw.js').catch(() => {});
+}
+
+loadJob();
+// Refresh every 30 sec so new photos / pre-diag land without manual reload
+setInterval(loadJob, 30000);
+</script>
+</body>
+</html>
