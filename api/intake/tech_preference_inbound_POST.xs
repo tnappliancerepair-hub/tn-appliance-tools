@@ -524,9 +524,57 @@ query tech_preference_inbound verb=POST {
             }
           }
         }
+
+        // ─── OWNER-ONLY: APPROVE-<id> / DECLINE-<id> change requests ──
+        // Danielle (or any office user) submits a "change request" via
+        // warranty-review.html. Endpoint SMSes Teddy. He replies with
+        // APPROVE-N or DECLINE-N to action it. Requester gets Ant-voice
+        // reply confirming the decision.
+        var $is_approve {
+          value = ($body_upper|substr:0:8) == "APPROVE-"
+        }
+        var $is_decline {
+          value = ($body_upper|substr:0:8) == "DECLINE-"
+        }
+        conditional {
+          if ($is_approve == true || $is_decline == true) {
+            var $cr_id_str {
+              value = ($body_upper|substr:8)|trim
+            }
+            var $cr_id {
+              value = $cr_id_str|to_int
+            }
+            var $cr_action {
+              value = ($is_approve == true) ? "approve" : "decline"
+            }
+            conditional {
+              if ($cr_id > 0) {
+                api.request {
+                  url = $env.XANO_INTAKE_BASE_URL_FOR_SMS ~ "/change_request_action"
+                  method = "POST"
+                  params = {change_request_id: $cr_id, action: $cr_action, decided_by: "teddy_sms"}
+                  headers = ["Content-Type: application/json"]
+                } as $cr_resp
+
+                return {
+                  value = {
+                    matched: true
+                    reply  : ("Change request #" ~ ($cr_id|to_text) ~ " " ~ $cr_action ~ "d. Requester notified.")
+                  }
+                }
+              }
+            }
+            return {
+              value = {
+                matched: true
+                reply  : "Usage: APPROVE-<id> or DECLINE-<id>"
+              }
+            }
+          }
+        }
       }
     }
-  
+
     // ─── SHORTCUT: STATUS ────────────────────────────────────────────
     conditional {
       if ($body_upper == "STATUS" || $body_upper == "MY SCHEDULE" || $body_upper == "SCHEDULE") {

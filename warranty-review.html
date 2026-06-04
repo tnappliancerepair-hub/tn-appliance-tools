@@ -181,6 +181,28 @@
       <button class="filter-btn" data-filter="escalate">Escalate <span class="count" id="cEsc">0</span></button>
       <button class="filter-btn" data-filter="flags">Flags <span class="count" id="cFlg">0</span></button>
       <button class="filter-btn" data-filter="clear">Clear <span class="count" id="cClr">0</span></button>
+      <button class="filter-btn" id="btnChangeRequest" style="background:linear-gradient(135deg,#4ad991,#0ea5e9);color:#fff;border:0;font-weight:700">💬 Change Request</button>
+    </div>
+  </div>
+
+  <!-- Change Request modal — Danielle/office sends requests to "Ant" -->
+  <div id="crModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:9500;padding:18px">
+    <div style="background:#131720;border:1px solid #2a3040;border-radius:14px;padding:22px;max-width:500px;width:100%;color:#e8edf5">
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px">💬 Send Ant a Change Request</div>
+      <div style="font-size:12px;color:#8a93aa;margin-bottom:16px">Tell Ant what you'd like changed. It could be a paste-card layout, a copy tweak, a new field, a workflow idea — anything. Ant will text you back when it's sorted.</div>
+      <label style="font-size:11px;color:#8a93aa;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:4px">Your name</label>
+      <input id="crName" type="text" placeholder="e.g. Danielle" style="width:100%;background:#0e1118;border:1px solid #2a3040;border-radius:8px;color:#e8edf5;padding:10px;font-size:14px;margin-bottom:12px">
+      <label style="font-size:11px;color:#8a93aa;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:4px">Your phone (so Ant can text you back)</label>
+      <input id="crPhone" type="tel" placeholder="+1 615..." style="width:100%;background:#0e1118;border:1px solid #2a3040;border-radius:8px;color:#e8edf5;padding:10px;font-size:14px;margin-bottom:12px">
+      <label style="font-size:11px;color:#8a93aa;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:4px">Short title</label>
+      <input id="crTitle" type="text" placeholder="e.g. AHS paste cards reorder" style="width:100%;background:#0e1118;border:1px solid #2a3040;border-radius:8px;color:#e8edf5;padding:10px;font-size:14px;margin-bottom:12px">
+      <label style="font-size:11px;color:#8a93aa;letter-spacing:0.06em;text-transform:uppercase;display:block;margin-bottom:4px">What would you like changed?</label>
+      <textarea id="crBody" placeholder="Talk to Ant like you'd talk to a smart assistant — describe what's frustrating or what would make your workflow easier." rows="6" style="width:100%;background:#0e1118;border:1px solid #2a3040;border-radius:8px;color:#e8edf5;padding:10px;font-size:14px;margin-bottom:16px;resize:vertical;font-family:inherit"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="crCancel" style="background:transparent;border:1px solid #2a3040;color:#8a93aa;padding:10px 18px;border-radius:8px;cursor:pointer">Cancel</button>
+        <button id="crSubmit" style="background:linear-gradient(135deg,#4ad991,#0ea5e9);border:0;color:#fff;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:700">Send to Ant</button>
+      </div>
+      <div id="crStatus" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-size:13px"></div>
     </div>
   </div>
 
@@ -198,6 +220,73 @@
   const params = new URLSearchParams(window.location.search);
   const daysBack = parseInt(params.get('days') || '30', 10);
   document.getElementById('windowLabel').textContent = `Last ${daysBack} days`;
+
+  // ── Change Request modal wiring (the "Ant illusion") ──────────────
+  const CR_NAME_KEY = 'tn_office_cr_name';
+  const CR_PHONE_KEY = 'tn_office_cr_phone';
+  const crModal = document.getElementById('crModal');
+  document.getElementById('btnChangeRequest').addEventListener('click', () => {
+    crModal.style.display = 'flex';
+    document.getElementById('crName').value = localStorage.getItem(CR_NAME_KEY) || '';
+    document.getElementById('crPhone').value = localStorage.getItem(CR_PHONE_KEY) || '';
+    document.getElementById('crStatus').style.display = 'none';
+    document.getElementById('crTitle').value = '';
+    document.getElementById('crBody').value = '';
+  });
+  document.getElementById('crCancel').addEventListener('click', () => { crModal.style.display = 'none'; });
+  document.getElementById('crSubmit').addEventListener('click', async () => {
+    const name = document.getElementById('crName').value.trim();
+    const phone = document.getElementById('crPhone').value.trim();
+    const title = document.getElementById('crTitle').value.trim();
+    const body = document.getElementById('crBody').value.trim();
+    const status = document.getElementById('crStatus');
+    if (!title || !body) {
+      status.style.display = 'block';
+      status.style.background = 'rgba(239,106,106,0.1)';
+      status.style.color = '#ef6a6a';
+      status.style.border = '1px solid rgba(239,106,106,0.3)';
+      status.textContent = 'Need a title + description.';
+      return;
+    }
+    if (name) localStorage.setItem(CR_NAME_KEY, name);
+    if (phone) localStorage.setItem(CR_PHONE_KEY, phone);
+    status.style.display = 'block';
+    status.style.background = 'rgba(74,158,255,0.1)';
+    status.style.color = '#4ca7ff';
+    status.style.border = '1px solid rgba(74,158,255,0.25)';
+    status.textContent = 'Sending to Ant…';
+    try {
+      const r = await fetch(`${XANO_BASE}/record_change_request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, body,
+          requester_name: name || 'Office',
+          requester_phone: phone,
+          requester_role: 'office',
+          area: 'warranty_review',
+        }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        status.style.background = 'rgba(74,217,145,0.1)';
+        status.style.color = '#4ad991';
+        status.style.border = '1px solid rgba(74,217,145,0.3)';
+        status.textContent = d.ack || 'Got it — Ant will text you back when it\'s reviewed.';
+        setTimeout(() => { crModal.style.display = 'none'; }, 2500);
+      } else {
+        status.style.background = 'rgba(239,106,106,0.1)';
+        status.style.color = '#ef6a6a';
+        status.style.border = '1px solid rgba(239,106,106,0.3)';
+        status.textContent = 'Send failed: ' + (d.message || JSON.stringify(d));
+      }
+    } catch (e) {
+      status.style.background = 'rgba(239,106,106,0.1)';
+      status.style.color = '#ef6a6a';
+      status.style.border = '1px solid rgba(239,106,106,0.3)';
+      status.textContent = 'Send failed: ' + e.message;
+    }
+  });
 
   // Auth
   const authGate = document.getElementById('authGate');
