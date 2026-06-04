@@ -115,8 +115,12 @@ query dispatch_voice_call verb=POST {
     // "TN APPLIANCE" on caller ID on AT&T/Verizon/T-Mobile (24-72h after
     // CNAM submission). Higher answer rate than bare or spam-flagged
     // numbers. LA defaults to Twilio 504-355 (CNAM pending).
+    // 2026-06-03 evening: Telnyx voice routing broken on imported nums.
+    // Fall back to Twilio 629-247 (TN) + 504-355 (LA) which are confirmed
+    // working. Once Telnyx voice routing is fixed, revert TN to
+    // 4006d617... (615-588 with CNAM "TN APPLIANCE").
     var $state { value = (($job.service_state ?? "")|to_text)|to_lowercase }
-    var $from_number_id { value = "4006d617-26d5-45c6-b84d-46389817603a" }
+    var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
     conditional {
       if ($state == "la" || $state == "louisiana") {
         var.update $from_number_id { value = "9ceaec5d-27c7-48d3-80c5-ed1028226683" }

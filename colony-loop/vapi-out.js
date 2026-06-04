@@ -48,19 +48,39 @@ export const ASSISTANT_IDS = Object.freeze({
 //   LA_PRIMARY: Twilio LA (CNAM registration pending).
 //   *_FALLBACK_VAPI: brand-new Vapi-issued numbers — last resort, may
 //     get "Potential Spam" carrier flagging until reputation builds.
+// 2026-06-03 evening: Telnyx-imported numbers (615-588, 615-857, 866, 888)
+// have BROKEN voice routing — Vapi import didn't update Telnyx's SIP
+// Connection (still points at legacy "TN Appliance Inbound Routing"
+// instead of Vapi's SIP). Outbound calls from these fail with
+// "call.start.error-get-transport"; inbound calls hit the legacy SIP
+// and never reach Vapi. Fix: in Telnyx portal, Voice tab → Routing
+// → SIP Connection on each imported number → change to Vapi's SIP.
+//
+// UNTIL THAT'S FIXED, default outbound dial-from is reverted to the
+// Twilio 629-247 number which is confirmed working. CNAM "TN APPLIANCE"
+// is on the Telnyx numbers but not displayed because they're not the
+// dial-from — once Telnyx routing is fixed, flip TN_PRIMARY back to
+// the Telnyx 615-588 (4006d617).
 export const FROM_NUMBERS = Object.freeze({
-  TN_PRIMARY:         '4006d617-26d5-45c6-b84d-46389817603a', // +16155889500 Telnyx local TN, CNAM "TN APPLIANCE"
-  TN_BACKUP:          '008f9c4b-06a9-4cef-9114-ff3ccc5636c9', // +16158578800 Telnyx local TN, CNAM "TN APPLIANCE"
-  MARKETING_TOLLFREE: '7437887a-14e1-47b4-abd6-abd33d9a710d', // +18662680111 Telnyx toll-free (no CNAM, but business prefix)
-  MARKETING_TF_888:   'c10b69c4-6aba-4b2c-97dc-569a7231b532', // +18882688998 Telnyx toll-free secondary
-  LA_PRIMARY:         '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 Twilio LA (CNAM registration pending)
-  TN_FALLBACK_VAPI:   'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142 Vapi-issued
-  LA_FALLBACK_VAPI:   'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975 Vapi-issued
+  TN_PRIMARY:         'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31', // +16292477111 Twilio TN — confirmed working, "Potential Spam" risk until CNAM
+  LA_PRIMARY:         '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 Twilio LA, confirmed working
+
+  // Telnyx numbers — broken until Voice Routing fixed in Telnyx portal
+  TN_TELNYX_588:      '4006d617-26d5-45c6-b84d-46389817603a', // +16155889500 — CNAM ready, routing BROKEN
+  TN_TELNYX_857:      '008f9c4b-06a9-4cef-9114-ff3ccc5636c9', // +16158578800 — CNAM ready, routing BROKEN
+  MARKETING_TOLLFREE: '7437887a-14e1-47b4-abd6-abd33d9a710d', // +18662680111 — routing BROKEN
+  MARKETING_TF_888:   'c10b69c4-6aba-4b2c-97dc-569a7231b532', // +18882688998 — routing BROKEN
+
+  // Vapi-issued fallbacks
+  TN_FALLBACK_VAPI:   'a62d1b14-8578-4bd4-8104-be4f1d20535f', // +17315031142
+  LA_FALLBACK_VAPI:   'ceb53ba1-32fe-46ca-b684-3cb61bdfa6a6', // +15043800975
 });
 
 function pickFromNumber(region) {
   if (region === 'LA') return FROM_NUMBERS.LA_PRIMARY;
-  if (region === 'MARKETING' || region === 'TOLLFREE') return FROM_NUMBERS.MARKETING_TOLLFREE;
+  // MARKETING_TOLLFREE currently routes via broken Telnyx — fall back
+  // to Twilio TN until Telnyx Voice routing is fixed
+  if (region === 'MARKETING' || region === 'TOLLFREE') return FROM_NUMBERS.TN_PRIMARY;
   return FROM_NUMBERS.TN_PRIMARY;
 }
 
