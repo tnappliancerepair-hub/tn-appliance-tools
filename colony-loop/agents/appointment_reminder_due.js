@@ -160,34 +160,40 @@ export async function run(signal, ctx) {
   const voiceEnabled = (process.env.APPOINTMENT_REMINDER_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
   if (voiceEnabled) {
     const region = String(job.service_state || '').toLowerCase().startsWith('la') ? 'LA' : 'TN';
-    const scheduledHuman = apptStr ? `tomorrow ${apptStr.split(' at ').slice(-1)[0]} central time` : apptStr;
+    // Day-of routing: pass DAY ONLY, not time. Customer hears
+    // "your repair tomorrow with Jimmy" not "your repair at 10am".
+    // Compute the day name in CT for human-friendly phrasing.
+    const scheduledDayName = new Date(Number(scheduledStartMs)).toLocaleString('en-US', {
+      timeZone: 'America/Chicago',
+      weekday: 'long',
+    });
+    const nowCT = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long' });
+    const tomorrowCT = new Date(Date.now() + 24*3600*1000).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long' });
+    let scheduledDayHuman = scheduledDayName;
+    if (scheduledDayName === nowCT) scheduledDayHuman = 'today';
+    else if (scheduledDayName === tomorrowCT) scheduledDayHuman = 'tomorrow';
     try {
+      const vars = {
+        customer_first_name: firstName,
+        appliance_type: appliance,
+        scheduled_day_human: scheduledDayHuman,
+        tech_first_name: techName,
+        job_id: String(jobId),
+      };
       voiceRes = await placeOutboundCall({
         assistantId: ASSISTANT_IDS.appointment_reminder,
         toPhone: phone,
         fromRegion: region,
-        variableValues: {
-          customer_first_name: firstName,
-          appliance_type: appliance,
-          scheduled_when_human: scheduledHuman || 'at the scheduled time',
-          tech_first_name: techName,
-          job_id: String(jobId),
-        },
+        variableValues: vars,
         metadata: {
           source: 'appointment_reminder_due_auto',
           job_id: jobId,
           scheduled_start_ms: scheduledStartMs,
           attempt_number: 1,
-          retry_eligible: true, // retry on voicemail/no-answer once
+          retry_eligible: true,
           assistant_id: ASSISTANT_IDS.appointment_reminder,
           from_region: region,
-          variable_values: {
-            customer_first_name: firstName,
-            appliance_type: appliance,
-            scheduled_when_human: scheduledHuman || 'at the scheduled time',
-            tech_first_name: techName,
-            job_id: String(jobId),
-          },
+          variable_values: vars,
         },
       });
     } catch (err) {
