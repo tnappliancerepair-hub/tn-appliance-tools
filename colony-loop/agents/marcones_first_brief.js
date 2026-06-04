@@ -11,6 +11,23 @@ import { config } from '../config.js';
 export async function run(signal, ctx) {
   const { xano, log } = ctx;
 
+  // Runtime dedup: if any marcones_first_brief_sent landed in the last
+  // 12 hours, this signal is a duplicate (probably from the cron-emit
+  // pile-up before the dedup gate was fixed). Skip without spamming.
+  try {
+    const sinceMs = Date.now() - 12 * 3600 * 1000;
+    const check = await xano.getMarconesBriefFiredToday(sinceMs);
+    if (check && check.fired === true) {
+      const meta = { outcome: 'skipped_duplicate', last_fired_at: check.last_fired_at };
+      await xano.markSignalProcessed(signal.id, 'marcones_first_brief_skipped_duplicate', meta);
+      log('marcones_first_brief_skipped_duplicate', meta);
+      return { success: true, action: 'skipped_duplicate' };
+    }
+  } catch (e) {
+    log('marcones_first_brief_dedup_check_failed', { error: e.message });
+    // continue — better to send once than to silently fail
+  }
+
   const techsRes = await xano.getTechnicians();
   const techs = (techsRes && techsRes.technicians) ? techsRes.technicians : (Array.isArray(techsRes) ? techsRes : []);
   const active = techs.filter((t) => t && t.active && t.id && t.phone && Number(t.id) !== 8);
@@ -20,7 +37,7 @@ export async function run(signal, ctx) {
 
   for (const t of active) {
     try {
-      const data = await xano.getJSON(`${xano.INTAKE()}/get_tech_predicted_parts_for_today?tech_id=${t.id}`);
+      const data = await xano.getTechPredictedPartsForToday(t.id);
       if (!data || !data.success || (data.job_count || 0) === 0) {
         skipped++;
         continue;

@@ -312,6 +312,38 @@ exports.handler = async function (event) {
       });
     }
 
+    // 4a-bis. ANT FIELD ASSIST — when a tech-side call from the green
+    //     "Talk to Ant" button ends, SMS Teddy a tight summary within
+    //     ~2 min so he sees adoption + how the call went in near-realtime.
+    //     Skips voicemail/no-answer calls (those happen when tech declines).
+    const isFieldAssist = callMeta.source === 'ant_field_assist_dispatch';
+    if (isFieldAssist && !isVoicemailish) {
+      const techId = callMeta.tech_id || '?';
+      const jobId = callMeta.job_id || '?';
+      const techNames = { '1': 'Teddy', '2': 'Jimmy', '3': 'Andre', '4': 'Lee', '5': 'Billy', '6': 'John' };
+      const techName = techNames[String(techId)] || `tech ${techId}`;
+      const durMin = Math.max(1, Math.round(durationSec / 60));
+      const summaryShort = (summary || '').slice(0, 280).replace(/\s+/g, ' ').trim() || endedReason || 'no summary';
+      const body = `[ant field assist] ${techName} just finished a ${durMin}min call on job #${jobId}. ${summaryShort}`;
+      await safePost(`${XANO_BASE}/send_sms`, {
+        to: process.env.OWNER_PHONE_NUMBER || '+16154855795',
+        message: body.slice(0, 600),
+        recipient_role: 'owner',
+        context: { source: 'ant_field_assist_call_summary', job_id: jobId, tech_id: techId, vapi_call_id: callId, duration_sec: durationSec, ended_reason: endedReason },
+      });
+      await safePost(XANO_RECORD_EVENT, {
+        action: 'ant_field_assist_call_summary_sent',
+        metadata_json: JSON.stringify({
+          job_id: jobId,
+          tech_id: techId,
+          vapi_call_id: callId,
+          duration_sec: durationSec,
+          ended_reason: endedReason,
+          summary: summary.slice(0, 800),
+        }),
+      });
+    }
+
     // 4b. Missed Call Callback — when an INBOUND call ended without a
     //     real conversation, schedule a callback in 5 min via Ant.
     //     Only fires for INBOUND (not outbound voicemails we just left).

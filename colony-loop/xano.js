@@ -188,6 +188,14 @@ export async function getDailyTechBriefingFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_daily_tech_briefing_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+export async function getMarconesBriefFiredToday(sinceTsMs) {
+  return getJSON(`${INTAKE()}/get_marcones_first_brief_fired_today?since_ts_ms=${sinceTsMs}`);
+}
+
+export async function getTechPredictedPartsForToday(techId) {
+  return getJSON(`${INTAKE()}/get_tech_predicted_parts_for_today?tech_id=${encodeURIComponent(techId)}`);
+}
+
 export async function getTechnicians() {
   return getJSON(`${INTAKE()}/technicians`);
 }

@@ -677,10 +677,11 @@ async function maybeEmitTimeSignals() {
   if (hour >= 6 && hour < 9) {
     let marconesFired;
     try {
-      const fired = await xano.getJSON(`${xano.INTAKE()}/get_action_fired_today?action=marcones_first_brief_sent&since_ts_ms=${sinceMs}`).catch(() => null);
+      const fired = await xano.getMarconesBriefFiredToday(sinceMs);
       marconesFired = fired && fired.fired === true;
-    } catch (_err) {
-      marconesFired = false;
+    } catch (err) {
+      xano.logLocal('marcones_brief_check_failed', { error: err.message });
+      marconesFired = true; // fail-safe — if check fails, don't emit
     }
     if (!marconesFired) {
       try {

@@ -29,9 +29,20 @@ query dispatch_ant_field_assist verb=POST {
       error_type = "notfound"
       error = "Tech not found"
     }
-    precondition (($tech.phone ?? "")|trim != "") {
+
+    var $tech_phone_raw {
+      value = ($tech.phone ?? "")
+    }
+    precondition ($tech_phone_raw != "") {
       error_type = "inputerror"
       error = "Tech has no phone on file"
+    }
+    // Normalize to E.164. Vapi rejects bare 10-digit numbers.
+    var $phone_starts_plus {
+      value = (($tech_phone_raw|substr:0:1) == "+")
+    }
+    var $tech_phone {
+      value = ($phone_starts_plus == true) ? $tech_phone_raw : ("+1" ~ $tech_phone_raw)
     }
 
     db.get customer {
@@ -40,47 +51,41 @@ query dispatch_ant_field_assist verb=POST {
     } as $customer
 
     var $tech_first {
-      value = ($tech.first_name ?? "brother")|trim
+      value = ($tech.first_name ?? "brother")
     }
     var $cust_first {
-      value = (($customer.first_name ?? "the customer")|trim)
+      value = ($customer.first_name ?? "the customer")
+    }
+    var $appl_brand {
+      value = ($job.appliance_brand ?? "")
+    }
+    var $appl_type {
+      value = ($job.appliance_type ?? "appliance")
     }
     var $appliance_summary {
-      value = (($job.appliance_brand ?? "") ~ " " ~ ($job.appliance_type ?? "appliance") ~ ((($job.problem_summary ?? "")|trim != "") ? (" — " ~ $job.problem_summary) : ""))|trim
+      value = ($appl_brand ~ " " ~ $appl_type)
     }
 
-    // Pull current TDR state so Brooke knows what's already filled
-    db.query technician_decision_report {
-      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $input.tech_id
-      sort  = {technician_decision_report.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 1}}
-    } as $tdr_rows
-
-    var $tdr {
-      value = (($tdr_rows.items|first) ?? null)
-    }
-    var $tdr_summary_short {
-      value = ($tdr == null) ? "fresh start" : (($tdr.diagnosis ?? "")|trim != "" ? $tdr.diagnosis : "in progress")
-    }
-
-    // Hand off to Vapi outbound — Ant Field Assist assistant
     var $assistant_id { value = "a22edcd1-495a-4d77-a66a-fb167997c70a" }
     var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
 
-    // Voice preference per tech. Default: Brooke (female, Cartesia).
-    // Male variant: voiceId picked from Cartesia library — Teddy
-    // audits + confirms preferred male voice. Placeholder ID used
-    // until confirmed: Sonic-2 "Sonny" candidate.
-    var $voice_pref { value = (($tech.voice_preference ?? "brooke")|to_lowercase)|trim }
+    var $voice_pref { value = ($tech.voice_preference ?? "brooke") }
     var $voice_id { value = "b7d50908-b17c-442d-ad8d-810c63997ed9" }
     conditional {
-      if ($voice_pref == "male" || $voice_pref == "sonny" || $voice_pref == "man") {
+      if ($voice_pref == "male") {
         var.update $voice_id { value = "79743797-2087-422f-8dc7-86f9efca85f1" }
       }
     }
 
+    var $job_id_str {
+      value = ($input.job_id|to_text)
+    }
+    var $tech_id_str {
+      value = ($input.tech_id|to_text)
+    }
+
     var $variables {
-      value = {tech_first_name: $tech_first, customer_first_name: $cust_first, appliance_summary: $appliance_summary, job_id: ($input.job_id|to_text), tech_id: ($input.tech_id|to_text), tdr_summary_short: $tdr_summary_short}
+      value = {tech_first_name: $tech_first, customer_first_name: $cust_first, appliance_summary: $appliance_summary, job_id: $job_id_str, tech_id: $tech_id_str, tdr_summary_short: "fresh start"}
     }
     var $voice_override {
       value = {provider: "cartesia", voiceId: $voice_id, model: "sonic-2", language: "en"}
@@ -88,30 +93,40 @@ query dispatch_ant_field_assist verb=POST {
     var $assistant_overrides {
       value = {variableValues: $variables, voice: $voice_override}
     }
+    var $vapi_metadata {
+      value = {source: "ant_field_assist_dispatch", job_id: $job_id_str, tech_id: $tech_id_str}
+    }
     var $vapi_body {
-      value = {assistantId: $assistant_id, phoneNumberId: $from_number_id, customer: {number: $tech.phone}, assistantOverrides: $assistant_overrides, metadata: {source: "ant_field_assist_dispatch", job_id: ($input.job_id|to_text), tech_id: ($input.tech_id|to_text)}}
+      value = {assistantId: $assistant_id, phoneNumberId: $from_number_id, customer: {number: $tech_phone}, assistantOverrides: $assistant_overrides, metadata: $vapi_metadata}
+    }
+    var $auth_header {
+      value = ("Authorization: Bearer " ~ $env.VAPI_PRIVATE_KEY)
     }
     api.request {
       url = "https://api.vapi.ai/call"
       method = "POST"
       params = $vapi_body
-      headers = ["Authorization: Bearer " ~ ($env.VAPI_PRIVATE_KEY|to_text), "Content-Type: application/json"]
+      headers = [$auth_header, "Content-Type: application/json"]
     } as $vapi_resp
+
+    var $call_id {
+      value = ($vapi_resp.response.result.id ?? "")
+    }
 
     db.add event_log {
       data = {
         action  : "ant_field_assist_dispatched"
-        metadata: ({job_id: $input.job_id, tech_id: $input.tech_id, tech_phone: $tech.phone, vapi_call_id: ($vapi_resp.response.result.id ?? ""), ts_ms: (now|to_ms)}|json_encode)
+        metadata: ({job_id: $input.job_id, tech_id: $input.tech_id, tech_phone: $tech_phone, vapi_call_id: $call_id}|json_encode)
       }
     }
   }
 
   response = {
-    success    : true
-    job_id     : $input.job_id
-    tech_id    : $input.tech_id
-    call_id    : ($vapi_resp.response.result.id ?? "")
-    ack        : "Calling you now."
+    success: true
+    job_id : $input.job_id
+    tech_id: $input.tech_id
+    call_id: $call_id
+    ack    : "Calling you now."
   }
 
   guid = "dispatch-ant-field-assist-v1"
