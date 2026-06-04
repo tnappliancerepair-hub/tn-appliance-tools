@@ -7,7 +7,7 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 33,
+    "agents_live": 34,
     "agents_to_build": 0,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
@@ -22,8 +22,10 @@
     "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
     "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates.",
     "total_agents_enumerated": 366,
-    "agents_total": 360,
-    "agents_built": 360
+    "agents_total": 402,
+    "agents_built": 360,
+    "last_expanded_at": "2026-06-04T05:14:04.001Z",
+    "last_expansion": "round-5-scout-army"
   },
   "signal_architecture": {
     "table": "colony_signals",
@@ -5236,6 +5238,686 @@
           "dependencies": []
         }
       ]
+    },
+    {
+      "name": "Scout Army Colony",
+      "description": "Web-scouring scout agents that build the model_intelligence corpus per (source × appliance) pair. The data moat — proprietary knowledge from every public source, queried by techs in the field.",
+      "agents": [
+        {
+          "id": "SC001",
+          "name": "scout_ifixit_washer",
+          "status": "BUILT",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC002",
+          "name": "scout_ifixit_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC003",
+          "name": "scout_ifixit_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC004",
+          "name": "scout_ifixit_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC005",
+          "name": "scout_ifixit_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC006",
+          "name": "scout_ifixit_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC007",
+          "name": "scout_ifixit_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from iFixit (crowd-sourced repair guides + teardown photos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_IFIXIT_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_IFIXIT_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC008",
+          "name": "scout_reddit_washer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC009",
+          "name": "scout_reddit_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC010",
+          "name": "scout_reddit_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC011",
+          "name": "scout_reddit_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC012",
+          "name": "scout_reddit_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC013",
+          "name": "scout_reddit_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC014",
+          "name": "scout_reddit_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_REDDIT_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC015",
+          "name": "scout_applianceblog_washer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC016",
+          "name": "scout_applianceblog_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC017",
+          "name": "scout_applianceblog_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC018",
+          "name": "scout_applianceblog_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC019",
+          "name": "scout_applianceblog_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC020",
+          "name": "scout_applianceblog_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC021",
+          "name": "scout_applianceblog_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from ApplianceBlog Forums (tech-to-tech forum threads + model-specific fixes). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_APPLIANCEBLOG_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_APPLIANCEBLOG_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC022",
+          "name": "scout_partspros_washer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC023",
+          "name": "scout_partspros_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC024",
+          "name": "scout_partspros_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC025",
+          "name": "scout_partspros_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC026",
+          "name": "scout_partspros_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC027",
+          "name": "scout_partspros_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC028",
+          "name": "scout_partspros_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_PARTSPROS_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC029",
+          "name": "scout_manualslib_washer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC030",
+          "name": "scout_manualslib_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC031",
+          "name": "scout_manualslib_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC032",
+          "name": "scout_manualslib_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC033",
+          "name": "scout_manualslib_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC034",
+          "name": "scout_manualslib_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC035",
+          "name": "scout_manualslib_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from ManualsLib Service Docs (OEM service manuals + parts diagrams + tolerances). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_MANUALSLIB_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_MANUALSLIB_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC036",
+          "name": "scout_repairclinic_washer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known washer issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC037",
+          "name": "scout_repairclinic_dryer",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dryer issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC038",
+          "name": "scout_repairclinic_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known dishwasher issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC039",
+          "name": "scout_repairclinic_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known refrigerator issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC040",
+          "name": "scout_repairclinic_range",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known range issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC041",
+          "name": "scout_repairclinic_microwave",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known microwave issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC042",
+          "name": "scout_repairclinic_hvac",
+          "status": "TO_BUILD",
+          "priority": 3,
+          "purpose": "Enumerates known hvac issues from RepairClinic Guides (symptom-to-cause troubleshooting trees). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REPAIRCLINIC_HVAC.",
+          "triggers": [
+            "SCOUT_REQUEST_REPAIRCLINIC_HVAC"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        }
+      ],
+      "agents_total": 42,
+      "agents_live": 1
     }
   ],
   "stigmergy_infrastructure": {
