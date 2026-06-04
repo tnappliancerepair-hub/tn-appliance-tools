@@ -22,10 +22,10 @@
     "architecture_principle": "Stigmergy - agents communicate through shared environment via colony_signals table. No direct agent-to-agent communication. Intelligence emerges from signal propagation.",
     "build_principle": "Colony Architect reads this blueprint, identifies highest priority unbuilt agent, assigns to Colony Builder, Builder generates XanoScript, proposal submitted to agent_proposals table, Teddy approves, agent_builder executes, Agent Tester validates.",
     "total_agents_enumerated": 366,
-    "agents_total": 402,
+    "agents_total": 472,
     "agents_built": 360,
-    "last_expanded_at": "2026-06-04T05:14:04.001Z",
-    "last_expansion": "round-5-scout-army"
+    "last_expanded_at": "2026-06-04T16:00:15.014Z",
+    "last_expansion": "round-6-diagnostic-mode-scouts"
   },
   "signal_architecture": {
     "table": "colony_signals",
@@ -5914,9 +5914,1129 @@
           ],
           "xano_endpoint": "",
           "dependencies": []
+        },
+        {
+          "id": "SC043",
+          "name": "scout_diagmode_whirlpool_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC044",
+          "name": "scout_diagmode_whirlpool_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC045",
+          "name": "scout_diagmode_whirlpool_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC046",
+          "name": "scout_diagmode_whirlpool_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC047",
+          "name": "scout_diagmode_whirlpool_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC048",
+          "name": "scout_diagmode_whirlpool_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC049",
+          "name": "scout_diagmode_whirlpool_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for whirlpool microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_WHIRLPOOL_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC050",
+          "name": "scout_diagmode_lg_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC051",
+          "name": "scout_diagmode_lg_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC052",
+          "name": "scout_diagmode_lg_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC053",
+          "name": "scout_diagmode_lg_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC054",
+          "name": "scout_diagmode_lg_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC055",
+          "name": "scout_diagmode_lg_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC056",
+          "name": "scout_diagmode_lg_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for lg microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_LG_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_LG_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC057",
+          "name": "scout_diagmode_samsung_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC058",
+          "name": "scout_diagmode_samsung_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC059",
+          "name": "scout_diagmode_samsung_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC060",
+          "name": "scout_diagmode_samsung_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC061",
+          "name": "scout_diagmode_samsung_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC062",
+          "name": "scout_diagmode_samsung_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC063",
+          "name": "scout_diagmode_samsung_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_SAMSUNG_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC064",
+          "name": "scout_diagmode_ge_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC065",
+          "name": "scout_diagmode_ge_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC066",
+          "name": "scout_diagmode_ge_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC067",
+          "name": "scout_diagmode_ge_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC068",
+          "name": "scout_diagmode_ge_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC069",
+          "name": "scout_diagmode_ge_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC070",
+          "name": "scout_diagmode_ge_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for ge microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_GE_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_GE_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC071",
+          "name": "scout_diagmode_maytag_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC072",
+          "name": "scout_diagmode_maytag_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC073",
+          "name": "scout_diagmode_maytag_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC074",
+          "name": "scout_diagmode_maytag_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC075",
+          "name": "scout_diagmode_maytag_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC076",
+          "name": "scout_diagmode_maytag_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC077",
+          "name": "scout_diagmode_maytag_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for maytag microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_MAYTAG_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_MAYTAG_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC078",
+          "name": "scout_diagmode_kitchenaid_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC079",
+          "name": "scout_diagmode_kitchenaid_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC080",
+          "name": "scout_diagmode_kitchenaid_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC081",
+          "name": "scout_diagmode_kitchenaid_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC082",
+          "name": "scout_diagmode_kitchenaid_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC083",
+          "name": "scout_diagmode_kitchenaid_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC084",
+          "name": "scout_diagmode_kitchenaid_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kitchenaid microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KITCHENAID_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KITCHENAID_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC085",
+          "name": "scout_diagmode_frigidaire_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC086",
+          "name": "scout_diagmode_frigidaire_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC087",
+          "name": "scout_diagmode_frigidaire_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC088",
+          "name": "scout_diagmode_frigidaire_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC089",
+          "name": "scout_diagmode_frigidaire_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC090",
+          "name": "scout_diagmode_frigidaire_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC091",
+          "name": "scout_diagmode_frigidaire_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for frigidaire microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_FRIGIDAIRE_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC092",
+          "name": "scout_diagmode_kenmore_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC093",
+          "name": "scout_diagmode_kenmore_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC094",
+          "name": "scout_diagmode_kenmore_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC095",
+          "name": "scout_diagmode_kenmore_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC096",
+          "name": "scout_diagmode_kenmore_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC097",
+          "name": "scout_diagmode_kenmore_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC098",
+          "name": "scout_diagmode_kenmore_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for kenmore microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_KENMORE_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_KENMORE_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC099",
+          "name": "scout_diagmode_bosch_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC100",
+          "name": "scout_diagmode_bosch_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC101",
+          "name": "scout_diagmode_bosch_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC102",
+          "name": "scout_diagmode_bosch_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC103",
+          "name": "scout_diagmode_bosch_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC104",
+          "name": "scout_diagmode_bosch_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC105",
+          "name": "scout_diagmode_bosch_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for bosch microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_BOSCH_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_BOSCH_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC106",
+          "name": "scout_diagmode_electrolux_washer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux washers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_WASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_WASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC107",
+          "name": "scout_diagmode_electrolux_dryer",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux dryers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_DRYER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_DRYER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC108",
+          "name": "scout_diagmode_electrolux_dishwasher",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_DISHWASHER.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_DISHWASHER"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC109",
+          "name": "scout_diagmode_electrolux_refrigerator",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux refrigerators. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_REFRIGERATOR.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_REFRIGERATOR"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC110",
+          "name": "scout_diagmode_electrolux_range",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux ranges. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_RANGE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_RANGE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC111",
+          "name": "scout_diagmode_electrolux_oven",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux ovens. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_OVEN.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_OVEN"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
+        },
+        {
+          "id": "SC112",
+          "name": "scout_diagmode_electrolux_microwave",
+          "status": "TO_BUILD",
+          "priority": 2,
+          "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for electrolux microwaves. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_ELECTROLUX_MICROWAVE.",
+          "triggers": [
+            "SCOUT_REQUEST_DIAGMODE_ELECTROLUX_MICROWAVE"
+          ],
+          "outputs": [
+            "MODEL_INTELLIGENCE_FINDING",
+            "SCOUT_RUN_COMPLETE"
+          ],
+          "xano_endpoint": "",
+          "dependencies": []
         }
       ],
-      "agents_total": 42,
+      "agents_total": 112,
       "agents_live": 42
     }
   ],

@@ -87,16 +87,31 @@ function scoutSlugsFromAgent(agent) {
 }
 
 function metaPromptForScout(sourceDisplay, applianceDisplay) {
-  return `Write a system prompt for a "scout" agent that enumerates known issues, service bulletins, common failure modes, repair tips, recalls, and useful insights from **${sourceDisplay}** about **${applianceDisplay}** appliances. The scout's job is to populate a proprietary corpus of appliance intelligence that appliance technicians query in the field via Ant Field Assist.
+  return `Write a system prompt for a "scout" agent that enumerates known issues, service bulletins, common failure modes, repair tips, recalls, **diagnostic mode entry sequences**, **test cycle activation steps**, **error code references**, and useful insights from **${sourceDisplay}** about **${applianceDisplay}** appliances. The scout's job is to populate a proprietary corpus of appliance intelligence that appliance technicians query in the field via Ant Field Assist.
 
 The agent should:
 - Speak as if it knows ${sourceDisplay} deeply (because it does — from training data)
 - Focus on actionable, tech-useful findings — not generic "check the manual" advice
 - Prioritize specific brand/model patterns when known (e.g. "Whirlpool VMW washers — front leak is usually the tub seal not the pump")
-- Include confidence level when uncertain
+- **PRIORITIZE diagnostic mode entry sequences** — these are gold for field techs. Examples: "Whirlpool VMW washer service mode: hold 'Wash + Spin' 5 sec then tap power 3x" or "LG fridge test mode: hold Refrigerator + Express Freeze for 10 sec until display shows 'TST'"
+- Include EXACT button-press sequences when known. Not "consult manual" — give the actual sequence.
+- Include test cycles + diagnostic codes that appear during service mode
 - Return findings the tech can ACT ON in the field
+- Include confidence level when uncertain
 
-Output format: JSON array of finding objects with shape {finding_type, brand, model, title, summary, relevance_score}. No commentary.
+finding_type values to use:
+- "diagnostic_mode_entry" — how to ENTER service/diagnostic mode (button sequences)
+- "diagnostic_mode_exit" — how to exit it back to normal operation
+- "test_cycle" — how to run a specific test cycle in service mode
+- "error_code_reference" — what a specific error code means and how to clear it
+- "common_failure" — typical failure modes for this brand/appliance
+- "repair_guide" — actual repair steps from the source
+- "service_bulletin" — manufacturer or vendor bulletins
+- "forum_thread" — community wisdom thread
+- "recall" — recall notice
+- "youtube_tip" — specific YouTube video tip
+
+Output format: JSON array of finding objects with shape {finding_type, brand, model, title, summary, relevance_score}. For diagnostic_mode_entry findings, the summary MUST include the literal button sequence in quotes. No commentary.
 
 Output ONLY the prompt body — no preamble.`;
 }
