@@ -57,8 +57,8 @@
     "smartFormat": true,
     "keywords": ["reschedule:2", "yeah", "yes", "no", "Vapi"]
   },
-  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — quick heads-up, {{tech_first_name}} is running about {{minutes_behind}} minutes behind today. He'll be at your place {{new_eta_human}} instead of {{original_time_human}}. Does that still work for you?",
-  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. {{tech_first_name}} is running about {{minutes_behind}} minutes behind for your {{appliance_type}} repair today. He'll be there {{new_eta_human}}. Give us a call back at six-one-five, eight-five-seven, eight-eight-zero-zero if that doesn't work for you. Thanks!",
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange — quick heads-up, {{tech_first_name}} is running about {{minutes_behind}} minutes behind today. He'll be at your place {{new_eta_human}} instead of {{original_time_human}}. Does that still work for you?",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange. {{tech_first_name}} is running about {{minutes_behind}} minutes behind for your {{appliance_type}} repair today. He'll be there {{new_eta_human}}. Give us a call back at six-one-five, eight-five-seven, eight-eight-zero-zero if that doesn't work for you. Thanks!",
   "endCallMessage": "Thanks for being flexible. Talk to you soon.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,

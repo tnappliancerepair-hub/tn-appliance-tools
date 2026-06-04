@@ -62,7 +62,7 @@
     "smartFormat": true,
     "keywords": ["Marcone", "Tribles", "tracking", "shipped", "backordered", "substitute", "Vapi"]
   },
-  "firstMessage": "Hi, this is Ant calling from T-N Appliance Exchange about order {{order_number}}. We were expecting the {{part_description}} on {{expected_arrival_human}} — can you tell me the current status?",
+  "firstMessage": "Hi, this is Ant's assistant calling from T-N Appliance Exchange about order {{order_number}}. We were expecting the {{part_description}} on {{expected_arrival_human}} — can you tell me the current status?",
   "voicemailMessage": "This is T-N Appliance Exchange calling about order {{order_number}} for a {{part_description}}. We were expecting it on {{expected_arrival_human}}. Please call us back at six-one-five, eight-five-seven, eight-eight-zero-zero with a status update. Thank you.",
   "endCallMessage": "Thank you for the update. Have a good day.",
   "endCallFunctionEnabled": true,

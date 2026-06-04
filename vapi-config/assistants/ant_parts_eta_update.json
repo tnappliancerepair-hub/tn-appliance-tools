@@ -57,8 +57,8 @@
     "smartFormat": true,
     "keywords": ["parts:2", "schedule:2", "yes", "yeah", "no", "Vapi"]
   },
-  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — good news, {{part_name_human}} just came in for your {{appliance_type}} repair. Want to get you on the books? I can send you three open times by text right now.",
-  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. Good news — {{part_name_human}} for your {{appliance_type}} repair just came in. I'm texting you three open times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Talk to you soon.",
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange — good news, {{part_name_human}} just came in for your {{appliance_type}} repair. Want to get you on the books? I can send you three open times by text right now.",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange. Good news — {{part_name_human}} for your {{appliance_type}} repair just came in. I'm texting you three open times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Talk to you soon.",
   "endCallMessage": "Awesome. Talk to you soon.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,

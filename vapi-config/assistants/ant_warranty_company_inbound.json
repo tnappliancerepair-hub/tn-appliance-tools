@@ -255,7 +255,7 @@
     "smartFormat": true,
     "keywords": ["AHS:2", "ServicePower:2", "Frontdoor:2", "SquareTrade:2", "Allstate:2", "claim:2", "dispatch:2", "warranty:2", "homeowner", "Antioch", "Nashville:2", "Hammond", "Walker", "Whirlpool", "Kenmore", "fridge:2", "dryer:2", "washer:2", "dishwasher:2", "Vapi"]
   },
-  "firstMessage": "Thanks for calling TN Appliance Exchange, this is Ant — how can I help you today?",
+  "firstMessage": "Thanks for calling TN Appliance Exchange, this is Ant's assistant — how can I help you today?",
   "voicemailMessage": "You've reached Ant at TN Appliance Exchange. Leave a message and we'll get back to you right away — or text us at six-one-five, two-eight-zero, two-nine-four-nine.",
   "endCallMessage": "Thanks for calling. Talk to you soon.",
   "endCallFunctionEnabled": true,

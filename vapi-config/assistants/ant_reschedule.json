@@ -62,8 +62,8 @@
     "smartFormat": true,
     "keywords": ["reschedule:2", "cancel", "yeah", "yes", "no", "Vapi"]
   },
-  "firstMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange — wanted to give you a quick call. We have to push your {{appliance_type}} repair from {{original_time_human}}. Reason is {{reason_short_human}} — really sorry about that. Want to get you set up with three new times that work?",
-  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant from TN Appliance Exchange. We had to reschedule your {{appliance_type}} repair from {{original_time_human}} — {{reason_short_human}}. I'm texting you three new times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Really sorry about this.",
+  "firstMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange — wanted to give you a quick call. We have to push your {{appliance_type}} repair from {{original_time_human}}. Reason is {{reason_short_human}} — really sorry about that. Want to get you set up with three new times that work?",
+  "voicemailMessage": "Hey {{customer_first_name}}, this is Ant's assistant from TN Appliance Exchange. We had to reschedule your {{appliance_type}} repair from {{original_time_human}} — {{reason_short_human}}. I'm texting you three new times right now — reply A, B, or C, or call us back at six-one-five, eight-five-seven, eight-eight-zero-zero. Really sorry about this.",
   "endCallMessage": "Thanks for being flexible. Talk to you soon.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,

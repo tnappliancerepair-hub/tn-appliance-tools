@@ -127,8 +127,8 @@
     "smartFormat": true,
     "keywords": ["Antioch", "Nashville:2", "Hammond", "Walker", "Whirlpool", "Kenmore", "fridge:2", "dryer:2", "washer:2", "dishwasher:2", "Vapi"]
   },
-  "firstMessage": "Hey, this is Ant from TN Appliance Exchange — saw you called {{missed_call_time_human}}. What can we help you with?",
-  "voicemailMessage": "Hey, this is Ant from TN Appliance Exchange returning your call. Give us a ring back at six-one-five, eight-five-seven, eight-eight-zero-zero, or text us, and we'll take care of you. Talk soon.",
+  "firstMessage": "Hey, this is Ant's assistant from TN Appliance Exchange — saw you called {{missed_call_time_human}}. What can we help you with?",
+  "voicemailMessage": "Hey, this is Ant's assistant from TN Appliance Exchange returning your call. Give us a ring back at six-one-five, eight-five-seven, eight-eight-zero-zero, or text us, and we'll take care of you. Talk soon.",
   "endCallMessage": "Thanks. Talk to you soon.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,

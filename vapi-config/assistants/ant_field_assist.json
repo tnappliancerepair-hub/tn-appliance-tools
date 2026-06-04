@@ -161,7 +161,7 @@
     ]
   },
   "firstMessage": "Alright {{tech_first_name}}, let's get it. {{customer_first_name}}'s {{appliance_summary}} — talk to me.",
-  "voicemailMessage": "Hey {{tech_first_name}}, this is Ant. Hit the button when you're ready, I'm here.",
+  "voicemailMessage": "Hey {{tech_first_name}}, this is Ant's assistant. Hit the button when you're ready, I'm here.",
   "endCallMessage": "Hell yeah {{tech_first_name}}. You're a bad dude, man. Drive safe, hit me up at the next one.",
   "endCallFunctionEnabled": true,
   "recordingEnabled": true,

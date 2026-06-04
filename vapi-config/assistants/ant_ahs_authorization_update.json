@@ -61,7 +61,7 @@
     "smartFormat": true,
     "keywords": ["AHS:2", "authorization:2", "claim:2", "approved", "denied", "supervisor", "Vapi"]
   },
-  "firstMessage": "Hi, this is Ant calling from T-N Appliance Exchange about an authorization request. The claim number is {{claim_number}} — would you like me to read that back?",
+  "firstMessage": "Hi, this is Ant's assistant calling from T-N Appliance Exchange about an authorization request. The claim number is {{claim_number}} — would you like me to read that back?",
   "voicemailMessage": "This is T-N Appliance Exchange calling about an authorization request on claim {{claim_number}}. Our callback number is six-one-five, eight-five-seven, eight-eight-zero-zero. Thank you.",
   "endCallMessage": "Thank you for your help. Have a good day.",
   "endCallFunctionEnabled": true,
