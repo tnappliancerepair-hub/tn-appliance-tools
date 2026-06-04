@@ -99,36 +99,30 @@ export async function toCustomer(phone, body, context = {}) {
   });
 }
 
-// 2026-06-02: per Teddy — "the guys have been complaining about it too,
-// if it's too much they just ignore them." Volume-driven signal collapse
-// is worse than not sending anything. So texts to techs become INTERRUPT
-// channel only (customer messaging them, urgent gap-filler offers, new
-// work assigned, job canceled). Daily/digest/reminder/status content
-// belongs in tech-daily-dashboard.html where they pull it on their cadence,
-// not push that interrupts their job.
-const TECH_SMS_QUIET_PATTERNS = [
+// 2026-06-04: HARDLINE per Teddy after Jimmy reported 30 texts/day
+// overwhelming him in the field. Tech SMS is now ALLOW-LIST ONLY,
+// not deny-list. Three channels survive:
+//   1. daily_tech_briefing  (morning brief — first thing)
+//   2. prediag_request_sent (fresh Teddy Tool pre-diag drops)
+//   3. tech_eod_report      (end of day report)
+// EVERYTHING ELSE is quieted. If something genuinely urgent needs
+// to reach a tech, they call them — SMS storm is over.
+const TECH_SMS_ALLOW_PATTERNS = [
   'daily_tech_briefing',
-  'tdr_reminder',
-  'waiver_due',                // customer-side action, not tech
-  'pre_appointment_check',     // moved to dashboard pill
-  'appointment_reminder_due',  // already on dashboard
-  'google_review_request',     // customer-only
-  'parts_arrival_check',       // dashboard
-  'tech_late_check',
-  'tech_pace_watcher',         // observation, not interrupt
-  'capacity_check',
-  'schedule_gap_check',
-  'tdr_completeness_report',
-  'office_eod',
-  'office_morning_briefing',
-  'colony_architect',
-  'operator_status',
+  'prediag_request',           // Teddy drops pre-diag → tech needs to see
+  'tech_eod_report',           // end-of-day wrap-up
+  'ant_field_assist_intro',    // one-time onboarding (rare)
 ];
 
-function isQuietedForTech(action) {
+function isAllowedForTech(action) {
   if (!action) return false;
   const a = String(action).toLowerCase();
-  return TECH_SMS_QUIET_PATTERNS.some((p) => a.includes(p));
+  return TECH_SMS_ALLOW_PATTERNS.some((p) => a.includes(p));
+}
+
+function isQuietedForTech(action) {
+  // Inverse of allow — if not in allow list, it's quieted.
+  return !isAllowedForTech(action);
 }
 
 export async function toTech(phone, body, context = {}) {

@@ -720,6 +720,26 @@ async function maybeEmitTimeSignals() {
   // DAILY_REVENUE_SUMMARY — fires once per day at 6pm CT (6-9pm grace).
   // EOD digest of completed-jobs volume + warranty/self-pay split + per-tech.
   if (hour >= 18 && hour < 21) {
+    // TECH_EOD_REPORT — 6pm CT per-tech wrap-up SMS (one of 3 allowed
+    // tech-SMS channels per Teddy 2026-06-04 hardline policy).
+    let techEodFired;
+    try {
+      const fired = await xano.getJSON(`${xano.INTAKE ? xano.INTAKE() : ''}/get_action_fired_today?action=tech_eod_report_sent&since_ts_ms=${sinceMs}`).catch(() => null);
+      techEodFired = fired && fired.fired === true;
+    } catch (_e) { techEodFired = false; }
+    if (!techEodFired) {
+      try {
+        await xano.emitSignal({
+          signal_type: 'TECH_EOD_REPORT',
+          signal_strength: 60,
+          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
+        });
+        try { await xano.recordEventLog('tech_eod_report_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+      } catch (err) {
+        xano.logLocal('tech_eod_report_emit_failed', { error: err.message });
+      }
+    }
+
     let revFired;
     try {
       revFired = await xano.getDailyRevenueFired(sinceMs);
