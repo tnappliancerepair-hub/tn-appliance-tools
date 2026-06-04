@@ -901,7 +901,9 @@
         // Tap a stop → open Ant Assist (the new Tech Ant chat surface)
         // for that job. Per Teddy 2026-05-29: dashboard lists stops,
         // Ant Assist is what they work from per-job.
-        window.location.href = `tech-simple.html?job_id=${jobId}&tech_id=${TECH_ID}`;
+        // Cache-bust on every navigation so techs always get fresh JS
+        // (iOS Safari caches aggressively — Teddy hit this 2026-06-04)
+        window.location.href = `tech-simple.html?job_id=${jobId}&tech_id=${TECH_ID}&v=${Date.now()}`;
       });
     });
     // Fetch attachment view URLs in batch and inject thumbnails
