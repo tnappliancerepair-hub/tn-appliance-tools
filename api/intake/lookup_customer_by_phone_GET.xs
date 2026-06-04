@@ -168,11 +168,50 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    // last_call_summary: v1 empty. Future polish — query event_log
-    // phone_call_summary rows filtered by customer_id in metadata, but
-    // the "contains" filter on a JSON column needs proper Xano syntax.
+    // last_call_summary — pre-call context engine. Pull the most
+    // recent phone_call_summary event_log row matching this customer
+    // by substring search on the metadata JSON. Ant uses this to
+    // recall what we last talked about (compounds trust over time).
+    var $cust_marker {
+      value = "\"customer_id\":" ~ ($customer.id|to_text)
+    }
+    db.query event_log {
+      where = $db.event_log.action == "phone_call_summary"
+      sort = {event_log.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 30}}
+    } as $call_rows
     var $last_call_text {
       value = ""
+    }
+    var $last_call_ms {
+      value = 0
+    }
+    foreach ($call_rows.items) {
+      each as $r {
+        conditional {
+          if ($last_call_text == "") {
+            var $meta_str {
+              value = ($r.metadata ?? {})|json_encode
+            }
+            var $stripped {
+              value = $meta_str|replace:$cust_marker:""
+            }
+            conditional {
+              if (($stripped|strlen) < ($meta_str|strlen)) {
+                var $summary_obj {
+                  value = $r.metadata
+                }
+                var.update $last_call_text {
+                  value = (($summary_obj.summary ?? "")|to_text)|trim
+                }
+                var.update $last_call_ms {
+                  value = ($r.created_at ?? 0)
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -184,6 +223,7 @@ query lookup_customer_by_phone verb=GET {
     technician        : $internal_tech
     open_jobs         : $open_jobs_out
     last_call_summary : $last_call_text
+    last_call_at_ms   : $last_call_ms
   }
 
   guid = "lookup-customer-by-phone-v1"
