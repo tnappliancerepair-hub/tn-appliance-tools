@@ -29,11 +29,12 @@ const NETLIFY_BASE = config.publicSiteBase || 'https://tnapplianceexchange.net';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const MODEL = process.env.ANT_VISION_MODEL || 'claude-haiku-4-5-20251001';
 
-const EXTRACTION_PROMPT = `You are a vision agent for an appliance repair shop. Look at the attached image and extract any appliance-identifying information you can see.
+const EXTRACTION_PROMPT = `You are a vision agent for an appliance repair shop. Look at the attached image, classify what it shows, and extract any useful information.
 
 Return STRICT JSON ONLY with this exact shape (no markdown fence, no commentary):
 
 {
+  "classification": "model_sticker"|"parts_used"|"parts_returned"|"walkaround_before"|"walkaround_after"|"damage_evidence"|"error_code_display"|"receipt"|"other",
   "is_appliance_sticker": true|false,
   "confidence": "high"|"medium"|"low",
   "model_number": "string or empty",
@@ -41,8 +42,33 @@ Return STRICT JSON ONLY with this exact shape (no markdown fence, no commentary)
   "brand": "string or empty",
   "appliance_type": "washer"|"dryer"|"dishwasher"|"refrigerator"|"freezer"|"range"|"oven"|"microwave"|"hvac"|"other"|"",
   "error_code": "string or empty",
+  "parts_visible": [
+    {
+      "part_number": "string",
+      "description": "short string",
+      "supplier_visible": "string or empty"
+    }
+  ],
   "notes": "one short sentence about what you see"
 }
+
+Classification rules (pick the BEST fit):
+- "model_sticker": manufacturer label with model + serial. Often inside a door, on a back panel.
+- "parts_used": one or more replacement parts laid out, packaging open/torn, OR parts visibly installed on the appliance. Could be a part box with the OEM label visible.
+- "parts_returned": one or more replacement parts in CLOSED packaging, sometimes with "RETURN" / "GOING BACK" markings or stacked separately. If unclear between used vs returned, prefer "parts_used".
+- "walkaround_before": photo or first frame of video showing the appliance area BEFORE work started — kitchen scene, customer's floor/cabinets visible, appliance in original state.
+- "walkaround_after": same but AFTER — area clean, appliance running/closed up, debris cleared.
+- "damage_evidence": a specific damaged component (cracked housing, burnt wire, water damage, etc.) shown intentionally as proof.
+- "error_code_display": appliance digital display showing an error code (Er FF, F02, etc.).
+- "receipt": parts receipt, supplier invoice.
+- "other": anything else (customer pets, random scene, etc.).
+
+Parts extraction rules (fill parts_visible whenever classification is "parts_used", "parts_returned", or "receipt"):
+- Read every visible part number off the part labels. Real part numbers contain at least 4 alphanumeric characters, often a mix.
+- Don't guess characters you can't clearly read. Omit unclear ones.
+- description is a 2-5 word summary of what the part is (e.g. "drain pump", "control board", "door switch").
+- supplier_visible is the vendor name if a logo/header is on the package (Marcone, Reliable, etc.). Empty otherwise.
+- Empty parts_visible array if no parts shown.
 
 Extraction rules:
 - A "model sticker" is a manufacturer label, usually with a model number, serial number, and brand. Often inside a door, on a back panel, or under a lid.
@@ -166,10 +192,50 @@ export async function run(signal, ctx) {
   const cl = await callClaudeWithImage(signedUrl, log);
   if (!cl || cl.error) {
     await xano.markSignalProcessed(signal.id, 'attachment_vision_handled', { outcome: 'claude_failed', error: cl && cl.error });
+    try {
+      await fetch(`${XANO_BASE}/save_vision_classification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attachment_id: attachmentId,
+          classification: 'unclassified',
+          extracted_json: '',
+          confidence: 0,
+          status: 'failed',
+        }),
+      });
+    } catch (_) {}
     return { success: false, action: 'claude_failed', error: cl && cl.error };
   }
   const ex = cl.parsed || {};
   const confidence = String(ex.confidence || 'low').toLowerCase();
+  const classification = String(ex.classification || 'other').toLowerCase();
+
+  // ALWAYS persist the classification to job_attachments — even when
+  // no appliance fields were extractable. Powers the warranty-review
+  // parts sections + Danielle's used-vs-return view.
+  const confidenceNum = confidence === 'high' ? 90 : confidence === 'medium' ? 60 : 30;
+  try {
+    await fetch(`${XANO_BASE}/save_vision_classification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        attachment_id: attachmentId,
+        classification,
+        extracted_json: JSON.stringify({
+          parts_visible: ex.parts_visible || [],
+          model_number: ex.model_number || '',
+          serial_number: ex.serial_number || '',
+          brand: ex.brand || '',
+          appliance_type: ex.appliance_type || '',
+          error_code: ex.error_code || '',
+          notes: ex.notes || '',
+        }),
+        confidence: confidenceNum,
+        status: 'classified',
+      }),
+    });
+  } catch (_) {}
 
   if (confidence === 'low' || !ex.is_appliance_sticker && !ex.model_number && !ex.serial_number && !ex.brand && !ex.error_code) {
     await xano.markSignalProcessed(signal.id, 'attachment_vision_handled', {
