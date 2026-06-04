@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me search for that."
+    }
+  ],
+  "function": {
+    "name": "search_customers",
+    "description": "Searches the customer table by name (first or last) or by phone number. Use this when a homeowner calls but lookup_customer_by_phone returned found:false AND they couldn't give you a claim number — fall back to asking 'what's your name?' or 'what's the name on the account?' and pass that here. Returns up to 25 matches with name + address + phone + most recent job info. If multiple match, ask for more detail (city, last name, address) to narrow it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Name (first, last, or full) or phone-style query. Examples: 'Sarah Johnson', 'Smith', '6154855795'."
+        }
+      },
+      "required": ["query"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/search_customers"
+  }
+}

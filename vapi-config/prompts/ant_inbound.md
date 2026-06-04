@@ -181,7 +181,7 @@ If they still won't accept it, transfer to Teddy for owner-level commitment.
    - **Do NOT say "we don't have you in our system"** — that sounds dismissive and isn't accurate.
    - Instead say: *"Got it — let me get the details so I can pull up your job. Do you have a claim number from your warranty company, or did you call about something specific?"*
    - If they give a claim/dispatch/WO number → call `lookup_by_claim_number` → you'll find them.
-   - If they don't remember a claim number → ask for their name + the address of the appliance, then say "let me transfer you to our office so they can look that up for you" (no name-search tool wired yet for the voice agent).
+   - If they don't remember a claim number → ask "What's the name on the account?" → call `search_customers({"query": "<name>"})`. If 1 match → confirm by reading back the city + address. If multiple matches → ask for more detail (last name, city) and search again. If 0 matches → transfer to office.
    - **After you've identified them**, call `voice_capture_call_notes` with the customer_id (you'll have it now from the job) — this will help next time they call from this number.
 
 2. **Three main paths:**

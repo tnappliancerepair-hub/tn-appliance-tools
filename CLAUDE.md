@@ -2144,3 +2144,23 @@ Future hygiene: never `cat`/`tail` env files. Use `awk -F= '{print $1}' .env` to
 - **Do NOT skip the time-of-day gate** when adding new auto-triggered outbound calls. Parts ETA Update uses 9am-7pm CT. Appointment Reminder doesn't currently gate (fires at the 24h-before mark regardless). Adding voice triggers without a TOD gate risks calling at 3am.
 
 **🐜 Long Live Ant.** Vacation-ready.
+
+## Operating model — day-of routing (Ant prompt rule)
+
+**TN Appliance Exchange does NOT give specific appointment times.** The model is:
+
+- Customer is scheduled for a DAY (not a time)
+- Tech runs his stops that day in routing-efficient order
+- Customer gets a text the morning of with a live arrival window once the tech starts his route
+- Customer can also check portal / text / call anytime for status
+
+**Ant prompts (Ant Inbound, Appointment Reminder, Tech Running Late) all enforce this.** Never say "your appointment is at 10am" — say "you're one of Jimmy's stops on Thursday, we'll text you the morning of with a live window."
+
+**Why this matters operationally:** giving specific times means we either under-promise (customers wait) or over-promise (we're late, customers angry). Day-of routing gives honest live updates as the route shapes up.
+
+**Customer types who especially push back on no-specific-time:**
+
+- Warranty homeowners — they often want a precise window. Ant has scripted handling: "I won't be able to give you an exact time — we run a routing system. What I CAN promise is the text the morning of with a live arrival window, and you can call anytime."
+- If they keep pushing → transfer to Teddy for owner-level commitment.
+
+**Warranty intake creates customer records by name+address but often NO phone**, so `lookup_customer_by_phone` returning `found:false` is the common case for first-time callers. Ant pivots to asking for claim# or name (via `lookup_by_claim_number` or `search_customers` tools).
