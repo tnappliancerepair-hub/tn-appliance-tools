@@ -69,6 +69,20 @@
 
   .loading { text-align: center; padding: 40px; color: #718096; font-size: 14px; }
 
+  /* LIVE TDR — fields appear as Brooke captures them via voice */
+  .live-tdr { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 2px solid #4ca7ff; }
+  .live-tdr-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .live-tdr-head .live-dot { width: 10px; height: 10px; background: #4ca7ff; border-radius: 50%; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+  .live-tdr-head .live-label { font-size: 12px; color: #4ca7ff; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
+  .live-field { padding: 8px 0; border-bottom: 1px solid #edf2f7; }
+  .live-field:last-child { border-bottom: 0; }
+  .live-field.new { animation: fadeIn 0.6s ease-out; }
+  @keyframes fadeIn { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+  .live-field .live-field-label { font-size: 11px; color: #718096; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; }
+  .live-field .live-field-value { font-size: 15px; color: #1a202c; margin-top: 2px; font-weight: 500; line-height: 1.4; }
+  .live-field.empty .live-field-value { color: #cbd5e0; font-style: italic; font-weight: 400; }
+
   /* Latest-capture banner — shows what they JUST took, big and prominent */
   .just-captured { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(16,185,129,0.3); border: 2px solid #10b981; display: none; }
   .just-captured.show { display: block; animation: pop 0.35s ease-out; }
@@ -181,6 +195,14 @@ function paint(d) {
         <span>Talk to Ant</span>
       </button>
       <div class="status" id="talk-status">Tap to call · phone rings · she handles the report</div>
+    </div>
+
+    <div class="live-tdr" id="live-tdr" style="display:none">
+      <div class="live-tdr-head">
+        <span class="live-dot"></span>
+        <span class="live-label">Brooke is filling out your report</span>
+      </div>
+      <div id="live-tdr-fields"></div>
     </div>
 
     <div class="just-captured" id="just-captured">
@@ -378,8 +400,46 @@ if ('serviceWorker' in navigator) {
 }
 
 loadJob();
-// Refresh every 30 sec so new photos / pre-diag land without manual reload
+// Refresh full job every 30 sec
 setInterval(loadJob, 30000);
+// Poll live TDR every 4 sec — shows fields appearing as Brooke captures them
+let lastSeenTdr = {};
+async function pollLiveTdr() {
+  if (!JOB_ID || !TECH_ID) return;
+  try {
+    const r = await fetch(`${XANO}/get_inprogress_voice_tdr?job_id=${JOB_ID}&tech_id=${TECH_ID}`, { cache: 'no-store' });
+    const d = await r.json();
+    if (!d || !d.success || !d.tdr) {
+      document.getElementById('live-tdr').style.display = 'none';
+      return;
+    }
+    const t = d.tdr;
+    const fields = [
+      { key: 'diagnosis', label: 'Diagnosis', value: t.diagnosis },
+      { key: 'failed_component', label: 'Failed Component', value: t.failed_component },
+      { key: 'labor_time_hours', label: 'Labor Hours', value: t.labor_time_hours },
+      { key: 'parts_needed', label: 'Parts', value: t.parts_needed },
+      { key: 'repair_completed', label: 'Repair', value: t.repair_completed },
+      { key: 'customer_notes', label: 'Customer Notes', value: t.customer_notes },
+    ].filter(f => (f.value || '').toString().trim() !== '');
+    if (fields.length === 0) {
+      document.getElementById('live-tdr').style.display = 'none';
+      return;
+    }
+    document.getElementById('live-tdr').style.display = 'block';
+    const host = document.getElementById('live-tdr-fields');
+    host.innerHTML = fields.map(f => {
+      const isNew = (lastSeenTdr[f.key] || '') !== f.value;
+      return `<div class="live-field ${isNew ? 'new' : ''}">
+        <div class="live-field-label">${esc(f.label)}</div>
+        <div class="live-field-value">${esc(String(f.value))}</div>
+      </div>`;
+    }).join('');
+    fields.forEach(f => { lastSeenTdr[f.key] = f.value; });
+  } catch (e) {}
+}
+setInterval(pollLiveTdr, 4000);
+pollLiveTdr();
 </script>
 </body>
 </html>
