@@ -84,7 +84,65 @@
   </div>
 
   <div class="refresh-info" id="refresh-info">Last refresh: never</div>
+
+  <!-- 📨 Send Teddy — emergency escalation -->
+  <div class="section" style="border-color: rgba(239, 106, 106, 0.3);">
+    <h2 style="color: var(--danger);">📨 Send Teddy (real emergencies only)</h2>
+    <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">
+      Sends Teddy an SMS directly. Use ONLY for things that can't wait until he's back.
+      Examples: system-wide outage, hostile customer threatening legal/BBB, safety issue, refund authorization.
+    </p>
+    <div class="row" style="border: 0; padding: 0;">
+      <input id="tx-brief" placeholder="Brief: what's going on?" style="width: 100%; padding: 10px 12px; border-radius: 8px; background: #0d1014; border: 1px solid var(--line); color: var(--text); font-size: 14px; margin-bottom: 8px;" />
+    </div>
+    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+      <input id="tx-customer" placeholder="Customer name (optional)" style="flex: 1; padding: 8px 10px; border-radius: 8px; background: #0d1014; border: 1px solid var(--line); color: var(--text); font-size: 13px;" />
+      <input id="tx-job" placeholder="Job #" type="number" style="width: 100px; padding: 8px 10px; border-radius: 8px; background: #0d1014; border: 1px solid var(--line); color: var(--text); font-size: 13px;" />
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <select id="tx-urgency" style="flex: 1; padding: 8px 10px; border-radius: 8px; background: #0d1014; border: 1px solid var(--line); color: var(--text); font-size: 13px;">
+        <option value="normal">Normal — can wait a few hours</option>
+        <option value="high">HIGH — need response soon</option>
+        <option value="emergency">EMERGENCY — drop everything</option>
+      </select>
+      <button id="tx-send" style="padding: 10px 16px; border-radius: 8px; border: none; background: var(--danger); color: white; font-weight: 700; font-size: 13px; cursor: pointer;">📨 Send Teddy</button>
+    </div>
+    <div id="tx-status" style="margin-top: 8px; font-size: 12px; color: var(--muted);"></div>
+  </div>
 </div>
+
+<script>
+// "Send Teddy" handler
+document.getElementById('tx-send').addEventListener('click', async () => {
+  const brief = document.getElementById('tx-brief').value.trim();
+  if (!brief) { document.getElementById('tx-status').textContent = 'Enter a brief first.'; return; }
+  const payload = {
+    brief,
+    urgency: document.getElementById('tx-urgency').value,
+    customer_name: document.getElementById('tx-customer').value.trim() || undefined,
+    job_id: Number(document.getElementById('tx-job').value) || undefined,
+    sent_by: 'vacation_status_ui',
+  };
+  document.getElementById('tx-status').textContent = 'Sending…';
+  try {
+    const r = await fetch(`${BASE}/send_teddy_during_vacation`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById('tx-status').innerHTML = `✓ Sent — Teddy will get this SMS. <span style="color:#4ad991">${d.note || ''}</span>`;
+      // Clear form
+      document.getElementById('tx-brief').value = '';
+      document.getElementById('tx-customer').value = '';
+      document.getElementById('tx-job').value = '';
+    } else {
+      document.getElementById('tx-status').innerHTML = `<span style="color:#ef6a6a">Failed: ${d.message || JSON.stringify(d)}</span>`;
+    }
+  } catch (e) {
+    document.getElementById('tx-status').innerHTML = `<span style="color:#ef6a6a">Error: ${e.message}</span>`;
+  }
+});
 
 <script>
 const BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';

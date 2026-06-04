@@ -111,6 +111,45 @@ query reschedule_job verb=POST {
       }
       }
     } as $as_resched_endpoint_log
+
+    // Fire RESCHEDULE_CALL_DUE → Ant Reschedule voice call to customer
+    // explaining the move. Day-of routing language, smart retry on
+    // voicemail. Customer hears: "Hey Sarah, calling because we have to
+    // push your washer repair from Tuesday — [reason]. Want to get you
+    // set up with three new days that work?"
+    //
+    // Skip if voice_skip flag passed (rare — e.g., when called from
+    // chained-reschedule flows that already SMSed the customer).
+    var $voice_skip {
+      value = (($input.voice_skip ?? false) == true)
+    }
+    conditional {
+      if ($voice_skip == false) {
+        var $resched_call_payload {
+          value = {
+            job_id                      : $input.job_id
+            original_scheduled_start_ms : $prior_start
+            scheduled_start_ms          : $input.new_start_ms
+            reason_short_human          : (($input.reason ?? "something came up on our end")|trim)
+          }
+        }
+        db.add colony_signals {
+          data = {
+            signal_type    : "RESCHEDULE_CALL_DUE"
+            signal_strength: 55
+            source_colony  : ""
+            target_colonies: ""
+            payload        : ($resched_call_payload|json_encode)
+          }
+        } as $resched_call_signal
+        db.add event_log {
+          data = {
+            action  : "reschedule_call_due_signal_emitted"
+            metadata: ({job_id: $input.job_id, signal_id: ($resched_call_signal.id ?? 0), reason: ($input.reason ?? ""), source: "reschedule_endpoint"}|json_encode)
+          }
+        }
+      }
+    }
   }
 
   response = {success: true, new_start: $input.new_start_ms}
