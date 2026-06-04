@@ -27,7 +27,12 @@ import { config } from '../config.js';
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const NETLIFY_BASE = config.publicSiteBase || 'https://tnapplianceexchange.net';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
-const MODEL = process.env.ANT_VISION_MODEL || 'claude-haiku-4-5-20251001';
+// Upgraded 2026-06-04 from Haiku → Sonnet 4.5 per Jimmy field report
+// of model stickers not being reliably extracted. Sonnet vision is
+// dramatically more accurate on partial / angled / faded labels.
+// ~5x cost ($0.015 vs $0.003 per photo) — worth it for the
+// productivity unlock. Override via ANT_VISION_MODEL env var if needed.
+const MODEL = process.env.ANT_VISION_MODEL || 'claude-sonnet-4-5-20250929';
 
 const EXTRACTION_PROMPT = `You are a vision agent for an appliance repair shop. Look at the attached image, classify what it shows, and extract any useful information.
 

@@ -2572,6 +2572,10 @@
       if (gen.attachment_id) {
         pendingAttachmentIds.push(gen.attachment_id);
       }
+      // Inline vision result + retry/type-direct controls for the tech
+      if (gen.attachment_id && !isVideo) {
+        showVisionResultBlock(gen.attachment_id);
+      }
       await sendToBrain(isVideo
         ? "Just uploaded a video — go look and tell me what you see."
         : "Photo of the model plate — read the model number off it and confirm it back to me. If it's not a model plate, just tell me what you see."
@@ -2580,6 +2584,119 @@
       hideTyping();
       addMsg('assistant', 'Upload failed: ' + (err.message || 'unknown') + ' — your photo is saved on your phone, try again when signal improves.');
     }
+  }
+
+  // ── Inline vision result block (Jimmy's fix 2026-06-04) ──────────
+  // After a photo upload, polls get_attachment_vision_result and shows
+  // the tech inline what was read. Includes 🔄 Re-analyze + ✏️ Type
+  // model directly so he's never stuck.
+  function showVisionResultBlock(attachmentId) {
+    hideEmpty();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ant';
+    wrap.dataset.visionAttachment = String(attachmentId);
+    const av = document.createElement('div');
+    av.className = 'msg-av';
+    av.textContent = '🐜';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.style.cssText = 'background:rgba(76,167,255,0.08); border:1px solid rgba(76,167,255,0.25);';
+    bubble.innerHTML = `<div style="font-size:11px;color:#4ca7ff;letter-spacing:0.05em;text-transform:uppercase;font-weight:700;margin-bottom:6px">🤖 Vision OCR</div><div data-vision-status>Reading your photo… give me ~10 seconds.</div><div data-vision-actions style="display:none; margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;"></div>`;
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    chatStage.appendChild(wrap);
+    scrollChatToBottom();
+    pollVisionResult(attachmentId, wrap, 0);
+  }
+
+  async function pollVisionResult(attachmentId, wrapEl, attempt) {
+    if (attempt > 12) {
+      // Give up after ~36 sec
+      const status = wrapEl.querySelector('[data-vision-status]');
+      const actions = wrapEl.querySelector('[data-vision-actions]');
+      if (status) status.textContent = "Vision's running slow — give it another minute or tap Re-analyze.";
+      renderVisionActions(actions, attachmentId, null);
+      return;
+    }
+    try {
+      const r = await fetch(`${XANO_BASE}/get_attachment_vision_result?attachment_id=${attachmentId}`, { cache: 'no-store' });
+      const d = await r.json();
+      if (d && d.success && d.status === 'classified') {
+        let ext = {};
+        try { ext = JSON.parse(d.extracted_json || '{}'); } catch (_) {}
+        const status = wrapEl.querySelector('[data-vision-status]');
+        const actions = wrapEl.querySelector('[data-vision-actions]');
+        if (status) {
+          const cls = d.classification || 'photo';
+          const model = (ext.model_number || '').trim();
+          const brand = (ext.brand || '').trim();
+          const serial = (ext.serial_number || '').trim();
+          const partsList = (ext.parts_visible || []).map((p) => p.part_number).filter(Boolean).slice(0, 4);
+          if (model || brand) {
+            status.innerHTML = `<div style="color:#4ad991">✓ Got it.</div>`
+              + (model ? `<div style="margin-top:4px"><strong>Model:</strong> <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px">${escapeHtml(model)}</code></div>` : '')
+              + (brand ? `<div style="margin-top:2px"><strong>Brand:</strong> ${escapeHtml(brand)}</div>` : '')
+              + (serial ? `<div style="margin-top:2px"><strong>Serial:</strong> <code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px">${escapeHtml(serial)}</code></div>` : '')
+              + (partsList.length ? `<div style="margin-top:4px"><strong>Parts visible:</strong> ${partsList.map(p => `<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;margin-right:4px">${escapeHtml(p)}</code>`).join('')}</div>` : '')
+              + `<div style="margin-top:6px;color:#8a93aa;font-size:11px">Classified as: ${cls} · confidence ${d.confidence}%</div>`;
+          } else if (partsList.length) {
+            status.innerHTML = `<div style="color:#4ad991">✓ Saw parts on this photo.</div><div style="margin-top:4px"><strong>Numbers:</strong> ${partsList.map(p => `<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;margin-right:4px">${escapeHtml(p)}</code>`).join('')}</div><div style="margin-top:6px;color:#8a93aa;font-size:11px">Classified as: ${cls} · confidence ${d.confidence}%</div>`;
+          } else {
+            status.innerHTML = `<div style="color:#f0b450">⚠️ Couldn't read a model number off this one.</div><div style="margin-top:4px;color:#cfd6e0;font-size:13px">Classified as: <strong>${cls}</strong> (${d.confidence}%). ${escapeHtml(ext.notes || 'Try a closer shot of the sticker, or type the model directly.')}</div>`;
+          }
+        }
+        renderVisionActions(actions, attachmentId, d.classification);
+        return;
+      }
+    } catch (_) {}
+    setTimeout(() => pollVisionResult(attachmentId, wrapEl, attempt + 1), 3000);
+  }
+
+  function renderVisionActions(actionsEl, attachmentId, classification) {
+    if (!actionsEl) return;
+    actionsEl.style.display = 'flex';
+    actionsEl.innerHTML = `
+      <button data-vision-retry style="background:rgba(76,167,255,0.15);border:1px solid rgba(76,167,255,0.4);color:#4ca7ff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">🔄 Re-analyze</button>
+      <button data-vision-typedirect style="background:rgba(74,217,145,0.15);border:1px solid rgba(74,217,145,0.4);color:#4ad991;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">✏️ Type model directly</button>
+    `;
+    actionsEl.querySelector('[data-vision-retry]').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = '🔄 Running…';
+      try {
+        await fetch(`${XANO_BASE}/retry_vision_for_attachment`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attachment_id: attachmentId })
+        });
+        // Reset the parent block and re-poll
+        const wrap = btn.closest('.msg');
+        if (wrap) {
+          const status = wrap.querySelector('[data-vision-status]');
+          if (status) status.textContent = 'Re-analyzing — give me a few seconds.';
+          actionsEl.style.display = 'none';
+          actionsEl.innerHTML = '';
+          pollVisionResult(attachmentId, wrap, 0);
+        }
+      } catch (err) {
+        btn.disabled = false; btn.textContent = '🔄 Re-analyze';
+      }
+    });
+    actionsEl.querySelector('[data-vision-typedirect]').addEventListener('click', () => {
+      const m = prompt('Type the model number directly:');
+      if (m && m.trim()) {
+        fetch(`${XANO_BASE}/update_job_appliance_fields`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, model_number: m.trim() })
+        }).then(() => {
+          addMsg('assistant', `Got it — model set to ${m.trim()}. Locked in on the job.`);
+        }).catch(() => {
+          addMsg('assistant', 'Save failed — try again or text it to the office.');
+        });
+      }
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
   // ── Header action buttons ────────────────────────────────────────
