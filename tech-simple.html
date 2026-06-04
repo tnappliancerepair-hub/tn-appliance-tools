@@ -141,16 +141,55 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 
 async function loadJob() {
   if (!JOB_ID) { document.getElementById('content').innerHTML = '<div class="loading">No job loaded. Open from your daily dashboard.</div>'; return; }
+  // Try cached data first so the tech sees SOMETHING even on weak signal
+  const cacheKey = `tech_simple_job_${JOB_ID}`;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached && !jobData) {
+      const parsed = JSON.parse(cached);
+      jobData = parsed;
+      paint(parsed);
+      // ← show cached UI immediately, still try to fetch fresh below
+    }
+  } catch (_) {}
+  // Fetch with 8-sec timeout so weak-signal stalls fail fast + can retry
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
     const r = await fetch(`${XANO}/get_job_for_dashboard`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: JOB_ID })
+      body: JSON.stringify({ job_id: JOB_ID }),
+      signal: ctrl.signal,
     });
+    clearTimeout(timer);
     const d = await r.json();
     jobData = d;
     paint(d);
+    try { sessionStorage.setItem(cacheKey, JSON.stringify(d)); } catch (_) {}
   } catch (e) {
-    document.getElementById('content').innerHTML = `<div class="loading">Couldn't load: ${e.message}</div>`;
+    clearTimeout(timer);
+    // Only show error if we never had cached data to fall back on
+    if (!jobData) {
+      const msg = e.name === 'AbortError' ? 'Connection slow — tap retry' : 'Couldn\'t load — tap retry';
+      document.getElementById('content').innerHTML = `
+        <div class="topbar">
+          <div class="job-id">Job #${JOB_ID}</div>
+          <div class="customer-name">${esc(msg)}</div>
+          <div class="address" style="color:#ef6a6a;margin-top:8px">${esc(e.message || 'unknown')}</div>
+          <div class="meta-row" style="margin-top:14px">
+            <a href="#" onclick="event.preventDefault();loadJob();return false">🔄 Retry</a>
+          </div>
+        </div>
+        <div class="talk-card">
+          <button class="talk-btn" id="btn-talk-fallback">
+            <span class="icon">🎤</span>
+            <span>Talk to Ant</span>
+          </button>
+          <div class="status">Tap to call — Brooke can pull the job info on her end</div>
+        </div>`;
+      const fb = document.getElementById('btn-talk-fallback');
+      if (fb) fb.addEventListener('click', () => talkToAnt('diagnose'));
+    }
   }
 }
 
