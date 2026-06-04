@@ -11,8 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-06-04T00:01:02.360Z
-// Total registered: 488
+// Generated: 2026-06-04T01:41:39.644Z
+// Total registered: 489
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
@@ -311,6 +311,7 @@ export const AGENT_REGISTRY = {
   'RECRUITING_TECH_RECRUITING_DEMAND_FORECASTER': './recruiting_tech_recruiting_demand_forecaster.js',
   'RECRUITING_TRADE_SCHOOL_OUTREACH': './recruiting_trade_school_outreach.js',
   'REPEAT_VISIT_CHECK': './repeat_visit_check.js',
+  'RESCHEDULE_CALL_DUE': './reschedule_call_due.js',
   'RESCHEDULE_REQUEST_ALERT': './reschedule_request_alert.js',
   'RESEARCH_REQUEST_APPLIANCEAPI': './research_request_applianceapi.js',
   'RESEARCH_REQUEST_APPLIANTOLOGY': './research_request_appliantology.js',

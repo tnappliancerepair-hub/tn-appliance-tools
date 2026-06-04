@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Vacation Status · Ant</title>
+<style>
+  :root {
+    --bg: #0b0d10; --card: #161a1f; --line: #2a2f37;
+    --text: #e6e8eb; --muted: #8b919c; --accent: #4ad991;
+    --warn: #f0b450; --danger: #ef6a6a; --info: #4ca7ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 18px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .tag { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px; margin-bottom: 24px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px;
+  }
+  .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .stat .value { font-size: 28px; font-weight: 700; }
+  .stat.healthy { border-color: rgba(74, 217, 145, 0.4); }
+  .stat.healthy .value { color: var(--accent); }
+  .stat.warn { border-color: rgba(240, 180, 80, 0.4); }
+  .stat.warn .value { color: var(--warn); }
+  .stat.danger { border-color: rgba(239, 106, 106, 0.4); }
+  .stat.danger .value { color: var(--danger); }
+  .section {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+  }
+  .section h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .row { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .row:last-child { border-bottom: 0; }
+  .row .when { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; margin-right: 12px; }
+  .row .what { color: var(--text); }
+  .row.error .what { color: var(--danger); }
+  .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
+  .pulse {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s ease-in-out infinite; margin-right: 8px;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .refresh-info { color: var(--muted); font-size: 11px; text-align: right; margin-top: 12px; }
+</style>
+</head>
+<body>
+<script src="/office-nav.js?v=20260603-1"></script>
+<div class="wrap">
+  <h1>🏖 Vacation Status Board</h1>
+  <p class="tag">Live system health while Teddy is away. Auto-refreshes every 30 sec.</p>
+
+  <div class="grid" id="stat-grid">
+    <div class="stat"><div class="label">Loading…</div><div class="value">…</div></div>
+  </div>
+
+  <div class="section">
+    <h2>📞 Recent Outbound Ant Calls</h2>
+    <div id="dispatches">Loading…</div>
+  </div>
+
+  <div class="section">
+    <h2>📥 Recent Inbound Calls</h2>
+    <div id="inbound">Loading…</div>
+  </div>
+
+  <div class="section">
+    <h2>⚠️ Errors (last 24h)</h2>
+    <div id="errors">Loading…</div>
+  </div>
+
+  <div class="refresh-info" id="refresh-info">Last refresh: never</div>
+</div>
+
+<script>
+const BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+function fmtAgo(ms) {
+  if (!ms) return '?';
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
+}
+
+function fmtTime(ms) {
+  return new Date(Number(ms)).toLocaleString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+function summarizeMeta(meta) {
+  try {
+    const m = typeof meta === 'string' ? JSON.parse(meta) : (meta || {});
+    if (m.call_type && m.to_phone) return `${m.call_type} → ${m.to_phone}`;
+    if (m.action) return m.action;
+    if (m.job_id) return `job #${m.job_id}`;
+    if (m.caller_phone) return `from ${m.caller_phone}`;
+    return JSON.stringify(m).slice(0, 80);
+  } catch (_) { return ''; }
+}
+
+async function refresh() {
+  try {
+    const r = await fetch(`${BASE}/get_vacation_status_board`);
+    const d = await r.json();
+    const hb = d.heartbeat || {};
+    const hbClass = hb.healthy ? 'healthy' : (hb.age_min > 60 ? 'danger' : 'warn');
+    const hbVal = hb.age_min === -1 ? 'never' : `${hb.age_min}m ago`;
+
+    const stats = [
+      { label: 'Loop Heartbeat', value: hbVal, cls: hbClass, prefix: hb.healthy ? '<span class="pulse"></span>' : '' },
+      { label: 'Auto Triggers / 24h', value: d.auto_triggers_24h ?? 0, cls: 'healthy' },
+      { label: 'Errors / 24h', value: d.errors_24h ?? 0, cls: (d.errors_24h || 0) === 0 ? 'healthy' : 'warn' },
+      { label: 'Inbound Calls / 24h', value: (d.recent_inbound || []).length, cls: 'healthy' },
+    ];
+
+    document.getElementById('stat-grid').innerHTML = stats.map(s =>
+      `<div class="stat ${s.cls}"><div class="label">${s.label}</div><div class="value">${s.prefix || ''}${s.value}</div></div>`
+    ).join('');
+
+    document.getElementById('dispatches').innerHTML = (d.recent_dispatches || []).length === 0
+      ? '<div class="empty">No outbound calls in the last 24h.</div>'
+      : d.recent_dispatches.slice(0, 15).map(r => `
+        <div class="row"><span class="when">${fmtAgo(r.created_at)}</span><span class="what">${summarizeMeta(r.metadata)}</span></div>
+      `).join('');
+
+    document.getElementById('inbound').innerHTML = (d.recent_inbound || []).length === 0
+      ? '<div class="empty">No inbound calls in the last 24h.</div>'
+      : d.recent_inbound.slice(0, 15).map(r => `
+        <div class="row"><span class="when">${fmtAgo(r.created_at)}</span><span class="what">${summarizeMeta(r.metadata)}</span></div>
+      `).join('');
+
+    document.getElementById('errors').innerHTML = (d.recent_errors || []).length === 0
+      ? '<div class="empty">No errors. 🎉</div>'
+      : d.recent_errors.slice(0, 10).map(r => `
+        <div class="row error"><span class="when">${fmtAgo(r.created_at)}</span><span class="what">${r.action}</span></div>
+      `).join('');
+
+    document.getElementById('refresh-info').textContent = `Last refresh: ${fmtTime(Date.now())}`;
+  } catch (e) {
+    document.getElementById('refresh-info').textContent = `Refresh failed: ${e.message}`;
+  }
+}
+
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
