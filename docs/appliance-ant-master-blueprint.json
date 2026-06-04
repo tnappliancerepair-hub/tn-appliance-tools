@@ -7,7 +7,7 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 91,
+    "agents_live": 92,
     "agents_to_build": 0,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
@@ -6174,7 +6174,7 @@
         {
           "id": "SC059",
           "name": "scout_diagmode_samsung_dishwasher",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 2,
           "purpose": "Enumerates diagnostic mode entry sequences, test cycles, error code references, and service mode procedures for samsung dishwashers. Source-agnostic — pulls from all relevant manuals, forums, bulletins, YouTube tutorials in training data. Persists findings to model_intelligence corpus with finding_type=diagnostic_mode_entry / diagnostic_mode_exit / test_cycle / error_code_reference. Triggers on SCOUT_REQUEST_DIAGMODE_SAMSUNG_DISHWASHER.",
           "triggers": [
@@ -7037,7 +7037,7 @@
         }
       ],
       "agents_total": 112,
-      "agents_live": 58
+      "agents_live": 59
     }
   ],
   "stigmergy_infrastructure": {
