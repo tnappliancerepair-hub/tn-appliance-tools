@@ -251,6 +251,165 @@
     }
   }
 
+  // ── Unified Job Timeline (the central brain feed) ──────────────
+  // Renders every event on a job in chronological order — TDR writes,
+  // photos, calls, SMS, vision classifications, status changes,
+  // warranty actions. Same data, role-filtered per viewer.
+  const TIMELINE_ICON = {
+    sms_sent: '📱', inbound_customer_sms_received: '📱', sms_owner_bypass: '📱', feedback_sms_sent: '📱', dropped_customer_sms: '📱',
+    phone_call_summary: '📞', ant_field_assist_dispatched: '📞', ant_field_assist_call_summary_sent: '📞', vapi_call_completed: '📞',
+    tdr_field_updated_from_voice: '📋', tdr_finalized_from_voice: '📋', tdr_submitted: '📋', tdr_write_from_sms: '📋',
+    attachment_upload_completed: '📷', customer_intake_bundle_signal_emitted: '📷', ant_field_assist_photo_requested: '📷',
+    vision_classification_saved: '🤖', attachment_vision_handled: '🤖', tdr_suggestion_drafted: '🤖',
+    appointment_scheduled: '📅', appointment_reminder_sent: '📅', appointment_reminder_voice_placed: '📅', reschedule_call_due: '📅',
+    job_started: '🔧', job_completed: '✅', job_canceled: '❌', tech_on_the_way: '🚗',
+    warranty_submission_recorded: '📦', warranty_claim_action_persisted: '📦', warranty_status_watcher_parsed: '📦',
+    new_job_greeting_sent: '👋', prediag_request_sent: '🧠',
+    change_request_submitted: '💬', change_request_decided: '💬',
+  };
+  const TIMELINE_LABEL = {
+    sms_sent: 'SMS sent', inbound_customer_sms_received: 'Customer text in', sms_owner_bypass: 'SMS (owner)', feedback_sms_sent: 'Feedback SMS', dropped_customer_sms: 'SMS held (gate)',
+    phone_call_summary: 'Phone call', ant_field_assist_dispatched: 'Brooke called tech', ant_field_assist_call_summary_sent: 'Brooke call wrap', vapi_call_completed: 'Vapi call',
+    tdr_field_updated_from_voice: 'TDR field (voice)', tdr_finalized_from_voice: 'TDR finalized (voice)', tdr_submitted: 'TDR submitted', tdr_write_from_sms: 'TDR field (SMS)',
+    attachment_upload_completed: 'Photo uploaded', customer_intake_bundle_signal_emitted: 'Customer media in', ant_field_assist_photo_requested: 'Photo requested',
+    vision_classification_saved: 'Vision tagged photo', attachment_vision_handled: 'Vision processed', tdr_suggestion_drafted: 'Ant TDR draft',
+    appointment_scheduled: 'Appointment scheduled', appointment_reminder_sent: 'Reminder sent', appointment_reminder_voice_placed: 'Reminder call placed', reschedule_call_due: 'Reschedule call queued',
+    job_started: 'Job started', job_completed: 'Job completed', job_canceled: 'Job canceled', tech_on_the_way: 'Tech on the way',
+    warranty_submission_recorded: 'Warranty marked', warranty_claim_action_persisted: 'Warranty package built', warranty_status_watcher_parsed: 'Vendor status update',
+    new_job_greeting_sent: 'Greeting SMS sent', prediag_request_sent: 'Pre-diag request',
+    change_request_submitted: 'Change request in', change_request_decided: 'Change request decided',
+  };
+
+  // Per-role visibility: which actions a given role should see.
+  const TIMELINE_ROLE_FILTERS = {
+    customer: new Set([
+      'sms_sent', 'inbound_customer_sms_received', 'feedback_sms_sent',
+      'phone_call_summary',
+      'attachment_upload_completed', 'customer_intake_bundle_signal_emitted',
+      'appointment_scheduled', 'appointment_reminder_sent',
+      'job_started', 'job_completed', 'tech_on_the_way',
+      'new_job_greeting_sent',
+    ]),
+    // tech / office / owner see everything
+  };
+
+  function pickIcon(action) {
+    const key = String(action || '').toLowerCase();
+    if (TIMELINE_ICON[key]) return TIMELINE_ICON[key];
+    if (/^sms/.test(key)) return '📱';
+    if (/call|vapi/.test(key)) return '📞';
+    if (/tdr/.test(key)) return '📋';
+    if (/attach|photo|upload/.test(key)) return '📷';
+    if (/vision/.test(key)) return '🤖';
+    if (/appointment|schedul/.test(key)) return '📅';
+    if (/warranty|submission/.test(key)) return '📦';
+    return '•';
+  }
+  function pickLabel(action) {
+    const key = String(action || '').toLowerCase();
+    return TIMELINE_LABEL[key] || key.replace(/_/g, ' ');
+  }
+  function shouldShowForRole(action, role) {
+    const allow = TIMELINE_ROLE_FILTERS[role];
+    if (!allow) return true; // tech/office/owner see all
+    return allow.has(String(action || '').toLowerCase());
+  }
+  function summarizeMetadata(action, metaStr) {
+    if (!metaStr) return '';
+    let m;
+    try { m = typeof metaStr === 'string' ? JSON.parse(metaStr) : metaStr; }
+    catch (_) { return ''; }
+    if (!m || typeof m !== 'object') return '';
+    if (action === 'tdr_field_updated_from_voice') return m.field ? `${m.field}: filled` : '';
+    if (action === 'phone_call_summary') {
+      const dur = m.duration_sec ? `${Math.round(m.duration_sec / 60)}min` : '';
+      const sum = (m.summary || '').slice(0, 140);
+      return [dur, sum].filter(Boolean).join(' · ');
+    }
+    if (action === 'attachment_upload_completed') return m.s3_key ? '' : '';
+    if (action === 'vision_classification_saved') return m.classification ? `${m.classification} (${m.confidence}%)` : '';
+    if (action === 'sms_sent' || action === 'feedback_sms_sent') return (m.body || m.message || '').slice(0, 140);
+    if (action === 'inbound_customer_sms_received') return (m.body || '').slice(0, 140);
+    if (action === 'appointment_scheduled') return m.scheduled_start_ms ? new Date(Number(m.scheduled_start_ms)).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) + ' CT' : '';
+    if (action === 'change_request_submitted') return (m.title || '').slice(0, 120);
+    return '';
+  }
+  function fmtRelative(tsMs) {
+    const now = Date.now();
+    const diff = now - Number(tsMs);
+    if (!diff || diff < 0) return 'now';
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    return `${d}d`;
+  }
+
+  function renderTimeline(events, role, opts) {
+    const limit = (opts && opts.limit) || 60;
+    const filtered = (events || []).filter((e) => shouldShowForRole(e.action, role)).slice(0, limit);
+    if (filtered.length === 0) {
+      return '<div style="padding:14px;text-align:center;color:#9aa1ad;font-size:12px;">No activity yet on this job.</div>';
+    }
+    return '<div style="font-family:-apple-system,system-ui,sans-serif">' + filtered.map((e) => {
+      const icon = pickIcon(e.action);
+      const label = pickLabel(e.action);
+      const summary = summarizeMetadata(e.action, e.metadata);
+      const ts = Number(e.created_at) || 0;
+      const rel = fmtRelative(ts);
+      return `
+        <div style="display:flex;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);align-items:flex-start;">
+          <div style="font-size:16px;line-height:1;width:22px;flex-shrink:0;">${icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+              <span style="font-size:12px;color:#cfd6e0;font-weight:600;">${label}</span>
+              <span style="font-size:10px;color:#9aa1ad;font-family:monospace;flex-shrink:0;">${rel} ago</span>
+            </div>
+            ${summary ? `<div style="font-size:11px;color:#9aa1ad;line-height:1.4;margin-top:2px;word-break:break-word;">${summary.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('') + '</div>';
+  }
+
+  async function fetchJobTimeline(jobId) {
+    const r = await fetch(`${XANO_BASE}/get_job_event_stream?job_id=${jobId}`, { cache: 'no-store' });
+    const d = await r.json();
+    return {
+      events: (d && d.events) || [],
+      latestId: (d && d.latest_event_id) || 0,
+      currentState: (d && d.current_state) || null,
+    };
+  }
+
+  async function mountJobTimeline(jobId, mountElOrId, opts) {
+    if (!jobId) return null;
+    const mount = typeof mountElOrId === 'string' ? root.document.getElementById(mountElOrId) : mountElOrId;
+    if (!mount) return null;
+    const options = opts || {};
+    const role = options.filterFor || detectRole();
+    mount.innerHTML = '<div style="padding:14px;text-align:center;color:#9aa1ad;font-size:12px;">Loading job activity…</div>';
+    try {
+      const { events } = await fetchJobTimeline(jobId);
+      mount.innerHTML = renderTimeline(events, role, options);
+      if (!mount._antTimelineListener) {
+        mount._antTimelineListener = async () => {
+          try {
+            const { events } = await fetchJobTimeline(jobId);
+            mount.innerHTML = renderTimeline(events, role, options);
+          } catch (_) {}
+        };
+        root.addEventListener('ant:state-changed', mount._antTimelineListener);
+      }
+      return { rerender: mount._antTimelineListener };
+    } catch (err) {
+      mount.innerHTML = `<div style="padding:14px;text-align:center;color:#ff6b6b;font-size:12px;">Timeline load failed: ${err.message}</div>`;
+      return null;
+    }
+  }
+
   // ── Public API ─────────────────────────────────────────────────
   root.Ant = root.Ant || {};
   root.Ant.role = detectRole;
@@ -258,7 +417,8 @@
   root.Ant.deepLinkStrip = injectStrip;
   root.Ant.startLiveAwareness = startLiveAwareness;
   root.Ant.mountSmsThread = mountSmsThread;
-  root.Ant.spineVersion = '1.1.0';
+  root.Ant.mountJobTimeline = mountJobTimeline;
+  root.Ant.spineVersion = '1.2.0';
 
   // ── Auto-init ──────────────────────────────────────────────────
   // If the page opted in by setting window.ANT_SPINE_AUTO=true OR has a
@@ -277,6 +437,11 @@
       const smsMount = root.document.getElementById('ant-sms-thread');
       if (smsMount) {
         try { mountSmsThread(jobId, smsMount, { filterFor: role }); } catch (_) {}
+      }
+      // Auto-mount unified job timeline sentinel.
+      const tlMount = root.document.getElementById('ant-job-timeline');
+      if (tlMount) {
+        try { mountJobTimeline(jobId, tlMount, { filterFor: role }); } catch (_) {}
       }
     }
   }

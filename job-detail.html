@@ -460,6 +460,13 @@
   <div id="ant-sms-thread" data-filter="office" style="margin-top: 8px; border: 1px solid #2a3040; border-radius: 10px; background: #131720; min-height: 80px;"></div>
 </details>
 
+<!-- Unified Job Timeline — central brain feed. ant-spine.js auto-mounts
+     when this sentinel is present. Office sees everything. -->
+<details open style="max-width: 860px; margin: 16px auto; padding: 0 12px;">
+  <summary style="cursor: pointer; padding: 10px 14px; background: rgba(180,140,255,0.10); border: 1px solid rgba(180,140,255,0.30); border-radius: 10px; font-size: 14px; color: #b48cff; font-weight: 600;">🧠 Job activity — everything that's happened</summary>
+  <div id="ant-job-timeline" data-filter="office" style="margin-top: 8px; border: 1px solid #2a3040; border-radius: 10px; background: #131720; min-height: 80px; max-height: 480px; overflow-y: auto;"></div>
+</details>
+
 <!-- Edit job info modal — Danielle fills/corrects customer + appliance + warranty -->
 <div class="modal-overlay" id="modal-edit">
   <div class="modal-card" style="max-width:540px">
