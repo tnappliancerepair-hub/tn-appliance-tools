@@ -1,0 +1,20 @@
+{
+  "name": "Ant Field",
+  "short_name": "Ant",
+  "description": "Your field partner — talk to Ant, snap photos, fill the TDR. Built for the truck.",
+  "start_url": "/tech-ant-chat.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    {
+      "src": "/icons/ant-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"]
+}

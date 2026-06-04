@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0b0d10"/>
+  <!-- Subtle border glow -->
+  <rect x="8" y="8" width="496" height="496" rx="88" fill="none" stroke="#1a1f2c" stroke-width="2"/>
+  <!-- Ant body -->
+  <g transform="translate(256 256)">
+    <!-- Antennae -->
+    <path d="M-30 -130 Q-50 -170 -75 -180" stroke="#cfd6e0" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M30 -130 Q50 -170 75 -180" stroke="#cfd6e0" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <circle cx="-75" cy="-180" r="6" fill="#cfd6e0"/>
+    <circle cx="75" cy="-180" r="6" fill="#cfd6e0"/>
+    <!-- Head -->
+    <ellipse cx="0" cy="-100" rx="55" ry="50" fill="#cfd6e0"/>
+    <!-- Eyes -->
+    <circle cx="-22" cy="-110" r="6" fill="#0b0d10"/>
+    <circle cx="22" cy="-110" r="6" fill="#0b0d10"/>
+    <!-- Thorax (middle) -->
+    <ellipse cx="0" cy="-15" rx="50" ry="55" fill="#cfd6e0"/>
+    <!-- Abdomen (back) -->
+    <ellipse cx="0" cy="100" rx="80" ry="70" fill="#cfd6e0"/>
+    <!-- Legs (6 of them) -->
+    <g stroke="#cfd6e0" stroke-width="8" stroke-linecap="round" fill="none">
+      <path d="M-45 -25 Q-100 -10 -130 -50"/>
+      <path d="M-45 0 Q-110 10 -140 0"/>
+      <path d="M-45 25 Q-110 30 -130 60"/>
+      <path d="M45 -25 Q100 -10 130 -50"/>
+      <path d="M45 0 Q110 10 140 0"/>
+      <path d="M45 25 Q110 30 130 60"/>
+    </g>
+  </g>
+</svg>
