@@ -339,12 +339,174 @@
 
 <div class="counts-bar" id="counts-bar"></div>
 
+<!-- 📞 Inline Communications Hub. Calls needing review + per-card
+     reach-back actions, right on the dashboard so Danielle doesn't
+     navigate away. Collapsible — opens to today's review queue. -->
+<details id="comms-panel" style="margin:10px 12px 4px;background:#161a1f;border:1px solid #2a2f37;border-radius:12px;overflow:hidden">
+  <summary style="cursor:pointer;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(76,167,255,0.06);border-bottom:1px solid #2a2f37">
+    <span style="font-size:13px;font-weight:700;color:#cbd5e0;letter-spacing:0.2px">📞 Communications · calls + texts in one place</span>
+    <span id="comms-summary" style="font-size:12px;color:#8a93aa;font-family:monospace"></span>
+  </summary>
+  <div style="padding:14px 16px">
+    <!-- Quick SMS + Vapi composer -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px;background:rgba(74,217,145,0.04);border:1px solid rgba(74,217,145,0.18);border-radius:8px">
+      <input id="comms-phone" placeholder="+1 615..." style="flex:1;min-width:140px;background:#0e1118;border:1px solid #2a3040;border-radius:6px;color:#e8edf5;padding:8px 10px;font-size:13px">
+      <input id="comms-message" placeholder="Quick SMS body (optional)" style="flex:2;min-width:180px;background:#0e1118;border:1px solid #2a3040;border-radius:6px;color:#e8edf5;padding:8px 10px;font-size:13px">
+      <button id="comms-send-sms" style="background:#4ad991;border:0;color:#0b1414;padding:8px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">📱 Send SMS</button>
+      <button id="comms-place-call" style="background:#4ca7ff;border:0;color:#fff;padding:8px 14px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer">📞 Place call</button>
+    </div>
+    <!-- Recent calls list (auto-loaded, collapsible to "needs review" only) -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;color:#8a93aa;letter-spacing:0.06em;text-transform:uppercase;font-weight:700">Recent calls</div>
+      <div style="display:flex;gap:6px">
+        <button class="comms-tab comms-tab-active" data-tab="needs">⚠️ Needs review <span class="count" id="comms-cnt-needs">0</span></button>
+        <button class="comms-tab" data-tab="all">All <span class="count" id="comms-cnt-all">0</span></button>
+        <a href="/recent-calls.html" style="font-size:11px;color:#4ca7ff;text-decoration:none;padding:4px 8px;display:inline-flex;align-items:center">Full view →</a>
+      </div>
+    </div>
+    <div id="comms-calls" style="font-size:12px"><div style="padding:12px;text-align:center;color:#8a93aa">Loading…</div></div>
+  </div>
+</details>
+<style>
+  .comms-tab { background:transparent; border:1px solid #2a3040; color:#8a93aa; padding:4px 9px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:600; }
+  .comms-tab .count { display:inline-block; margin-left:4px; background:rgba(0,0,0,0.3); padding:0 6px; border-radius:8px; font-size:10px; }
+  .comms-tab-active { background:rgba(76,167,255,0.18); border-color:rgba(76,167,255,0.45); color:#4ca7ff; }
+  .comms-call-card { background:#1a1f2c; border:1px solid #2a3040; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .comms-call-card.needs { border-left:3px solid #f0b450; }
+  .comms-call-card .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .comms-call-card a, .comms-call-card button { padding:4px 10px; border-radius:5px; border:1px solid #2a3040; background:transparent; color:#cbd5e0; font-size:11px; cursor:pointer; text-decoration:none; }
+  .comms-call-card .summary { color:#cbd5e0; margin-top:4px; line-height:1.4; font-size:12px; }
+</style>
+
 <div class="feed" id="feed">
   <div class="loading">
     <div class="spinner"></div>
     <div>Loading your priorities...</div>
   </div>
 </div>
+
+<script>
+// ── Communications Hub on office-today.html ───────────────────────
+(function() {
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const TECH_NAMES = { '1': 'Teddy', '2': 'Jimmy', '3': 'Andre', '4': 'Lee', '5': 'Billy', '6': 'John' };
+  let allCalls = [];
+  let commsTab = 'needs';
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  async function loadComms() {
+    try {
+      const r = await fetch(`${XANO}/list_calls_for_review?days=7`);
+      const d = await r.json();
+      const calls = (d && d.calls) || [];
+      const reviews = (d && d.reviews) || [];
+      const reviewed = new Set();
+      reviews.forEach(rv => { try { const m = JSON.parse(rv.metadata || '{}'); if (m.vapi_call_id) reviewed.add(m.vapi_call_id); } catch (_) {} });
+      allCalls = calls.map(c => {
+        try { c._meta = JSON.parse(c.metadata || '{}'); } catch (_) { c._meta = {}; }
+        const m = c._meta;
+        const sum = String(m.summary || m.transcript_preview || '').toLowerCase();
+        const ended = String(m.ended_reason || '').toLowerCase();
+        c._reviewed = reviewed.has(m.vapi_call_id);
+        c._isInbound = !(m.source && String(m.source).includes('_auto') || String(m.called_phone || '').startsWith('+1'));
+        c._needs = !c._reviewed && (
+          (c._isInbound && (ended.includes('voicemail') || ended.includes('no-answer'))) ||
+          ended.includes('transfer') ||
+          /complain|upset|angry|frustrat|no one came|still broken|cancel|refund|escalate/.test(sum)
+        );
+        return c;
+      });
+      paintComms();
+    } catch (e) {
+      document.getElementById('comms-calls').innerHTML = '<div style="padding:10px;color:#ef6a6a">Load failed</div>';
+    }
+  }
+  function paintComms() {
+    const needsCount = allCalls.filter(c => c._needs).length;
+    document.getElementById('comms-cnt-needs').textContent = needsCount;
+    document.getElementById('comms-cnt-all').textContent = allCalls.length;
+    document.getElementById('comms-summary').textContent = needsCount > 0 ? `${needsCount} need review` : `${allCalls.length} calls · all reviewed`;
+    const list = commsTab === 'needs' ? allCalls.filter(c => c._needs) : allCalls.slice(0, 15);
+    if (list.length === 0) {
+      document.getElementById('comms-calls').innerHTML = `<div style="padding:14px;text-align:center;color:#8a93aa;font-style:italic">${commsTab === 'needs' ? 'Nothing needs review right now. ✓' : 'No calls in last 7 days.'}</div>`;
+      return;
+    }
+    document.getElementById('comms-calls').innerHTML = list.map(c => {
+      const m = c._meta || {};
+      const ts = new Date(c.created_at);
+      const tsStr = ts.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+      const caller = m.caller_phone || m.to_phone || '?';
+      const callerSafe = (caller || '').replace(/[^+\d]/g, '');
+      const dur = Math.round((m.duration_sec || 0) / 60 * 10) / 10;
+      const summary = (m.summary || m.transcript_preview || '').slice(0, 200).replace(/\s+/g, ' ').trim() || '(no summary)';
+      const jobId = m.job_id || 0;
+      return `
+        <div class="comms-call-card ${c._needs ? 'needs' : ''}">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+            <div><span style="color:#4ca7ff;font-family:monospace">${escapeHtml(caller)}</span> ${c._needs ? '<span style="color:#f0b450;font-size:11px;margin-left:6px">⚠️ needs review</span>' : ''}</div>
+            <div style="color:#8a93aa;font-family:monospace;font-size:11px">${tsStr} CT · ${dur}min</div>
+          </div>
+          <div class="summary">${escapeHtml(summary)}</div>
+          <div class="actions">
+            ${callerSafe ? `<a href="tel:${callerSafe}">📞 Call</a>` : ''}
+            ${callerSafe ? `<a href="sms:${callerSafe}">📱 Text</a>` : ''}
+            ${jobId ? `<a href="/job-detail.html?job_id=${jobId}">🧾 Job #${jobId}</a>` : ''}
+            ${callerSafe ? `<a href="/customer-search.html?q=${encodeURIComponent(caller)}">👤 Customer</a>` : ''}
+            ${!c._reviewed ? `<button data-mark-rev="${m.vapi_call_id || ''}" style="background:rgba(74,217,145,0.10);color:#4ad991;border-color:rgba(74,217,145,0.4)">✓ Mark reviewed</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    document.querySelectorAll('[data-mark-rev]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.markRev;
+        if (!id) return;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          await fetch(`${XANO}/mark_call_reviewed`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vapi_call_id: id, reviewed_by: 'office' })
+          });
+          loadComms();
+        } catch (e) { btn.disabled = false; btn.textContent = '✓ Mark reviewed'; }
+      });
+    });
+  }
+  document.querySelectorAll('.comms-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      commsTab = t.dataset.tab;
+      document.querySelectorAll('.comms-tab').forEach(x => x.classList.toggle('comms-tab-active', x === t));
+      paintComms();
+    });
+  });
+  // Quick send SMS
+  document.getElementById('comms-send-sms').addEventListener('click', async () => {
+    const phone = document.getElementById('comms-phone').value.trim();
+    const msg = document.getElementById('comms-message').value.trim();
+    if (!phone || !msg) { alert('Need phone + message body.'); return; }
+    try {
+      const r = await fetch(`${XANO}/send_sms`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: phone, message: msg, recipient_role: 'customer', context: { source: 'office_today_quick_sms' } })
+      });
+      const d = await r.json();
+      if (d.success !== false) {
+        document.getElementById('comms-message').value = '';
+        alert('Sent.');
+      } else {
+        alert('Failed: ' + (d.error || JSON.stringify(d)));
+      }
+    } catch (e) { alert('Send failed: ' + e.message); }
+  });
+  // Quick place Vapi call
+  document.getElementById('comms-place-call').addEventListener('click', () => {
+    const phone = document.getElementById('comms-phone').value.trim();
+    if (!phone) { alert('Enter a phone first.'); return; }
+    window.location.href = `/voice-dispatch.html?to=${encodeURIComponent(phone)}`;
+  });
+  loadComms();
+  setInterval(loadComms, 60000);
+})();
+</script>
 
 <div class="toast" id="toast">Copied!</div>
 
