@@ -156,10 +156,10 @@ async function loadJob() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const r = await fetch(`${XANO}/get_job_for_dashboard`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: JOB_ID }),
+    const r = await fetch(`${XANO}/get_tech_simple_job?job_id=${JOB_ID}`, {
+      method: 'GET',
       signal: ctrl.signal,
+      cache: 'no-store',
     });
     clearTimeout(timer);
     const d = await r.json();
