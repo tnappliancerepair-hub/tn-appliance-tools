@@ -7,7 +7,7 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 44,
+    "agents_live": 45,
     "agents_to_build": 0,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
@@ -5422,7 +5422,7 @@
         {
           "id": "SC012",
           "name": "scout_reddit_range",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 3,
           "purpose": "Enumerates known range issues from Reddit r/appliancerepair (community wisdom + DIY confessions + pro responses). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_REDDIT_RANGE.",
           "triggers": [
@@ -5917,7 +5917,7 @@
         }
       ],
       "agents_total": 42,
-      "agents_live": 11
+      "agents_live": 12
     }
   ],
   "stigmergy_infrastructure": {
