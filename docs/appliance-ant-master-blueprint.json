@@ -7,7 +7,7 @@
     "dedication": "Built by a father. Named after a son. Carried by the people we choose. Long Live Ant.",
     "total_colonies": 20,
     "total_agents": 379,
-    "agents_live": 58,
+    "agents_live": 59,
     "agents_to_build": 0,
     "infrastructure": {
       "backend": "Xano - https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA",
@@ -5646,7 +5646,7 @@
         {
           "id": "SC026",
           "name": "scout_partspros_range",
-          "status": "TO_BUILD",
+          "status": "BUILT",
           "priority": 3,
           "purpose": "Enumerates known range issues from AppliancePartsPros Tips (tech tips + part-substitution guides + DIY videos). Persists findings to model_intelligence corpus for tech-side recall. Triggers on SCOUT_REQUEST_PARTSPROS_RANGE.",
           "triggers": [
@@ -5917,7 +5917,7 @@
         }
       ],
       "agents_total": 42,
-      "agents_live": 25
+      "agents_live": 26
     }
   ],
   "stigmergy_infrastructure": {
