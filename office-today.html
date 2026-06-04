@@ -339,6 +339,128 @@
 
 <div class="counts-bar" id="counts-bar"></div>
 
+<!-- 📥 Action Inbox — real-time stream of "something just happened
+     that needs office attention". Driven by event_log: TDR
+     finalized (warranty ready) · job completed with parts needed
+     · new intake from call · customer feedback received · change
+     requests. Each item has tap-to-act + Mark handled. -->
+<div id="inbox-panel" style="margin:10px 12px 4px;background:#161a1f;border:1px solid #2a2f37;border-radius:12px;padding:14px 16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:700;color:#cbd5e0;letter-spacing:0.2px">📥 Action Inbox · things that just happened</div>
+    <span id="inbox-summary" style="font-size:12px;color:#8a93aa;font-family:monospace"></span>
+  </div>
+  <div id="inbox-items" style="font-size:12px"><div style="padding:10px;text-align:center;color:#8a93aa">Loading…</div></div>
+</div>
+<style>
+  .inbox-item { background:#1a1f2c; border:1px solid #2a3040; border-radius:8px; padding:10px 12px; margin-bottom:8px; display:flex; gap:10px; align-items:flex-start; }
+  .inbox-item .icon { font-size:18px; line-height:1; flex-shrink:0; }
+  .inbox-item .body { flex:1; min-width:0; }
+  .inbox-item .body .label { font-size:11px; color:#8a93aa; letter-spacing:0.04em; text-transform:uppercase; font-weight:700; }
+  .inbox-item .body .what { color:#cbd5e0; margin-top:2px; line-height:1.4; }
+  .inbox-item .actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .inbox-item .actions a, .inbox-item .actions button { padding:4px 10px; border-radius:5px; border:1px solid #2a3040; background:transparent; color:#cbd5e0; font-size:11px; cursor:pointer; text-decoration:none; }
+  .inbox-item .actions .primary { background:rgba(74,217,145,0.12); border-color:rgba(74,217,145,0.4); color:#4ad991; font-weight:600; }
+  .inbox-item .actions .danger { background:rgba(239,106,106,0.10); border-color:rgba(239,106,106,0.35); color:#ef6a6a; }
+  .inbox-item .ts { font-size:11px; color:#8a93aa; font-family:monospace; margin-left:6px; }
+</style>
+
+<script>
+(function() {
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const TECH = { '1':'Teddy','2':'Jimmy','3':'Andre','4':'Lee','5':'Billy','6':'John' };
+  function esc(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function fmtRel(ms){const d=Date.now()-Number(ms);if(!d||d<0)return 'now';const m=Math.floor(d/60000);if(m<1)return 'now';if(m<60)return m+'m';const h=Math.floor(m/60);if(h<24)return h+'h';return Math.floor(h/24)+'d';}
+
+  async function loadInbox() {
+    try {
+      const r = await fetch(`${XANO}/get_office_inbox?hours_back=48`);
+      const d = await r.json();
+      const items = (d && d.items) || [];
+      const handled = (d && d.handled) || [];
+      const handledKeys = new Set();
+      handled.forEach(h => { try { const m = JSON.parse(h.metadata || '{}'); if (m.item_key) handledKeys.add(m.item_key); } catch(_){} });
+      const transformed = items.map(i => {
+        let m = {};
+        try { m = JSON.parse(i.metadata || '{}'); } catch(_){}
+        return transformItem(i, m);
+      }).filter(x => x && !handledKeys.has(x.key));
+      paintInbox(transformed);
+    } catch (e) {
+      document.getElementById('inbox-items').innerHTML = '<div style="padding:10px;color:#ef6a6a">Load failed</div>';
+    }
+  }
+
+  function transformItem(row, m) {
+    const ts = Number(row.created_at) || Date.now();
+    const action = String(row.action || '').toLowerCase();
+    const jobId = m.job_id || 0;
+    const techName = TECH[String(m.tech_id || m.technician_id || '')] || '';
+    const customer = m.customer_first_name || m.customer_name || (jobId ? `job #${jobId}` : 'customer');
+    const key = `${action}_${row.id}`;
+    const base = { key, ts, jobId, action };
+
+    if (action === 'tdr_finalized_from_voice' || action === 'tdr_submitted') {
+      return { ...base, icon:'📋', label:'WARRANTY READY TO SUBMIT', what:`${techName ? techName + ' just finished' : 'A tech just finished'} a TDR ${jobId ? `on job #${jobId}` : ''}. ${customer} is ready for the vendor submission.`, primary:{label:'Open warranty', href:`/warranty-review.html`}, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+    }
+    if (action === 'job_created_from_vapi_call') {
+      return { ...base, icon:'☎️', label:'NEW INTAKE FROM CALL', what:`${customer} just called in. Job ticket #${jobId} created. Office needs to schedule.`, primary:{label:'Schedule', href:`/needs-scheduled.html`}, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+    }
+    if (action === 'customer_feedback_received') {
+      const rating = m.rating || 0;
+      const isLow = rating > 0 && rating <= 2;
+      return { ...base, icon:isLow?'⚠️':'⭐', label:isLow?'LOW RATING — REACH OUT':'CUSTOMER FEEDBACK', what:`${customer} left a ${rating}-star review${m.comment?': "'+esc(m.comment).slice(0,140)+'"':''}.`, primary:isLow?{label:'Call customer',href:`tel:${m.customer_phone||''}`}:null, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+    }
+    if (action === 'change_request_submitted') {
+      return { ...base, icon:'💬', label:'CHANGE REQUEST IN', what:`${m.requester_name || 'Office'} sent a request: "${esc(m.title || '').slice(0,140)}"`, primary:null, links:[] };
+    }
+    if (action === 'parts_order_logged') {
+      return { ...base, icon:'📦', label:'PARTS ORDER LOGGED', what:`${techName} logged a parts order${m.part_number?` for ${m.part_number}`:''}${m.supplier?` from ${m.supplier}`:''}${m.eta_date?` — ETA ${m.eta_date}`:''}.`, primary:null, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+    }
+    if (action === 'ant_field_assist_call_summary_sent') {
+      return { ...base, icon:'🐜', label:'TECH JUST FINISHED ANT CALL', what:`${techName || 'A tech'} wrapped up a Brooke call on job ${jobId ? '#'+jobId : ''}. Check the transcript if you want.`, primary:null, links:[{label:'Calls',href:'/recent-calls.html'}, ...(jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[])] };
+    }
+    return null;
+  }
+
+  function paintInbox(items) {
+    document.getElementById('inbox-summary').textContent = items.length === 0 ? 'all clear · nothing pending' : `${items.length} pending`;
+    if (items.length === 0) {
+      document.getElementById('inbox-items').innerHTML = '<div style="padding:14px;text-align:center;color:#8a93aa;font-style:italic">All caught up. ✓</div>';
+      return;
+    }
+    document.getElementById('inbox-items').innerHTML = items.map(it => `
+      <div class="inbox-item">
+        <div class="icon">${it.icon}</div>
+        <div class="body">
+          <div><span class="label">${esc(it.label)}</span><span class="ts">${fmtRel(it.ts)} ago</span></div>
+          <div class="what">${it.what}</div>
+          <div class="actions">
+            ${it.primary ? `<a class="primary" href="${it.primary.href}">${esc(it.primary.label)}</a>` : ''}
+            ${(it.links||[]).map(l => `<a href="${l.href}">${esc(l.label)}</a>`).join('')}
+            <button data-handle-key="${esc(it.key)}">✓ Handled</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    document.querySelectorAll('[data-handle-key]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const k = btn.dataset.handleKey;
+        btn.disabled = true; btn.textContent = '…';
+        try {
+          await fetch(`${XANO}/mark_inbox_item_handled`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ item_key: k, handled_by: 'office' })
+          });
+          loadInbox();
+        } catch (e) { btn.disabled = false; btn.textContent = '✓ Handled'; }
+      });
+    });
+  }
+  loadInbox();
+  setInterval(loadInbox, 45000);
+})();
+</script>
+
 <!-- 📞 Inline Communications Hub. Calls needing review + per-card
      reach-back actions, right on the dashboard so Danielle doesn't
      navigate away. Collapsible — opens to today's review queue. -->
