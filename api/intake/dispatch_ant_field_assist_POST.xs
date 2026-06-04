@@ -7,6 +7,7 @@ query dispatch_ant_field_assist verb=POST {
   input {
     int job_id
     int tech_id
+    text? mode?
   }
 
   stack {
@@ -84,8 +85,9 @@ query dispatch_ant_field_assist verb=POST {
       value = ($input.tech_id|to_text)
     }
 
+    var $mode_clean { value = (($input.mode ?? "diagnose")|lower)|trim }
     var $variables {
-      value = {tech_first_name: $tech_first, customer_first_name: $cust_first, appliance_summary: $appliance_summary, job_id: $job_id_str, tech_id: $tech_id_str, tdr_summary_short: "fresh start"}
+      value = {tech_first_name: $tech_first, customer_first_name: $cust_first, appliance_summary: $appliance_summary, job_id: $job_id_str, tech_id: $tech_id_str, tdr_summary_short: "fresh start", mode: $mode_clean}
     }
     var $voice_override {
       value = {provider: "cartesia", voiceId: $voice_id, model: "sonic-2", language: "en"}

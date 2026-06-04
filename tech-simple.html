@@ -60,6 +60,13 @@
   .bottom-bar .icon { font-size: 18px; }
   .bottom-bar .full { background: #4a5568; }
 
+  /* Complete card */
+  .complete-card { background: #fff; border-radius: 14px; padding: 0; margin-bottom: 14px; border: 2px solid #4a5568; overflow: hidden; }
+  .complete-btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 18px; background: #1a202c; border: 0; color: #fff; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .complete-btn .icon { font-size: 20px; }
+  .complete-btn:active { background: #2d3748; }
+  .complete-card .complete-note { padding: 12px 16px; color: #4a5568; font-size: 12px; line-height: 1.5; text-align: center; background: #f7fafc; }
+
   .loading { text-align: center; padding: 40px; color: #718096; font-size: 14px; }
 
   /* Lightbox for photos */
@@ -172,9 +179,18 @@ function paint(d) {
           return `<div class="thumb" data-att-id="${a.id}" data-vid="${isVid}" data-key="${esc(a.s3_key || '')}">${isVid ? '<div class="vid">▶</div>' : (url ? `<img src="${url}" alt="">` : '<div class="vid">📷</div>')}</div>`;
         }).join('') + '</div>'}
     </div>
+
+    <div class="complete-card">
+      <button class="complete-btn" id="btn-complete">
+        <span class="icon">✅</span>
+        <span>Mark Complete</span>
+      </button>
+      <div class="complete-note">Ant's assistant walks the wrap-up — diagnosis, parts, photos, signature — then closes the job. Takes 2 minutes.</div>
+    </div>
   `;
 
-  document.getElementById('btn-talk').addEventListener('click', talkToAnt);
+  document.getElementById('btn-talk').addEventListener('click', () => talkToAnt('diagnose'));
+  document.getElementById('btn-complete').addEventListener('click', () => talkToAnt('complete'));
   document.querySelectorAll('.thumb').forEach(t => t.addEventListener('click', () => openLightbox(t)));
   hydrateThumbs(atts);
 }
@@ -211,26 +227,37 @@ function openLightbox(t) {
 document.getElementById('lb-close').addEventListener('click', () => document.getElementById('lightbox').classList.remove('open'));
 document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') document.getElementById('lightbox').classList.remove('open'); });
 
-async function talkToAnt() {
-  const btn = document.getElementById('btn-talk');
+async function talkToAnt(mode) {
+  // mode: 'diagnose' (default, sandbox call) or 'complete' (wrap-up checklist)
+  const isComplete = mode === 'complete';
+  const btn = document.getElementById(isComplete ? 'btn-complete' : 'btn-talk');
   const status = document.getElementById('talk-status');
+  if (status) status.textContent = isComplete ? 'Calling you to wrap up…' : 'Calling your phone…';
   btn.disabled = true;
-  status.textContent = 'Calling your phone…';
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '📞 calling…';
   try {
     const r = await fetch(`${XANO}/dispatch_ant_field_assist`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: JOB_ID, tech_id: TECH_ID })
+      body: JSON.stringify({ job_id: JOB_ID, tech_id: TECH_ID, mode: isComplete ? 'wrap_up' : 'diagnose' })
     });
     const d = await r.json();
     if (d && d.success) {
-      status.textContent = '📞 ringing your phone — pick up';
-      setTimeout(() => { btn.disabled = false; status.textContent = 'Tap to call · phone rings · she handles the report'; }, 10000);
+      if (status) status.textContent = '📞 ringing your phone — pick up';
+      btn.innerHTML = '📞 ringing your phone';
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        if (status) status.textContent = 'Tap to call · phone rings · she handles the report';
+      }, 15000);
     } else {
-      status.textContent = 'Couldn\'t place call. Try again.';
+      btn.innerHTML = originalText;
+      if (status) status.textContent = 'Couldn\'t place call. Try again.';
       btn.disabled = false;
     }
   } catch (e) {
-    status.textContent = 'Couldn\'t place call. Try again.';
+    btn.innerHTML = originalText;
+    if (status) status.textContent = 'Couldn\'t place call. Try again.';
     btn.disabled = false;
   }
 }
