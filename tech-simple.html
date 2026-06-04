@@ -367,8 +367,16 @@ function showJustCaptured(localUrl, isVideo) {
   // Scroll to it so they SEE it immediately
   jc.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-document.getElementById('dismiss-capture').addEventListener('click', () => {
-  document.getElementById('just-captured').classList.remove('show');
+// Use event delegation so we don't crash if #dismiss-capture isn't
+// in the DOM yet (it's rendered inside paint()'s innerHTML which
+// hasn't run when this script reaches this line). Fix 2026-06-04:
+// previous direct .addEventListener call threw a null deref and
+// halted the rest of the script — page stuck on 'Loading job…'.
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'dismiss-capture') {
+    const jc = document.getElementById('just-captured');
+    if (jc) jc.classList.remove('show');
+  }
 });
 
 // Photo + video upload — shows immediate visual confirmation
