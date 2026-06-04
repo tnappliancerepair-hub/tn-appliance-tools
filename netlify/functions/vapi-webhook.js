@@ -243,11 +243,33 @@ exports.handler = async function (event) {
     });
 
     // 2. Structured phone_call_summary event_log row — read by
-    //    get_recent_call_summary so future calls find it
+    //    get_recent_call_summary so future calls find it.
+    //    NOW also tags with job_id when known (from call metadata for
+    //    outbound, OR from most-recent open job for inbound) so the
+    //    summary surfaces on per-job timelines via get_job_event_stream.
+    let resolvedJobId = 0;
+    const callMetaEarly = (msg.call && msg.call.metadata) || msg.metadata || {};
+    if (callMetaEarly && callMetaEarly.job_id) {
+      resolvedJobId = Number(callMetaEarly.job_id) || 0;
+    }
+    // For inbound calls without a job_id in metadata, look up the
+    // customer's most-recent open job and tag the call against it.
+    if (!resolvedJobId && customerId) {
+      try {
+        const r = await fetch(`${XANO_BASE}/get_most_recent_open_job_for_customer?customer_id=${customerId}`, {
+          signal: AbortSignal.timeout(3000),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          if (d && d.job_id) resolvedJobId = Number(d.job_id) || 0;
+        }
+      } catch (_) {}
+    }
     await safePost(XANO_RECORD_EVENT, {
       action: 'phone_call_summary',
       metadata_json: JSON.stringify({
         customer_id: customerId,
+        job_id: resolvedJobId,
         caller_phone: callerNumber,
         called_phone: calledNumber,
         vapi_call_id: callId,
