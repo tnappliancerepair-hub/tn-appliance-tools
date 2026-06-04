@@ -39,7 +39,7 @@ const EXTRACTION_PROMPT = `You are a vision agent for an appliance repair shop. 
 Return STRICT JSON ONLY with this exact shape (no markdown fence, no commentary):
 
 {
-  "classification": "model_sticker"|"parts_used"|"parts_returned"|"walkaround_before"|"walkaround_after"|"damage_evidence"|"error_code_display"|"receipt"|"other",
+  "classification": "model_sticker"|"parts_used"|"parts_returned"|"walkaround_before"|"walkaround_after"|"damage_evidence"|"error_code_display"|"receipt"|"temperature_reading"|"other",
   "is_appliance_sticker": true|false,
   "confidence": "high"|"medium"|"low",
   "model_number": "string or empty",
@@ -47,6 +47,11 @@ Return STRICT JSON ONLY with this exact shape (no markdown fence, no commentary)
   "brand": "string or empty",
   "appliance_type": "washer"|"dryer"|"dishwasher"|"refrigerator"|"freezer"|"range"|"oven"|"microwave"|"hvac"|"other"|"",
   "error_code": "string or empty",
+  "temperature_reading": {
+    "value": "number as string, e.g. '47' or '-5'",
+    "unit": "F"|"C"|"",
+    "context": "fridge_top"|"fridge_bottom"|"freezer"|"oven_rack"|"oven_set_display"|"burner_surface"|"ambient"|"unknown"
+  },
   "parts_visible": [
     {
       "part_number": "string",
@@ -66,7 +71,14 @@ Classification rules (pick the BEST fit):
 - "damage_evidence": a specific damaged component (cracked housing, burnt wire, water damage, etc.) shown intentionally as proof.
 - "error_code_display": appliance digital display showing an error code (Er FF, F02, etc.).
 - "receipt": parts receipt, supplier invoice.
+- "temperature_reading": digital temperature gun / infrared thermometer / multimeter probe showing a temp value pointed at an appliance. Often a yellow/black handheld gun with a numeric LCD/LED display reading like "47.2 F" or "-5°C". Fill the temperature_reading object with value + unit + best guess at context (fridge_top, freezer, oven_rack, etc) based on what's visible behind the gun.
 - "other": anything else (customer pets, random scene, etc.).
+
+Temperature extraction rules:
+- ONLY fill temperature_reading object when you actually see a digital readout showing a temperature value. Don't guess.
+- Standardize unit to "F" or "C" — if a degree symbol is visible without F/C, infer from typical appliance ranges (35-40 fridge = F, 0-4 fridge = C).
+- context "fridge_top" = upper fridge compartment shelf; "fridge_bottom" = drawer area; "freezer" = freezer compartment; "oven_rack" = inside an oven; "oven_set_display" = the oven control panel display (not a gun reading); "burner_surface" = stovetop element; "ambient" = room/kitchen.
+- If you can see the gun pointed at something specific behind it, use that for context. If you can't tell, use "unknown".
 
 Parts extraction rules (fill parts_visible whenever classification is "parts_used", "parts_returned", or "receipt"):
 - Read every visible part number off the part labels. Real part numbers contain at least 4 alphanumeric characters, often a mix.
