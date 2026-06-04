@@ -57,6 +57,7 @@
   <p class="tag">Every Vapi call — inbound + outbound. Tap any call to see the transcript.</p>
 
   <div class="filter-bar">
+    <button class="filter-btn" data-filter="needs_review" style="background:rgba(240,180,80,0.15);border-color:rgba(240,180,80,0.45);color:#f0b450">⚠️ Needs review <span class="count" id="cNR">0</span></button>
     <button class="filter-btn active" data-filter="all">All <span class="count" id="cAll">0</span></button>
     <button class="filter-btn" data-filter="inbound">Inbound <span class="count" id="cIn">0</span></button>
     <button class="filter-btn" data-filter="outbound">Outbound <span class="count" id="cOut">0</span></button>
@@ -109,15 +110,34 @@ let currentDays = 7;
 
 async function loadCalls() {
   try {
-    const r = await fetch(`${XANO_BASE}/list_recent_calls_for_office?days=${currentDays}&limit=200`);
+    const r = await fetch(`${XANO_BASE}/list_calls_for_review?days=${currentDays}`);
     const d = await r.json();
     allCalls = (d && d.calls) || [];
+    const reviews = (d && d.reviews) || [];
+    const reviewed = new Set();
+    reviews.forEach(rv => {
+      try {
+        const m = JSON.parse(rv.metadata || '{}');
+        if (m.vapi_call_id) reviewed.add(m.vapi_call_id);
+      } catch (_) {}
+    });
     allCalls.forEach((c, i) => {
       try { c._meta = JSON.parse(c.metadata || '{}'); } catch (_) { c._meta = {}; }
       c._idx = i;
       c._isInbound = !(c._meta.source && String(c._meta.source).includes('_auto') || String(c._meta.called_phone || '').startsWith('+1'));
       c._endedReason = String(c._meta.ended_reason || '').toLowerCase();
       c._isVoicemail = c._endedReason.includes('voicemail') || c._endedReason.includes('no-answer') || c._endedReason.includes('silence-timed-out');
+      c._isReviewed = reviewed.has(c._meta.vapi_call_id);
+      // Needs review heuristic: inbound calls that ended in voicemail OR
+      // transferCall OR contain complaint keywords AND not yet reviewed.
+      const sum = String(c._meta.summary || c._meta.transcript_preview || '').toLowerCase();
+      const hasComplaint = /complain|upset|angry|frustrat|no one came|still broken|disappointed|cancel|refund|escalate/.test(sum);
+      const wasTransferred = c._endedReason.includes('transfer') || /transfer/.test(sum);
+      c._needsReview = !c._isReviewed && (
+        (c._isInbound && c._isVoicemail) ||
+        wasTransferred ||
+        hasComplaint
+      );
     });
     paintCounts();
     paintList();
@@ -130,6 +150,7 @@ function paintCounts() {
   document.getElementById('cIn').textContent = allCalls.filter(c => c._isInbound).length;
   document.getElementById('cOut').textContent = allCalls.filter(c => !c._isInbound).length;
   document.getElementById('cVm').textContent = allCalls.filter(c => c._isVoicemail).length;
+  document.getElementById('cNR').textContent = allCalls.filter(c => c._needsReview).length;
 }
 function paintList() {
   const filtered = allCalls.filter(c => {
@@ -137,6 +158,7 @@ function paintList() {
     if (currentFilter === 'inbound') return c._isInbound;
     if (currentFilter === 'outbound') return !c._isInbound;
     if (currentFilter === 'voicemail') return c._isVoicemail;
+    if (currentFilter === 'needs_review') return c._needsReview;
     return true;
   });
   if (filtered.length === 0) {
@@ -152,21 +174,51 @@ function paintList() {
     const summary = (m.summary || m.transcript_preview || '').slice(0, 280).replace(/\s+/g, ' ').trim() || '(no summary)';
     const dirBadge = c._isInbound ? '<span class="badge inbound">inbound</span>' : '<span class="badge outbound">outbound</span>';
     const endedBadge = c._isVoicemail ? '<span class="badge voicemail">voicemail</span>' : '<span class="badge completed">completed</span>';
+    const reviewBadge = c._needsReview ? '<span class="badge" style="background:rgba(240,180,80,0.18);color:#f0b450;border:1px solid rgba(240,180,80,0.4)">⚠️ needs review</span>' : (c._isReviewed ? '<span class="badge" style="background:rgba(74,217,145,0.10);color:#4ad991;border:1px solid rgba(74,217,145,0.25)">✓ reviewed</span>' : '');
     const transcriptId = `t-${c.id}`;
+    const callerEnc = encodeURIComponent(caller);
+    const callerJsSafe = (caller || '').replace(/[^+\d]/g, '');
+    const jobId = m.job_id || 0;
+    const customerId = m.customer_id || 0;
+    const borderStyle = c._needsReview ? 'border-left:3px solid #f0b450;' : '';
     return `
-      <div class="call-card">
+      <div class="call-card" style="${borderStyle}">
         <div class="row1">
           <div>
-            ${dirBadge} ${endedBadge}
+            ${dirBadge} ${endedBadge} ${reviewBadge}
             <span class="phone">${caller}</span>
           </div>
           <div class="meta">${tsStr} CT · ${dur}min</div>
         </div>
         <div class="summary">${escapeHtml(summary)}</div>
-        ${m.transcript_preview ? `<button class="transcript-toggle" onclick="toggleTranscript('${transcriptId}')">View transcript</button><pre class="transcript" id="${transcriptId}" style="display:none">${escapeHtml(m.transcript_preview)}</pre>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
+          ${m.transcript_preview ? `<button class="transcript-toggle" onclick="toggleTranscript('${transcriptId}')">📜 Transcript</button>` : ''}
+          ${callerJsSafe ? `<a href="tel:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ca7ff;border-color:rgba(76,167,255,0.4)">📞 Call back</a>` : ''}
+          ${callerJsSafe ? `<a href="sms:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ad991;border-color:rgba(74,217,145,0.4)">📱 Text</a>` : ''}
+          ${customerId ? `<a href="/customer-search.html?q=${callerEnc}" class="transcript-toggle" style="text-decoration:none">👤 Customer</a>` : ''}
+          ${jobId ? `<a href="/job-detail.html?job_id=${jobId}" class="transcript-toggle" style="text-decoration:none">🧾 Job #${jobId}</a>` : ''}
+          ${!c._isReviewed ? `<button class="transcript-toggle" data-mark-reviewed="${m.vapi_call_id || ''}" style="background:rgba(74,217,145,0.10);border-color:rgba(74,217,145,0.4);color:#4ad991">✓ Mark reviewed</button>` : ''}
+        </div>
+        ${m.transcript_preview ? `<pre class="transcript" id="${transcriptId}" style="display:none">${escapeHtml(m.transcript_preview)}</pre>` : ''}
       </div>
     `;
   }).join('');
+
+  // Wire mark-reviewed buttons
+  document.querySelectorAll('[data-mark-reviewed]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const callId = btn.dataset.markReviewed;
+      if (!callId) return;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        await fetch(`${XANO_BASE}/mark_call_reviewed`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vapi_call_id: callId, reviewed_by: 'office' })
+        });
+        loadCalls();
+      } catch (e) { btn.disabled = false; btn.textContent = '✓ Mark reviewed'; }
+    });
+  });
 }
 function toggleTranscript(id) {
   const el = document.getElementById(id);
