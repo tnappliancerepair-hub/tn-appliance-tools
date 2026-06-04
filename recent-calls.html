@@ -192,6 +192,7 @@ function paintList() {
         </div>
         <div class="summary">${escapeHtml(summary)}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
+          ${m.recording_url ? `<a href="${m.recording_url}" target="_blank" class="transcript-toggle" style="text-decoration:none;background:rgba(180,140,255,0.10);border-color:rgba(180,140,255,0.4);color:#b48cff">🔊 Listen</a>` : ''}
           ${m.transcript_preview ? `<button class="transcript-toggle" onclick="toggleTranscript('${transcriptId}')">📜 Transcript</button>` : ''}
           ${callerJsSafe ? `<a href="tel:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ca7ff;border-color:rgba(76,167,255,0.4)">📞 Call back</a>` : ''}
           ${callerJsSafe ? `<a href="sms:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ad991;border-color:rgba(74,217,145,0.4)">📱 Text</a>` : ''}

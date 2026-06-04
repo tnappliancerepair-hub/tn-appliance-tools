@@ -212,11 +212,21 @@ exports.handler = async function (event) {
   }
 
   // ── call-end ──────────────────────────────────────────────────────
-  if (type === 'call-end' || type === 'end-of-call-report' || type === 'end-of-call') {
+  // Vapi fires TWO events at call end: 'call-end' (immediate, NO summary
+  // yet) and 'end-of-call-report' (15-30 sec later, WITH summary + full
+  // transcript). Per Danielle 2026-06-04: writing on the first event
+  // produced 63 '(no summary)' rows in recent-calls. Fix: only act on
+  // 'end-of-call-report' (the rich event). Ignore the early 'call-end'.
+  if (type === 'end-of-call-report' || type === 'end-of-call') {
     const transcript = String(msg.transcript || '').slice(0, 12000);
     const summary = String(msg.summary || msg.endedReason || '').slice(0, 1500);
     const endedReason = String(msg.endedReason || msg.ended_reason || '').slice(0, 200);
     const durationSec = Number(msg.durationSeconds || msg.duration_seconds || 0);
+    const recordingUrl = String(
+      msg.recordingUrl || msg.recording_url ||
+      (msg.call && (msg.call.recordingUrl || msg.call.recording_url)) ||
+      (msg.artifact && (msg.artifact.recordingUrl || msg.artifact.recording_url)) || ''
+    ).slice(0, 800);
 
     // Resolve customer (if we recognize the caller, write the summary
     // events keyed to customer_id so downstream lookups find them)
@@ -277,6 +287,7 @@ exports.handler = async function (event) {
         ended_reason: endedReason,
         summary: summary.slice(0, 1000),
         transcript_preview: transcript.slice(0, 2000),
+        recording_url: recordingUrl,
         recorded_at: Date.now(),
       }),
     });
