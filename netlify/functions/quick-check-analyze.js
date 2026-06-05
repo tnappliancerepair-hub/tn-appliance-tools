@@ -21,7 +21,9 @@
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6-20250619'; // Sonnet for nuanced reasoning
 
-const PROMPT_TEMPLATE = (input) => `You are an expert appliance repair technician advising a homeowner. They're trying to figure out if their broken appliance is worth fixing or replacing.
+const PROMPT_TEMPLATE = (input) => `You are an expert appliance repair technician advising a CASH-PAYING homeowner (no home warranty company in the picture — they're paying out of pocket). They paid $50 for this Quick Check because they want a fast, honest answer to ONE question: should they fix this appliance or replace it?
+
+The value they paid for is SPEED + HONESTY. Don't push repair when replacement is smarter. Don't push a tech visit when DIY is reasonable. Treat them like a friend who happens to need real expertise.
 
 CUSTOMER INPUT:
 Appliance: ${input.brand || '(brand unknown)'} ${input.appliance_type || 'appliance'}
@@ -31,46 +33,99 @@ Customer ZIP (for cost regionalization): ${input.zip || '(not provided)'}
 
 ${input.photo_b64 ? 'A photo of the appliance is attached above.' : 'No photo provided.'}
 
-YOUR JOB: Give the customer an honest, structured answer.
+YOUR JOB: Give a structured fix-or-replace answer + if fixable, a clear menu of 4 specific paths forward.
 
 Return STRICT JSON with these fields:
 {
-  "likely_diagnosis": "Plain-English best guess of what's wrong, 1-2 sentences. Use customer-safe language.",
-  "top_failed_components": ["1-3 most likely components that have failed, brief phrases"],
-  "likely_part_numbers": ["Up to 3 generic part-category names like 'drive belt', 'compressor start relay' — only include actual part numbers if you're confident from the model"],
-  "estimated_cost_low_cents": 12000,
-  "estimated_cost_high_cents": 28000,
+  "fix_or_replace": "fix" | "replace" | "depends",
+  "verdict_headline": "5-8 word punchy headline. E.g. 'Replace it — repair isn't worth it' OR 'Fix it — easy and cheap'",
+  "verdict_explanation": "2-4 sentence honest explanation. Mention specific factors: appliance age estimate, repair cost vs replacement cost, complexity, common failure mode. Customer-facing tone, no jargon.",
+  "likely_diagnosis": "Plain-English best guess of what's wrong, 1-2 sentences",
+  "top_failed_components": ["1-3 most likely failed components, brief phrases"],
+  "estimated_cash_repair_cost_low_cents": 12000,
+  "estimated_cash_repair_cost_high_cents": 28000,
+  "estimated_replacement_cost_low_cents": 65000,
+  "estimated_replacement_cost_high_cents": 140000,
   "diy_feasibility": "easy" | "moderate" | "difficult" | "do_not_recommend",
-  "final_recommendation": "diy_reasonable" | "schedule_install_after_parts" | "schedule_in_home_visit" | "premium_video_diagnostic" | "replacement_more_economical",
-  "recommendation_explanation": "2-3 sentence customer-facing explanation of WHY this recommendation. Warm tone. Mention specific factors (age of appliance, cost vs replacement value, complexity, safety).",
   "confidence": "high" | "medium" | "low",
-  "questions_to_clarify": ["Up to 3 follow-up questions the tech would ask if they could, in customer-friendly language"]
+  "options": [
+    {
+      "id": "diy_oem",
+      "title": "DIY with OEM part",
+      "subtitle": "Original manufacturer quality",
+      "total_cost_cents": 14000,
+      "part_cost_cents": 14000,
+      "labor_cost_cents": 0,
+      "time_estimate": "1-2 hours",
+      "best_for": "Customers comfortable with basic tools who want guaranteed-correct fit"
+    },
+    {
+      "id": "diy_amazon",
+      "title": "DIY with Amazon equivalent",
+      "subtitle": "Compatible aftermarket part",
+      "total_cost_cents": 7000,
+      "part_cost_cents": 7000,
+      "labor_cost_cents": 0,
+      "time_estimate": "1-2 hours",
+      "best_for": "Cost-conscious DIYers willing to accept slightly shorter expected lifespan"
+    },
+    {
+      "id": "tech_install_oem",
+      "title": "We install OEM part",
+      "subtitle": "Tech comes out, 30-day labor warranty",
+      "total_cost_cents": 32000,
+      "part_cost_cents": 14000,
+      "labor_cost_cents": 18000,
+      "time_estimate": "Same-day or next-day visit",
+      "best_for": "Customers who want it done right with a warranty on the labor"
+    },
+    {
+      "id": "video_diagnostic",
+      "title": "Live tech video call ($89)",
+      "subtitle": "We walk you through the DIY",
+      "total_cost_cents": 16000,
+      "part_cost_cents": 7000,
+      "labor_cost_cents": 8900,
+      "time_estimate": "30-min scheduled video session",
+      "best_for": "DIYers who want a tech in their ear but don't need a truck roll"
+    }
+  ],
+  "questions_to_clarify": ["Up to 2 follow-up questions a tech would ask"]
 }
 
-Cost guidelines (US national average, in cents):
-- Simple part swap (belt, thermistor, igniter): $80-$220
-- Mid-complexity part (control board, valve, pump): $180-$420
-- Major component (compressor, motor, transmission): $380-$850
-- Sealed-system refrigerator repair: $500-$1200
+COST RULES (cash customer, US national average, in cents):
+- Simple parts (belt, thermistor, igniter): OEM $80-$220, Amazon $30-$90
+- Mid-complexity (control board, valve, pump): OEM $180-$420, Amazon $60-$200
+- Major (compressor, motor, transmission): OEM $380-$850, Amazon $180-$450
+- Sealed-system refrigerator repair: typically NOT economical to DIY
+- We-install labor flat fee: $180-$250 most repairs, $300+ for major
+- Video Diagnostic flat fee: $89
 
-DIY feasibility guidelines:
-- easy: belt swap, thermistor, filter change — basic tools, 1-2 hours
-- moderate: control board, drain pump, dryer heating element — intermediate, 2-4 hours, some disassembly
-- difficult: refrigerator compressor, dishwasher pump, dryer drum bearings — technical, requires specific tools
-- do_not_recommend: sealed-system work, gas line work, major structural — safety risk, requires licensure
+REPLACEMENT COST RULES:
+- Basic appliance (washer, dryer, dishwasher, range): $450-$900 new
+- Mid-tier (mid-tier French door fridge, premium dryer): $900-$1800
+- Premium (smart appliances, counter-depth, double oven): $1800-$3500
 
-Final recommendation guidelines:
-- diy_reasonable: easy DIY + customer seems willing + part is cheap and available
-- schedule_install_after_parts: known part, customer wants tech to install (most common warranty path)
-- schedule_in_home_visit: diagnosis still uncertain, tech needs to see it
-- premium_video_diagnostic: customer might DIY but wants live tech guidance ($89 service)
-- replacement_more_economical: repair cost > 50% of new appliance value, OR appliance is 10+ years old AND repair > $400
+FIX vs REPLACE DECISION (be honest):
+- "replace" when: repair cost > 50% of replacement cost, OR appliance is 12+ years old AND repair > $400, OR sealed-system work on cheap fridge
+- "fix" when: repair cost < 30% of replacement cost AND part is available
+- "depends" when: repair cost 30-50% of replacement AND age 8-12 years (let customer decide based on attachment to the unit)
 
-Be CONSERVATIVE on confidence. If you don't have clear info, say so via "low" and emphasize the questions_to_clarify.
+DIY feasibility:
+- easy: belt swap, thermistor, filter, igniter — basic tools, ~1 hr
+- moderate: control board, drain pump, dryer element — 2-4 hr
+- difficult: refrigerator compressor, dishwasher pump, dryer drum bearings — specialty tools
+- do_not_recommend: sealed system, gas line, structural — safety/licensure risk
 
-Be WARM but HONEST. If the customer should just buy a new appliance, say so kindly.
+OPTIONS LOGIC — only include options that make sense:
+- If "replace" verdict: return empty options array OR just include "video_diagnostic" if customer might want a sanity check
+- If DIY feasibility is "easy" or "moderate": include all 4 options
+- If DIY feasibility is "difficult": skip diy_oem and diy_amazon, include only tech_install_oem + video_diagnostic
+- If DIY feasibility is "do_not_recommend": include only tech_install_oem
 
-Be PRACTICAL about the disclaimer: TN Appliance Exchange only installs parts they supply themselves. Customer-purchased parts are not installed. Mention this only if recommendation involves a tech visit.`;
+Be CONSERVATIVE on confidence. Better to say "medium" or "low" with good clarifying questions than guess "high" and be wrong.
+
+The customer paid $50 for an honest expert opinion. Earn it.`;
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return cors({ statusCode: 200, body: '' });

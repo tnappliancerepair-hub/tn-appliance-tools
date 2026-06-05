@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Warranty Quick Check™ — TN Appliance Exchange</title>
+<title>$50 Quick Check™ — Should You Fix It or Replace It?</title>
 <meta name="theme-color" content="#ff8a00">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Quick Check">
-<meta name="description" content="Get a clear answer before you spend hundreds on a repair. Free appliance diagnosis in 60 seconds.">
+<meta name="description" content="The fastest, most honest answer in appliance repair. $50 buys you an expert's opinion on whether to fix it or replace it. No warranty company, no middleman, no upsells.">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; min-height: 100%; background: linear-gradient(180deg, #fff7e6 0%, #f6f8fb 240px); }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: linear-gradient(180deg, #fff7e6 0%, #f6f8fb 280px); }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     color: #1a202c;
@@ -21,10 +21,20 @@
   }
   .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
   .brand .logo { font-size: 32px; }
-  .brand .name { font-size: 14px; font-weight: 800; letter-spacing: 0.04em; color: #ff8a00; text-transform: uppercase; }
-  h1 { font-size: 30px; margin: 0 0 8px; color: #1a202c; line-height: 1.1; letter-spacing: -0.01em; }
-  h1 .tm { font-size: 14px; vertical-align: super; color: #ff8a00; }
-  .lede { color: #4a5568; font-size: 17px; margin-bottom: 26px; line-height: 1.5; max-width: 520px; }
+  .brand .name { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; color: #ff8a00; text-transform: uppercase; }
+
+  .hero-badge { display: inline-block; background: linear-gradient(135deg, #ff8a00, #e26d00); color: #fff; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(255,138,0,0.3); }
+  h1 { font-size: 34px; margin: 0 0 8px; color: #1a202c; line-height: 1.1; letter-spacing: -0.01em; }
+  h1 .tm { font-size: 16px; vertical-align: super; color: #ff8a00; }
+  .lede { color: #4a5568; font-size: 18px; margin-bottom: 22px; line-height: 1.45; font-weight: 500; }
+  .lede strong { color: #1a202c; }
+
+  .promise-row { display: flex; gap: 10px; margin: 22px 0 26px; flex-wrap: wrap; }
+  .promise { flex: 1; min-width: 140px; background: #fff; border-radius: 14px; padding: 14px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .promise .ico { font-size: 22px; margin-bottom: 4px; }
+  .promise .ttl { font-size: 13px; font-weight: 800; color: #1a202c; line-height: 1.25; }
+  .promise .sub { font-size: 11px; color: #718096; margin-top: 3px; }
+
   .card { background: #fff; border-radius: 18px; padding: 22px 20px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
   .section-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ff8a00; margin: 0 0 14px; }
   .field { margin-bottom: 14px; }
@@ -36,15 +46,7 @@
   .field .hint { font-size: 12px; color: #718096; margin-top: 4px; }
   .row { display: flex; gap: 10px; }
   .row .field { flex: 1; }
-  .upload {
-    border: 2px dashed #cbd5e0;
-    border-radius: 12px;
-    padding: 28px 18px;
-    text-align: center;
-    background: #f9fafb;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
+  .upload { border: 2px dashed #cbd5e0; border-radius: 12px; padding: 28px 18px; text-align: center; background: #f9fafb; cursor: pointer; transition: all 0.15s; }
   .upload:hover { border-color: #ff8a00; background: #fff8ef; }
   .upload.has-file { border-style: solid; border-color: #10b981; background: #f0fdf4; }
   .upload .ico { font-size: 32px; margin-bottom: 4px; }
@@ -52,62 +54,72 @@
   .upload .sub { font-size: 12px; color: #718096; margin-top: 4px; }
   .upload input { display: none; }
   .upload .preview { max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 8px; }
-  .btn-submit {
-    width: 100%;
-    padding: 18px 22px;
-    border-radius: 14px;
-    border: 0;
-    background: linear-gradient(135deg, #ff8a00, #e26d00);
-    color: #fff;
-    font-size: 17px;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: 0.01em;
-    box-shadow: 0 6px 20px rgba(255,138,0,0.3);
-    margin-top: 6px;
-  }
+
+  .pay-card { background: linear-gradient(135deg, #1a202c, #2d3748); color: #fff; border-radius: 18px; padding: 24px 22px; margin-bottom: 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+  .pay-card .ttl { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #ff8a00; font-weight: 800; }
+  .pay-card .price { font-size: 36px; font-weight: 900; margin-top: 4px; letter-spacing: -0.02em; }
+  .pay-card .price .small { font-size: 16px; opacity: 0.7; font-weight: 600; }
+  .pay-card .what { font-size: 14px; opacity: 0.85; margin-top: 8px; line-height: 1.5; }
+  .pay-card .guarantee { font-size: 12px; opacity: 0.7; margin-top: 12px; line-height: 1.4; }
+
+  .btn-submit { width: 100%; padding: 18px 22px; border-radius: 14px; border: 0; background: linear-gradient(135deg, #ff8a00, #e26d00); color: #fff; font-size: 17px; font-weight: 800; cursor: pointer; font-family: inherit; letter-spacing: 0.01em; box-shadow: 0 6px 20px rgba(255,138,0,0.3); margin-top: 6px; }
   .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
   .err { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.3); color: #c53030; padding: 12px 14px; border-radius: 10px; font-size: 14px; margin-top: 12px; display: none; }
   .err.show { display: block; }
+
   .loading { display: none; text-align: center; padding: 60px 20px; }
   .loading.show { display: block; }
   .loading .spinner { display: inline-block; width: 48px; height: 48px; border: 4px solid #ffd591; border-top-color: #ff8a00; border-radius: 50%; animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading .stage { margin-top: 18px; font-size: 15px; color: #4a5568; font-weight: 600; }
   .loading .sub { font-size: 13px; color: #718096; margin-top: 4px; }
+
   .result { display: none; }
   .result.show { display: block; }
-  .result-hero {
-    border-radius: 18px;
-    padding: 24px 22px;
-    margin-bottom: 14px;
+  .verdict {
+    border-radius: 22px;
+    padding: 28px 24px;
+    margin-bottom: 16px;
     color: #fff;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.12);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.18);
   }
-  .result-hero.diy { background: linear-gradient(135deg, #10b981, #047857); }
-  .result-hero.install { background: linear-gradient(135deg, #4ca7ff, #1d5fb8); }
-  .result-hero.visit { background: linear-gradient(135deg, #ff8a00, #e26d00); }
-  .result-hero.premium { background: linear-gradient(135deg, #b48cff, #7c4dde); }
-  .result-hero.replace { background: linear-gradient(135deg, #6b7280, #374151); }
-  .result-hero .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.85; font-weight: 700; }
-  .result-hero .headline { font-size: 24px; font-weight: 800; margin-top: 4px; line-height: 1.2; }
-  .result-hero .expl { font-size: 15px; margin-top: 10px; opacity: 0.95; line-height: 1.45; }
-  .result-block { background: #fff; border-radius: 14px; padding: 18px 18px; margin-bottom: 12px; }
-  .result-block .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #718096; font-weight: 800; margin-bottom: 8px; }
-  .result-block .big { font-size: 24px; font-weight: 800; color: #1a202c; }
-  .result-block .small { font-size: 14px; color: #2d3748; line-height: 1.55; }
-  .result-block ul { margin: 6px 0 0; padding-left: 22px; }
-  .result-block ul li { font-size: 14px; color: #2d3748; margin-bottom: 4px; }
+  .verdict.fix { background: linear-gradient(135deg, #10b981, #047857); }
+  .verdict.replace { background: linear-gradient(135deg, #6b7280, #1a202c); }
+  .verdict.depends { background: linear-gradient(135deg, #ff8a00, #c4530b); }
+  .verdict .v-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.85; font-weight: 800; }
+  .verdict .v-head { font-size: 28px; font-weight: 900; margin-top: 6px; line-height: 1.15; letter-spacing: -0.01em; }
+  .verdict .v-expl { font-size: 15px; margin-top: 14px; opacity: 0.95; line-height: 1.55; }
+  .verdict .v-money { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+  .verdict .v-money .mb { background: rgba(255,255,255,0.14); border-radius: 12px; padding: 10px 14px; flex: 1; min-width: 140px; }
+  .verdict .v-money .mb .l { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.8; font-weight: 700; }
+  .verdict .v-money .mb .n { font-size: 20px; font-weight: 800; margin-top: 2px; }
+
+  .diag-card { background: #fff; border-radius: 14px; padding: 18px 18px; margin-bottom: 14px; }
+  .diag-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #718096; font-weight: 800; margin-bottom: 6px; }
+  .diag-card .text { font-size: 15px; color: #2d3748; line-height: 1.55; }
+  .diag-card .conf-tag { display: inline-block; padding: 3px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 8px; }
+  .conf-high { background: rgba(16,185,129,0.15); color: #047857; }
+  .conf-medium { background: rgba(245,166,35,0.15); color: #b56500; }
+  .conf-low { background: rgba(239,68,68,0.10); color: #c53030; }
+  .diag-card ul { margin: 6px 0 0; padding-left: 22px; }
+  .diag-card ul li { font-size: 14px; color: #2d3748; margin-bottom: 4px; }
+
+  .options-title { font-size: 18px; font-weight: 800; color: #1a202c; margin: 22px 0 12px; }
+  .opt { background: #fff; border-radius: 14px; padding: 18px 18px; margin-bottom: 10px; border: 2px solid #edf2f7; transition: all 0.15s; }
+  .opt:hover { border-color: #ff8a00; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+  .opt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+  .opt-title { font-size: 16px; font-weight: 800; color: #1a202c; }
+  .opt-sub { font-size: 12px; color: #718096; margin-top: 2px; }
+  .opt-price { font-size: 22px; font-weight: 900; color: #ff8a00; white-space: nowrap; letter-spacing: -0.01em; }
+  .opt-best-for { font-size: 13px; color: #4a5568; margin-top: 6px; line-height: 1.45; }
+  .opt-time { font-size: 12px; color: #718096; margin-top: 6px; font-weight: 600; }
+
   .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
   .actions .btn { display: block; padding: 16px 22px; border-radius: 12px; text-decoration: none; text-align: center; font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer; border: 0; }
   .actions .btn-primary { background: linear-gradient(135deg, #ff8a00, #e26d00); color: #fff; box-shadow: 0 4px 14px rgba(255,138,0,0.3); }
   .actions .btn-secondary { background: rgba(0,0,0,0.06); color: #2d3748; }
+
   .disclaimer { font-size: 11px; color: #718096; line-height: 1.5; margin-top: 22px; padding: 12px 14px; background: #f7fafc; border-radius: 8px; }
-  .conf-tag { display: inline-block; padding: 3px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 8px; }
-  .conf-high { background: rgba(16,185,129,0.15); color: #047857; }
-  .conf-medium { background: rgba(245,166,35,0.15); color: #b56500; }
-  .conf-low { background: rgba(239,68,68,0.10); color: #c53030; }
 </style>
 </head>
 <body>
@@ -118,8 +130,27 @@
 </div>
 
 <div id="form-wrap">
-  <h1>Warranty Quick Check<span class="tm">™</span></h1>
-  <div class="lede">Get a clear answer before you spend hundreds on a repair. Tell us what's wrong, snap a photo, and you'll get a real recommendation in about a minute.</div>
+  <span class="hero-badge">$50 · Best deal in repair</span>
+  <h1>Should You Fix It<br>or Replace It?<span class="tm">™</span></h1>
+  <div class="lede"><strong>Honest expert answer in 60 seconds.</strong> No warranty company. No high-pressure sales. Just real advice — and a clear menu of next steps if it's worth fixing.</div>
+
+  <div class="promise-row">
+    <div class="promise">
+      <div class="ico">⚡</div>
+      <div class="ttl">60-second answer</div>
+      <div class="sub">Type, snap, submit</div>
+    </div>
+    <div class="promise">
+      <div class="ico">🎯</div>
+      <div class="ttl">No middleman</div>
+      <div class="sub">Cash customers, no warranty co.</div>
+    </div>
+    <div class="promise">
+      <div class="ico">💰</div>
+      <div class="ttl">Half the price</div>
+      <div class="sub">vs typical diagnostic visit</div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="section-title">About you</div>
@@ -137,21 +168,22 @@
       <label for="email">Email <span class="req">*</span></label>
       <input id="email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com">
     </div>
-    <div class="field">
-      <label for="phone">Phone</label>
-      <input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(615) 000-0000">
-    </div>
-    <div class="field">
-      <label for="zip">ZIP code</label>
-      <input id="zip" type="text" inputmode="numeric" maxlength="5" placeholder="00000">
-      <div class="hint">Helps us localize cost estimates.</div>
+    <div class="row">
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(615) 000-0000">
+      </div>
+      <div class="field">
+        <label for="zip">ZIP <span class="req">*</span></label>
+        <input id="zip" type="text" inputmode="numeric" maxlength="5" placeholder="00000">
+      </div>
     </div>
   </div>
 
   <div class="card">
     <div class="section-title">The appliance</div>
     <div class="field">
-      <label for="appliance-type">Type <span class="req">*</span></label>
+      <label for="appliance-type">What is it? <span class="req">*</span></label>
       <select id="appliance-type">
         <option value="">Choose one…</option>
         <option value="refrigerator">Refrigerator</option>
@@ -179,33 +211,40 @@
     </div>
     <div class="field">
       <label for="problem">What's it doing? <span class="req">*</span></label>
-      <textarea id="problem" placeholder="Describe the problem. Include noises, leaks, error codes, temperature issues, smells — anything you've noticed."></textarea>
+      <textarea id="problem" placeholder="Describe the problem. Noises, leaks, error codes, temperature issues, smells, age — anything you've noticed."></textarea>
     </div>
   </div>
 
   <div class="card">
-    <div class="section-title">A photo helps</div>
+    <div class="section-title">A photo helps a lot</div>
     <label class="upload" id="upload-zone">
       <input id="photo-input" type="file" accept="image/*" capture="environment">
       <div class="ico">📷</div>
       <div class="main" id="upload-main">Snap or upload a photo</div>
-      <div class="sub" id="upload-sub">A picture of the appliance or where it's leaking / making noise. Optional but gives a much better answer.</div>
+      <div class="sub" id="upload-sub">Optional but gives a much better answer.</div>
       <img id="upload-preview" class="preview" style="display:none">
     </label>
   </div>
 
-  <button class="btn-submit" id="btn-submit">✓ Get my answer</button>
+  <div class="pay-card">
+    <div class="ttl">$50 Quick Check™</div>
+    <div class="price">$50<span class="small"> · flat fee</span></div>
+    <div class="what">Honest fix-or-replace verdict + likely diagnosis + cost ranges. If it's worth fixing, you get a menu of 4 specific paths forward: OEM or Amazon part, DIY or pro install.</div>
+    <div class="guarantee">If the answer is "replace" and we point you somewhere cheaper, the $50 still saved you a $400+ diagnostic mistake.</div>
+  </div>
+
+  <button class="btn-submit" id="btn-submit">Get my answer →</button>
   <div class="err" id="err"></div>
 
   <div class="disclaimer">
-    Quick Check uses AI to give you a directional answer based on what you describe and show us. It's not a substitute for an in-person diagnosis. If you choose to have us come out, we'll do a full diagnostic and stand behind the work. TN Appliance Exchange only installs parts supplied by our company — customer-purchased parts are not installed.
+    Quick Check uses AI to give you a directional answer based on what you describe and show us — backed by real-world data from thousands of appliance repairs. It's not a substitute for an in-person diagnosis. If you choose to have us come out, the tech does a full diagnostic and the final estimate reflects what they actually find. TN Appliance Exchange only installs parts we supply — Amazon parts you buy can be installed by you (DIY) or via the $89 Live Tech Video Call.
   </div>
 </div>
 
 <div class="loading" id="loading">
   <div class="spinner"></div>
   <div class="stage" id="loading-stage">Reading what you sent…</div>
-  <div class="sub" id="loading-sub">Hang tight, this takes about 30 seconds.</div>
+  <div class="sub" id="loading-sub">Hang tight — this takes about 30 seconds.</div>
 </div>
 
 <div class="result" id="result">
@@ -214,10 +253,8 @@
 
 <script>
 (function () {
-  var XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   var photoB64 = '';
 
-  // Photo upload
   var photoInput = document.getElementById('photo-input');
   var zone = document.getElementById('upload-zone');
   var preview = document.getElementById('upload-preview');
@@ -226,7 +263,6 @@
   photoInput.addEventListener('change', function (e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
-    // Downscale + base64 encode client-side so we don't send 8MB photos
     var reader = new FileReader();
     reader.onload = function (ev) {
       var img = new Image();
@@ -251,7 +287,6 @@
     reader.readAsDataURL(file);
   });
 
-  // Submit
   var btn = document.getElementById('btn-submit');
   var errEl = document.getElementById('err');
   var loading = document.getElementById('loading');
@@ -268,9 +303,9 @@
   function cyclesLoading() {
     var stages = [
       'Reading what you sent…',
-      'Comparing to similar repairs…',
-      'Estimating the cost range…',
-      'Writing your answer…',
+      'Comparing to similar repairs in our database…',
+      'Estimating cost ranges…',
+      'Writing your honest answer…',
     ];
     var i = 0;
     return setInterval(function () {
@@ -293,8 +328,14 @@
 
     if (!first) { showErr('Please enter your first name.'); return; }
     if (!/.+@.+\..+/.test(email)) { showErr('Please enter a valid email.'); return; }
+    if (!/^\d{5}$/.test(zip)) { showErr('Please enter a 5-digit ZIP.'); return; }
     if (!appliance) { showErr('Please pick what kind of appliance this is.'); return; }
-    if (!problem || problem.length < 8) { showErr('Tell us a bit more about what\\'s happening.'); return; }
+    if (!problem || problem.length < 8) { showErr('Tell us a bit more about what\'s happening.'); return; }
+
+    // PAYWALL — placeholder for V1. Once Stripe is wired, this becomes
+    // a Stripe Checkout redirect. For now we go straight to the answer
+    // since the page is in launch / corpus-building mode.
+    // TODO: integrate Stripe Payment Link or Checkout Session.
 
     formWrap.style.display = 'none';
     loading.classList.add('show');
@@ -323,6 +364,7 @@
       renderResult(d, first);
       loading.classList.remove('show');
       resultEl.classList.add('show');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       clearInterval(cyc);
       formWrap.style.display = '';
@@ -331,72 +373,87 @@
     }
   });
 
+  function fmtMoney(cents) {
+    if (cents == null) return '?';
+    var d = Math.round(cents / 100);
+    return '$' + d.toLocaleString('en-US');
+  }
+  function fmtRange(lo, hi) {
+    if (lo == null && hi == null) return '?';
+    if (lo == null) return 'up to ' + fmtMoney(hi);
+    if (hi == null) return fmtMoney(lo) + '+';
+    return fmtMoney(lo) + ' – ' + fmtMoney(hi);
+  }
+
   function renderResult(d, firstName) {
-    var recoMap = {
-      diy_reasonable:                { cls: 'diy',     label: 'DIY is reasonable',                 headline: 'You can probably handle this' },
-      schedule_install_after_parts:  { cls: 'install', label: 'Get the part, we install',          headline: 'Order the part and we\\'ll come install' },
-      schedule_in_home_visit:        { cls: 'visit',   label: 'Schedule an in-home visit',         headline: 'Let\\'s have a tech take a look' },
-      premium_video_diagnostic:      { cls: 'premium', label: 'Live tech guidance ($89)',          headline: 'A tech can walk you through it on video' },
-      replacement_more_economical:   { cls: 'replace', label: 'Replacement makes more sense',       headline: 'Honestly — buy a new one' },
-    };
-    var reco = recoMap[d.final_recommendation] || recoMap.schedule_in_home_visit;
-    var costLow = d.estimated_cost_low_cents != null ? ('$' + Math.round(d.estimated_cost_low_cents / 100)) : '';
-    var costHigh = d.estimated_cost_high_cents != null ? ('$' + Math.round(d.estimated_cost_high_cents / 100)) : '';
-    var costStr = (costLow && costHigh) ? (costLow + ' – ' + costHigh) : (costLow || costHigh || '?');
-    var diyMap = { easy: 'Easy', moderate: 'Moderate', difficult: 'Difficult', do_not_recommend: 'Pro recommended' };
-    var diyLabel = diyMap[d.diy_feasibility] || '?';
+    var verdictCls = d.fix_or_replace === 'replace' ? 'replace'
+                   : d.fix_or_replace === 'fix' ? 'fix' : 'depends';
     var confCls = 'conf-' + (d.confidence || 'medium');
 
     var html = '';
-    html += '<div class="result-hero ' + reco.cls + '">';
-    html += '<div class="label">' + reco.label + ' · ' + escapeHtml(firstName) + '</div>';
-    html += '<div class="headline">' + reco.headline + '</div>';
-    if (d.recommendation_explanation) {
-      html += '<div class="expl">' + escapeHtml(d.recommendation_explanation) + '</div>';
-    }
-    html += '</div>';
 
-    html += '<div class="result-block">';
-    html += '<div class="label">What\\'s likely wrong <span class="conf-tag ' + confCls + '">' + (d.confidence || 'medium') + ' confidence</span></div>';
-    html += '<div class="small">' + escapeHtml(d.likely_diagnosis || '(no diagnosis)') + '</div>';
+    // Verdict hero
+    html += '<div class="verdict ' + verdictCls + '">';
+    html += '<div class="v-label">' + escapeHtml(firstName) + ', here\'s your answer</div>';
+    html += '<div class="v-head">' + escapeHtml(d.verdict_headline || '(no verdict)') + '</div>';
+    if (d.verdict_explanation) {
+      html += '<div class="v-expl">' + escapeHtml(d.verdict_explanation) + '</div>';
+    }
+    html += '<div class="v-money">';
+    if (d.estimated_cash_repair_cost_low_cents != null) {
+      html += '<div class="mb"><div class="l">Repair cost</div><div class="n">' + fmtRange(d.estimated_cash_repair_cost_low_cents, d.estimated_cash_repair_cost_high_cents) + '</div></div>';
+    }
+    if (d.estimated_replacement_cost_low_cents != null) {
+      html += '<div class="mb"><div class="l">New appliance</div><div class="n">' + fmtRange(d.estimated_replacement_cost_low_cents, d.estimated_replacement_cost_high_cents) + '</div></div>';
+    }
+    html += '</div></div>';
+
+    // Diagnosis
+    html += '<div class="diag-card">';
+    html += '<div class="label">What\'s likely wrong <span class="conf-tag ' + confCls + '">' + escapeHtml(d.confidence || 'medium') + ' confidence</span></div>';
+    html += '<div class="text">' + escapeHtml(d.likely_diagnosis || '(no diagnosis)') + '</div>';
     if (d.top_failed_components && d.top_failed_components.length) {
       html += '<div class="label" style="margin-top:14px">Most likely failed parts</div>';
       html += '<ul>' + d.top_failed_components.map(function (c) { return '<li>' + escapeHtml(c) + '</li>'; }).join('') + '</ul>';
     }
     html += '</div>';
 
-    html += '<div class="result-block">';
-    html += '<div class="label">Estimated repair cost</div>';
-    html += '<div class="big">' + costStr + '</div>';
-    html += '<div class="small" style="margin-top:6px">Range covers parts + labor. Final cost depends on what the tech actually finds.</div>';
-    html += '</div>';
+    // 4 options (or fewer if replacement verdict)
+    if (d.options && d.options.length) {
+      html += '<div class="options-title">Your options</div>';
+      d.options.forEach(function (o) {
+        html += '<div class="opt">';
+        html += '<div class="opt-head">';
+        html += '<div><div class="opt-title">' + escapeHtml(o.title) + '</div>';
+        if (o.subtitle) html += '<div class="opt-sub">' + escapeHtml(o.subtitle) + '</div>';
+        html += '</div>';
+        html += '<div class="opt-price">' + fmtMoney(o.total_cost_cents) + '</div>';
+        html += '</div>';
+        if (o.best_for) html += '<div class="opt-best-for">' + escapeHtml(o.best_for) + '</div>';
+        if (o.time_estimate) html += '<div class="opt-time">⏱ ' + escapeHtml(o.time_estimate) + '</div>';
+        html += '</div>';
+      });
+    }
 
-    html += '<div class="result-block">';
-    html += '<div class="label">DIY difficulty</div>';
-    html += '<div class="big">' + diyLabel + '</div>';
-    html += '</div>';
-
+    // Clarifying questions if confidence is low/medium
     if (d.questions_to_clarify && d.questions_to_clarify.length) {
-      html += '<div class="result-block">';
-      html += '<div class="label">What would help nail this down</div>';
+      html += '<div class="diag-card" style="background:#fff7e6;border:1px solid #ffd591">';
+      html += '<div class="label" style="color:#b56500">What would help nail this down</div>';
       html += '<ul>' + d.questions_to_clarify.map(function (q) { return '<li>' + escapeHtml(q) + '</li>'; }).join('') + '</ul>';
       html += '</div>';
     }
 
+    // CTA based on verdict
     html += '<div class="actions">';
-    if (d.final_recommendation === 'replacement_more_economical') {
+    if (d.fix_or_replace === 'replace') {
       html += '<a class="btn btn-primary" href="tel:6152802949">📞 Talk to us about new appliance options</a>';
-      html += '<a class="btn btn-secondary" href="/">Back to home</a>';
-    } else if (d.final_recommendation === 'diy_reasonable') {
-      html += '<a class="btn btn-primary" href="tel:6152802949">📞 Talk to a tech (free)</a>';
-      html += '<a class="btn btn-secondary" href="mailto:tnappliancerepair@gmail.com?subject=Quick%20Check%20follow-up">Email us</a>';
     } else {
-      html += '<a class="btn btn-primary" href="tel:6152802949">📞 Schedule a visit (615-280-2949)</a>';
-      html += '<a class="btn btn-secondary" href="mailto:tnappliancerepair@gmail.com?subject=Quick%20Check%20follow-up">Email instead</a>';
+      html += '<a class="btn btn-primary" href="tel:6152802949">📞 Talk to a real tech — 615-280-2949</a>';
     }
+    html += '<a class="btn btn-secondary" href="mailto:tnappliancerepair@gmail.com?subject=Quick%20Check%20follow-up">Email instead</a>';
     html += '</div>';
 
-    html += '<div class="disclaimer">This was an AI-generated estimate based on what you described and showed us. Real-world conditions can change the diagnosis. If you schedule with us, the tech will do a full diagnostic and the written estimate will reflect what they actually find. TN Appliance Exchange only installs parts supplied by our company.</div>';
+    html += '<div class="disclaimer">AI-generated estimate based on what you described + showed us, backed by real-world data from thousands of repairs. Real-world conditions can change the diagnosis. If you schedule with us, the tech does a full diagnostic and the written estimate reflects what they actually find. TN Appliance Exchange only installs parts we supply.</div>';
 
     resultContent.innerHTML = html;
   }
