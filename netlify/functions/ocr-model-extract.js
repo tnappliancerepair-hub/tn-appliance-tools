@@ -1,53 +1,57 @@
-// Vision OCR — extract appliance model/serial/brand from a photo.
+// Vision OCR — classify a tech photo and extract structured data.
 //
-// Called by tech-simple after a photo upload completes. If the photo is
-// a model sticker, returns structured fields AND writes job.model_number
-// (only if currently empty — never overwrites tech's manual entry).
+// Classifies into 3 buckets via one Claude Vision call:
+//   - model_sticker -> extract model_number + serial + brand + type,
+//     write to job.model_number (only if empty)
+//   - part_sticker  -> extract part_number + description, append to
+//     TDR.parts_needed (deduped, never overwrites tech input)
+//   - none          -> no writes
 //
-// If the photo is NOT a sticker (room, appliance front, person, food,
-// error code display, part sticker), returns {is_model_sticker: false}
-// and writes nothing. Conservative classifier — better to miss than
-// pollute job data with garbage.
+// Conservative classifier — better to miss than hallucinate. Tech sees
+// a toast only when something is captured.
 //
-// Request:  POST { job_id, image_url }
-// Response: { is_model_sticker, model_number?, serial_number?,
-//             manufacturer?, appliance_type?, confidence?, wrote: bool }
+// Request:  POST { job_id, tech_id?, image_url, attachment_id? }
+// Response: { kind, model_number?, serial_number?, manufacturer?,
+//             appliance_type?, part_number?, part_description?,
+//             confidence?, wrote: bool }
 
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
 
-const PROMPT = `You're an expert at reading appliance model stickers (the manufacturer's nameplate on washers, dryers, refrigerators, dishwashers, ranges, microwaves, HVAC units).
+const PROMPT = `You're an expert at reading appliance documentation. Classify this image into ONE of three buckets and extract structured data.
 
-Look at this image carefully.
+BUCKET 1 - "model_sticker": the appliance manufacturer's NAMEPLATE on a washer / dryer / refrigerator / dishwasher / range / oven / microwave / HVAC unit. Has "Model" / "Model #" / "Model No." text plus an alphanumeric model code (e.g. WTW5000DW2, GTW465ASN0WW, RF28HFEDBSR). Often also a Serial # and manufacturer logo.
 
-If this is CLEARLY an appliance MODEL STICKER — you can see the word "Model" / "Model #" / "Model No." or similar, AND an alphanumeric model code like WTW5000DW2, GTW465ASN0WW, RF28HFEDBSR, etc. — extract:
-- model_number: the exact model code, UPPERCASE, no spaces
-- serial_number: the serial number if visible, else ""
-- manufacturer: brand (Whirlpool, Samsung, GE, LG, Maytag, Kenmore, Frigidaire, KitchenAid, Bosch, Amana, etc.)
-- appliance_type: best guess of category (washer, dryer, refrigerator, dishwasher, range, oven, microwave, hvac, other)
-- confidence: "high" if all fields are crystal clear, "medium" if some uncertainty, "low" if you're unsure
+BUCKET 2 - "part_sticker": a label on a SINGLE COMPONENT — drive belt, control board, water valve, pump, motor, capacitor, switch. Usually shows a Part # / P/N / Part No. with an alphanumeric code (e.g. 8540101, WPW10730972, W11315838) and may show brand + a short description.
 
-Return strict JSON:
-{"is_model_sticker": true, "model_number": "...", "serial_number": "...", "manufacturer": "...", "appliance_type": "...", "confidence": "..."}
+BUCKET 3 - "none": anything else (room photo, appliance front exterior, person, food, error code display, generic object, damage close-up without a part visible).
 
-If this is NOT a model sticker (it's an appliance front, room photo, person, food, error code display, a part sticker for a single component, a generic object, anything other than a manufacturer's full nameplate), return:
-{"is_model_sticker": false}
+Return STRICT JSON:
 
-CRITICAL: Be conservative. If you can't clearly read "Model" label + alphanumeric code, return false. Better to miss a real sticker than guess wrong.`;
+If model sticker:
+{"kind": "model_sticker", "model_number": "UPPERCASE_CODE", "serial_number": "...", "manufacturer": "Whirlpool|Samsung|GE|LG|Maytag|Kenmore|Frigidaire|KitchenAid|Bosch|Amana|other", "appliance_type": "washer|dryer|refrigerator|dishwasher|range|oven|microwave|hvac|other", "confidence": "high|medium|low"}
+
+If part sticker:
+{"kind": "part_sticker", "part_number": "EXACT_CODE", "part_description": "short description if visible, else ''", "manufacturer": "brand if visible, else ''", "confidence": "high|medium|low"}
+
+If none:
+{"kind": "none"}
+
+CRITICAL RULES:
+- Be conservative. If you can't clearly read the label + code, return "none". Better to miss than hallucinate a part number that misroutes a return.
+- For model stickers, the model_number must include "Model" label proximity. A random alphanumeric isn't a model.
+- For part stickers, the part_number must come from a labeled "Part" / "P/N" line. A generic number on a box isn't a part.
+- Never return both bucket types simultaneously. One image, one kind.`;
 
 exports.handler = async function (event) {
-  if (event.httpMethod === 'OPTIONS') {
-    return cors({ statusCode: 200, body: '' });
-  }
-  if (event.httpMethod !== 'POST') {
-    return cors({ statusCode: 405, body: 'Method Not Allowed' });
-  }
+  if (event.httpMethod === 'OPTIONS') return cors({ statusCode: 200, body: '' });
+  if (event.httpMethod !== 'POST') return cors({ statusCode: 405, body: 'Method Not Allowed' });
 
   let body;
   try { body = JSON.parse(event.body || '{}'); }
   catch (_) { return cors({ statusCode: 400, body: JSON.stringify({ error: 'bad json' }) }); }
 
-  const { job_id, image_url } = body;
+  const { job_id, image_url, tech_id, attachment_id } = body;
   if (!job_id || !image_url) {
     return cors({ statusCode: 400, body: JSON.stringify({ error: 'job_id + image_url required' }) });
   }
@@ -66,7 +70,7 @@ exports.handler = async function (event) {
     return cors({ statusCode: 502, body: JSON.stringify({ error: 'image fetch failed: ' + err.message }) });
   }
 
-  // 2. Call Claude Vision.
+  // 2. Call Claude Vision (single round-trip classifier + extractor).
   let extracted;
   try {
     const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -99,10 +103,11 @@ exports.handler = async function (event) {
     return cors({ statusCode: 502, body: JSON.stringify({ error: 'vision failed: ' + err.message }) });
   }
 
-  // 3. If sticker found, write back to Xano (only updates if model_number
-  //    is currently empty — preserves manual entry).
+  const kind = String(extracted?.kind || 'none');
+
+  // 3. Route to the right write endpoint based on classification.
   let wrote = false;
-  if (extracted && extracted.is_model_sticker === true && extracted.model_number) {
+  if (kind === 'model_sticker' && extracted.model_number) {
     try {
       const r = await fetch(`${XANO_BASE}/update_job_model_from_ocr`, {
         method: 'POST',
@@ -119,9 +124,26 @@ exports.handler = async function (event) {
       });
       const wr = await r.json();
       wrote = !!(wr && wr.wrote);
-    } catch (_) {
-      // soft fail — return extraction anyway so client can show what was found
-    }
+    } catch (_) {}
+  } else if (kind === 'part_sticker' && extracted.part_number) {
+    try {
+      const r = await fetch(`${XANO_BASE}/save_part_from_photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: Number(job_id),
+          technician_id: tech_id ? Number(tech_id) : null,
+          part_number: String(extracted.part_number).toUpperCase(),
+          part_description: String(extracted.part_description || ''),
+          manufacturer: String(extracted.manufacturer || ''),
+          confidence: String(extracted.confidence || 'medium'),
+          image_url: String(image_url).slice(0, 400),
+          attachment_id: attachment_id ? Number(attachment_id) : null,
+        }),
+      });
+      const wr = await r.json();
+      wrote = !!(wr && wr.wrote);
+    } catch (_) {}
   }
 
   return cors({

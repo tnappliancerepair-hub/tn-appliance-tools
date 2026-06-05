@@ -426,19 +426,18 @@ async function uploadFile(file) {
     showToast('✅ Saved');
     loadJob();
 
-    // Background OCR — if this is a photo, ask Claude Vision whether
-    // it's a model sticker and auto-fill job.model_number if so. The
-    // upload UX above is already complete; OCR runs without blocking
-    // the tech. Result shows as a separate toast when ready.
+    // Background OCR — classify photo as model sticker, part sticker,
+    // or neither. Auto-writes structured data when a sticker is found.
+    // Upload UX above is already complete; OCR runs without blocking.
     if (!isVideo && gen.s3_key) {
-      ocrModelExtract(gen.s3_key).catch(() => {});
+      ocrPhotoClassify(gen.s3_key, gen.attachment_id).catch(() => {});
     }
   } catch (e) {
     showToast('❌ Upload failed — try again');
   }
 }
 
-async function ocrModelExtract(s3Key) {
+async function ocrPhotoClassify(s3Key, attachmentId) {
   // Build the public view URL through the existing s3-view-url helper
   // so the OCR function sees the same image the tech just uploaded.
   let viewUrl = '';
@@ -454,19 +453,26 @@ async function ocrModelExtract(s3Key) {
   try {
     const r = await fetch('/.netlify/functions/ocr-model-extract', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: JOB_ID, image_url: viewUrl })
+      body: JSON.stringify({
+        job_id: JOB_ID, tech_id: TECH_ID,
+        image_url: viewUrl,
+        attachment_id: attachmentId || null,
+      })
     });
     const out = await r.json();
-    if (out && out.is_model_sticker && out.model_number) {
-      if (out.wrote) {
-        showToast('📋 Model captured: ' + out.model_number);
-        setTimeout(() => loadJob(), 600);
-      } else {
-        // Model already set on job — show what we found anyway so tech
-        // can double-check if it matches.
-        showToast('📋 Saw model ' + out.model_number + ' on sticker');
-      }
+    if (!out) return;
+    if (out.kind === 'model_sticker' && out.model_number) {
+      showToast(out.wrote
+        ? '📋 Model captured: ' + out.model_number
+        : '📋 Saw model ' + out.model_number);
+      if (out.wrote) setTimeout(() => loadJob(), 600);
+    } else if (out.kind === 'part_sticker' && out.part_number) {
+      showToast(out.wrote
+        ? '🔧 Part added: ' + out.part_number
+        : '🔧 Part already on list: ' + out.part_number);
+      if (out.wrote) setTimeout(() => loadJob(), 600);
     }
+    // kind === 'none' → silent, no toast
   } catch (_) {}
 }
 
