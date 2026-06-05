@@ -72,22 +72,13 @@ Return STRICT JSON with these fields:
     {
       "id": "tech_install_oem",
       "title": "We install OEM part",
-      "subtitle": "Tech comes out, 30-day labor warranty",
-      "total_cost_cents": 32000,
+      "subtitle": "Tech comes out, 30-day labor warranty, $50 Quick Check applies to labor",
+      "total_cost_cents": 27000,
       "part_cost_cents": 14000,
       "labor_cost_cents": 18000,
+      "quick_check_credit_cents": 5000,
       "time_estimate": "Same-day or next-day visit",
-      "best_for": "Customers who want it done right with a warranty on the labor"
-    },
-    {
-      "id": "video_diagnostic",
-      "title": "Live tech video call ($89)",
-      "subtitle": "We walk you through the DIY",
-      "total_cost_cents": 16000,
-      "part_cost_cents": 7000,
-      "labor_cost_cents": 8900,
-      "time_estimate": "30-min scheduled video session",
-      "best_for": "DIYers who want a tech in their ear but don't need a truck roll"
+      "best_for": "Customers who want it done right with a warranty on the labor — your $50 Quick Check applies as credit"
     }
   ],
   "questions_to_clarify": ["Up to 2 follow-up questions a tech would ask"]
@@ -99,7 +90,7 @@ COST RULES (cash customer, US national average, in cents):
 - Major (compressor, motor, transmission): OEM $380-$850, Amazon $180-$450
 - Sealed-system refrigerator repair: typically NOT economical to DIY
 - We-install labor flat fee: $180-$250 most repairs, $300+ for major
-- Video Diagnostic flat fee: $89
+- $50 Quick Check applies as credit when customer chooses we-install
 
 REPLACEMENT COST RULES:
 - Basic appliance (washer, dryer, dishwasher, range): $450-$900 new
@@ -118,14 +109,21 @@ DIY feasibility:
 - do_not_recommend: sealed system, gas line, structural — safety/licensure risk
 
 OPTIONS LOGIC — only include options that make sense:
-- If "replace" verdict: return empty options array OR just include "video_diagnostic" if customer might want a sanity check
-- If DIY feasibility is "easy" or "moderate": include all 4 options
-- If DIY feasibility is "difficult": skip diy_oem and diy_amazon, include only tech_install_oem + video_diagnostic
+- If "replace" verdict: return empty options array. Customer's $50 is closing revenue — no further upsell needed.
+- If DIY feasibility is "easy" or "moderate": include all 3 options (diy_oem, diy_amazon, tech_install_oem)
+- If DIY feasibility is "difficult": skip diy_oem and diy_amazon, include only tech_install_oem
 - If DIY feasibility is "do_not_recommend": include only tech_install_oem
+
+WHEN you include tech_install_oem, calculate total_cost_cents as (part_cost + labor_cost - 5000). The $50 ($5000 cents) Quick Check fee applies as credit. The subtitle and best_for fields should mention this so the customer sees the value.
 
 Be CONSERVATIVE on confidence. Better to say "medium" or "low" with good clarifying questions than guess "high" and be wrong.
 
-The customer paid $50 for an honest expert opinion. Earn it.`;
+The customer paid $50 for an honest expert opinion. Earn it.
+
+IMPORTANT BUSINESS FRAMING for the verdict_explanation:
+- If verdict is "replace", you can mention something like "Your $50 covered this Quick Check — that's the deal. We'd rather tell you the truth than upsell you on a repair that isn't worth it."
+- If verdict is "fix" and they choose we-install, mention "Your $50 Quick Check applies as a credit to the labor cost."
+- If verdict is "fix" and they DIY, the $50 was their cost for the honest answer + verified part recommendation — no further charge.`;
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return cors({ statusCode: 200, body: '' });
