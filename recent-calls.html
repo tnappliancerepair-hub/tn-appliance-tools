@@ -115,14 +115,21 @@ async function loadCalls() {
     allCalls = (d && d.calls) || [];
     const reviews = (d && d.reviews) || [];
     const reviewed = new Set();
+    // Xano returns metadata as an already-decoded object on the wire,
+    // not a JSON string. Old code blindly called JSON.parse on it which
+    // threw SyntaxError on every row -> _meta={} -> "(no summary)" for
+    // every call. Detect string-vs-object before parsing.
+    const decodeMeta = (raw) => {
+      if (raw == null || raw === '') return {};
+      if (typeof raw === 'object') return raw;
+      try { return JSON.parse(raw); } catch (_) { return {}; }
+    };
     reviews.forEach(rv => {
-      try {
-        const m = JSON.parse(rv.metadata || '{}');
-        if (m.vapi_call_id) reviewed.add(m.vapi_call_id);
-      } catch (_) {}
+      const m = decodeMeta(rv.metadata);
+      if (m.vapi_call_id) reviewed.add(m.vapi_call_id);
     });
     allCalls.forEach((c, i) => {
-      try { c._meta = JSON.parse(c.metadata || '{}'); } catch (_) { c._meta = {}; }
+      c._meta = decodeMeta(c.metadata);
       c._idx = i;
       c._isInbound = !(c._meta.source && String(c._meta.source).includes('_auto') || String(c._meta.called_phone || '').startsWith('+1'));
       c._endedReason = String(c._meta.ended_reason || '').toLowerCase();
