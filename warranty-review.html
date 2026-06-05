@@ -210,6 +210,19 @@
   <div class="content" id="content">
     <div class="loading">Loading warranty claim packages…</div>
   </div>
+
+  <div class="content" id="pipeline-section" style="margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:0 4px">
+      <div>
+        <div style="font-family:var(--display);font-size:18px;font-weight:700;letter-spacing:0.04em;color:var(--text)">Warranty Pipeline</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="pipelineSub">Every active warranty job in the last 30 days</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="pipelineCount"></div>
+    </div>
+    <div id="pipeline-content">
+      <div class="loading">Loading pipeline…</div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -342,9 +355,12 @@
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') authSubmit.click(); });
 
   let allRows = [];
+  let pipelineRows = [];
   let currentFilter = 'all';
 
   async function load() {
+    // Two parallel fetches — claim packages (top) AND pipeline (bottom).
+    loadPipeline();
     try {
       const res = await fetch(`${XANO_BASE}/list_warranty_claim_actions?days_back=${daysBack}&per_page=200`);
       if (!res.ok) throw new Error(`Load failed (${res.status})`);
@@ -387,8 +403,8 @@
       content.innerHTML = `
         <div class="empty">
           <div class="big">🐜</div>
-          <div>No warranty claim packages in this window.</div>
-          <div style="margin-top:6px;font-size:11px">Claims appear here when warranty_claim_request_*_claims agents fire on TDR_COMPLETE.</div>
+          <div>No claim packages ready to submit yet.</div>
+          <div style="margin-top:6px;font-size:11px;color:var(--muted)">As techs finish jobs with completed TDRs, ready-to-submit warranty packages will appear here. The full active queue is below ↓</div>
         </div>
       `;
       return;
@@ -538,6 +554,83 @@
     hydrateMediaStrips(allJobIds).catch(() => {});
     hydrateSubmissionStatus(allJobIds).catch(() => {});
     hydratePasteFields(allJobIds).catch(() => {});
+  }
+
+  // ── Pipeline (all active warranty jobs in flight) ────────────────
+  // Fetches list_warranty_pipeline + renders compact cards below the
+  // claim packages section. Each row links to the per-job Teddy Tool
+  // so Danielle can drive any one forward.
+  async function loadPipeline() {
+    const host = document.getElementById('pipeline-content');
+    const countEl = document.getElementById('pipelineCount');
+    try {
+      const res = await fetch(`${XANO_BASE}/list_warranty_pipeline?days_back=${daysBack}`);
+      if (!res.ok) throw new Error(`Pipeline load failed (${res.status})`);
+      const data = await res.json();
+      if (!data.success) throw new Error('Pipeline returned no success');
+      pipelineRows = data.jobs || [];
+      if (countEl) countEl.textContent = `${pipelineRows.length} active`;
+      renderPipeline();
+    } catch (err) {
+      host.innerHTML = `<div class="err">⚠️ ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function pipelineBadge(s) {
+    const map = {
+      needs_more_info:      { bg: 'rgba(255,193,7,0.15)',  border: '#ffc107', label: '🔒 Needs Authorization' },
+      scheduled:            { bg: 'rgba(76,167,255,0.15)', border: '#4ca7ff', label: '📅 Scheduled' },
+      broadcasting:         { bg: 'rgba(180,140,255,0.15)',border: '#b48cff', label: '📡 Broadcasting' },
+      prediagnosis_pending: { bg: 'rgba(245,166,35,0.15)', border: '#f5a623', label: '🧠 Awaiting Prediag' },
+      in_progress:          { bg: 'rgba(16,185,129,0.15)', border: '#10b981', label: '🔧 In Progress' },
+      completed:            { bg: 'rgba(74,217,145,0.20)', border: '#4ad991', label: '✅ Submit Warranty' },
+    };
+    const m = map[s] || { bg: 'rgba(150,150,150,0.1)', border: '#888', label: s || 'unknown' };
+    return `<span style="display:inline-block;background:${m.bg};border:1px solid ${m.border};color:${m.border};padding:3px 10px;border-radius:14px;font-size:11px;font-weight:700;letter-spacing:0.03em">${m.label}</span>`;
+  }
+
+  function renderPipeline() {
+    const host = document.getElementById('pipeline-content');
+    if (!pipelineRows || pipelineRows.length === 0) {
+      host.innerHTML = `<div class="empty" style="padding:24px"><div style="font-size:13px">No active warranty jobs in the last ${daysBack} days.</div></div>`;
+      return;
+    }
+    // Sort: completed first (most actionable), then by created_at desc
+    const sorted = [...pipelineRows].sort((a, b) => {
+      if (a.scheduling_status === 'completed' && b.scheduling_status !== 'completed') return -1;
+      if (b.scheduling_status === 'completed' && a.scheduling_status !== 'completed') return 1;
+      return (b.created_at || 0) - (a.created_at || 0);
+    });
+    const parts = sorted.map((r) => {
+      const name = ((r.customer_first || '') + ' ' + (r.customer_last || '')).trim() || '(no name)';
+      const appliance = [r.appliance_brand, r.appliance_type].filter(Boolean).join(' ') || 'appliance';
+      const addressLine = [r.address, r.city].filter(Boolean).join(', ');
+      const tdrBadge = r.has_tdr_capture
+        ? '<span style="background:rgba(16,185,129,0.15);border:1px solid #10b981;color:#10b981;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">📋 TDR captured</span>'
+        : '<span style="background:rgba(245,166,35,0.10);border:1px solid #f5a623;color:#f5a623;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">📋 No TDR yet</span>';
+      return `
+        <div class="card" style="padding:14px 16px;margin-bottom:10px">
+          <div class="row1" style="margin-bottom:6px">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <a class="job-link" href="job-detail.html?job_id=${r.id}">Job #${r.id}</a>
+              <span class="vendor">${escapeHtml(r.warranty_company || '?')}</span>
+              ${pipelineBadge(r.scheduling_status)}
+              ${tdrBadge}
+            </div>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${escapeHtml(name)} — ${escapeHtml(appliance)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px">${escapeHtml(addressLine || '(no address)')}</div>
+          ${r.claim_number ? `<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px">claim #${escapeHtml(r.claim_number)}</div>` : ''}
+          ${r.problem_summary ? `<div style="font-size:12px;color:#cfd6e0;margin-top:8px;line-height:1.4">${escapeHtml(r.problem_summary.slice(0, 200))}${r.problem_summary.length > 200 ? '…' : ''}</div>` : ''}
+          <div class="actions" style="margin-top:10px">
+            <a class="btn btn-secondary" href="teddy-tdr-tool.html?job_id=${r.id}">📋 Open TDR</a>
+            <a class="btn btn-secondary" href="job-detail.html?job_id=${r.id}">🗂 Job detail</a>
+            ${r.customer_phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(r.customer_phone)}">📞 Call ${escapeHtml(r.customer_phone)}</a>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    host.innerHTML = parts.join('');
   }
 
   // Vendor-portal direct deep-links. When a real new-claim URL is known
