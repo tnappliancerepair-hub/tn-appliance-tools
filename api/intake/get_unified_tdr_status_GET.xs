@@ -54,6 +54,15 @@ query get_unified_tdr_status verb=GET {
 
     var $att_count { value = ($att_rows.itemsTotal ?? 0) }
 
+    // Signature is a separate attachment_type. Count rows tagged as
+    // signature so the readiness math can require one for warranty.
+    db.query job_attachments {
+      where = $db.job_attachments.job_id == $input.job_id && $db.job_attachments.attachment_type == "signature"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $sig_rows
+    var $sig_count { value = ($sig_rows.itemsTotal ?? 0) }
+    var $has_sig { value = ($sig_count > 0) }
+
     // Per-field state — required is true for warranty-blocking fields.
     var $v_diag   { value = ($tdr == null) ? "" : (($tdr.diagnosis ?? "")|to_text) }
     var $v_failed { value = ($tdr == null) ? "" : (($tdr.failed_component ?? "")|to_text) }
@@ -69,16 +78,17 @@ query get_unified_tdr_status verb=GET {
     var $f_parts  { value = ($v_parts != "") }
     var $f_photo  { value = ($att_count > 0) }
 
-    // Required for warranty submission (5 fields + at least 1 photo).
-    var $req_total { value = 6 }
+    // Required for warranty submission (5 TDR fields + photo + signature).
+    var $req_total { value = 7 }
     var $diag_n   { value = ($f_diag == true) ? 1 : 0 }
     var $failed_n { value = ($f_failed == true) ? 1 : 0 }
     var $hours_n  { value = ($f_hours == true) ? 1 : 0 }
     var $repair_n { value = ($f_repair == true) ? 1 : 0 }
     var $parts_n  { value = ($f_parts == true) ? 1 : 0 }
     var $photo_n  { value = ($f_photo == true) ? 1 : 0 }
+    var $sig_n    { value = ($has_sig == true) ? 1 : 0 }
     var $filled_count {
-      value = ($diag_n + $failed_n + $hours_n + $repair_n + $parts_n + $photo_n)
+      value = ($diag_n + $failed_n + $hours_n + $repair_n + $parts_n + $photo_n + $sig_n)
     }
     var $readiness_pct {
       value = ($filled_count * 100 / $req_total)
@@ -91,6 +101,7 @@ query get_unified_tdr_status verb=GET {
     var $b_repair { value = ($f_repair == true) ? "" : "repair_completed" }
     var $b_parts  { value = ($f_parts == true) ? "" : "parts_needed" }
     var $b_photo  { value = ($f_photo == true) ? "" : "photo" }
+    var $b_sig    { value = ($has_sig == true) ? "" : "signature" }
 
     // Header context.
     var $cust_first { value = (($customer.first_name ?? "") |to_text) }
@@ -120,6 +131,8 @@ query get_unified_tdr_status verb=GET {
     }
     attachments_count : $att_count
     has_photo         : $f_photo
+    has_signature     : $has_sig
+    signature_count   : $sig_count
     filled_count      : $filled_count
     required_total    : $req_total
     readiness_pct     : $readiness_pct
@@ -130,6 +143,18 @@ query get_unified_tdr_status verb=GET {
       repair_completed: $b_repair
       parts_needed    : $b_parts
       photo           : $b_photo
+      signature       : $b_sig
+    }
+    submission_extras: {
+      claim_number    : (($job.claim_number ?? "")|to_text)
+      model_number    : (($job.model_number ?? "")|to_text)
+      serial_number   : (($job.serial_number ?? "")|to_text)
+      problem_summary : (($job.problem_summary ?? "")|to_text)
+      service_address : (($job.service_address ?? "")|to_text)
+      customer_phone  : (($customer.phone ?? "")|to_text)
+      customer_last_name: (($customer.last_name ?? "")|to_text)
+      customer_city   : (($customer.city ?? "")|to_text)
+      customer_state  : (($customer.state ?? "")|to_text)
     }
   }
 

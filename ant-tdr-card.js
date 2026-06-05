@@ -242,6 +242,20 @@
       html += '<div class="ant-tdr-field-empty-prompt">At least one photo required for warranty</div>';
     }
     html += '</div></div>';
+    // Signature row
+    var sigFilled = !!d.has_signature;
+    var sigIcon = sigFilled ? '✅' : '✍️';
+    var sigCls = sigFilled ? 'filled' : 'empty';
+    html += '<div class="ant-tdr-field ' + sigCls + '">';
+    html += '<div class="ant-tdr-field-icon">' + sigIcon + '</div>';
+    html += '<div class="ant-tdr-field-body">';
+    html += '<div class="ant-tdr-field-label">Customer Signature</div>';
+    if (sigFilled) {
+      html += '<div class="ant-tdr-field-value">Signed on file</div>';
+    } else {
+      html += '<div class="ant-tdr-field-empty-prompt">Customer needs to sign on the tech\'s phone</div>';
+    }
+    html += '</div></div>';
     // Actions per role
     html += '<div class="ant-tdr-actions">';
     if (role === 'tech') {
@@ -341,6 +355,7 @@
       repair_completed: 'repair description',
       parts_needed: 'parts used',
       photo: 'photo',
+      signature: 'signature',
     };
     var missing = [];
     for (var k in b) {
@@ -350,6 +365,88 @@
     if (missing.length === 1) return 'needs ' + missing[0];
     if (missing.length === 2) return 'needs ' + missing[0] + ' + ' + missing[1];
     return 'needs ' + missing.slice(0, 2).join(', ') + ' (+' + (missing.length - 2) + ' more)';
+  }
+
+  // ── Submission package builder (office click on Submit Warranty) ──
+  function buildSubmissionPackage(d) {
+    var fields = d.fields || {};
+    var extras = d.submission_extras || {};
+    function val(f) { return ((fields[f] || {}).value || '').toString().trim(); }
+    var ts = new Date().toISOString().replace('T', ' ').replace('Z', ' UTC');
+    var lines = [];
+    lines.push('TN APPLIANCE EXCHANGE — WARRANTY SUBMISSION');
+    lines.push('========================================');
+    lines.push('Job: #' + d.job_id);
+    lines.push('Customer: ' + (d.customer_first_name || '') + ' ' + (extras.customer_last_name || ''));
+    lines.push('Phone: ' + (extras.customer_phone || ''));
+    var addr = (extras.service_address || '');
+    var locline = [extras.customer_city, extras.customer_state].filter(Boolean).join(', ');
+    if (addr) lines.push('Address: ' + addr + (locline ? ' (' + locline + ')' : ''));
+    lines.push('Vendor: ' + (d.warranty_company || 'unknown'));
+    if (extras.claim_number) lines.push('Claim #: ' + extras.claim_number);
+    lines.push('');
+    lines.push('APPLIANCE');
+    lines.push('  Type: ' + (d.appliance_summary || ''));
+    if (extras.model_number) lines.push('  Model: ' + extras.model_number);
+    if (extras.serial_number) lines.push('  Serial: ' + extras.serial_number);
+    lines.push('');
+    lines.push('DIAGNOSIS');
+    lines.push('  ' + (val('diagnosis') || '(not captured)'));
+    lines.push('');
+    lines.push('FAILED COMPONENT');
+    lines.push('  ' + (val('failed_component') || '(not captured)'));
+    lines.push('');
+    lines.push('REPAIR PERFORMED');
+    lines.push('  ' + (val('repair_completed') || '(not captured)'));
+    lines.push('');
+    lines.push('PARTS USED');
+    lines.push('  ' + (val('parts_needed') || '(none)'));
+    lines.push('');
+    lines.push('LABOR');
+    lines.push('  ' + (val('labor_hours') || '?') + ' hours');
+    if (val('customer_notes')) {
+      lines.push('');
+      lines.push('CUSTOMER NOTES');
+      lines.push('  ' + val('customer_notes'));
+    }
+    if (extras.problem_summary) {
+      lines.push('');
+      lines.push('ORIGINAL COMPLAINT');
+      lines.push('  ' + extras.problem_summary);
+    }
+    lines.push('');
+    lines.push('DOCUMENTATION');
+    lines.push('  Photos on file: ' + (d.attachments_count || 0));
+    lines.push('  Customer signature: ' + (d.has_signature ? 'Yes' : 'No'));
+    lines.push('');
+    lines.push('Submitted via Ant · ' + ts);
+    return lines.join('\n');
+  }
+
+  function tdrCopyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(function () { tdrFallbackCopy(text); });
+    } else {
+      tdrFallbackCopy(text);
+    }
+  }
+  function tdrFallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+  function tdrPortalUrlForVendor(v) {
+    var n = (v || '').toLowerCase().replace(/\s+/g, '');
+    if (n.indexOf('square') !== -1) return 'https://provider.squaretrade.com/';
+    if (n === 'ahs' || n.indexOf('americanhome') !== -1) return 'https://contractor.ahs.com/';
+    if (n.indexOf('frontdoor') !== -1) return 'https://www.frontdoor.com/pro/';
+    if (n.indexOf('allstate') !== -1) return 'https://allstateprotectionplans.com/';
+    if (n.indexOf('nsa') !== -1) return 'https://contractors.nsai.com/';
+    return '';
   }
 
   function escapeHtml(s) {
@@ -380,7 +477,24 @@
     location.href = '/teddy-tdr-tool.html?job_id=' + jobId;
   };
   window.__antTdrSubmitWarranty = function () {
-    location.href = '/warranty-review.html?job_id=' + jobId;
+    if (!lastData) { alert('No data loaded yet'); return; }
+    var pkg = buildSubmissionPackage(lastData);
+    tdrCopyToClipboard(pkg);
+    var vendor = lastData.warranty_company || '';
+    var portal = tdrPortalUrlForVendor(vendor);
+    // Show a confirmation banner inside the modal sheet so the user
+    // sees what just happened before any redirect.
+    var content = document.getElementById('ant-tdr-content');
+    if (content) {
+      var banner = document.createElement('div');
+      banner.style.cssText = 'position:sticky;top:0;background:linear-gradient(135deg,#10b981,#047857);color:#fff;padding:14px 16px;border-radius:12px;margin-bottom:14px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:10px;box-shadow:0 4px 14px rgba(16,185,129,0.35);z-index:10';
+      banner.innerHTML = '<span style="font-size:20px">📋</span><span>Submission package copied to clipboard. ' + (portal ? 'Opening ' + vendor + ' portal in new tab — paste it in.' : 'Paste it into the vendor portal.') + '</span>';
+      content.insertBefore(banner, content.firstChild);
+      setTimeout(function () { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 6000);
+    }
+    if (portal) {
+      setTimeout(function () { window.open(portal, '_blank', 'noopener'); }, 350);
+    }
   };
 
   // ── Boot timing ────────────────────────────────────────────────────
