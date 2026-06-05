@@ -125,7 +125,27 @@
   <button id="btn-camera"><span class="icon">📷</span> Photo</button>
   <button id="btn-video"><span class="icon">🎥</span> Video</button>
   <button id="btn-parts"><span class="icon">🔧</span> Find part</button>
+  <button id="btn-signature"><span class="icon">✍️</span> Sign</button>
   <a id="btn-full" class="full" href="#"><span class="icon">⋯</span> More</a>
+</div>
+
+<!-- Signature canvas modal -->
+<div id="sig-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:10500;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:540px;padding:18px 18px 22px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-weight:800;font-size:16px;color:#1a202c">Customer Signature</div>
+      <button id="sig-close" style="background:rgba(0,0,0,0.06);border:0;width:34px;height:34px;border-radius:17px;font-size:20px;cursor:pointer">×</button>
+    </div>
+    <div style="font-size:13px;color:#4a5568;line-height:1.4">Have the customer sign here to acknowledge the repair. This goes on file with the warranty submission.</div>
+    <div style="position:relative;border:2px dashed #cbd5e0;border-radius:12px;background:#fff;height:240px;touch-action:none">
+      <canvas id="sig-canvas" style="display:block;width:100%;height:100%;border-radius:10px;touch-action:none"></canvas>
+      <div id="sig-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:#a0aec0;font-size:14px;font-style:italic">Sign here with your finger</div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center">
+      <button id="sig-clear" style="background:rgba(0,0,0,0.06);color:#1a202c;border:0;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">Clear</button>
+      <button id="sig-save" style="background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;padding:14px 22px;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;flex:1;margin-left:8px">✓ Save signature</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -574,6 +594,116 @@ document.getElementById('btn-camera').addEventListener('click', () => document.g
 document.getElementById('btn-video').addEventListener('click', () => document.getElementById('video-input').click());
 document.getElementById('photo-input').addEventListener('change', (e) => { for (const f of e.target.files || []) uploadFile(f); e.target.value = ''; });
 document.getElementById('video-input').addEventListener('change', (e) => { for (const f of e.target.files || []) uploadFile(f); e.target.value = ''; });
+
+// ── Signature canvas (Phase 5) ────────────────────────────────────
+// Customer signs directly on the tech's phone screen. Saved as a PNG
+// attachment with attachment_type='signature' so warranty-review and
+// the per-job submission package can include it without a paper step.
+(function setupSignature() {
+  const modal = document.getElementById('sig-modal');
+  const canvas = document.getElementById('sig-canvas');
+  const placeholder = document.getElementById('sig-placeholder');
+  let ctx = null, drawing = false, hasInk = false;
+  function sizeCanvas() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1a202c';
+  }
+  function point(evt) {
+    const rect = canvas.getBoundingClientRect();
+    const t = (evt.touches && evt.touches[0]) || evt;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function start(e) {
+    e.preventDefault();
+    drawing = true;
+    if (!hasInk) { hasInk = true; placeholder.style.display = 'none'; }
+    const p = point(e);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+  }
+  function move(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = point(e);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+  function end(e) {
+    if (e) e.preventDefault();
+    drawing = false;
+    ctx.beginPath();
+  }
+  document.getElementById('btn-signature').addEventListener('click', () => {
+    modal.style.display = 'flex';
+    setTimeout(sizeCanvas, 30);
+  });
+  document.getElementById('sig-close').addEventListener('click', () => { modal.style.display = 'none'; });
+  document.getElementById('sig-clear').addEventListener('click', () => {
+    hasInk = false;
+    placeholder.style.display = 'flex';
+    sizeCanvas();
+  });
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end, { passive: false });
+  document.getElementById('sig-save').addEventListener('click', async () => {
+    if (!hasInk) { showToast('Sign first, then save'); return; }
+    canvas.toBlob(async (blob) => {
+      if (!blob) { showToast('❌ Could not capture signature'); return; }
+      modal.style.display = 'none';
+      showToast('✍️ Uploading signature…');
+      const file = new File([blob], 'signature-' + Date.now() + '.png', { type: 'image/png' });
+      // Reuse the upload pipeline. The save_attachment endpoint sees
+      // attachment_type='signature' on the upload-init request.
+      await uploadSignatureFile(file);
+    }, 'image/png');
+  });
+  async function uploadSignatureFile(file) {
+    try {
+      const r = await fetch(`${XANO}/generate_upload_url`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_id: JOB_ID, tech_id: TECH_ID,
+          attachment_type: 'signature',
+          file_type: 'photo',
+          original_filename: file.name,
+          mime_type: 'image/png',
+          uploaded_by: 'tech',
+        })
+      });
+      const gen = await r.json();
+      if (!gen.s3_key || !gen.attachment_id) throw new Error('init failed');
+      const ps = await fetch('/.netlify/functions/s3-presign', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_key: gen.s3_key, mime_type: 'image/png' })
+      });
+      const pres = await ps.json();
+      if (!pres.upload_url) throw new Error('presign failed');
+      await fetch(pres.upload_url, { method: 'PUT', headers: { 'Content-Type': 'image/png' }, body: file });
+      await fetch(`${XANO}/save_attachment`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachment_id: gen.attachment_id, file_size_bytes: file.size })
+      });
+      showToast('✅ Signature saved');
+      loadJob();
+    } catch (e) {
+      showToast('❌ Signature upload failed — try again');
+    }
+  }
+})();
 
 // Service worker for PWA install
 if ('serviceWorker' in navigator) {
