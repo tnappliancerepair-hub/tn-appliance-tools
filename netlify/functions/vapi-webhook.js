@@ -378,17 +378,30 @@ exports.handler = async function (event) {
     }
 
     // 4b. Missed Call Callback — when an INBOUND call ended without a
-    //     real conversation, schedule a callback in 5 min via Ant.
+    //     real conversation, schedule a callback via Ant.
     //     Only fires for INBOUND (not outbound voicemails we just left).
+    //
+    //     TRANSFER FAILURE → callback ASAP (60 sec, not 5 min). When
+    //     transferCall fires but the destination doesn't pick up cleanly,
+    //     Vapi reports `error-transfer-failed` or similar in the summary
+    //     / endedReason. That's the 15-min-on-hold pattern Danielle hit —
+    //     we dial back FAST to convert pain into "we noticed, here we are".
     const callbackEnabled = String(process.env.MISSED_CALL_CALLBACK_ENABLED || 'true').toLowerCase() !== 'false';
     const isOutboundLeg = callMeta.source && String(callMeta.source).includes('_auto');
     const missedReasons = ['voicemail', 'customer-busy', 'customer-did-not-answer', 'no-answer', 'silence-timed-out'];
     const isMissed = missedReasons.some((r) => endedReason.toLowerCase().includes(r));
-    if (callbackEnabled && isMissed && !isOutboundLeg && callerNumber && callerNumber.startsWith('+')) {
-      const deadlineMs = Date.now() + 5 * 60 * 1000; // 5 minutes from now
+    const summaryLower = (summary || '').toLowerCase();
+    const isTransferFail = endedReason.toLowerCase().includes('transfer-fail')
+      || endedReason.toLowerCase().includes('error-transfer')
+      || summaryLower.includes('transfer-failed')
+      || summaryLower.includes('error-transfer');
+    if (callbackEnabled && (isMissed || isTransferFail) && !isOutboundLeg && callerNumber && callerNumber.startsWith('+')) {
+      const deadlineMs = isTransferFail
+        ? Date.now() + 60 * 1000          // 60 sec — transfer dropped, rescue NOW
+        : Date.now() + 5 * 60 * 1000;     // 5 min — standard missed call
       await safePost(`${XANO_BASE}/emit_colony_signal`, {
         signal_type: 'MISSED_CALL_CALLBACK_DUE',
-        signal_strength: 65,
+        signal_strength: isTransferFail ? 95 : 65,  // transfer-fail is urgent
         payload_json: JSON.stringify({
           caller_phone: callerNumber,
           called_phone: calledNumber,
@@ -397,17 +410,32 @@ exports.handler = async function (event) {
           deadline_ms: deadlineMs,
           original_vapi_call_id: callId,
           duration_sec: durationSec,
+          is_transfer_failure: isTransferFail,
+          opening_hint: isTransferFail
+            ? 'Hi, this is Ant calling you right back. We dropped your transfer — sorry about that. How can I help?'
+            : '',
         }),
       });
       await safePost(XANO_RECORD_EVENT, {
-        action: 'missed_call_callback_scheduled',
+        action: isTransferFail ? 'transfer_failure_callback_scheduled' : 'missed_call_callback_scheduled',
         metadata_json: JSON.stringify({
           caller_phone: callerNumber,
           ended_reason: endedReason,
           deadline_ms: deadlineMs,
           original_vapi_call_id: callId,
+          is_transfer_failure: isTransferFail,
         }),
       });
+      // For transfer failures, also SMS Teddy IMMEDIATELY so he knows
+      // a customer was just dropped and can call them himself if needed.
+      if (isTransferFail) {
+        await safePost(`${XANO_BASE}/send_sms`, {
+          to_number: '+16154855795',
+          message: `[ant] transfer dropped a customer (${callerNumber}). Auto-callback firing in 60 sec. Original vapi call: ${callId.slice(0, 12)}…`,
+          recipient_role: 'owner',
+          context: { source: 'transfer_failure_alert', vapi_call_id: callId },
+        });
+      }
     }
     return ok('ack');
   }
