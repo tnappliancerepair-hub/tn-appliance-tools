@@ -419,6 +419,12 @@
     lines.push('  Photos on file: ' + (d.attachments_count || 0));
     lines.push('  Customer signature: ' + (d.has_signature ? 'Yes' : 'No'));
     lines.push('');
+    lines.push('PARTS POLICY');
+    lines.push('  TN Appliance Exchange installs only parts supplied by our');
+    lines.push('  company. Customer-purchased parts are not installed. This');
+    lines.push('  ensures the correct part is used and allows us to stand');
+    lines.push('  behind the repair.');
+    lines.push('');
     lines.push('Submitted via Ant · ' + ts);
     return lines.join('\n');
   }
