@@ -70,17 +70,25 @@
   .loading { text-align: center; padding: 40px; color: #718096; font-size: 14px; }
 
   /* LIVE TDR — fields appear as Brooke captures them via voice */
-  .live-tdr { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 2px solid #4ca7ff; }
-  .live-tdr-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .live-tdr-head .live-dot { width: 10px; height: 10px; background: #4ca7ff; border-radius: 50%; animation: pulse 1.4s ease-in-out infinite; }
+  .live-tdr { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 3px solid #10b981; transition: box-shadow 0.4s ease; }
+  .live-tdr.flash { box-shadow: 0 0 0 6px rgba(16,185,129,0.25), 0 4px 16px rgba(16,185,129,0.4); }
+  .live-tdr-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .live-tdr-head .live-dot { width: 12px; height: 12px; background: #10b981; border-radius: 50%; animation: pulse 1.4s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
-  .live-tdr-head .live-label { font-size: 12px; color: #4ca7ff; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
-  .live-field { padding: 8px 0; border-bottom: 1px solid #edf2f7; }
+  .live-tdr-head .live-label { font-size: 13px; color: #047857; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 800; }
+  .live-field { padding: 10px 12px; border-bottom: 1px solid #edf2f7; border-left: 4px solid transparent; border-radius: 4px; transition: all 0.3s ease; }
   .live-field:last-child { border-bottom: 0; }
-  .live-field.new { animation: fadeIn 0.6s ease-out; }
-  @keyframes fadeIn { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
+  .live-field.new { animation: liveFieldFlash 1.8s ease-out; border-left-color: #10b981; }
+  @keyframes liveFieldFlash {
+    0%   { opacity: 0; transform: translateY(10px) scale(0.97); background: rgba(16,185,129,0.32); }
+    15%  { opacity: 1; transform: translateY(0) scale(1.025); background: rgba(16,185,129,0.28); }
+    60%  { background: rgba(16,185,129,0.12); }
+    100% { opacity: 1; transform: scale(1); background: rgba(16,185,129,0); }
+  }
   .live-field .live-field-label { font-size: 11px; color: #718096; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; }
-  .live-field .live-field-value { font-size: 15px; color: #1a202c; margin-top: 2px; font-weight: 500; line-height: 1.4; }
+  .live-field.new .live-field-label::before { content: "✓ "; color: #10b981; font-weight: 900; }
+  .live-field.new .live-field-label { color: #047857; }
+  .live-field .live-field-value { font-size: 16px; color: #1a202c; margin-top: 3px; font-weight: 600; line-height: 1.4; }
   .live-field.empty .live-field-value { color: #cbd5e0; font-style: italic; font-weight: 400; }
 
   /* Latest-capture banner — shows what they JUST took, big and prominent */

@@ -4,10 +4,16 @@
 //
 // Bumped 2026-06-04 — adds install support so Jimmy can finally save
 // it to home screen as a real app.
-const CACHE = 'ant-field-v1';
+// Bump CACHE name to force installed PWAs to drop stale shells +
+// re-fetch fresh on activate. Anything still cached under an OLD name
+// gets deleted in activate handler.
+const CACHE = 'ant-field-v3-2026-06-04';
 const SHELL = [
   '/tech-ant-chat.html',
+  '/tech-simple.html',
+  '/tech-daily-dashboard.html',
   '/ant-spine.js',
+  '/office-nav.js',
   '/api-spec/client/ant-client.js',
   '/manifest-tech.json',
   '/icons/ant-512.svg',

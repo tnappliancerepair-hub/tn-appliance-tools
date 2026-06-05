@@ -47,7 +47,7 @@
     if (!jobId) return '';
     const lenses = [
       { role: 'owner',    label: '📋 Teddy Tool',    href: `/teddy-tdr-tool.html?job_id=${jobId}` },
-      { role: 'tech',     label: '🔧 Tech View',     href: `/tech-ant-chat.html?job_id=${jobId}` },
+      { role: 'tech',     label: '🔧 Tech View',     href: `/tech-simple.html?job_id=${jobId}` },
       { role: 'office',   label: '📦 Warranty',      href: `/warranty-review.html?job_id=${jobId}` },
       { role: 'office',   label: '🗂 Job Detail',    href: `/job-detail.html?job_id=${jobId}` },
       { role: 'customer', label: '👤 Customer View', href: `/customer-portal.html?job_id=${jobId}` },

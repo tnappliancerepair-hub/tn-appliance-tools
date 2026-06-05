@@ -37,11 +37,23 @@
   }
 
   function render() {
+    // ant-spine.js renders a fixed deep-link strip at top:0, z:9999.
+    // When both navs are on the same page (job-detail, teddy-tdr-tool,
+    // warranty-review), the pill nav collides UNDER the spine strip
+    // and its labels get clipped. Detect spine and offset accordingly.
+    const hasSpine = !!document.querySelector('script[src*="ant-spine.js"]');
+    const TOP_OFFSET = hasSpine ? '38px' : '0';
+
+    // Horizontal-scroll pill row. Each pill sizes to its content; the bar
+    // scrolls left-right so on a narrow phone Teddy can swipe through all
+    // pills instead of having labels crushed into circles by `flex:1`.
     const bar = document.createElement('div');
     bar.id = 'office-topnav';
     bar.style.cssText = [
-      'position:sticky', 'top:0', 'z-index:9000',
+      'position:sticky', `top:${TOP_OFFSET}`, 'z-index:9000',
       'display:flex', 'gap:8px', 'padding:10px 14px',
+      'overflow-x:auto', 'overflow-y:hidden',
+      '-webkit-overflow-scrolling:touch',
       'background:#131720', 'border-bottom:1px solid #2a3040',
       "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
     ].join(';');
@@ -51,11 +63,13 @@
       const bg = active ? p.color : (p.color + '22');
       const border = active ? p.color : (p.color + '88');
       const fg = active ? '#0e1118' : p.color;
-      // Larger tap targets + bigger font so it reads at a glance.
       const size = active ? '15px' : '14px';
       const padding = active ? '10px 18px' : '10px 16px';
       const weight = active ? '900' : '700';
-      return `<a href="${p.href}" style="background:${bg}; border:2px solid ${border}; color:${fg}; padding:${padding}; border-radius:22px; font-size:${size}; font-weight:${weight}; text-decoration:none; white-space:nowrap; flex-shrink:0; flex:1; text-align:center; min-width:0; transition:transform 0.05s">${p.label}</a>`;
+      // No flex:1 — pills size to their content. flex-shrink:0 prevents
+      // the row from squashing them when total content exceeds viewport.
+      // Bar scrolls horizontally instead.
+      return `<a href="${p.href}" style="background:${bg}; border:2px solid ${border}; color:${fg}; padding:${padding}; border-radius:22px; font-size:${size}; font-weight:${weight}; text-decoration:none; white-space:nowrap; flex-shrink:0; text-align:center; transition:transform 0.05s">${p.label}</a>`;
     }).join('');
 
     // Inject style for tap feedback

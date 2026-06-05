@@ -13,11 +13,18 @@ query update_tdr_field_from_voice verb=POST {
   }
 
   stack {
+    // Pre-bind trimmed values FIRST — XS rejects `|trim != ""` directly
+    // inside precondition expressions (footgun: "Invalid syntax. Please
+    // wrap your filter with parentheses"). value = (...) is the only
+    // legal place for the |trim pipe.
+    var $field_clean { value = ($input.field ?? "")|trim }
+    var $clean_value { value = ($input.value ?? "")|trim }
+
     precondition ($input.job_id > 0) {
       error_type = "inputerror"
       error = "job_id required"
     }
-    precondition (($input.field ?? "")|trim != "") {
+    precondition ($field_clean != "") {
       error_type = "inputerror"
       error = "field required"
     }
@@ -34,12 +41,6 @@ query update_tdr_field_from_voice verb=POST {
 
     var $tech_id {
       value = ($input.technician_id ?? ($job.technician_id ?? 0))
-    }
-    var $clean_value {
-      value = ($input.value ?? "")|trim
-    }
-    var $field_clean {
-      value = $input.field|trim
     }
 
     // Pre-compute every possible field value (one will get the new
@@ -63,9 +64,14 @@ query update_tdr_field_from_voice verb=POST {
       value = ($field_clean == "customer_notes") ? $clean_value : ""
     }
 
-    // Find existing in-progress TDR for this job + tech
+    // Find most-recent TDR for this job + tech.
+    // Don't filter on finalized — XS rejects `== false` against a
+    // nullable column (footgun: "Unsupported parameter reference -
+    // finalized"). If the most-recent TDR is finalized, that's OK —
+    // adding more captures to it is the right behavior (tech adding
+    // notes after closing).
     db.query technician_decision_report {
-      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id && $db.technician_decision_report.finalized == false
+      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id
       sort  = {technician_decision_report.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $existing_rows
@@ -157,7 +163,7 @@ query update_tdr_field_from_voice verb=POST {
     db.add event_log {
       data = {
         action  : "tdr_field_updated_from_voice"
-        metadata: ({job_id: $input.job_id, technician_id: $tech_id, field: $field_clean, tdr_id: $existing_id, value_len: ($clean_value|length), ts_ms: (now|to_ms)}|json_encode)
+        metadata: ({job_id: $input.job_id, technician_id: $tech_id, field: $field_clean, tdr_id: $existing_id, ts_ms: (now|to_ms)}|json_encode)
       }
     }
   }

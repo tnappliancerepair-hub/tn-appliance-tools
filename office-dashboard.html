@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ant Office Dashboard - TN Appliance Exchange</title>
+<link rel="manifest" href="/manifest-office.json">
+<meta name="theme-color" content="#0e1118">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ant Office">
+<link rel="apple-touch-icon" href="/icons/ant-512.svg">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/office-sw.js').catch(() => {});
+  }
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html { height: 100%; }
@@ -1239,7 +1250,7 @@ async function purgeRun() {
   }
 }
 </script>
-<script src="/office-nav.js?v=20260601-2"></script>
+<script src="/office-nav.js?v=20260604-pills-readable"></script>
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260601-1"></script>
 <script src="/office-map.js?v=20260528-1"></script>

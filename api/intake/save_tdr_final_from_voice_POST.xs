@@ -24,8 +24,10 @@ query save_tdr_final_from_voice verb=POST {
       value = ($input.technician_id ?? ($job.technician_id ?? 0))
     }
 
+    // Find most-recent TDR for this job+tech (don't filter on
+    // finalized — XS rejects `== false` against nullable column).
     db.query technician_decision_report {
-      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id && $db.technician_decision_report.finalized == false
+      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id
       sort  = {technician_decision_report.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 1}}
     } as $rows
@@ -36,9 +38,12 @@ query save_tdr_final_from_voice verb=POST {
 
     precondition ($tdr != null) {
       error_type = "notfound"
-      error = "No in-progress voice TDR to finalize"
+      error = "No TDR to finalize — capture some fields first"
     }
 
+    // Always edit — setting finalized=true on an already-finalized
+    // row is a safe no-op. The earlier conditional check failed when
+    // the column was null (`null == true` doesn't behave like `false`).
     db.edit technician_decision_report {
       field_name = "id"
       field_value = $tdr.id

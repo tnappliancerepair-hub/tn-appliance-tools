@@ -1,0 +1,20 @@
+{
+  "name": "Ant Office",
+  "short_name": "Office",
+  "description": "The cockpit — calendar, queues, calls, warranty submissions, parts, money.",
+  "start_url": "/office-dashboard.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1118",
+  "theme_color": "#0e1118",
+  "icons": [
+    {
+      "src": "/icons/ant-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"]
+}
