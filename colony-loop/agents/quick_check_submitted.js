@@ -43,6 +43,11 @@ export async function run(signal) {
                      : verdict === 'replace' ? '🗑️'
                      : '🤔';
 
+  const jobId = payload.job_id;
+  const teddyToolUrl = jobId
+    ? `https://tnapplianceexchange.net/teddy-tdr-tool.html?job_id=${jobId}`
+    : '';
+
   const teddyBody = [
     `[ant] $50 QUICK CHECK lead`,
     `${verdictEmoji} ${verdict.toUpperCase()}${headline ? ` · ${headline}` : ''}`,
@@ -51,6 +56,7 @@ export async function run(signal) {
     [email, phone].filter(Boolean).join(' · '),
     costRange ? `Est: ${costRange}` : '',
     zip ? `ZIP: ${zip}` : '',
+    teddyToolUrl ? `Open: ${teddyToolUrl}` : '',
   ].filter(Boolean).join('\n');
 
   await toOwner(teddyBody, {
