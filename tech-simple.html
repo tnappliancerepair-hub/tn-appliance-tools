@@ -425,9 +425,49 @@ async function uploadFile(file) {
     });
     showToast('✅ Saved');
     loadJob();
+
+    // Background OCR — if this is a photo, ask Claude Vision whether
+    // it's a model sticker and auto-fill job.model_number if so. The
+    // upload UX above is already complete; OCR runs without blocking
+    // the tech. Result shows as a separate toast when ready.
+    if (!isVideo && gen.s3_key) {
+      ocrModelExtract(gen.s3_key).catch(() => {});
+    }
   } catch (e) {
     showToast('❌ Upload failed — try again');
   }
+}
+
+async function ocrModelExtract(s3Key) {
+  // Build the public view URL through the existing s3-view-url helper
+  // so the OCR function sees the same image the tech just uploaded.
+  let viewUrl = '';
+  try {
+    const v = await fetch('/.netlify/functions/s3-view-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ s3_key: s3Key })
+    });
+    const vd = await v.json();
+    viewUrl = vd.view_url || vd.url || '';
+  } catch (_) { return; }
+  if (!viewUrl) return;
+  try {
+    const r = await fetch('/.netlify/functions/ocr-model-extract', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: JOB_ID, image_url: viewUrl })
+    });
+    const out = await r.json();
+    if (out && out.is_model_sticker && out.model_number) {
+      if (out.wrote) {
+        showToast('📋 Model captured: ' + out.model_number);
+        setTimeout(() => loadJob(), 600);
+      } else {
+        // Model already set on job — show what we found anyway so tech
+        // can double-check if it matches.
+        showToast('📋 Saw model ' + out.model_number + ' on sticker');
+      }
+    }
+  } catch (_) {}
 }
 
 // Parts search modal — uses the existing parts-search-modal.js
