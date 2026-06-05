@@ -65,13 +65,21 @@ query list_warranty_pipeline verb=GET {
           value = ($svc_addr != "") ? $svc_addr : $cust_addr
         }
 
-        // Check if a TDR exists for this job (any state) so the UI
-        // can flag rows that already have data captured vs blank.
+        // Most-recent TDR for this job so the UI can show captured
+        // parts (Phase 3 — return-part visibility for SquareTrade).
         db.query technician_decision_report {
           where = $db.technician_decision_report.job_id == $j.id
+          sort  = {technician_decision_report.created_at: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1}}
         } as $tdr_rows
-        var $has_tdr { value = (($tdr_rows.itemsTotal ?? 0) > 0) }
+        var $tdr_first { value = (($tdr_rows.items|first) ?? null) }
+        var $has_tdr { value = ($tdr_first != null) }
+        var $tdr_parts {
+          value = ($tdr_first == null) ? "" : (($tdr_first.parts_needed ?? "")|to_text)
+        }
+        var $tdr_diagnosis {
+          value = ($tdr_first == null) ? "" : (($tdr_first.diagnosis ?? "")|to_text)
+        }
 
         var $row {
           value = {
@@ -94,6 +102,8 @@ query list_warranty_pipeline verb=GET {
             job_completed_at    : ($j.job_completed_at ?? null)
             warranty_submitted_at: ($j.warranty_submitted_at ?? null)
             has_tdr_capture     : $has_tdr
+            tdr_parts_needed    : $tdr_parts
+            tdr_diagnosis       : $tdr_diagnosis
           }
         }
 

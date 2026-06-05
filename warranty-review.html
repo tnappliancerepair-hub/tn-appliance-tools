@@ -608,6 +608,25 @@
       const tdrBadge = r.has_tdr_capture
         ? '<span style="background:rgba(16,185,129,0.15);border:1px solid #10b981;color:#10b981;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">📋 TDR captured</span>'
         : '<span style="background:rgba(245,166,35,0.10);border:1px solid #f5a623;color:#f5a623;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700">📋 No TDR yet</span>';
+      // Parts list - SquareTrade especially ships multiple parts; surface
+      // them as copyable chips so Danielle has one-tap access for portal
+      // return entries.
+      const partsRaw = (r.tdr_parts_needed || '').trim();
+      const parts = partsRaw ? partsRaw.split(/\s*,\s*/).filter(Boolean) : [];
+      const isSquareTrade = (r.warranty_company || '').toLowerCase().includes('square');
+      const partsBlock = parts.length > 0 ? `
+        <div style="margin-top:12px;padding:10px 12px;background:rgba(180,140,255,0.06);border:1px solid rgba(180,140,255,0.18);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#b48cff;font-weight:700">
+              ${isSquareTrade ? '📦 Returns to send back' : '🔧 Parts captured'} (${parts.length})
+            </div>
+            <button class="btn btn-secondary" style="padding:4px 10px;font-size:11px" data-copy-parts="${escapeAttr(parts.join('\n'))}">⎘ Copy all</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${parts.map((p) => `<span class="part-chip" data-copy="${escapeAttr(p)}" style="display:inline-block;background:#1a1f2c;border:1px solid #2a3040;padding:5px 11px;border-radius:14px;font-family:var(--mono);font-size:12px;color:#e6e9f0;cursor:pointer">${escapeHtml(p)} ⎘</span>`).join('')}
+          </div>
+        </div>
+      ` : '';
       return `
         <div class="card" style="padding:14px 16px;margin-bottom:10px">
           <div class="row1" style="margin-bottom:6px">
@@ -622,6 +641,7 @@
           <div style="font-size:12px;color:var(--muted);margin-top:3px">${escapeHtml(addressLine || '(no address)')}</div>
           ${r.claim_number ? `<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px">claim #${escapeHtml(r.claim_number)}</div>` : ''}
           ${r.problem_summary ? `<div style="font-size:12px;color:#cfd6e0;margin-top:8px;line-height:1.4">${escapeHtml(r.problem_summary.slice(0, 200))}${r.problem_summary.length > 200 ? '…' : ''}</div>` : ''}
+          ${partsBlock}
           <div class="actions" style="margin-top:10px">
             <a class="btn btn-secondary" href="teddy-tdr-tool.html?job_id=${r.id}">📋 Open TDR</a>
             <a class="btn btn-secondary" href="job-detail.html?job_id=${r.id}">🗂 Job detail</a>
@@ -631,6 +651,54 @@
       `;
     });
     host.innerHTML = parts.join('');
+
+    // Wire up the copy chips (individual part) + "Copy all" button.
+    host.querySelectorAll('[data-copy]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const v = el.getAttribute('data-copy') || '';
+        copyToClipboard(v);
+        flashChip(el, 'copied');
+      });
+    });
+    host.querySelectorAll('[data-copy-parts]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const v = btn.getAttribute('data-copy-parts') || '';
+        copyToClipboard(v);
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = orig; }, 1400);
+      });
+    });
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+  }
+  function flashChip(el, label) {
+    const orig = el.textContent;
+    el.textContent = '✓ ' + label;
+    el.style.background = 'rgba(74,217,145,0.20)';
+    el.style.color = '#4ad991';
+    el.style.borderColor = '#4ad991';
+    setTimeout(() => {
+      el.textContent = orig;
+      el.style.background = '';
+      el.style.color = '';
+      el.style.borderColor = '';
+    }, 1200);
   }
 
   // Vendor-portal direct deep-links. When a real new-claim URL is known
