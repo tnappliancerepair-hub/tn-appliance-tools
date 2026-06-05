@@ -59,8 +59,8 @@
     var s = document.createElement('style');
     s.id = 'ant-tdr-card-styles';
     s.textContent = [
-      '#ant-tdr-fab { position: fixed; bottom: 20px; right: 20px; z-index: 10000; background: linear-gradient(135deg, #10b981, #047857); color: white; border: 0; border-radius: 28px; padding: 14px 22px 14px 18px; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 800; box-shadow: 0 8px 24px rgba(16,185,129,0.45); cursor: pointer; display: flex; align-items: center; gap: 10px; letter-spacing: 0.02em; transition: transform 0.1s; }',
-      '#ant-tdr-fab:active { transform: scale(0.96); }',
+      '#ant-tdr-fab { position: fixed; bottom: calc(90px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 10000; background: linear-gradient(135deg, #10b981, #047857); color: white; border: 0; border-radius: 28px; padding: 14px 22px 14px 18px; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 800; box-shadow: 0 8px 24px rgba(16,185,129,0.45); cursor: pointer; display: flex; align-items: center; gap: 10px; letter-spacing: 0.02em; transition: transform 0.1s, box-shadow 0.2s; }',
+      '#ant-tdr-fab:active { transform: translateX(-50%) scale(0.96); }',
       '#ant-tdr-fab .pct { background: rgba(255,255,255,0.22); border-radius: 18px; padding: 4px 10px; font-size: 13px; font-weight: 900; }',
       '#ant-tdr-fab.ready { background: linear-gradient(135deg, #4ad991, #10b981); box-shadow: 0 8px 28px rgba(74,217,145,0.55); animation: antTdrPulse 1.6s ease-in-out infinite; }',
       '@keyframes antTdrPulse { 0%,100% { box-shadow: 0 8px 24px rgba(74,217,145,0.4); } 50% { box-shadow: 0 8px 36px rgba(74,217,145,0.9); } }',
