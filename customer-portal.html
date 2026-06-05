@@ -506,8 +506,10 @@
     gate.style.display = 'none';
     loading.style.display = 'none';
     app.style.display = 'block';
+    setWaiverState(data && data.job);
     render(data);
     renderAvailabilityGrid(data);
+    maybeShowWaiverBanner(data && data.job);
     recordPortalEvent('portal_viewed').catch(() => {});
   }
 
@@ -588,6 +590,11 @@
   }
 
   function onAvailTap(e) {
+    if (!ensureWaiverSigned('schedule')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const cell = e.currentTarget;
     const ymd = cell.dataset.date;
     const block = cell.dataset.block;
@@ -596,6 +603,70 @@
     else availState[ymd].add(block);
     cell.classList.toggle('on');
     queueAvailSave();
+  }
+
+  // ── Waiver gate ─────────────────────────────────────────────────
+  // Customer cannot schedule, reschedule, or set availability until they
+  // sign the release of liability. This is the UX gate; server-side
+  // endpoints also enforce on the backend.
+  let WAIVER_SIGNED = true;
+  function setWaiverState(job) {
+    WAIVER_SIGNED = !!(job && job.waiver_signed_at);
+  }
+  function ensureWaiverSigned(actionKind) {
+    if (WAIVER_SIGNED) return true;
+    showWaiverModal(actionKind);
+    return false;
+  }
+  function showWaiverModal(actionKind) {
+    let modal = document.getElementById('waiverModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'waiverModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+      modal.innerHTML = '<div style="background:#fff;border-radius:18px;max-width:440px;width:100%;padding:24px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">' +
+        '<div style="font-size:42px;margin-bottom:6px">📝</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#1a202c;margin-bottom:8px">Quick sign needed first</div>' +
+        '<div id="waiverModalBody" style="font-size:15px;color:#4a5568;line-height:1.5;margin-bottom:18px">Before we can schedule your appointment, we need a quick release of liability signed. It takes about 30 seconds.</div>' +
+        '<a id="waiverModalGo" style="display:block;background:linear-gradient(135deg,#ff8a00,#e26d00);color:#fff;padding:16px 22px;border-radius:12px;font-size:16px;font-weight:800;text-decoration:none;margin-bottom:10px">✍️ Sign now (30 sec)</a>' +
+        '<button id="waiverModalLater" style="background:transparent;border:0;color:#718096;font-size:13px;padding:10px;cursor:pointer">Maybe later</button>' +
+        '</div>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) hideWaiverModal();
+      });
+      document.getElementById('waiverModalLater').addEventListener('click', hideWaiverModal);
+    }
+    const goLink = document.getElementById('waiverModalGo');
+    if (goLink) goLink.href = '/waiver.html?job_id=' + encodeURIComponent(JOB_ID);
+    const body = document.getElementById('waiverModalBody');
+    if (body) {
+      const actionLabels = {
+        schedule: 'set your availability',
+        reschedule: 'reschedule your appointment',
+        action: 'submit that request',
+      };
+      const aw = actionLabels[actionKind] || 'do that';
+      body.textContent = 'Before we can ' + aw + ', we need a quick release of liability signed. Takes about 30 seconds.';
+    }
+    modal.style.display = 'flex';
+  }
+  function hideWaiverModal() {
+    const m = document.getElementById('waiverModal');
+    if (m) m.style.display = 'none';
+  }
+  function maybeShowWaiverBanner(job) {
+    if (job && job.waiver_signed_at) return;
+    if (document.getElementById('waiverBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'waiverBanner';
+    banner.style.cssText = 'background:linear-gradient(135deg,#fff3e0,#ffe0b2);border:2px solid #ff8a00;border-radius:14px;padding:14px 16px;margin:0 0 14px 0;display:flex;align-items:center;gap:12px;cursor:pointer';
+    banner.innerHTML = '<div style="font-size:26px">📝</div>' +
+      '<div style="flex:1"><div style="font-size:15px;font-weight:800;color:#1a202c">Sign release of liability</div>' +
+      '<div style="font-size:12px;color:#4a5568;margin-top:2px">Needed before we schedule — takes about 30 seconds.</div></div>' +
+      '<a href="/waiver.html?job_id=' + encodeURIComponent(JOB_ID) + '" style="background:#ff8a00;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:800;text-decoration:none;white-space:nowrap">Sign →</a>';
+    const hero = document.getElementById('hero');
+    if (hero && hero.parentNode) hero.parentNode.insertBefore(banner, hero);
   }
 
   function queueAvailSave() {
@@ -890,7 +961,10 @@
   }
 
   // ── Action handlers ─────────────────────────────────────────────
-  $('btnReschedule').addEventListener('click', () => toggle('rescheduleForm'));
+  $('btnReschedule').addEventListener('click', (e) => {
+    if (!ensureWaiverSigned('reschedule')) { e.preventDefault(); return; }
+    toggle('rescheduleForm');
+  });
   $('btnNotes').addEventListener('click', () => toggle('notesForm'));
   const btnRateRef = $('btnRate');
   if (btnRateRef) btnRateRef.addEventListener('click', () => toggle('rateForm'));
