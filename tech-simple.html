@@ -432,9 +432,87 @@ async function uploadFile(file) {
     if (!isVideo && gen.s3_key) {
       ocrPhotoClassify(gen.s3_key, gen.attachment_id).catch(() => {});
     }
+    // Phase 4 — walkaround baseline. Extract first frame from a video
+    // upload and have Claude Vision generate a structured condition
+    // assessment. Defensive documentation for post-repair disputes.
+    if (isVideo) {
+      ocrWalkaroundAnalyze(file, gen.attachment_id).catch(() => {});
+    }
   } catch (e) {
     showToast('❌ Upload failed — try again');
   }
+}
+
+async function ocrWalkaroundAnalyze(videoFile, attachmentId) {
+  // Extract a still frame from the video using a hidden video element
+  // + canvas. iOS Safari needs playsInline + muted to avoid auto-play
+  // restrictions blocking the seek.
+  let frameB64;
+  try {
+    frameB64 = await extractVideoFrame(videoFile);
+  } catch (_) { return; }
+  if (!frameB64) return;
+  try {
+    const r = await fetch('/.netlify/functions/ocr-walkaround-analyze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: JOB_ID, tech_id: TECH_ID,
+        image_b64: frameB64,
+        purpose: 'walkaround_initial',
+        attachment_id: attachmentId || null,
+      })
+    });
+    const out = await r.json();
+    if (out && out.success && out.assessment_text && out.assessment_text.indexOf('Image not suitable') === -1) {
+      const dmgCount = (out.damage_noted || []).length;
+      if (dmgCount > 0) {
+        showToast('📸 Baseline saved — ' + dmgCount + ' pre-existing item' + (dmgCount === 1 ? '' : 's') + ' noted');
+      } else {
+        showToast('📸 Baseline saved — area documented');
+      }
+    }
+  } catch (_) {}
+}
+
+function extractVideoFrame(videoFile) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
+    const url = URL.createObjectURL(videoFile);
+    video.src = url;
+    let done = false;
+    function finish(result) {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      result instanceof Error ? reject(result) : resolve(result);
+    }
+    video.onloadedmetadata = () => {
+      // Seek a bit past 0 so we get a real frame, not the black opener.
+      try { video.currentTime = Math.min(0.5, (video.duration || 1) * 0.05); }
+      catch (e) { finish(e); }
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        const b64 = dataUrl.split(',')[1] || '';
+        finish(b64);
+      } catch (e) { finish(e); }
+    };
+    video.onerror = () => finish(new Error('video load failed'));
+    // Timeout safety — if seek never fires (some iOS edge cases),
+    // bail after 8 sec so we don't leak the URL object.
+    setTimeout(() => finish(new Error('video seek timeout')), 8000);
+    video.load();
+  });
 }
 
 async function ocrPhotoClassify(s3Key, attachmentId) {
