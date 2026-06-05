@@ -145,8 +145,27 @@
 
   function renderButton(d) {
     var pctEl = document.getElementById('ant-tdr-fab-pct');
-    if (pctEl) pctEl.textContent = (d.readiness_pct || 0) + '%';
     var btn = document.getElementById('ant-tdr-fab');
+    if (role === 'customer') {
+      // Customer doesn't care about percentages. Show status instead.
+      var fields = d.fields || {};
+      var repairFilled = !!(fields.repair_completed || {}).filled;
+      var diagFilled = !!(fields.diagnosis || {}).filled;
+      if (btn) {
+        if (repairFilled) {
+          btn.innerHTML = '<span>✓ Your Repair</span><span class="pct">Done</span>';
+          btn.classList.add('ready');
+        } else if (diagFilled) {
+          btn.innerHTML = '<span>🔧 Your Repair</span><span class="pct">In Progress</span>';
+          btn.classList.remove('ready');
+        } else {
+          btn.innerHTML = '<span>🐜 Your Repair</span><span class="pct">Live</span>';
+          btn.classList.remove('ready');
+        }
+      }
+      return;
+    }
+    if (pctEl) pctEl.textContent = (d.readiness_pct || 0) + '%';
     if (btn) {
       if (d.readiness_pct >= 100) btn.classList.add('ready');
       else btn.classList.remove('ready');
@@ -156,10 +175,17 @@
   function renderModal(d) {
     var host = document.getElementById('ant-tdr-content');
     if (!host) return;
+    // Customer view is fundamentally different - it's a status update,
+    // not an internal checklist. Different fields, different language,
+    // no editing actions.
+    if (role === 'customer') {
+      renderCustomerModal(host, d);
+      return;
+    }
     var fields = d.fields || {};
     var pct = d.readiness_pct || 0;
     var ready = pct >= 100;
-    var customerSafe = (role === 'customer');
+    var customerSafe = false;
     var blockingText = buildBlockingText(d);
 
     var fieldOrder = [
@@ -230,6 +256,80 @@
     }
     html += '</div>';
     host.innerHTML = html;
+  }
+
+  // ── Customer-friendly view — sanitized, no tech jargon ───────────
+  function renderCustomerModal(host, d) {
+    var fields = d.fields || {};
+    var diag = (fields.diagnosis || {}).value || '';
+    var repair = (fields.repair_completed || {}).value || '';
+    var parts = (fields.parts_needed || {}).value || '';
+    var diagFilled = !!(fields.diagnosis || {}).filled;
+    var repairFilled = !!(fields.repair_completed || {}).filled;
+    var partsFilled = !!(fields.parts_needed || {}).filled;
+    var photoCount = d.attachments_count || 0;
+    // Customer status banner — derived from filled state
+    var status, statusColor, statusIcon;
+    if (repairFilled) {
+      status = 'Repair Complete';
+      statusColor = '#10b981';
+      statusIcon = '✓';
+    } else if (diagFilled) {
+      status = 'Repair In Progress';
+      statusColor = '#4ca7ff';
+      statusIcon = '🔧';
+    } else {
+      status = 'Tech En Route';
+      statusColor = '#f5a623';
+      statusIcon = '🚗';
+    }
+
+    var html = '';
+    // Header — no Job # for customer
+    html += '<div class="ant-tdr-head">';
+    html += '<div><div class="ant-tdr-title">Your Repair</div>';
+    html += '<div class="ant-tdr-sub">' + escapeHtml(d.appliance_summary || 'Appliance') + '</div></div>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrClose()">×</button>';
+    html += '</div>';
+    // Status banner
+    html += '<div style="background:' + statusColor + '22;border:1px solid ' + statusColor + ';border-radius:14px;padding:14px 16px;margin:14px 0 16px;display:flex;align-items:center;gap:14px">';
+    html += '<div style="font-size:28px">' + statusIcon + '</div>';
+    html += '<div><div style="font-size:17px;font-weight:800;color:' + statusColor + '">' + status + '</div>';
+    html += '<div style="font-size:12px;color:#b8bfd0;margin-top:2px">Your tech is documenting everything for you.</div></div>';
+    html += '</div>';
+    // What we found
+    if (diagFilled) {
+      html += customerCard('🔍', 'What we found', diag);
+    }
+    // What we fixed
+    if (repairFilled) {
+      html += customerCard('🔧', 'What we did', repair);
+    }
+    // Parts replaced (only if non-trivial)
+    if (partsFilled && parts.toLowerCase() !== 'none') {
+      html += customerCard('📦', 'Parts replaced', parts);
+    }
+    // Photos
+    if (photoCount > 0) {
+      html += customerCard('📷', 'Photos on file', photoCount + ' photo' + (photoCount === 1 ? '' : 's') + ' from your appointment');
+    }
+    // If nothing captured yet, friendly placeholder
+    if (!diagFilled && !repairFilled && !partsFilled) {
+      html += '<div style="background:#1a1f2c;border:1px solid #252b3a;border-radius:12px;padding:18px 16px;text-align:center;color:#b8bfd0;font-size:13px;line-height:1.5">Your tech hasn\'t added details yet. Once they start the diagnosis, you\'ll see what they found here in real time.</div>';
+    }
+    // Close button
+    html += '<div class="ant-tdr-actions" style="margin-top:18px"><button class="ant-tdr-btn ghost" onclick="window.__antTdrClose()" style="flex:1">Close</button></div>';
+    host.innerHTML = html;
+  }
+
+  function customerCard(icon, label, value) {
+    return '<div style="background:#1a1f2c;border:1px solid #252b3a;border-left:4px solid #10b981;border-radius:12px;padding:14px 16px;margin-bottom:10px">'
+      + '<div style="display:flex;align-items:flex-start;gap:12px">'
+      + '<div style="font-size:18px;flex-shrink:0;margin-top:1px">' + icon + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#8a92a6;font-weight:700">' + escapeHtml(label) + '</div>'
+      + '<div style="font-size:15px;color:#e6e9f0;margin-top:4px;line-height:1.45;word-wrap:break-word">' + escapeHtml(String(value)) + '</div>'
+      + '</div></div></div>';
   }
 
   function buildBlockingText(d) {
