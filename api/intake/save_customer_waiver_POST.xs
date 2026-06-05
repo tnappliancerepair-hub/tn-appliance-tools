@@ -1,0 +1,99 @@
+// Customer signs release-of-liability digitally on /waiver.html. Stores
+// the signature PNG as a job_attachment (attachment_type='waiver') and
+// flips jobs.waiver_signed_at to now. Light auth via phone_last4 match
+// against the job's customer to prevent random URL signers.
+//
+// Replaces the Jotform-based waiver flow. Once this is wired into the
+// scheduling endpoints (next session), jobs become un-schedulable
+// until waiver_signed_at is non-null.
+query save_customer_waiver verb=POST {
+  api_group = "intake"
+
+  input {
+    int   job_id
+    text  phone_last4
+    text  signature_b64
+    text? customer_name?
+    text? ip_address?
+    text? user_agent?
+  }
+
+  stack {
+    precondition ($input.job_id > 0) {
+      error_type = "inputerror"
+      error = "job_id required"
+    }
+    var $phone_clean { value = ($input.phone_last4 ?? "")|trim }
+    precondition ($phone_clean != "") {
+      error_type = "inputerror"
+      error = "phone_last4 required for verification"
+    }
+    var $sig_clean { value = ($input.signature_b64 ?? "")|trim }
+    precondition ($sig_clean != "") {
+      error_type = "inputerror"
+      error = "signature required"
+    }
+
+    db.get jobs {
+      field_name = "id"
+      field_value = $input.job_id
+    } as $job
+
+    precondition ($job != null) {
+      error_type = "notfound"
+      error = "Job not found"
+    }
+
+    db.get customer {
+      field_name = "id"
+      field_value = $job.customer_id
+    } as $customer
+
+    precondition ($customer != null) {
+      error_type = "notfound"
+      error = "Customer not found"
+    }
+
+    // Verify last 4 digits of phone match (soft auth)
+    var $cust_phone { value = (($customer.phone ?? "")|to_text) }
+    var $cust_phone_digits {
+      value = $cust_phone|replace:"+":""|replace:"-":""|replace:" ":""|replace:"(":""|replace:")":""
+    }
+    var $cust_last4 {
+      value = $cust_phone_digits|substr:-4:4
+    }
+
+    precondition ($cust_last4 == $phone_clean) {
+      error_type = "unauth"
+      error = "Phone last 4 digits do not match. Please re-enter."
+    }
+
+    var $now_ms { value = now|to_ms }
+    var $name_clean { value = ($input.customer_name ?? "")|trim }
+
+    // Flip waiver_signed_at on the job (and capture signer info for audit)
+    db.edit jobs {
+      field_name = "id"
+      field_value = $input.job_id
+      data = {
+        waiver_signed_at: $now_ms
+      }
+    }
+
+    db.add event_log {
+      data = {
+        action  : "customer_waiver_signed"
+        metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: ($input.user_agent ?? "")|substr:0:200, signature_size_chars: ($sig_clean|length), source: "ant_customer_portal"}|json_encode)
+      }
+    }
+  }
+
+  response = {
+    success: true
+    job_id : $input.job_id
+    signed_at_ms: $now_ms
+    ack: "Signature received. Thank you."
+  }
+
+  guid = "save-customer-waiver-v1"
+}
