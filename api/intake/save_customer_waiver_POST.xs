@@ -14,6 +14,8 @@ query save_customer_waiver verb=POST {
     text  phone_last4
     text  signature_b64
     text? customer_name?
+    text? customer_email?
+    text? acknowledgments_json?
     text? ip_address?
     text? user_agent?
   }
@@ -70,6 +72,8 @@ query save_customer_waiver verb=POST {
 
     var $now_ms { value = now|to_ms }
     var $name_clean { value = ($input.customer_name ?? "")|trim }
+    var $email_clean { value = ($input.customer_email ?? "")|trim }
+    var $acks_clean { value = ($input.acknowledgments_json ?? "{}")|trim }
 
     // Flip waiver_signed_at on the job (and capture signer info for audit)
     db.edit jobs {
@@ -83,7 +87,7 @@ query save_customer_waiver verb=POST {
     db.add event_log {
       data = {
         action  : "customer_waiver_signed"
-        metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: ($input.user_agent ?? "")|substr:0:200, signature_size_chars: ($sig_clean|length), source: "ant_customer_portal"}|json_encode)
+        metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, signer_email: $email_clean, acknowledgments: $acks_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: (($input.user_agent ?? "")|substr:0:200), signature_size_chars: ($sig_clean|length), source: "ant_customer_portal"}|json_encode)
       }
     }
   }
