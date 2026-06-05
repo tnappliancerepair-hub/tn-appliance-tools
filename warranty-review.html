@@ -307,12 +307,36 @@
     app.style.display = 'block';
     load();
   }
-  authSubmit.addEventListener('click', () => {
-    if (authInput.(await __verifyOfficePassword(value))) {
-      localStorage.setItem(OFFICE_AUTH_KEY, '1');
-      unlock();
-    } else {
-      authErr.textContent = 'Wrong password.';
+  async function __verifyOfficePassword(pw) {
+    if (!pw) return false;
+    try {
+      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const d = await r.json();
+      return d && d.success === true;
+    } catch (e) {
+      return false;
+    }
+  }
+  authSubmit.addEventListener('click', async () => {
+    authErr.textContent = '';
+    authSubmit.disabled = true;
+    authSubmit.textContent = 'Authenticating…';
+    try {
+      const pw = (authInput.value || '').trim();
+      if (await __verifyOfficePassword(pw)) {
+        localStorage.setItem(OFFICE_AUTH_KEY, '1');
+        unlock();
+      } else {
+        authErr.textContent = 'Wrong password.';
+      }
+    } finally {
+      authSubmit.disabled = false;
+      authSubmit.textContent = 'Unlock';
     }
   });
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') authSubmit.click(); });
