@@ -39,6 +39,15 @@ query update_customer_availability_grid verb=POST {
       error = "Job not found"
     }
 
+    // Waiver gate — customer cannot set availability until they sign
+    // the release of liability at /waiver.html. The customer-portal UI
+    // shows a modal pointing them there. Backend defends in depth.
+    var $waiver_ts { value = ($job.waiver_signed_at ?? 0) }
+    precondition ($waiver_ts > 0) {
+      error_type = "unauth"
+      error = "Please sign the release of liability before scheduling. Open the waiver link in your appointment text."
+    }
+
     var $customer {
       value = null
     }
