@@ -16,7 +16,10 @@
 import { config } from '../config.js';
 import { normalizeE164, toCustomer } from '../sms.js';
 
-const JOTFORM_BASE = 'https://form.jotform.com/260495320372050';
+// Native Ant waiver flow (replaced Jotform 2026-06-05). The page
+// flips jobs.waiver_signed_at on submit via save_customer_waiver,
+// gating frontend AND backend scheduling endpoints until signed.
+const WAIVER_BASE = 'https://tnapplianceexchange.net/waiver.html';
 
 function bareDomain() {
   return (config.publicSiteBase || '').replace(/^https?:\/\//, '');
@@ -127,10 +130,7 @@ export async function run(signal, ctx) {
   }
 
   const first = String(customer.first_name || '').trim() || 'there';
-  const prefillUrl =
-    `${JOTFORM_BASE}?job_id=${jobId}` +
-    `&name=${encodeURIComponent(first)}` +
-    `&phone=${encodeURIComponent(phone)}`;
+  const prefillUrl = `${WAIVER_BASE}?job_id=${jobId}`;
 
   const body =
     `Hi ${first}, please sign the service waiver before your appointment: ${prefillUrl}. ` +
