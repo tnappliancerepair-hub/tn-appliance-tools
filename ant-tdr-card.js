@@ -1,0 +1,292 @@
+// ant-tdr-card.js — the unified TDR surface.
+//
+// Auto-injects a floating "TDR" button (bottom-right) on any page that
+// has a job_id in the URL. Tap opens a modal sheet showing the current
+// state of the TDR: filled fields, blocking fields, photo count,
+// warranty readiness percentage, role-appropriate actions.
+//
+// ONE include per page:   <script src="/ant-tdr-card.js" defer></script>
+// No manual placeholder needed.
+//
+// Role auto-detection (used to filter actions, not field visibility):
+//   tech-simple / tech-ant-chat / tech-daily-dashboard → 'tech'
+//   customer-portal                                     → 'customer'
+//   warranty-review / job-detail / teddy-tdr-tool       → 'office'
+//   anything else                                       → 'office' (default)
+(function () {
+  if (window.__ANT_TDR_CARD_LOADED__) return;
+  window.__ANT_TDR_CARD_LOADED__ = true;
+
+  var XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  var POLL_MS = 6000;
+  var jobId = null;
+  var techId = null;
+  var role = 'office';
+  var lastData = null;
+  var pollTimer = null;
+
+  // ── Boot ───────────────────────────────────────────────────────────
+  function init() {
+    var p = new URLSearchParams(location.search);
+    jobId = p.get('job_id') || p.get('job') || '';
+    techId = p.get('tech_id') || '';
+    if (!jobId) return; // No job context → no TDR surface
+    role = detectRole();
+    injectStyles();
+    injectButton();
+    injectModal();
+    refresh();
+    pollTimer = setInterval(refresh, POLL_MS);
+    window.addEventListener('ant:state-changed', refresh);
+  }
+
+  function detectRole() {
+    var path = (location.pathname || '').toLowerCase();
+    if (path.indexOf('customer-portal') !== -1) return 'customer';
+    if (path.indexOf('tech-') !== -1) return 'tech';
+    if (path.indexOf('warranty-review') !== -1) return 'office';
+    if (path.indexOf('teddy-tdr') !== -1) return 'office';
+    if (path.indexOf('job-detail') !== -1) return 'office';
+    var p = new URLSearchParams(location.search);
+    var qrole = (p.get('role') || '').toLowerCase();
+    if (qrole) return qrole;
+    return 'office';
+  }
+
+  // ── Styles ─────────────────────────────────────────────────────────
+  function injectStyles() {
+    if (document.getElementById('ant-tdr-card-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'ant-tdr-card-styles';
+    s.textContent = [
+      '#ant-tdr-fab { position: fixed; bottom: 20px; right: 20px; z-index: 10000; background: linear-gradient(135deg, #10b981, #047857); color: white; border: 0; border-radius: 28px; padding: 14px 22px 14px 18px; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 800; box-shadow: 0 8px 24px rgba(16,185,129,0.45); cursor: pointer; display: flex; align-items: center; gap: 10px; letter-spacing: 0.02em; transition: transform 0.1s; }',
+      '#ant-tdr-fab:active { transform: scale(0.96); }',
+      '#ant-tdr-fab .pct { background: rgba(255,255,255,0.22); border-radius: 18px; padding: 4px 10px; font-size: 13px; font-weight: 900; }',
+      '#ant-tdr-fab.ready { background: linear-gradient(135deg, #4ad991, #10b981); box-shadow: 0 8px 28px rgba(74,217,145,0.55); animation: antTdrPulse 1.6s ease-in-out infinite; }',
+      '@keyframes antTdrPulse { 0%,100% { box-shadow: 0 8px 24px rgba(74,217,145,0.4); } 50% { box-shadow: 0 8px 36px rgba(74,217,145,0.9); } }',
+      '#ant-tdr-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10001; display: none; align-items: flex-end; justify-content: center; }',
+      '#ant-tdr-backdrop.open { display: flex; }',
+      '#ant-tdr-sheet { background: #131720; color: #e6e9f0; width: 100%; max-width: 540px; max-height: 88vh; border-radius: 22px 22px 0 0; padding: 22px 18px 32px; overflow-y: auto; font-family: -apple-system, sans-serif; animation: antTdrSlide 0.28s ease-out; }',
+      '@keyframes antTdrSlide { from { transform: translateY(40px); opacity: 0.2; } to { transform: translateY(0); opacity: 1; } }',
+      '.ant-tdr-grab { width: 44px; height: 5px; background: #4a5060; border-radius: 4px; margin: -10px auto 16px; }',
+      '.ant-tdr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }',
+      '.ant-tdr-title { font-size: 18px; font-weight: 800; color: #e6e9f0; line-height: 1.25; }',
+      '.ant-tdr-sub { font-size: 12px; color: #8a92a6; margin-top: 4px; }',
+      '.ant-tdr-x { background: rgba(255,255,255,0.06); border: 0; color: #e6e9f0; width: 36px; height: 36px; border-radius: 18px; font-size: 22px; cursor: pointer; flex-shrink: 0; }',
+      '.ant-tdr-progress { background: #1c2230; border-radius: 12px; height: 12px; overflow: hidden; margin: 12px 0 6px; }',
+      '.ant-tdr-progress-bar { height: 100%; background: linear-gradient(90deg, #10b981, #4ad991); transition: width 0.4s ease; }',
+      '.ant-tdr-status { font-size: 13px; color: #b8bfd0; margin-bottom: 18px; font-weight: 600; }',
+      '.ant-tdr-status .ready-tag { color: #4ad991; }',
+      '.ant-tdr-field { background: #1a1f2c; border: 1px solid #252b3a; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 12px; }',
+      '.ant-tdr-field.filled { border-left: 4px solid #10b981; }',
+      '.ant-tdr-field.empty { border-left: 4px solid #f5a623; background: rgba(245,166,35,0.06); }',
+      '.ant-tdr-field-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }',
+      '.ant-tdr-field-body { flex: 1; min-width: 0; }',
+      '.ant-tdr-field-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a92a6; font-weight: 700; }',
+      '.ant-tdr-field-value { font-size: 15px; color: #e6e9f0; margin-top: 3px; word-wrap: break-word; line-height: 1.35; }',
+      '.ant-tdr-field-empty-prompt { font-size: 13px; color: #f5a623; margin-top: 3px; font-weight: 600; font-style: italic; }',
+      '.ant-tdr-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }',
+      '.ant-tdr-btn { flex: 1; min-width: 140px; padding: 14px 18px; border-radius: 14px; border: 0; font-size: 15px; font-weight: 800; cursor: pointer; font-family: -apple-system, sans-serif; }',
+      '.ant-tdr-btn.primary { background: linear-gradient(135deg, #10b981, #047857); color: white; }',
+      '.ant-tdr-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }',
+      '.ant-tdr-btn.ghost { background: rgba(255,255,255,0.06); color: #b8bfd0; border: 1px solid #2a3040; }',
+      '.ant-tdr-btn.warning { background: linear-gradient(135deg, #f5a623, #c67a0f); color: #0e1118; }',
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  // ── Floating button ────────────────────────────────────────────────
+  function injectButton() {
+    if (document.getElementById('ant-tdr-fab')) return;
+    var btn = document.createElement('button');
+    btn.id = 'ant-tdr-fab';
+    btn.innerHTML = '<span>📋 TDR</span><span class="pct" id="ant-tdr-fab-pct">--%</span>';
+    btn.onclick = openModal;
+    document.body.appendChild(btn);
+  }
+
+  // ── Modal sheet ────────────────────────────────────────────────────
+  function injectModal() {
+    if (document.getElementById('ant-tdr-backdrop')) return;
+    var back = document.createElement('div');
+    back.id = 'ant-tdr-backdrop';
+    back.onclick = function (e) { if (e.target === back) closeModal(); };
+    var sheet = document.createElement('div');
+    sheet.id = 'ant-tdr-sheet';
+    sheet.innerHTML = '<div class="ant-tdr-grab"></div><div id="ant-tdr-content">Loading…</div>';
+    back.appendChild(sheet);
+    document.body.appendChild(back);
+  }
+
+  function openModal() {
+    var back = document.getElementById('ant-tdr-backdrop');
+    if (back) back.classList.add('open');
+    refresh();
+  }
+  function closeModal() {
+    var back = document.getElementById('ant-tdr-backdrop');
+    if (back) back.classList.remove('open');
+  }
+
+  // ── Fetch + render ─────────────────────────────────────────────────
+  async function refresh() {
+    try {
+      var url = XANO + '/get_unified_tdr_status?job_id=' + encodeURIComponent(jobId);
+      if (techId) url += '&technician_id=' + encodeURIComponent(techId);
+      var r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) return;
+      var d = await r.json();
+      if (!d || !d.success) return;
+      lastData = d;
+      renderButton(d);
+      renderModal(d);
+    } catch (e) {}
+  }
+
+  function renderButton(d) {
+    var pctEl = document.getElementById('ant-tdr-fab-pct');
+    if (pctEl) pctEl.textContent = (d.readiness_pct || 0) + '%';
+    var btn = document.getElementById('ant-tdr-fab');
+    if (btn) {
+      if (d.readiness_pct >= 100) btn.classList.add('ready');
+      else btn.classList.remove('ready');
+    }
+  }
+
+  function renderModal(d) {
+    var host = document.getElementById('ant-tdr-content');
+    if (!host) return;
+    var fields = d.fields || {};
+    var pct = d.readiness_pct || 0;
+    var ready = pct >= 100;
+    var customerSafe = (role === 'customer');
+    var blockingText = buildBlockingText(d);
+
+    var fieldOrder = [
+      {key: 'diagnosis',        label: 'Diagnosis',        icon: '🔍', prompt: 'Tell Ant what\'s wrong'},
+      {key: 'failed_component', label: 'Failed Component', icon: '⚙️', prompt: 'Which part failed?'},
+      {key: 'labor_hours',      label: 'Labor Hours',      icon: '⏱️', prompt: 'Total time on the job'},
+      {key: 'repair_completed', label: 'Repair Done',      icon: '🔧', prompt: 'What did you do to fix it?'},
+      {key: 'parts_needed',     label: 'Parts Used',       icon: '📦', prompt: 'Parts swapped in (or "none")'},
+    ];
+    var photoFilled = !!d.has_photo;
+
+    var html = '';
+    // Header
+    html += '<div class="ant-tdr-head">';
+    html += '<div><div class="ant-tdr-title">TDR — Job #' + d.job_id + '</div>';
+    html += '<div class="ant-tdr-sub">' + escapeHtml(d.customer_first_name || 'Customer') + ' · ' + escapeHtml(d.appliance_summary || '') + '</div></div>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrClose()">×</button>';
+    html += '</div>';
+    // Progress
+    html += '<div class="ant-tdr-progress"><div class="ant-tdr-progress-bar" style="width:' + pct + '%"></div></div>';
+    html += '<div class="ant-tdr-status">';
+    if (ready) {
+      html += '<span class="ready-tag">✓ Ready for warranty submission</span>';
+    } else {
+      html += pct + '% complete · ' + blockingText;
+    }
+    html += '</div>';
+    // Fields
+    fieldOrder.forEach(function (f) {
+      var fState = fields[f.key] || {filled: false, value: ''};
+      var cls = fState.filled ? 'filled' : 'empty';
+      var icon = fState.filled ? '✅' : '⏳';
+      html += '<div class="ant-tdr-field ' + cls + '">';
+      html += '<div class="ant-tdr-field-icon">' + icon + '</div>';
+      html += '<div class="ant-tdr-field-body">';
+      html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label) + '</div>';
+      if (fState.filled) {
+        html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
+      } else {
+        html += '<div class="ant-tdr-field-empty-prompt">' + escapeHtml(f.prompt) + '</div>';
+      }
+      html += '</div></div>';
+    });
+    // Photo row
+    var photoIcon = photoFilled ? '✅' : '📷';
+    var photoCls = photoFilled ? 'filled' : 'empty';
+    html += '<div class="ant-tdr-field ' + photoCls + '">';
+    html += '<div class="ant-tdr-field-icon">' + photoIcon + '</div>';
+    html += '<div class="ant-tdr-field-body">';
+    html += '<div class="ant-tdr-field-label">Photos</div>';
+    if (photoFilled) {
+      html += '<div class="ant-tdr-field-value">' + (d.attachments_count || 0) + ' on file</div>';
+    } else {
+      html += '<div class="ant-tdr-field-empty-prompt">At least one photo required for warranty</div>';
+    }
+    html += '</div></div>';
+    // Actions per role
+    html += '<div class="ant-tdr-actions">';
+    if (role === 'tech') {
+      html += '<button class="ant-tdr-btn primary" onclick="window.__antTdrTalk()">🎤 Talk to Ant</button>';
+      html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrOpenTech()">Edit fields</button>';
+    } else if (role === 'office') {
+      var submitDisabled = ready ? '' : 'disabled';
+      html += '<button class="ant-tdr-btn primary" ' + submitDisabled + ' onclick="window.__antTdrSubmitWarranty()">📦 Submit Warranty</button>';
+      html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrOpenTeddy()">Open Teddy Tool</button>';
+    } else if (role === 'customer') {
+      html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrClose()">Close</button>';
+    }
+    html += '</div>';
+    host.innerHTML = html;
+  }
+
+  function buildBlockingText(d) {
+    var b = d.blocking || {};
+    var labels = {
+      diagnosis: 'diagnosis',
+      failed_component: 'failed part',
+      labor_hours: 'labor hours',
+      repair_completed: 'repair description',
+      parts_needed: 'parts used',
+      photo: 'photo',
+    };
+    var missing = [];
+    for (var k in b) {
+      if (b[k] && labels[k]) missing.push(labels[k]);
+    }
+    if (missing.length === 0) return 'ready to submit';
+    if (missing.length === 1) return 'needs ' + missing[0];
+    if (missing.length === 2) return 'needs ' + missing[0] + ' + ' + missing[1];
+    return 'needs ' + missing.slice(0, 2).join(', ') + ' (+' + (missing.length - 2) + ' more)';
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  // ── Action handlers ────────────────────────────────────────────────
+  window.__antTdrClose = closeModal;
+  window.__antTdrTalk = async function () {
+    if (!jobId || !techId) { alert('Tech context missing'); return; }
+    try {
+      var r = await fetch(XANO + '/dispatch_ant_field_assist', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({job_id: Number(jobId), tech_id: Number(techId), mode: 'wrap_up'}),
+      });
+      var d = await r.json();
+      if (d && d.success) alert('Calling you now. Ant will pick up where you left off.');
+      else alert('Dispatch failed: ' + (d && d.error || 'unknown'));
+    } catch (e) { alert('Could not place call: ' + e.message); }
+  };
+  window.__antTdrOpenTech = function () {
+    location.href = '/tech-simple.html?job_id=' + jobId + (techId ? '&tech_id=' + techId : '');
+  };
+  window.__antTdrOpenTeddy = function () {
+    location.href = '/teddy-tdr-tool.html?job_id=' + jobId;
+  };
+  window.__antTdrSubmitWarranty = function () {
+    location.href = '/warranty-review.html?job_id=' + jobId;
+  };
+
+  // ── Boot timing ────────────────────────────────────────────────────
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
