@@ -1601,6 +1601,49 @@
   // Skip the auto-fill entirely if the localStorage draft (autosave from
   // any prior session this job) has any value — that's tech's prior
   // work, don't overwrite.
+  // Live-fill the inline TDR form from each chat-turn's captured fields.
+  // Called from sendToBrain after every successful response. Only writes
+  // when the brain returned a non-empty value AND the form field is
+  // empty (or matches a prior auto-fill marker). Respects tech edits —
+  // if he typed his own value we don't overwrite.
+  function applyCapturedToTdrForm(captured) {
+    if (!captured || typeof captured !== 'object') return;
+    const mapping = [
+      ['diagnosis', 'tdr-diagnosis'],
+      ['failed_component', 'tdr-failed-component'],
+      ['failure_cause', 'tdr-failure-cause'],
+      ['labor_hours', 'tdr-labor-hours'],
+      ['repair_completed', 'tdr-repair-completed'],
+    ];
+    let wroteAny = false;
+    for (const [key, elId] of mapping) {
+      const val = (captured[key] == null ? '' : String(captured[key])).trim();
+      if (!val) continue;
+      const el = document.getElementById(elId);
+      if (!el) continue;
+      const cur = (el.value || '').trim();
+      // Write if empty OR if value differs and field has the auto-fill
+      // marker class (means it was last set by us, not the tech).
+      const isAutoFilled = el.classList.contains('tdr-autofilled');
+      if (!cur || (isAutoFilled && cur !== val)) {
+        el.value = val;
+        el.classList.add('tdr-autofilled');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        wroteAny = true;
+      }
+    }
+    if (wroteAny) {
+      // Brief visual ping so the tech sees the form just moved.
+      const card = document.querySelector('.completion-card') || document.getElementById('tdr-bar');
+      if (card) {
+        card.style.transition = 'box-shadow 0.4s';
+        const prev = card.style.boxShadow;
+        card.style.boxShadow = '0 0 0 2px #74e3c4';
+        setTimeout(() => { card.style.boxShadow = prev || ''; }, 900);
+      }
+    }
+  }
+
   async function prefillTdrFromContext(d) {
     if (!d || !JOB_ID) return;
     // Has the tech already started on this job?
@@ -1902,7 +1945,7 @@
     const attachmentsThisTurn = pendingAttachmentIds.slice();
     pendingAttachmentIds = [];
     try {
-      const r = await fetch(XANO_BASE + '/tech_assist_chat', {
+      const r = await fetch(XANO_BASE + '/tech_assist_chat_v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1910,8 +1953,7 @@
           technician_id: TECH_ID,
           user_message: text,
           session_id: sessionId,
-          attachment_ids: attachmentsThisTurn,
-          warranty_checklist_text: warrantyChecklistText || ''
+          attachment_ids: attachmentsThisTurn
         })
       });
       httpStatus = r.status;
@@ -1926,6 +1968,11 @@
           addMsg('assistant', reply);
           speak(reply);
         }
+        // v2 scribe-mode returns captured_data each turn. Push any new
+        // fields straight into the inline TDR form so the tech watches
+        // the form fill itself as he talks. Empty fields are skipped so
+        // brand-new chats don't blow away existing tech edits.
+        applyCapturedToTdrForm(data.captured_data || {});
         // Refresh checklist asynchronously — captured state may have
         // changed (TDR fields updated, photo uploaded). Brain sees the
         // newer version on the NEXT turn.
