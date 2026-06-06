@@ -6,6 +6,11 @@
 const fs = require('fs');
 const path = require('path');
 
+// BASE prefix for all internal links. While staged inside tn-appliance-tools
+// Netlify deploy, the site lives at /melissa-wood/. When Melissa points
+// melissawoodrealty.com directly at the site (root deploy), set BASE = ''.
+const BASE = '/melissa-wood';
+
 const AGENT = {
   name: 'Melissa Wood',
   firstName: 'Melissa',
@@ -18,9 +23,8 @@ const AGENT = {
   primaryArea: 'Tampa Bay',
   serviceArea: '100-mile radius of Tampa Bay',
   domain: 'melissawoodrealty.com',
-  // Replace these with the actual logo files when available
-  logoMelissa: '/logos/melissa-wood-logo.png',
-  logoBrokerage: '/logos/florida-executive-realty-logo.png',
+  logoMelissa: `${BASE}/logos/melissa-wood-logo.png`,
+  logoBrokerage: `${BASE}/logos/florida-executive-realty-logo.png`,
 };
 
 // Tampa Bay area imagery (Unsplash hosted - free use for personal/commercial)
@@ -173,7 +177,7 @@ function head(opts) {
 <meta property="og:image" content="${IMAGES.hero}">
 <meta name="theme-color" content="#0a2540">
 <link rel="canonical" href="https://${AGENT.domain}/${opts.path || ''}">
-<link rel="stylesheet" href="/site.css">
+<link rel="stylesheet" href="${BASE}/site.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -190,7 +194,7 @@ function head(opts) {
 
 function header() {
   return `<header class="site-header"><div class="container">
-<a class="brand" href="/">
+<a class="brand" href="${BASE}/">
   <img class="brand-logo" src="${AGENT.logoMelissa}" alt="${AGENT.name}" onerror="this.style.display='none'">
   <div class="brand-text">
     <span class="brand-name">${AGENT.name}</span>
@@ -198,13 +202,13 @@ function header() {
   </div>
 </a>
 <nav class="nav">
-<a href="/about.html">About</a>
-<a href="/buy.html">Buy</a>
-<a href="/sell.html">Sell</a>
-<a href="/listings.html">Listings</a>
-<a href="/neighborhoods.html">Neighborhoods</a>
-<a href="/resources.html">Resources</a>
-<a href="/contact.html" class="nav-cta">Contact</a>
+<a href="${BASE}/about.html">About</a>
+<a href="${BASE}/buy.html">Buy</a>
+<a href="${BASE}/sell.html">Sell</a>
+<a href="${BASE}/listings.html">Listings</a>
+<a href="${BASE}/neighborhoods.html">Neighborhoods</a>
+<a href="${BASE}/resources.html">Resources</a>
+<a href="${BASE}/contact.html" class="nav-cta">Contact</a>
 </nav>
 </div></header>`;
 }
@@ -223,15 +227,15 @@ function footer() {
 </div>
 <div>
 <div class="ft-title">Neighborhoods</div>
-${NEIGHBORHOODS.slice(0, 8).map(n => `<a href="/neighborhoods/${n.slug}.html">${n.name}</a>`).join('')}
+${NEIGHBORHOODS.slice(0, 8).map(n => `<a href="${BASE}/neighborhoods/${n.slug}.html">${n.name}</a>`).join('')}
 </div>
 <div>
 <div class="ft-title">Buying</div>
-${BUYER_GUIDES.slice(0, 6).map(g => `<a href="/buying/${g.slug}.html">${escapeHtml(g.title.split(':')[0].replace(' for Tampa Bay','').replace(' Tampa Bay','').replace(' in Tampa Bay',''))}</a>`).join('')}
+${BUYER_GUIDES.slice(0, 6).map(g => `<a href="${BASE}/buying/${g.slug}.html">${escapeHtml(g.title.split(':')[0].replace(' for Tampa Bay','').replace(' Tampa Bay','').replace(' in Tampa Bay',''))}</a>`).join('')}
 </div>
 <div>
 <div class="ft-title">Selling</div>
-${SELLER_GUIDES.slice(0, 6).map(g => `<a href="/selling/${g.slug}.html">${escapeHtml(g.title.split(':')[0].replace(' for Tampa Bay Sellers','').replace(' Tampa Bay','').replace(' in Tampa Bay',''))}</a>`).join('')}
+${SELLER_GUIDES.slice(0, 6).map(g => `<a href="${BASE}/selling/${g.slug}.html">${escapeHtml(g.title.split(':')[0].replace(' for Tampa Bay Sellers','').replace(' Tampa Bay','').replace(' in Tampa Bay',''))}</a>`).join('')}
 </div>
 </div>
 <div class="ft-bottom">© ${new Date().getFullYear()} ${AGENT.name} · ${AGENT.brokerage} · Licensed Real Estate Agent in Florida · Equal Housing Opportunity</div>
@@ -294,7 +298,7 @@ function homePage() {
 <p class="hero-bold">Honest pricing. Faster closings. Smarter commissions. Real local knowledge from Brandon to Wesley Chapel, South Tampa to Ruskin.</p>
 <div class="hero-cta">
 <a class="btn-primary lg" href="${AGENT.phoneHref}">📞 Call ${AGENT.firstName}: ${AGENT.phone}</a>
-<a class="btn-secondary lg" href="/home-value-estimator.html">What's my home worth?</a>
+<a class="btn-secondary lg" href="${BASE}/home-value-estimator.html">What's my home worth?</a>
 </div>
 <div class="hero-trust">
 <div class="trust-item"><b>Licensed FL Realtor</b><span>${AGENT.brokerage}</span></div>
@@ -366,7 +370,7 @@ function homePage() {
 <p class="section-lede">From Bayshore's historic streets to Wesley Chapel's master-planned communities, ${AGENT.firstName} covers a 100-mile radius of Tampa Bay. Deep guides for every neighborhood she serves.</p>
 <div class="photo-grid">
 ${NEIGHBORHOODS.slice(0, 8).map(n => `
-<a class="photo-card" href="/neighborhoods/${n.slug}.html">
+<a class="photo-card" href="${BASE}/neighborhoods/${n.slug}.html">
 <div class="img" style="background-image:url('${n.img}')"></div>
 <div class="body">
 <div class="photo-card-title">${escapeHtml(n.name)}</div>
@@ -374,7 +378,7 @@ ${NEIGHBORHOODS.slice(0, 8).map(n => `
 </div>
 </a>`).join('')}
 </div>
-<div class="section-link"><a href="/neighborhoods.html">View all ${NEIGHBORHOODS.length} neighborhoods →</a></div>
+<div class="section-link"><a href="${BASE}/neighborhoods.html">View all ${NEIGHBORHOODS.length} neighborhoods →</a></div>
 </div></section>
 
 <section class="section alt"><div class="container">
@@ -383,12 +387,12 @@ ${NEIGHBORHOODS.slice(0, 8).map(n => `
 <p class="section-lede">From your first home to your fifth, Melissa walks you through it step by step. Honest market analysis. Vetted lender + inspector referrals. Custom MLS search that emails you matching listings the moment they hit.</p>
 <div class="grid-cards">
 ${BUYER_GUIDES.slice(0, 6).map(g => `
-<a class="card" href="/buying/${g.slug}.html">
+<a class="card" href="${BASE}/buying/${g.slug}.html">
 <div class="card-title">${escapeHtml(g.title)}</div>
 <div class="card-sub">${escapeHtml(g.intent)}</div>
 </a>`).join('')}
 </div>
-<div class="section-link"><a href="/buy.html">All buyer resources →</a></div>
+<div class="section-link"><a href="${BASE}/buy.html">All buyer resources →</a></div>
 </div></section>
 
 <section class="section"><div class="container">
@@ -397,12 +401,12 @@ ${BUYER_GUIDES.slice(0, 6).map(g => `
 <p class="section-lede">Pricing it right matters more than ever. Melissa's pre-listing prep, professional photography, and pricing strategy gets homes sold — often above asking, even in shifting markets. No false promises. Just the work.</p>
 <div class="grid-cards">
 ${SELLER_GUIDES.slice(0, 6).map(g => `
-<a class="card" href="/selling/${g.slug}.html">
+<a class="card" href="${BASE}/selling/${g.slug}.html">
 <div class="card-title">${escapeHtml(g.title)}</div>
 <div class="card-sub">${escapeHtml(g.intent)}</div>
 </a>`).join('')}
 </div>
-<div class="section-link"><a href="/sell.html">All seller resources →</a></div>
+<div class="section-link"><a href="${BASE}/sell.html">All seller resources →</a></div>
 </div></section>
 
 ${leadForm(`Get in touch with ${AGENT.firstName}`, 'Buying, selling, or just exploring — let\'s talk. No high-pressure pitch. Just honest answers.')}
@@ -447,7 +451,7 @@ function buyPage() {
 <h2>Start here</h2>
 <div class="grid-cards">
 ${BUYER_GUIDES.map(g => `
-<a class="card" href="/buying/${g.slug}.html">
+<a class="card" href="${BASE}/buying/${g.slug}.html">
 <div class="card-title">${escapeHtml(g.title)}</div>
 <div class="card-sub">${escapeHtml(g.intent)}</div>
 </a>`).join('')}
@@ -469,7 +473,7 @@ function sellPage() {
 <h2>Start here</h2>
 <div class="grid-cards">
 ${SELLER_GUIDES.map(g => `
-<a class="card" href="/selling/${g.slug}.html">
+<a class="card" href="${BASE}/selling/${g.slug}.html">
 <div class="card-title">${escapeHtml(g.title)}</div>
 <div class="card-sub">${escapeHtml(g.intent)}</div>
 </a>`).join('')}
@@ -540,7 +544,7 @@ function neighborhoodsIndex() {
 <section class="section"><div class="container">
 <div class="photo-grid">
 ${NEIGHBORHOODS.map(n => `
-<a class="photo-card" href="/neighborhoods/${n.slug}.html">
+<a class="photo-card" href="${BASE}/neighborhoods/${n.slug}.html">
 <div class="img" style="background-image:url('${n.img}')"></div>
 <div class="body">
 <div class="photo-card-title">${escapeHtml(n.name)}</div>
@@ -557,7 +561,7 @@ ${leadForm('Not sure which neighborhood is right?', `${AGENT.firstName} will hel
 function neighborhoodPage(n) {
   const html = `
 <section class="page-hero" style="background-image:url('${n.img}');background-size:cover;background-position:center"><div class="container">
-<div class="breadcrumb"><a href="/neighborhoods.html">All Neighborhoods</a> · ${escapeHtml(n.name)}</div>
+<div class="breadcrumb"><a href="${BASE}/neighborhoods.html">All Neighborhoods</a> · ${escapeHtml(n.name)}</div>
 <h1>${escapeHtml(n.name)} Real Estate</h1>
 <p class="page-lede">${escapeHtml(n.tag)}</p>
 </div></section>
@@ -591,7 +595,7 @@ function guidePage(g, type) {
   const dir = type === 'buyer' ? 'buying' : 'selling';
   const html = `
 <section class="page-hero"><div class="container">
-<div class="breadcrumb"><a href="/${type === 'buyer' ? 'buy' : 'sell'}.html">All ${type === 'buyer' ? 'Buyer' : 'Seller'} Guides</a></div>
+<div class="breadcrumb"><a href="${BASE}/${type === 'buyer' ? 'buy' : 'sell'}.html">All ${type === 'buyer' ? 'Buyer' : 'Seller'} Guides</a></div>
 <h1>${escapeHtml(g.title)}</h1>
 <p class="page-lede">${escapeHtml(g.intent)}</p>
 </div></section>
@@ -631,7 +635,7 @@ function resourceIndex() {
 <div class="section-eyebrow">Tools</div>
 <div class="grid-cards">
 ${RESOURCES.map(r => `
-<a class="card" href="/resources/${r.slug}.html">
+<a class="card" href="${BASE}/resources/${r.slug}.html">
 <div class="card-title">${escapeHtml(r.title)}</div>
 <div class="card-sub">${escapeHtml(r.desc)}</div>
 </a>`).join('')}
@@ -639,14 +643,14 @@ ${RESOURCES.map(r => `
 <h2 style="margin-top:64px">Process guides</h2>
 <div class="grid-cards">
 ${PROCESS_PAGES.map(p => `
-<a class="card" href="/resources/${p.slug}.html">
+<a class="card" href="${BASE}/resources/${p.slug}.html">
 <div class="card-title">${escapeHtml(p.title)}</div>
 </a>`).join('')}
 </div>
 <h2 style="margin-top:64px">Community + lifestyle</h2>
 <div class="grid-cards">
 ${COMMUNITY_PAGES.map(c => `
-<a class="card" href="/resources/${c.slug}.html">
+<a class="card" href="${BASE}/resources/${c.slug}.html">
 <div class="card-title">${escapeHtml(c.title)}</div>
 </a>`).join('')}
 </div>
@@ -658,7 +662,7 @@ ${COMMUNITY_PAGES.map(c => `
 function resourcePage(r) {
   const html = `
 <section class="page-hero"><div class="container">
-<div class="breadcrumb"><a href="/resources.html">Resources</a></div>
+<div class="breadcrumb"><a href="${BASE}/resources.html">Resources</a></div>
 <h1>${escapeHtml(r.title)}</h1>
 <p class="page-lede">${escapeHtml(r.desc || '')}</p>
 </div></section>
@@ -690,7 +694,7 @@ function faqIndex() {
 <section class="section"><div class="container">
 <div class="grid-cards">
 ${FAQS.map(f => `
-<a class="card" href="/faq/${f.slug}.html">
+<a class="card" href="${BASE}/faq/${f.slug}.html">
 <div class="card-title">${escapeHtml(f.q)}</div>
 </a>`).join('')}
 </div>
@@ -702,7 +706,7 @@ ${FAQS.map(f => `
 function faqPage(f) {
   const html = `
 <section class="page-hero"><div class="container">
-<div class="breadcrumb"><a href="/faq.html">FAQs</a></div>
+<div class="breadcrumb"><a href="${BASE}/faq.html">FAQs</a></div>
 <h1>${escapeHtml(f.q)}</h1>
 </div></section>
 <section class="section narrow"><div class="container">
@@ -718,7 +722,7 @@ function faqPage(f) {
 <h2>Related questions</h2>
 <div class="grid-cards">
 ${FAQS.filter(x => x.slug !== f.slug).slice(0, 4).map(x => `
-<a class="card" href="/faq/${x.slug}.html">
+<a class="card" href="${BASE}/faq/${x.slug}.html">
 <div class="card-title">${escapeHtml(x.q)}</div>
 </a>`).join('')}
 </div>
@@ -731,7 +735,7 @@ ${leadForm('Have a question?', `Ask ${AGENT.firstName} directly — no obligatio
 function marketReportPage(m) {
   const html = `
 <section class="page-hero"><div class="container">
-<div class="breadcrumb"><a href="/market-reports.html">Market Reports</a></div>
+<div class="breadcrumb"><a href="${BASE}/market-reports.html">Market Reports</a></div>
 <h1>${escapeHtml(m.title)}</h1>
 <p class="page-lede">Local, honest, current.</p>
 </div></section>
@@ -759,7 +763,7 @@ function marketReportsIndex() {
 <section class="section"><div class="container">
 <div class="grid-cards">
 ${MARKET_REPORTS.map(m => `
-<a class="card" href="/market-reports/${m.slug}.html">
+<a class="card" href="${BASE}/market-reports/${m.slug}.html">
 <div class="card-title">${escapeHtml(m.title)}</div>
 </a>`).join('')}
 </div>
