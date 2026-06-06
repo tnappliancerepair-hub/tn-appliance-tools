@@ -72,7 +72,7 @@ exports.handler = async function (event) {
       if (!xanoRes.ok) {
         const errText = await xanoRes.text();
         console.error("Xano fallback error:", xanoRes.status, errText);
-        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: "Hey — Ant is having a moment. Try again or call 615-280-2949." }) };
+        return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ reply: "Hey — Ant is having a moment. Try again or call 866-268-0111." }) };
       }
       const data = await xanoRes.json();
       reply = (data && data.reply) || (data && data.message) || "Got it — give me just a second.";

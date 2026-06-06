@@ -60,7 +60,7 @@ ${breadcrumbHtml}
 <p class="hero-sub">Save the guesswork. A real technician reviews your model number and a short video, then builds a <strong>Technician Decision Report</strong> with four honest options and real pricing. The $50 Quick Check fee becomes credit toward your repair if you proceed.</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call 615-280-2949</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call 866-268-0111</a>
 </div>
 <div class="quick-answer"><p>${esc(s.quickAnswer)}</p></div>
 </div>
@@ -121,7 +121,7 @@ ${renderPricingBlock()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Start the Quick Check — $50</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 
@@ -176,7 +176,7 @@ ${buildNav()}
 <p class="hero-sub">Honest, technician-led diagnosis on ${esc(b.brand)} ${esc(b.scope === "all" ? "appliances" : b.scope + "s")}. A real tech reviews your model and symptoms, then builds a <strong>Technician Decision Report</strong> with four options and real pricing. Diagnostic fee credits toward your repair.</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call 615-280-2949</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call 866-268-0111</a>
 </div>
 <div class="quick-answer"><p>${esc(b.intro)}</p></div>
 </div>
@@ -234,7 +234,7 @@ ${renderPricingBlock()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Start the Quick Check — $50</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 
@@ -295,7 +295,7 @@ ${buildNav()}
 <p class="hero-sub">${esc(intro)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call 615-280-2949</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call 866-268-0111</a>
 </div>
 </div>
 
@@ -352,7 +352,7 @@ ${renderPricingBlock()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Start the Quick Check — $50</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 
@@ -403,7 +403,7 @@ ${buildNav()}
 <p class="hero-sub">No hold music. No truck-roll surprises. No mystery parts. Just an honest diagnosis from a real technician, four clear options, and real pricing — before anyone touches your appliance.</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Start with Ant</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call 615-280-2949</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call 866-268-0111</a>
 </div>
 </div>
 
@@ -494,7 +494,7 @@ ${renderPricingBlock()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Start the Quick Check — $50</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 
@@ -561,7 +561,7 @@ ${buildNav()}
 <p class="hero-sub">Most appliance-repair calls start the same way: hold music, a half-trained dispatcher, a guess at the truck-roll cost. <strong>Ant is different.</strong> Tell him what's wrong. Share a quick video and a model number photo. A real technician — not an AI — builds your Technician Decision Report and gives you four honest options with real pricing.</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant Now</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call 615-280-2949</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call 866-268-0111</a>
 </div>
 <div class="quick-answer"><p>Appliance Ant is the front door to TN Appliance Exchange, a family-owned appliance repair business serving Middle Tennessee and Louisiana. Ant gathers your symptoms; a real human technician makes the diagnosis. The result: honest answers, real pricing, no truck-roll surprises.</p></div>
 </div>
@@ -620,7 +620,7 @@ ${renderTDRGrid()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant Now</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 
@@ -794,7 +794,7 @@ ${buildNav()}
 <p>${esc(ANT_CTA_TEXT)}</p>
 <div class="cta-row">
 <a href="/#chat" class="btn-primary">🐜 Chat with Ant — $50</a>
-<a href="tel:6152802949" class="btn-secondary">📞 Call Instead</a>
+<a href="tel:8662680111" class="btn-secondary">📞 Call Instead</a>
 </div>
 </div>
 

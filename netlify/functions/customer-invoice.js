@@ -54,7 +54,7 @@ exports.handler = async function (event) {
 <div class="head">
   <div>
     <div class="brand">🐜 TN Appliance Exchange LLC</div>
-    <div style="font-size:12px;color:#666;margin-top:4px">Antioch, TN · 615-280-2949</div>
+    <div style="font-size:12px;color:#666;margin-top:4px">Antioch, TN · 866-268-0111</div>
   </div>
   <div class="meta">
     <div>Invoice for Job #${jobId}</div>
@@ -88,7 +88,7 @@ exports.handler = async function (event) {
 
 <div class="footer">
   Thank you for choosing TN Appliance Exchange.<br>
-  Questions about this invoice? Call 615-280-2949 or reply to your text thread.<br>
+  Questions about this invoice? Call 866-268-0111 or reply to your text thread.<br>
   🐜 Long Live Ant.
 </div>
 </body></html>`;

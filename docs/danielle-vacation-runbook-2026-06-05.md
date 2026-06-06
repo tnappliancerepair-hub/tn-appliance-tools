@@ -113,7 +113,7 @@ Every SMS that would normally only go to Teddy will ALSO come to you with `[bkup
 
 ## What's NOT working / pending Teddy's return
 
-- **615-280-2949** — the main line is forwarded from RingCentral to 615-588-9500 (Teddy set this up Wednesday night). After June 8, this number ports directly to Telnyx — RC service can be canceled.
+- **866-268-0111** — the main line is forwarded from RingCentral to 615-588-9500 (Teddy set this up Wednesday night). After June 8, this number ports directly to Telnyx — RC service can be canceled.
 - **"TN APPLIANCE" caller ID name** — registered Wednesday, propagates to carrier databases over 24-72h. By the weekend, all outbound calls from 615-588 should show "TN APPLIANCE" instead of just the number.
 - **CNAM not registered on Twilio 504-355-9111** (LA primary) — Teddy will do this after vacation, or we can port to Telnyx for cheaper CNAM
 

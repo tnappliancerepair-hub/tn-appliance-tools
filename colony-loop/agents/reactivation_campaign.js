@@ -54,7 +54,7 @@ export async function run(signal, ctx) {
     const first = String(c.first_name || '').trim() || 'there';
     const body =
       `Hi ${first}! It's been a while - TN Appliance is still here in Middle TN + Southeast LA. ` +
-      `Anything need fixing? Reply YES and we'll get you on the calendar. Or call 615-280-2949. -TN Appliance`;
+      `Anything need fixing? Reply YES and we'll get you on the calendar. Or call 866-268-0111. -TN Appliance`;
 
     let smsRes = null;
     try {

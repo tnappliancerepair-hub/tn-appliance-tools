@@ -857,7 +857,7 @@ Tomorrow's additions (Priority 2):
 |---------|--------|-------|
 | Teddy/Owner | 615-485-5795 | OWNER_PHONE_NUMBER env var |
 | Danielle (office) | 615-485-0713 | TDR summaries, warranty queue |
-| Business voice | 615-280-2949 | RingCentral, port to Vapi pending |
+| Business voice | 866-268-0111 | RingCentral, port to Vapi pending |
 | Business SMS | 629-284-0444 | 10DLC approved 4/27 |
 | Ant Inbound | 629-260-7111 | Vapi customer voice |
 | Vapi BYO TN | 629-247-7111 | Live customer line |

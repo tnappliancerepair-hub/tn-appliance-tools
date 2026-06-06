@@ -100,7 +100,7 @@ function buildAhsXml({ claimNumber, customerFirst, customerLast, customerPhone, 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <VendorDispatch xsi:noNamespaceSchemaLocation="Dispatch.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Vendor Id="822218" Name="TN APPLIANCE EXCHANGE LLC">
-    <PhoneNumber Type="OFF" Number="6152802949"></PhoneNumber>
+    <PhoneNumber Type="OFF" Number="8662680111"></PhoneNumber>
   </Vendor>
   <CoveredProperty StreetNumber="${street.number}" StreetDirection="" StreetName="${street.name}" UnitType="" UnitNumber="" CityName="${city}" StateCode="${state}" ZipPostCode="${zip}" ZipPlus4=""></CoveredProperty>
   <ContractCustomerList>

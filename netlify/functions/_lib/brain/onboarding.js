@@ -45,7 +45,7 @@ if (!PROMPT) {
 }
 
 const UNKNOWN_PHONE_REPLY =
-  "this number isn't recognized as a tech. if you meant to text the company line about service, call 615-280-2949.";
+  "this number isn't recognized as a tech. if you meant to text the company line about service, call 866-268-0111.";
 const RETRY_REPLY = 'hey, signal hiccup on my end. text that again in a sec?';
 const EMPTY_GUARD_REPLY = 'got it.';
 const LOOKUP_FAIL_REPLY = 'having trouble looking you up. try in a min or text teddy 615-485-5795.';

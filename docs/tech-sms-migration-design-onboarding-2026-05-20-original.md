@@ -403,7 +403,7 @@ async function runOnboardingTurn({ phone, body, sid, to }) {
   // 1. Look up tech
   const { tech, matched_on } = await crud.getTechByPhone(phone);
   if (!tech) {
-    return { reply: "this number isn't recognized as a tech. if you meant to text the company line about service, call 615-280-2949." };
+    return { reply: "this number isn't recognized as a tech. if you meant to text the company line about service, call 866-268-0111." };
   }
 
   // 2. Find or create conversation

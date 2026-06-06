@@ -101,7 +101,7 @@ export async function run(signal, ctx) {
     `Hi ${firstName} - thanks for trusting us with your repair! ` +
     `Pay your $${dollars} balance securely here: ${linkData.url}` +
     invoiceClause +
-    `\nQuestions? Call 615-280-2949.${tipClause}`;
+    `\nQuestions? Call 866-268-0111.${tipClause}`;
 
   let smsRes = null;
   try {

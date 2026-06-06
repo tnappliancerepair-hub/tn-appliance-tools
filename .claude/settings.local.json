@@ -156,7 +156,10 @@
       "Bash(xargs -n1 basename)",
       "Bash(pkill -f 'xargs.*delete_one')",
       "Bash(pkill -f 'delete_one.sh')",
-      "Bash(npx --yes netlify deploy --prod)"
+      "Bash(npx --yes netlify deploy --prod)",
+      "WebFetch(domain:www.repairclinic.com)",
+      "WebFetch(domain:www.partselect.com)",
+      "WebFetch(domain:www.searspartsdirect.com)"
     ]
   }
 }

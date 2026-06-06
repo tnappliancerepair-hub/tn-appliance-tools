@@ -41,7 +41,7 @@ export async function run(signal, ctx) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1500,
-        system: 'You write friendly, helpful 350-450 word blog posts for a Middle TN + Southeast LA appliance repair company called TN Appliance Exchange. Use markdown. End with a soft CTA: "Need help? Call 615-280-2949 or get a quote at tnapplianceexchange.net/quote.html."',
+        system: 'You write friendly, helpful 350-450 word blog posts for a Middle TN + Southeast LA appliance repair company called TN Appliance Exchange. Use markdown. End with a soft CTA: "Need help? Call 866-268-0111 or get a quote at tnapplianceexchange.net/quote.html."',
         messages: [{ role: 'user', content: `Write a blog post titled: "${topic}"` }],
       }),
     });

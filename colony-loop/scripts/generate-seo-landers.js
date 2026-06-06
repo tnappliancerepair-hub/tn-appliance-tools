@@ -23,7 +23,7 @@ function pageTemplate({ zip, city, state, market }) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Appliance Repair in ${city}, ${state} ${zip} | TN Appliance Exchange</title>
-<meta name="description" content="Fast appliance repair in ${city}, ${state} ${zip}. Same-day service. Washers, dryers, refrigerators, dishwashers, ranges. Call 615-280-2949.">
+<meta name="description" content="Fast appliance repair in ${city}, ${state} ${zip}. Same-day service. Washers, dryers, refrigerators, dishwashers, ranges. Call 866-268-0111.">
 <link rel="canonical" href="https://tnapplianceexchange.net/${zip}-appliance-repair.html">
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 30px 18px; line-height: 1.6; color: #1a1f2c; }
@@ -41,7 +41,7 @@ function pageTemplate({ zip, city, state, market }) {
 <h1>Appliance Repair in ${city}, ${state}</h1>
 <p class="sub">Zip ${zip} · ${market} market · TN Appliance Exchange LLC</p>
 
-<a class="cta" href="tel:+16152802949">📞 Call 615-280-2949</a>
+<a class="cta" href="tel:+18662680111">📞 Call 866-268-0111</a>
 <a class="cta" href="quote.html" style="background:white;color:#ff8a00;border:2px solid #ff8a00">Get a quote</a>
 
 <h2>What we repair in ${city}</h2>

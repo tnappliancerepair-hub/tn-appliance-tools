@@ -26,7 +26,7 @@ Default decision when in doubt about releasing a number: **KEEP.** Re-acquiring 
 
 | # | Number | Provider | Today | Target |
 |---|---|---|---|---|
-| 1 | **+1 615-280-2949** | RingCentral ($300/mo) | Public website TN primary | Port → Vapi → Ant Inbound |
+| 1 | **+1 866-268-0111** | RingCentral ($300/mo) | Public website TN primary | Port → Vapi → Ant Inbound |
 | 2 | **+1 504-355-9111** | Vapi BYO | LA market (already on Vapi, old assistant) | Repoint → Ant Inbound v2 (LA context) |
 | 3 | **+1 615-588-9500** | Telnyx | Customer SMS outbound; calling it → dead air | Enable voice → Ant Inbound (callback context) |
 | 4 | **+1 615-857-8800** | Telnyx | Tech SMS outbound; calling it → dead air | Enable voice → Ant Inbound (tech context) |
@@ -61,7 +61,7 @@ Per the Strategic Inventory principle — these were originally acquired for Vap
 The brain reads `called_number_role` + `called_number_market` + `called_number_callback_hint` from Vapi `variableValues` on every call. These come from `NUMBER_PROFILES` in `vapi-webhook.js` (single source of truth — update one map, all numbers update).
 
 ### Public-facing primary (visible on website, business cards)
-- **615-280-2949** (TN) — *"Hey, you've reached TN Appliance Exchange. What's broken today?"* (warm, TN market)
+- **866-268-0111** (TN) — *"Hey, you've reached TN Appliance Exchange. What's broken today?"* (warm, TN market)
 - **504-355-9111** (LA) — *"Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond…"* (warm, LA market)
 
 ### Telnyx + Twilio SMS callback lines (CRITICAL — closes biggest leak)
@@ -78,7 +78,7 @@ Customers see these numbers when we text them. When they call back instead of te
 
 ### Vapi BYO secondary (629-260-7111 / 629-247-7111)
 - Same warm opening as primary TN
-- Flagged in NUMBER_PROFILES as `vapi_secondary_tn` so we know to evaluate for release once 615-280-2949 is confirmed working
+- Flagged in NUMBER_PROFILES as `vapi_secondary_tn` so we know to evaluate for release once 866-268-0111 is confirmed working
 
 ## Cost Picture
 
@@ -98,15 +98,15 @@ vs $3,500-4,500/mo human receptionist who only works 40 hrs/week and would need 
 
 ### Tomorrow morning (~45 min)
 
-1. **Port 615-280-2949 from RingCentral → Vapi.** RingCentral typically requires a Letter of Authorization; expect 24-48 hrs for the port. Once submitted, cancel RingCentral immediately upon port confirmation. **$300/mo saved.**
+1. **Port 866-268-0111 from RingCentral → Vapi.** RingCentral typically requires a Letter of Authorization; expect 24-48 hrs for the port. Once submitted, cancel RingCentral immediately upon port confirmation. **$300/mo saved.**
 2. **Cancel HCP.** **$500/mo saved.**
-3. **In Vapi dashboard → Phone Numbers** → assign 615-280-2949 to "Ant Inbound v2" assistant.
+3. **In Vapi dashboard → Phone Numbers** → assign 866-268-0111 to "Ant Inbound v2" assistant.
 4. **Repoint 504-355-9111** (Vapi BYO) to Ant Inbound v2. Currently on old assistant — flip the assignment.
 5. **Test call to each → expect Ant greeting by-number-context.**
 
 ### Same day or next (~30 min)
 
-6. **Enable voice on Telnyx 615-588-9500 + 615-857-8800.** Telnyx dashboard → Number settings → enable Voice → set Voice URL to your Vapi inbound URL OR forward to 615-280-2949. (~$1/mo per number to add voice).
+6. **Enable voice on Telnyx 615-588-9500 + 615-857-8800.** Telnyx dashboard → Number settings → enable Voice → set Voice URL to your Vapi inbound URL OR forward to 866-268-0111. (~$1/mo per number to add voice).
 7. **Enable voice on Twilio 629-284-0444 + 727-350-8487.** Same in Twilio dashboard. Failover lines should answer Ant the same way primary lines do.
 8. **Test each → confirm callback context kicks in.**
 
@@ -157,7 +157,7 @@ No XS deploys, no Mac Mini reboot, no Vapi prompt edits.
 
 ```
 KEEP — operational (all route to Ant Inbound v2):
-  TN PRIMARY:      615-280-2949   (Vapi after RC port)
+  TN PRIMARY:      866-268-0111   (Vapi after RC port)
   LA MARKET:       504-355-9111   (Vapi already)
   TELNYX CUST:     615-588-9500   (callback context, primary SMS)
   TELNYX TECH:     615-857-8800   (tech context, primary SMS)

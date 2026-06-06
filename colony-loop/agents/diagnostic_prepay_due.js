@@ -86,7 +86,7 @@ export async function run(signal, ctx) {
 
   const body =
     `Hi ${firstName} - to lock in your appointment tomorrow, please pay the $99 diagnostic fee: ${linkData.url} ` +
-    `Fee is fully credited if you book the repair. Questions? Call 615-280-2949.`;
+    `Fee is fully credited if you book the repair. Questions? Call 866-268-0111.`;
 
   let smsRes = null;
   try {

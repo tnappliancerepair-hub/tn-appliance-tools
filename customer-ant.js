@@ -246,7 +246,7 @@
       const data = await res.json();
       thinking.remove();
       if (!data.ok || !data.reply) {
-        history.push({ role: 'assistant', content: data.error ? "Sorry — having trouble right now. Please call our office at 615-280-2949 and we'll help right away." : "I didn't get an answer back. Please try again or call 615-280-2949." });
+        history.push({ role: 'assistant', content: data.error ? "Sorry — having trouble right now. Please call our office at 866-268-0111 and we'll help right away." : "I didn't get an answer back. Please try again or call 866-268-0111." });
       } else {
         history.push({ role: 'assistant', content: data.reply });
       }
@@ -257,8 +257,8 @@
       thinking.remove();
       const wasTimeout = err && err.name === 'AbortError';
       const msg = wasTimeout
-        ? "That took longer than expected — please try again. If it keeps happening, call 615-280-2949 and we'll take care of you."
-        : "Sorry — couldn't reach our system. Please call 615-280-2949 and we'll take care of you.";
+        ? "That took longer than expected — please try again. If it keeps happening, call 866-268-0111 and we'll take care of you."
+        : "Sorry — couldn't reach our system. Please call 866-268-0111 and we'll take care of you.";
       history.push({ role: 'assistant', content: msg });
       saveHistory();
       renderMessages();

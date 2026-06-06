@@ -118,7 +118,7 @@ query generate_quote verb=POST {
     est_high_cents  : $base_high * 100
     diagnostic_fee  : $diagnostic_fee
     disclaimer      : "Estimate only. Final cost confirmed after diagnostic visit. $99 diagnostic fee applies; waived if you book a repair."
-    next_step       : "Reply YES or call 615-280-2949 to schedule a diagnostic visit."
+    next_step       : "Reply YES or call 866-268-0111 to schedule a diagnostic visit."
   }
 
   guid = "generate-quote-v1"

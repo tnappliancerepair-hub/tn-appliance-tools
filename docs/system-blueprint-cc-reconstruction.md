@@ -38,7 +38,7 @@ TN Appliance Exchange is a Tennessee + Louisiana appliance repair shop owned by 
 | Service area | Middle Tennessee + Louisiana (dual-state mobile + LA trailer in Hammond) | HIGH |
 | Tech count | 6 active | HIGH |
 | Revenue mix | ~95% warranty / ~5% self-pay | HIGH |
-| Customer-facing voice line | 615-280-2949 (RingCentral, porting to Vapi — port status not re-verified today) | MED |
+| Customer-facing voice line | 866-268-0111 (RingCentral, porting to Vapi — port status not re-verified today) | MED |
 | Business outbound SMS | +16292840444 (Twilio) | HIGH (verified in `send_sms_POST.xs:42`) |
 | Tech inbound SMS | +17273508487 (Twilio) | HIGH |
 | Owner cell | +16154855795 | HIGH |
@@ -108,7 +108,7 @@ Today's state — **HIGH:**
 
 Per memory + v1 §2:
 
-- Voice line 615-280-2949 (RingCentral) — porting to Vapi (status: in flight, port date not in any doc I read this session).
+- Voice line 866-268-0111 (RingCentral) — porting to Vapi (status: in flight, port date not in any doc I read this session).
 - Today: dispatcher (or future Vapi agent) intakes the warranty job by phone, manually creates HCP job, downstream flows match §2.2.
 - Vapi BYO numbers exist for both states (TN +16292607111 Ant Inbound, TN +16292477111, LA +15043559111).
 - **MED** — port status not re-verified this session.
@@ -358,7 +358,7 @@ For each warranty company, Danielle logs in to the portal, submits the TDR from 
 | Marcone B2B API | Not in repo | Pending in-person account approval |
 | Amazon parts API | Not in repo | Designed-not-built |
 | Tribles API | Not in repo | Designed-not-built |
-| RingCentral → Vapi port for `615-280-2949` | Not in a design doc | In flight; transitional copy in customer-facing HTML reflects |
+| RingCentral → Vapi port for `866-268-0111` | Not in a design doc | In flight; transitional copy in customer-facing HTML reflects |
 | Customer transparency SMS workstream (Triggers 2-4) | `docs/system-blueprint-decisions-2026-05-09.md` | Trigger 1 shipped 2026-05-11. Triggers 2-4 (parts ordered / parts shipped / parts delivered) **DEPRIORITIZED** per 2026-05-11 strategic reframing — warranty intake now higher priority |
 | Voice-only Vapi parallel triggers | Not in a design doc | One general-purpose "Ant Status Update" agent per `system-blueprint-decisions-2026-05-09.md` Decision 2; **resolved 2026-05-11** to build new specialist agents matching Pattern 1 (see `vapi-agent-inventory-2026-05-11.md`) |
 | $40 Premium Video Call DIY upgrade + Release of Liability waiver | Not in a design doc | NEEDS BUILD |
@@ -431,7 +431,7 @@ For each warranty company, Danielle logs in to the portal, submits the TDR from 
 
 ### 10.8 Contact lines
 
-- Customer-facing voice: 615-280-2949 (RingCentral, porting)
+- Customer-facing voice: 866-268-0111 (RingCentral, porting)
 - Owner: +16154855795 (Teddy)
 - Danielle: 615-485-0713
 - Business SMS: +16292840444
@@ -513,7 +513,7 @@ The most important section. These are the questions I can't answer from memory +
 
 2. **TCR campaign current status.** Was day 8+ on 2026-05-09. Today is 2026-05-12 — day 11+. Expected approval window was 3-4 days from resubmission. Has it cleared? If yes, **5 dormant env vars become flippable** (`DAILY_SUMMARY_ENABLED`, `SCHEDULING_QUEUE_ENABLED`, `TECH_ASSIST_ENABLED`, and the live-fire flip of `SMS_ENABLED` to `"true"`, and likely `HCP_POLL_ENABLED` though that's TCR-independent).
 
-3. **RingCentral → Vapi port for 615-280-2949.** Port status unknown — transitional copy ("Call us, not text") in customer-facing HTML suggests inbound still RingCentral. Has the port completed?
+3. **RingCentral → Vapi port for 866-268-0111.** Port status unknown — transitional copy ("Call us, not text") in customer-facing HTML suggests inbound still RingCentral. Has the port completed?
 
 4. **HCP webhook sparse-payload incident.** Pending HCP support ticket per memory. Has it been resolved? If yes, `HCP_POLL_ENABLED` workaround becomes unnecessary.
 

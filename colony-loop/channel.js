@@ -71,7 +71,7 @@ export async function composeForChannel({
     }
   }
 
-  if (!body || body.trim() === '') body = fallback || '[TN Appliance] Update on your appointment — call 615-280-2949.';
+  if (!body || body.trim() === '') body = fallback || '[TN Appliance] Update on your appointment — call 866-268-0111.';
 
   // #7 language routing: customer prefers Spanish → translate the
   // composed body before it ships. Anthropic call adds ~$0.001/msg

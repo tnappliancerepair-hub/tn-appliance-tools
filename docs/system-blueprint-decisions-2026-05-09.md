@@ -31,7 +31,7 @@
 - **IF** inventory finds an existing agent that already accepts variable context (job_id, trigger_type, message_template) and delivers it as a warm short voice call → **repurpose it.** Document its agent ID and wire the new outbound triggers to its existing pattern.
 - **IF NOT** → **build new "Ant Status Update" agent.** Spec:
   - **Inputs:** `job_id`, `trigger_type` (e.g., `teddy_started_review` / `parts_ordered` / `parts_shipped` / `parts_delivered_diy` / `parts_delivered_install` / etc.), `message_template` (the natural-language script the agent reads).
-  - **Behavior:** Warm, short voice call (~30-60 seconds). Reads the message template. Ends with the callback number `615-280-2949` (post-Vapi port; today's RingCentral until ported). Leaves voicemail if no answer (handled by Vapi's built-in voicemail detection).
+  - **Behavior:** Warm, short voice call (~30-60 seconds). Reads the message template. Ends with the callback number `866-268-0111` (post-Vapi port; today's RingCentral until ported). Leaves voicemail if no answer (handled by Vapi's built-in voicemail detection).
   - **Stack:** Same as existing — Claude Sonnet + Heisenberg (11Labs) voice + Nova 2 Phonecall.
   - **Wiring:** New Xano endpoint `trigger_vapi_status_update_POST.xs` mirrors the pattern of the existing `trigger_vapi_warranty_call_POST.xs` (verified file in repo): POST `https://api.vapi.ai/call` with `{assistantId: $env.VAPI_STATUS_ASSISTANT_ID, phoneNumberId: VAPI_PHONE_ID_TN|LA based on customer.state, customer: {number, name}, assistantOverrides: {variableValues: {...the trigger context}}}`.
 

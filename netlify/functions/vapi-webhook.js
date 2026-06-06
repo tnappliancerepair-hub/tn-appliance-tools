@@ -61,7 +61,7 @@ function classifyCaller({ callerNumber, prefetchedCustomer }) {
 // rearrange the strategy, update HERE — no other file needs touching.
 const NUMBER_PROFILES = {
   // ── Primary TN — RingCentral port (Sprint 1) ───────────────────
-  '6152802949': {
+  '8662680111': {
     role: 'primary_tn',
     provider: 'vapi',
     market_context: 'Middle Tennessee — Nashville, Murfreesboro, Antioch, Clarksville and surrounding.',

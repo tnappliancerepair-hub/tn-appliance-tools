@@ -161,7 +161,7 @@ export async function run(signal, ctx) {
       const apl = (job.appliance_type || 'appliance').toLowerCase();
       const custBody =
         `Hi ${custFirst} - quick update: ${techFirst} will now be the tech for your ${apl} appointment ` +
-        `on ${apptDate} CT. Same time, just a different tech. Questions? Call 615-280-2949.`;
+        `on ${apptDate} CT. Same time, just a different tech. Questions? Call 866-268-0111.`;
       try {
         custReassignRes = await sms.toCustomer(custPhone, custBody, {
           action: 'tech_reassign_customer_notice',

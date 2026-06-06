@@ -65,7 +65,7 @@ export async function run(signal, ctx) {
   const body =
     `Hi ${firstName} - your ${brand ? brand + ' ' : ''}${appliance}${yearsLine} is at the age where issues commonly start. ` +
     `Want us to do a preventive check before it fails? $99 covers it — credited toward any repair found. ` +
-    `Reply YES or call 615-280-2949.`;
+    `Reply YES or call 866-268-0111.`;
 
   let smsRes = null;
   try {

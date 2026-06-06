@@ -400,7 +400,7 @@ metadata (json) — Stripe webhook payload audit
   - Shows grand total.
   - "Confirm and pay" CTA enabled only when every failure has a non-pending choice.
 - **Helper actions:** "I want to think about it" (saves partial state, sends a reminder later) and "I'm not interested" (records all failures as `skip` → terminal `all_skipped`).
-- **Footer:** contact info, "questions? text us at 615-280-2949"
+- **Footer:** contact info, "questions? text us at 866-268-0111"
 
 ### Operating rules (shown on the page — LOCKED 2026-05-05 — Decision 4)
 

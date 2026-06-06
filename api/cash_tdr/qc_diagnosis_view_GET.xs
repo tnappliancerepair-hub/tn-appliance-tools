@@ -45,7 +45,7 @@ query qc_diagnosis_view verb=GET {
     conditional {
       if ($val.valid != true) {
         var $user_msg {
-          value = ($val.reason == "expired") ? "This link has expired. Please call us at 615-280-2949 to get a new one." : "Invalid link. Please call us at 615-280-2949."
+          value = ($val.reason == "expired") ? "This link has expired. Please call us at 866-268-0111 to get a new one." : "Invalid link. Please call us at 866-268-0111."
         }
       
         return {
@@ -69,7 +69,7 @@ query qc_diagnosis_view verb=GET {
         return {
           value = {
             success: false
-            error  : "Diagnosis not found. Please call us at 615-280-2949."
+            error  : "Diagnosis not found. Please call us at 866-268-0111."
           }
         }
       }
@@ -80,7 +80,7 @@ query qc_diagnosis_view verb=GET {
         return {
           value = {
             success: false
-            error  : "This Quick Check has already been completed. Please call us at 615-280-2949 if you need help."
+            error  : "This Quick Check has already been completed. Please call us at 866-268-0111 if you need help."
             reason : "consumed"
           }
         }
@@ -100,7 +100,7 @@ query qc_diagnosis_view verb=GET {
         return {
           value = {
             success: false
-            error  : "Job not found. Please call us at 615-280-2949."
+            error  : "Job not found. Please call us at 866-268-0111."
             reason : "job_not_found"
           }
         }

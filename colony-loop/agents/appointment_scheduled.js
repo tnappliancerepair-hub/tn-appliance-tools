@@ -68,7 +68,7 @@ function customerBody({ first, appliance, apptStr, techFirst, portalUrl }) {
     `Hi ${name}, your ${appliance} repair is confirmed for ${apptStr}.`,
     techClause,
     portalClause,
-    `Reply STOP to cancel or call 615-280-2949.`,
+    `Reply STOP to cancel or call 866-268-0111.`,
   ].filter(Boolean).join(' ');
 }
 

@@ -38,7 +38,7 @@ exports.handler = async function (event) {
 
   const summary = `Appliance repair: ${(job.brand || '') + ' ' + (job.appliance || '')}`.trim() || 'TN Appliance Repair';
   const techName = (tech.first_name || '') + (tech.last_name ? ' ' + tech.last_name : '');
-  const description = `Your tech: ${techName || 'TBA'}\\nIssue: ${(job.problem_summary || '').replace(/\n/g, ' ')}\\nQuestions: 615-280-2949`;
+  const description = `Your tech: ${techName || 'TBA'}\\nIssue: ${(job.problem_summary || '').replace(/\n/g, ' ')}\\nQuestions: 866-268-0111`;
 
   const ics = [
     'BEGIN:VCALENDAR',

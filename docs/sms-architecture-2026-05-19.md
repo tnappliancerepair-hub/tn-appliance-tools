@@ -117,7 +117,7 @@ Both toll-frees spell ANT on the keypad. This is the platform-defining branding 
 
 Existing Vapi numbers (629/504) — TBD whether they're deprecated in favor of these two toll-frees or kept as additional inbound paths. See `docs/vapi-agent-inventory-2026-05-11.md`.
 
-RingCentral 615-280-2949 port to Vapi remains pending — once complete, that number can route to the same Vapi general intake or be deprecated entirely in favor of 1-888-ANT-8998.
+RingCentral 866-268-0111 port to Vapi remains pending — once complete, that number can route to the same Vapi general intake or be deprecated entirely in favor of 1-888-ANT-8998.
 
 ---
 
@@ -245,7 +245,7 @@ Single send. Replies route into `tech_sms_inbound` (existing endpoint, 10 tools 
 
 - Vapi 629/504 numbers: deprecate or keep as additional inbound paths? (See `docs/vapi-agent-inventory-2026-05-11.md`)
 - LA local area code: 504 (New Orleans), 985 (Hammond / North Shore), or 225 (Baton Rouge)? Recommend 504 for geographic coverage of Andre's NOLA preference plus broader recognition.
-- RingCentral 615-280-2949: port to Vapi or deprecate in favor of 1-888-ANT-8998 as public-facing voice? Recommend port for continuity of an established number; eventually feature ANT vanity as primary.
+- RingCentral 866-268-0111: port to Vapi or deprecate in favor of 1-888-ANT-8998 as public-facing voice? Recommend port for continuity of an established number; eventually feature ANT vanity as primary.
 - Dawn's role post-recovery: held open, or platform absorbs entirely? Treat as platform-absorbs for planning; revisit if she returns.
 
 ---

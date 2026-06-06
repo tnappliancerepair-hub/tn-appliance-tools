@@ -68,22 +68,22 @@ Test by leaving a voicemail to verify the queue picks it up:
 - Within 60 seconds, you (Teddy) get the "[ant] new voicemail from …" SMS to 615-485-5795
 - Within 60 seconds, Office Today shows it in the 📞 Voicemail queue section
 
-### Step 5 — Main number (615-280-2949) — RingCentral kill
+### Step 5 — Main number (866-268-0111) — RingCentral kill
 
-Once you're confident in Vapi's behavior on the vanity numbers (maybe a day of testing), do the same for 615-280-2949:
+Once you're confident in Vapi's behavior on the vanity numbers (maybe a day of testing), do the same for 866-268-0111:
 
 **Option A — Call forward from RingCentral to Vapi (instant, keeps porting option open):**
 
 1. Log in to RingCentral admin
-2. Phone System → Phone Numbers → 615-280-2949 → Settings
+2. Phone System → Phone Numbers → 866-268-0111 → Settings
 3. Call Handling → Always forward → enter your Vapi-attached Telnyx number (e.g., the 888 number)
 4. Save
-5. Test: call 615-280-2949 → RingCentral picks up → forwards to Vapi → Ant answers
+5. Test: call 866-268-0111 → RingCentral picks up → forwards to Vapi → Ant answers
 6. After 1-2 days of confidence, port the number to Telnyx and cancel RingCentral.
 
 **Option B — Direct port (faster $ savings but takes 1-3 weeks):**
 
-1. In Telnyx portal → Numbers → Port Numbers → submit 615-280-2949
+1. In Telnyx portal → Numbers → Port Numbers → submit 866-268-0111
 2. Provide RingCentral Letter of Authorization + recent bill
 3. Wait for the carrier handoff (1-3 weeks)
 4. Once ported → configure Vapi SIP routing (per §2A above)

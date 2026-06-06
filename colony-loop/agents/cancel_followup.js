@@ -119,7 +119,7 @@ export async function run(signal, ctx) {
   const body =
     `Hi ${firstName} - we wanted to follow up on your canceled ${appliance} appointment. ` +
     `Did you find another tech, or would you like us to get you back on the calendar? ` +
-    `Reply YES if interested, or call 615-280-2949.${portalClause}`;
+    `Reply YES if interested, or call 866-268-0111.${portalClause}`;
 
   let smsRes = null;
   try {

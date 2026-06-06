@@ -61,7 +61,7 @@ export async function run(signal, ctx) {
   const body =
     `Hi ${firstName} - sorry your ${vendor} claim didn't go through. ` +
     `Ant offers our own 1-year service warranty for $199 - covers parts + labor on the same appliance. ` +
-    `Reply YES if interested, or call 615-280-2949. Details: ${bareDomain()}/service-agreement.html?job_id=${jobId}`;
+    `Reply YES if interested, or call 866-268-0111. Details: ${bareDomain()}/service-agreement.html?job_id=${jobId}`;
 
   let smsRes = null;
   try {

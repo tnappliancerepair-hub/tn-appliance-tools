@@ -48,7 +48,7 @@
 <div class="markets" id="markets">Loading…</div>
 
 <div class="footer">
-  Not in our area? <a href="tel:+16152802949">Call 615-280-2949</a> — we may know someone.<br>
+  Not in our area? <a href="tel:+18662680111">Call 866-268-0111</a> — we may know someone.<br>
   <span style="font-size:11px">🐜 ANT · TN Appliance Exchange LLC</span>
 </div>
 
@@ -115,14 +115,14 @@
         $('result').textContent = `✓ We cover ${z} (${data.market || 'your area'}) and are accepting new jobs.`;
       } else if (data.covered === true && data.accepting_new_jobs === false) {
         $('result').className = 'result unsure';
-        $('result').textContent = `Zip ${z} is in our service area (${data.market || ''}) but currently full. Call 615-280-2949 to check availability.`;
+        $('result').textContent = `Zip ${z} is in our service area (${data.market || ''}) but currently full. Call 866-268-0111 to check availability.`;
       } else {
         $('result').className = 'result no';
-        $('result').textContent = `We don't currently service ${z}. Call 615-280-2949 — we may know someone in your area.`;
+        $('result').textContent = `We don't currently service ${z}. Call 866-268-0111 — we may know someone in your area.`;
       }
     } catch (err) {
       $('result').className = 'result unsure';
-      $('result').textContent = `Check failed (${err.message}). Try again or call 615-280-2949.`;
+      $('result').textContent = `Check failed (${err.message}). Try again or call 866-268-0111.`;
     }
   }
 

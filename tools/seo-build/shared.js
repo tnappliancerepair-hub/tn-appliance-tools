@@ -1,7 +1,7 @@
 // Shared constants used across all generated pages.
 
 const SITE = "https://tnapplianceexchange.net";
-const PHONE_TN = "615-280-2949";
+const PHONE_TN = "866-268-0111";
 const PHONE_LA = "504-355-9111";
 
 const CITIES_TN = [

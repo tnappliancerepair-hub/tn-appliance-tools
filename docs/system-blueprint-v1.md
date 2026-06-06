@@ -59,7 +59,7 @@ Three distinct entry paths:
 
 1. **Self-pay** — customer hits `tnapplianceexchange.net`, chats with Ant, pays $50 Quick Check via Stripe, gets a TDR with options. ~5% of volume but the platform-quality flagship.
 2. **Warranty (HCP-dispatched)** — Allstate Protection Plans (formerly SquareTrade) auto-accepted via ServicePower portal; AHS / Frontdoor on a separate workflow. Job appears in HCP, webhook fires (currently broken — see §9), Xano job created, tech dispatched.
-3. **Warranty company calling on behalf** — voice line (`615-280-2949`, currently RingCentral, porting to Vapi). Dispatcher (or future Vapi agent) intakes the warranty job by phone.
+3. **Warranty company calling on behalf** — voice line (`866-268-0111`, currently RingCentral, porting to Vapi). Dispatcher (or future Vapi agent) intakes the warranty job by phone.
 
 ---
 
@@ -255,9 +255,9 @@ Each warranty job ends with TDR submission to the relevant warranty portal.
 | **Marcone B2B API** | NOT IN REPO | Parts auto-ordering, ship direct to customer. **Pending in-person account approval** (see §17). |
 | **Amazon API** | NOT IN REPO | Parts auto-ordering, ship direct to customer. Designed-not-built. |
 | **Tribles API** | NOT IN REPO | Parts auto-ordering, ship direct to customer. Designed-not-built. |
-| **RingCentral → Vapi port** | NOT IN A DESIGN DOC | Business voice line `615-280-2949`. In flight; transitional copy in `cash-tdr-customer.html:143` and `cash-tdr-thank-you.html:87` says "Call us" not "Call or text us." Pending. |
+| **RingCentral → Vapi port** | NOT IN A DESIGN DOC | Business voice line `866-268-0111`. In flight; transitional copy in `cash-tdr-customer.html:143` and `cash-tdr-thank-you.html:87` says "Call us" not "Call or text us." Pending. |
 | **Customer transparency SMS workstream** | NOT IN A DESIGN DOC | Four new triggers: Teddy started review, parts ordered confirmation, parts shipped + tracking, parts delivered (DIY/Install branch). Plus voice-only parallel via Vapi general-purpose status update agent. |
-| **New-customer voice intake (Vapi parallel to Ant chat)** | NOT IN A DESIGN DOC | Customer calls `615-280-2949` instead of using the chat. Vapi agent collects the same intake fields, writes to the same `jobs` table with `intake_source="vapi_voice"`. |
+| **New-customer voice intake (Vapi parallel to Ant chat)** | NOT IN A DESIGN DOC | Customer calls `866-268-0111` instead of using the chat. Vapi agent collects the same intake fields, writes to the same `jobs` table with `intake_source="vapi_voice"`. |
 | **TDR options page customer-facing** | `docs/cash-tdr-delivery-design-v1.md` | **PARTIALLY BUILT** — `cash-tdr-customer.html` exists with all four options + `skip` enum. Phase 1f (multi-failure UI) deferred. No-fix-needed customer-facing copy framing per §15 needs to be tightened. |
 | **$40 Premium Video Call DIY upgrade with Release of Liability waiver** | NOT IN A DESIGN DOC | NEEDS BUILD: Stripe link, video-call provisioning (Twilio Video / Daily / TBD), Release of Liability Jotform (separate from existing intake waiver — see §15 item 3), waiver-signed gate before call connects. |
 | **Phase 1f multi-failure cash TDR** | `docs/cash-tdr-delivery-design-v1.md` | Single-failure pipeline live; multi-failure UI in Teddy Tool + customer page deferred. |
@@ -297,7 +297,7 @@ Each warranty job ends with TDR submission to the relevant warranty portal.
   - **Vapi BYO numbers:** TN `+16292607111` (Ant Inbound), TN `+16292477111`, LA `+15043559111` *(LA number corrected 2026-05-09 from blueprint copy-paste error; per April 29 + May 4 handoffs)*
   - **Owner cell (Teddy):** `+16154855795` (often quoted as `615-485-5795`)
   - **Danielle:** `615-485-0713`
-  - **Customer-facing voice (RingCentral, porting to Vapi):** `615-280-2949`
+  - **Customer-facing voice (RingCentral, porting to Vapi):** `866-268-0111`
 
 **Stripe:**
 - Live keys in Netlify production env (`STRIPE_SECRET_KEY=sk_live_…[redacted]`, `STRIPE_WEBHOOK_SECRET=whsec_…[redacted]`)
@@ -550,7 +550,7 @@ Documented gotchas pulled from memory + design docs. Reference when writing or r
 |---|---|---|---|
 | **Danielle: per-tech vs per-area capacity model answer** | 2026-05-08 morning | NO REPLY YET | Unblocks Phase 3 ServicePower SOAP capacity governor. Either confirms TechKey acquisition path or reveals an undocumented per-area API. |
 | **Marcone B2B API: in-person account approval** | (date not in memory) | PENDING | Unblocks the parts auto-ordering pipeline. Until approved, Marcone orders stay manual. |
-| **RingCentral → Vapi port for `615-280-2949`** | (port in flight) | PENDING | Unblocks customer-facing voice automation. Customer-facing copy in `cash-tdr-customer.html:143` and `cash-tdr-thank-you.html:87` says "Call us" not "Call or text us" specifically because of this. |
+| **RingCentral → Vapi port for `866-268-0111`** | (port in flight) | PENDING | Unblocks customer-facing voice automation. Customer-facing copy in `cash-tdr-customer.html:143` and `cash-tdr-thank-you.html:87` says "Call us" not "Call or text us" specifically because of this. |
 | **TCR campaign approval** | (resubmitted 2026-05-09 today) | PENDING (day 8+, expected approval 3-4 days) | Unblocks `DAILY_SUMMARY_ENABLED`, `SCHEDULING_QUEUE_ENABLED`, `TECH_ASSIST_ENABLED` — three env-gated systems all waiting on this single event. |
 | **HCP support ticket: sparse-payload investigation** | 2026-05-07 (file pending) | PENDING | Unblocks webhook-driven HCP intake; until then, `HCP_POLL_ENABLED` is the workaround path. |
 | **Teddy: paste system-prompt addition into Xano `$env.SYSTEM_PROMPT`** | 2026-05-08 | PENDING | Without this, the chat-side consent gate never fires in production (the frontend code is correct, but Ant doesn't emit `__SHOW_CONSENT_CHECKBOX__`). Required for TCR to actually exercise the consent path on review. |
@@ -567,7 +567,7 @@ These are the questions a future session should ask Teddy before relying on this
 
 1. **Is Tech Ant actually live in production today?** Files `tech-ant-live.html` and `tech-ant.html` exist; design doc says "ready for build, blocked on TCR." Is a tech actively using it on a job site right now or is it scaffolding-only?
 
-2. **Is the `615-280-2949` Vapi port complete or still in flight?** HTML copy says "Call us, not text" — that's transitional. Is the Vapi side just outbound today (the warranty follow-up cron), or is inbound also handled?
+2. **Is the `866-268-0111` Vapi port complete or still in flight?** HTML copy says "Call us, not text" — that's transitional. Is the Vapi side just outbound today (the warranty follow-up cron), or is inbound also handled?
 
 3. **Phase 3.0 of the capacity governor** — has Danielle completed the portal inspection? If so, which hypothesis (A, B, C) was it? If not, when?
 

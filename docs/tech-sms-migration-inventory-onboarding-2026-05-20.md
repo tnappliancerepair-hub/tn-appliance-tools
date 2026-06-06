@@ -58,7 +58,7 @@ Lines listed against the current local file (post-Fix 1/2/3 patches).
 
 | Line | Op | Description |
 |---|---|---|
-| 70 | `return` | `{ reply: "this number isn't recognized as a tech. if you meant to text the company line about service, call 615-280-2949." }` — only when phone lookup misses entirely. |
+| 70 | `return` | `{ reply: "this number isn't recognized as a tech. if you meant to text the company line about service, call 866-268-0111." }` — only when phone lookup misses entirely. |
 
 ---
 

@@ -127,7 +127,7 @@ query jotform_waiver_webhook verb=POST {
         }
       
         var $sms_body {
-          value = "Hi " ~ $first_name ~ "! Your TN Appliance Exchange waiver is signed. Pick your appointment time here: " ~ $book_url ~ ". Questions? Call 615-280-2949. Reply STOP to opt out."
+          value = "Hi " ~ $first_name ~ "! Your TN Appliance Exchange waiver is signed. Pick your appointment time here: " ~ $book_url ~ ". Questions? Call 866-268-0111. Reply STOP to opt out."
         }
       
         // ── SMS_ENABLED gate (call_site: jotform_waiver_webhook_POST.xs:134) ──
