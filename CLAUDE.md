@@ -2164,3 +2164,155 @@ Future hygiene: never `cat`/`tail` env files. Use `awk -F= '{print $1}' .env` to
 - If they keep pushing → transfer to Teddy for owner-level commitment.
 
 **Warranty intake creates customer records by name+address but often NO phone**, so `lookup_customer_by_phone` returning `found:false` is the common case for first-time callers. Ant pivots to asking for claim# or name (via `lookup_by_claim_number` or `search_customers` tools).
+
+## Session log — 2026-06-05 → 2026-06-07 (Florida vacation week, strategic + ops)
+
+Teddy on vacation in Florida for nephew's HS graduation (2026-06-08). Big strategic conversations + one production incident + a real tech-tool ship.
+
+### Amazon-equivalent dual-tier strategy (decided 2026-06-05)
+
+Re-positioning cash-customer parts offering. Teddy's read: every appliance tech on Facebook is shaming customers who price-shop Amazon. Their loss = our gain. **Embrace the Amazon-equivalent tier; don't shame it.**
+
+**The 4-option cash TDR matrix:**
+
+| | OEM part | Amazon-equivalent |
+|---|---|---|
+| **You install (DIY)** | $X | $Y |
+| **We install** | $X + labor | $Y + labor |
+
+**Hard rules:**
+- All four options require parts purchased through us
+- We never share part numbers (no side-shopping enabled)
+- We do NOT price-match — we set our own prices on both tiers
+- Customer picks any of the 4 — we install either tier or sell just the part
+- Default warranty: 90-day on OEM tier, 30-day on Amazon-eq tier (honest self-selection)
+- Source the Amazon-eq from cheapest aftermarket via existing 4-source parts engine
+- Framing is neutral side-by-side, no "we recommend OEM"
+
+**What needs building (not yet shipped):**
+1. Cash TDR template — always populate all 4 cells (today sometimes shows fewer)
+2. `cash-tdr-customer.html` — relabel + reorder so DIY rows are equally prominent
+3. Vapi Ant Inbound prompt block — "two tiers, your choice" + "never share part numbers" rule
+4. New `parts-policy.html` public page — positioning ("Two ways to get your part, both delivered by us")
+5. Tech-side talk-track surface in tech-ant-chat — when customer chose Amazon-eq, tech sees the right warranty terms
+
+Estimated ~60 min build if defaults stand. Defer past vacation week.
+
+### Andre's practice job test (2026-06-05) + scribe-mode browser swap (2026-06-06)
+
+**The test:** Sent Andre a practice job (job 18581, Whirlpool dishwasher leaking, `test_run_id=PRACTICE_2026-06-06`) to kick the tires on tech-ant-chat. Andre reported back: "very impressed by the troubleshooting" BUT "the TDR didn't fill itself out."
+
+**Root cause:** Two parallel chat paths existed:
+- **SMS path** (`tech_sms_assist`) — scribe-mode brain via `tech-assist-brain` Netlify fn (Sonnet 4.5 with structured `{reply, captured}` contract). Reliable extraction.
+- **Browser path** (`tech_assist_chat`) — legacy XS endpoint that called Anthropic directly with `__CAPTURE_FIELD__` token emission scheme. Tokens often missing → fields stay unset → re-asks.
+
+**Fix shipped 2026-06-06 (commit `ba52f50`):**
+- New `api/intake/tech_assist_chat_v2_POST.xs` — delegates to `tech-assist-brain` with browser-shaped input. Resolves/lazy-creates session, signs S3 image URLs for vision, calls brain, merges captured into `session.captured_data`, returns `reply + captured_data` to client.
+- `tech-ant-chat.html` swapped to call `/tech_assist_chat_v2`
+- New `applyCapturedToTdrForm(captured)` helper writes captured fields (`diagnosis`, `failed_component`, `failure_cause`, `labor_hours`, `repair_completed`) into the inline TDR form inputs. Respects tech edits — only overwrites empty fields or values it auto-filled itself (`tdr-autofilled` class marker). Green box-shadow ping when a write lands.
+
+**Pending operator action:** Xano UI publish on `tech_assist_chat_v2` — CLI push succeeded but the route returns 404 until published in UI. Once published, SMS Andre to retry job 18581.
+
+**Lesson:** when XS scope balloons (1355 lines for v1), don't edit in place — write v2 next to it with a tight delegate-to-brain pattern. v1 stays as the fallback while v2 proves out.
+
+### Strategic conversation — consumer-side platform vision (2026-06-06)
+
+Triggered by Andre's positive reaction to the troubleshooter. Teddy's framing: "at what point does it just help the DIYers and maintenance and anyone who has a need?"
+
+**Product end-state:** Homeowner with broken appliance opens Ant, photos + describes symptom, gets one of three honest answers:
+1. **DIY path** — "$15 part, 20-min fix, here's the part (ship today or pick up from Lowe's), here's the safe how-to, want us to ship it?"
+2. **DIY-with-risk path** — "doable yourself but 4hrs + risk, here's what to expect, or find you a vetted local pro at $X-$Y"
+3. **Pro-only path** — "gas/240V/sealed system/warranty, don't touch it, here are 2 pros within 10 miles, rated 4.8+, available this week"
+
+**Why bigger than shop SaaS:** TAM math is ~10K appliance repair shops vs ~120M households with annual appliance issues. Shop SaaS = $50-100M TAM. Consumer platform = $5-15B TAM.
+
+**Shop SaaS doesn't die — becomes the supply side.** Shops who use Ant for ops become preferred-pro partners on consumer platform (free leads in exchange for being the recommended pro in their zip).
+
+**Liability — real but solvable** via:
+- TOS "educational not professional advice"
+- Hard auto-gates on dangerous categories (gas, 240V, refrigerant, sealed systems) → no DIY path
+- Product + general liability insurance (~$25-40K/yr)
+- Parts sold under distributor's warranty (we're marketplace not manufacturer)
+- 1099 marketplace model for pros (they carry their own insurance, verified at intake)
+
+**Three revenue rails:**
+1. Subscriptions: $4.99/mo Lite (10 diagnoses) / $9.99/mo Pro (unlimited + part discount + history)
+2. Parts margin: Encompass dropship, ~30% gross
+3. Pro referrals: $25-50 per accepted lead
+
+**Napkin financials:** Year 1 ~10K MAU × $9 ARPU = ~$1M ARR. Year 3 100K MAU × $12 = ~$14M ARR. Year 5 1M MAU × $15 = ~$180M ARR. 60-70% gross margin at scale.
+
+**Big-dawg partner targets (in priority order):**
+1. **Home warranty companies** (AHS, Frontdoor, 2-10, Cinch) — biggest single deal potential, Teddy already has relationships. White-label license $5-50M/yr realistic.
+2. **Appliance OEMs** (Whirlpool, GE, Samsung, LG, Bosch) — post-purchase customer service replacement, branded version
+3. **Big-box retail** (Home Depot, Lowe's, Best Buy/Geek Squad) — embed at parts checkout
+4. **Insurance carriers** (State Farm, Allstate, Liberty Mutual) — appliance-caused claim prevention
+5. **Parts distributors** (Encompass, Marcone, Reliable) — revenue share or strategic investment
+6. **Acquisition exits** at $20M+ ARR — Angi, Thumbtack, HomeAdvisor, Frontdoor itself
+
+**The play recommendation:** Don't pivot. Keep finishing shop side (generates the data + cash that funds consumer side). Start building consumer surface in parallel as sister site (`ant.repair` or `applianceant.com`) — same backend, same brain, different front door. Year 1 shop + first warranty partner deal → Year 2 consumer launch → Year 3 scale + acquisition conversations.
+
+**Saved to memory:** `project_consumer_platform_dream.md` (need to write).
+
+### Production incident — RC voicemail outage (2026-06-06 → ongoing)
+
+**Symptom:** Teddy called 615-280-2949 (main published RC number) Friday night, got recorded voicemail: *"Thank you for calling. We are having phone issues right now. Please leave a message and we will try to get to you when our phone systems are back up."*
+
+**Diagnosis:**
+- 615-280-2949 is RingCentral, NOT in Vapi inbound bindings
+- All 11 Vapi-bound numbers (629-260-7111, 615-588-9500, 866-268-0111, etc.) verified routing fine to Ant Inbound brain (assistant `7cc98b0c-54a7-4d19-bd48-6dfac606e55d`)
+- RC forwarding to Vapi died AND stale outage voicemail greeting is auto-playing from a prior incident
+- Zero `vapi_call_completed` events in last 24h (could be Saturday vacation week, could be compounding break)
+
+**Fix shipped 2026-06-06 (commit `89b8070`) — site-wide number swap as workaround:**
+- Swapped 615-280-2949 → **866-268-0111** (toll-free Telnyx, bound to Ant Inbound)
+- 129 web pages + 9 colony agent SMS templates + 2 other files (140 total)
+- All format variations: `615-280-2949`, `(615) 280-2949`, `+16152802949`, `6152802949`
+- Excluded: `melissa-wood/` (sister's real estate site), `docs/session*`, CLAUDE.md (preserves history)
+
+**Still pending operator action (from phone, ~5 min):**
+1. Open RingCentral mobile app → 615-280-2949 → re-enable Call Forwarding to 866-268-0111 OR 629-260-7111
+2. Update or delete the stale "phone system is broken" voicemail greeting
+3. Update Google Business Profile to show 866-268-0111
+4. **2026-06-08 Telnyx port of 615-280-2949** is the permanent fix — kills RC dependency entirely
+
+**Strategic note:** toll-free 866-268-0111 is genuinely better positioning than 615-280-2949 anyway. No geo-bias (works for LA market without "calling Tennessee" confusion). ANT-0111 mnemonic. Customer pays nothing. Recommend keeping 866 as the published primary even after RC fix lands.
+
+### Competitive convergence intel (2026-06-07)
+
+Teddy spent Friday-Saturday scrolling Facebook groups (Appliance Pro Talk, Appliance Technicians Only) gathering market intel. Reports competitors converging on similar SaaS-for-appliance-repair ideas.
+
+**Strategic framing for the long-term play:**
+
+1. **Convergence = validation, not threat.** Multiple builders showing up = market is real. Bad news: not alone. Good news: market exists.
+
+2. **The race isn't "who builds first" — it's "who has real distribution + data first."** Surface AI features are 30-day clones. Things competitors can't replicate:
+   - Working appliance shop running production data 6+ months
+   - Direct relationships with AHS / Frontdoor / ServicePower / Encompass / Reliable
+   - Parts confidence corpus being built daily by real techs
+   - Founder credibility (Teddy IS a tech, not a Dan-Martell-follower — per Marcus thread)
+
+3. **Moat-builders to lock in NOW** (before competitors catch up):
+   - First warranty company conversation (Teddy has the relationship; they don't)
+   - Domain + social handle reservation (`ant.repair`, `applianceant.com`)
+   - Provisional patent on dual-tier parts offer + confidence-badge model (~$1.5K, 1-yr priority date, scares cloners)
+
+**Key questions to answer next time competitive screenshots land:** What angle are competitors attacking (B2B shop SaaS / consumer DIY / warranty white-label / other)? That tells us where to harden first.
+
+### Pending operator actions (in priority order)
+
+1. **Xano UI publish on `tech_assist_chat_v2`** — gates Andre's TDR-autofill retest on job 18581
+2. **RC mobile-app fix on 615-280-2949** — restore forwarding + kill stale voicemail (or wait for 6/8 Telnyx port)
+3. **Update Google Business Profile** to 866-268-0111
+4. **SMS Andre** "try job 18581 again" once v2 is published
+5. **Update memory file `project_consumer_platform_dream.md`** with strategic vision details
+
+### What NOT to do (additions from this week)
+
+- **Do NOT edit `tech_assist_chat_POST.xs` in place to add scribe-mode** — XS files at 1355 lines are too fragile. Use v2-next-to-v1 pattern. v1 stays as fallback while v2 proves out.
+- **Do NOT touch `melissa-wood/` directory during number sweeps or other site-wide operations.** That's Teddy's sister's real estate site, separate domain target (`melissawoodrealty.com`), shouldn't share TN Appliance numbers.
+- **Do NOT shame Amazon-shopping customers** in customer-facing copy or Vapi prompts. The 4-option Amazon-eq tier is the positioning — "your choice, both delivered by us." Other shops on Facebook are turning these customers away. We take them.
+- **Do NOT share part numbers** in cash TDR menu, Vapi calls, or any customer-facing surface. Hard rule. Prevents side-shopping.
+- **Do NOT pivot away from shop SaaS to chase the consumer platform vision.** Shop side generates the data + cash that funds the consumer side. Both run in parallel. Shop SaaS becomes the supply side of the consumer marketplace later.
+
+**🐜 Long Live Ant.** Vacation + family + system humming.
