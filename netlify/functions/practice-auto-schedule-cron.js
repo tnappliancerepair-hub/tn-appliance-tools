@@ -1,16 +1,21 @@
-// SCHEDULER-SHADOW CRON (was: practice-auto-schedule-cron)
+// PRACTICE-AUTO-SCHEDULE CRON
 // Fires every 15 min via netlify.toml schedule. Calls mock-scheduler in
-// DRY-RUN mode so we get a proposed plan without mutating jobs.technician_id
-// / scheduled_start. No tech SMS fires (no APPOINTMENT_SCHEDULED signal),
-// no customer SMS attempted.
+// PRACTICE-APPLY mode (apply=true&confirm_apply=1&practice_mode=1):
+// placements DO write to live jobs (technician_id, scheduled_start,
+// scheduling_status="scheduled") via the transition_job_state machine,
+// but with actor="scheduler" which is a SILENT actor — no
+// APPOINTMENT_SCHEDULED signal, so no tech SMS and no customer SMS fire.
+// Placed jobs are tagged test_run_id="PRACTICE_<date>" so the tech daily
+// dashboard renders the PRACTICE badge.
 //
-// Purpose: measure auto-scheduling decision quality over the next few days
-// while techs continue to follow HCP. Each run's summary is POSTed to
+// Net effect: the scheduler routes jobs onto live tech schedules for
+// real, but nobody is notified — a dress rehearsal we can audit before
+// flipping to real (drop the PRACTICE tag + let the scheduled signal
+// fire the tech SMS). Each run's summary is POSTed to
 // record_scheduler_shadow_run for the efficiency report page.
 //
-// SquareTrade jobs continue to be treated as 'anchors' by mock-scheduler
-// (ServicePower pre-sets the date) — they're NEVER re-routed even in
-// shadow mode.
+// SquareTrade jobs are treated as 'anchors' by mock-scheduler
+// (ServicePower pre-sets the date) — they're NEVER re-routed.
 
 const SITE_BASE =
   process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
