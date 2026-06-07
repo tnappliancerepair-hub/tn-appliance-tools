@@ -345,6 +345,24 @@ exports.handler = async function (event) {
       });
     }
 
+    // 4a-ter. CUSTOMER VOICE → TDR pre-fill. For INBOUND customer calls
+    //     only — no outbound `source` flag (outbound dispatches AND the
+    //     tech field-assist call both set callMeta.source, so a present
+    //     source means WE dialed out, not a customer describing a problem)
+    //     — merge the call summary into the matched job's problem_summary.
+    //     This is what makes the tech's TDR pre-fill from what the customer
+    //     already said on the phone instead of re-asking on site. The Xano
+    //     endpoint is idempotent (skips if the text is already present), so
+    //     a re-delivered end-of-call-report won't double-append.
+    const isInboundCustomerCall = !callMeta.source;
+    if (resolvedJobId && summary && isInboundCustomerCall && !isVoicemailish) {
+      await safePost(`${XANO_BASE}/merge_call_note_into_problem_summary`, {
+        job_id: resolvedJobId,
+        note: summary.slice(0, 600),
+        source: 'Phone call',
+      });
+    }
+
     // 4a-bis. ANT FIELD ASSIST — when a tech-side call from the green
     //     "Talk to Ant" button ends, SMS Teddy a tight summary within
     //     ~2 min so he sees adoption + how the call went in near-realtime.

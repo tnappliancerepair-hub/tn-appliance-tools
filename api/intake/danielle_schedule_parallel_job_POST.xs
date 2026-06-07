@@ -68,6 +68,48 @@ query danielle_schedule_parallel_job verb=POST {
       }
       }
     } as $audit
+
+    // Emit APPOINTMENT_SCHEDULED so the customer + tech get the same
+    // confirmation SMS chain every other scheduling path fires
+    // (reschedule_job, transition_job_state, etc.). Without this, jobs
+    // scheduled from needs-scheduled.html were placed silently with no
+    // confirmation. Source-tagged "danielle_schedule" so the agent treats
+    // it as a real office booking (sends both customer + tech SMS).
+    var $as_danielle_payload_obj {
+      value = {
+        job_id            : $input.job_id
+        scheduled_start_ms: $input.scheduled_start_ms
+        scheduled_end_ms  : $end_ms
+        technician_id     : $input.technician_id
+        source            : "danielle_schedule"
+      }
+    }
+
+    var $as_danielle_payload_str {
+      value = $as_danielle_payload_obj|json_encode
+    }
+
+    db.add colony_signals {
+      data = {
+        signal_type    : "APPOINTMENT_SCHEDULED"
+        signal_strength: 60
+        source_colony  : ""
+        target_colonies: ""
+        payload        : $as_danielle_payload_str
+      }
+    } as $as_danielle_signal
+
+    db.add event_log {
+      data = {
+        action  : "appointment_scheduled_signal_emitted"
+        metadata: {
+          job_id            : $input.job_id
+          signal_id         : $as_danielle_signal.id
+          scheduled_start_ms: $input.scheduled_start_ms
+          source            : "danielle_schedule"
+        }
+      }
+    } as $as_danielle_log
   }
 
   response = {
