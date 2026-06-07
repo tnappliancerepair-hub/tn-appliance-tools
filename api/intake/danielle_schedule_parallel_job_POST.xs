@@ -42,19 +42,54 @@ query danielle_schedule_parallel_job verb=POST {
       value = (($input.scheduled_end_ms ?? 0) > 0) ? $input.scheduled_end_ms : ($input.scheduled_start_ms + 7200000)
     }
   
+    // Delegate the canonical state write (scheduling_status + technician_id
+    // + scheduled_start) to the state machine so the transition is validated
+    // + audited the same way every other scheduling path is. (not_ready ->
+    // scheduled is permitted as of 2026-06-07.) The machine does not own
+    // scheduled_end / service_eta_window / current_status, so those are
+    // written as side fields after the transition succeeds.
+    api.request {
+      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+      method = "POST"
+      params = {
+        job_id            : $input.job_id
+        target_state      : "scheduled"
+        actor             : "office"
+        reason            : "danielle_schedule"
+        technician_id     : $input.technician_id
+        scheduled_start_ms: $input.scheduled_start_ms
+      }
+      headers = ["Content-Type: application/json"]
+      timeout = 30
+    } as $transition_resp
+
+    var $transition_ok {
+      value = (($transition_resp.response.result.success ?? false) == true)
+    }
+
+    conditional {
+      if ($transition_ok == false) {
+        return {
+          value = {
+            success      : false
+            error        : (($transition_resp.response.result.error ?? "transition_failed")|to_text)
+            detail       : (($transition_resp.response.result.detail ?? "")|to_text)
+            current_state: (($transition_resp.response.result.current_state ?? "")|to_text)
+          }
+        }
+      }
+    }
+
     db.edit jobs {
       field_name = "id"
       field_value = $input.job_id
       data = {
-        technician_id     : $input.technician_id
-        scheduled_start   : $input.scheduled_start_ms
         scheduled_end     : $end_ms
         service_eta_window: (($input.service_eta_window ?? "")|trim)
-        scheduling_status : "scheduled"
         current_status    : "scheduled"
       }
     } as $updated_job
-  
+
     db.add event_log {
       data = {
         action  : "danielle_scheduled_parallel_job"

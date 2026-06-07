@@ -55,7 +55,7 @@ query transition_job_state verb=POST {
     }
 
     // Known states (matches docs/job-state-machine.md). The legacy enum
-    // also includes 'pending', 'ready', 'booked', 'needs_pre_diagnosis' —
+    // also includes 'pending', 'ready', 'booked', 'needs_pre_diagnosis' -
     // those are deprecated synonyms not accepted as target_state going
     // forward. 'intake_complete' is the "ready for scheduler" state.
     var $known_states {
@@ -180,17 +180,25 @@ query transition_job_state verb=POST {
 
     conditional {
       if ($current == "not_ready") {
-        var.update $allowed_from_current { value = ["needs_more_info","intake_complete","prediagnosis_pending","canceled"] }
+        // "scheduled" added 2026-06-07: the auto-scheduler and Danielle's
+        // needs-scheduled flow both place raw-intake jobs (which land at
+        // not_ready) directly onto a tech. Without this the machine
+        // rejected every such placement and the writes silently bounced.
+        var.update $allowed_from_current { value = ["needs_more_info","intake_complete","prediagnosis_pending","scheduled","canceled"] }
       }
     }
     conditional {
       if ($current == "needs_more_info") {
-        var.update $allowed_from_current { value = ["intake_complete","canceled","not_ready"] }
+        // "scheduled" added 2026-06-07: SquareTrade "Needs Accept" jobs sit
+        // at needs_more_info; the office "Mark Accepted" tap schedules them.
+        var.update $allowed_from_current { value = ["intake_complete","scheduled","canceled","not_ready"] }
       }
     }
     conditional {
       if ($current == "prediagnosis_pending") {
-        var.update $allowed_from_current { value = ["intake_complete","canceled"] }
+        // "scheduled" added 2026-06-07: the auto-scheduler picks up
+        // prediagnosis_pending jobs as flexibles and places them directly.
+        var.update $allowed_from_current { value = ["intake_complete","scheduled","canceled"] }
       }
     }
     conditional {
@@ -205,7 +213,10 @@ query transition_job_state verb=POST {
     }
     conditional {
       if ($current == "scheduled") {
-        var.update $allowed_from_current { value = ["in_progress","awaiting_parts","held","canceled","intake_complete"] }
+        // "scheduled" (self) added 2026-06-07: reschedule / reassign-with-
+        // new-time change an already-scheduled job's time or tech, which is
+        // a scheduled -> scheduled write. Was previously rejected.
+        var.update $allowed_from_current { value = ["scheduled","in_progress","awaiting_parts","held","canceled","intake_complete"] }
       }
     }
     conditional {
@@ -339,7 +350,7 @@ query transition_job_state verb=POST {
     // ============================================================
     // APPLY THE TRANSITION
     // ============================================================
-    // Resolve new field values — preserve existing when not in payload.
+    // Resolve new field values - preserve existing when not in payload.
     var $tech_to_apply {
       value = ($input.technician_id ?? 0)
     }
