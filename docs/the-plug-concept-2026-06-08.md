@@ -219,6 +219,59 @@ your first data point, no commitment. "Early/founder/Originals" makes unbuilt
 the flex. Let the answers convert — these guys are tool-burned and AI-skeptical,
 so front it human, keep the engine under the hood.
 
+## The Reply Co-Pilot (the legit "create interest" engine)
+
+The legitimate, more-effective version of "drive engagement / create interest"
+— **NO scrapers, NO engagement bots, NO fake accounts.** (Those torch the FB
+account that IS our distribution, and astroturfing an AI-skeptic community
+torches the reputation that IS the moat. Don't.) Instead: make Teddy — and
+later each founding member — the fastest, sharpest guy in every thread, posting
+as a real human.
+
+**What it is:** a tool that drafts a fast, accurate, in-Teddy's-voice answer to
+any appliance question he *chooses* to respond to. He reviews + posts it
+himself. Ant is the co-pilot; the human is the author.
+
+**The loop:**
+1. Teddy sees a question (group thread, or a guy texts him) → feeds it to Ant
+   (paste text and/or a photo of the model sticker / error code / failed part).
+2. Ant returns: (a) a draft answer in tradesman voice — short, confident,
+   tech-to-tech, no AI tells; (b) part #(s) with a confidence tier; (c) 1–2
+   clarifying questions to ask if the info is thin.
+3. Teddy edits + posts it himself (copy-paste). **Human-in-the-loop, always.**
+4. The exchange is captured as a tuple (model + symptom + answer) — so even his
+   public helping loads the corpus.
+5. When possible, a "did it work?" follow-up labels the tuple good/bad.
+
+**Design rules (non-negotiable):**
+- **Human posts. Always.** Never auto-post, never a fake account. Drafts only.
+- **Voice match** — write like a tradesman, not a chatbot. No "Great question!",
+  no bullet-essays, no "consult a professional." Seed it with a few of Teddy's
+  real past answers to mimic. This is what keeps it out of the AI-tell trap.
+- **Confidence + honesty** — if the part # isn't sure, say so / ask a clarifying
+  Q rather than guess. A wrong public answer is reputation poison; that's the
+  one thing that kills credibility in the room.
+- **Vision in** — techs post photos; Ant reads model stickers / error codes /
+  parts (same signed-S3 path `tech-assist-brain` already uses).
+- **Fast** — Haiku for speed, escalate to Sonnet/Opus on the gnarly ones.
+
+**Why it doubles as the recruiter:** every fast, dead-on public answer is a live
+demo. "How'd you get that so fast?" → DM → founding invite. It makes Teddy (and
+his Originals) *visibly* the best in the room — and status is what pulls talent.
+
+**Build:** it's a sibling mode of `tech-assist-brain` — instead of "scribe the
+tech's TDR," the prompt is "draft a public-ready answer + capture the tuple."
+- **Phase 0 (concierge, ~now):** Teddy texts Ant a question → gets a draft →
+  posts it. Minimal lift (a prompt variant on the existing brain).
+- **Phase 1:** dedicated co-pilot surface (simple page or SMS mode) with voice
+  examples, vision, confidence tiering, and tuple capture into The Plug corpus.
+- **Phase 2:** give the co-pilot to founding members — turns each into the
+  sharpest guy in their room AND multiplies the data inflow.
+
+**What we will NOT build:** FB scrapers, auto-commenters, fake-engagement bots,
+sock-puppet accounts. Off the table — ToS + reputation suicide. The data techs
+*give* us beats data we'd steal, and authenticity is the moat.
+
 ## Open questions / next moves
 
 1. **Cold-start intelligence** — must be smart at N=0 techs (Claude general
