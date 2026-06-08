@@ -126,6 +126,99 @@ financial data is finally connected") is our exact pattern, already being
 sold by a funded company. Ours is stronger: they're a *connector* to data that
 already exists; **we're the only source** of the repair tuples.
 
+## Getting the talent to swarm (growth + status psychology)
+
+**Techs don't swarm to tools — they swarm to status.** Appliance guys are
+proud, highly skilled, and treated like disposable labor by customers /
+warranty cos / the office. The Plug is the first place that says *you're elite,
+this is YOUR room, judged by the only people whose opinion matters — other top
+techs.* Sell identity, not a part-finder.
+
+**The mafia "made man" frame, operationalized:**
+- You don't sign up — you get **put on** (a member vouches) or you **earn it**
+  (drop 5 fixes that hold up → you're made). Earned entry = the prize.
+- Getting made is a **moment** + a permanent rank badge, not an "account created."
+- **Vouching puts your rep on the line** → self-polices quality, makes every
+  member a careful recruiter.
+- **Ranks are territory** — "Capo of Samsung," "OG on LG." A scoreboard for the
+  craft that exists nowhere else.
+- **Omertà** — take from the family, don't leak to outsiders. In-group/out-group
+  is what makes people claw to get in.
+
+**Scarcity lives on the RANK (forever), not on entry.** Rookies flood in =
+volume = the database. Becoming a **Plug** stays rare = the craving. The pyramid
+gives you swarm AND status, no tradeoff.
+
+**The land grab:**
+1. **Crown the kings first** — get the 15–20 most respected/loudest names in as
+   founding "Originals" before anyone else. Talent follows the names.
+2. **Invite scarcity** — each made man gets ~3 invites; "I can get you on" =
+   social currency (Gmail/Clubhouse playbook).
+3. **Founding badge that can never be earned again** → urgency to get in now.
+4. **Out-answer the groups in public** — the demo recruits itself.
+5. **Physical swag = billboards** — challenge coin / patch / toolbox decal for
+   high ranks. Tradesmen love earned hardware.
+6. **Leaderboards + seasons** — monthly top Plug per brand/region.
+
+## Scouting the founding family — FB labels are the report
+
+Facebook's auto-assigned engagement badges literally flag who to recruit. In
+**Appliance Pro Talk** (scouted 2026-06-08), the signals are:
+- 🏆 **All-star contributor** / ⭐ **Rising contributor** = the guys already
+  answering for free, who the room respects. Highest-value recruits: they like
+  sharing, have brand expertise, carry weight.
+- ✅ Verified + business owners with follower counts = multipliers.
+
+Starter shortlist from one scroll (verify spellings): Peter Bullock, Corbin
+Calande, Nathan Gendle, Michael DiBenedetto (All-stars); AN DY, Bill Kelley
+(Rising); T.K. Cousins (co-owner, Richmond Appliance Guys, 2.2K followers);
+Marcus-Josilyn Boyd (verified, respected voice). Dan P / Fred's Appliance
+Academy is a community/training node — potential partner OR competitor; approach
+carefully.
+
+**The community is asking for The Plug right now:** the Samsung **STG** app's
+free ride ended and techs are openly posting *"what's everyone using for tech
+data now?"* — The Plug is the literal answer to a question on the screen this
+week. The "Amazon has the part for $X" job-loss posts validate the dual-tier
+strategy as a top pain.
+
+## Recruiting with nothing built — concierge Phase 0
+
+**"Nothing built" is the pitch, not the problem** — and we already have the
+engine (`tech-assist-brain` extracts model/part/fix from a text today). For
+15–20 guys you don't need the app wrapper.
+
+**Be the Plug by hand (Wizard-of-Oz / concierge):** a guy texts a model +
+symptom → Teddy runs it through Ant → texts back the fix. Zero code. Delivers
+real value, loads the first tuples, and *is* the founding-member experience
+("I had Teddy's personal line before there was an app"). Standard pre-launch
+playbook (DoorDash/Airbnb/Stripe all did manual-first).
+
+**Message templates** (recognition-led, peer-to-peer, never say "AI", never
+"startup"):
+
+> DM: *"Hey [name] — you're clearly one of the real ones in here, always got
+> the answer. I'm putting together a small private crew of the best appliance
+> guys to trade tricks of the trade — every brand's secrets in one spot, good
+> AND bad part numbers. Bring a fix, get a fix. Invite-only and early, so the
+> first guys in are the founders — The Originals. Want first seat? No catch —
+> just text me a model that's giving you hell right now and I'll show you what
+> it does."*
+
+> Short: *"Yo [name] — building a private line where top techs trade fixes
+> across every brand. Want you in as a founder before it goes wide. Got a model
+> stumping you right now? Text it to me, watch what happens. 🔌"*
+
+> Public (on the STG "what's everyone using for tech data?" thread): DON'T
+> pitch — drop the actual helpful answer, be the guy who had it. When "how'd you
+> get that?" comes back → "been building something for exactly this, DM me to
+> get in early."
+
+**The tiny ask** ("text me a stumper") turns a recruit into an instant demo +
+your first data point, no commitment. "Early/founder/Originals" makes unbuilt
+the flex. Let the answers convert — these guys are tool-burned and AI-skeptical,
+so front it human, keep the engine under the hood.
+
 ## Open questions / next moves
 
 1. **Cold-start intelligence** — must be smart at N=0 techs (Claude general
