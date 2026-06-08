@@ -17,6 +17,20 @@
 //     /.netlify/functions/fix-vanity-forwarding?token=<TOKEN>&disable=+18662680111,+18882688998
 //     /.netlify/functions/fix-vanity-forwarding?token=<TOKEN>&disable=all
 //
+//   Forward-to-Vapi — repoint call-forwarding straight at the Vapi/Ant Inbound
+//   number (+16292607111) instead of a personal cell. Works regardless of
+//   Voice-App attachment. Defaults to the two vanity numbers (866 + 888):
+//     /.netlify/functions/fix-vanity-forwarding?token=<TOKEN>&forward=vapi
+//     /.netlify/functions/fix-vanity-forwarding?token=<TOKEN>&forward=vapi&numbers=+18662680111
+//
+// disable vs forward=vapi: "disable" is the cleanest fix IF the number is still
+// attached to the Voice App (diagnose shows connection_id) — it restores the
+// full path incl. the inbound-call-webhook caller-context SMS. "forward=vapi"
+// is the bulletproof one-tap that routes to Ant Inbound no matter what (it just
+// skips the webhook extras). Either gets customers off the personal cell.
+//
+// Vapi/Ant Inbound destination: +16292607111 (override with INBOUND_TRANSFER_TO).
+//
 // SAFETY: diagnose first. Disabling forwarding only routes correctly if the
 // number is assigned to a Voice Application (connection_id present in the
 // diagnose output). If a number shows forwarding ON but NO connection, do not
@@ -91,6 +105,44 @@ exports.handler = async function (event) {
   }
 
   const leaking = report.filter((r) => r.forwarding_enabled);
+
+  // FORWARD-TO-VAPI mode — repoint forwarding at the Ant Inbound number.
+  if (params.forward === 'vapi') {
+    const VAPI_INTAKE = process.env.INBOUND_TRANSFER_TO || '+16292607111';
+    const targets = params.numbers
+      ? params.numbers.split(',').map((s) => s.trim())
+      : ['+18662680111', '+18882688998'];
+    const fwd = [];
+    for (const num of targets) {
+      const row = report.find((r) => r.number === num);
+      if (!row) {
+        fwd.push({ number: num, ok: false, reason: 'not_in_account' });
+        continue;
+      }
+      try {
+        const r = await fetch(`https://api.telnyx.com/v2/phone_numbers/${row.id}/voice`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            call_forwarding: {
+              call_forwarding_enabled: true,
+              forwards_to: VAPI_INTAKE,
+              forwarding_type: 'always',
+            },
+          }),
+        });
+        const body = await r.text();
+        fwd.push({ number: num, ok: r.ok, status: r.status, now_forwards_to: VAPI_INTAKE, response: body.slice(0, 200) });
+      } catch (e) {
+        fwd.push({ number: num, ok: false, error: String(e.message || e) });
+      }
+    }
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'forward_to_vapi', vapi_intake: VAPI_INTAKE, forwarded: fwd }, null, 2),
+    };
+  }
 
   // DIAGNOSE mode (default) — no changes.
   if (!params.disable) {
