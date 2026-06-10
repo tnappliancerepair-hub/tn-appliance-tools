@@ -272,6 +272,81 @@ tech's TDR," the prompt is "draft a public-ready answer + capture the tuple."
 sock-puppet accounts. Off the table — ToS + reputation suicide. The data techs
 *give* us beats data we'd steal, and authenticity is the moat.
 
+## 🏹 The Robin Hood spine — the WHY that makes guys give
+
+Give-to-get is a *transaction*; Robin Hood is a *cause*. People barter
+cautiously but **charge into a rebellion.** Reframe contributing from "give away
+my hard-won secrets" to "take back the knowledge the manufacturers gatekeep and
+pool it where no corporation can touch it."
+
+- **The Plug = the techs' commons** — free repair knowledge, by techs, for techs,
+  that no OEM owns or can paywall.
+- **Perfect timing:** Samsung just ended the STG free ride (techs openly pissed,
+  asking "what do we use now?"). The Plug arrives as *"they took your free
+  access and started charging — we built the people's version they can't take
+  away."* Riding a live wave of resentment.
+- It's a flag to rally under, not a product to sign up for. Guys **enlist.**
+
+**Two landmines (staying clean makes it stronger):**
+1. **Robin Hood is the ethos, NOT literal theft.** Liberate the *techs' own*
+   field knowledge (their fixes/part numbers/tricks — theirs to pool). Do NOT
+   redistribute OEM copyrighted service manuals — legal landmine. The frame:
+   "they locked up the manuals, so we built something better they can't
+   copyright — every working tech's real-world knowledge." Make their docs
+   *irrelevant*, don't steal them.
+2. **Never betray the free promise.** Free for techs, forever. Monetize
+   elsewhere (shops, AHS, home-OS). Be *especially* careful that selling data to
+   OEMs later doesn't read as "the guy who rallied us against the manufacturers
+   sold our knowledge to them." The commons stays the techs', fiercely.
+
+## The family + the reward ladder (earn your way to all trades)
+
+Not a feature — a reason to grind. Status and the data flywheel become the same
+motion: **contribute → climb → become a Made Man / OG → unlock the keys to
+EVERYTHING (unlimited access, every trade).**
+
+**The ladder** (scarcity on the RANK, not on entry):
+- **Rookie** — you're in the family. Your trade, the basics. A taste of the commons.
+- **Soldier** — contributing. More unlocks.
+- **Vet** — proven by outcomes (fixes that hold, no callbacks). Broad access.
+- **OG / Made Man** — the real game-changers. **Unlimited. Every trade. Every
+  fix. No limits. The keys to the whole kingdom.**
+
+**Why "unlimited all-trades for OGs" is secretly genius:** it makes the members
+*pull* the expansion. A Made Man with unlimited access *wants* HVAC added, then
+plumbing — his elite access gets more valuable with every trade. **The reward
+structure IS the cross-trade expansion flywheel** — members demand more trades
+AND contribute the data to build them. Your OGs drag you across trades; you
+don't push.
+
+**The balance to protect:** generous at the door (the Robin Hood gift — new guys
+feel it instantly and fall in love before they grind), legendary at the top
+(all-trades-unlimited is *earned* status, never a stingy paywall on basic
+usefulness). Earn your stripes, don't buy a tier. The moment it feels like a
+subscription instead of a brotherhood, the magic dies.
+
+**The pitch (a flag, not a feature list):**
+> *"This ain't a tool. It's the family that's changing the game. Bring your
+> knowledge, earn your stripes — and the real ones, the Made Men, get the keys
+> to everything: every trade, every fix, no limits. They locked it up. We're
+> giving it back."*
+
+## Cross-trade content engine (growth = generosity)
+
+Automate across all trades to spread interest — but **automate the VALUE, keep
+the POSTING authentic.** NO bots, fake engagement, or sock-puppet accounts
+(torches the trust that is the moat; the AI-skeptic crowd smells it instantly).
+- Ant produces a firehose of genuinely useful free content per trade + per
+  platform (FB / TikTok / YouTube / Reddit): "trick of the week," fault-code
+  breakdowns, the part that actually fixes the common failure.
+- The automation **drafts/produces**; a real account **posts authentically.**
+- This IS the Robin Hood act in motion — grow by being the most generous, most
+  useful voice in every trade's space, giving away what the gatekeepers hoard.
+  Generosity is the growth loop; the cause is the reason guys pour in.
+
+Tagline energy: **"They locked it up. We're giving it back." / "The people's
+repair manual." / "Be part of the family that's changing the game."**
+
 ## Open questions / next moves
 
 1. **Cold-start intelligence** — must be smart at N=0 techs (Claude general
