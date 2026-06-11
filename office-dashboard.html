@@ -646,6 +646,9 @@ async function loadJobs() {
 
 function renderJobs(items) {
   const list = document.getElementById('job-list');
+  // Index for the schedule modal (tech preselect + parts-ETA guard).
+  window.__jobsById = {};
+  for (const it of items) { const j = (it && it.job) || {}; if (j.id) window.__jobsById[j.id] = it; }
   if (items.length === 0) {
     list.innerHTML = '<div class="empty-jobs">no jobs in this view</div>';
     return;
@@ -685,6 +688,15 @@ function buildJobCard(it) {
   const ageClass = days > 7 ? 'aged' : '';
   const openUrl = `job-detail.html?job_id=${job.id}`;
   const callDisabled = !phoneE164;
+  const isTerminal = ['completed', 'complete', 'canceled'].includes(String(status).toLowerCase());
+  const schedLabel = job.scheduled_start ? '📅 Reschedule' : '📅 Schedule';
+  // Parts badge — "are the parts in or not".
+  const ps = String(job.parts_status || '').toLowerCase();
+  const partsWaiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+  const etaStr = job.parts_eta_date ? (' · ETA ' + String(job.parts_eta_date).slice(5, 10)) : '';
+  const partsLine = partsWaiting
+    ? `<div class="job-parts" style="margin-top:6px;font-size:12px;font-weight:600;color:#c2410c">⏳ waiting on parts${etaStr}</div>`
+    : '';
 
   return `
     <div class="job-card">
@@ -700,10 +712,12 @@ function buildJobCard(it) {
         <div class="k">Scheduled</div>  <div class="v">${escapeHtml(scheduledStr)}</div>
         <div class="k">Type</div>       <div class="v">${escapeHtml(custType)}</div>
       </div>
+      ${partsLine}
       ${problemFull ? `<div class="job-problem">${escapeHtml(problemFull)}</div>` : ''}
       <div class="job-actions">
+        ${isTerminal ? '' : `<button class="primary" onclick="openScheduleJob(${job.id || 0})">${schedLabel}</button>`}
         <button ${callDisabled ? 'disabled title="no phone on file"' : `onclick="window.location.href='tel:${escapeAttr(phoneE164)}'"`}>📞 Call Customer</button>
-        <a class="primary" href="${escapeAttr(openUrl)}">📋 Open Job</a>
+        <a href="${escapeAttr(openUrl)}">📋 Open Job</a>
         <button class="danger" onclick="cancelJobInline(${job.id || 0}, this)" title="Cancel this job">❌ Cancel</button>
       </div>
     </div>
@@ -1141,6 +1155,86 @@ async function toggleSmsGate() {
 }
 
 // ── One-tap cancel from a job card ──
+// ── Schedule / reschedule straight from the All Jobs card ──
+let DASH_TECHS = null;
+async function ensureTechs() {
+  if (DASH_TECHS) return DASH_TECHS;
+  try {
+    const r = await fetch(`${XANO_BASE}/get_office_calendar_week`);
+    const d = await r.json();
+    DASH_TECHS = (d && d.technicians) || [];
+  } catch (_) { DASH_TECHS = []; }
+  return DASH_TECHS;
+}
+let __schedJobId = null;
+function msToLocalDatetimeCT(ms) {
+  const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms));
+  const g = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+function localDatetimeToMsCT(v) {
+  const [date, time] = v.split('T');
+  const [Y, M, D] = date.split('-').map(Number);
+  const [h, m] = time.split(':').map(Number);
+  return Date.UTC(Y, M - 1, D, h + 5, m); // CT (CDT, summer) = UTC-5
+}
+async function openScheduleJob(jobId) {
+  const it = (window.__jobsById || {})[jobId];
+  if (!it) { alert('Job not loaded — refresh and try again.'); return; }
+  const job = it.job || {};
+  const curTechId = (it.tech && it.tech.id) || job.technician_id || 0;
+  __schedJobId = jobId;
+  const techs = await ensureTechs();
+  document.getElementById('sched-tech').innerHTML = techs
+    .map((t) => `<option value="${t.id}"${t.id === curTechId ? ' selected' : ''}>${escapeHtml(((t.first_name || '') + ' ' + (t.last_name || '')).trim())} (#${t.id})</option>`)
+    .join('') || '<option value="">No techs</option>';
+  document.getElementById('sched-dt').value = msToLocalDatetimeCT(job.scheduled_start || (Date.now() + 86400000));
+  const eta = job.parts_eta_date ? String(job.parts_eta_date).slice(0, 10) : '';
+  document.getElementById('sched-hint').textContent = eta ? `Parts ETA ${eta} — can't schedule before then.` : '';
+  document.getElementById('sched-err').textContent = '';
+  document.getElementById('sched-title').textContent = `${job.scheduled_start ? 'Reschedule' : 'Schedule'} job #${jobId}`;
+  document.getElementById('sched-modal').style.display = 'flex';
+}
+function closeScheduleJob() { document.getElementById('sched-modal').style.display = 'none'; __schedJobId = null; }
+async function submitScheduleJob() {
+  if (!__schedJobId) return;
+  const techId = Number(document.getElementById('sched-tech').value || 0);
+  const dt = document.getElementById('sched-dt').value;
+  const err = document.getElementById('sched-err');
+  if (!techId) { err.textContent = 'Pick a tech.'; return; }
+  if (!dt) { err.textContent = 'Pick a date + time.'; return; }
+  const startMs = localDatetimeToMsCT(dt);
+  const it = (window.__jobsById || {})[__schedJobId];
+  const job = (it && it.job) || {};
+  if (job.parts_eta_date) {
+    const eta = String(job.parts_eta_date).slice(0, 10);
+    const chosen = msToLocalDatetimeCT(startMs).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(eta) && chosen < eta) {
+      err.textContent = `Parts aren't due until ${eta} — pick ${eta} or later.`;
+      return;
+    }
+  }
+  const btn = document.getElementById('sched-submit');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const r = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: __schedJobId, technician_id: techId, scheduled_start_ms: startMs }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.success) {
+      closeScheduleJob();
+      if (activeTab === 'today') loadOfficeToday(); else loadJobs();
+    } else {
+      err.textContent = (d && (d.error || d.detail)) || `Failed (${r.status})`;
+    }
+  } catch (e) {
+    err.textContent = 'Network error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Schedule';
+  }
+}
+
 async function cancelJobInline(jobId, btn) {
   if (!jobId) return;
   if (!confirm('Cancel this job?\n\nCustomer + assigned tech will get an automatic cancellation SMS.')) return;
@@ -1256,5 +1350,21 @@ async function purgeRun() {
 <script src="/office-map.js?v=20260528-1"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
+<!-- Schedule / reschedule modal (All Jobs cards) -->
+<div id="sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:380px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit">
+    <h3 id="sched-title" style="margin:0 0 4px;font-size:17px">Schedule job</h3>
+    <div id="sched-hint" style="font-size:12px;color:#f0a020;margin-bottom:12px;min-height:14px"></div>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:4px">Tech</label>
+    <select id="sched-tech" style="width:100%;padding:11px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:12px;font-size:16px"></select>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:4px">Date + time (CT)</label>
+    <input id="sched-dt" type="datetime-local" style="width:100%;padding:11px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:12px;font-size:16px">
+    <div id="sched-err" style="color:#ff6b6b;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeScheduleJob()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#2a2e3a;color:#e8eaf0;font-weight:600;cursor:pointer;font-size:15px">Cancel</button>
+      <button id="sched-submit" onclick="submitScheduleJob()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#4ca7ff;color:#04122b;font-weight:700;cursor:pointer;font-size:15px">Schedule</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
