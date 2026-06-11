@@ -68,6 +68,14 @@
 [functions."parts-vendor-gmail-poller"]
   schedule = "*/30 * * * *"
 
+# Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
+# reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
+# back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
+# a job gets stuck, or the backlog spikes. Runs on Netlify so the net holds
+# even if the colony loop is down.
+[functions."job-safety-watch"]
+  schedule = "*/30 * * * *"
+
 # Practice auto-scheduler. Every 15 min, auto-places not_ready jobs from
 # May 30+ onto tech dashboards via mock-scheduler in practice_mode. Tags
 # placed jobs with test_run_id="PRACTICE_<date>" so the tech daily
