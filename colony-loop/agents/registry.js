@@ -87,6 +87,7 @@ export const AGENT_REGISTRY = {
   'DAILY_JOB_PREP': './daily_job_prep.js',
   'DAILY_REVENUE_SUMMARY': './daily_revenue_summary.js',
   'DAILY_TECH_BRIEFING': './daily_tech_briefing.js',
+  'DEPLOY_XS': './deploy_xs.js',
   'DIAGNOSE_DISHWASHER': './diagnose_dishwasher.js',
   'DIAGNOSE_DRYER': './diagnose_dryer.js',
   'DIAGNOSE_HVAC_FURNACE': './diagnose_hvac_furnace.js',
