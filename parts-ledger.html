@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parts Ledger - Ant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0e1118; color: #e8edf5; min-height: 100vh; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --border-soft:#1f2533; --muted:#8a93aa; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace; --green:#00d68f; --orange:#f5a623; --blue:#5aa9ff; --red:#ff6b6b; --violet:#b48cff; }
+  .header { position:sticky; top:0; z-index:50; background:linear-gradient(180deg,#0e1118,rgba(14,17,24,0.95)); backdrop-filter:blur(8px); border-bottom:1px solid var(--border-soft); padding:14px 18px; display:flex; align-items:center; gap:12px; }
+  .header .ant { font-size:22px; }
+  .header .title { font-size:15px; font-weight:700; }
+  .header .sub { font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
+  .header .last-update { font-size:11px; color:var(--muted); font-family:var(--mono); margin-left:auto; }
+
+  .ranges { display:flex; gap:8px; padding:12px 18px 0; flex-wrap:wrap; }
+  .range { background:var(--panel); border:1px solid var(--border-soft); border-radius:999px; padding:7px 16px; font-size:12px; font-family:var(--mono); color:var(--muted); cursor:pointer; transition:all .15s; }
+  .range.active { border-color:var(--orange); color:var(--orange); background:rgba(245,166,35,0.06); }
+
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:14px 18px; border-bottom:1px solid var(--border-soft); }
+  .stat { background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:12px; text-align:center; }
+  .stat .lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .stat .val { font-size:24px; font-weight:800; margin-top:4px; }
+  .stat.cost .val { color:var(--blue); }
+  .stat.sold .val { color:#e8edf5; }
+  .stat.margin .val { color:var(--green); }
+  .stat.tax .val { color:var(--orange); }
+  .stat .sub2 { font-size:10px; color:var(--muted); font-family:var(--mono); margin-top:3px; }
+
+  .section { padding:16px 18px 6px; color:var(--muted); font-size:13px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.04em; }
+  .suppliers { padding:0 18px; display:flex; flex-direction:column; gap:6px; }
+  .srow { display:grid; grid-template-columns:1fr auto auto auto; gap:12px; align-items:center; background:var(--panel); border:1px solid var(--border-soft); border-radius:8px; padding:9px 12px; font-size:13px; }
+  .srow .sname { font-weight:700; text-transform:capitalize; }
+  .srow .num { font-family:var(--mono); font-size:12px; }
+  .srow .num.green { color:var(--green); }
+  .srow .num.muted { color:var(--muted); }
+
+  .tablewrap { padding:6px 14px 28px; overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:680px; }
+  th { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; text-align:right; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th.l, td.l { text-align:left; }
+  td { font-size:13px; padding:9px 10px; border-bottom:1px solid var(--border-soft); text-align:right; font-family:var(--mono); white-space:nowrap; }
+  td.l { font-family:inherit; }
+  tr:hover td { background:rgba(255,255,255,0.015); }
+  td .pn { font-weight:700; }
+  td .sup { font-size:11px; color:var(--muted); text-transform:capitalize; }
+  td a { color:var(--blue); text-decoration:none; font-family:var(--mono); font-size:12px; }
+  td .pos { color:var(--green); }
+  td .neg { color:var(--red); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.03em; border:1px solid var(--border); color:var(--muted); }
+  .pill.ordered { color:var(--orange); border-color:rgba(245,166,35,0.4); }
+  .pill.delivered, .pill.arrived { color:var(--green); border-color:rgba(0,214,143,0.4); }
+
+  .empty { padding:24px; text-align:center; color:var(--muted); font-size:13px; }
+  .err { padding:20px; text-align:center; color:var(--red); font-size:13px; }
+  .note { padding:0 18px 18px; color:var(--muted); font-size:11px; font-family:var(--mono); line-height:1.6; }
+
+  .auth-overlay { position:fixed; inset:0; background:rgba(14,17,24,0.96); display:flex; align-items:center; justify-content:center; padding:20px; z-index:1000; }
+  .auth-card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:28px 24px; max-width:360px; text-align:center; }
+  .auth-card .ant { font-size:36px; margin-bottom:8px; }
+  .auth-card .title { font-size:18px; font-weight:700; }
+  .auth-card .sub { font-size:13px; color:var(--muted); margin-bottom:18px; }
+  .auth-card input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; color:#e8edf5; font-size:16px; }
+  .auth-card button { margin-top:12px; width:100%; background:var(--orange); color:#1a1208; border:none; border-radius:10px; padding:12px; font-weight:700; cursor:pointer; }
+  .auth-err { color:var(--red); font-size:12px; margin-top:8px; min-height:14px; }
+  @media (max-width:640px) { .grid { grid-template-columns:repeat(2,1fr); } }
+</style>
+  <script src="/office-nav.js?v=20260604-pills-readable"></script>
+  <script src="/office-ask.js?v=20260603-1"></script>
+</head>
+<body>
+
+<div id="auth" class="auth-overlay">
+  <div class="auth-card">
+    <div class="ant">🐜</div>
+    <div class="title">Parts Ledger</div>
+    <div class="sub">cost · sold · margin · tax</div>
+    <input id="pw" type="password" placeholder="office password">
+    <button id="pwBtn">Unlock</button>
+    <div id="pwErr" class="auth-err"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <div class="ant">🐜</div>
+    <div>
+      <div class="title">Parts Ledger</div>
+      <div class="sub">what we paid vs. what we billed</div>
+    </div>
+    <div class="last-update" id="lastUpdate">—</div>
+  </div>
+
+  <div class="ranges">
+    <div class="range" data-days="7">7 days</div>
+    <div class="range active" data-days="30">30 days</div>
+    <div class="range" data-days="90">90 days</div>
+    <div class="range" data-days="365">1 year</div>
+  </div>
+
+  <div class="grid">
+    <div class="stat cost"><div class="lbl">We Paid (cost)</div><div class="val" id="sCost">$0</div><div class="sub2" id="sCostN">0 orders</div></div>
+    <div class="stat sold"><div class="lbl">We Billed (sold)</div><div class="val" id="sSold">$0</div><div class="sub2">to customers</div></div>
+    <div class="stat margin"><div class="lbl">Margin</div><div class="val" id="sMargin">$0</div><div class="sub2" id="sMarginPct">—</div></div>
+    <div class="stat tax"><div class="lbl">Est. Tax Owed</div><div class="val" id="sTax">$0</div><div class="sub2" id="sTaxRate">on billed</div></div>
+  </div>
+
+  <div class="section">By supplier</div>
+  <div class="suppliers" id="suppliers"></div>
+
+  <div class="section">Orders</div>
+  <div class="tablewrap" id="tablewrap"></div>
+
+  <div class="note">
+    Margin = sold − (cost + shipping). Tax estimate = billed × <span id="noteRate">9.75%</span> (TN sales-tax display estimate; confirm filing with Alyse).
+    Rows with no "sold" amount are vendor/warranty parts not billed to a customer — cost only.
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  const AUTH_KEY = 'tn_office_auth_v1';
+  const PARTS_TAX_RATE = 0.0975; // TN display estimate; aligns with office-dashboard
+  let currentDays = 30;
+  let lastData = null;
+
+  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
+  const $ = (id) => document.getElementById(id);
+  const auth = $('auth'), app = $('app');
+  const pwInput = $('pw'), pwBtn = $('pwBtn'), pwErr = $('pwErr');
+
+  if (localStorage.getItem(AUTH_KEY) === '1') unlock();
+  pwBtn.addEventListener('click', tryAuth);
+  pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
+  async function tryAuth() {
+    if (await __verifyOfficePassword(pwInput.value)) { localStorage.setItem(AUTH_KEY,'1'); unlock(); }
+    else { pwErr.textContent = 'wrong password'; pwInput.select(); }
+  }
+
+  function unlock() {
+    auth.style.display = 'none';
+    app.style.display = 'block';
+    $('noteRate').textContent = (PARTS_TAX_RATE*100).toFixed(2) + '%';
+    $('sTaxRate').textContent = 'on billed · ' + (PARTS_TAX_RATE*100).toFixed(2) + '%';
+    document.querySelectorAll('[data-days]').forEach(b => {
+      b.addEventListener('click', () => {
+        currentDays = parseInt(b.dataset.days, 10);
+        document.querySelectorAll('[data-days]').forEach(x => x.classList.toggle('active', x === b));
+        refresh();
+      });
+    });
+    refresh();
+  }
+
+  const money = (c) => '$' + ((c||0)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const money0 = (c) => '$' + Math.round((c||0)/100).toLocaleString('en-US');
+  const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+  async function refresh() {
+    try {
+      const r = await fetch(XANO + '/get_parts_cost_analysis?days_back=' + currentDays);
+      const d = await r.json();
+      if (!d || d.success === false) throw new Error('load failed');
+      lastData = d;
+      render(d);
+      $('lastUpdate').textContent = new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    } catch (e) {
+      $('tablewrap').innerHTML = '<div class="err">Could not load parts data. Retry shortly.</div>';
+    }
+  }
+
+  function render(d) {
+    const orders = (d.orders || []);
+    let totCost = 0, totSold = 0, totShip = 0;
+    const bySup = {};
+    orders.forEach(o => {
+      const cost = (o.cost_cents||0), sold = (o.sold_to_customer_cents||0), ship = (o.shipping_cents||0);
+      totCost += cost; totSold += sold; totShip += ship;
+      const k = (o.supplier || 'other');
+      if (!bySup[k]) bySup[k] = { n:0, cost:0, sold:0, ship:0 };
+      bySup[k].n++; bySup[k].cost += cost; bySup[k].sold += sold; bySup[k].ship += ship;
+    });
+    const totMargin = totSold - (totCost + totShip);
+    const billedOrders = orders.filter(o => (o.sold_to_customer_cents||0) > 0);
+    const totBilled = billedOrders.reduce((s,o)=>s+(o.sold_to_customer_cents||0),0);
+    const totTax = totBilled * PARTS_TAX_RATE;
+    const marginPct = totSold > 0 ? Math.round((totMargin/totSold)*100) : 0;
+
+    $('sCost').textContent = money0(totCost + totShip);
+    $('sCostN').textContent = orders.length + (orders.length===1?' order':' orders');
+    $('sSold').textContent = money0(totSold);
+    $('sMargin').textContent = money0(totMargin);
+    $('sMarginPct').textContent = totSold>0 ? marginPct + '% of billed' : 'no billed parts';
+    $('sTax').textContent = money0(totTax);
+
+    // suppliers
+    const sups = Object.keys(bySup).sort((a,b)=>bySup[b].cost-bySup[a].cost);
+    $('suppliers').innerHTML = sups.length ? sups.map(k => {
+      const s = bySup[k];
+      const m = s.sold - (s.cost + s.ship);
+      return `<div class="srow">
+        <div class="sname">${esc(k)} <span class="num muted">· ${s.n}</span></div>
+        <div class="num muted">cost ${money0(s.cost+s.ship)}</div>
+        <div class="num">sold ${money0(s.sold)}</div>
+        <div class="num green">+${money0(m)}</div>
+      </div>`;
+    }).join('') : '<div class="empty">No parts orders in this range.</div>';
+
+    // table
+    if (!orders.length) { $('tablewrap').innerHTML = '<div class="empty">No parts orders in this range.</div>'; return; }
+    const rows = orders.map(o => {
+      const cost = (o.cost_cents||0)+(o.shipping_cents||0);
+      const sold = (o.sold_to_customer_cents||0);
+      const m = sold>0 ? sold - cost : null;
+      const mPct = (sold>0 && sold>0) ? Math.round((m/sold)*100) : null;
+      const st = (o.order_status||'').toLowerCase();
+      const jobCell = o.job_id ? `<a href="/job-detail.html?job_id=${o.job_id}">#${o.job_id}</a>` : '<span class="sup">—</span>';
+      const dt = o.ordered_at ? new Date(o.ordered_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+      return `<tr>
+        <td class="l"><div class="pn">${esc(o.part_number||'?')}</div><div class="sup">${esc(o.supplier||'')}${o.part_name?' · '+esc(o.part_name):''}</div></td>
+        <td class="l">${jobCell}</td>
+        <td>${money(cost)}</td>
+        <td>${sold>0?money(sold):'<span class="sup">—</span>'}</td>
+        <td>${m!=null?('<span class="'+(m>=0?'pos':'neg')+'">'+(m>=0?'+':'')+money(m)+'</span>'):'<span class="sup">—</span>'}</td>
+        <td>${mPct!=null?mPct+'%':'<span class="sup">—</span>'}</td>
+        <td><span class="pill ${st}">${esc(o.order_status||'?')}</span></td>
+        <td class="sup">${dt}</td>
+      </tr>`;
+    }).join('');
+    $('tablewrap').innerHTML = `<table>
+      <thead><tr>
+        <th class="l">Part</th><th class="l">Job</th><th>Cost</th><th>Sold</th><th>Margin</th><th>%</th><th>Status</th><th>Date</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+})();
+</script>
+<script src="/office-search.js?v=20260601-1"></script>
+</body>
+</html>
