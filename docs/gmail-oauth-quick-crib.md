@@ -27,8 +27,18 @@ If a project called "TN Appliance AHS Poller" already exists in the Google accou
 From the repo root on the Mac Mini:
 ```bash
 cd /Users/tpivacek/tn-appliance-tools
-node .tmp_smoke/gmail-oauth-init.js
+node scripts/gmail-oauth-init.js
 ```
+**You only need a new refresh token — the client_id/secret don't change.** Reuse
+the EXISTING `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` (from Google Cloud Console
+→ Credentials → the Desktop OAuth client, or your current Netlify env). Paste
+those when the script asks; only `GMAIL_REFRESH_TOKEN` will be different at the end.
+
+> 🔑 **PERMANENT FIX — do this once so the token stops dying every 7 days:**
+> Google Cloud Console → APIs & Services → **OAuth consent screen** → click
+> **PUBLISH APP** (move Testing → In production). Test-mode refresh tokens are
+> force-expired by Google weekly — that is the root cause of the recurring
+> `invalid_grant`. A published app's token does not expire on that schedule.
 
 Script will:
 - Ask for `client_id` → paste
@@ -89,6 +99,8 @@ Look for rows with `intake_source: "email_ahs"` or `"email_servicepower"`.
 The Gmail account is shared. One set of env vars fixes:
 - `ahs-gmail-poller` (AHS Home Warranty)
 - `servicepower-gmail-poller` (ServicePower / Sears / Choice / many others)
+- `parts-vendor-gmail-poller` (parts order + delivered tracking — Stage A/C)
+- `warranty-status-gmail-watcher` (vendor payment/denial status)
 - Any future Allstate / Frontdoor poller we build
 
 Once these are alive, warranty volume flows directly into Xano. Then HCP can sunset.
