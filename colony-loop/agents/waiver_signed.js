@@ -98,11 +98,20 @@ export async function run(signal, ctx) {
   let mode = 'unknown';
   let errMsg = null;
   try {
-    const r = await fetch(`${config.netlifyFunctionsBase}/send-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': sharedSecret },
-      body: JSON.stringify({ to: ARCHIVE_EMAIL, subject, body, attachments }),
-    });
+    // Hard 12s timeout — a hung fetch must never wedge the dispatch loop.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    let r;
+    try {
+      r = await fetch(`${config.netlifyFunctionsBase}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': sharedSecret },
+        body: JSON.stringify({ to: ARCHIVE_EMAIL, subject, body, attachments }),
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const d = await r.json().catch(() => ({}));
     sent = !!(d && d.ok);
     mode = (d && d.mode) || (r.ok ? 'sent' : `http_${r.status}`);
