@@ -135,13 +135,8 @@
   </div>
 
   <div class="field">
-    <label for="signer-email">Email <span class="req">*</span></label>
+    <label for="signer-email">Email (optional)</label>
     <input id="signer-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email">
-  </div>
-
-  <div class="field">
-    <label for="phone-last4">Last 4 of your phone <span class="req">*</span></label>
-    <input id="phone-last4" type="tel" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off">
   </div>
 
   <div class="field">
@@ -263,10 +258,8 @@
     }
     var name = document.getElementById('type-name').value.trim();
     var email = document.getElementById('signer-email').value.trim();
-    var last4 = document.getElementById('phone-last4').value.trim();
     if (!name) { showErr('Please type your name.'); return; }
-    if (!/.+@.+\..+/.test(email)) { showErr('Please enter a valid email address.'); return; }
-    if (!/^\d{4}$/.test(last4)) { showErr('Please enter the last 4 digits of your phone number.'); return; }
+    if (email && !/.+@.+\..+/.test(email)) { showErr('That email doesn\'t look right — leave it blank or fix it.'); return; }
     if (!hasInk) { showErr('Please sign at the bottom before submitting.'); return; }
 
     // Gather acknowledgments
@@ -284,7 +277,6 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: JOB_ID,
-          phone_last4: last4,
           signature_b64: b64,
           customer_name: name,
           customer_email: email,
