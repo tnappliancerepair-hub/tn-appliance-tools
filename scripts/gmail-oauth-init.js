@@ -11,6 +11,8 @@
 
 const readline = require('readline');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { URL } = require('url');
 
 const SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
@@ -19,11 +21,47 @@ const REDIRECT = 'http://localhost:53682';
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const ask = (q) => new Promise((res) => rl.question(q, res));
 
+// The client_id/secret don't change when re-minting — only the refresh token.
+// Auto-load them from the environment or a local .env so you don't have to
+// paste. Checks process.env first, then colony-loop/.env, then repo-root .env.
+function loadSavedCreds() {
+  let id = process.env.GMAIL_CLIENT_ID || '';
+  let secret = process.env.GMAIL_CLIENT_SECRET || '';
+  const root = path.join(__dirname, '..');
+  const candidates = [path.join(root, 'colony-loop', '.env'), path.join(root, '.env')];
+  for (const f of candidates) {
+    if (id && secret) break;
+    try {
+      if (!fs.existsSync(f)) continue;
+      for (const line of fs.readFileSync(f, 'utf8').split(/\r?\n/)) {
+        const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/);
+        if (!m) continue;
+        const k = m[1];
+        let v = m[2].trim().replace(/^["']|["']$/g, '');
+        if (k === 'GMAIL_CLIENT_ID' && !id) id = v;
+        if (k === 'GMAIL_CLIENT_SECRET' && !secret) secret = v;
+      }
+    } catch (_) { /* ignore */ }
+  }
+  return { id, secret };
+}
+
 async function main() {
   console.log('\n=== Gmail OAuth refresh-token init ===\n');
 
-  const clientId = (await ask('GMAIL_CLIENT_ID: ')).trim();
-  const clientSecret = (await ask('GMAIL_CLIENT_SECRET: ')).trim();
+  const saved = loadSavedCreds();
+  let clientId = saved.id;
+  let clientSecret = saved.secret;
+  if (clientId && clientSecret) {
+    console.log('Loaded saved client_id/secret (ending …' + clientId.slice(-12) + '). Press Enter to use them, or paste a different value.');
+    const idIn = (await ask(`GMAIL_CLIENT_ID [keep saved]: `)).trim();
+    if (idIn) clientId = idIn;
+    const secIn = (await ask(`GMAIL_CLIENT_SECRET [keep saved]: `)).trim();
+    if (secIn) clientSecret = secIn;
+  } else {
+    clientId = (await ask('GMAIL_CLIENT_ID: ')).trim();
+    clientSecret = (await ask('GMAIL_CLIENT_SECRET: ')).trim();
+  }
   if (!clientId || !clientSecret) {
     console.error('Both client_id and client_secret required.');
     process.exit(1);
