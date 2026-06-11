@@ -103,6 +103,54 @@ query record_parts_order verb=POST {
             }
           }
         }
+
+        // Land the part number + name on the job's TDR so it's ready for
+        // warranty submission (single-write: nobody re-types it). Mirrors
+        // apply_part_to_tdr — update the latest TDR, or seed one carrying the
+        // part PLUS the customer's problem + machine info so the claim package
+        // is pre-populated.
+        var $part_name_clean { value = (($input.part_name ?? "")|trim) }
+        db.query technician_decision_report {
+          where = $db.technician_decision_report.job_id == $input.job_id
+          sort = {technician_decision_report.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 1}}
+        } as $tdr_rows
+        var $tdr_existing { value = (($tdr_rows.items|first) ?? null) }
+        conditional {
+          if ($tdr_existing != null) {
+            db.edit technician_decision_report {
+              field_name = "id"
+              field_value = $tdr_existing.id
+              data = { verified_part_number: $pn }
+            }
+            var $fc_cur { value = (($tdr_existing.failed_component ?? "")|trim) }
+            conditional {
+              if ($fc_cur == "" && $part_name_clean != "") {
+                db.edit technician_decision_report {
+                  field_name = "id"
+                  field_value = $tdr_existing.id
+                  data = { failed_component: $part_name_clean }
+                }
+              }
+            }
+          }
+        }
+        conditional {
+          if ($tdr_existing == null) {
+            var $seed_diag { value = (($pjob.problem_summary ?? "")|trim) }
+            var $seed_notes { value = ("Machine: " ~ (($pjob.brand ?? "")|trim) ~ " " ~ (($pjob.appliance_type ?? "")|trim) ~ " model " ~ (($pjob.model_number ?? "")|trim) ~ " serial " ~ (($pjob.serial_number ?? "")|trim) ~ " | part ordered: " ~ $part_name_clean ~ " #" ~ $pn)|trim }
+            db.add technician_decision_report {
+              data = {
+                job_id               : $input.job_id
+                technician_id        : 0
+                verified_part_number : $pn
+                failed_component     : $part_name_clean
+                diagnosis            : $seed_diag
+                technician_notes     : $seed_notes
+              }
+            }
+          }
+        }
       }
     }
 
