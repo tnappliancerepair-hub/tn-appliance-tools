@@ -314,10 +314,21 @@ exports.handler = async function (event) {
       if (zip && cluster) zipToCluster[zip] = cluster;
     }
 
-    // 3) Build cluster -> rank-1 active tech_id map
+    // 3) Build cluster -> rank-1 active tech_id map.
+    // Owner-off-the-schedule: tech ids in SCHEDULER_EXCLUDE_TECH_IDS (default
+    // "1" = Teddy) are skipped, so the scheduler never auto-routes routine work
+    // onto the owner. A Teddy-led cluster falls to its next-rank active tech;
+    // a cluster ONLY he covers gets no tech -> those jobs unroute and surface
+    // for a manual call ("absolutely necessary" cases Teddy handles by hand).
+    // Reversible: set SCHEDULER_EXCLUDE_TECH_IDS="" to put him back.
+    const EXCLUDED_TECH_IDS = String(process.env.SCHEDULER_EXCLUDE_TECH_IDS ?? '1')
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
     const clusterToTechId = {};
     for (const a of assignments) {
       if (!a.active) continue;
+      if (EXCLUDED_TECH_IDS.includes(a.technician_id)) continue;
       const c = (a.cluster || '').trim();
       const rank = a.rank || 999;
       if (!clusterToTechId[c] || rank < clusterToTechId[c].rank) {
