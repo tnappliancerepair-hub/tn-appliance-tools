@@ -589,59 +589,93 @@ async function loadCalendar() {
     list.innerHTML = `<div class="empty-jobs">calendar failed to load: ${escapeHtml(String(e.message || e))}</div>`;
   }
 }
-function calStepWeek(deltaDays) {
-  const d = new Date(calWeekStart + 'T12:00:00');
-  d.setDate(d.getDate() + deltaDays);
-  calWeekStart = d.toISOString().slice(0, 10);
-  calSelected = null;
-  loadCalendar();
+function mondayOf(ds) {
+  const dt = new Date(ds + 'T12:00:00');
+  const back = (dt.getDay() + 6) % 7; // 0=Sun -> Monday-based
+  dt.setDate(dt.getDate() - back);
+  return dt.toISOString().slice(0, 10);
 }
-function calPickDay(ds) { calSelected = ds; renderCalendar(); }
+function calGoDay(ds) {
+  calSelected = ds;
+  if (!calData || ds < calData.week_start_ct || ds > calData.week_end_ct) {
+    calWeekStart = mondayOf(ds);
+    loadCalendar();
+  } else {
+    renderCalendar();
+  }
+}
+function calStepMonth(delta) {
+  const anchor = new Date((calSelected || calWeekStart) + 'T12:00:00');
+  anchor.setMonth(anchor.getMonth() + delta, 1);
+  calGoDay(anchor.toISOString().slice(0, 10));
+}
 function renderCalendar() {
   const d = calData; if (!d) return;
   const list = document.getElementById('job-list');
+  const DOWH = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const days = [];
-  const start = new Date(d.week_start_ct + 'T12:00:00');
-  for (let i = 0; i < 7; i++) { const x = new Date(start); x.setDate(x.getDate() + i); days.push(x.toISOString().slice(0, 10)); }
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const jobsByDay = {};
   for (const j of (d.jobs || [])) { const ds = ctDateStr(j.scheduled_start); if (ds) (jobsByDay[ds] = jobsByDay[ds] || []).push(j); }
   const techName = {};
   for (const t of (d.technicians || [])) techName[t.id] = ((t.first_name || '') + ' ' + (t.last_name || '')).trim();
-  const strip = days.map((ds) => {
+
+  // ── Mini-month calendar (above the list) ──
+  const anchor = new Date((calSelected || d.week_start_ct) + 'T12:00:00');
+  const y = anchor.getFullYear(), mo = anchor.getMonth();
+  const startPad = new Date(y, mo, 1).getDay();
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  let cells = '';
+  for (let i = 0; i < startPad; i++) cells += '<div></div>';
+  for (let dn = 1; dn <= daysInMonth; dn++) {
+    const ds = `${y}-${String(mo + 1).padStart(2, '0')}-${String(dn).padStart(2, '0')}`;
+    const isToday = ds === d.today_ct, isSel = ds === calSelected;
     const cnt = (jobsByDay[ds] || []).length;
-    const dt = new Date(ds + 'T12:00:00');
-    const isSel = ds === calSelected, isToday = ds === d.today_ct;
-    return `<button onclick="calPickDay('${ds}')" style="flex:0 0 auto;min-width:52px;padding:8px 4px;margin:0 3px;border-radius:10px;border:1px solid ${isSel ? '#4ca7ff' : '#2a2e3a'};background:${isSel ? 'rgba(76,167,255,0.18)' : '#1c1f29'};color:#e8eaf0;cursor:pointer;text-align:center">
-      <div style="font-size:10px;color:${isToday ? '#4ca7ff' : '#8a93aa'}">${DOW[dt.getDay()]}</div>
-      <div style="font-size:17px;font-weight:700;color:${isToday ? '#4ca7ff' : '#e8eaf0'}">${dt.getDate()}</div>
-      <div style="font-size:10px;color:${cnt ? '#74e3c4' : '#5a6172'}">${cnt || '·'}</div>
-    </button>`;
-  }).join('');
-  const dayJobs = (jobsByDay[calSelected] || []).slice().sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
-  const rows = dayJobs.length ? dayJobs.map((j) => {
-    const cust = ((j.customer_first_name || '') + ' ' + (j.customer_last_name || '')).trim() || '(no name)';
-    const ps = String(j.parts_status || '').toLowerCase();
-    const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
-    const parts = waiting ? ` <span style="color:#f0a020;font-weight:600">⏳ parts${j.parts_eta_date ? ' ' + String(j.parts_eta_date).slice(5, 10) : ''}</span>` : '';
-    return `<div onclick="openScheduleJob(${j.id})" style="display:grid;grid-template-columns:68px 1fr auto;gap:10px;align-items:center;padding:11px 12px;margin:6px 0;border-radius:8px;background:#13151b;border:1px solid #2a2e3a;cursor:pointer">
-      <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px">${escapeHtml(ctTimeStr(j.scheduled_start) || '—')}</div>
-      <div><div style="font-weight:700;font-size:14px">${escapeHtml(cust)}</div><div style="font-size:12px;color:#8a93aa">${escapeHtml((j.appliance_type || '').toLowerCase())}${j.service_city ? ' · ' + escapeHtml(j.service_city) : ''}${parts}</div></div>
-      <div style="font-size:11px;color:#8a93aa;text-transform:uppercase">${escapeHtml(techName[j.technician_id] || 'unassigned')}</div>
-    </div>`;
-  }).join('') : '<div class="empty-jobs">No jobs scheduled this day.</div>';
-  const unsched = (d.unscheduled || []).length;
-  list.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px">
-      <button onclick="calStepWeek(-7)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:6px 14px;cursor:pointer">‹</button>
-      <div style="font-weight:700;font-size:14px">${escapeHtml(d.week_start_ct)} – ${escapeHtml(d.week_end_ct)}</div>
-      <button onclick="calStepWeek(7)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:6px 14px;cursor:pointer">›</button>
+    const dot = cnt ? '<span style="display:block;width:5px;height:5px;border-radius:50%;background:#74e3c4;margin:1px auto 0"></span>' : '<span style="display:block;height:6px"></span>';
+    cells += `<button onclick="calGoDay('${ds}')" style="border:none;border-radius:8px;cursor:pointer;background:${isSel ? '#4ca7ff' : (isToday ? 'rgba(76,167,255,0.18)' : 'transparent')};color:${isSel ? '#04122b' : (isToday ? '#4ca7ff' : '#e8eaf0')};font-weight:${isSel || isToday ? '700' : '500'};font-size:13px;padding:6px 0 3px">${dn}${dot}</button>`;
+  }
+  const cal = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 4px">
+      <button onclick="calStepMonth(-1)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:5px 13px;cursor:pointer">‹</button>
+      <div style="font-weight:700">${MON[mo]} ${y}</div>
+      <button onclick="calStepMonth(1)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:5px 13px;cursor:pointer">›</button>
     </div>
-    <div style="display:flex;overflow-x:auto;padding:6px 0 10px">${strip}</div>
-    ${unsched ? `<div style="padding:9px 12px;margin:6px 0;border-radius:8px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);font-size:13px">🗓️ ${unsched} unscheduled — use the "Needs Scheduled" tab to place them</div>` : ''}
-    <div style="font-size:12px;color:#8a93aa;padding:4px 4px 2px">${escapeHtml(calSelected)} · ${dayJobs.length} job${dayJobs.length === 1 ? '' : 's'} · tap a job to reschedule</div>
-    <div>${rows}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:10px;color:#8a93aa;padding:0 2px">${DOWH.map((x) => `<div>${x}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:2px 2px 8px;border-bottom:1px solid #2a2e3a">${cells}</div>
   `;
+
+  // ── Day-grouped job list (below the calendar) — the loaded week ──
+  const weekDays = [];
+  const ws = new Date(d.week_start_ct + 'T12:00:00');
+  for (let i = 0; i < 7; i++) { const x = new Date(ws); x.setDate(x.getDate() + i); weekDays.push(x.toISOString().slice(0, 10)); }
+  let listHtml = '';
+  for (const ds of weekDays) {
+    const dayJobs = (jobsByDay[ds] || []).slice().sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
+    if (!dayJobs.length) continue;
+    const dt = new Date(ds + 'T12:00:00');
+    const label = (ds === d.today_ct ? 'Today • ' : '') + DOW[dt.getDay()] + ' ' + MON[dt.getMonth()] + ' ' + dt.getDate();
+    const hi = ds === calSelected ? 'background:rgba(76,167,255,0.10);' : '';
+    listHtml += `<div id="calday-${ds}" style="${hi}font-size:12px;font-weight:700;color:#8a93aa;text-transform:uppercase;letter-spacing:0.04em;padding:14px 6px 6px">${escapeHtml(label)} · ${dayJobs.length}</div>`;
+    listHtml += dayJobs.map((j) => {
+      const cust = ((j.customer_first_name || '') + ' ' + (j.customer_last_name || '')).trim() || '(no name)';
+      const ps = String(j.parts_status || '').toLowerCase();
+      const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+      const parts = waiting ? ` <span style="color:#f0a020;font-weight:600">⏳ parts${j.parts_eta_date ? ' ' + String(j.parts_eta_date).slice(5, 10) : ''}</span>` : '';
+      return `<div onclick="openScheduleJob(${j.id})" style="display:grid;grid-template-columns:66px 1fr auto;gap:10px;align-items:center;padding:11px 8px;border-bottom:1px solid #1c1f29;cursor:pointer">
+        <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px">${escapeHtml(ctTimeStr(j.scheduled_start) || '—')}</div>
+        <div><div style="font-weight:700;font-size:14px">${escapeHtml(cust)}</div><div style="font-size:12px;color:#8a93aa">${escapeHtml((j.appliance_type || '').toLowerCase())}${j.service_city ? ' · ' + escapeHtml(j.service_city) : ''}${parts}</div></div>
+        <div style="font-size:11px;color:#8a93aa;text-transform:uppercase">${escapeHtml(techName[j.technician_id] || '—')}</div>
+      </div>`;
+    }).join('');
+  }
+  if (!listHtml) listHtml = '<div class="empty-jobs">No scheduled jobs this week.</div>';
+  const unsched = (d.unscheduled || []).length;
+  list.innerHTML = cal
+    + (unsched ? `<div style="padding:9px 12px;margin:8px 0;border-radius:8px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);font-size:13px">🗓️ ${unsched} unscheduled — use "Needs Scheduled" to place them</div>` : '')
+    + `<div style="font-size:11px;color:#5a6172;padding:6px 6px 0">Week of ${escapeHtml(d.week_start_ct)} · tap a job to reschedule</div>`
+    + listHtml;
+  const tgt = document.getElementById('calday-' + calSelected);
+  if (tgt) tgt.scrollIntoView({ block: 'nearest' });
 }
 
 async function loadJobs() {
