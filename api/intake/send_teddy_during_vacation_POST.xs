@@ -19,7 +19,7 @@ query send_teddy_during_vacation verb=POST {
   }
 
   stack {
-    precondition (($input.brief ?? "")|trim != "") {
+    precondition ((($input.brief ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "brief is required"
     }
@@ -55,7 +55,7 @@ query send_teddy_during_vacation verb=POST {
       value = ""
     }
     conditional {
-      if (($input.customer_name ?? "")|trim != "") {
+      if ((($input.customer_name ?? "")|trim) != "") {
         var.update $context_line {
           value = "\nCustomer: " ~ ($input.customer_name|trim)
         }
@@ -72,7 +72,7 @@ query send_teddy_during_vacation verb=POST {
       value = ""
     }
     conditional {
-      if (($input.callback_number ?? "")|trim != "") {
+      if ((($input.callback_number ?? "")|trim) != "") {
         var.update $callback_line {
           value = "\nCall back: " ~ ($input.callback_number|trim)
         }

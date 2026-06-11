@@ -16,7 +16,7 @@ query record_customer_vent verb=POST {
   }
 
   stack {
-    precondition (($input.vent_text ?? "")|trim != "") {
+    precondition ((($input.vent_text ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "vent_text is required"
     }

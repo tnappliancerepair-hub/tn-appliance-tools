@@ -63,7 +63,7 @@ query get_my_repair_history verb=POST {
     }
   
     precondition ($cust_last4 == $last4_in) {
-      error_type = "unauth"
+      error_type = "accessdenied"
       error = "phone_last4 does not match"
     }
   

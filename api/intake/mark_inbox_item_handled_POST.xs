@@ -11,7 +11,7 @@ query mark_inbox_item_handled verb=POST {
   }
 
   stack {
-    precondition (($input.item_key ?? "")|trim != "") {
+    precondition ((($input.item_key ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "item_key required"
     }

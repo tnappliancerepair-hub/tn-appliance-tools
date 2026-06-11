@@ -19,11 +19,11 @@ query save_model_intelligence_finding verb=POST {
   }
 
   stack {
-    precondition (($input.summary ?? "")|trim != "") {
+    precondition ((($input.summary ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "summary required"
     }
-    precondition (($input.finding_type ?? "")|trim != "") {
+    precondition ((($input.finding_type ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "finding_type required"
     }

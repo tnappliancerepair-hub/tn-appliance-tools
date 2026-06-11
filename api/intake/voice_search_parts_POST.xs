@@ -11,7 +11,7 @@ query voice_search_parts verb=POST {
   }
 
   stack {
-    precondition (($input.failed_component ?? "")|trim != "") {
+    precondition ((($input.failed_component ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "failed_component required"
     }
