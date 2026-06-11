@@ -559,10 +559,11 @@ Throws **"Input 'unauth' is not one of the allowable values."** when the precond
 ### 5. `|to_lowercase` — prefer `|to_lower`
 `|to_lower` is the dominant proven form (32 files) vs `|to_lowercase` (6). Use `|to_lower`.
 
-### 6. A fetch with no timeout in a loop agent WEDGES THE ENTIRE LOOP
-Not XS — colony-loop JS. Activating the full agent fleet (546, incl. ~53 `SCOUT_REQUEST_*` agents that fetch external sites) wedged the dispatch loop: heartbeat went stale, backlog climbed, **nothing** processed (core greeting/confirmation/waiver agents stopped too). One hung `fetch()` with no `AbortController` timeout blocks the whole single-threaded dispatch loop.
-- **Hard rule:** every `fetch()` in an agent MUST use an `AbortController` with a timeout (10-12s). Bake it into the `SCOUT_REQUEST_*` / any-external-fetch template before activating those agents.
-- A wedged loop is worse than dormant agents — prefer a stable subset over a full fleet that can hang.
+### 6. Flooding the single-threaded loop with slow agents SATURATES it
+Not XS — colony-loop JS. Activating the full agent fleet (546, incl. ~53 `SCOUT_REQUEST_*` agents) wedged the dispatch loop: heartbeat went stale, backlog climbed, **nothing** processed (core greeting/confirmation/waiver agents starved too). Reverting to the proven-healthy registry (scouts → `no_agent`, instant skip) recovered it immediately.
+- Root cause was NOT a hung fetch — the scouts don't fetch external sites, they call `claude.callClaude` (which already has an AbortController timeout). It was **saturation**: dispatch is single-threaded and sequential, so dozens of agents each making a multi-second Claude call back the queue up for many minutes and stall the heartbeat.
+- **Hard rule:** batch / Claude-heavy / research agents must be **throttled** (drip a few per tick, schedule off-peak, or run on-demand) — never let dozens fire at once into the same loop that serves customer-facing signals. A saturated loop is worse than dormant agents.
+- Still keep `AbortController` timeouts on any agent `fetch()` (defense in depth), but the loop-killer here was volume × latency, not a hang.
 
 ### Bonus (not XS): the customer-SMS gate was leaky
 `CUSTOMER_FACING_ENABLED` only governs sends that route through `send_sms`. `send_feedback_sms` and `tech_assist_chat` were calling Twilio directly, bypassing the gate (and Telnyx-primary). Rule: **every customer-facing send goes through `send_sms`** so the master gate + test allowlist + carrier preference apply in one place.
