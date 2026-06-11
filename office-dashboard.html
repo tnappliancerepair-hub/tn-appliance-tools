@@ -534,6 +534,13 @@ function init() {
   renderTabs();
   if (activeTab === 'today') loadOfficeToday();
   else loadJobs();
+  // ?parts_job=ID deep-link → open the 📦 Parts modal directly by job id (works
+  // even if the job isn't on the current page). Lets warranty-dispatch links land
+  // straight on parts entry on this fast page instead of the slow job-detail.
+  try {
+    const pj = parseInt(new URLSearchParams(location.search).get('parts_job') || '0', 10);
+    if (pj > 0) setTimeout(() => { try { openPartsModal(pj); } catch (_) {} }, 400);
+  } catch (_) {}
 }
 
 function renderTabs() {
