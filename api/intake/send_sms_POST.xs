@@ -200,9 +200,34 @@ query send_sms verb=POST {
     var $customer_facing_enabled {
       value = ($gate_setting_val != "") ? ($gate_setting_val == "true") : $env_gate
     }
-  
+
+    // ============================================================
+    // 5c. TEST ALLOWLIST — lets specific consenting numbers receive REAL
+    //     customer-direction texts while the global gate stays OFF for every
+    //     actual customer. Set via company_settings key "sms_test_allowlist"
+    //     (bare 10-digit numbers, comma/space separated). Delete the row to
+    //     end testing. Sends still ship from the customer Telnyx number so the
+    //     tester sees exactly what a real customer would.
+    // ============================================================
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "sms_test_allowlist"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $test_allow_rows
+
+    var $test_allow_row {
+      value = (($test_allow_rows.items|first) ?? null)
+    }
+
+    var $test_allow_val {
+      value = ($test_allow_row != null) ? (($test_allow_row.setting_value ?? "")|trim) : ""
+    }
+
+    var $is_test_recipient {
+      value = ($test_allow_val != "" && $p10 != "") ? ($test_allow_val|contains:$p10) : false
+    }
+
     conditional {
-      if ($is_internal == false && $customer_facing_enabled == false) {
+      if ($is_internal == false && $customer_facing_enabled == false && $is_test_recipient == false) {
         // Drop + log loudly
         db.add event_log {
           data = {
