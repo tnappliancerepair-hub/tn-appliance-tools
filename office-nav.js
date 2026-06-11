@@ -21,6 +21,7 @@
     { id: 'calls',     label: '📞 Calls',    href: '/recent-calls.html',     color: '#4ca7ff' },
     { id: 'vacation',  label: '🏖 Status',   href: '/vacation-status.html',  color: '#ff8cbc' },
     { id: 'dashboard', label: '📊 All Jobs', href: '/office-dashboard.html', color: '#f5a623' },
+    { id: 'parts',     label: '📦 Parts $',  href: '/parts-ledger.html',     color: '#5aa9ff' },
   ];
 
   function currentPath() {
