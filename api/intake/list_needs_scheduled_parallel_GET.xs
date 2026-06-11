@@ -19,11 +19,11 @@ query list_needs_scheduled_parallel verb=GET {
 
   stack {
     var $lim_raw {
-      value = ($input.limit ?? 100)
+      value = ($input.limit ?? 500)
     }
-  
+
     var $lim {
-      value = ($lim_raw > 200) ? 200 : $lim_raw
+      value = ($lim_raw > 1000) ? 1000 : $lim_raw
     }
   
     //  Pull all parallel-mode jobs that are not yet scheduled.
