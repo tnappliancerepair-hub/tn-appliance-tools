@@ -48,6 +48,7 @@
   td a { color:var(--blue); text-decoration:none; font-family:var(--mono); font-size:12px; }
   td .pos { color:var(--green); }
   td .neg { color:var(--red); }
+  td .warn { color:var(--orange); }
   .pill { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.03em; border:1px solid var(--border); color:var(--muted); }
   .pill.ordered { color:var(--orange); border-color:rgba(245,166,35,0.4); }
   .pill.delivered, .pill.arrived { color:var(--green); border-color:rgba(0,214,143,0.4); }
@@ -193,7 +194,13 @@
     $('sCostN').textContent = orders.length + (orders.length===1?' order':' orders');
     $('sSold').textContent = money0(totSold);
     $('sMargin').textContent = money0(totMargin);
-    $('sMarginPct').textContent = totSold>0 ? marginPct + '% of billed' : 'no billed parts';
+    const thinCount = billedOrders.filter(o => {
+      const c = (o.cost_cents||0)+(o.shipping_cents||0), s = (o.sold_to_customer_cents||0);
+      return s > 0 && ((s - c) / s) < 0.20;
+    }).length;
+    $('sMarginPct').textContent = totSold>0
+      ? (marginPct + '% of billed' + (thinCount ? ' · ⚠ ' + thinCount + ' thin' : ''))
+      : 'no billed parts';
     $('sTax').textContent = money0(totTax);
 
     // suppliers
@@ -225,7 +232,7 @@
         <td>${money(cost)}</td>
         <td>${sold>0?money(sold):'<span class="sup">—</span>'}</td>
         <td>${m!=null?('<span class="'+(m>=0?'pos':'neg')+'">'+(m>=0?'+':'')+money(m)+'</span>'):'<span class="sup">—</span>'}</td>
-        <td>${mPct!=null?mPct+'%':'<span class="sup">—</span>'}</td>
+        <td>${mPct!=null?('<span class="'+(mPct<0?'neg':(mPct<20?'warn':'pos'))+'">'+mPct+'%'+(mPct<20?(mPct<0?' ⚠':' ▾'):'')+'</span>'):'<span class="sup">—</span>'}</td>
         <td><span class="pill ${st}">${esc(o.order_status||'?')}</span></td>
         <td class="sup">${dt}</td>
       </tr>`;
