@@ -121,6 +121,40 @@ const FINGERPRINTS = [
   },
 ];
 
+// ── Phase 2 Stage A: warranty ORDER emails (Frontdoor / Numeric) ──
+// These carry the dispatch/claim id, which we resolve to a job via
+// find_job_by_claim_number, then record_parts_order so the job flips to
+// awaiting_parts. DRY-RUN by default (PARTS_ORDER_POLLER_LIVE != "true"):
+// matches are returned in the response for review but NOT written/labeled,
+// so we validate the regex against real Gmail before flipping live.
+const FIND_JOB_ENDPOINT = `${XANO_BASE}/find_job_by_claim_number`;
+const ORDER_PROCESSED_LABEL = 'PartsOrder-Processed';
+const ORDER_LIVE = process.env.PARTS_ORDER_POLLER_LIVE === 'true';
+const DISPATCH_RE = /dispatch\s*id[:\s#]*(\d{5,12})/i;
+const DISPATCH_RE2 = /dispatch[:\s#]*(\d{5,12})/i;
+const PART_HINT_RE = /part[#:\s]*([A-Z0-9][A-Z0-9\-]{3,})/i;
+
+const ORDER_FINGERPRINTS = [
+  {
+    name: 'frontdoor_ordered',
+    vendor: 'frontdoor',
+    query: 'subject:("ordered for dispatch" OR "successfully ordered")',
+    extract: (subj, snip) => ({
+      dispatch_id: matchFirst(subj + ' ' + snip, DISPATCH_RE) || matchFirst(subj + ' ' + snip, DISPATCH_RE2),
+      part_hint: matchFirst(snip, PART_HINT_RE),
+    }),
+  },
+  {
+    name: 'parts_order_update',
+    vendor: 'warranty',
+    query: 'subject:"Order Update" ("ordered for the dispatch" OR "have been ordered for the dispatch")',
+    extract: (subj, snip) => ({
+      dispatch_id: matchFirst(subj + ' ' + snip, DISPATCH_RE) || matchFirst(subj + ' ' + snip, DISPATCH_RE2),
+      part_hint: matchFirst(snip, PART_HINT_RE),
+    }),
+  },
+];
+
 exports.handler = async () => {
   const startedAt = Date.now();
   const clientId = process.env.GMAIL_CLIENT_ID;
@@ -235,6 +269,63 @@ exports.handler = async () => {
     }
   }
 
+  // ── Order-side: warranty dispatch-id "ordered" emails (Stage A) ──
+  let orderProcessedLabelId = null;
+  if (ORDER_LIVE) {
+    try { orderProcessedLabelId = await resolveOrCreateLabel(gmail, ORDER_PROCESSED_LABEL); } catch (_) {}
+  }
+  const orderResults = [];
+  let ordersFlagged = 0;
+  for (const fp of ORDER_FINGERPRINTS) {
+    const q = ORDER_LIVE ? `${fp.query} -label:${ORDER_PROCESSED_LABEL}` : fp.query;
+    let ids;
+    try {
+      const list = await gmail.users.messages.list({ userId: 'me', q, maxResults: MAX_MESSAGES_PER_RUN });
+      ids = (list.data.messages || []).map((m) => m.id);
+    } catch (e) { results.push({ fp: fp.name, error: e.message }); continue; }
+    if (!ids.length) continue;
+
+    for (const id of ids) {
+      try {
+        const msg = await gmail.users.messages.get({ userId: 'me', id, format: 'metadata', metadataHeaders: ['Subject', 'From', 'Date'] });
+        const subject = headerOf(msg.data, 'Subject') || '';
+        const snippet = msg.data.snippet || '';
+        const ex = fp.extract(subject, snippet);
+        if (!ex.dispatch_id) { orderResults.push({ fp: fp.name, matched: false, reason: 'no_dispatch_id', subject: subject.slice(0, 100) }); continue; }
+
+        let jobId = 0;
+        try {
+          const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
+          const fd = await fr.json().catch(() => ({}));
+          jobId = Number(fd.job_id || (fd.job && fd.job.id) || (Array.isArray(fd.jobs) && fd.jobs[0] && fd.jobs[0].job_id) || 0);
+        } catch (_) {}
+
+        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, part_hint: ex.part_hint || '', job_id: jobId, subject: subject.slice(0, 100) };
+        if (!ORDER_LIVE) { orderResults.push({ ...rec, action: 'dry_run' }); continue; }
+        if (!jobId) { orderResults.push({ ...rec, action: 'no_job_match' }); continue; }
+
+        const r = await fetch(PARTS_ORDER_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: jobId,
+            part_number: ex.part_hint || ('dispatch-' + ex.dispatch_id),
+            supplier: fp.vendor,
+            order_status: 'ordered',
+            source: `gmail_poller_${fp.name}`,
+            notes: `auto from warranty email · dispatch ${ex.dispatch_id} · ${subject.slice(0, 80)}`,
+          }),
+        });
+        if (r.ok) {
+          ordersFlagged += 1;
+          orderResults.push({ ...rec, action: 'ordered_flagged' });
+          if (orderProcessedLabelId) await labelMsg(gmail, id, orderProcessedLabelId);
+        } else {
+          orderResults.push({ ...rec, action: 'record_failed', status: r.status });
+        }
+      } catch (e) { orderResults.push({ fp: fp.name, id, error: e.message }); }
+    }
+  }
+
   return jsonResp(200, {
     ok: true,
     elapsed_ms: Date.now() - startedAt,
@@ -242,6 +333,9 @@ exports.handler = async () => {
     skipped,
     errors,
     details: results.slice(0, 20),
+    order_mode: ORDER_LIVE ? 'live' : 'dry_run',
+    orders_flagged: ordersFlagged,
+    order_results: orderResults.slice(0, 30),
   });
 };
 
