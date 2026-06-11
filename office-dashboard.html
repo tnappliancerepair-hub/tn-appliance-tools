@@ -1410,26 +1410,53 @@ async function openPartsModal(jobId) {
   document.getElementById('parts-title').textContent = `Order parts — job #${jobId}`;
   document.getElementById('po-prediag').innerHTML = '<span style="color:#5a6172">checking Ant pre-diagnosis…</span>';
   document.getElementById('parts-modal').style.display = 'flex';
-  // Phase 3 — pre-diagnosis: pull Ant's predicted failure/part so she orders
-  // the right part BEFORE the visit. Pre-fills the fields; she confirms/edits.
+  // Phase 3 — pre-diagnosis (HUMAN-FIRST): lead with the tech's own pre-diag
+  // (Teddy = technician_id 1, or any tech TDR with a diagnosis) so she orders
+  // the right part BEFORE the visit; fall back to Ant's AI guess. Pre-fills the
+  // fields; she confirms/edits. The "diagnose first" nudge enforces the
+  // standing rule: pre-diagnosis before parts.
   try {
-    const r = await fetch(`${XANO_BASE}/get_predicted_failure_for_job?job_id=${jobId}`);
-    const d = await r.json();
-    const m = d && d.has_draft && d.suggestion && d.suggestion.metadata;
-    if (!m) { document.getElementById('po-prediag').innerHTML = '<span style="color:#5a6172">no pre-diagnosis on file yet</span>'; return; }
-    const txt = String(m.draft_text || '');
-    const grab = (re) => { const x = txt.match(re); return x ? x[1].trim() : ''; };
-    const comp = grab(/failed component:\s*(.+)/i);
-    const part = grab(/recommended part:\s*(.+)/i);
-    const pre = grab(/pre-?order parts:\s*(.+)/i);
-    if (comp) document.getElementById('po-partname').value = comp;
-    const realPart = part && !/verify via model|unsure|unknown|n\/a/i.test(part);
-    if (realPart) document.getElementById('po-partnum').value = part.replace(/[.]$/, '');
-    let hint = '🔮 <b>Ant pre-diagnosis</b>';
-    if (comp) hint += ` · likely <b>${escapeHtml(comp)}</b>`;
-    if (part) hint += ` · part: ${escapeHtml(part)}`;
-    if (/yes/i.test(pre)) hint += ' · <span style="color:#34d399">pre-order ✅</span>';
-    document.getElementById('po-prediag').innerHTML = `<div style="font-size:12px;background:rgba(76,167,255,0.10);border:1px solid rgba(76,167,255,0.3);border-radius:8px;padding:8px 10px">${hint}</div>`;
+    const ctl = (ms) => (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(ms) : undefined;
+    const [humanRes, aiRes] = await Promise.all([
+      fetch(`${XANO_BASE}/get_job_prediag?job_id=${jobId}`, { signal: ctl(8000) }).then(r => r.json()).catch(() => null),
+      fetch(`${XANO_BASE}/get_predicted_failure_for_job?job_id=${jobId}`, { signal: ctl(8000) }).then(r => r.json()).catch(() => null),
+    ]);
+    const partnameEl = document.getElementById('po-partname');
+    const partnumEl = document.getElementById('po-partnum');
+    const blocks = [];
+
+    // 1) Human pre-diag (Teddy, technician_id=1) — highest trust.
+    if (humanRes && humanRes.has_prediag) {
+      const comp = String(humanRes.failed_component || '').trim();
+      const diag = String(humanRes.diagnosis || '').trim();
+      if (comp && !partnameEl.value) partnameEl.value = comp;
+      let h = "🧠 <b>Teddy's pre-diagnosis</b>";
+      if (comp) h += ` · likely <b>${escapeHtml(comp)}</b>`;
+      if (diag) h += `<div style="margin-top:4px;color:#c7ccd6">${escapeHtml(diag.slice(0, 180))}</div>`;
+      blocks.push(`<div style="font-size:12px;background:rgba(245,166,35,0.10);border:1px solid rgba(245,166,35,0.35);border-radius:8px;padding:8px 10px">${h}</div>`);
+    }
+
+    // 2) Ant's AI guess — secondary; only auto-fills fields the human left blank.
+    const m = aiRes && aiRes.has_draft && aiRes.suggestion && aiRes.suggestion.metadata;
+    if (m) {
+      const txt = String(m.draft_text || '');
+      const grab = (re) => { const x = txt.match(re); return x ? x[1].trim() : ''; };
+      const comp = grab(/failed component:\s*(.+)/i);
+      const part = grab(/recommended part:\s*(.+)/i);
+      const pre = grab(/pre-?order parts:\s*(.+)/i);
+      if (comp && !partnameEl.value) partnameEl.value = comp;
+      const realPart = part && !/verify via model|unsure|unknown|n\/a/i.test(part);
+      if (realPart && !partnumEl.value) partnumEl.value = part.replace(/[.]$/, '');
+      let h = "🔮 <b>Ant's guess</b>";
+      if (comp) h += ` · likely <b>${escapeHtml(comp)}</b>`;
+      if (part) h += ` · part: ${escapeHtml(part)}`;
+      if (/yes/i.test(pre)) h += ' · <span style="color:#34d399">pre-order ✅</span>';
+      blocks.push(`<div style="font-size:12px;background:rgba(76,167,255,0.10);border:1px solid rgba(76,167,255,0.3);border-radius:8px;padding:8px 10px;margin-top:6px">${h}</div>`);
+    }
+
+    document.getElementById('po-prediag').innerHTML = blocks.length
+      ? blocks.join('')
+      : '<span style="color:#5a6172">no pre-diagnosis on file yet — diagnose first, then order</span>';
   } catch (e) {
     document.getElementById('po-prediag').innerHTML = '';
   }
