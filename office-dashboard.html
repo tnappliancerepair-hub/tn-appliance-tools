@@ -460,6 +460,7 @@ async function __verifyOfficePassword(pw) {
 //   intake_complete, prediagnosis_pending, needs_more_info, no_fix_possible
 const TABS = [
   { id: 'today',         label: '🐜 Today',         filter: 'today' },
+  { id: 'calendar',      label: '📅 Calendar',      filter: null },
   { id: 'all',           label: 'All',              filter: { date_filter: 'all' } },
   { id: 'unscheduled',   label: 'Needs Scheduled',  filter: { date_filter: 'unscheduled' } },
   { id: 'scheduled',     label: 'Scheduled',        filter: { status: 'scheduled', date_filter: 'all' } },
@@ -549,9 +550,98 @@ function renderTabs() {
       document.getElementById('job-list').style.display = isMock ? 'none' : 'flex';
       document.getElementById('mock-panel').style.display = isMock ? 'block' : 'none';
       if (activeTab === 'today') loadOfficeToday();
+      else if (activeTab === 'calendar') loadCalendar();
       else if (!isMock) loadJobs();
     });
   });
+}
+
+// ── Calendar tab — HCP-style day picker + that day's scheduled jobs ──
+let calData = null, calWeekStart = null, calSelected = null;
+function ctDateStr(ms) {
+  if (!ms) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+function ctTimeStr(ms) {
+  if (!ms) return '';
+  return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+async function loadCalendar() {
+  const list = document.getElementById('job-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading calendar...</div></div>';
+  try {
+    let url = `${XANO_BASE}/get_office_calendar_week`;
+    if (calWeekStart) url += `?week_start=${encodeURIComponent(calWeekStart)}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d || !d.success) throw new Error((d && d.error) || 'failed to load');
+    calData = d;
+    calWeekStart = d.week_start_ct;
+    if (!calSelected || calSelected < d.week_start_ct || calSelected > d.week_end_ct) {
+      calSelected = (d.today_ct >= d.week_start_ct && d.today_ct <= d.week_end_ct) ? d.today_ct : d.week_start_ct;
+    }
+    window.__jobsById = window.__jobsById || {};
+    const idx = (j) => { window.__jobsById[j.id] = { job: j, tech: { id: j.technician_id }, customer: { first_name: j.customer_first_name, last_name: j.customer_last_name, phone: j.customer_phone } }; };
+    (d.jobs || []).forEach(idx);
+    (d.unscheduled || []).forEach(idx);
+    renderCalendar();
+  } catch (e) {
+    list.innerHTML = `<div class="empty-jobs">calendar failed to load: ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
+function calStepWeek(deltaDays) {
+  const d = new Date(calWeekStart + 'T12:00:00');
+  d.setDate(d.getDate() + deltaDays);
+  calWeekStart = d.toISOString().slice(0, 10);
+  calSelected = null;
+  loadCalendar();
+}
+function calPickDay(ds) { calSelected = ds; renderCalendar(); }
+function renderCalendar() {
+  const d = calData; if (!d) return;
+  const list = document.getElementById('job-list');
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = [];
+  const start = new Date(d.week_start_ct + 'T12:00:00');
+  for (let i = 0; i < 7; i++) { const x = new Date(start); x.setDate(x.getDate() + i); days.push(x.toISOString().slice(0, 10)); }
+  const jobsByDay = {};
+  for (const j of (d.jobs || [])) { const ds = ctDateStr(j.scheduled_start); if (ds) (jobsByDay[ds] = jobsByDay[ds] || []).push(j); }
+  const techName = {};
+  for (const t of (d.technicians || [])) techName[t.id] = ((t.first_name || '') + ' ' + (t.last_name || '')).trim();
+  const strip = days.map((ds) => {
+    const cnt = (jobsByDay[ds] || []).length;
+    const dt = new Date(ds + 'T12:00:00');
+    const isSel = ds === calSelected, isToday = ds === d.today_ct;
+    return `<button onclick="calPickDay('${ds}')" style="flex:0 0 auto;min-width:52px;padding:8px 4px;margin:0 3px;border-radius:10px;border:1px solid ${isSel ? '#4ca7ff' : '#2a2e3a'};background:${isSel ? 'rgba(76,167,255,0.18)' : '#1c1f29'};color:#e8eaf0;cursor:pointer;text-align:center">
+      <div style="font-size:10px;color:${isToday ? '#4ca7ff' : '#8a93aa'}">${DOW[dt.getDay()]}</div>
+      <div style="font-size:17px;font-weight:700;color:${isToday ? '#4ca7ff' : '#e8eaf0'}">${dt.getDate()}</div>
+      <div style="font-size:10px;color:${cnt ? '#74e3c4' : '#5a6172'}">${cnt || '·'}</div>
+    </button>`;
+  }).join('');
+  const dayJobs = (jobsByDay[calSelected] || []).slice().sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
+  const rows = dayJobs.length ? dayJobs.map((j) => {
+    const cust = ((j.customer_first_name || '') + ' ' + (j.customer_last_name || '')).trim() || '(no name)';
+    const ps = String(j.parts_status || '').toLowerCase();
+    const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+    const parts = waiting ? ` <span style="color:#f0a020;font-weight:600">⏳ parts${j.parts_eta_date ? ' ' + String(j.parts_eta_date).slice(5, 10) : ''}</span>` : '';
+    return `<div onclick="openScheduleJob(${j.id})" style="display:grid;grid-template-columns:68px 1fr auto;gap:10px;align-items:center;padding:11px 12px;margin:6px 0;border-radius:8px;background:#13151b;border:1px solid #2a2e3a;cursor:pointer">
+      <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px">${escapeHtml(ctTimeStr(j.scheduled_start) || '—')}</div>
+      <div><div style="font-weight:700;font-size:14px">${escapeHtml(cust)}</div><div style="font-size:12px;color:#8a93aa">${escapeHtml((j.appliance_type || '').toLowerCase())}${j.service_city ? ' · ' + escapeHtml(j.service_city) : ''}${parts}</div></div>
+      <div style="font-size:11px;color:#8a93aa;text-transform:uppercase">${escapeHtml(techName[j.technician_id] || 'unassigned')}</div>
+    </div>`;
+  }).join('') : '<div class="empty-jobs">No jobs scheduled this day.</div>';
+  const unsched = (d.unscheduled || []).length;
+  list.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px">
+      <button onclick="calStepWeek(-7)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:6px 14px;cursor:pointer">‹</button>
+      <div style="font-weight:700;font-size:14px">${escapeHtml(d.week_start_ct)} – ${escapeHtml(d.week_end_ct)}</div>
+      <button onclick="calStepWeek(7)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:6px 14px;cursor:pointer">›</button>
+    </div>
+    <div style="display:flex;overflow-x:auto;padding:6px 0 10px">${strip}</div>
+    ${unsched ? `<div style="padding:9px 12px;margin:6px 0;border-radius:8px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);font-size:13px">🗓️ ${unsched} unscheduled — use the "Needs Scheduled" tab to place them</div>` : ''}
+    <div style="font-size:12px;color:#8a93aa;padding:4px 4px 2px">${escapeHtml(calSelected)} · ${dayJobs.length} job${dayJobs.length === 1 ? '' : 's'} · tap a job to reschedule</div>
+    <div>${rows}</div>
+  `;
 }
 
 async function loadJobs() {
