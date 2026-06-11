@@ -884,6 +884,7 @@ function buildJobCard(it) {
         ${partsWaiting ? `<button class="primary" onclick="markArrived(${job.id || 0}, this)">✅ Parts in</button>` : ''}
         <button ${callDisabled ? 'disabled title="no phone on file"' : `onclick="window.location.href='tel:${escapeAttr(phoneE164)}'"`}>📞 Call Customer</button>
         <a href="${escapeAttr(openUrl)}">📋 Open Job</a>
+        <button onclick="openStatusModal(${job.id || 0}, '${escapeAttr(status)}')" title="Set this job's status">✏️ Status</button>
         <button class="danger" onclick="cancelJobInline(${job.id || 0}, this)" title="Cancel this job">❌ Cancel</button>
       </div>
     </div>
@@ -1690,5 +1691,62 @@ async function purgeRun() {
     </div>
   </div>
 </div>
+
+<div id="status-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:380px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit">
+    <h3 style="margin:0 0 4px;font-size:17px">Set job status <span id="status-jobid" style="color:#8a93aa;font-weight:500"></span></h3>
+    <div style="font-size:12px;color:#8a93aa;margin-bottom:12px">You have the final say — pick the right status and it's set.</div>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:4px">Status</label>
+    <select id="status-select" style="width:100%;padding:11px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:12px;font-size:16px">
+      <option value="not_ready">Needs scheduling (back in the queue)</option>
+      <option value="needs_more_info">Needs more info / needs accept</option>
+      <option value="awaiting_parts">Awaiting parts</option>
+      <option value="held">On hold</option>
+      <option value="scheduled">Scheduled</option>
+      <option value="in_progress">In progress</option>
+      <option value="completed">Completed</option>
+      <option value="no_fix_possible">No fix possible</option>
+      <option value="canceled">Canceled</option>
+    </select>
+    <div id="status-err" style="color:#ff6b6b;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeStatusModal()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#2a2e3a;color:#e8eaf0;font-weight:600;cursor:pointer;font-size:15px">Cancel</button>
+      <button id="status-submit" onclick="submitSetStatus()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#4ca7ff;color:#04122b;font-weight:700;cursor:pointer;font-size:15px">Save</button>
+    </div>
+  </div>
+</div>
+<script>
+// Danielle's manual status override — force-sets the job's status (no
+// transition-machine rejections). She has the final say.
+let __statusJobId = null;
+function openStatusModal(jobId, current) {
+  __statusJobId = jobId;
+  document.getElementById('status-jobid').textContent = '#' + jobId;
+  document.getElementById('status-err').textContent = '';
+  const sel = document.getElementById('status-select');
+  if (current) { for (const o of sel.options) { if (o.value === current) { sel.value = current; break; } } }
+  document.getElementById('status-modal').style.display = 'flex';
+}
+function closeStatusModal() { document.getElementById('status-modal').style.display = 'none'; __statusJobId = null; }
+async function submitSetStatus() {
+  if (!__statusJobId) return;
+  const btn = document.getElementById('status-submit');
+  const status = document.getElementById('status-select').value;
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await fetch(XANO_BASE + '/office_set_job_status', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: __statusJobId, scheduling_status: status, actor: 'office' })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.success) throw new Error((d && d.error) || ('HTTP ' + r.status));
+    closeStatusModal();
+    if (typeof loadJobs === 'function') loadJobs();
+  } catch (e) {
+    document.getElementById('status-err').textContent = 'Could not save: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+</script>
 </body>
 </html>
