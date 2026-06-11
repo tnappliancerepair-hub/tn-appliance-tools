@@ -54,7 +54,25 @@ query mark_parts_arrived verb=POST {
         } as $updated
       }
     }
-  
+
+    // When the part lands, surface the job in the schedule queue so the office
+    // books the revisit — but only if it's not already scheduled/in-progress/
+    // done (don't yank a live job back). This replaces the MeisterTask "search
+    // + add to needs-scheduled" step.
+    var $cur_sched { value = (($job.scheduling_status ?? "")|to_lower) }
+    var $sched_eligible {
+      value = ($cur_sched == "not_ready" || $cur_sched == "awaiting_parts" || $cur_sched == "held" || $cur_sched == "prediagnosis_pending" || $cur_sched == "needs_more_info" || $cur_sched == "")
+    }
+    conditional {
+      if (!$was_already_arrived && $sched_eligible) {
+        db.edit jobs {
+          field_name = "id"
+          field_value = $input.job_id
+          data = {scheduling_status: "needs_scheduled"}
+        }
+      }
+    }
+
     var $event_meta {
       value = {
         job_id           : $input.job_id
