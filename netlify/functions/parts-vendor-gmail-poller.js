@@ -183,8 +183,14 @@ const DELIVERED_DISPATCH_FINGERPRINTS = [
   },
 ];
 
-exports.handler = async () => {
+exports.handler = async (event) => {
   const startedAt = Date.now();
+  // mode:"orders" (POST body) skips the heavy delivered-observation backlog
+  // loop and runs only the dispatch-id ORDER + DELIVERED match loops — used to
+  // validate Stage A/C dry-run matches without the synchronous call timing out
+  // while it drains the delivered backlog.
+  let _mode = '';
+  try { _mode = (JSON.parse((event && event.body) || '{}').mode || '').toString(); } catch (_) {}
   const clientId = process.env.GMAIL_CLIENT_ID;
   const clientSecret = process.env.GMAIL_CLIENT_SECRET;
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
@@ -210,6 +216,7 @@ exports.handler = async () => {
   let errors = 0;
 
   for (const fp of FINGERPRINTS) {
+    if (_mode === 'orders') break; // skip delivered-observation backlog for fast Stage A/C validation
     const q = `${fp.query} -label:${PROCESSED_LABEL_NAME}`;
     let ids;
     try {
