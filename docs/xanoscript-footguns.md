@@ -536,3 +536,33 @@ Symptom: brand-new agent dispatches as `signal_no_agent_yet` even though the fil
 **Fix:** `launchctl kickstart -k gui/$(id -u)/com.tnappliance.colony-loop`
 
 For **edits** to existing agents, hot-reload via mtime DOES work — dispatch.js statSyncs the file and re-imports if mtime changed. Kickstart is only required when adding a brand-new agent type.
+
+## Six field-surfaced footguns (2026-06-11)
+
+A day of field-testing surfaced six bugs, several of which had silently shipped broken endpoints that crashed only when first called. Catalogued so the architect + future sessions stop reintroducing them.
+
+### 1. `|trim != ""` (and `|trim == "x"`) must wrap the filter in parens
+`precondition (($input.x ?? "")|trim != "")` throws **"Invalid syntax. Please wrap your filter with parentheses."** The parser reads `|trim != ""` as one filter token. This crashed ~13 endpoints (incl. `create_job_from_call`, `voice_search_parts`, `dispatch_voice_call`) that were never exercised until a real call hit them.
+- **Wrong:** `(($input.x ?? "")|trim != "")`
+- **Right:** `((($input.x ?? "")|trim) != "")`  ← wrap the filtered value, THEN compare
+- Or pre-bind: `var $x_clean { value = ($input.x ?? "")|trim }` then `precondition ($x_clean != "")`.
+
+### 2. `error_type = "unauth"` is not a valid error type
+Throws **"Input 'unauth' is not one of the allowable values."** when the precondition fires. Valid values seen in working code: `inputerror`, `notfound`, `accessdenied`, `permissiondenied`. Use **`accessdenied`** for auth failures.
+
+### 3. `|right:N` is not a filter — use `|substr:-N:N`
+`$phone|right:4` throws (only ever used in the 4 blackout endpoints, all broken). The proven last-N-chars idiom is `$phone|substr:-4:4` (negative start is supported — used live in `customer_mark_parts_arrived`, `record_vapi_voicemail`).
+
+### 4. `rand:N` is not a proven filter
+`(rand:1000)` for an id suffix is unproven and was crashing `add_customer_blackout`. A `(now|to_ms)|to_text` timestamp is unique enough for per-row ids; drop the rand.
+
+### 5. `|to_lowercase` — prefer `|to_lower`
+`|to_lower` is the dominant proven form (32 files) vs `|to_lowercase` (6). Use `|to_lower`.
+
+### 6. A fetch with no timeout in a loop agent WEDGES THE ENTIRE LOOP
+Not XS — colony-loop JS. Activating the full agent fleet (546, incl. ~53 `SCOUT_REQUEST_*` agents that fetch external sites) wedged the dispatch loop: heartbeat went stale, backlog climbed, **nothing** processed (core greeting/confirmation/waiver agents stopped too). One hung `fetch()` with no `AbortController` timeout blocks the whole single-threaded dispatch loop.
+- **Hard rule:** every `fetch()` in an agent MUST use an `AbortController` with a timeout (10-12s). Bake it into the `SCOUT_REQUEST_*` / any-external-fetch template before activating those agents.
+- A wedged loop is worse than dormant agents — prefer a stable subset over a full fleet that can hang.
+
+### Bonus (not XS): the customer-SMS gate was leaky
+`CUSTOMER_FACING_ENABLED` only governs sends that route through `send_sms`. `send_feedback_sms` and `tech_assist_chat` were calling Twilio directly, bypassing the gate (and Telnyx-primary). Rule: **every customer-facing send goes through `send_sms`** so the master gate + test allowlist + carrier preference apply in one place.
