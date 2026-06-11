@@ -628,23 +628,28 @@ function renderCalendar() {
     techName[t.id] = ((t.first_name || '') + ' ' + (t.last_name || '')).trim();
     techColor[t.id] = calTechColor(t.id, i);
   });
-  // Build day buckets, honoring the tech show/hide filter.
+  // Build day buckets, honoring the tech show/hide filter; count each tech's
+  // weekly load (counts include hidden techs so the chip always shows the load).
   let hasUnassigned = false;
   const jobsByDay = {};
+  const techCount = {};
   for (const j of (d.jobs || [])) {
     const tid = Number(j.technician_id || 0);
+    techCount[tid] = (techCount[tid] || 0) + 1;
     if (!tid) hasUnassigned = true;
     if (calHiddenTechs.has(tid)) continue;
     const ds = ctDateStr(j.scheduled_start);
     if (ds) (jobsByDay[ds] = jobsByDay[ds] || []).push(j);
   }
-  // Tech show/hide chips (click to add/remove a tech from the view).
+  // Tech show/hide chips (click to add/remove a tech) with this week's job count.
   const chipDefs = (d.technicians || []).map((t) => ({ id: t.id, label: (t.first_name || ('Tech ' + t.id)), color: techColor[t.id] }));
   if (hasUnassigned) chipDefs.push({ id: 0, label: 'Unassigned', color: '#8a93aa' });
   const chips = chipDefs.map((c) => {
     const off = calHiddenTechs.has(Number(c.id));
+    const n = techCount[Number(c.id)] || 0;
+    const nColor = off ? '#3a3f4a' : (n === 0 ? '#f0a020' : c.color);
     return `<button onclick="calToggleTech(${c.id})" style="flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:5px 10px;margin:0 5px 5px 0;border-radius:14px;border:1px solid ${off ? '#2a2e3a' : c.color};background:${off ? 'transparent' : c.color + '22'};color:${off ? '#5a6172' : '#e8eaf0'};cursor:pointer;font-size:12px;white-space:nowrap">
-      <span style="width:9px;height:9px;border-radius:50%;background:${off ? '#3a3f4a' : c.color}"></span>${escapeHtml(c.label)}</button>`;
+      <span style="width:9px;height:9px;border-radius:50%;background:${off ? '#3a3f4a' : c.color}"></span>${escapeHtml(c.label)} <span style="font-weight:700;color:${nColor}">${n}</span></button>`;
   }).join('');
   const chipsRow = chipDefs.length ? `<div style="display:flex;flex-wrap:wrap;padding:8px 2px 2px;border-bottom:1px solid #1c1f29">${chips}</div>` : '';
 
