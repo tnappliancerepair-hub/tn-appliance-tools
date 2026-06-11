@@ -30,7 +30,8 @@ query dispatch_voice_call verb=POST {
       error_type = "inputerror"
       error = "job_id required"
     }
-    precondition (($input.call_type ?? "")|trim != "") {
+    var $call_type_clean { value = (($input.call_type ?? "")|trim) }
+    precondition ($call_type_clean != "") {
       error_type = "inputerror"
       error = "call_type required"
     }
@@ -119,7 +120,7 @@ query dispatch_voice_call verb=POST {
     // Fall back to Twilio 629-247 (TN) + 504-355 (LA) which are confirmed
     // working. Once Telnyx voice routing is fixed, revert TN to
     // 4006d617... (615-588 with CNAM "TN APPLIANCE").
-    var $state { value = (($job.service_state ?? "")|to_text)|to_lowercase }
+    var $state { value = (($job.service_state ?? "")|to_text)|to_lower }
     var $from_number_id { value = "d57d5cf2-60a7-46e6-a7f0-24ed652c1f31" }
     conditional {
       if ($state == "la" || $state == "louisiana") {
@@ -142,9 +143,15 @@ query dispatch_voice_call verb=POST {
     var $appliance_type { value = (($job.appliance_type ?? "")|to_text)|trim }
     var $brand { value = (($job.brand ?? "")|to_text)|trim }
     var $tech_first_name { value = "our tech" }
+    var $tech_first_raw { value = "" }
     conditional {
-      if ($tech != null && ($tech.first_name ?? "")|trim != "") {
-        var.update $tech_first_name { value = (($tech.first_name ?? "")|to_text)|trim }
+      if ($tech != null) {
+        var.update $tech_first_raw { value = (($tech.first_name ?? "")|to_text)|trim }
+      }
+    }
+    conditional {
+      if ($tech_first_raw != "") {
+        var.update $tech_first_name { value = $tech_first_raw }
       }
     }
     var $scheduled_start_ms { value = ($job.scheduled_start ?? 0) }
