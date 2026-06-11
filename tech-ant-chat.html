@@ -1381,7 +1381,7 @@
     if (!JOB_ID || !TECH_ID) return;
     try {
       const url = `${XANO_BASE}/get_tech_assist_session_history?job_id=${JOB_ID}&technician_id=${TECH_ID}&limit=40`;
-      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const r = await fetch(url, { signal: AbortSignal.timeout(30000) }); // 30s — techs are often on weak road signal
       if (!r.ok) return;
       const d = await r.json();
       if (!d || !d.success) return;
