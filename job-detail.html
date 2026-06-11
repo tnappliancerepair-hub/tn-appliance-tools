@@ -697,7 +697,7 @@ async function loadJob() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         endpoint: 'get_job_for_dashboard',
-        payload: { job_id: parseInt(JOB_ID, 10), include_events: 1 },
+        payload: { job_id: parseInt(JOB_ID, 10) }, // fast: timeline loaded lazily below
         method: 'POST'
       })
     });
@@ -706,6 +706,7 @@ async function loadJob() {
     if (!data.success) throw new Error(data.error || 'Job not found');
     jobData = data;
     render();
+    loadEventsLazy(); // non-blocking — fills the timeline when the (slow) scan returns
   } catch (err) {
     renderError('Could not load job', err.message);
   } finally {
@@ -713,6 +714,29 @@ async function loadJob() {
     refreshBtn.disabled = false;
     refreshBtn.classList.remove('spinning');
   }
+}
+
+// The recent_events timeline comes from a slow event_log JSON scan, so load it
+// separately — the page renders instantly and the timeline fills in when ready
+// (or stays empty if the scan times out; the rest of the page is unaffected).
+async function loadEventsLazy() {
+  try {
+    const res = await fetch('/.netlify/functions/xano-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: 'get_job_for_dashboard',
+        payload: { job_id: parseInt(JOB_ID, 10), include_events: 1 },
+        method: 'POST'
+      })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && data.success && Array.isArray(data.recent_events) && jobData) {
+      jobData.recent_events = data.recent_events;
+      render();
+    }
+  } catch (_) {}
 }
 
 function render() {
