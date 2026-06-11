@@ -27,7 +27,6 @@ query job_safety_sweep verb=POST {
   stack {
     var $do_recover { value = ($input.recover ?? false) }
     var $stuck_h    { value = ($input.stuck_hours ?? 3) }
-    var $stuck_cutoff { value = ((now|to_ms) - ($stuck_h * 3600000)) }
 
     // Every unassigned, non-terminal job that should be in the office queue.
     db.query jobs {
@@ -52,7 +51,7 @@ query job_safety_sweep verb=POST {
           }
         }
         conditional {
-          if ($st == "broadcasting" && ($j.created_at|to_ms) < $stuck_cutoff) {
+          if ($st == "broadcasting" && $age_h >= $stuck_h) {
             var.update $stuck_broadcasting { value = ($stuck_broadcasting + 1) }
             conditional {
               if ($do_recover) {
