@@ -14,11 +14,12 @@ query get_parts_cost_analysis verb=GET {
   }
 
   stack {
-    var $days     { value = ($input.days_back ?? 30) }
+    var $days_raw { value = ($input.days_back ?? 30) }
+    var $days     { value = ($days_raw > 0 ? $days_raw : 30) }
     var $cutoff   { value = (now|to_ms) - ($days * 86400000) }
 
     db.query parts_orders {
-      where = $db.parts_orders.ordered_at >= $cutoff && $db.parts_orders.cost_cents > 0
+      where = $db.parts_orders.ordered_at >= $cutoff && $db.parts_orders.cost_cents > 0 && $db.parts_orders.source != "test"
       sort = {parts_orders.ordered_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 2000}}
     } as $rows

@@ -47,12 +47,10 @@ function resolveXanoBin() {
   if (process.env.XANO_CLI_BIN && existsSync(process.env.XANO_CLI_BIN)) {
     return process.env.XANO_CLI_BIN;
   }
-  try {
-    const found = execSync('/bin/zsh -lc "command -v xano"', {
-      encoding: 'utf8', timeout: 15000,
-    }).trim();
-    if (found && existsSync(found)) return found;
-  } catch (_) { /* fall through to known paths */ }
+  // Prefer the known-good Homebrew path FIRST — this is the exact binary the
+  // working manual push uses (/opt/homebrew/bin/xano). The login-shell lookup
+  // below can resolve to a wrapper/alias/stale shim that fails where the real
+  // binary succeeds, so only fall back to it if the known paths are absent.
   const candidates = [
     '/opt/homebrew/bin/xano',
     '/usr/local/bin/xano',
@@ -61,6 +59,12 @@ function resolveXanoBin() {
   for (const c of candidates) {
     if (c && existsSync(c)) return c;
   }
+  try {
+    const found = execSync('/bin/zsh -lc "command -v xano"', {
+      encoding: 'utf8', timeout: 15000,
+    }).trim();
+    if (found && existsSync(found)) return found;
+  } catch (_) { /* fall through */ }
   return 'xano'; // last resort — will error visibly if truly absent
 }
 
@@ -127,8 +131,17 @@ export async function run(signal, ctx) {
     : `pushed ${okCount}/${endpoints.length}${dryRun ? ' (dry-run)' : ''}${failCount ? `, ${failCount} FAILED` : ''}`;
 
   logLocal('deploy_xs_result', { branch, dryRun, results, fetchErr });
+  // Surface the actual per-endpoint failure text in the durable event_log row
+  // (not just a count) so deploy failures can be diagnosed remotely without
+  // shelling into the Mac Mini. xano_bin recorded to catch binary-resolution
+  // issues. Truncated to keep the metadata small.
+  const failErrors = results
+    .filter((r) => !r.ok)
+    .map((r) => ({ ep: r.endpoint, err: String(r.err || '').slice(0, 240) }));
   await markSignalProcessed(signal.id, 'deploy_xs_result', {
     branch, ok: okCount, failed: failCount, dry_run: dryRun, summary,
+    xano_bin: XANO_BIN, fetch_err: fetchErr ? String(fetchErr).slice(0, 200) : null,
+    errors: failErrors,
   });
 
   try {
