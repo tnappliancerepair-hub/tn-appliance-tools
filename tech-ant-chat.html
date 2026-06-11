@@ -805,6 +805,29 @@
       <div id="ai-prediag-summary" style="line-height:1.4;"></div>
       <div id="ai-prediag-full" style="display:none; margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.08); white-space:pre-wrap; line-height:1.5; color:#d4d6dc; font-size:12.5px;"></div>
     </div>
+
+    <!-- 4. Cash/self-pay parts talk-track — shown only for self-pay jobs so the
+         tech says the same thing at the door that Ant says on the phone. -->
+    <div id="cash-talktrack" style="display:none; margin: 0 12px 10px; padding: 10px 12px; background: rgba(0,214,143,0.06); border: 1px solid rgba(0,214,143,0.30); border-radius: 10px; font-size: 13px; color: #e8eaf0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; cursor:pointer;" id="cash-talktrack-head">
+        <strong style="color:#00d68f; font-size:12px; letter-spacing:0.5px;">💵 CASH-CUSTOMER TALK-TRACK</strong>
+        <button id="cash-talktrack-toggle" style="background:transparent; border:1px solid rgba(255,255,255,0.15); color:#9aa1ad; border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer;">expand</button>
+      </div>
+      <div id="cash-talktrack-body" style="display:none; line-height:1.55;">
+        <div style="margin-bottom:8px;">Offer <strong>two tiers, their choice</strong> — never push OEM, never shame the cheaper pick:</div>
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:8px;">
+          <tr style="color:#9aa1ad;"><td style="padding:3px 6px;"></td><td style="padding:3px 6px;">OEM (90-day)</td><td style="padding:3px 6px;">Amazon-eq (30-day)</td></tr>
+          <tr><td style="padding:3px 6px; color:#9aa1ad;">You install</td><td style="padding:3px 6px;">part only</td><td style="padding:3px 6px;">part only</td></tr>
+          <tr><td style="padding:3px 6px; color:#9aa1ad;">We install</td><td style="padding:3px 6px;">part + labor</td><td style="padding:3px 6px;">part + labor</td></tr>
+        </table>
+        <ul style="margin:0 0 0 16px; padding:0; color:#d4d6dc;">
+          <li style="margin-bottom:5px;"><strong>All four require the part bought through us.</strong> We can also just sell the part.</li>
+          <li style="margin-bottom:5px;"><strong>Never give out a part number.</strong> "We'll source it and get it to you — that's in your price."</li>
+          <li style="margin-bottom:5px;">We set our prices, we don't price-match.</li>
+          <li>Price changes at the door? Tell them the new price BEFORE starting work — they can accept or take the unopened part back.</li>
+        </ul>
+      </div>
+    </div>
   </header>
 
   <!-- Primary action bar — NAV + OTW + CALL + START JOB -->
@@ -1488,6 +1511,7 @@
       // Pre-visit briefing stack. Three independent panels, all best-effort.
       try { renderTeddyPrediag(d); } catch (_) {}
       renderCustomerIntake(d);
+      try { renderCashTalkTrack(d); } catch (_) {}
       loadPrediag().catch(() => {});
       // TDR pre-fill: when the tech opens completion, the form fields are
       // already populated from (in priority order) Teddy's pre-diag, Ant's
@@ -1501,6 +1525,32 @@
       renderHeader({ id: JOB_ID, customer: 'load failed', appliance: '—', time: '' });
     }
   }
+  // Self-pay only: surface the dual-tier (OEM / Amazon-eq) talk-track so the
+  // tech offers the same four options at the door that Ant offers on the phone.
+  // Warranty jobs skip this entirely (no cash menu).
+  function renderCashTalkTrack(d) {
+    const card = $('cash-talktrack');
+    if (!card) return;
+    const job = (d && d.job) || {};
+    const ct = String(job.customer_type || '').toLowerCase();
+    const warr = String(job.warranty_company || '').trim();
+    const isSelfPay = ct === 'self_pay' || ct === 'cash' || (ct === '' && !warr) ;
+    if (!isSelfPay) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const toggle = $('cash-talktrack-toggle');
+    const head = $('cash-talktrack-head');
+    const body = $('cash-talktrack-body');
+    if (toggle && head && body && !toggle.dataset.bound) {
+      toggle.dataset.bound = '1';
+      const flip = () => {
+        const open = body.style.display !== 'none';
+        body.style.display = open ? 'none' : 'block';
+        toggle.textContent = open ? 'expand' : 'hide';
+      };
+      head.addEventListener('click', flip);
+    }
+  }
+
   function renderTeddyPrediag(d) {
     const card = $('teddy-prediag');
     const body = $('teddy-prediag-body');
