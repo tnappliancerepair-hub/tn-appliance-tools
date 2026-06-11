@@ -731,7 +731,11 @@
   const newJobBtn = $('newJobBtn');
   const viewWeekBtn = $('viewWeekBtn');
   const viewTodayBtn = $('viewTodayBtn');
-  let currentView = (params.get('view') === 'today') ? 'today' : 'week';
+  // Phones default to the list ("today") view — the wide week grid is desktop-
+  // only. Explicit ?view= always wins.
+  let currentView = params.get('view') === 'today' ? 'today'
+    : params.get('view') === 'week' ? 'week'
+    : (window.innerWidth < 760 ? 'today' : 'week');
 
   // ── Auth ───────────────────────────────────────────────────────
   function unlock() {
@@ -1160,18 +1164,25 @@
     const techById = {};
     for (const t of techs) techById[t.id] = t;
 
+    // The unscheduled queue shows in the mobile list view too, so Danielle can
+    // schedule from her phone without switching to the desktop week grid.
+    const trayHtml = (data.unscheduled && data.unscheduled.length)
+      ? renderUnscheduled(data.unscheduled) : '';
+
     if (todayJobs.length === 0) {
-      content.innerHTML = `
-        <div class="today-empty" style="padding:60px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
+      content.innerHTML = trayHtml + `
+        <div class="today-empty" style="padding:48px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
           <div style="font-size:48px;margin-bottom:12px">🐜</div>
           <div style="font-size:16px">No jobs scheduled today (${todayStr}).</div>
-          <div style="margin-top:8px;font-size:13px">Click "Week" above to see the full week, or "+ New Job" to book one.</div>
+          <div style="margin-top:8px;font-size:13px">Tap a job in "Needs Scheduling" above to place it, or "Week" for the full week.</div>
         </div>
       `;
+      attachClickHandlers();
       return;
     }
 
     const parts = [];
+    if (trayHtml) parts.push(trayHtml);
     parts.push(`<div class="today-header" style="padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)">
       <div style="font-family:var(--display);letter-spacing:0.06em;font-size:18px;color:var(--text)">Today — ${todayStr}</div>
       <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${todayJobs.length} ${todayJobs.length === 1 ? 'job' : 'jobs'} across ${techs.length} techs</div>
@@ -1204,6 +1215,7 @@
             <div style="font-size:12px;color:var(--muted);margin-top:2px">
               ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
             </div>
+            <div style="margin-top:3px">${partsBadge(j)}</div>
           </div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
         </div>
