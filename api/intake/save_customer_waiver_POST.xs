@@ -66,7 +66,7 @@ query save_customer_waiver verb=POST {
     }
 
     precondition ($cust_last4 == $phone_clean) {
-      error_type = "unauth"
+      error_type = "accessdenied"
       error = "Phone last 4 digits do not match. Please re-enter."
     }
 
