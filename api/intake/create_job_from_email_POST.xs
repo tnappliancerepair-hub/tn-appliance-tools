@@ -336,7 +336,21 @@ query create_job_from_email verb=POST {
       }
       }
     } as $create_log
-  
+
+    // Seed a TDR from the customer's intake info so the warranty package starts
+    // pre-filled — the customer helps with the process, the tech has the final
+    // say. System seed (technician_id=0); Teddy's pre-diag and the tech's own
+    // TDR are later/newer rows that supersede it as "latest". status is left
+    // unset on purpose (it's an enum — don't risk an invalid value).
+    db.add technician_decision_report {
+      data = {
+        job_id           : $new_job.id
+        technician_id    : 0
+        diagnosis        : (($input.problem_summary ?? "")|trim)
+        technician_notes : ("Customer-reported at intake. Machine: " ~ (($input.brand ?? "")|trim) ~ " " ~ (($input.appliance_type ?? "")|trim) ~ " model " ~ (($input.model_number ?? "")|trim) ~ ". Pending tech confirmation.")|trim
+      }
+    } as $seed_tdr
+
     // Emit JOB_CREATED so job_created.js agent fires the customer
     // intake-greeting SMS (gated by CUSTOMER_FACING_ENABLED).
     // 2026-06-01 — closes the gap where consolidated-path jobs didn't
