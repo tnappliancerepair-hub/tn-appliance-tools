@@ -697,7 +697,7 @@ async function loadJob() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         endpoint: 'get_job_for_dashboard',
-        payload: { job_id: parseInt(JOB_ID, 10) },
+        payload: { job_id: parseInt(JOB_ID, 10), include_events: 1 },
         method: 'POST'
       })
     });

@@ -6,6 +6,10 @@ query get_job_for_dashboard verb=POST {
   input {
     // The ID of the job to retrieve.
     int job_id
+    // Opt-in: include recent_events. That query scans event_log on a JSON path
+    // (no index) and is what made this endpoint time out; default off so the
+    // hot tech-ant-chat path + agents load fast. job-detail sets it to 1.
+    int? include_events?
   }
 
   stack {
@@ -228,24 +232,36 @@ query get_job_for_dashboard verb=POST {
       }
     }
   
-    // Recent events for this job (filter on metadata.job_id JSON path).
-    db.query event_log {
-      where = $db.event_log.metadata.job_id == $input.job_id
-      sort = {event_log.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 20}}
-    } as $events_query
-  
+    // Recent events for this job. The metadata.job_id filter is a JSON-path
+    // scan over event_log (tens of thousands of rows, no index) and was making
+    // this endpoint time out (>20s). Now OPT-IN via include_events — the hot
+    // tech-ant-chat path + agents skip it and load fast; job-detail requests it.
+    // Bounded to 90 days to cap the scan when it does run.
     var $events_trimmed {
       value = []
     }
-  
-    foreach ($events_query.items) {
-      each as $ev {
-        array.push $events_trimmed {
-          value = {
-            action    : $ev.action
-            created_at: $ev.created_at
-            metadata  : $ev.metadata
+    var $want_events {
+      value = (($input.include_events ?? 0) > 0)
+    }
+    conditional {
+      if ($want_events) {
+        var $ev_cutoff {
+          value = ((now|to_ms) - (90 * 24 * 60 * 60 * 1000))
+        }
+        db.query event_log {
+          where = $db.event_log.metadata.job_id == $input.job_id && $db.event_log.created_at >= $ev_cutoff
+          sort = {event_log.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 20}}
+        } as $events_query
+        foreach ($events_query.items) {
+          each as $ev {
+            array.push $events_trimmed {
+              value = {
+                action    : $ev.action
+                created_at: $ev.created_at
+                metadata  : $ev.metadata
+              }
+            }
           }
         }
       }
