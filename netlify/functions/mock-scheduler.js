@@ -389,6 +389,20 @@ exports.handler = async function (event) {
       ((r.created_at || 0) >= practiceCutoffMs &&
         !(r.test_run_id || '').startsWith('PRACTICE'));
 
+    // A job can't be scheduled before its parts are due to arrive. Jobs
+    // waiting on parts are only schedulable on/after parts_eta_date; if they're
+    // waiting with no ETA on file, the scheduler leaves them for the office to
+    // handle manually (we don't know when the part lands).
+    const partsReadyByDate = (r) => {
+      const ps = (r.parts_status || '').toLowerCase();
+      const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+      if (!waiting) return true;
+      if (!r.parts_eta_date) return false;
+      const eta = String(r.parts_eta_date).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(eta)) return false;
+      return targetDateYmd >= eta;
+    };
+
     const flexible = allJobs.filter(
       (r) =>
         ['needs_scheduled', 'not_ready', 'prediagnosis_pending'].includes(
@@ -396,6 +410,7 @@ exports.handler = async function (event) {
         ) &&
         !r.scheduled_start &&
         isRoutable(r) &&
+        partsReadyByDate(r) &&
         matchesTestScope(r) &&
         matchesPracticeScope(r),
     );

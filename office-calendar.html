@@ -282,6 +282,23 @@
     margin-top: 2px;
   }
 
+  /* Unscheduled (needs-scheduling) tray — distinct violet head from the
+     amber Needs-Assignment tray. */
+  .unscheduled-tray .head { background: rgba(139,92,246,0.12); }
+  .unscheduled-tray .item .meta { font-size: 11px; margin-top: 3px; }
+  .unsched-item { cursor: pointer; }
+  .wtag {
+    display: inline-block; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.04em; background: rgba(37,99,235,0.15); color: var(--blue);
+    border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle;
+  }
+  .ready { color: #16a34a; font-weight: 600; }
+  .parts-badge {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    background: rgba(234,88,12,0.14); color: #c2410c;
+    border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap;
+  }
+
   /* ── Calendar grid ─────────────────────────────────────────────── */
   .calendar {
     background: var(--panel);
@@ -786,12 +803,16 @@
 
     const techs = data.technicians || [];
     const jobs = data.jobs || [];
+    const unscheduled = data.unscheduled || [];
     const availability = data.availability || [];
     const techCount = Math.max(techs.length, 1);
 
     lastTechs = techs;
     lastJobsById = {};
     for (const j of jobs) lastJobsById[j.id] = j;
+    // Include unscheduled jobs so the tray can open them in the same
+    // schedule/reschedule modal as everything else.
+    for (const j of unscheduled) lastJobsById[j.id] = j;
 
     // Branch on view mode. Today view replaces the week grid with a
     // chronological list of all jobs scheduled for today across all techs.
@@ -855,6 +876,10 @@
 
     if (unassigned.length > 0) {
       parts.push(renderUnassigned(unassigned));
+    }
+
+    if (unscheduled.length > 0) {
+      parts.push(renderUnscheduled(unscheduled));
     }
 
     parts.push(`<div class="calendar" style="--tech-count:${techCount}">`);
@@ -942,6 +967,52 @@
     `;
   }
 
+  // Parts badge — the "are the parts in or not" signal. Shows on any job
+  // (scheduled or unscheduled) that's waiting on parts, with the ETA date.
+  function partsBadge(j) {
+    const ps = (j.parts_status || '').toLowerCase();
+    const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+    if (!waiting) return '';
+    let eta = '';
+    if (j.parts_eta_date) {
+      const s = String(j.parts_eta_date);
+      eta = ' · ETA ' + (s.length >= 10 ? s.slice(5, 10) : s);
+    }
+    return `<span class="parts-badge" title="waiting on parts (${escapeHtml(ps)})">⏳ parts${eta}</span>`;
+  }
+
+  // Unscheduled queue tray — who HASN'T been scheduled (incl. anything the
+  // auto-scheduler couldn't route). Tap an item to open the same schedule/
+  // reschedule modal and place it onto a tech.
+  function renderUnscheduled(list) {
+    const items = list.map((j) => {
+      const cust = `${(j.customer_first_name || '').trim()} ${(j.customer_last_name || '').trim()}`.trim() || '(no customer)';
+      const appl = (j.appliance_type || 'appliance').toLowerCase();
+      const loc = (j.service_city || j.service_zip || '').trim();
+      const ct = (j.customer_type || '').toLowerCase();
+      const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
+      const pb = partsBadge(j);
+      const meta = pb || '<span class="ready">✓ ready to schedule</span>';
+      return `
+        <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule this job">
+          <div class="cust">${escapeHtml(cust)} ${tag}</div>
+          <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
+          <div class="meta">${meta}</div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="unassigned unscheduled-tray show">
+        <div class="head">
+          <div class="icon">🗓️</div>
+          <div class="label">Needs Scheduling — tap to place</div>
+          <div class="count">${list.length}</div>
+        </div>
+        <div class="list">${items}</div>
+      </div>
+    `;
+  }
+
   function renderCell(tech, day, jobs, isOff) {
     if (isOff) {
       return `
@@ -1002,6 +1073,7 @@
         <div class="row2">
           <span class="app">${escapeHtml(applLine)}</span>
           ${city ? `<span class="city">${escapeHtml(city)}</span>` : ''}
+          ${partsBadge(j)}
         </div>
       </div>
     `;
@@ -1032,6 +1104,14 @@
           e.preventDefault();
           openManageJobModal(Number(blk.dataset.jobId));
         }
+      });
+    });
+    // Tap an unscheduled-tray item to open the same modal and place it.
+    document.querySelectorAll('.unsched-item[data-job-id]').forEach((it) => {
+      const open = () => openManageJobModal(Number(it.dataset.jobId));
+      it.addEventListener('click', open);
+      it.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
       });
     });
   }
@@ -1459,6 +1539,19 @@
     const dtValue = document.getElementById('rescheduleAt').value;
     if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
     const newStartMs = localDatetimeToMs(dtValue);
+    // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
+    // before the parts are due to arrive.
+    const mj = lastJobsById[manageJobId];
+    if (mj && mj.parts_eta_date) {
+      let eta = mj.parts_eta_date;
+      if (typeof eta === 'number') eta = ctDateForMs(eta);
+      eta = String(eta).slice(0, 10);
+      const chosenDay = ctDateForMs(newStartMs);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(eta) && chosenDay < eta) {
+        manageError.textContent = `Parts aren't due until ${eta} — can't schedule before then. Pick ${eta} or later.`;
+        return;
+      }
+    }
     const btn = e.submitter || document.getElementById('rescheduleSubmit');
     btn.disabled = true; btn.textContent = 'Rescheduling...';
     try {
