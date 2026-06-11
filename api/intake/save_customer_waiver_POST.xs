@@ -87,7 +87,7 @@ query save_customer_waiver verb=POST {
     db.add event_log {
       data = {
         action  : "customer_waiver_signed"
-        metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, signer_email: $email_clean, acknowledgments: $acks_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: (($input.user_agent ?? "")|substr:0:200), signature_size_chars: ($sig_clean|length), source: "ant_customer_portal"}|json_encode)
+        metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, signer_email: $email_clean, acknowledgments: $acks_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: (($input.user_agent ?? "")|substr:0:200), signature_present: true, source: "ant_customer_portal"}|json_encode)
       }
     }
   }
