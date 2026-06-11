@@ -91,7 +91,7 @@ query customer_mark_parts_arrived verb=POST {
         db.edit jobs {
           field_name = "id"
           field_value = $input.job_id
-          data = {scheduling_status: "needs_scheduled"}
+          data = {scheduling_status: "not_ready"}
         }
       }
     }
