@@ -63,7 +63,10 @@ query record_parts_order verb=POST {
     var $has_job { value = (($input.job_id ?? 0) > 0) }
     conditional {
       if ($has_job) {
-        db.get jobs { field_name = "id" field_value = $input.job_id } as $pjob
+        db.get jobs {
+          field_name = "id"
+          field_value = $input.job_id
+        } as $pjob
         // parts_status -> awaiting_parts (+ ETA) so the cockpit badge + the
         // can't-schedule-before-parts guard react.
         conditional {
