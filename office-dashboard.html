@@ -1397,7 +1397,7 @@ async function submitScheduleJob() {
 // ── Parts: order entry + arrival (replaces the MeisterTask loop) ──
 const PARTS_TAX_RATE = 0.0975; // display estimate of sales tax owed on the part
 let __partsJobId = null;
-function openPartsModal(jobId) {
+async function openPartsModal(jobId) {
   __partsJobId = jobId;
   document.getElementById('parts-err').textContent = '';
   document.getElementById('po-vendor').value = 'reliable';
@@ -1408,7 +1408,31 @@ function openPartsModal(jobId) {
   document.getElementById('po-sold').value = '';
   recalcParts();
   document.getElementById('parts-title').textContent = `Order parts — job #${jobId}`;
+  document.getElementById('po-prediag').innerHTML = '<span style="color:#5a6172">checking Ant pre-diagnosis…</span>';
   document.getElementById('parts-modal').style.display = 'flex';
+  // Phase 3 — pre-diagnosis: pull Ant's predicted failure/part so she orders
+  // the right part BEFORE the visit. Pre-fills the fields; she confirms/edits.
+  try {
+    const r = await fetch(`${XANO_BASE}/get_predicted_failure_for_job?job_id=${jobId}`);
+    const d = await r.json();
+    const m = d && d.has_draft && d.suggestion && d.suggestion.metadata;
+    if (!m) { document.getElementById('po-prediag').innerHTML = '<span style="color:#5a6172">no pre-diagnosis on file yet</span>'; return; }
+    const txt = String(m.draft_text || '');
+    const grab = (re) => { const x = txt.match(re); return x ? x[1].trim() : ''; };
+    const comp = grab(/failed component:\s*(.+)/i);
+    const part = grab(/recommended part:\s*(.+)/i);
+    const pre = grab(/pre-?order parts:\s*(.+)/i);
+    if (comp) document.getElementById('po-partname').value = comp;
+    const realPart = part && !/verify via model|unsure|unknown|n\/a/i.test(part);
+    if (realPart) document.getElementById('po-partnum').value = part.replace(/[.]$/, '');
+    let hint = '🔮 <b>Ant pre-diagnosis</b>';
+    if (comp) hint += ` · likely <b>${escapeHtml(comp)}</b>`;
+    if (part) hint += ` · part: ${escapeHtml(part)}`;
+    if (/yes/i.test(pre)) hint += ' · <span style="color:#34d399">pre-order ✅</span>';
+    document.getElementById('po-prediag').innerHTML = `<div style="font-size:12px;background:rgba(76,167,255,0.10);border:1px solid rgba(76,167,255,0.3);border-radius:8px;padding:8px 10px">${hint}</div>`;
+  } catch (e) {
+    document.getElementById('po-prediag').innerHTML = '';
+  }
 }
 function closePartsModal() { document.getElementById('parts-modal').style.display = 'none'; __partsJobId = null; }
 function recalcParts() {
@@ -1584,7 +1608,8 @@ async function purgeRun() {
 <!-- Parts order modal -->
 <div id="parts-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
   <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:400px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit;margin:auto">
-    <h3 id="parts-title" style="margin:0 0 12px;font-size:17px">Order parts</h3>
+    <h3 id="parts-title" style="margin:0 0 10px;font-size:17px">Order parts</h3>
+    <div id="po-prediag" style="margin-bottom:12px"></div>
     <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Vendor</label>
     <select id="po-vendor" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:10px;font-size:16px">
       <option value="reliable">Reliable</option>
