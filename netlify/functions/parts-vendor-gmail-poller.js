@@ -329,13 +329,17 @@ exports.handler = async (event) => {
         if (!ex.dispatch_id) { orderResults.push({ fp: fp.name, matched: false, reason: 'no_dispatch_id', subject: subject.slice(0, 100) }); continue; }
 
         let jobId = 0;
+        let matchCount = 0;
         try {
           const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
           const fd = await fr.json().catch(() => ({}));
-          jobId = Number(fd.job_id || (fd.job && fd.job.id) || (Array.isArray(fd.jobs) && fd.jobs[0] && fd.jobs[0].job_id) || 0);
+          // find_job_by_claim_number returns { best:{job_id}, candidates:[{job_id}], count }.
+          const cands = Array.isArray(fd.candidates) ? fd.candidates : [];
+          matchCount = (typeof fd.count === 'number') ? fd.count : cands.length;
+          jobId = Number((fd.best && fd.best.job_id) || (cands[0] && cands[0].job_id) || fd.job_id || 0);
         } catch (_) {}
 
-        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, part_hint: ex.part_hint || '', job_id: jobId, subject: subject.slice(0, 100) };
+        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, part_hint: ex.part_hint || '', job_id: jobId, match_count: matchCount, subject: subject.slice(0, 100) };
         if (!ORDER_LIVE) { orderResults.push({ ...rec, action: 'dry_run' }); continue; }
         if (!jobId) { orderResults.push({ ...rec, action: 'no_job_match' }); continue; }
 
@@ -386,15 +390,22 @@ exports.handler = async (event) => {
         if (!ex.dispatch_id) { arrivedResults.push({ fp: fp.name, matched: false, reason: 'no_dispatch_id', subject: subject.slice(0, 100) }); continue; }
 
         let jobId = 0;
+        let matchCount = 0;
         try {
           const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
           const fd = await fr.json().catch(() => ({}));
-          jobId = Number(fd.job_id || (fd.job && fd.job.id) || (Array.isArray(fd.jobs) && fd.jobs[0] && fd.jobs[0].job_id) || 0);
+          const cands = Array.isArray(fd.candidates) ? fd.candidates : [];
+          matchCount = (typeof fd.count === 'number') ? fd.count : cands.length;
+          jobId = Number((fd.best && fd.best.job_id) || (cands[0] && cands[0].job_id) || fd.job_id || 0);
         } catch (_) {}
 
-        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, job_id: jobId, subject: subject.slice(0, 100) };
+        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, job_id: jobId, match_count: matchCount, subject: subject.slice(0, 100) };
         if (!ORDER_LIVE) { arrivedResults.push({ ...rec, action: 'dry_run' }); continue; }
         if (!jobId) { arrivedResults.push({ ...rec, action: 'no_job_match' }); continue; }
+        // Arrival flips status + emits PARTS_ARRIVED (can notify the customer/tech),
+        // so only auto-apply a CONFIDENT single match; ambiguous (>1 candidate)
+        // deliveries are surfaced for a human instead of auto-marking the wrong job.
+        if (matchCount > 1) { arrivedResults.push({ ...rec, action: 'ambiguous_skip' }); continue; }
 
         const r = await fetch(MARK_ARRIVED_ENDPOINT, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
