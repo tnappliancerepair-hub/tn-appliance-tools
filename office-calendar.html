@@ -282,6 +282,23 @@
     margin-top: 2px;
   }
 
+  /* Unscheduled (needs-scheduling) tray — distinct violet head from the
+     amber Needs-Assignment tray. */
+  .unscheduled-tray .head { background: rgba(139,92,246,0.12); }
+  .unscheduled-tray .item .meta { font-size: 11px; margin-top: 3px; }
+  .unsched-item { cursor: pointer; }
+  .wtag {
+    display: inline-block; font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.04em; background: rgba(37,99,235,0.15); color: var(--blue);
+    border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle;
+  }
+  .ready { color: #16a34a; font-weight: 600; }
+  .parts-badge {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    background: rgba(234,88,12,0.14); color: #c2410c;
+    border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap;
+  }
+
   /* ── Calendar grid ─────────────────────────────────────────────── */
   .calendar {
     background: var(--panel);
@@ -714,7 +731,11 @@
   const newJobBtn = $('newJobBtn');
   const viewWeekBtn = $('viewWeekBtn');
   const viewTodayBtn = $('viewTodayBtn');
-  let currentView = (params.get('view') === 'today') ? 'today' : 'week';
+  // Phones default to the list ("today") view — the wide week grid is desktop-
+  // only. Explicit ?view= always wins.
+  let currentView = params.get('view') === 'today' ? 'today'
+    : params.get('view') === 'week' ? 'week'
+    : (window.innerWidth < 760 ? 'today' : 'week');
 
   // ── Auth ───────────────────────────────────────────────────────
   function unlock() {
@@ -735,6 +756,23 @@
 
   authSubmit.addEventListener('click', submitAuth);
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+
+  // Self-contained password verify — this page does NOT define it inline
+  // elsewhere and office-search.js doesn't provide it, so without this the
+  // unlock threw and the page stayed blank.
+  async function __verifyOfficePassword(pw) {
+    try {
+      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const d = await r.json().catch(() => ({}));
+      return d && d.success === true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   async function submitAuth() {
     const val = authInput.value;
@@ -786,12 +824,16 @@
 
     const techs = data.technicians || [];
     const jobs = data.jobs || [];
+    const unscheduled = data.unscheduled || [];
     const availability = data.availability || [];
     const techCount = Math.max(techs.length, 1);
 
     lastTechs = techs;
     lastJobsById = {};
     for (const j of jobs) lastJobsById[j.id] = j;
+    // Include unscheduled jobs so the tray can open them in the same
+    // schedule/reschedule modal as everything else.
+    for (const j of unscheduled) lastJobsById[j.id] = j;
 
     // Branch on view mode. Today view replaces the week grid with a
     // chronological list of all jobs scheduled for today across all techs.
@@ -855,6 +897,10 @@
 
     if (unassigned.length > 0) {
       parts.push(renderUnassigned(unassigned));
+    }
+
+    if (unscheduled.length > 0) {
+      parts.push(renderUnscheduled(unscheduled));
     }
 
     parts.push(`<div class="calendar" style="--tech-count:${techCount}">`);
@@ -942,6 +988,52 @@
     `;
   }
 
+  // Parts badge — the "are the parts in or not" signal. Shows on any job
+  // (scheduled or unscheduled) that's waiting on parts, with the ETA date.
+  function partsBadge(j) {
+    const ps = (j.parts_status || '').toLowerCase();
+    const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+    if (!waiting) return '';
+    let eta = '';
+    if (j.parts_eta_date) {
+      const s = String(j.parts_eta_date);
+      eta = ' · ETA ' + (s.length >= 10 ? s.slice(5, 10) : s);
+    }
+    return `<span class="parts-badge" title="waiting on parts (${escapeHtml(ps)})">⏳ parts${eta}</span>`;
+  }
+
+  // Unscheduled queue tray — who HASN'T been scheduled (incl. anything the
+  // auto-scheduler couldn't route). Tap an item to open the same schedule/
+  // reschedule modal and place it onto a tech.
+  function renderUnscheduled(list) {
+    const items = list.map((j) => {
+      const cust = `${(j.customer_first_name || '').trim()} ${(j.customer_last_name || '').trim()}`.trim() || '(no customer)';
+      const appl = (j.appliance_type || 'appliance').toLowerCase();
+      const loc = (j.service_city || j.service_zip || '').trim();
+      const ct = (j.customer_type || '').toLowerCase();
+      const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
+      const pb = partsBadge(j);
+      const meta = pb || '<span class="ready">✓ ready to schedule</span>';
+      return `
+        <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule this job">
+          <div class="cust">${escapeHtml(cust)} ${tag}</div>
+          <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
+          <div class="meta">${meta}</div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="unassigned unscheduled-tray show">
+        <div class="head">
+          <div class="icon">🗓️</div>
+          <div class="label">Needs Scheduling — tap to place</div>
+          <div class="count">${list.length}</div>
+        </div>
+        <div class="list">${items}</div>
+      </div>
+    `;
+  }
+
   function renderCell(tech, day, jobs, isOff) {
     if (isOff) {
       return `
@@ -1002,6 +1094,7 @@
         <div class="row2">
           <span class="app">${escapeHtml(applLine)}</span>
           ${city ? `<span class="city">${escapeHtml(city)}</span>` : ''}
+          ${partsBadge(j)}
         </div>
       </div>
     `;
@@ -1034,6 +1127,14 @@
         }
       });
     });
+    // Tap an unscheduled-tray item to open the same modal and place it.
+    document.querySelectorAll('.unsched-item[data-job-id]').forEach((it) => {
+      const open = () => openManageJobModal(Number(it.dataset.jobId));
+      it.addEventListener('click', open);
+      it.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    });
   }
 
   function renderHeader(data) {
@@ -1063,18 +1164,25 @@
     const techById = {};
     for (const t of techs) techById[t.id] = t;
 
+    // The unscheduled queue shows in the mobile list view too, so Danielle can
+    // schedule from her phone without switching to the desktop week grid.
+    const trayHtml = (data.unscheduled && data.unscheduled.length)
+      ? renderUnscheduled(data.unscheduled) : '';
+
     if (todayJobs.length === 0) {
-      content.innerHTML = `
-        <div class="today-empty" style="padding:60px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
+      content.innerHTML = trayHtml + `
+        <div class="today-empty" style="padding:48px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
           <div style="font-size:48px;margin-bottom:12px">🐜</div>
           <div style="font-size:16px">No jobs scheduled today (${todayStr}).</div>
-          <div style="margin-top:8px;font-size:13px">Click "Week" above to see the full week, or "+ New Job" to book one.</div>
+          <div style="margin-top:8px;font-size:13px">Tap a job in "Needs Scheduling" above to place it, or "Week" for the full week.</div>
         </div>
       `;
+      attachClickHandlers();
       return;
     }
 
     const parts = [];
+    if (trayHtml) parts.push(trayHtml);
     parts.push(`<div class="today-header" style="padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)">
       <div style="font-family:var(--display);letter-spacing:0.06em;font-size:18px;color:var(--text)">Today — ${todayStr}</div>
       <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${todayJobs.length} ${todayJobs.length === 1 ? 'job' : 'jobs'} across ${techs.length} techs</div>
@@ -1107,6 +1215,7 @@
             <div style="font-size:12px;color:var(--muted);margin-top:2px">
               ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
             </div>
+            <div style="margin-top:3px">${partsBadge(j)}</div>
           </div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
         </div>
@@ -1418,6 +1527,18 @@
       .filter((t) => t.id !== j.technician_id)
       .map((t) => `<option value="${t.id}">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
       .join('') || '<option value="">No other techs</option>';
+    // Populate the schedule/reschedule tech selector (ALL techs; preselect the
+    // job's current tech so a pure time-change keeps the same tech).
+    const rsel = document.getElementById('rescheduleTech');
+    rsel.innerHTML = lastTechs
+      .map((t) => `<option value="${t.id}"${t.id === j.technician_id ? ' selected' : ''}>${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
+      .join('') || '<option value="">No techs</option>';
+    // Label the primary action by whether the job is already scheduled.
+    const isUnsched = !j.scheduled_start || !j.technician_id;
+    const rbtn = document.getElementById('manageBtnReschedule');
+    if (rbtn) rbtn.textContent = isUnsched ? 'Schedule' : 'Reschedule';
+    const rsub = document.getElementById('rescheduleSubmit');
+    if (rsub) rsub.textContent = isUnsched ? 'Schedule' : 'Reschedule';
     document.getElementById('cancelReason').value = '';
     manageModal.classList.add('open');
   }
@@ -1459,12 +1580,30 @@
     const dtValue = document.getElementById('rescheduleAt').value;
     if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
     const newStartMs = localDatetimeToMs(dtValue);
+    const techId = Number(document.getElementById('rescheduleTech').value || 0);
+    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
+    // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
+    // before the parts are due to arrive.
+    const mj = lastJobsById[manageJobId];
+    if (mj && mj.parts_eta_date) {
+      let eta = mj.parts_eta_date;
+      if (typeof eta === 'number') eta = ctDateForMs(eta);
+      eta = String(eta).slice(0, 10);
+      const chosenDay = ctDateForMs(newStartMs);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(eta) && chosenDay < eta) {
+        manageError.textContent = `Parts aren't due until ${eta} — can't schedule before then. Pick ${eta} or later.`;
+        return;
+      }
+    }
     const btn = e.submitter || document.getElementById('rescheduleSubmit');
-    btn.disabled = true; btn.textContent = 'Rescheduling...';
+    btn.disabled = true; btn.textContent = 'Saving...';
     try {
-      const res = await fetch(`${XANO_BASE}/reschedule_job`, {
+      // danielle_schedule_parallel_job sets tech + time, transitions
+      // not_ready -> scheduled, and fires the tech confirmation — works for
+      // both first-time scheduling and rescheduling in one call.
+      const res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, new_start_ms: newStartMs }),
+        body: JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
@@ -1681,11 +1820,13 @@
     </div>
 
     <form id="manageRescheduleForm">
-      <label>New date + time (CT)</label>
+      <label>Tech</label>
+      <select id="rescheduleTech" required></select>
+      <label>Date + time (CT)</label>
       <input type="datetime-local" id="rescheduleAt" required>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
-        <button type="submit" class="primary" id="rescheduleSubmit">Reschedule</button>
+        <button type="submit" class="primary" id="rescheduleSubmit">Schedule</button>
       </div>
     </form>
 

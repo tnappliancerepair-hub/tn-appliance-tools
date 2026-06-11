@@ -12,7 +12,7 @@ query send_text_to_tech verb=POST {
   }
 
   stack {
-    precondition (($input.message ?? "")|trim != "") {
+    precondition ((($input.message ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "message required"
     }

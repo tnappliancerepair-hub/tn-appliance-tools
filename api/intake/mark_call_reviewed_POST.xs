@@ -11,7 +11,7 @@ query mark_call_reviewed verb=POST {
   }
 
   stack {
-    precondition (($input.vapi_call_id ?? "")|trim != "") {
+    precondition ((($input.vapi_call_id ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "vapi_call_id required"
     }

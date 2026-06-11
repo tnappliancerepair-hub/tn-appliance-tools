@@ -28,6 +28,7 @@
 //   DEPLOY_XS_BRANCH default branch if the signal omits one.
 
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { markSignalProcessed, logLocal } from '../xano.js';
@@ -35,8 +36,35 @@ import { toOwner } from '../sms.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url)); // .../colony-loop/agents
 const REPO_ROOT = join(HERE, '..', '..');             // repo root on the Mac Mini
-const XANO_BIN = process.env.XANO_CLI_BIN || 'xano';
 const DEFAULT_BRANCH = process.env.DEPLOY_XS_BRANCH || 'claude/good-morning-TcydP';
+
+// launchd starts the loop with a minimal PATH that does NOT include
+// /opt/homebrew/bin, so a bare `xano` (installed via Homebrew/npm) isn't
+// found and every push silently fails. Resolve the real binary at runtime:
+// honor XANO_CLI_BIN, then ask a login shell (which sources the user's
+// profile + full PATH), then fall back to the known install locations.
+function resolveXanoBin() {
+  if (process.env.XANO_CLI_BIN && existsSync(process.env.XANO_CLI_BIN)) {
+    return process.env.XANO_CLI_BIN;
+  }
+  try {
+    const found = execSync('/bin/zsh -lc "command -v xano"', {
+      encoding: 'utf8', timeout: 15000,
+    }).trim();
+    if (found && existsSync(found)) return found;
+  } catch (_) { /* fall through to known paths */ }
+  const candidates = [
+    '/opt/homebrew/bin/xano',
+    '/usr/local/bin/xano',
+    `${process.env.HOME || ''}/.npm-global/bin/xano`,
+  ];
+  for (const c of candidates) {
+    if (c && existsSync(c)) return c;
+  }
+  return 'xano'; // last resort — will error visibly if truly absent
+}
+
+const XANO_BIN = resolveXanoBin();
 
 function sh(cmd) {
   return execSync(cmd, {
@@ -79,7 +107,10 @@ export async function run(signal, ctx) {
     for (const ep of endpoints) {
       try {
         const flag = dryRun ? '--dry-run' : '--force';
-        const out = sh(`${XANO_BIN} workspace push -i "**/${ep}*" ${flag}`);
+        // Anchor the glob to api/ — the only tree we check out — so it never
+        // collides with stale staging copies under colony-loop/xano-endpoints/
+        // that may share a GUID (the danielle_schedule duplicate-GUID trap).
+        const out = sh(`${XANO_BIN} workspace push -i "api/**/${ep}*" ${flag}`);
         results.push({ endpoint: ep, ok: true, out: String(out).slice(-300) });
       } catch (e) {
         results.push({ endpoint: ep, ok: false, err: String(e.message || e).slice(-300) });

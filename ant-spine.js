@@ -43,15 +43,29 @@
   // ── Cross-tool deep-link strip ─────────────────────────────────
   // Renders a thin nav bar with links to every other lens of the
   // current job. The current role's link is highlighted (you-are-here).
+  // Which lenses each role may even SEE in the strip. Customers must never be
+  // shown links into tech/office/owner tools (they're internal); techs see
+  // their job + the customer view; office/owner see everything.
+  const VISIBLE_LENSES = {
+    customer: ['customer'],
+    tech: ['tech', 'customer'],
+    office: ['owner', 'tech', 'office', 'customer'],
+    owner: ['owner', 'tech', 'office', 'customer'],
+  };
+
   function buildStrip(jobId, currentRole) {
     if (!jobId) return '';
+    const allowed = VISIBLE_LENSES[currentRole] || ['customer'];
     const lenses = [
       { role: 'owner',    label: '📋 Teddy Tool',    href: `/teddy-tdr-tool.html?job_id=${jobId}` },
       { role: 'tech',     label: '🔧 Tech View',     href: `/tech-simple.html?job_id=${jobId}` },
       { role: 'office',   label: '📦 Warranty',      href: `/warranty-review.html?job_id=${jobId}` },
       { role: 'office',   label: '🗂 Job Detail',    href: `/job-detail.html?job_id=${jobId}` },
       { role: 'customer', label: '👤 Customer View', href: `/customer-portal.html?job_id=${jobId}` },
-    ];
+    ].filter((l) => allowed.includes(l.role));
+    // A customer-only strip with a single "you are here" link adds no value and
+    // just advertises that other tools exist — suppress it entirely.
+    if (currentRole === 'customer') return '';
     const items = lenses.map((l) => {
       const isHere = l.role === currentRole && root.location.pathname.replace(/^\//, '') === l.href.replace(/^\//, '').split('?')[0];
       const style = `display:inline-block; padding:4px 10px; margin:0 4px; font-size:11px; font-family: ui-monospace, monospace; text-decoration:none; border-radius:12px; border:1px solid ${isHere ? 'rgba(116,227,196,0.6)' : 'rgba(255,255,255,0.15)'}; color:${isHere ? '#74e3c4' : '#9aa1ad'}; background:${isHere ? 'rgba(116,227,196,0.10)' : 'transparent'};`;
@@ -70,8 +84,10 @@
   function injectStrip(jobId, role) {
     const existing = root.document.getElementById('ant-spine-strip');
     if (existing) return;
+    const html = buildStrip(jobId, role);
+    if (!html) return; // customers (and any empty case) get no cross-tool strip
     const wrap = root.document.createElement('div');
-    wrap.innerHTML = buildStrip(jobId, role);
+    wrap.innerHTML = html;
     while (wrap.firstChild) root.document.body.insertBefore(wrap.firstChild, root.document.body.firstChild);
   }
 

@@ -26,15 +26,15 @@ query create_job_from_call verb=POST {
   }
 
   stack {
-    precondition (($input.customer_first_name ?? "")|trim != "") {
+    precondition ((($input.customer_first_name ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "customer_first_name required"
     }
-    precondition (($input.customer_phone ?? "")|trim != "") {
+    precondition ((($input.customer_phone ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "customer_phone required"
     }
-    precondition (($input.problem_summary ?? "")|trim != "") {
+    precondition ((($input.problem_summary ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "problem_summary required"
     }

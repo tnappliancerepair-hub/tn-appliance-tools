@@ -44,7 +44,7 @@ query update_customer_availability_grid verb=POST {
     // shows a modal pointing them there. Backend defends in depth.
     var $waiver_ts { value = ($job.waiver_signed_at ?? 0) }
     precondition ($waiver_ts > 0) {
-      error_type = "unauth"
+      error_type = "accessdenied"
       error = "Please sign the release of liability before scheduling. Open the waiver link in your appointment text."
     }
 
@@ -66,7 +66,7 @@ query update_customer_availability_grid verb=POST {
     }
 
     var $stored_last4 {
-      value = $stored_phone|right:4
+      value = $stored_phone|substr:-4:4
     }
 
     conditional {

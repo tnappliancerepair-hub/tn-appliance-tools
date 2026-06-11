@@ -270,6 +270,11 @@ exports.handler = async function (event) {
   // PATCHed job with test_run_id="PRACTICE_<targetDate>" as a marker so the
   // tech dashboard can render a "🧪 PRACTICE" badge.
   const practiceMode = qp.practice_mode === 'true' || qp.practice_mode === '1';
+  // REAL MODE — same safe sweep as practice (not_ready jobs since cutoff) but
+  // places for REAL: no PRACTICE tag, and fires APPOINTMENT_SCHEDULED
+  // (source="scheduler") per NEWLY-placed job so the assigned TECH gets a
+  // confirmation SMS. Customer SMS stays gated by CUSTOMER_FACING_ENABLED.
+  const realMode = qp.real_apply === 'true' || qp.real_apply === '1';
   const practiceCutoffMs = parseInt(qp.practice_cutoff_ms || '1780117200000', 10);
   // dayOffset = how many days ahead from today (in CT) to schedule.
   // 1 = tomorrow (default). 0 = today. Used as the BASE day for flexible (AHS/self-pay)
@@ -288,10 +293,10 @@ exports.handler = async function (event) {
       error: 'apply=true requires confirm_apply=1 (safety gate to prevent accidental live writes)',
     });
   }
-  if (apply && !testRunId && !practiceMode) {
+  if (apply && !testRunId && !practiceMode && !realMode) {
     return json(400, {
       ok: false,
-      error: 'apply=true requires test_run_id OR practice_mode=1 (safety gate — would scoop legacy jobs otherwise)',
+      error: 'apply=true requires test_run_id OR practice_mode=1 OR real_apply=1 (safety gate — would scoop legacy jobs otherwise)',
     });
   }
   if (!process.env.XANO_METADATA_TOKEN) {
@@ -314,10 +319,21 @@ exports.handler = async function (event) {
       if (zip && cluster) zipToCluster[zip] = cluster;
     }
 
-    // 3) Build cluster -> rank-1 active tech_id map
+    // 3) Build cluster -> rank-1 active tech_id map.
+    // Owner-off-the-schedule: tech ids in SCHEDULER_EXCLUDE_TECH_IDS (default
+    // "1" = Teddy) are skipped, so the scheduler never auto-routes routine work
+    // onto the owner. A Teddy-led cluster falls to its next-rank active tech;
+    // a cluster ONLY he covers gets no tech -> those jobs unroute and surface
+    // for a manual call ("absolutely necessary" cases Teddy handles by hand).
+    // Reversible: set SCHEDULER_EXCLUDE_TECH_IDS="" to put him back.
+    const EXCLUDED_TECH_IDS = String(process.env.SCHEDULER_EXCLUDE_TECH_IDS ?? '1')
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
     const clusterToTechId = {};
     for (const a of assignments) {
       if (!a.active) continue;
+      if (EXCLUDED_TECH_IDS.includes(a.technician_id)) continue;
       const c = (a.cluster || '').trim();
       const rank = a.rank || 999;
       if (!clusterToTechId[c] || rank < clusterToTechId[c].rank) {
@@ -369,9 +385,23 @@ exports.handler = async function (event) {
     // Practice mode: only sweep jobs created since cutoff AND not already practice-tagged
     // (so re-runs don't re-touch jobs we've already auto-scheduled).
     const matchesPracticeScope = (r) =>
-      !practiceMode ||
+      (!practiceMode && !realMode) ||
       ((r.created_at || 0) >= practiceCutoffMs &&
         !(r.test_run_id || '').startsWith('PRACTICE'));
+
+    // A job can't be scheduled before its parts are due to arrive. Jobs
+    // waiting on parts are only schedulable on/after parts_eta_date; if they're
+    // waiting with no ETA on file, the scheduler leaves them for the office to
+    // handle manually (we don't know when the part lands).
+    const partsReadyByDate = (r) => {
+      const ps = (r.parts_status || '').toLowerCase();
+      const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+      if (!waiting) return true;
+      if (!r.parts_eta_date) return false;
+      const eta = String(r.parts_eta_date).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(eta)) return false;
+      return targetDateYmd >= eta;
+    };
 
     const flexible = allJobs.filter(
       (r) =>
@@ -380,6 +410,7 @@ exports.handler = async function (event) {
         ) &&
         !r.scheduled_start &&
         isRoutable(r) &&
+        partsReadyByDate(r) &&
         matchesTestScope(r) &&
         matchesPracticeScope(r),
     );
@@ -582,6 +613,7 @@ exports.handler = async function (event) {
         targetDateMs,
         testRunId,
         practiceMode,
+        realMode,
         practiceTagYmd: targetDateYmd,
       });
       // Audit log for the apply write
@@ -712,9 +744,13 @@ function stopTimestampMs(targetDateMs, minuteOffset) {
 // so the existing PICK1/2/3 SMS path doesn't fire on already-scheduled jobs.
 //
 // Caller responsibility: only call this when apply=true && confirm_apply=1.
-async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMode, practiceTagYmd }) {
+async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMode, realMode, practiceTagYmd }) {
   const writes = { ok: 0, failed: 0, errors: [] };
   const placedJobIds = [];
+  // Real mode only: jobs that went not_ready -> scheduled (genuinely new
+  // placements, not anchor re-affirmations). These get a tech confirmation SMS
+  // via APPOINTMENT_SCHEDULED after the writes complete.
+  const newlyScheduled = [];
 
   // Per-stop PATCH (parallel, capped concurrency)
   const stops = [];
@@ -767,6 +803,12 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMo
             current_state: trBody.current_state,
           });
           continue;
+        }
+        // Real mode: only genuinely-new placements (not_ready -> scheduled)
+        // get a tech confirmation. Anchor re-affirmations (scheduled ->
+        // scheduled) are skipped so techs aren't re-texted every cron tick.
+        if (realMode && (trBody.from_state || '') !== 'scheduled') {
+          newlyScheduled.push({ job_id: stop.job.id, start_ms: startMs, end_ms: endMs, tech_id });
         }
       } catch (e) {
         writes.failed++;
@@ -862,7 +904,53 @@ async function applyPlanToLiveJobs({ result, targetDateMs, testRunId, practiceMo
     }
   }
 
-  return { jobs: writes, scheduling_queue: queueDeletes, placed_job_ids: placedJobIds };
+  // Real mode: fire APPOINTMENT_SCHEDULED for each NEWLY-placed job so the
+  // assigned tech gets a confirmation SMS. appointment_scheduled.js sends the
+  // tech SMS (source "scheduler" is not in SKIP_TECH_SOURCES) and attempts a
+  // customer SMS that stays gated off by CUSTOMER_FACING_ENABLED. The agent
+  // dedups on (job_id, scheduled_start_ms), so stable re-runs don't re-text.
+  let techConfirms = 0;
+  if (realMode && newlyScheduled.length) {
+    let ni = 0;
+    const emitOne = async () => {
+      while (ni < newlyScheduled.length) {
+        const n = newlyScheduled[ni++];
+        const payload = JSON.stringify({
+          job_id: n.job_id,
+          scheduled_start_ms: n.start_ms,
+          scheduled_end_ms: n.end_ms,
+          technician_id: n.tech_id,
+          source: 'scheduler',
+        });
+        try {
+          const r = await fetch(
+            'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/emit_colony_signal',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                signal_type: 'APPOINTMENT_SCHEDULED',
+                signal_strength: 60,
+                source_colony: 'scheduler',
+                target_colonies: '',
+                payload,
+              }),
+            },
+          );
+          if (r.ok) techConfirms++;
+        } catch (_e) { /* non-fatal — the placement itself already succeeded */ }
+      }
+    };
+    await Promise.all(Array.from({ length: 4 }, emitOne));
+  }
+
+  return {
+    jobs: writes,
+    scheduling_queue: queueDeletes,
+    placed_job_ids: placedJobIds,
+    newly_scheduled: newlyScheduled.length,
+    tech_confirms: techConfirms,
+  };
 }
 
 function fmtMin(m) {

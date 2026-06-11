@@ -20,7 +20,7 @@ query request_photo_via_sms verb=POST {
       error_type = "notfound"
       error = "tech not found"
     }
-    precondition (($tech.phone ?? "")|trim != "") {
+    precondition ((($tech.phone ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "tech has no phone on file"
     }

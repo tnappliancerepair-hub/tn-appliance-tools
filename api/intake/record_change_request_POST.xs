@@ -15,11 +15,11 @@ query record_change_request verb=POST {
   }
 
   stack {
-    precondition (($input.title ?? "")|trim != "") {
+    precondition ((($input.title ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "title required"
     }
-    precondition (($input.body ?? "")|trim != "") {
+    precondition ((($input.body ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "body required"
     }

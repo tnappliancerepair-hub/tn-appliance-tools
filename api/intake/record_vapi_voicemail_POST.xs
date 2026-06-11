@@ -17,7 +17,7 @@ query record_vapi_voicemail verb=POST {
   }
 
   stack {
-    precondition (`($input.caller_phone ?? "")|trim != ""`) {
+    precondition ((($input.caller_phone ?? "")|trim) != "") {
       error_type = "inputerror"
       error = "caller_phone required"
     }

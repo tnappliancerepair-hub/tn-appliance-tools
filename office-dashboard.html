@@ -460,6 +460,7 @@ async function __verifyOfficePassword(pw) {
 //   intake_complete, prediagnosis_pending, needs_more_info, no_fix_possible
 const TABS = [
   { id: 'today',         label: '🐜 Today',         filter: 'today' },
+  { id: 'calendar',      label: '📅 Calendar',      filter: null },
   { id: 'all',           label: 'All',              filter: { date_filter: 'all' } },
   { id: 'unscheduled',   label: 'Needs Scheduled',  filter: { date_filter: 'unscheduled' } },
   { id: 'scheduled',     label: 'Scheduled',        filter: { status: 'scheduled', date_filter: 'all' } },
@@ -549,9 +550,165 @@ function renderTabs() {
       document.getElementById('job-list').style.display = isMock ? 'none' : 'flex';
       document.getElementById('mock-panel').style.display = isMock ? 'block' : 'none';
       if (activeTab === 'today') loadOfficeToday();
+      else if (activeTab === 'calendar') loadCalendar();
       else if (!isMock) loadJobs();
     });
   });
+}
+
+// ── Calendar tab — HCP-style day picker + that day's scheduled jobs ──
+let calData = null, calWeekStart = null, calSelected = null;
+let calHiddenTechs = new Set(); // tech ids toggled OFF the calendar view (0 = unassigned)
+const CAL_TECH_COLORS = ['#4ca7ff', '#f0a020', '#74e3c4', '#ff6b9d', '#a78bfa', '#34d399', '#fb7185', '#fbbf24', '#60a5fa', '#f87171'];
+function calTechColor(id, idx) { return CAL_TECH_COLORS[(idx >= 0 ? idx : Number(id)) % CAL_TECH_COLORS.length]; }
+function calToggleTech(id) {
+  id = Number(id);
+  if (calHiddenTechs.has(id)) calHiddenTechs.delete(id); else calHiddenTechs.add(id);
+  renderCalendar();
+}
+function ctDateStr(ms) {
+  if (!ms) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+function ctTimeStr(ms) {
+  if (!ms) return '';
+  return new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+async function loadCalendar() {
+  const list = document.getElementById('job-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div><div>Loading calendar...</div></div>';
+  try {
+    let url = `${XANO_BASE}/get_office_calendar_week`;
+    if (calWeekStart) url += `?week_start=${encodeURIComponent(calWeekStart)}`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d || !d.success) throw new Error((d && d.error) || 'failed to load');
+    calData = d;
+    calWeekStart = d.week_start_ct;
+    if (!calSelected || calSelected < d.week_start_ct || calSelected > d.week_end_ct) {
+      calSelected = (d.today_ct >= d.week_start_ct && d.today_ct <= d.week_end_ct) ? d.today_ct : d.week_start_ct;
+    }
+    window.__jobsById = window.__jobsById || {};
+    const idx = (j) => { window.__jobsById[j.id] = { job: j, tech: { id: j.technician_id }, customer: { first_name: j.customer_first_name, last_name: j.customer_last_name, phone: j.customer_phone } }; };
+    (d.jobs || []).forEach(idx);
+    (d.unscheduled || []).forEach(idx);
+    renderCalendar();
+  } catch (e) {
+    list.innerHTML = `<div class="empty-jobs">calendar failed to load: ${escapeHtml(String(e.message || e))}</div>`;
+  }
+}
+function mondayOf(ds) {
+  const dt = new Date(ds + 'T12:00:00');
+  const back = (dt.getDay() + 6) % 7; // 0=Sun -> Monday-based
+  dt.setDate(dt.getDate() - back);
+  return dt.toISOString().slice(0, 10);
+}
+function calGoDay(ds) {
+  calSelected = ds;
+  if (!calData || ds < calData.week_start_ct || ds > calData.week_end_ct) {
+    calWeekStart = mondayOf(ds);
+    loadCalendar();
+  } else {
+    renderCalendar();
+  }
+}
+function calStepMonth(delta) {
+  const anchor = new Date((calSelected || calWeekStart) + 'T12:00:00');
+  anchor.setMonth(anchor.getMonth() + delta, 1);
+  calGoDay(anchor.toISOString().slice(0, 10));
+}
+function renderCalendar() {
+  const d = calData; if (!d) return;
+  const list = document.getElementById('job-list');
+  const DOWH = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const techName = {}, techColor = {};
+  (d.technicians || []).forEach((t, i) => {
+    techName[t.id] = ((t.first_name || '') + ' ' + (t.last_name || '')).trim();
+    techColor[t.id] = calTechColor(t.id, i);
+  });
+  // Build day buckets, honoring the tech show/hide filter; count each tech's
+  // weekly load (counts include hidden techs so the chip always shows the load).
+  let hasUnassigned = false;
+  const jobsByDay = {};
+  const techCount = {};
+  for (const j of (d.jobs || [])) {
+    const tid = Number(j.technician_id || 0);
+    techCount[tid] = (techCount[tid] || 0) + 1;
+    if (!tid) hasUnassigned = true;
+    if (calHiddenTechs.has(tid)) continue;
+    const ds = ctDateStr(j.scheduled_start);
+    if (ds) (jobsByDay[ds] = jobsByDay[ds] || []).push(j);
+  }
+  // Tech show/hide chips (click to add/remove a tech) with this week's job count.
+  const chipDefs = (d.technicians || []).map((t) => ({ id: t.id, label: (t.first_name || ('Tech ' + t.id)), color: techColor[t.id] }));
+  if (hasUnassigned) chipDefs.push({ id: 0, label: 'Unassigned', color: '#8a93aa' });
+  const chips = chipDefs.map((c) => {
+    const off = calHiddenTechs.has(Number(c.id));
+    const n = techCount[Number(c.id)] || 0;
+    const nColor = off ? '#3a3f4a' : (n === 0 ? '#f0a020' : c.color);
+    return `<button onclick="calToggleTech(${c.id})" style="flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:5px 10px;margin:0 5px 5px 0;border-radius:14px;border:1px solid ${off ? '#2a2e3a' : c.color};background:${off ? 'transparent' : c.color + '22'};color:${off ? '#5a6172' : '#e8eaf0'};cursor:pointer;font-size:12px;white-space:nowrap">
+      <span style="width:9px;height:9px;border-radius:50%;background:${off ? '#3a3f4a' : c.color}"></span>${escapeHtml(c.label)} <span style="font-weight:700;color:${nColor}">${n}</span></button>`;
+  }).join('');
+  const chipsRow = chipDefs.length ? `<div style="display:flex;flex-wrap:wrap;padding:8px 2px 2px;border-bottom:1px solid #1c1f29">${chips}</div>` : '';
+
+  // ── Mini-month calendar (above the list) ──
+  const anchor = new Date((calSelected || d.week_start_ct) + 'T12:00:00');
+  const y = anchor.getFullYear(), mo = anchor.getMonth();
+  const startPad = new Date(y, mo, 1).getDay();
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  let cells = '';
+  for (let i = 0; i < startPad; i++) cells += '<div></div>';
+  for (let dn = 1; dn <= daysInMonth; dn++) {
+    const ds = `${y}-${String(mo + 1).padStart(2, '0')}-${String(dn).padStart(2, '0')}`;
+    const isToday = ds === d.today_ct, isSel = ds === calSelected;
+    const cnt = (jobsByDay[ds] || []).length;
+    const dot = cnt ? '<span style="display:block;width:5px;height:5px;border-radius:50%;background:#74e3c4;margin:1px auto 0"></span>' : '<span style="display:block;height:6px"></span>';
+    cells += `<button onclick="calGoDay('${ds}')" style="border:none;border-radius:8px;cursor:pointer;background:${isSel ? '#4ca7ff' : (isToday ? 'rgba(76,167,255,0.18)' : 'transparent')};color:${isSel ? '#04122b' : (isToday ? '#4ca7ff' : '#e8eaf0')};font-weight:${isSel || isToday ? '700' : '500'};font-size:13px;padding:6px 0 3px">${dn}${dot}</button>`;
+  }
+  const cal = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 4px">
+      <button onclick="calStepMonth(-1)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:5px 13px;cursor:pointer">‹</button>
+      <div style="font-weight:700">${MON[mo]} ${y}</div>
+      <button onclick="calStepMonth(1)" style="background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;border-radius:8px;padding:5px 13px;cursor:pointer">›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:10px;color:#8a93aa;padding:0 2px">${DOWH.map((x) => `<div>${x}</div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:2px 2px 8px;border-bottom:1px solid #2a2e3a">${cells}</div>
+  `;
+
+  // ── Day-grouped job list (below the calendar) — the loaded week ──
+  const weekDays = [];
+  const ws = new Date(d.week_start_ct + 'T12:00:00');
+  for (let i = 0; i < 7; i++) { const x = new Date(ws); x.setDate(x.getDate() + i); weekDays.push(x.toISOString().slice(0, 10)); }
+  let listHtml = '';
+  for (const ds of weekDays) {
+    const dayJobs = (jobsByDay[ds] || []).slice().sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
+    if (!dayJobs.length) continue;
+    const dt = new Date(ds + 'T12:00:00');
+    const label = (ds === d.today_ct ? 'Today • ' : '') + DOW[dt.getDay()] + ' ' + MON[dt.getMonth()] + ' ' + dt.getDate();
+    const hi = ds === calSelected ? 'background:rgba(76,167,255,0.10);' : '';
+    listHtml += `<div id="calday-${ds}" style="${hi}font-size:12px;font-weight:700;color:#8a93aa;text-transform:uppercase;letter-spacing:0.04em;padding:14px 6px 6px">${escapeHtml(label)} · ${dayJobs.length}</div>`;
+    listHtml += dayJobs.map((j) => {
+      const cust = ((j.customer_first_name || '') + ' ' + (j.customer_last_name || '')).trim() || '(no name)';
+      const ps = String(j.parts_status || '').toLowerCase();
+      const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+      const parts = waiting ? ` <span style="color:#f0a020;font-weight:600">⏳ parts${j.parts_eta_date ? ' ' + String(j.parts_eta_date).slice(5, 10) : ''}</span>` : '';
+      return `<div onclick="openScheduleJob(${j.id})" style="display:grid;grid-template-columns:66px 1fr auto;gap:10px;align-items:center;padding:11px 8px;border-bottom:1px solid #1c1f29;cursor:pointer">
+        <div style="font-family:ui-monospace,monospace;font-weight:700;font-size:13px">${escapeHtml(ctTimeStr(j.scheduled_start) || '—')}</div>
+        <div><div style="font-weight:700;font-size:14px">${escapeHtml(cust)}</div><div style="font-size:12px;color:#8a93aa">${escapeHtml((j.appliance_type || '').toLowerCase())}${j.service_city ? ' · ' + escapeHtml(j.service_city) : ''}${parts}</div></div>
+        <div style="font-size:11px;color:#8a93aa;text-transform:uppercase;display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="width:8px;height:8px;border-radius:50%;background:${techColor[j.technician_id] || '#5a6172'};flex:0 0 auto"></span>${escapeHtml(techName[j.technician_id] || '—')}</div>
+      </div>`;
+    }).join('');
+  }
+  if (!listHtml) listHtml = '<div class="empty-jobs">No scheduled jobs this week.</div>';
+  const unsched = (d.unscheduled || []).length;
+  list.innerHTML = cal + chipsRow
+    + (unsched ? `<div style="padding:9px 12px;margin:8px 0;border-radius:8px;background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);font-size:13px">🗓️ ${unsched} unscheduled — use "Needs Scheduled" to place them</div>` : '')
+    + `<div style="font-size:11px;color:#5a6172;padding:6px 6px 0">Week of ${escapeHtml(d.week_start_ct)} · tap a job to reschedule</div>`
+    + listHtml;
+  const tgt = document.getElementById('calday-' + calSelected);
+  if (tgt) tgt.scrollIntoView({ block: 'nearest' });
 }
 
 async function loadJobs() {
@@ -646,6 +803,9 @@ async function loadJobs() {
 
 function renderJobs(items) {
   const list = document.getElementById('job-list');
+  // Index for the schedule modal (tech preselect + parts-ETA guard).
+  window.__jobsById = {};
+  for (const it of items) { const j = (it && it.job) || {}; if (j.id) window.__jobsById[j.id] = it; }
   if (items.length === 0) {
     list.innerHTML = '<div class="empty-jobs">no jobs in this view</div>';
     return;
@@ -685,6 +845,15 @@ function buildJobCard(it) {
   const ageClass = days > 7 ? 'aged' : '';
   const openUrl = `job-detail.html?job_id=${job.id}`;
   const callDisabled = !phoneE164;
+  const isTerminal = ['completed', 'complete', 'canceled'].includes(String(status).toLowerCase());
+  const schedLabel = job.scheduled_start ? '📅 Reschedule' : '📅 Schedule';
+  // Parts badge — "are the parts in or not".
+  const ps = String(job.parts_status || '').toLowerCase();
+  const partsWaiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
+  const etaStr = job.parts_eta_date ? (' · ETA ' + String(job.parts_eta_date).slice(5, 10)) : '';
+  const partsLine = partsWaiting
+    ? `<div class="job-parts" style="margin-top:6px;font-size:12px;font-weight:600;color:#c2410c">⏳ waiting on parts${etaStr}</div>`
+    : '';
 
   return `
     <div class="job-card">
@@ -700,10 +869,12 @@ function buildJobCard(it) {
         <div class="k">Scheduled</div>  <div class="v">${escapeHtml(scheduledStr)}</div>
         <div class="k">Type</div>       <div class="v">${escapeHtml(custType)}</div>
       </div>
+      ${partsLine}
       ${problemFull ? `<div class="job-problem">${escapeHtml(problemFull)}</div>` : ''}
       <div class="job-actions">
+        ${isTerminal ? '' : `<button class="primary" onclick="openScheduleJob(${job.id || 0})">${schedLabel}</button>`}
         <button ${callDisabled ? 'disabled title="no phone on file"' : `onclick="window.location.href='tel:${escapeAttr(phoneE164)}'"`}>📞 Call Customer</button>
-        <a class="primary" href="${escapeAttr(openUrl)}">📋 Open Job</a>
+        <a href="${escapeAttr(openUrl)}">📋 Open Job</a>
         <button class="danger" onclick="cancelJobInline(${job.id || 0}, this)" title="Cancel this job">❌ Cancel</button>
       </div>
     </div>
@@ -1141,6 +1312,86 @@ async function toggleSmsGate() {
 }
 
 // ── One-tap cancel from a job card ──
+// ── Schedule / reschedule straight from the All Jobs card ──
+let DASH_TECHS = null;
+async function ensureTechs() {
+  if (DASH_TECHS) return DASH_TECHS;
+  try {
+    const r = await fetch(`${XANO_BASE}/get_office_calendar_week`);
+    const d = await r.json();
+    DASH_TECHS = (d && d.technicians) || [];
+  } catch (_) { DASH_TECHS = []; }
+  return DASH_TECHS;
+}
+let __schedJobId = null;
+function msToLocalDatetimeCT(ms) {
+  const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms));
+  const g = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+function localDatetimeToMsCT(v) {
+  const [date, time] = v.split('T');
+  const [Y, M, D] = date.split('-').map(Number);
+  const [h, m] = time.split(':').map(Number);
+  return Date.UTC(Y, M - 1, D, h + 5, m); // CT (CDT, summer) = UTC-5
+}
+async function openScheduleJob(jobId) {
+  const it = (window.__jobsById || {})[jobId];
+  if (!it) { alert('Job not loaded — refresh and try again.'); return; }
+  const job = it.job || {};
+  const curTechId = (it.tech && it.tech.id) || job.technician_id || 0;
+  __schedJobId = jobId;
+  const techs = await ensureTechs();
+  document.getElementById('sched-tech').innerHTML = techs
+    .map((t) => `<option value="${t.id}"${t.id === curTechId ? ' selected' : ''}>${escapeHtml(((t.first_name || '') + ' ' + (t.last_name || '')).trim())} (#${t.id})</option>`)
+    .join('') || '<option value="">No techs</option>';
+  document.getElementById('sched-dt').value = msToLocalDatetimeCT(job.scheduled_start || (Date.now() + 86400000));
+  const eta = job.parts_eta_date ? String(job.parts_eta_date).slice(0, 10) : '';
+  document.getElementById('sched-hint').textContent = eta ? `Parts ETA ${eta} — can't schedule before then.` : '';
+  document.getElementById('sched-err').textContent = '';
+  document.getElementById('sched-title').textContent = `${job.scheduled_start ? 'Reschedule' : 'Schedule'} job #${jobId}`;
+  document.getElementById('sched-modal').style.display = 'flex';
+}
+function closeScheduleJob() { document.getElementById('sched-modal').style.display = 'none'; __schedJobId = null; }
+async function submitScheduleJob() {
+  if (!__schedJobId) return;
+  const techId = Number(document.getElementById('sched-tech').value || 0);
+  const dt = document.getElementById('sched-dt').value;
+  const err = document.getElementById('sched-err');
+  if (!techId) { err.textContent = 'Pick a tech.'; return; }
+  if (!dt) { err.textContent = 'Pick a date + time.'; return; }
+  const startMs = localDatetimeToMsCT(dt);
+  const it = (window.__jobsById || {})[__schedJobId];
+  const job = (it && it.job) || {};
+  if (job.parts_eta_date) {
+    const eta = String(job.parts_eta_date).slice(0, 10);
+    const chosen = msToLocalDatetimeCT(startMs).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(eta) && chosen < eta) {
+      err.textContent = `Parts aren't due until ${eta} — pick ${eta} or later.`;
+      return;
+    }
+  }
+  const btn = document.getElementById('sched-submit');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const r = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: __schedJobId, technician_id: techId, scheduled_start_ms: startMs }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.success) {
+      closeScheduleJob();
+      if (activeTab === 'today') loadOfficeToday(); else loadJobs();
+    } else {
+      err.textContent = (d && (d.error || d.detail)) || `Failed (${r.status})`;
+    }
+  } catch (e) {
+    err.textContent = 'Network error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Schedule';
+  }
+}
+
 async function cancelJobInline(jobId, btn) {
   if (!jobId) return;
   if (!confirm('Cancel this job?\n\nCustomer + assigned tech will get an automatic cancellation SMS.')) return;
@@ -1256,5 +1507,21 @@ async function purgeRun() {
 <script src="/office-map.js?v=20260528-1"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
+<!-- Schedule / reschedule modal (All Jobs cards) -->
+<div id="sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:380px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit">
+    <h3 id="sched-title" style="margin:0 0 4px;font-size:17px">Schedule job</h3>
+    <div id="sched-hint" style="font-size:12px;color:#f0a020;margin-bottom:12px;min-height:14px"></div>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:4px">Tech</label>
+    <select id="sched-tech" style="width:100%;padding:11px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:12px;font-size:16px"></select>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:4px">Date + time (CT)</label>
+    <input id="sched-dt" type="datetime-local" style="width:100%;padding:11px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:12px;font-size:16px">
+    <div id="sched-err" style="color:#ff6b6b;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeScheduleJob()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#2a2e3a;color:#e8eaf0;font-weight:600;cursor:pointer;font-size:15px">Cancel</button>
+      <button id="sched-submit" onclick="submitScheduleJob()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#4ca7ff;color:#04122b;font-weight:700;cursor:pointer;font-size:15px">Schedule</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

@@ -164,6 +164,9 @@ query get_office_calendar_week verb=GET {
             customer_type      : ($j.customer_type ?? "")
             warranty_company   : ($j.warranty_company ?? "")
             claim_number       : ($j.claim_number ?? "")
+            parts_status       : ($j.parts_status ?? "")
+            parts_eta_date     : ($j.parts_eta_date ?? null)
+            parts_customer_notified: ($j.parts_customer_notified ?? false)
             customer_first_name: $cust_first
             customer_last_name : $cust_last
             customer_phone     : $cust_phone
@@ -181,18 +184,103 @@ query get_office_calendar_week verb=GET {
       sort = {tech_availability.blocked_date: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 200}}
     } as $avail_rows
+
+    // Unscheduled queue — jobs that still need a human to place them (incl.
+    // anything the auto-scheduler couldn't route). Surfaced as a quick-assign
+    // tray on the calendar so Danielle sees who HASN'T been scheduled and can
+    // place them onto an under-loaded tech without leaving the page.
+    db.query jobs {
+      where = ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "prediagnosis_pending") && $db.jobs.scheduled_start == null
+      sort = {jobs.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 100}}
+    } as $unsched_rows
+
+    var $unscheduled_out {
+      value = []
+    }
+
+    foreach ($unsched_rows.items) {
+      each as $u {
+        var $u_cust_id {
+          value = ($u.customer_id ?? 0)
+        }
+
+        var $u_first {
+          value = ""
+        }
+
+        var $u_last {
+          value = ""
+        }
+
+        var $u_phone {
+          value = ""
+        }
+
+        conditional {
+          if ($u_cust_id > 0) {
+            db.get customer {
+              field_name = "id"
+              field_value = $u_cust_id
+            } as $uc
+
+            var.update $u_first {
+              value = ($uc.first_name ?? "")
+            }
+
+            var.update $u_last {
+              value = ($uc.last_name ?? "")
+            }
+
+            var.update $u_phone {
+              value = ($uc.phone ?? "")
+            }
+          }
+        }
+
+        var $u_entry {
+          value = {
+            id                 : $u.id
+            created_at         : $u.created_at
+            technician_id      : ($u.technician_id ?? 0)
+            appliance_type     : ($u.appliance_type ?? "")
+            brand              : ($u.brand ?? "")
+            problem_summary    : ($u.problem_summary ?? "")
+            service_city       : ($u.service_city ?? "")
+            service_zip        : ($u.service_zip ?? "")
+            service_address    : ($u.service_address ?? "")
+            scheduling_status  : ($u.scheduling_status ?? "")
+            customer_type      : ($u.customer_type ?? "")
+            warranty_company   : ($u.warranty_company ?? "")
+            claim_number       : ($u.claim_number ?? "")
+            parts_status       : ($u.parts_status ?? "")
+            parts_eta_date     : ($u.parts_eta_date ?? null)
+            parts_customer_notified: ($u.parts_customer_notified ?? false)
+            customer_first_name: $u_first
+            customer_last_name : $u_last
+            customer_phone     : $u_phone
+          }
+        }
+
+        var.update $unscheduled_out {
+          value = $unscheduled_out|push:$u_entry
+        }
+      }
+    }
   }
 
   response = {
-    success      : true
-    week_start_ct: $resolved_week_start
-    week_end_ct  : $sunday_str
-    week_start_ms: $week_start_utc
-    week_end_ms  : $week_end_utc
-    today_ct     : $today_ct_str
-    technicians  : $technicians_out
-    jobs         : $jobs_out
-    availability : $avail_rows.items
+    success         : true
+    week_start_ct   : $resolved_week_start
+    week_end_ct     : $sunday_str
+    week_start_ms   : $week_start_utc
+    week_end_ms     : $week_end_utc
+    today_ct        : $today_ct_str
+    technicians     : $technicians_out
+    jobs            : $jobs_out
+    availability    : $avail_rows.items
+    unscheduled     : $unscheduled_out
+    unscheduled_count: ($unscheduled_out|count)
   }
 
   guid = "get-office-calendar-week-v1"
