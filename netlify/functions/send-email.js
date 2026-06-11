@@ -53,12 +53,50 @@
 // verified recipient) the limits still apply but monitoring is not
 // load-bearing.
 
-const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const { SESClient, SendEmailCommand, SendRawEmailCommand } = require('@aws-sdk/client-ses');
 const crypto = require('crypto');
 
 const REGION = 'us-east-2';
 const DEFAULT_FROM = 'noreply@tnapplianceexchange.net';
 const DEFAULT_REPLY_TO = 'tnappliancerepair@gmail.com';
+
+// Build a raw multipart/mixed MIME message with file attachments. Used when
+// the caller passes `attachments` (e.g. a signed-waiver PNG). Each attachment
+// is { filename, mime_type, content_b64 }.
+function buildRawMime({ from, to, replyTo, subject, body, attachments }) {
+  const boundary = 'tnae_' + crypto.randomBytes(16).toString('hex');
+  const lines = [];
+  lines.push(`From: ${from}`);
+  lines.push(`To: ${to}`);
+  lines.push(`Reply-To: ${replyTo}`);
+  lines.push(`Subject: ${subject}`);
+  lines.push('MIME-Version: 1.0');
+  lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+  lines.push('');
+  // Text part
+  lines.push(`--${boundary}`);
+  lines.push('Content-Type: text/plain; charset=UTF-8');
+  lines.push('Content-Transfer-Encoding: 7bit');
+  lines.push('');
+  lines.push(body);
+  lines.push('');
+  // Attachment parts
+  for (const att of attachments) {
+    const fn = (att.filename || 'attachment').replace(/[^A-Za-z0-9._-]/g, '_');
+    const mime = att.mime_type || 'application/octet-stream';
+    // Re-wrap base64 to 76-char lines (RFC 2045).
+    const wrapped = String(att.content_b64 || '').replace(/\s+/g, '').replace(/(.{76})/g, '$1\r\n');
+    lines.push(`--${boundary}`);
+    lines.push(`Content-Type: ${mime}; name="${fn}"`);
+    lines.push('Content-Transfer-Encoding: base64');
+    lines.push(`Content-Disposition: attachment; filename="${fn}"`);
+    lines.push('');
+    lines.push(wrapped);
+    lines.push('');
+  }
+  lines.push(`--${boundary}--`);
+  return lines.join('\r\n');
+}
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return cors(200, '');
@@ -86,12 +124,19 @@ exports.handler = async function (event) {
     return json(400, { ok: false, error: 'invalid json body' });
   }
 
-  const { to, subject, body: emailBody, replyTo } = body;
+  const { to, subject, body: emailBody, replyTo, attachments } = body;
   if (typeof to !== 'string' || !to ||
       typeof subject !== 'string' || !subject ||
       typeof emailBody !== 'string' || !emailBody) {
     return json(400, { ok: false, error: 'to + subject + body required (all non-empty strings)' });
   }
+
+  // Optional attachments: [{ filename, mime_type, content_b64 }]. When present
+  // the email is sent as raw MIME (multipart/mixed) so files (e.g. a signed
+  // waiver PNG) ride along.
+  const atts = Array.isArray(attachments)
+    ? attachments.filter((a) => a && typeof a.content_b64 === 'string' && a.content_b64.length)
+    : [];
 
   // Dry-run mode: validate everything but never call SES. Mirrors the
   // SMS_ENABLED gate pattern. Caller sees the same success-shape contract
@@ -102,6 +147,7 @@ exports.handler = async function (event) {
       to,
       subject,
       replyTo: replyTo || DEFAULT_REPLY_TO,
+      attachments: atts.map((a) => a.filename || 'attachment'),
       body_preview: emailBody.slice(0, 200),
     });
     return json(200, { ok: true, messageId: 'dry-run-not-enabled', mode: 'dry-run' });
@@ -113,15 +159,30 @@ exports.handler = async function (event) {
   });
 
   try {
-    const result = await ses.send(new SendEmailCommand({
-      Source: DEFAULT_FROM,
-      Destination: { ToAddresses: [to] },
-      Message: {
-        Subject: { Data: subject, Charset: 'UTF-8' },
-        Body: { Text: { Data: emailBody, Charset: 'UTF-8' } },
-      },
-      ReplyToAddresses: [replyTo || DEFAULT_REPLY_TO],
-    }));
+    let result;
+    if (atts.length) {
+      const raw = buildRawMime({
+        from: DEFAULT_FROM,
+        to,
+        replyTo: replyTo || DEFAULT_REPLY_TO,
+        subject,
+        body: emailBody,
+        attachments: atts,
+      });
+      result = await ses.send(new SendRawEmailCommand({
+        RawMessage: { Data: Buffer.from(raw, 'utf8') },
+      }));
+    } else {
+      result = await ses.send(new SendEmailCommand({
+        Source: DEFAULT_FROM,
+        Destination: { ToAddresses: [to] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: { Text: { Data: emailBody, Charset: 'UTF-8' } },
+        },
+        ReplyToAddresses: [replyTo || DEFAULT_REPLY_TO],
+      }));
+    }
     return json(200, { ok: true, messageId: result.MessageId, mode: 'live' });
   } catch (e) {
     console.error('[send-email] SES error:', e.name, e.message);

@@ -483,6 +483,7 @@ export const AGENT_REGISTRY = {
   'VOICE_PROMPT_REQUEST_VAPI_TRANSCRIPT_ANALYZER': './voice_prompt_request_vapi_transcript_analyzer.js',
   'VOICEMAIL_RECEIVED': './voicemail_received.js',
   'WAIVER_DUE': './waiver_due.js',
+  'WAIVER_SIGNED': './waiver_signed.js',
   'WARRANTY_CLAIM_ACTION': './warranty_claim_action.js',
   'WARRANTY_CLAIM_REQUEST_AHS_CLAIM_STATUS_POLLER': './warranty_claim_request_ahs_claim_status_poller.js',
   'WARRANTY_CLAIM_REQUEST_AHS_CLAIMS': './warranty_claim_request_ahs_claims.js',

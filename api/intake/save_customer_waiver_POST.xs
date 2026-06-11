@@ -90,6 +90,37 @@ query save_customer_waiver verb=POST {
         metadata: ({job_id: $input.job_id, customer_id: $job.customer_id, signed_at_ms: $now_ms, signer_name: $name_clean, signer_email: $email_clean, acknowledgments: $acks_clean, phone_last4: $phone_clean, ip: ($input.ip_address ?? ""), user_agent: (($input.user_agent ?? "")|substr:0:200), signature_present: true, source: "ant_customer_portal"}|json_encode)
       }
     }
+
+    // Emit WAIVER_SIGNED so the colony loop emails an archival copy (with the
+    // signature image attached) to the waiver inbox for easy search + handing
+    // to insurance. Done async via the loop so an email hiccup can never fail
+    // the customer's signature submission.
+    var $waiver_signed_payload_obj {
+      value = {
+        job_id         : $input.job_id
+        customer_id    : $job.customer_id
+        signer_name    : $name_clean
+        signer_email   : $email_clean
+        phone_last4    : $phone_clean
+        acknowledgments: $acks_clean
+        signed_at_ms   : $now_ms
+        signature_b64  : $sig_clean
+      }
+    }
+
+    var $waiver_signed_payload_str {
+      value = $waiver_signed_payload_obj|json_encode
+    }
+
+    db.add colony_signals {
+      data = {
+        signal_type    : "WAIVER_SIGNED"
+        signal_strength: 50
+        source_colony  : ""
+        target_colonies: ""
+        payload        : $waiver_signed_payload_str
+      }
+    } as $waiver_signal
   }
 
   response = {
