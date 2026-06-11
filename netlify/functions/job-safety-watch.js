@@ -48,10 +48,12 @@ exports.handler = async () => {
   const ctHour = ((new Date().getUTCHours() - 5) + 24) % 24;
   const businessHours = ctHour >= 7 && ctHour < 21;
 
+  // ONLY text on a genuine emergency: intake has stalled (pollers/Gmail down),
+  // which is invisible otherwise. Routine self-healing (recovered>0) and the
+  // standing backlog are NOT texted — the office sees the backlog in the UI,
+  // and stuck jobs are auto-recovered silently above. No text storms.
   const issues = [];
-  if (recovered > 0) issues.push(`recovered ${recovered} stuck job(s) back into the queue`);
   if (businessHours && mins > STALL_MIN) issues.push(`no new job intake in ${Math.round(mins / 60)}h — pollers/Gmail may be down`);
-  if (total > BACKLOG_MAX) issues.push(`${total} jobs waiting to be scheduled (backlog building)`);
 
   if (!issues.length) {
     return { statusCode: 200, body: JSON.stringify({ ok: true, total, recovered, mins, alerted: false, elapsed_ms: Date.now() - startedAt }) };
