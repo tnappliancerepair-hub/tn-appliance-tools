@@ -388,7 +388,7 @@
   async function load() {
     list.innerHTML = '<div class="empty"><p>Loading…</p></div>';
     try {
-      const r = await fetch(XANO_BASE + '/list_needs_scheduled_parallel?limit=200');
+      const r = await fetch(XANO_BASE + '/list_needs_scheduled_parallel?limit=1000');
       const d = await r.json();
       if (!d.success) throw new Error('failed');
       render(d.items || []);
