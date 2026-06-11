@@ -32,7 +32,13 @@ const MAX_DAY_OFFSET = 14;
 
 async function runOneDay(dayOffset, runIdBase) {
   const runId = `${runIdBase}_d${dayOffset}`;
-  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?apply=true&confirm_apply=1&practice_mode=1&day_offset=${dayOffset}&limit=500&force_mock=1&run_id=${runId}`;
+  // GO-LIVE TOGGLE: SCHEDULER_MODE=real flips placements from PRACTICE (badged,
+  // no tech SMS) to REAL (no badge + the assigned tech gets a confirmation SMS;
+  // customer SMS stays gated by CUSTOMER_FACING_ENABLED). Default = practice.
+  // Reversible in 5s by clearing/setting the env var on Netlify.
+  const realMode = String(process.env.SCHEDULER_MODE || 'practice').toLowerCase() === 'real';
+  const modeParam = realMode ? 'real_apply=1' : 'practice_mode=1';
+  const url = `${SITE_BASE}/.netlify/functions/mock-scheduler?apply=true&confirm_apply=1&${modeParam}&day_offset=${dayOffset}&limit=500&force_mock=1&run_id=${runId}`;
   const r = await fetch(url);
   const text = await r.text();
   let body; try { body = JSON.parse(text); } catch (_) { body = { raw: text.slice(0, 500) }; }
