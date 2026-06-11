@@ -128,7 +128,9 @@ const FINGERPRINTS = [
 // matches are returned in the response for review but NOT written/labeled,
 // so we validate the regex against real Gmail before flipping live.
 const FIND_JOB_ENDPOINT = `${XANO_BASE}/find_job_by_claim_number`;
+const MARK_ARRIVED_ENDPOINT = `${XANO_BASE}/mark_parts_arrived`;
 const ORDER_PROCESSED_LABEL = 'PartsOrder-Processed';
+const ARRIVED_PROCESSED_LABEL = 'PartsArrived-Processed';
 const ORDER_LIVE = process.env.PARTS_ORDER_POLLER_LIVE === 'true';
 const DISPATCH_RE = /dispatch\s*id[:\s#]*(\d{5,12})/i;
 const DISPATCH_RE2 = /dispatch[:\s#]*(\d{5,12})/i;
@@ -151,6 +153,32 @@ const ORDER_FINGERPRINTS = [
     extract: (subj, snip) => ({
       dispatch_id: matchFirst(subj + ' ' + snip, DISPATCH_RE) || matchFirst(subj + ' ' + snip, DISPATCH_RE2),
       part_hint: matchFirst(snip, PART_HINT_RE),
+    }),
+  },
+];
+
+// ── Phase 2 Stage C: warranty DELIVERED emails (dispatch-id match) ──
+// When a warranty part is delivered (these carry the same dispatch/claim id as
+// the order email), resolve the job and call mark_parts_arrived so the job
+// flips parts_status=arrived + scheduling_status=not_ready and pops back into
+// the schedule queue — closing the order→ETA→arrived→reschedule loop for the
+// ~99% warranty volume with a CONFIDENT dispatch match (not the fuzzy name/zip
+// match the vendor delivered-side uses). Shares the ORDER_LIVE dry-run gate.
+const DELIVERED_DISPATCH_FINGERPRINTS = [
+  {
+    name: 'frontdoor_delivered',
+    vendor: 'frontdoor',
+    query: 'from:(frontdoorhome.com OR ahs.com OR frontdoor.com) (subject:delivered OR "has been delivered" OR "part delivered" OR "shipment delivered")',
+    extract: (subj, snip) => ({
+      dispatch_id: matchFirst(subj + ' ' + snip, DISPATCH_RE) || matchFirst(subj + ' ' + snip, DISPATCH_RE2),
+    }),
+  },
+  {
+    name: 'numeric_delivered',
+    vendor: 'warranty',
+    query: 'subject:("delivered for the dispatch" OR "delivered for dispatch" OR "parts delivered")',
+    extract: (subj, snip) => ({
+      dispatch_id: matchFirst(subj + ' ' + snip, DISPATCH_RE) || matchFirst(subj + ' ' + snip, DISPATCH_RE2),
     }),
   },
 ];
@@ -326,6 +354,60 @@ exports.handler = async () => {
     }
   }
 
+  // ── Delivered-side: warranty dispatch-id "delivered" → mark_parts_arrived ──
+  let arrivedProcessedLabelId = null;
+  if (ORDER_LIVE) {
+    try { arrivedProcessedLabelId = await resolveOrCreateLabel(gmail, ARRIVED_PROCESSED_LABEL); } catch (_) {}
+  }
+  const arrivedResults = [];
+  let arrivedFlagged = 0;
+  for (const fp of DELIVERED_DISPATCH_FINGERPRINTS) {
+    const q = ORDER_LIVE ? `${fp.query} -label:${ARRIVED_PROCESSED_LABEL}` : fp.query;
+    let ids;
+    try {
+      const list = await gmail.users.messages.list({ userId: 'me', q, maxResults: MAX_MESSAGES_PER_RUN });
+      ids = (list.data.messages || []).map((m) => m.id);
+    } catch (e) { arrivedResults.push({ fp: fp.name, error: e.message }); continue; }
+    if (!ids.length) continue;
+
+    for (const id of ids) {
+      try {
+        const msg = await gmail.users.messages.get({ userId: 'me', id, format: 'metadata', metadataHeaders: ['Subject', 'From', 'Date'] });
+        const subject = headerOf(msg.data, 'Subject') || '';
+        const snippet = msg.data.snippet || '';
+        const ex = fp.extract(subject, snippet);
+        if (!ex.dispatch_id) { arrivedResults.push({ fp: fp.name, matched: false, reason: 'no_dispatch_id', subject: subject.slice(0, 100) }); continue; }
+
+        let jobId = 0;
+        try {
+          const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
+          const fd = await fr.json().catch(() => ({}));
+          jobId = Number(fd.job_id || (fd.job && fd.job.id) || (Array.isArray(fd.jobs) && fd.jobs[0] && fd.jobs[0].job_id) || 0);
+        } catch (_) {}
+
+        const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, job_id: jobId, subject: subject.slice(0, 100) };
+        if (!ORDER_LIVE) { arrivedResults.push({ ...rec, action: 'dry_run' }); continue; }
+        if (!jobId) { arrivedResults.push({ ...rec, action: 'no_job_match' }); continue; }
+
+        const r = await fetch(MARK_ARRIVED_ENDPOINT, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: jobId,
+            source: `gmail_poller_${fp.name}`,
+            notes: `auto from warranty delivered email · dispatch ${ex.dispatch_id} · ${subject.slice(0, 80)}`,
+          }),
+        });
+        if (r.ok) {
+          arrivedFlagged += 1;
+          arrivedResults.push({ ...rec, action: 'arrived_flagged' });
+          if (arrivedProcessedLabelId) await labelMsg(gmail, id, arrivedProcessedLabelId);
+        } else {
+          arrivedResults.push({ ...rec, action: 'mark_failed', status: r.status });
+        }
+      } catch (e) { arrivedResults.push({ fp: fp.name, id, error: e.message }); }
+    }
+  }
+
   return jsonResp(200, {
     ok: true,
     elapsed_ms: Date.now() - startedAt,
@@ -336,6 +418,8 @@ exports.handler = async () => {
     order_mode: ORDER_LIVE ? 'live' : 'dry_run',
     orders_flagged: ordersFlagged,
     order_results: orderResults.slice(0, 30),
+    arrived_flagged: arrivedFlagged,
+    arrived_results: arrivedResults.slice(0, 30),
   });
 };
 

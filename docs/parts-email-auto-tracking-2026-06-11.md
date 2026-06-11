@@ -31,16 +31,23 @@ Extract dispatch id (subject/body) → `find_job_by_claim_number` → `record_pa
 (supplier=frontdoor/warranty, part text, source=gmail) → job flips to
 awaiting_parts (badge + can't-schedule guard). Dry-run logs `parts_order_auto_parsed`.
 
-**Stage B — vendor ORDER emails (Marcone, iDEAL).**
+**Stage B — vendor ORDER emails (Marcone, iDEAL). ⏸ DEFERRED — needs real emails.**
 Parse HTML for part# + cost + tracking + ship-to/PO. Match Marcone by ship-to
 address ↔ job.service_address (or P/O carrying job#), iDEAL by PO=customer name.
 Captures cost for the margin/tax ledger. Lower-confidence matches escalate to
-Teddy instead of auto-applying.
+Teddy instead of auto-applying. **Held intentionally**: HTML-table cost parsing +
+fuzzy address/PO matching is too error-prone to build blind — build it against
+live sample emails once Gmail is re-authed (so cost lands in the right job's
+ledger). The dispatch-id paths (A + C) cover the 99% warranty volume already.
 
-**Stage C — DELIVERED side (extend existing).**
-Poller already detects delivered for Marcone/Reliable/Amazon/FedEx/UPS. Add
-Frontdoor/Allstate/iDEAL delivered + wire the dispatch-id match so arrival →
-`mark_parts_arrived` → job auto-pops to needs_scheduled (loop closed).
+**Stage C — DELIVERED side (extend existing). ✅ SHIPPED 2026-06-11 (dry-run).**
+Poller already detected delivered for Marcone/Reliable/Amazon/FedEx/UPS (fuzzy
+name/zip match via parts_delivery_observed). Added `DELIVERED_DISPATCH_FINGERPRINTS`
+(frontdoor_delivered, numeric_delivered): warranty "delivered for dispatch <id>"
+→ `find_job_by_claim_number` → `mark_parts_arrived` → job flips arrived +
+scheduling_status=not_ready and pops back into the schedule queue. CONFIDENT
+dispatch match (not fuzzy). Shares the `PARTS_ORDER_POLLER_LIVE` dry-run gate;
+results returned as `arrived_results[]` for review before flipping live.
 
 **Stage D — PDF vendors (Tribles, Reliable).**
 Extract text from the PDF attachment (or use Reliable's API when it lands).
