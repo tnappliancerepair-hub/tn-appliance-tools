@@ -25,6 +25,7 @@ query record_parts_order verb=POST {
     text? order_reference?
     text? source?
     text? notes?
+    text? parts_eta_date?
   }
 
   stack {
@@ -54,6 +55,53 @@ query record_parts_order verb=POST {
         notes                  : (($input.notes ?? "")|trim)
       }
     } as $row
+
+    // Flag the JOB so the office cockpit reflects it: parts_status ->
+    // awaiting_parts (badge + can't-schedule-before-parts guard) and the ETA.
+    // Two mutually-exclusive conditionals because XS has no else.
+    var $eta_clean { value = ($input.parts_eta_date ?? "")|trim }
+    var $has_job { value = (($input.job_id ?? 0) > 0) }
+    conditional {
+      if ($has_job) {
+        db.get jobs { field_name = "id" field_value = $input.job_id } as $pjob
+        // parts_status -> awaiting_parts (+ ETA) so the cockpit badge + the
+        // can't-schedule-before-parts guard react.
+        conditional {
+          if ($eta_clean != "") {
+            db.edit jobs {
+              field_name = "id"
+              field_value = $input.job_id
+              data = { parts_status: "awaiting_parts", parts_eta_date: $eta_clean }
+            }
+          }
+        }
+        conditional {
+          if ($eta_clean == "") {
+            db.edit jobs {
+              field_name = "id"
+              field_value = $input.job_id
+              data = { parts_status: "awaiting_parts" }
+            }
+          }
+        }
+        // scheduling_status -> awaiting_parts (so it lands in the Needs Parts
+        // tab + the customer portal shows the "parts arrived" button), unless
+        // the job is already scheduled / in progress / done.
+        var $cur_sched { value = (($pjob.scheduling_status ?? "")|to_lower) }
+        var $sched_set {
+          value = ($cur_sched == "not_ready" || $cur_sched == "needs_scheduled" || $cur_sched == "held" || $cur_sched == "prediagnosis_pending" || $cur_sched == "needs_more_info" || $cur_sched == "")
+        }
+        conditional {
+          if ($sched_set) {
+            db.edit jobs {
+              field_name = "id"
+              field_value = $input.job_id
+              data = { scheduling_status: "awaiting_parts" }
+            }
+          }
+        }
+      }
+    }
 
     db.add event_log {
       data = {

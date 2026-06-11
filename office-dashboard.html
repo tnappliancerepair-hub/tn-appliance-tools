@@ -873,6 +873,8 @@ function buildJobCard(it) {
       ${problemFull ? `<div class="job-problem">${escapeHtml(problemFull)}</div>` : ''}
       <div class="job-actions">
         ${isTerminal ? '' : `<button class="primary" onclick="openScheduleJob(${job.id || 0})">${schedLabel}</button>`}
+        ${isTerminal ? '' : `<button onclick="openPartsModal(${job.id || 0})">📦 Parts</button>`}
+        ${partsWaiting ? `<button class="primary" onclick="markArrived(${job.id || 0}, this)">✅ Parts in</button>` : ''}
         <button ${callDisabled ? 'disabled title="no phone on file"' : `onclick="window.location.href='tel:${escapeAttr(phoneE164)}'"`}>📞 Call Customer</button>
         <a href="${escapeAttr(openUrl)}">📋 Open Job</a>
         <button class="danger" onclick="cancelJobInline(${job.id || 0}, this)" title="Cancel this job">❌ Cancel</button>
@@ -1392,6 +1394,78 @@ async function submitScheduleJob() {
   }
 }
 
+// ── Parts: order entry + arrival (replaces the MeisterTask loop) ──
+const PARTS_TAX_RATE = 0.0975; // display estimate of sales tax owed on the part
+let __partsJobId = null;
+function openPartsModal(jobId) {
+  __partsJobId = jobId;
+  document.getElementById('parts-err').textContent = '';
+  document.getElementById('po-vendor').value = 'reliable';
+  document.getElementById('po-partnum').value = '';
+  document.getElementById('po-partname').value = '';
+  document.getElementById('po-eta').value = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+  document.getElementById('po-cost').value = '';
+  document.getElementById('po-sold').value = '';
+  recalcParts();
+  document.getElementById('parts-title').textContent = `Order parts — job #${jobId}`;
+  document.getElementById('parts-modal').style.display = 'flex';
+}
+function closePartsModal() { document.getElementById('parts-modal').style.display = 'none'; __partsJobId = null; }
+function recalcParts() {
+  const cost = parseFloat(document.getElementById('po-cost').value) || 0;
+  const sold = parseFloat(document.getElementById('po-sold').value) || 0;
+  const diff = sold - cost;
+  const tax = sold * PARTS_TAX_RATE;
+  document.getElementById('po-calc').innerHTML = `Difference: <b style="color:${diff >= 0 ? '#34d399' : '#ff6b6b'}">$${diff.toFixed(2)}</b> &middot; est. tax owed: <b>$${tax.toFixed(2)}</b>`;
+}
+function calReloadActive() {
+  if (activeTab === 'today') loadOfficeToday();
+  else if (activeTab === 'calendar') loadCalendar();
+  else loadJobs();
+}
+async function submitPartsOrder() {
+  if (!__partsJobId) return;
+  const err = document.getElementById('parts-err');
+  const partnum = document.getElementById('po-partnum').value.trim();
+  if (!partnum) { err.textContent = 'Enter the part number.'; return; }
+  const eta = document.getElementById('po-eta').value;
+  const cost = Math.round((parseFloat(document.getElementById('po-cost').value) || 0) * 100);
+  const sold = Math.round((parseFloat(document.getElementById('po-sold').value) || 0) * 100);
+  const btn = document.getElementById('parts-submit'); btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const r = await fetch(`${XANO_BASE}/record_parts_order`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: __partsJobId,
+        part_number: partnum,
+        part_name: document.getElementById('po-partname').value.trim(),
+        supplier: document.getElementById('po-vendor').value,
+        cost_cents: cost,
+        sold_to_customer_cents: sold,
+        parts_eta_date: eta || '',
+        source: 'office_dashboard',
+        notes: document.getElementById('po-shipcust').checked ? 'ship_to_customer' : '',
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.success) { closePartsModal(); calReloadActive(); }
+    else { err.textContent = (d && (d.error || d.message)) || `Failed (${r.status})`; }
+  } catch (e) { err.textContent = 'Network error — try again.'; }
+  finally { btn.disabled = false; btn.textContent = 'Save order'; }
+}
+async function markArrived(jobId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const r = await fetch(`${XANO_BASE}/mark_parts_arrived`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, source: 'office_dashboard' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok && d.success !== false) { calReloadActive(); }
+    else { alert('Could not mark arrived: ' + ((d && (d.error || d.message)) || 'error')); if (btn) { btn.disabled = false; btn.textContent = '✅ Parts in'; } }
+  } catch (e) { alert('Network error'); if (btn) { btn.disabled = false; btn.textContent = '✅ Parts in'; } }
+}
+
 async function cancelJobInline(jobId, btn) {
   if (!jobId) return;
   if (!confirm('Cancel this job?\n\nCustomer + assigned tech will get an automatic cancellation SMS.')) return;
@@ -1507,6 +1581,40 @@ async function purgeRun() {
 <script src="/office-map.js?v=20260528-1"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
+<!-- Parts order modal -->
+<div id="parts-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px;overflow-y:auto">
+  <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:400px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit;margin:auto">
+    <h3 id="parts-title" style="margin:0 0 12px;font-size:17px">Order parts</h3>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Vendor</label>
+    <select id="po-vendor" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:10px;font-size:16px">
+      <option value="reliable">Reliable</option>
+      <option value="ideal">iDEAL (LA)</option>
+      <option value="tribles">Tribles</option>
+      <option value="marcone">Marcone</option>
+      <option value="amazon">Amazon</option>
+      <option value="warranty">Warranty company</option>
+      <option value="other">Other</option>
+    </select>
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Part number</label>
+    <input id="po-partnum" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:10px;font-size:16px">
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Part name (optional)</label>
+    <input id="po-partname" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:10px;font-size:16px">
+    <label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">ETA</label>
+    <input id="po-eta" type="date" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;margin-bottom:10px;font-size:16px">
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Cost paid $</label><input id="po-cost" type="number" step="0.01" inputmode="decimal" oninput="recalcParts()" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;font-size:16px;box-sizing:border-box"></div>
+      <div style="flex:1"><label style="display:block;font-size:12px;color:#8a93aa;margin-bottom:3px">Sold for $</label><input id="po-sold" type="number" step="0.01" inputmode="decimal" oninput="recalcParts()" style="width:100%;padding:10px;border-radius:8px;background:#1c1f29;border:1px solid #2a2e3a;color:#e8eaf0;font-size:16px;box-sizing:border-box"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer"><input type="checkbox" id="po-shipcust" style="width:18px;height:18px"> 📦 Shipping to the customer (they can confirm arrival in their portal)</label>
+    <div id="po-calc" style="font-size:12px;color:#8a93aa;margin:10px 0"></div>
+    <div id="parts-err" style="color:#ff6b6b;font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closePartsModal()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#2a2e3a;color:#e8eaf0;font-weight:600;cursor:pointer;font-size:15px">Cancel</button>
+      <button id="parts-submit" onclick="submitPartsOrder()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#4ca7ff;color:#04122b;font-weight:700;cursor:pointer;font-size:15px">Save order</button>
+    </div>
+  </div>
+</div>
+
 <!-- Schedule / reschedule modal (All Jobs cards) -->
 <div id="sched-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;padding:20px">
   <div style="background:#13151b;border:1px solid #2a2e3a;border-radius:14px;max-width:380px;width:100%;padding:20px;color:#e8eaf0;font-family:inherit">
