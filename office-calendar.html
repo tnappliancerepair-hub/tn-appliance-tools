@@ -753,6 +753,23 @@
   authSubmit.addEventListener('click', submitAuth);
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
 
+  // Self-contained password verify — this page does NOT define it inline
+  // elsewhere and office-search.js doesn't provide it, so without this the
+  // unlock threw and the page stayed blank.
+  async function __verifyOfficePassword(pw) {
+    try {
+      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const d = await r.json().catch(() => ({}));
+      return d && d.success === true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   async function submitAuth() {
     const val = authInput.value;
     if ((await __verifyOfficePassword(val))) {
@@ -1498,6 +1515,18 @@
       .filter((t) => t.id !== j.technician_id)
       .map((t) => `<option value="${t.id}">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
       .join('') || '<option value="">No other techs</option>';
+    // Populate the schedule/reschedule tech selector (ALL techs; preselect the
+    // job's current tech so a pure time-change keeps the same tech).
+    const rsel = document.getElementById('rescheduleTech');
+    rsel.innerHTML = lastTechs
+      .map((t) => `<option value="${t.id}"${t.id === j.technician_id ? ' selected' : ''}>${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
+      .join('') || '<option value="">No techs</option>';
+    // Label the primary action by whether the job is already scheduled.
+    const isUnsched = !j.scheduled_start || !j.technician_id;
+    const rbtn = document.getElementById('manageBtnReschedule');
+    if (rbtn) rbtn.textContent = isUnsched ? 'Schedule' : 'Reschedule';
+    const rsub = document.getElementById('rescheduleSubmit');
+    if (rsub) rsub.textContent = isUnsched ? 'Schedule' : 'Reschedule';
     document.getElementById('cancelReason').value = '';
     manageModal.classList.add('open');
   }
@@ -1539,6 +1568,8 @@
     const dtValue = document.getElementById('rescheduleAt').value;
     if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
     const newStartMs = localDatetimeToMs(dtValue);
+    const techId = Number(document.getElementById('rescheduleTech').value || 0);
+    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
     // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
     // before the parts are due to arrive.
     const mj = lastJobsById[manageJobId];
@@ -1553,11 +1584,14 @@
       }
     }
     const btn = e.submitter || document.getElementById('rescheduleSubmit');
-    btn.disabled = true; btn.textContent = 'Rescheduling...';
+    btn.disabled = true; btn.textContent = 'Saving...';
     try {
-      const res = await fetch(`${XANO_BASE}/reschedule_job`, {
+      // danielle_schedule_parallel_job sets tech + time, transitions
+      // not_ready -> scheduled, and fires the tech confirmation — works for
+      // both first-time scheduling and rescheduling in one call.
+      const res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, new_start_ms: newStartMs }),
+        body: JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
@@ -1774,11 +1808,13 @@
     </div>
 
     <form id="manageRescheduleForm">
-      <label>New date + time (CT)</label>
+      <label>Tech</label>
+      <select id="rescheduleTech" required></select>
+      <label>Date + time (CT)</label>
       <input type="datetime-local" id="rescheduleAt" required>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
-        <button type="submit" class="primary" id="rescheduleSubmit">Reschedule</button>
+        <button type="submit" class="primary" id="rescheduleSubmit">Schedule</button>
       </div>
     </form>
 
