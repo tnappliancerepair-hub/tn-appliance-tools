@@ -1230,22 +1230,24 @@ query tech_assist_chat verb=POST {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
                   method = "POST"
                   params = {
-                    From: $env.TWILIO_FROM_NUMBER
-                    To  : $cust_phone_e164
-                    Body: $cm_body
+                    to         : $cust_phone_e164
+                    message    : $cm_body
+                    context_tag: "tech_assist_customer_msg"
                   }
                 
-                  headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
-                  ]
+                  headers = ["Content-Type: application/json"]
+                  timeout = 30
                 } as $cm_resp
               
+                var $cm_send_ok {
+                  value = (($cm_resp.response.result.success ?? false) == true)
+                }
+
                 conditional {
-                  if (($cm_resp.response.status == 201) || ($cm_resp.response.status == 200)) {
+                  if ($cm_send_ok == true) {
                     var.update $cm_action {
                       value = "tech_assist_customer_msg_sent"
                     }
