@@ -35,6 +35,31 @@ const B2B_NUMBER_PREFIXES = [
   '+1888', // AHS dispatch typically masked behind 888
   '+1800',
 ];
+
+// Internal numbers — owner, office, techs. Ant must NEVER auto-callback these.
+// When a teammate calls the Ant line to test it and it ends "missed", the
+// missed-call/transfer-fail callback flow was dialing them back (with no guard),
+// so Ant kept calling its own people. This set stops that.
+const INTERNAL_NUMBERS = new Set([
+  '6154855795', // Teddy (owner)
+  '6154850713', // Danielle (office)
+  '6159671304', // Jimmy
+  '6159693115', // Andre
+  '6158291654', // Lee
+  '7315049617', // Billy
+  '8133527686', // John
+]);
+function last10Digits(p) {
+  return String(p || '').replace(/\D/g, '').slice(-10);
+}
+function isInternalNumber(p) {
+  const d = last10Digits(p);
+  if (!d) return false;
+  if (INTERNAL_NUMBERS.has(d)) return true;
+  // Honor env-configured numbers too, in case they differ from the hardcoded set.
+  return [process.env.OWNER_PHONE_NUMBER, process.env.DANIELLE_PHONE_NUMBER, process.env.VACATION_BACKUP_PHONE]
+    .some((n) => n && last10Digits(n) === d);
+}
 const KNOWN_WARRANTY_NUMBERS = (process.env.ANT_KNOWN_WARRANTY_NUMBERS || '')
   .split(',').map(s => s.trim()).filter(Boolean);
 
@@ -313,7 +338,8 @@ exports.handler = async function (event) {
     const callMeta = (msg.call && msg.call.metadata) || msg.metadata || {};
     const voicemailReasons = ['voicemail', 'customer-busy', 'customer-did-not-answer', 'no-answer', 'silence-timed-out'];
     const isVoicemailish = voicemailReasons.some((r) => endedReason.toLowerCase().includes(r));
-    if (isVoicemailish && callMeta.retry_eligible === true && Number(callMeta.attempt_number || 1) < 2) {
+    const retryTarget = (msg.call && msg.call.customer && msg.call.customer.number) || callMeta.to_phone || callerNumber;
+    if (isVoicemailish && callMeta.retry_eligible === true && Number(callMeta.attempt_number || 1) < 2 && !isInternalNumber(retryTarget)) {
       const retryDeadlineMs = Date.now() + 30 * 60 * 1000; // 30 min from now
       const toPhone = (msg.call && msg.call.customer && msg.call.customer.number)
         || callMeta.to_phone
@@ -342,6 +368,24 @@ exports.handler = async function (event) {
           retry_deadline_ms: retryDeadlineMs,
           to_phone: toPhone,
         }),
+      });
+    }
+
+    // 4a-ter. CUSTOMER VOICE → TDR pre-fill. For INBOUND customer calls
+    //     only — no outbound `source` flag (outbound dispatches AND the
+    //     tech field-assist call both set callMeta.source, so a present
+    //     source means WE dialed out, not a customer describing a problem)
+    //     — merge the call summary into the matched job's problem_summary.
+    //     This is what makes the tech's TDR pre-fill from what the customer
+    //     already said on the phone instead of re-asking on site. The Xano
+    //     endpoint is idempotent (skips if the text is already present), so
+    //     a re-delivered end-of-call-report won't double-append.
+    const isInboundCustomerCall = !callMeta.source;
+    if (resolvedJobId && summary && isInboundCustomerCall && !isVoicemailish) {
+      await safePost(`${XANO_BASE}/merge_call_note_into_problem_summary`, {
+        job_id: resolvedJobId,
+        note: summary.slice(0, 600),
+        source: 'Phone call',
       });
     }
 
@@ -395,7 +439,7 @@ exports.handler = async function (event) {
       || endedReason.toLowerCase().includes('error-transfer')
       || summaryLower.includes('transfer-failed')
       || summaryLower.includes('error-transfer');
-    if (callbackEnabled && (isMissed || isTransferFail) && !isOutboundLeg && callerNumber && callerNumber.startsWith('+')) {
+    if (callbackEnabled && (isMissed || isTransferFail) && !isOutboundLeg && callerNumber && callerNumber.startsWith('+') && !isInternalNumber(callerNumber)) {
       const deadlineMs = isTransferFail
         ? Date.now() + 60 * 1000          // 60 sec — transfer dropped, rescue NOW
         : Date.now() + 5 * 60 * 1000;     // 5 min — standard missed call

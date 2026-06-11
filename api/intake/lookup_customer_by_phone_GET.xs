@@ -33,14 +33,12 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    db.query customer {
-      where = $db.customer.phone == $clean_phone || $db.customer.phone == $input.phone || $db.customer.phone == $digits
-      sort = {customer.id: "desc"}
-      return = {type: "single"}
-    } as $customer
-
-    // Compute 10-digit form (strip leading '1' if 11-digit). Technicians
-    // table stores phones as bare 10-digit strings (e.g. "6154855795").
+    // Compute 10-digit form (strip leading '1' if 11-digit). The customer AND
+    // technicians tables store phones as bare 10-digit strings (e.g.
+    // "6154855795"), so the lookup MUST include this form - otherwise a call
+    // from an 11-digit / E.164 caller ID ("+16154855795") never matches a
+    // stored customer. THIS was the "agent couldn't find them" bug: the
+    // customer query omitted $ten_digits (only technicians had it).
     var $ten_digits {
       value = $digits
     }
@@ -52,7 +50,13 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    // ALWAYS also check the technicians table — owner (Teddy) + Jimmy,
+    db.query customer {
+      where = $db.customer.phone == $clean_phone || $db.customer.phone == $input.phone || $db.customer.phone == $digits || $db.customer.phone == $ten_digits
+      sort = {customer.id: "desc"}
+      return = {type: "single"}
+    } as $customer
+
+    // ALWAYS also check the technicians table - owner (Teddy) + Jimmy,
     // Andre, Lee, Billy, John when they call from personal cells.
     // Recognize them so Ant addresses them as staff, even if a junk
     // customer record exists for the same number.
@@ -90,7 +94,7 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    // Staff caller (no customer match) — return staff context.
+    // Staff caller (no customer match) - return staff context.
     conditional {
       if ($customer == null && $is_internal == true) {
         return {
@@ -168,7 +172,7 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
-    // last_call_summary — pre-call context engine. Pull the most
+    // last_call_summary - pre-call context engine. Pull the most
     // recent phone_call_summary event_log row matching this customer
     // by substring search on the metadata JSON. Ant uses this to
     // recall what we last talked about (compounds trust over time).

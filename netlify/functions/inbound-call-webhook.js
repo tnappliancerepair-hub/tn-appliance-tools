@@ -32,6 +32,29 @@ const XANO_TIMEOUT_MS = 9000;
 // a Voice App. INBOUND_TRANSFER_TO env var overrides if needed.
 const TRANSFER_TO = process.env.INBOUND_TRANSFER_TO || '+16292607111';
 
+// Ant's OWN numbers (Vapi BYO + Telnyx + toll-free). A call.initiated whose
+// caller is one of these is a routing/loop artifact, NEVER a real customer —
+// it must be dropped immediately (no auto-ack, no transfer, no record, no
+// alert), or it feeds a feedback loop: webhook transfers to 629 + records →
+// 629's leg re-enters the webhook → transfer + record again → SMS storm.
+const ANT_OWN_NUMBERS = new Set([
+  '6292607111', // Ant Inbound (Vapi)
+  '6292477111', // Vapi BYO TN
+  '5043559111', // Vapi BYO LA
+  '5043800975', // LA backup
+  '7315031142', // West TN fallback
+  '6155889500', // Telnyx customer-direction
+  '6158578800', // Telnyx tech-direction
+  '8662680111', // toll-free
+  '8882688998', // toll-free
+  '6152802949', // main line (porting in)
+  '6292840444', // business SMS
+  '7273508487', // legacy tech inbound
+]);
+function last10Digits(p) {
+  return String(p || '').replace(/\D/g, '').slice(-10);
+}
+
 // Belt-and-suspenders: text the caller immediately on every inbound call
 // (deduped 6h on the Xano side). Even if Vapi takes the call, the text
 // gives the customer a way to escalate to SMS if voice doesn't work for
@@ -90,6 +113,14 @@ exports.handler = async function (event) {
   if (!from) {
     console.warn('[inbound-call-webhook] missing from in payload');
     return { statusCode: 200, body: 'ack' };
+  }
+
+  // LOOP GUARD: drop calls originating from one of Ant's own numbers. These
+  // are never real customers — they're routing artifacts that otherwise feed
+  // a transfer+record feedback loop (the 1409-SMS storm). Ack and stop.
+  if (ANT_OWN_NUMBERS.has(last10Digits(from))) {
+    console.log('[inbound-call-webhook] IGNORING self-call loop from own number', from);
+    return { statusCode: 200, body: 'ack-self-call-ignored' };
   }
 
   console.log('[inbound-call-webhook] inbound from', from, 'callId', callId);

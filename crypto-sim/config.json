@@ -1,0 +1,11 @@
+{
+  "_comment": "Your strategy rules. Edit these freely. PAPER ONLY — no real money, no exchange, no API keys.",
+  "assets": [
+    { "ticker": "BTC", "coingecko_id": "bitcoin",  "paper_allocation_usd": 10000 },
+    { "ticker": "ETH", "coingecko_id": "ethereum", "paper_allocation_usd": 10000 }
+  ],
+  "take_profit_pct": 30,
+  "trailing_stop_pct": 15,
+  "rebuy_after_rise_pct": 10,
+  "poll_seconds": 300
+}
