@@ -54,7 +54,7 @@ query list_customer_blackouts verb=GET {
     }
 
     var $stored_last4 {
-      value = $stored_phone|right:4
+      value = $stored_phone|substr:-4:4
     }
 
     conditional {

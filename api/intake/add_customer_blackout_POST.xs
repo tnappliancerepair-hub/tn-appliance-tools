@@ -65,7 +65,7 @@ query add_customer_blackout verb=POST {
     }
 
     var $stored_last4 {
-      value = $stored_phone|right:4
+      value = $stored_phone|substr:-4:4
     }
 
     conditional {
@@ -98,7 +98,7 @@ query add_customer_blackout verb=POST {
 
     // Build the new blackout object
     var $new_id {
-      value = "blk_" ~ ((now|to_ms)|to_text) ~ "_" ~ (((rand:1000) + 1000)|to_text)
+      value = "blk_" ~ ((now|to_ms)|to_text)
     }
 
     var $bk_type {

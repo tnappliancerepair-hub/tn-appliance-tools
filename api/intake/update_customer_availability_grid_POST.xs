@@ -66,7 +66,7 @@ query update_customer_availability_grid verb=POST {
     }
 
     var $stored_last4 {
-      value = $stored_phone|right:4
+      value = $stored_phone|substr:-4:4
     }
 
     conditional {
