@@ -40,7 +40,7 @@
   var OFFICE_TABS = [
     { id: 'home',     label: 'Dashboard', icon: '🏠', page: 'office.html',           matches: ['dashboard.html', 'office-pulse.html', 'office-today.html', 'office-todo.html'] },
     { id: 'schedule', label: 'Schedule',  icon: '📅', page: 'office-calendar.html',  matches: ['office-schedule.html', 'office-kanban.html'] },
-    { id: 'jobs',     label: 'Jobs',      icon: '🧰', page: 'office-dashboard.html', matches: ['job-detail.html', 'office-tn.html', 'office-la.html', 'needs-scheduled.html', 'needs-scheduling.html'] },
+    { id: 'jobs',     label: 'Jobs',      icon: '🧰', page: 'office-board.html',     matches: ['office-dashboard.html', 'job-detail.html', 'office-tn.html', 'office-la.html', 'needs-scheduled.html', 'needs-scheduling.html'] },
     { id: 'cust',     label: 'Customers', icon: '👥', page: 'customer-search.html',  matches: [] },
     { id: 'more',     label: 'More',      icon: '☰',        sheet: 'office' }
   ];
