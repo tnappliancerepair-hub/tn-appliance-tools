@@ -34,29 +34,33 @@
   // ── Nav configs ──────────────────────────────────────────────────
   // page: the html file this tab points to. matches: extra pathnames that
   // should also light up this tab (so related pages still show "you are here").
+  // Office tabs mirror Housecall Pro's bottom bar (Dashboard · Schedule ·
+  // Jobs · Customers · More) so it's instantly familiar to anyone coming
+  // off HCP.
   var OFFICE_TABS = [
-    { id: 'home',     label: 'Home',     icon: '🏠', page: 'office.html',           matches: ['dashboard.html', 'office-pulse.html', 'office-today.html', 'office-todo.html'] },
-    { id: 'schedule', label: 'Schedule', icon: '📅', page: 'office-calendar.html',  matches: ['office-schedule.html', 'office-kanban.html'] },
-    { id: 'jobs',     label: 'Jobs',     icon: '🗂️', page: 'office-dashboard.html', matches: ['job-detail.html', 'office-tn.html', 'office-la.html'] },
-    { id: 'queue',    label: 'Queue',    icon: '📥', page: 'needs-scheduled.html',  matches: ['needs-scheduling.html'] },
-    { id: 'more',     label: 'More',     icon: '☰',       sheet: 'office' }
+    { id: 'home',     label: 'Dashboard', icon: '🏠', page: 'office.html',           matches: ['dashboard.html', 'office-pulse.html', 'office-today.html', 'office-todo.html'] },
+    { id: 'schedule', label: 'Schedule',  icon: '📅', page: 'office-calendar.html',  matches: ['office-schedule.html', 'office-kanban.html'] },
+    { id: 'jobs',     label: 'Jobs',      icon: '🧰', page: 'office-dashboard.html', matches: ['job-detail.html', 'office-tn.html', 'office-la.html', 'needs-scheduled.html', 'needs-scheduling.html'] },
+    { id: 'cust',     label: 'Customers', icon: '👥', page: 'customer-search.html',  matches: [] },
+    { id: 'more',     label: 'More',      icon: '☰',        sheet: 'office' }
   ];
 
   var TECH_TABS = [
     { id: 'myday', label: 'My Day', icon: '📅', page: 'tech-daily-dashboard.html', matches: ['tech-ant-chat.html', 'tech-ant-live.html', 'tech-simple.html', 'tech-dashboard.html'] },
     { id: 'pay',   label: 'Pay',    icon: '💵', page: 'tech-payouts.html',         matches: [] },
     { id: 'stats', label: 'Stats',  icon: '📊', page: 'tech-performance.html',     matches: ['tech-leaderboard.html'] },
-    { id: 'more',  label: 'More',   icon: '☰',       sheet: 'tech' }
+    { id: 'more',  label: 'More',   icon: '☰',        sheet: 'tech' }
   ];
 
   // Secondary destinations shown in the "More" sheet, per role.
   var MORE_SHEETS = {
     office: [
-      { label: 'Customers',      icon: '👥', page: 'customer-search.html' },
+      { label: 'Queue',          icon: '📥', page: 'needs-scheduled.html' },
       { label: 'Warranty',       icon: '📦', page: 'warranty-review.html' },
       { label: 'Money',          icon: '💰', page: 'financial-dashboard.html' },
       { label: 'Needs Action',   icon: '✅',       page: 'office-todo.html' },
       { label: 'Live Pulse',     icon: '🟢', page: 'office-pulse.html' },
+      { label: 'Parts Ledger',   icon: '🧾', page: 'parts-ledger.html' },
       { label: 'Dispatch TV',    icon: '📺', page: 'dispatch-tv.html' },
       { label: 'Ask Ant',        icon: '🔍', page: 'ask-ant.html' }
     ],
@@ -88,48 +92,51 @@
   // destinations should land clean. Only the More sheet preserves nothing.
 
   // ── Styles ───────────────────────────────────────────────────────
-  var ACCENT = '#74e3c4';
-  var DIM = '#8a93a3';
+  // Light, white-card look that mirrors Housecall Pro's mobile chrome:
+  // white bottom bar, HCP-blue active tab, gray inactive.
+  var ACCENT = '#1f6fed';   // HCP blue
+  var DIM = '#7a828e';      // inactive gray
 
   function injectStyles() {
     if (doc.getElementById('ant-shell-style')) return;
     var css = ''
       + '#ant-shell-bar{position:fixed;left:0;right:0;bottom:0;z-index:99990;'
-      + 'display:flex;background:rgba(10,12,17,0.96);backdrop-filter:blur(12px);'
-      + '-webkit-backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,0.08);'
-      + 'padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -2px 14px rgba(0,0,0,0.3);'
+      + 'display:flex;background:#ffffff;'
+      + 'border-top:1px solid #e3e7ec;'
+      + 'padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -2px 12px rgba(20,30,50,0.08);'
       + 'font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;}'
       + '#ant-shell-bar a,#ant-shell-bar button{flex:1;display:flex;flex-direction:column;'
-      + 'align-items:center;justify-content:center;gap:2px;padding:7px 2px 6px;'
+      + 'align-items:center;justify-content:center;gap:3px;padding:7px 2px 6px;'
       + 'background:none;border:none;cursor:pointer;text-decoration:none;color:' + DIM + ';'
       + 'font-size:10px;font-weight:600;letter-spacing:0.2px;line-height:1;'
       + 'transition:color .15s;-webkit-tap-highlight-color:transparent;min-width:0;}'
-      + '#ant-shell-bar a:active,#ant-shell-bar button:active{opacity:0.6;}'
-      + '#ant-shell-bar .ant-ic{font-size:20px;line-height:1;}'
+      + '#ant-shell-bar a:active,#ant-shell-bar button:active{opacity:0.55;}'
+      + '#ant-shell-bar .ant-ic{font-size:20px;line-height:1;opacity:0.85;}'
       + '#ant-shell-bar .ant-active{color:' + ACCENT + ';}'
-      + '#ant-shell-bar .ant-active .ant-ic{filter:drop-shadow(0 0 6px rgba(116,227,196,0.5));}'
+      + '#ant-shell-bar .ant-active .ant-ic{opacity:1;}'
       + '#ant-shell-spacer{height:calc(58px + env(safe-area-inset-bottom,0px));}'
-      + '#ant-shell-scrim{position:fixed;inset:0;z-index:99991;background:rgba(0,0,0,0.5);'
+      + '#ant-shell-scrim{position:fixed;inset:0;z-index:99991;background:rgba(20,28,40,0.45);'
       + 'opacity:0;pointer-events:none;transition:opacity .2s;}'
       + '#ant-shell-scrim.open{opacity:1;pointer-events:auto;}'
       + '#ant-shell-sheet{position:fixed;left:0;right:0;bottom:0;z-index:99992;'
-      + 'background:#11141b;border-top-left-radius:18px;border-top-right-radius:18px;'
-      + 'border-top:1px solid rgba(255,255,255,0.1);padding:10px 14px calc(20px + env(safe-area-inset-bottom,0px));'
+      + 'background:#ffffff;border-top-left-radius:18px;border-top-right-radius:18px;'
+      + 'border-top:1px solid #e3e7ec;padding:10px 14px calc(20px + env(safe-area-inset-bottom,0px));'
       + 'transform:translateY(110%);transition:transform .24s cubic-bezier(.2,.8,.2,1);'
+      + 'box-shadow:0 -4px 24px rgba(20,30,50,0.14);'
       + 'font-family:-apple-system,system-ui,sans-serif;}'
       + '#ant-shell-sheet.open{transform:translateY(0);}'
-      + '#ant-shell-sheet .ant-grip{width:38px;height:4px;border-radius:3px;background:rgba(255,255,255,0.2);margin:4px auto 12px;}'
+      + '#ant-shell-sheet .ant-grip{width:38px;height:4px;border-radius:3px;background:#d3d8df;margin:4px auto 12px;}'
       + '#ant-shell-sheet .ant-sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}'
       + '#ant-shell-sheet .ant-sheet-grid a{display:flex;flex-direction:column;align-items:center;gap:6px;'
-      + 'padding:14px 6px;border-radius:13px;background:rgba(255,255,255,0.04);'
-      + 'border:1px solid rgba(255,255,255,0.07);text-decoration:none;color:#dce2ec;'
+      + 'padding:15px 6px;border-radius:13px;background:#f5f7fa;'
+      + 'border:1px solid #e7ebf0;text-decoration:none;color:#27303d;'
       + 'font-size:11px;font-weight:600;text-align:center;}'
-      + '#ant-shell-sheet .ant-sheet-grid a:active{background:rgba(116,227,196,0.12);}'
+      + '#ant-shell-sheet .ant-sheet-grid a:active{background:#e8f0fe;border-color:#bcd5fb;}'
       + '#ant-shell-sheet .ant-sheet-grid .ant-ic{font-size:23px;}'
       + '#ant-shell-sheet .ant-sheet-title{color:' + DIM + ';font-size:11px;font-weight:700;'
       + 'text-transform:uppercase;letter-spacing:1px;margin:2px 2px 10px;}'
       + '@media(min-width:780px){#ant-shell-bar{max-width:560px;left:50%;transform:translateX(-50%);'
-      + 'bottom:14px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);}'
+      + 'bottom:14px;border-radius:16px;border:1px solid #e3e7ec;}'
       + '#ant-shell-sheet{max-width:520px;left:50%;transform:translateX(-50%) translateY(110%);'
       + 'border-radius:18px;bottom:14px;}'
       + '#ant-shell-sheet.open{transform:translateX(-50%) translateY(0);}}';
