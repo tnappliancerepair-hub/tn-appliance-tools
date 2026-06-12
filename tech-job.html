@@ -291,6 +291,17 @@ function render(){
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
       </div>
 
+      <div class="card">
+        <h3>🧰 Appliance &amp; model <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">a fix here flows everywhere</span></h3>
+        <div class="parts-in">
+          <input id="aj-brand" placeholder="Brand (Maytag…)" value="${esc(appliance.brand||'')}">
+          <input id="aj-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
+          <input id="aj-appl" placeholder="Appliance (fridge, washer…)" value="${esc(appliance.type||'')}">
+          <input id="aj-problem" placeholder="Problem (freezer side not cooling…)" value="${esc(problem||'')}">
+        </div>
+        <button class="btn primary" id="save-appl" style="width:100%">Save — updates everywhere</button>
+      </div>
+
       ${teddyTdr?`<div class="card"><h3>🧠 Teddy's pre-diagnosis</h3><div class="briefing">${teddyTdr.diagnosis?('<b>'+esc(teddyTdr.diagnosis)+'</b><br>'):''}${teddyTdr.failed_component?('Likely part: '+esc(teddyTdr.failed_component)):''}</div></div>`:''}
 
       <div class="card">
@@ -363,6 +374,7 @@ function wireActions(){
   document.getElementById('a-start').onclick=()=>lifecycle('tech_job_started','Job started ✓');
   document.getElementById('a-done').onclick=completeFlow;
   document.getElementById('save-notes').onclick=saveNotes;
+  const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
   document.getElementById('refresh-media').onclick=loadAttachments;
   document.getElementById('in-photo').onchange=e=>uploadFile(e.target.files[0],'photo');
   document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
@@ -388,6 +400,19 @@ function completeFlow(){
       if(d.success){ toast('Job completed ✓'); loadJob(); } else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
   });
+}
+
+async function saveBasics(){
+  const b=document.getElementById('aj-brand').value.trim();
+  const m=document.getElementById('aj-model').value.trim();
+  const a=document.getElementById('aj-appl').value.trim();
+  const pr=document.getElementById('aj-problem').value.trim();
+  toast('Saving…');
+  try{
+    const d=await xanoPost('update_job_basics',{job_id:JOB_ID,brand:b,model_number:m,appliance_type:a,problem_summary:pr,actor:'tech '+TECH_ID});
+    if(d.success){ toast('Saved ✓ — flows everywhere'); loadJob(); }
+    else { toast('⚠ '+(d.error||'failed')); }
+  }catch(_){ toast('⚠ connection error'); }
 }
 
 async function saveNotes(){
