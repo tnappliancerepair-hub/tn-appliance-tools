@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Money · Ant Office</title>
+<style>
+  :root{--blue:#1f6fed;--ink:#1d2530;--ink2:#5b6573;--dim:#8a93a1;--bg:#eef1f5;--card:#fff;--line:#e4e8ee;--ok:#1faa6b;--bad:#e24d4d;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:90px;}
+  .top{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);padding:11px 14px;padding-top:max(11px,env(safe-area-inset-top));}
+  .top-row{display:flex;align-items:center;gap:10px;}
+  .top .t{font-size:17px;font-weight:800;flex:1;}
+  .top .r{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:16px;cursor:pointer;}
+  .period{display:flex;align-items:center;gap:10px;margin-top:9px;}
+  .period button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:17px;cursor:pointer;}
+  .period .pinfo{flex:1;text-align:center;}
+  .period .pinfo .rng{font-size:14px;font-weight:700;} .period .pinfo .pd{font-size:12px;color:var(--ink2);}
+  .wrap{max-width:680px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+  .summary{background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:14px;padding:16px;display:flex;justify-content:space-around;text-align:center;}
+  .summary .b .v{font-size:22px;font-weight:900;} .summary .b .k{font-size:11px;opacity:.9;text-transform:uppercase;letter-spacing:.04em;}
+  .tech{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;}
+  .tech-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .tech-h .nm{font-size:16px;font-weight:800;flex:1;} .tech-h .pay{font-size:18px;font-weight:900;color:var(--ok);}
+  .jrow{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid #f3f5f8;color:var(--ink2);}
+  .jrow:last-of-type{border-bottom:0;} .jrow .p{font-weight:700;color:var(--ink);}
+  .bonus{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;}
+  .bonus label{color:var(--ink2);} .bonus input{width:80px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;text-align:right;}
+  .payout{display:flex;align-items:center;gap:10px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line);}
+  .payout .lbl{flex:1;font-weight:800;font-size:15px;} .payout .amt{font-weight:900;font-size:17px;}
+  .payout button{background:var(--blue);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:800;cursor:pointer;}
+  .payout button:disabled{background:var(--ok);}
+  .empty{padding:30px 14px;text-align:center;color:var(--dim);font-size:13px;}
+  .loading{padding:50px;text-align:center;color:var(--ink2);}
+  .spinner{width:30px;height:30px;border:3px solid #d7dde5;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 22px;width:100%;max-width:340px;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;} .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:16px;text-align:center;margin-bottom:11px;}
+  .auth-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+  .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
+  .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>🐜 Money</h2>
+    <div class="sub">enter office password</div>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button onclick="submitAuth()">Open</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="top">
+  <div class="top-row">
+    <div class="t">💰 Payroll</div>
+    <button class="r" onclick="load()" title="Refresh">↻</button>
+  </div>
+  <div class="period">
+    <button onclick="shift(-1)">‹</button>
+    <div class="pinfo"><div class="rng" id="p-range">—</div><div class="pd" id="p-pay">—</div></div>
+    <button onclick="shift(1)">›</button>
+  </div>
+</div>
+
+<div id="content"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const OFFICE_AUTH_KEY='tn_office_auth_v1';
+const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
+let cur=null; // {year,month,half}
+
+function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1';}
+function initAuth(){
+  if(authValid()){document.getElementById('auth').classList.add('hidden');startPeriod();load();return;}
+  document.getElementById('pw').focus();
+}
+async function submitAuth(){
+  const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
+  if(!v){err.textContent='Enter password';return;}
+  try{
+    const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+    const d=await r.json();
+    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');document.getElementById('auth').classList.add('hidden');startPeriod();load();}
+    else{err.textContent='Wrong password.';}
+  }catch(_){err.textContent='Connection error.';}
+}
+document.getElementById('pw').addEventListener('keypress',e=>{if(e.key==='Enter')submitAuth();});
+
+// Semi-monthly periods: half 0 = 1st-15th (paid the 18th), half 1 = 16th-end (paid the 3rd next month)
+function startPeriod(){const n=new Date();cur={year:n.getFullYear(),month:n.getMonth(),half:n.getDate()<=15?0:1};}
+function shift(dir){
+  if(dir>0){ if(cur.half===0){cur.half=1;} else {cur.half=0;cur.month++;if(cur.month>11){cur.month=0;cur.year++;}} }
+  else { if(cur.half===1){cur.half=0;} else {cur.half=1;cur.month--;if(cur.month<0){cur.month=11;cur.year--;}} }
+  load();
+}
+function periodRange(){
+  const y=cur.year,m=cur.month,h=cur.half;
+  const start=new Date(y,m,h===0?1:16,0,0,0,0);
+  const end=h===0?new Date(y,m,15,23,59,59,999):new Date(y,m+1,0,23,59,59,999);
+  const payday=h===0?new Date(y,m,18):new Date(y,m+1,3);
+  const f=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  return {start:start.getTime(),end:end.getTime(),label:f(start)+' – '+f(end),payday:'paid '+payday.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
+}
+
+async function load(){
+  const pr=periodRange();
+  document.getElementById('p-range').textContent=pr.label;
+  document.getElementById('p-pay').textContent=pr.payday;
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading…</div>';
+  try{
+    const r=await fetch('/.netlify/functions/payroll-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
+    const d=await r.json();
+    if(!d.success)throw new Error(d.error||'failed');
+    render(d,pr);
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="empty">Couldn’t load payroll — '+esc(e.message)+'</div>';
+  }
+}
+
+function render(d,pr){
+  const techs=d.techs||[];
+  if(!techs.length){document.getElementById('content').innerHTML='<div class="wrap"><div class="empty">No billed jobs in this period yet. As the office logs invoices, each tech’s pay shows here.</div></div>';return;}
+  let grandPay=0,grandTax=0;
+  const cards=techs.map(t=>{
+    grandPay+=t.tech_pay;grandTax+=t.tax;
+    const rows=t.jobs.map(j=>`<div class="jrow"><span>Job #${esc(String(j.job_id))}${j.labor?(' · labor $'+j.labor.toFixed(0)):''}</span><span class="p">$${(j.pay||0).toFixed(2)}</span></div>`).join('');
+    const nm=TECH_NAME[t.technician_id]||('Tech '+t.technician_id);
+    return `<div class="tech" data-tid="${t.technician_id}" data-pay="${t.tech_pay}">
+      <div class="tech-h"><div class="nm">${esc(nm)}</div><div class="pay" id="payout-${t.technician_id}">$${t.tech_pay.toFixed(2)}</div></div>
+      ${rows}
+      <div class="bonus"><label>5★ review bonus $</label><input type="number" min="0" step="10" value="0" id="bonus-${t.technician_id}" oninput="recalc(${t.technician_id})"><span style="color:var(--dim);font-size:11px">$10 each</span></div>
+      <div class="payout"><div class="lbl">Payout</div><div class="amt" id="amt-${t.technician_id}">$${t.tech_pay.toFixed(2)}</div>
+        <button id="paybtn-${t.technician_id}" onclick="markPaid(${t.technician_id},'${esc(pr.label)}')">Mark paid</button></div>
+    </div>`;
+  }).join('');
+  document.getElementById('content').innerHTML=`
+    <div class="wrap">
+      <div class="summary">
+        <div class="b"><div class="v">$${grandPay.toFixed(0)}</div><div class="k">Tech pay</div></div>
+        <div class="b"><div class="v">$${grandTax.toFixed(0)}</div><div class="k">Tax collected</div></div>
+        <div class="b"><div class="v">${techs.length}</div><div class="k">Techs</div></div>
+      </div>
+      ${cards}
+    </div>`;
+}
+
+function recalc(tid){
+  const card=document.querySelector('.tech[data-tid="'+tid+'"]');
+  const base=parseFloat(card.dataset.pay)||0;
+  const bonus=parseFloat(document.getElementById('bonus-'+tid).value)||0;
+  document.getElementById('amt-'+tid).textContent='$'+(base+bonus).toFixed(2);
+}
+async function markPaid(tid,period){
+  const card=document.querySelector('.tech[data-tid="'+tid+'"]');
+  const base=parseFloat(card.dataset.pay)||0;
+  const bonus=parseFloat(document.getElementById('bonus-'+tid).value)||0;
+  const amount=(base+bonus).toFixed(2);
+  if(!confirm('Mark '+(TECH_NAME[tid]||('tech '+tid))+' paid $'+amount+'? This drops their owed balance.'))return;
+  const btn=document.getElementById('paybtn-'+tid);btn.disabled=true;btn.textContent='…';
+  try{
+    const r=await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount,period,note:'payroll'})});
+    const d=await r.json();
+    if(d.success){btn.textContent='Paid ✓';toast((TECH_NAME[tid]||'Tech')+' paid $'+amount);}
+    else{btn.disabled=false;btn.textContent='Mark paid';toast('⚠ '+(d.error||'failed'));}
+  }catch(_){btn.disabled=false;btn.textContent='Mark paid';toast('⚠ connection error');}
+}
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+initAuth();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
