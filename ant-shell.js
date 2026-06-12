@@ -71,6 +71,16 @@
     ]
   };
 
+  // Tech pages need tech_id in the URL — preserve it across bottom-nav taps so
+  // Pay / Stats / My Day / Day Off don't land on "Missing tech_id".
+  function techQS() {
+    try {
+      var u = new URLSearchParams(root.location.search);
+      var t = u.get('tech_id');
+      return t ? ('?tech_id=' + encodeURIComponent(t)) : '';
+    } catch (_) { return ''; }
+  }
+
   function currentFile() {
     var p = (root.location.pathname || '').toLowerCase().replace(/^\/+/, '');
     if (p === '' || p.charAt(p.length - 1) === '/') p += 'index.html';
@@ -149,8 +159,9 @@
   // ── Sheet (More) ─────────────────────────────────────────────────
   function buildSheet(role) {
     var items = MORE_SHEETS[role] || MORE_SHEETS.office;
+    var suffix = role === 'tech' ? techQS() : '';
     var grid = items.map(function (it) {
-      return '<a href="/' + it.page + '"><span class="ant-ic">' + it.icon + '</span>' + it.label + '</a>';
+      return '<a href="/' + it.page + suffix + '"><span class="ant-ic">' + it.icon + '</span>' + it.label + '</a>';
     }).join('');
     var scrim = doc.createElement('div');
     scrim.id = 'ant-shell-scrim';
@@ -170,6 +181,7 @@
   // ── Bottom bar ───────────────────────────────────────────────────
   function buildBar(role) {
     var tabs = role === 'tech' ? TECH_TABS : OFFICE_TABS;
+    var suffix = role === 'tech' ? techQS() : '';
     var file = currentFile();
     var bar = doc.createElement('nav');
     bar.id = 'ant-shell-bar';
@@ -182,7 +194,7 @@
       if (t.sheet) {
         return '<button type="button" class="' + wrapCls + '" data-ant-sheet="1">' + inner + '</button>';
       }
-      return '<a class="' + wrapCls + '" href="/' + t.page + '">' + inner + '</a>';
+      return '<a class="' + wrapCls + '" href="/' + t.page + suffix + '">' + inner + '</a>';
     }).join('');
     bar.innerHTML = html;
     doc.body.appendChild(bar);

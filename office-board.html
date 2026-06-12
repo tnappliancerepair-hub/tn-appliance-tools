@@ -369,6 +369,7 @@ function closeDrawer(){document.getElementById('scrim').classList.remove('open')
 
 function renderDrawer(d){
   const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
+  window.__drawerTech=(j.technician_id||(t&&t.id)||0);
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
@@ -515,7 +516,7 @@ async function saveInvoice(jid){
   document.getElementById('inv-note').textContent='Saved just now';
   try{
     await fetch(XANO+'/record_job_invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      job_id:parseInt(jid,10),labor:data.labor,parts_charge:data.parts,markup:data.markup,
+      job_id:parseInt(jid,10),technician_id:(window.__drawerTech||0),labor:data.labor,parts_charge:data.parts,markup:data.markup,
       shipping:data.ship,tax:data.tax,tip:data.tip,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
     })});
   }catch(_){/* endpoint may not be deployed yet; localStorage holds it */}

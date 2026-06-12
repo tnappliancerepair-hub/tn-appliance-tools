@@ -2,236 +2,129 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>My Payouts - TN Appliance Exchange</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pay · Ant Field</title>
 <style>
-  /* 2026-05-28 horizontal-offset fix (John report). Locks html + body
-     to viewport width so iOS Safari can't horizontally pan content
-     off-screen when any inner element briefly overflows. */
-  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0e1118; color: #e8edf5; min-height: 100vh; min-height: 100dvh;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  :root {
-    --bg: #0e1118; --panel: #131720; --border: #2a3040; --border-soft: #1f2533;
-    --muted: #8a93aa; --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
-    --green: #00d68f; --orange: #f5a623; --blue: #5aa9ff; --red: #ff6b6b; --violet: #b48cff;
-  }
-  .pin-overlay { position: fixed; inset: 0; background: rgba(14,17,24,0.96); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 1000; }
-  .pin-overlay.show { display: flex; }
-  .pin-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 28px 24px; max-width: 360px; text-align: center; }
-  .pin-card .ant { font-size: 36px; margin-bottom: 8px; }
-  .pin-card .title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .pin-card .sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
-  .pin-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; color: #e8edf5; font-size: 20px; font-family: var(--mono); text-align: center; letter-spacing: 4px; outline: none; }
-  .pin-input:focus { border-color: var(--orange); }
-  .pin-submit { margin-top: 14px; width: 100%; background: var(--orange); color: #1a1208; border: none; border-radius: 10px; padding: 14px; font-weight: 700; cursor: pointer; }
-  .pin-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 14px; }
-
-  .header { position: sticky; top: 0; z-index: 50; background: linear-gradient(180deg, #0e1118, rgba(14,17,24,0.95)); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border-soft); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-  .header .ant { font-size: 22px; }
-  .header .title { font-size: 15px; font-weight: 700; }
-  .header .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
-  .header .badge { background: rgba(0,214,143,0.10); border: 1px solid rgba(0,214,143,0.25); color: var(--green); padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; font-family: var(--mono); margin-left: auto; }
-
-  .summary { padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-bottom: 1px solid var(--border-soft); }
-  .stat { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px; padding: 14px; text-align: center; }
-  .stat .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-  .stat .val { font-size: 24px; font-weight: 800; }
-  .stat.green .val { color: var(--green); }
-  .stat.blue .val { color: var(--blue); }
-
-  .section-title { padding: 14px 16px 8px; color: var(--muted); font-size: 12px; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.04em; }
-  .items { padding: 0 12px 22px; display: flex; flex-direction: column; gap: 8px; }
-  .item { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; }
-  .item .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .item .who { font-weight: 700; font-size: 14px; }
-  .item .amt { font-weight: 800; font-size: 16px; color: var(--green); font-family: var(--mono); }
-  .item .mid { font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .item .mid .pill { background: rgba(138,147,170,0.10); border: 1px solid var(--border-soft); padding: 2px 8px; border-radius: 999px; font-family: var(--mono); font-size: 10px; }
-
-  .empty, .err { text-align: center; padding: 30px; color: var(--muted); font-size: 13px; }
-  .err { color: var(--red); }
-  .loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; background: var(--bg); z-index: 500; }
-  .loading .ant { font-size: 36px; }
-  .loading .msg { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  :root{--blue:#1f6fed;--ink:#1d2530;--ink2:#5b6573;--dim:#8a93a1;--bg:#eef1f5;--card:#fff;--line:#e4e8ee;--ok:#1faa6b;--bad:#e24d4d;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:90px;}
+  .top{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);padding:13px 16px;padding-top:max(13px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;}
+  .top .t{font-size:17px;font-weight:800;flex:1;}
+  .top .r{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:16px;cursor:pointer;}
+  .wrap{max-width:600px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+  .owed{background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:16px;padding:20px;text-align:center;box-shadow:0 4px 16px rgba(31,111,237,.3);}
+  .owed .lbl{font-size:13px;font-weight:700;opacity:.9;text-transform:uppercase;letter-spacing:.05em;}
+  .owed .amt{font-size:42px;font-weight:900;line-height:1.1;margin-top:4px;}
+  .owed .sub{font-size:12px;opacity:.85;margin-top:6px;}
+  .stat-row{display:flex;gap:10px;}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px;text-align:center;}
+  .stat .v{font-size:22px;font-weight:800;} .stat .k{font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;margin-top:3px;}
+  .stat .v.paid{color:var(--ok);}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;}
+  .card h3{font-size:12px;font-weight:800;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;padding:11px 0 7px;}
+  .job{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #f0f3f7;}
+  .job:last-child{border-bottom:0;}
+  .job .info{flex:1;min-width:0;}
+  .job .jid{font-weight:700;font-size:14px;} .job .when{font-size:12px;color:var(--ink2);}
+  .job .pay{font-size:16px;font-weight:800;color:var(--ok);}
+  .empty{padding:26px 14px;text-align:center;color:var(--dim);font-size:13px;}
+  .note{font-size:11px;color:var(--dim);text-align:center;padding:4px 14px 0;}
+  .loading{padding:50px;text-align:center;color:var(--ink2);}
+  .spinner{width:30px;height:30px;border:3px solid #d7dde5;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 22px;width:100%;max-width:340px;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;} .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:22px;text-align:center;letter-spacing:.4em;font-family:ui-monospace,monospace;margin-bottom:11px;}
+  .auth-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+  .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
 </style>
 </head>
 <body>
 
-<div class="pin-overlay" id="pinOverlay">
-  <div class="pin-card">
-    <div class="ant">🐜</div>
-    <div class="title">enter your pin</div>
-    <div class="sub">your earnings</div>
-    <input id="pinInput" class="pin-input" type="tel" inputmode="numeric" maxlength="6" placeholder="••••" autocomplete="off">
-    <button id="pinSubmit" class="pin-submit">Unlock</button>
-    <div id="pinErr" class="pin-err"></div>
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>🐜 Your Pay</h2>
+    <div class="sub">enter your 4-digit PIN</div>
+    <input id="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off">
+    <button id="pin-go" onclick="submitPin()">View Pay</button>
+    <div class="err" id="pin-err"></div>
   </div>
 </div>
 
-<div id="app" style="display:none">
-  <div class="header">
-    <div class="ant">🐜</div>
-    <div>
-      <div class="title" id="hTitle">My Payouts</div>
-      <div class="sub" id="hSub"></div>
-    </div>
-    <div class="badge" id="techBadge">—</div>
-  </div>
-
-  <div class="summary">
-    <div class="stat green"><div class="lbl">Pending</div><div class="val" id="sumPending">$0.00</div></div>
-    <div class="stat blue"><div class="lbl">Jobs</div><div class="val" id="sumCount">0</div></div>
-  </div>
-
-  <div class="section-title">Pending payments</div>
-  <div id="items" class="items"></div>
+<div class="top">
+  <div class="t">💵 Your Pay</div>
+  <button class="r" onclick="load()" title="Refresh">↻</button>
 </div>
 
-<div class="loading" id="loading">
-  <div class="ant">🐜</div>
-  <div class="msg">loading your earnings…</div>
-</div>
+<div id="content"><div class="loading"><div class="spinner"></div>Loading your pay…</div></div>
 
 <script>
-(function() {
-  'use strict';
-  const params = new URLSearchParams(window.location.search);
-  const TECH_ID = params.get('tech_id');
-  const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const PIN_STORAGE_KEY = `tn_tech_pin_v1_${TECH_ID}`;
+const params=new URLSearchParams(location.search);
+const TECH_ID=parseInt(params.get('tech_id'),10)||0;
+const AUTH_KEY='tn_tech_auth_'+TECH_ID;
 
-  if (!TECH_ID) {
-    document.getElementById('loading').innerHTML = '<div class="err">Missing tech_id in URL.</div>';
-    return;
+function authValid(){try{const c=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');return c.ok&&(Date.now()-c.t<12*3600*1000);}catch(_){return false;}}
+function initAuth(){
+  if(!TECH_ID){document.getElementById('content').innerHTML='<div class="empty">Missing tech_id in URL. Use the link Ant sent you.</div>';document.getElementById('auth').classList.add('hidden');return;}
+  if(authValid()){document.getElementById('auth').classList.add('hidden');load();return;}
+  document.getElementById('pin').focus();
+}
+async function submitPin(){
+  const v=(document.getElementById('pin').value||'').trim();const err=document.getElementById('pin-err');const btn=document.getElementById('pin-go');
+  if(!/^\d{4}$/.test(v)){err.textContent='Enter your 4-digit PIN';return;}
+  btn.disabled=true;btn.textContent='Checking…';
+  try{
+    const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:TECH_ID,pin:v})});
+    const d=await r.json();
+    if(d.success){localStorage.setItem(AUTH_KEY,JSON.stringify({ok:true,t:Date.now()}));document.getElementById('auth').classList.add('hidden');load();}
+    else{err.textContent='Wrong PIN. Try again.';document.getElementById('pin').value='';}
+  }catch(_){err.textContent='Connection error.';}
+  finally{btn.disabled=false;btn.textContent='View Pay';}
+}
+document.getElementById('pin').addEventListener('keypress',e=>{if(e.key==='Enter')submitPin();});
+
+async function load(){
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading your pay…</div>';
+  try{
+    const r=await fetch('/.netlify/functions/tech-earnings?tech_id='+TECH_ID,{cache:'no-store'});
+    const d=await r.json();
+    if(!d.success)throw new Error(d.error||'could not load');
+    render(d);
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="empty">Couldn’t load your pay yet — '+esc(e.message)+'</div>';
   }
+}
 
-  const $ = (id) => document.getElementById(id);
-  const pinOverlay = $('pinOverlay');
-  const pinInput = $('pinInput');
-  const pinSubmit = $('pinSubmit');
-  const pinErr = $('pinErr');
-  const app = $('app');
-  const loading = $('loading');
+function render(d){
+  const jobs=d.jobs||[];
+  const rows=jobs.length?jobs.map(j=>`
+    <div class="job">
+      <div class="info"><div class="jid">Job #${esc(String(j.job_id))}</div><div class="when">${j.when?fmt(j.when):''}${j.labor?(' · labor $'+j.labor.toFixed(2)):''}</div></div>
+      <div class="pay">$${(j.pay||0).toFixed(2)}</div>
+    </div>`).join(''):'<div class="empty">No jobs billed yet this stretch. Your pay shows here as the office logs each job.</div>';
+  document.getElementById('content').innerHTML=`
+    <div class="wrap">
+      <div class="owed">
+        <div class="lbl">Owed to you now</div>
+        <div class="amt">$${(d.owed||0).toFixed(2)}</div>
+        <div class="sub">updates after each payout</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="v">$${(d.earned||0).toFixed(2)}</div><div class="k">Earned</div></div>
+        <div class="stat"><div class="v paid">$${(d.paid||0).toFixed(2)}</div><div class="k">Paid</div></div>
+        <div class="stat"><div class="v">${d.job_count||0}</div><div class="k">Jobs</div></div>
+      </div>
+      <div class="card"><h3>Per job</h3>${rows}</div>
+      <div class="note">Pay runs the 3rd &amp; 18th · +$10 per 5-star review</div>
+    </div>`;
+}
 
-  async function verifyPin(pin) {
-    try {
-      const res = await fetch('/.netlify/functions/verify-pin-proxy', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
-      });
-      const data = await res.json();
-      return data && data.success === true;
-    } catch { return false; }
-  }
-
-  async function tryUnlock() {
-    const cached = localStorage.getItem(PIN_STORAGE_KEY);
-    if (cached) {
-      if (await verifyPin(cached)) { unlock(); return; }
-      localStorage.removeItem(PIN_STORAGE_KEY);
-    }
-    loading.style.display = 'none';
-    pinOverlay.classList.add('show');
-    pinInput.focus();
-  }
-  pinSubmit.addEventListener('click', submitPin);
-  pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPin(); });
-  async function submitPin() {
-    const pin = pinInput.value.trim();
-    if (!pin) return;
-    pinSubmit.disabled = true; pinErr.textContent = '';
-    const ok = await verifyPin(pin);
-    pinSubmit.disabled = false;
-    if (!ok) { pinErr.textContent = 'wrong pin. try again.'; pinInput.value = ''; pinInput.focus(); return; }
-    localStorage.setItem(PIN_STORAGE_KEY, pin);
-    unlock();
-  }
-
-  function unlock() {
-    pinOverlay.classList.remove('show');
-    app.style.display = 'block';
-    loading.style.display = 'block';
-    load();
-  }
-
-  async function load() {
-    loading.style.display = 'block';
-    try {
-      const res = await fetch(`${XANO}/get_pending_earnings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tech_id: parseInt(TECH_ID, 10) })
-      });
-      const data = await res.json();
-      if (!data || data.success !== true) {
-        $('items').innerHTML = `<div class="err">${escapeHtml((data && data.message) || 'failed')}</div>`;
-        return;
-      }
-      render(data.items || []);
-    } catch (err) {
-      $('items').innerHTML = `<div class="err">network: ${escapeHtml(err.message)}</div>`;
-    } finally {
-      loading.style.display = 'none';
-    }
-  }
-
-  function render(items) {
-    const total = items.reduce((a, it) => a + Number((it.earning && it.earning.commission_earned) || 0), 0);
-    $('sumPending').textContent = `$${total.toFixed(2)}`;
-    $('sumCount').textContent = items.length;
-    $('hTitle').textContent = 'My Payouts';
-    $('hSub').textContent = `tech #${TECH_ID}`;
-    $('techBadge').textContent = items.length ? `${items.length} pending` : 'all paid';
-
-    if (!items.length) {
-      $('items').innerHTML = '<div class="empty">No pending payments right now. 🎉</div>';
-      return;
-    }
-
-    $('items').innerHTML = items.map(it => {
-      const c = (it.customer && it.customer.name) || 'customer';
-      const j = it.job || {};
-      const e = it.earning || {};
-      const appl = [j.brand, j.appliance_type].filter(Boolean).join(' ') || 'job';
-      const amt = Number(e.commission_earned || 0).toFixed(2);
-      const rate = e.commission_rate ? `${Math.round(Number(e.commission_rate) * 100)}%` : '';
-      const when = e.earned_at ? fmtCT(e.earned_at) : '';
-      return `
-        <div class="item">
-          <div class="top">
-            <div class="who">${escapeHtml(c)} · ${escapeHtml(appl)}</div>
-            <div class="amt">$${escapeHtml(amt)}</div>
-          </div>
-          <div class="mid">
-            <span class="pill">job #${j.id || '—'}</span>
-            ${rate ? `<span class="pill">${escapeHtml(rate)}</span>` : ''}
-            ${when ? `<span class="pill">${escapeHtml(when)}</span>` : ''}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function fmtCT(ms) {
-    try {
-      return new Intl.DateTimeFormat('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric' }).format(new Date(Number(ms)));
-    } catch { return ''; }
-  }
-  function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-  tryUnlock();
-})();
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmt(ms){try{return new Date(ms).toLocaleDateString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric'});}catch(_){return '';}}
+initAuth();
 </script>
-  <script src="/tech-theme.js?v=1"></script>
-  <script src="/office-ant.js?v=20260528-1"></script>
-  <script src="/office-home-button.js?v=1"></script>
-<script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
-<script src="/office-nav.js?v=20260604-pills-readable"></script>
 <script src="/ant-shell.js?v=20260612-1" defer></script>
 </body>
 </html>
