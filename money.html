@@ -78,6 +78,7 @@
     <button class="tab on" data-tab="payroll" onclick="setTab('payroll')">Payroll</button>
     <button class="tab" data-tab="tax" onclick="setTab('tax')">Sales Tax</button>
     <button class="tab" data-tab="pl" onclick="setTab('pl')">P&amp;L</button>
+    <button class="tab" data-tab="books" onclick="setTab('books')">Books</button>
   </div>
 </div>
 
@@ -143,9 +144,31 @@ async function load(){
 function setTab(t){activeTab=t;document.querySelectorAll('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();}
 function renderActive(){
   if(!lastData)return;
+  if(activeTab==='books')return renderBooks(lastPr);
   if(activeTab==='tax')return renderTax(lastData,lastPr);
   if(activeTab==='pl')return renderPL(lastData,lastPr);
   return renderPayroll(lastData,lastPr);
+}
+function ymd(ms){const d=new Date(ms);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+async function renderBooks(pr){
+  const c=document.getElementById('content');
+  c.innerHTML='<div class="loading"><div class="spinner"></div>Pulling your books from Digits…</div>';
+  try{
+    const r=await fetch('/.netlify/functions/digits-pnl?start='+ymd(pr.start)+'&end='+ymd(pr.end)+'&interval=Month',{cache:'no-store'});
+    const d=await r.json();
+    if(!d.configured){
+      c.innerHTML='<div class="wrap"><div class="tech"><div style="font-weight:800;font-size:15px;margin-bottom:8px">📚 Connect Digits</div>'
+        +'<div class="pl-note" style="padding:0 0 10px">Pull your real P&amp;L (income + card/bill expenses) straight from Digits:</div>'
+        +'<ol style="font-size:13px;color:var(--ink2);line-height:1.7;padding-left:18px"><li>In Digits → Developer → Create App (redirect <code>…/digits-oauth-callback</code>, scopes ledger:read + source:sync)</li><li>Put <b>DIGITS_CLIENT_ID</b> + <b>DIGITS_CLIENT_SECRET</b> in Netlify env</li><li>Visit <a href="/.netlify/functions/digits-oauth-start">/digits-oauth-start</a> &amp; approve → paste the token into <b>DIGITS_REFRESH_TOKEN</b></li></ol>'
+        +'<a href="/.netlify/functions/digits-oauth-start" style="display:inline-block;margin-top:8px;background:var(--blue);color:#fff;padding:10px 16px;border-radius:9px;text-decoration:none;font-weight:700">Connect Digits</a></div></div>';
+      return;
+    }
+    if(!d.success){c.innerHTML='<div class="wrap"><div class="empty">Digits: '+esc(d.error||'error')+'</div></div>';return;}
+    const rows=d.rows||[];
+    if(!rows.length){c.innerHTML='<div class="wrap"><div class="empty">No P&amp;L rows for this period.</div></div>';return;}
+    const html=rows.map(rw=>`<div class="pl-row ${rw.amount<0?'neg':''}"><span>${esc(rw.label)}</span><span class="v">$${(rw.amount||0).toFixed(2)}</span></div>`).join('');
+    c.innerHTML='<div class="wrap"><div class="tech"><div class="pl-note" style="padding:0 0 8px">📚 Live from Digits — '+esc(pr.label)+'</div>'+html+'</div></div>';
+  }catch(e){c.innerHTML='<div class="wrap"><div class="empty">Couldn’t reach Digits — '+esc(e.message)+'</div></div>';}
 }
 
 function renderTax(d,pr){
