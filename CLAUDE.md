@@ -1,5 +1,45 @@
 # Appliance Ant
 
+## 🌅 MORNING BRIEF — 2026-06-12 (read first; saved end-of-day 2026-06-11)
+
+Yesterday was a reliability + "no job gets missed" day. Big wins; a few things gated on one Mac Mini push.
+
+### ✅ Shipped + LIVE (merged to main, PRs #5–#23)
+- **Gmail re-authed + OAuth app PUBLISHED to production** → warranty email intake flows into Xano again (AHS/ServicePower/SquareTrade). 22 jobs landed in the 30 min after re-auth. The 7-day token-death is fixed (published, not Testing). All 4 Gmail pollers alive.
+- **Parts loop live**: `record_parts_order` flips job → `awaiting_parts` (+ETA, can't-schedule guard); `mark_parts_arrived` → back to `not_ready`. Office 📦 Parts modal + `?parts_job=<id>` deep-link on office-dashboard (opens parts entry fast).
+- **parts-ledger.html** (cost·sold·margin·tax + margin-health flags; test rows excluded; 📦 Parts $ nav pill).
+- **Dual-tier cash parts**: tech talk-track on tech-ant-chat + `docs/vapi-ant-inbound-prompt-blocks-2026-06-11.md` (3 blocks pasted into Vapi consumer assistants; CSC got blocks 2+3).
+- **Perf**: `get_job_for_dashboard` was a 35s timeout (unindexed event_log JSON scan) → now 1.4s (events opt-in via `include_events`); job-detail loads instantly + lazy-loads the timeline. Tech fetch timeouts 8s→30s for weak road signal.
+- **event_log GC** (`cleanup_event_log`, `noise_only` mode) — purges plumbing rows (`signal_processed`/`no_agent_yet`/`colony_signal_emitted`/etc.) safely; keeps dedup/audit. **Schedule nightly** (10k+ reclaimable). Storage (10GB Essential cap) is the real limit, NOT API requests (unlimited on paid).
+- **JOB SAFETY NET** (the "we can't miss jobs" work): needs-scheduled queue **uncapped 25→shows all ~390** (`list_needs_scheduled_parallel` limit 1000; needs-scheduled.html requests 1000). `job_safety_sweep` reconciles every actionable job + recovers jobs stranded in `broadcasting`→`not_ready`. **`job-safety-watch` Netlify cron (every 30 min)** auto-heals stranded jobs + SMSes Teddy+Danielle ONLY on a real emergency (intake stalled 3h+ in business hours, or sweep fails) — deduped 1/2h, NO backlog/self-heal spam.
+- **TDR seeded by everyone (tech final say)**: `create_job_from_email` seeds a TDR from the customer's problem+machine info at intake; `record_parts_order` writes part#→`verified_part_number` + part name→`failed_component`. Warranty package pre-populated, nobody re-types.
+
+### ⏳ PENDING — one Mac Mini push (Teddy, tomorrow AM)
+`office_set_job_status` (the ✏️ Status one-tap override so Danielle can force-set any job's status — "she has final say"). The BUTTON is live on office-dashboard; the endpoint isn't deployed yet:
+```
+cd ~/tn-appliance-tools && git fetch origin claude/good-morning-TcydP \
+ && git checkout origin/claude/good-morning-TcydP -- api/intake/office_set_job_status_POST.xs \
+ && /opt/homebrew/bin/xano workspace push -i "api/**/office_set_job_status*" --force
+```
+Look for `Pushed 1 documents` (retry on `fetch failed` — transient).
+
+### 🔎 Key findings / state
+- **~300–390 unscheduled backlog, oldest ~10 days.** Breakdown: **SquareTrade = 272 (69%)** (these need the Gmail "Accept" click before scheduling), AHS 79, NSA 41; **241 have NO service_state** (can't route). So it's NOT 390 customers waiting — it's mostly SquareTrade-needs-accept + missing-location + a fresh poller surge. **Triage needed**, not just scheduling.
+- **The "broadcaster" strands ~20 jobs/cycle** in `broadcasting` (booking never completes); the watchdog auto-heals them every 30 min so nothing's lost, but the ROOT (booking completion) is the real next fix. Danielle's **Schedule button on needs-scheduled.html is the RELIABLE path** (`danielle_schedule_parallel_job` — books tech+day directly, fires confirm chain; does NOT use the broken broadcaster).
+- **Deploy reality**: the loop's `DEPLOY_XS` auto-deploy is broken (0/N every run; `deploy_xs.js` fix is on main but the Mac Mini has a local uncommitted change blocking `git pull`+kickstart). **XS deploys are manual push only** right now. CLI sometimes reports `Pushed` but no-ops a body/default change — verify behavior after pushing.
+
+### ⚠️ Operator TODOs (Teddy)
+1. Push `office_set_job_status` (above).
+2. **Schedule `cleanup_event_log {noise_only:true}` nightly** (Xano task or cron) — storage relief.
+3. **Billing caps / alerts** on metered services — esp. **turn Vapi auto-recharge OFF** (the "$2k surprise" vector); budget alerts on Anthropic, Telnyx, Google Maps. (Claude spend is alert-only, no hard cap.)
+4. Resolve the Mac Mini `deploy_xs.js` local change (`git stash` then pull + `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`) so auto-deploy works again.
+5. Decide the **booking-completion** model (the "broadcaster") so jobs land on the calendar without piling up.
+
+### 🐜 North star (Teddy, 2026-06-11)
+One reliable system customers + techs + office all write into once → faster repair → techs paid faster → shop profits. The spine is a single truthful job state every role reads/writes. Interim: **Danielle has final say** (the ✏️ Status override) so the office stays in control while automation matures.
+
+---
+
 ## 🎯 OPERATIONAL PLAN — week of 2026-06-01 (saved end-of-day 2026-05-31)
 
 End-of-day state and the aggressive plan to kill HCP this week + harden the office for Danielle's possible departure. Tomorrow's session should read this first.
