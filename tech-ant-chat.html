@@ -1995,7 +1995,7 @@
     const attachmentsThisTurn = pendingAttachmentIds.slice();
     pendingAttachmentIds = [];
     try {
-      const r = await fetch(XANO_BASE + '/tech_assist_chat_v2', {
+      const r = await fetch(XANO_BASE + '/tech_assist_chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
