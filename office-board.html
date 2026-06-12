@@ -86,8 +86,26 @@
   .auth-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
   .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
   #ask-ant-fab{position:fixed;right:14px;bottom:74px;z-index:55;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;
-    padding:12px 18px;border-radius:26px;font-size:14px;font-weight:800;text-decoration:none;box-shadow:0 4px 16px rgba(31,111,237,.4);}
+    padding:15px 22px;border-radius:28px;font-size:15px;font-weight:800;border:0;cursor:pointer;box-shadow:0 6px 20px rgba(31,111,237,.45);font-family:inherit;}
   #ask-ant-fab:active{transform:scale(.96);}
+  .ant-panel{position:fixed;left:0;right:0;bottom:0;z-index:62;background:#fff;border-top-left-radius:18px;border-top-right-radius:18px;
+    box-shadow:0 -6px 28px rgba(20,30,50,.18);transform:translateY(110%);transition:transform .26s cubic-bezier(.2,.8,.2,1);
+    display:flex;flex-direction:column;max-height:78vh;padding-bottom:env(safe-area-inset-bottom,0px);}
+  .ant-panel.open{transform:translateY(0);}
+  .ant-h{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line);}
+  .ant-title{font-weight:800;font-size:16px;flex:1;} .ant-x{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:16px;cursor:pointer;}
+  .ant-log{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:9px;min-height:160px;}
+  .ant-b{max-width:86%;padding:10px 13px;border-radius:15px;font-size:14px;line-height:1.45;}
+  .ant-b.me{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:5px;}
+  .ant-b.it{align-self:flex-start;background:#eef1f5;color:var(--ink);border-bottom-left-radius:5px;}
+  .ant-tip{align-self:center;font-size:11px;color:var(--dim);text-align:center;padding:4px 10px;}
+  .ant-input{display:flex;gap:8px;padding:11px 14px;border-top:1px solid var(--line);align-items:center;}
+  .ant-input input{flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:22px;font-size:15px;}
+  .ant-input input:focus{outline:none;border-color:var(--blue);}
+  #ant-mic{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:#f5f7fa;font-size:18px;cursor:pointer;flex-shrink:0;}
+  #ant-mic.live{background:#fde8e8;border-color:#f3b4b4;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.5;}}
+  .ant-send{background:var(--blue);color:#fff;border:0;border-radius:22px;padding:0 18px;height:44px;font-size:14px;font-weight:800;cursor:pointer;flex-shrink:0;}
   .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
@@ -133,7 +151,18 @@
   <div class="dwrap" id="d-body"></div>
 </div>
 
-<a href="ask-ant.html" id="ask-ant-fab" title="Ask Ant">💬 Ask Ant</a>
+<button id="ask-ant-fab" onclick="openAnt()" title="Talk to Ant">💬 Talk to Ant</button>
+
+<div class="scrim" id="ant-scrim" onclick="closeAnt()"></div>
+<div class="ant-panel" id="ant-panel">
+  <div class="ant-h"><div class="ant-title">💬 Ant</div><button class="ant-x" onclick="closeAnt()">✕</button></div>
+  <div class="ant-log" id="ant-log"></div>
+  <div class="ant-input">
+    <button id="ant-mic" title="Speak" onclick="antVoice()">🎤</button>
+    <input id="ant-in" placeholder="Tell Ant what to do…" autocomplete="off">
+    <button class="ant-send" onclick="antSend()">Send</button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -499,6 +528,78 @@ document.getElementById('search-in').addEventListener('input',e=>{
     }catch(_){box.innerHTML='<div class="empty-col">search unavailable</div>';}
   },300);
 });
+
+// ── Talk to Ant (office assistant) ──
+const TECH_ID_BY_NAME={teddy:1,jimmy:2,andre:3,lee:4,billy:5,john:6};
+function antCap(s){return (s||'').charAt(0).toUpperCase()+(s||'').slice(1);}
+function antFolderLabel(f){return {waiting_parts:'Waiting Parts',completed:'Completion',needs_scheduled:'Needs Scheduled',needs_invoice:'Needs Invoice',follow_up:'Follow Up'}[f]||f;}
+function openAnt(){
+  document.getElementById('ant-scrim').classList.add('open');
+  document.getElementById('ant-panel').classList.add('open');
+  const log=document.getElementById('ant-log');
+  if(!log.dataset.greeted){log.dataset.greeted='1';antMsg('it','Hi Danielle — tell me what to do. Try "move the Carson job to waiting parts", "assign Jimmy to 18537", or "log $140 labor on 18537".');}
+  setTimeout(()=>document.getElementById('ant-in').focus(),250);
+}
+function closeAnt(){document.getElementById('ant-scrim').classList.remove('open');document.getElementById('ant-panel').classList.remove('open');}
+function antMsg(who,text){const log=document.getElementById('ant-log');const d=document.createElement('div');d.className='ant-b '+(who==='me'?'me':'it');d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+async function antSend(){
+  const inp=document.getElementById('ant-in');const msg=(inp.value||'').trim();if(!msg)return;
+  antMsg('me',msg);inp.value='';
+  try{
+    const r=await fetch('/.netlify/functions/office-assist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const p=await r.json();await antDo(p);
+  }catch(_){antMsg('it','Hmm, I had trouble with that — try again.');}
+}
+async function searchJobs(q){
+  try{const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});const d=await r.json();
+    const rows=(d&&(d.results||d.customers||d.jobs))||[];
+    return rows.map(x=>({job_id:x.job_id||x.recent_job_id||x.id,name:x.name||((x.first_name||'')+' '+(x.last_name||'')).trim()})).filter(x=>x.job_id);
+  }catch(_){return [];}
+}
+async function antDo(p){
+  antMsg('it',p.reply||'');
+  if(!p.intent||p.intent==='none')return;
+  let jobId=null,jobLabel='';const ref=(p.job_ref||'').trim();
+  if(/^\d+$/.test(ref)){jobId=parseInt(ref,10);jobLabel='#'+ref;}
+  else if(ref){const res=await searchJobs(ref);
+    if(res.length===0){antMsg('it','I could not find a job for "'+ref+'".');return;}
+    if(res.length>1){antMsg('it','Which one? '+res.slice(0,5).map(r=>'#'+r.job_id+' '+r.name).join('  ·  '));return;}
+    jobId=res[0].job_id;jobLabel=res[0].name||('#'+jobId);}
+  else {antMsg('it','Which job?');return;}
+
+  if(p.intent==='search'){closeAnt();openDrawer(jobId);return;}
+  if(p.intent==='assign'){
+    const tid=TECH_ID_BY_NAME[(p.target||'').toLowerCase()];
+    if(!tid){antMsg('it','Which tech?');return;}
+    try{await postJSON('reassign_job',{job_id:jobId,technician_id:tid});antMsg('it','✅ '+jobLabel+' assigned to '+antCap(p.target)+'.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
+    return;
+  }
+  if(p.intent==='labor'){
+    const amt=(p.amount||'').replace(/[^0-9.]/g,'');if(!amt){antMsg('it','How much labor?');return;}
+    try{const k='tn_inv_'+jobId;const cur=JSON.parse(localStorage.getItem(k)||'{}');cur.labor=amt;cur._savedAt=Date.now();localStorage.setItem(k,JSON.stringify(cur));}catch(_){}
+    try{await postJSON('record_job_invoice',{job_id:jobId,labor:amt});}catch(_){}
+    antMsg('it','✅ Logged $'+amt+' labor on '+jobLabel+'.');return;
+  }
+  if(p.intent==='move'){
+    const t=p.target;
+    if(t==='follow_up'||t==='needs_invoice'){try{localStorage.setItem('tn_stage_'+jobId,t==='needs_invoice'?'needinv':'followup');}catch(_){}antMsg('it','✅ '+jobLabel+' → '+antFolderLabel(t)+'.');loadBoard();return;}
+    const sm={waiting_parts:'awaiting_parts',completed:'completed',needs_scheduled:'not_ready'};const st=sm[t];
+    if(!st){antMsg('it','Where should it go?');return;}
+    try{await postJSON('office_set_job_status',{job_id:jobId,scheduling_status:st,actor:'Danielle (Ant)'});antMsg('it','✅ '+jobLabel+' → '+antFolderLabel(t)+'.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
+    return;
+  }
+}
+function antVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){antMsg('it','Voice is not supported on this browser — just type it.');return;}
+  const rec=new SR();rec.lang='en-US';rec.interimResults=false;rec.maxAlternatives=1;
+  const mic=document.getElementById('ant-mic');mic.classList.add('live');
+  rec.onresult=e=>{document.getElementById('ant-in').value=e.results[0][0].transcript;mic.classList.remove('live');antSend();};
+  rec.onerror=()=>mic.classList.remove('live');
+  rec.onend=()=>mic.classList.remove('live');
+  rec.start();
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.activeElement&&document.activeElement.id==='ant-in')antSend();});
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
