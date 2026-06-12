@@ -22,6 +22,7 @@ query hcp_backfill_recent_jobs verb=POST {
     int? max_pages?
     int? per_page?
     bool? dry_run?
+    bool? scheduled_window?
   }
 
   stack {
@@ -45,7 +46,21 @@ query hcp_backfill_recent_jobs verb=POST {
     var $dry_run {
       value = ($input.dry_run ?? false)
     }
-  
+
+    // Scheduled-window mode: pull jobs by SCHEDULED date (today -1d .. +7d)
+    // instead of newest-created, so jobs scheduled for today but created
+    // earlier (which newest-created paging misses) get pulled in. Sorted by
+    // scheduled_start asc so today's land within the page cap.
+    var $use_sched {
+      value = ($input.scheduled_window ?? false)
+    }
+    var $sched_min_iso {
+      value = (now|transform_timestamp:"-1 days")
+    }
+    var $sched_max_iso {
+      value = (now|transform_timestamp:"+7 days")
+    }
+
     // Counters / outputs.
     var $created_count {
       value = 0
@@ -88,8 +103,11 @@ query hcp_backfill_recent_jobs verb=POST {
       each as $page_num {
         conditional {
           if (($page_num <= $max_pages) && ($stop != true)) {
+            var $job_url {
+              value = ($use_sched) ? ("https://api.housecallpro.com/jobs?per_page=" ~ ($per_page|to_text) ~ "&scheduled_start_min=" ~ $sched_min_iso ~ "&scheduled_start_max=" ~ $sched_max_iso ~ "&sort=scheduled_start&direction=asc&page=" ~ ($page_num|to_text)) : ("https://api.housecallpro.com/jobs?per_page=" ~ ($per_page|to_text) ~ "&sort=created_at&direction=desc&page=" ~ ($page_num|to_text))
+            }
             api.request {
-              url = "https://api.housecallpro.com/jobs?per_page=" ~ ($per_page|to_text) ~ "&sort=created_at&direction=desc&page=" ~ ($page_num|to_text)
+              url = $job_url
               method = "GET"
               headers = [
                 "Authorization: Token " ~ $env.HCP_API_KEY
