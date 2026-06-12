@@ -16,6 +16,13 @@
   .period button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:17px;cursor:pointer;}
   .period .pinfo{flex:1;text-align:center;}
   .period .pinfo .rng{font-size:14px;font-weight:700;} .period .pinfo .pd{font-size:12px;color:var(--ink2);}
+  .tabs{display:flex;gap:6px;margin-top:10px;}
+  .tabs .tab{flex:1;padding:8px;border:1px solid var(--line);background:#fff;border-radius:9px;font-size:13px;font-weight:700;color:var(--ink2);cursor:pointer;font-family:inherit;}
+  .tabs .tab.on{background:#eef4fe;border-color:#bcd5fb;color:var(--blue);}
+  .pl-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f0f3f7;font-size:15px;}
+  .pl-row:last-child{border-bottom:0;} .pl-row .v{font-weight:800;font-family:ui-monospace,monospace;}
+  .pl-row.neg .v{color:var(--bad);} .pl-row.net{font-size:18px;font-weight:900;border-top:2px solid var(--ink);margin-top:4px;}
+  .pl-note{font-size:11px;color:var(--dim);padding:10px 2px 0;}
   .wrap{max-width:680px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
   .summary{background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:14px;padding:16px;display:flex;justify-content:space-around;text-align:center;}
   .summary .b .v{font-size:22px;font-weight:900;} .summary .b .k{font-size:11px;opacity:.9;text-transform:uppercase;letter-spacing:.04em;}
@@ -67,6 +74,11 @@
     <div class="pinfo"><div class="rng" id="p-range">—</div><div class="pd" id="p-pay">—</div></div>
     <button onclick="shift(1)">›</button>
   </div>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-tab="payroll" onclick="setTab('payroll')">Payroll</button>
+    <button class="tab" data-tab="tax" onclick="setTab('tax')">Sales Tax</button>
+    <button class="tab" data-tab="pl" onclick="setTab('pl')">P&amp;L</button>
+  </div>
 </div>
 
 <div id="content"><div class="loading"><div class="spinner"></div>Loading…</div></div>
@@ -77,6 +89,8 @@ const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OFFICE_AUTH_KEY='tn_office_auth_v1';
 const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 let cur=null; // {year,month,half}
+let lastData=null,lastPr=null,activeTab='payroll';
+const TECH_REGION={1:'TN',2:'TN',4:'TN',3:'LA',5:'LA',6:'LA'};
 
 function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1';}
 function initAuth(){
@@ -120,13 +134,62 @@ async function load(){
     const r=await fetch('/.netlify/functions/payroll-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
     const d=await r.json();
     if(!d.success)throw new Error(d.error||'failed');
-    render(d,pr);
+    lastData=d;lastPr=pr;renderActive();
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">Couldn’t load payroll — '+esc(e.message)+'</div>';
   }
 }
 
-function render(d,pr){
+function setTab(t){activeTab=t;document.querySelectorAll('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();}
+function renderActive(){
+  if(!lastData)return;
+  if(activeTab==='tax')return renderTax(lastData,lastPr);
+  if(activeTab==='pl')return renderPL(lastData,lastPr);
+  return renderPayroll(lastData,lastPr);
+}
+
+function renderTax(d,pr){
+  const techs=d.techs||[];
+  let tn=0,la=0;
+  techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; });
+  const total=tn+la;
+  document.getElementById('content').innerHTML=`
+    <div class="wrap">
+      <div class="summary"><div class="b"><div class="v">$${total.toFixed(0)}</div><div class="k">Tax collected</div></div>
+        <div class="b"><div class="v">$${tn.toFixed(0)}</div><div class="k">TN</div></div>
+        <div class="b"><div class="v">$${la.toFixed(0)}</div><div class="k">LA</div></div></div>
+      <div class="tech">
+        <div class="pl-row"><span>Tennessee</span><span class="v">$${tn.toFixed(2)}</span></div>
+        <div class="pl-row"><span>Louisiana</span><span class="v">$${la.toFixed(2)}</span></div>
+        <div class="pl-row net"><span>Total tax to remit</span><span class="v">$${total.toFixed(2)}</span></div>
+        <div class="pl-note">Sales tax collected on jobs billed this period, split by the tech's region. Replaces the Sales Tax Calculator sheet.</div>
+      </div>
+    </div>`;
+}
+
+function renderPL(d,pr){
+  const techs=d.techs||[];
+  let rev=0,labor=0,parts=0,tax=0,pay=0;
+  techs.forEach(t=>{rev+=t.amount;labor+=t.labor;parts+=t.parts;tax+=t.tax;pay+=t.tech_pay;});
+  const takeHome=rev-tax-pay; // rough: parts true-cost margin comes from the parts ledger
+  document.getElementById('content').innerHTML=`
+    <div class="wrap">
+      <div class="summary"><div class="b"><div class="v">$${rev.toFixed(0)}</div><div class="k">Revenue</div></div>
+        <div class="b"><div class="v">$${pay.toFixed(0)}</div><div class="k">Tech pay</div></div>
+        <div class="b"><div class="v">$${takeHome.toFixed(0)}</div><div class="k">After pay+tax</div></div></div>
+      <div class="tech">
+        <div class="pl-row"><span>Revenue (invoiced)</span><span class="v">$${rev.toFixed(2)}</span></div>
+        <div class="pl-row"><span>· of which labor</span><span class="v">$${labor.toFixed(2)}</span></div>
+        <div class="pl-row"><span>· of which parts billed</span><span class="v">$${parts.toFixed(2)}</span></div>
+        <div class="pl-row neg"><span>− Sales tax (owed to state)</span><span class="v">$${tax.toFixed(2)}</span></div>
+        <div class="pl-row neg"><span>− Tech pay</span><span class="v">$${pay.toFixed(2)}</span></div>
+        <div class="pl-row net"><span>Left after pay + tax</span><span class="v">$${takeHome.toFixed(2)}</span></div>
+        <div class="pl-note">Parts true cost (and real margin) drops in from the Parts ledger next — this view uses what's billed. Replaces the Monthly Budget sheet.</div>
+      </div>
+    </div>`;
+}
+
+function renderPayroll(d,pr){
   const techs=d.techs||[];
   if(!techs.length){document.getElementById('content').innerHTML='<div class="wrap"><div class="empty">No billed jobs in this period yet. As the office logs invoices, each tech’s pay shows here.</div></div>';return;}
   let grandPay=0,grandTax=0;
