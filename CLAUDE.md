@@ -1,5 +1,35 @@
 # Appliance Ant
 
+## 🌅 MORNING BRIEF — 2026-06-13 (read first; saved end-of-day 2026-06-12)
+
+Today = the **unified "one app" build + the money/payroll spine + the Digits accounting hook**. Teddy fed reference screenshots of HCP (techs' comfort tool) + MeisterTask (Danielle's) + the Google payroll/parts/tax sheets, and we mirrored their layout/flow while wiring everything to live Ant data. Everyone who touched it today is happy. "To be continued tomorrow / late-night brainstorming."
+
+### ✅ Shipped + LIVE on main (front-end + Netlify; merged repeatedly with Teddy's "merge" go-aheads)
+- **`ant-shell.js`** — one persistent **light HCP-style bottom-tab nav** injected into ~24 office+tech pages (office: Dashboard·Schedule·Jobs·Customers·More; tech: My Day·Pay·Stats·More). Makes 30 islands feel like one app. **Fix:** tech tabs now carry `tech_id` (Pay/Stats/My Day were hitting "Missing tech_id").
+- **`tech-job.html`** — HCP-mirrored per-job page techs work from (daily dashboard now opens it per stop). Free-text **Notes/Report** (→`create_tdr`, no pw), **Photos & Video** capture + gallery that actually shows (generate_upload_url→s3-presign→PUT→save_attachment→s3-view-url), **Parts finder** (`netlify/functions/parts-finder.js`: model→catalog diagram links + AI candidate part #s, internal-only), **editable Appliance/model** (write-once), lifecycle (On-my-way/Start/Complete), **Ask Ant** deep-link, prev/next + search.
+- **`office-board.html`** — Danielle's **MeisterTask mirror**: region toggle TN/NOLA, columns = Needs Scheduled → **{Tech}·Report / {Tech}·Invoice** (per tech) → Waiting Parts → Completion → Follow Up → Needs Invoice. **Drag = the real action** (assign/parts/complete/reopen via `reassign_job` + deployed `office_set_job_status`); optimistic move. Tap a card = full **job file** (intake + TDR + tech notes + auto-ticking 15-step office checklist + **💵 invoice worksheet** + jump-links). **💬 Talk to Ant** FAB (voice/text) → `office-assist.js` → moves cards / logs full invoice by voice / "parts came in" (`mark_parts_arrived`) / "auto-schedule it" (`enqueue_scheduling_queue_propose`). `?job=ID` deep-link opens a card (for notification→act→back).
+- **Write-once spine:** one job record, every surface reads it. **`update_job_basics`** (new, no-pw) lets tech/office fix brand/model/appliance/problem from anywhere → flows everywhere incl. parts finder. **`record_job_invoice`** stores labor/parts/tax/tech_pay/amount + **technician_id** to event_log.
+- **Money spine (the Google-sheets killer):**
+  - Per-tech commission = **% of labor**: **Teddy 50 · Jimmy 45 · Andre 40 · Lee 50 · Billy 50 · John 40** (`TECH_PAY_RATES` in office-board). Invoice worksheet **auto-fills Tech Pay** at the tech's rate when Labor is typed.
+  - **`tech-payouts.html` (Pay tab)** — per-job pay + live **"Owed to you now"** (earned−paid), via `netlify/functions/tech-earnings.js`.
+  - **`money.html` (Office Money hub)** — semi-monthly periods (**paydays 3rd & 18th**; bucket 1–15 / 16–end), tabs **Payroll · Sales Tax · P&L · Books**. Payroll = per-tech job rows + Σ tech pay + editable $10×5★ bonus + **Mark Paid** (`record-payout.js` → drops the tech's Owed). Tax = collected split TN/LA by tech region. P&L = rev−tax−tech-pay take-home. Backed by `payroll-rollup.js`.
+  - **Digits connector** (Books tab): `_lib/digits.js` (OAuth2, connect.digits.com/v1) + `digits-oauth-start`/`-callback` + `digits-pnl.js` (GET /ledger/statement/profit-and-loss). Pulls live P&L; shows a Connect-Digits setup card until env set.
+
+### ⏳ PENDING operator actions (Teddy)
+1. **Mac re-push** so earnings/payroll light up (stamps technician_id on invoices): `git fetch origin main && git checkout origin/main -- api/intake/record_job_invoice_POST.xs && /opt/homebrew/bin/xano workspace push -i "api/**/record_job_invoice*" --force`. (Also `update_job_basics` if not pushed: `... -i "api/**/update_job_basics*" ...`.) Ignore "table does not exist" warnings; retry on `fetch failed`.
+2. **Connect Digits:** Developer→Create App "Ant" (redirect `https://tnapplianceexchange.net/.netlify/functions/digits-oauth-callback`, scopes **Source Sync + Ledger Read**, NOT Vault Write) → Keys → set `DIGITS_CLIENT_ID`/`DIGITS_CLIENT_SECRET` in Netlify → visit `/.netlify/functions/digits-oauth-start` → approve → paste refresh token into `DIGITS_REFRESH_TOKEN` → redeploy. Then Money→Books shows live P&L.
+3. **Digits cleanup:** Teddy's **personal card is mixed into the business book** — mark personal txns "Owner's Draw"/personal (or remove the card) so P&L + taxes stay clean.
+
+### 🧮 The money model / roadmap (Teddy laid it out — "keeping track")
+Revenue (labor+parts+tax) − **commissions (% labor)** ✅ − **parts cost** 🟡(in parts ledger; pull into P&L next) − **parts markup/margin** 🟡 − **sales tax remit** ✅ − business taxes 🔜 − **gas / truck fees / other fees** 🆕 (ask Teddy: per-job? per-tech? monthly?) = **owner net**. **Digits = expense side** (cards+bills; income blind) → plan: **Ant pushes income into Digits (Sync Transactions) + reads its P&L** = one complete AI ledger. **🎯 MILESTONE: fire the bookkeeper** ("he's horrible") — sequence: build+verify Digits link → watch one close/tax cycle → hand light review to Alyse → drop him (keep a CPA for filings). Next builds: parts true-cost margin into P&L; gas/truck/fees expense entry; Digits income-push (Sync Transactions); SquareTrade-EFT auto-pay (EFTs hit a few times/week → fire Mark-Paid automatically).
+
+### ⚠️ Notes / NOT to do
+- Money front-ends are LIVE but show **$0/empty until the record_job_invoice re-push + first invoice logged** — that's expected, not a bug. tech-earnings/payroll-rollup/record-payout verified deployed (return clean empty).
+- New Netlify functions read Xano via the **Metadata API** (`_lib/xano/metadata-crud.js` pattern; `XANO_METADATA_TOKEN` is in Netlify). event_log table id=3. Metadata search is **single-field only**.
+- Samsung **RF23DB9700QLAA** lower-left freezer (nugget/Ice Bites) icemaker = **DA97-22162A** (the 23cf; DA97-22160A is the 29cf RF29 — don't mix up). Job #22802-1. Internal only — never read part #s to customers.
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-06-12 (read first; saved end-of-day 2026-06-11)
 
 Yesterday was a reliability + "no job gets missed" day. Big wins; a few things gated on one Mac Mini push.
