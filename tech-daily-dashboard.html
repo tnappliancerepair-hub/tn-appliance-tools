@@ -820,6 +820,14 @@
 
   // ── Render ─────────────────────────────────────────────────────
   function render(data) {
+    // Strip practice placements so techs see ONLY their real scheduled work
+    // (the morning links should show the real day, not test/practice jobs).
+    if (data && Array.isArray(data.jobs)) {
+      data.jobs = data.jobs.filter((it) => {
+        const j = (it && it.job) ? it.job : (it || {});
+        return !String(j.test_run_id || '').startsWith('PRACTICE');
+      });
+    }
     techBadge.textContent = `${data.tech.first_name || ''} #${data.tech.id}`;
     renderDateHeader(data.date_ct, data.today_ct);
     renderDateNav(data.date_ct, data.today_ct);
