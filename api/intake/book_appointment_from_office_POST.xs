@@ -104,12 +104,14 @@ query book_appointment_from_office verb=POST {
       }
     }
   
-    // Still no customer → create one. Requires at minimum first_name + phone.
+    // Still no customer → create one. first_name is the only hard requirement;
+    // phone is optional because warranty/HCP customers often have name+address
+    // only (no phone on file). A phone-less customer is fine.
     conditional {
       if ($customer == null) {
-        precondition ($first_clean != "" && $phone_clean != "") {
+        precondition ($first_clean != "") {
           error_type = "inputerror"
-          error = "first_name + phone required to create a new customer"
+          error = "first_name required to create a new customer"
         }
       
         db.add customer {
