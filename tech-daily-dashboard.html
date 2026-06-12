@@ -906,12 +906,11 @@
         // Don't navigate if click was on a tel: or maps: link
         if (e.target.closest('.quick-btn')) return;
         const jobId = it.job.id;
-        // Tap a stop → open Ant Assist (the new Tech Ant chat surface)
-        // for that job. Per Teddy 2026-05-29: dashboard lists stops,
-        // Ant Assist is what they work from per-job.
-        // Cache-bust on every navigation so techs always get fresh JS
-        // (iOS Safari caches aggressively — Teddy hit this 2026-06-04)
-        window.location.href = `tech-simple.html?job_id=${jobId}&tech_id=${TECH_ID}&v=${Date.now()}`;
+        // Tap a stop → open the HCP-mirrored tech job page (notes, working
+        // photos/video, parts finder, lifecycle, + Ask Ant). This is the
+        // screen the guys work from per-job now (replaces tech-simple as the
+        // primary; tech-simple/tech-ant-chat still reachable from inside).
+        window.location.href = `tech-job.html?job_id=${jobId}&tech_id=${TECH_ID}&v=${Date.now()}`;
       });
     });
     // Fetch attachment view URLs in batch and inject thumbnails
@@ -1237,5 +1236,6 @@
   <script src="/tech-theme.js?v=1"></script>
   <script src="/office-ant.js?v=1"></script>
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
 </body>
 </html>

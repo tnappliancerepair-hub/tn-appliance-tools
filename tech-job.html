@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Job · Ant Field</title>
+<style>
+  :root{
+    --blue:#1f6fed; --blue-d:#1559c9;
+    --ink:#1d2530; --ink2:#5b6573; --dim:#8a93a1;
+    --bg:#eef1f5; --card:#ffffff; --line:#e4e8ee;
+    --ok:#1faa6b; --warn:#e8821e; --bad:#e24d4d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;padding-bottom:90px;}
+  /* top bar */
+  .topbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));}
+  .tb-btn{flex-shrink:0;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:#fff;
+    font-size:17px;color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .tb-btn:active{background:#f1f4f8;}
+  .tb-title{flex:1;min-width:0;}
+  .tb-title .n{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tb-title .s{font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* search overlay */
+  .search-wrap{display:none;padding:10px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:59px;z-index:49;}
+  .search-wrap.show{display:block;}
+  .search-wrap input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:15px;}
+  .search-results{margin-top:8px;}
+  .sr{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;text-decoration:none;color:var(--ink);background:#fff;}
+  .sr .srn{font-weight:600;font-size:14px;}
+  .sr .srs{font-size:12px;color:var(--ink2);}
+  /* content */
+  .wrap{max-width:680px;margin:0 auto;padding:12px;display:flex;flex-direction:column;gap:12px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(20,30,50,0.04);}
+  .card h3{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+  .card h3 .r{margin-left:auto;font-size:12px;font-weight:600;color:var(--blue);text-decoration:none;}
+  .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+  .pill.scheduled{background:#e7f0fe;color:var(--blue);}
+  .pill.in_progress{background:#fdf0e0;color:var(--warn);}
+  .pill.completed,.pill.complete{background:#e3f6ec;color:var(--ok);}
+  .pill.awaiting_parts,.pill.broadcasting{background:#fdf0e0;color:var(--warn);}
+  .pill.canceled{background:#fde8e8;color:var(--bad);}
+  .pill.default,.pill.not_ready,.pill.prediagnosis_pending{background:#eef1f5;color:var(--ink2);}
+  /* hero */
+  .hero .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .hero .jid{font-size:13px;color:var(--ink2);font-weight:600;}
+  .hero .big{font-size:20px;font-weight:800;line-height:1.2;}
+  .hero .meta{font-size:13px;color:var(--ink2);margin-top:4px;}
+  /* lifecycle actions */
+  .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .act{padding:13px 6px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--ink);}
+  .act .ic{font-size:21px;}
+  .act:active{transform:scale(.97);}
+  .act.go{border-color:#bcd5fb;background:#f1f6fe;color:var(--blue);}
+  .act.done{border-color:#b9e6cd;background:#eef9f2;color:var(--ok);}
+  .act[disabled]{opacity:.45;}
+  .stamp{font-size:11px;color:var(--ink2);margin-top:8px;text-align:center;}
+  /* notes */
+  textarea.notes{width:100%;min-height:150px;border:1px solid var(--line);border-radius:11px;padding:12px;
+    font-size:15px;font-family:inherit;line-height:1.5;resize:vertical;color:var(--ink);}
+  textarea.notes:focus{outline:none;border-color:var(--blue);}
+  .save-row{display:flex;align-items:center;gap:10px;margin-top:9px;}
+  .btn{padding:11px 16px;border-radius:10px;border:0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn.primary{background:var(--blue);color:#fff;}
+  .btn.primary:active{background:var(--blue-d);}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink);}
+  .btn[disabled]{opacity:.5;}
+  .save-note{font-size:12px;color:var(--ink2);}
+  .save-note.ok{color:var(--ok);}
+  .save-note.err{color:var(--bad);}
+  /* media */
+  .media-actions{display:flex;gap:8px;margin-bottom:11px;}
+  .media-actions label{flex:1;text-align:center;padding:11px;border:1px dashed #c4cdd8;border-radius:11px;
+    font-size:13px;font-weight:700;color:var(--blue);cursor:pointer;background:#f8fafd;}
+  .media-actions label:active{background:#eef4fe;}
+  .media-actions input{display:none;}
+  .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .gallery a{position:relative;display:block;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:#dfe4ea;border:1px solid var(--line);}
+  .gallery img,.gallery video{width:100%;height:100%;object-fit:cover;display:block;}
+  .gallery .vbadge{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;font-size:11px;padding:1px 6px;}
+  .gallery .up{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink2);background:#f1f4f8;}
+  .empty{font-size:13px;color:var(--dim);text-align:center;padding:14px;}
+  /* parts */
+  .parts-in{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px;}
+  .parts-in input{padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;}
+  .cat{display:block;padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;text-decoration:none;
+    color:var(--blue);font-size:13px;font-weight:600;background:#f8fafd;}
+  .cat:active{background:#eef4fe;}
+  .cand{padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:#fff;}
+  .cand .pn{font-family:ui-monospace,monospace;font-weight:700;font-size:14px;}
+  .cand .cn{font-size:12px;color:var(--ink2);}
+  .cand .conf{font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 7px;border-radius:10px;margin-left:6px;}
+  .conf.high{background:#e3f6ec;color:var(--ok);} .conf.medium{background:#fdf0e0;color:var(--warn);} .conf.low{background:#fde8e8;color:var(--bad);}
+  .ai-note{font-size:12px;color:var(--ink2);margin-top:6px;font-style:italic;}
+  .warnbox{font-size:11px;color:var(--warn);background:#fdf6ec;border:1px solid #f3e2c6;border-radius:8px;padding:7px 9px;margin-top:8px;}
+  /* customer */
+  .cust-name{font-size:16px;font-weight:700;}
+  .cust-addr{font-size:13px;color:var(--ink2);margin-top:3px;}
+  .cust-acts{display:flex;gap:8px;margin-top:11px;}
+  .cust-acts a{flex:1;text-align:center;padding:11px;border-radius:10px;text-decoration:none;font-size:13px;font-weight:700;border:1px solid var(--line);color:var(--ink);}
+  .cust-acts a.call{background:#eef9f2;border-color:#b9e6cd;color:var(--ok);}
+  .cust-acts a.text{background:#f1f6fe;border-color:#bcd5fb;color:var(--blue);}
+  .ask-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:13px;
+    background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;font-size:15px;font-weight:800;text-decoration:none;}
+  .briefing{background:#fff7ed;border:1px solid #f5dfc0;border-radius:11px;padding:11px;font-size:13px;color:#7a4e12;line-height:1.5;}
+  .briefing b{color:#5e3a0a;}
+  /* auth */
+  .auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 22px;width:100%;max-width:340px;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;}
+  .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:22px;text-align:center;letter-spacing:.4em;font-family:ui-monospace,monospace;margin-bottom:11px;}
+  .auth-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+  .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
+  .loading{padding:50px 16px;text-align:center;color:var(--ink2);}
+  .spinner{width:30px;height:30px;border:3px solid #d7dde5;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>🐜 Tech Access</h2>
+    <div class="sub">enter your 4-digit PIN</div>
+    <input id="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off">
+    <button id="pin-go" onclick="submitPin()">Open Job</button>
+    <div class="err" id="pin-err"></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <button class="tb-btn" id="back-btn" title="My Day">←</button>
+  <div class="tb-title">
+    <div class="n" id="t-name">Loading…</div>
+    <div class="s" id="t-sub"></div>
+  </div>
+  <button class="tb-btn" id="prev-btn" title="Previous job" style="display:none">‹</button>
+  <button class="tb-btn" id="next-btn" title="Next job" style="display:none">›</button>
+  <button class="tb-btn" id="search-btn" title="Search jobs">🔍</button>
+</div>
+
+<div class="search-wrap" id="search-wrap">
+  <input id="search-in" placeholder="Search any job — name, phone, job #…" autocomplete="off">
+  <div class="search-results" id="search-results"></div>
+</div>
+
+<div id="content">
+  <div class="loading"><div class="spinner"></div>Loading job…</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const params = new URLSearchParams(location.search);
+const JOB_ID = parseInt(params.get('job_id'), 10);
+const TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+const TECH_AUTH_KEY = 'tn_tech_auth_' + TECH_ID;
+let job=null, cust=null, tech=null, tdr=null, appliance=null, allTdrs=[], dayJobs=[];
+
+// ── auth (tech PIN, 12h cache) ──────────────────────────────────
+function authValid(){
+  try{ const c=JSON.parse(localStorage.getItem(TECH_AUTH_KEY)||'{}'); return c.ok && (Date.now()-c.t < 12*3600*1000); }catch(_){return false;}
+}
+function initAuth(){
+  if(!JOB_ID){ document.getElementById('content').innerHTML='<div class="empty">Missing job_id in the link.</div>'; document.getElementById('auth').classList.add('hidden'); return; }
+  if(TECH_ID && authValid()){ document.getElementById('auth').classList.add('hidden'); loadJob(); return; }
+  if(!TECH_ID){ // office-style open without tech: still gate softly via office pw is overkill; require tech_id
+    document.getElementById('auth').querySelector('.sub').textContent='open from your My Day list';
+  }
+  document.getElementById('pin').focus();
+}
+async function submitPin(){
+  const v=(document.getElementById('pin').value||'').trim();
+  const err=document.getElementById('pin-err'); const btn=document.getElementById('pin-go');
+  if(!/^\d{4}$/.test(v)){ err.textContent='Enter your 4-digit PIN'; return; }
+  if(!TECH_ID){ err.textContent='Open this job from your My Day list'; return; }
+  btn.disabled=true; btn.textContent='Checking…'; err.textContent='';
+  try{
+    const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:TECH_ID,pin:v})});
+    const d=await r.json();
+    if(d.success){ localStorage.setItem(TECH_AUTH_KEY,JSON.stringify({ok:true,t:Date.now()})); document.getElementById('auth').classList.add('hidden'); loadJob(); }
+    else { err.textContent='Wrong PIN. Try again.'; document.getElementById('pin').value=''; }
+  }catch(_){ err.textContent='Connection error. Try again.'; }
+  finally{ btn.disabled=false; btn.textContent='Open Job'; }
+}
+
+// ── data helpers ────────────────────────────────────────────────
+async function xanoPost(ep,payload){
+  const r=await fetch(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  return r.json();
+}
+async function xanoGet(ep,qs){
+  const r=await fetch(XANO+'/'+ep+(qs?('?'+qs):''),{cache:'no-store'});
+  return r.json();
+}
+
+async function loadJob(){
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
+  try{
+    const d=await xanoPost('get_job_for_dashboard',{job_id:JOB_ID});
+    if(!d.success) throw new Error(d.error||'not found');
+    job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
+    render();
+    loadAttachments();
+    loadDayJobs();
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
+  }
+}
+
+// prev/next from the tech's day + back link
+async function loadDayJobs(){
+  if(!TECH_ID) return;
+  try{
+    const today=new Date(); const ds=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+    const d=await xanoGet('get_tech_daily_dashboard','tech_id='+TECH_ID+'&date='+ds);
+    dayJobs=(d&&d.jobs)||[];
+    const idx=dayJobs.findIndex(j=>Number(j.id)===JOB_ID);
+    const prev=document.getElementById('prev-btn'), next=document.getElementById('next-btn');
+    if(idx>0){ prev.style.display='flex'; prev.onclick=()=>go(dayJobs[idx-1].id); }
+    if(idx>=0 && idx<dayJobs.length-1){ next.style.display='flex'; next.onclick=()=>go(dayJobs[idx+1].id); }
+  }catch(_){}
+}
+function go(id){ location.href='tech-job.html?job_id='+id+'&tech_id='+TECH_ID; }
+
+document.getElementById('back-btn').onclick=()=>{ location.href = TECH_ID ? ('tech-daily-dashboard.html?tech_id='+TECH_ID) : 'office-dashboard.html'; };
+
+// ── search ──────────────────────────────────────────────────────
+let searchTimer=null;
+document.getElementById('search-btn').onclick=()=>{
+  const w=document.getElementById('search-wrap'); w.classList.toggle('show');
+  if(w.classList.contains('show')) document.getElementById('search-in').focus();
+};
+document.getElementById('search-in').addEventListener('input',e=>{
+  clearTimeout(searchTimer); const q=e.target.value.trim();
+  const box=document.getElementById('search-results');
+  if(q.length<2){ box.innerHTML=''; return; }
+  searchTimer=setTimeout(async()=>{
+    box.innerHTML='<div class="empty">searching…</div>';
+    try{
+      const d=await xanoGet('office_universal_search','q='+encodeURIComponent(q));
+      const rows=(d&&(d.results||d.customers||d.jobs))||[];
+      if(!rows.length){ box.innerHTML='<div class="empty">no matches</div>'; return; }
+      box.innerHTML=rows.slice(0,12).map(r=>{
+        const jid=r.job_id||r.recent_job_id||r.id;
+        const nm=r.name||((r.first_name||'')+' '+(r.last_name||'')).trim()||'Customer';
+        const sub=[r.city,r.phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
+        return jid?('<a class="sr" href="tech-job.html?job_id='+jid+'&tech_id='+TECH_ID+'"><div class="srn">'+esc(nm)+'</div><div class="srs">'+esc(sub)+'</div></a>'):'';
+      }).join('');
+    }catch(_){ box.innerHTML='<div class="empty">search unavailable</div>'; }
+  },300);
+});
+
+// ── render ──────────────────────────────────────────────────────
+function render(){
+  const name=cust.name||((cust.first_name||'')+' '+(cust.last_name||'')).trim()||'Customer';
+  const appl=[appliance.brand,appliance.type].filter(Boolean).join(' ')||appliance.type||'appliance';
+  document.getElementById('t-name').textContent=name;
+  document.getElementById('t-sub').textContent=appl;
+
+  const status=(job.scheduling_status||job.current_status||'default');
+  const statusCls=status.replace(/[^a-z_]/gi,'');
+  const sched=job.scheduled_start?fmtDay(job.scheduled_start):'Not scheduled';
+  const win=job.service_eta_window?(' · '+job.service_eta_window):'';
+  const problem=appliance.problem_summary||appliance.problem_description||'';
+  const teddyTdr=(allTdrs||[]).find(t=>Number(t.technician_id)===1 && (t.diagnosis||t.failed_component));
+  const myNote=(allTdrs||[]).filter(t=>Number(t.technician_id)===TECH_ID).map(t=>t.technician_notes).filter(Boolean).pop() || tdr.technician_notes || '';
+
+  const phone=(cust.phone||'').replace(/\D/g,'');
+  const e164=phone.length===10?'+1'+phone:(phone.length===11?'+'+phone:phone);
+  const addr=[cust.address,cust.city,cust.state,cust.zip].filter(Boolean).join(', ');
+  const navUrl=addr?('https://maps.google.com/?q='+encodeURIComponent(addr)):'';
+
+  document.getElementById('content').innerHTML=`
+    <div class="wrap">
+      <div class="card hero">
+        <div class="row">
+          <span class="jid">Job #${esc(String(job.id||'?'))}</span>
+          <span class="pill ${statusCls}">${esc(status.replace(/_/g,' '))}</span>
+        </div>
+        <div class="big">${esc(name)}</div>
+        <div class="meta">${esc(appl)}${problem?(' — '+esc(problem)):''}</div>
+        <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
+      </div>
+
+      ${teddyTdr?`<div class="card"><h3>🧠 Teddy's pre-diagnosis</h3><div class="briefing">${teddyTdr.diagnosis?('<b>'+esc(teddyTdr.diagnosis)+'</b><br>'):''}${teddyTdr.failed_component?('Likely part: '+esc(teddyTdr.failed_component)):''}</div></div>`:''}
+
+      <div class="card">
+        <h3>🚦 Status</h3>
+        <div class="acts">
+          <button class="act go" id="a-otw"><span class="ic">🚚</span>On my way</button>
+          <button class="act go" id="a-start"><span class="ic">▶️</span>Start job</button>
+          <button class="act done" id="a-done"><span class="ic">✅</span>Complete</button>
+        </div>
+        <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
+      </div>
+
+      <div class="card">
+        <h3>📝 Notes / Report</h3>
+        <textarea class="notes" id="notes" placeholder="Type your report here — what you found, what you did, parts needed… (saved to this job)">${esc(myNote)}</textarea>
+        <div class="save-row">
+          <button class="btn primary" id="save-notes">Save report</button>
+          <span class="save-note" id="save-note"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📷 Photos &amp; Video <a class="r" id="refresh-media" href="javascript:void(0)">↻ refresh</a></h3>
+        <div class="media-actions">
+          <label>📷 Add photo<input type="file" accept="image/*" capture="environment" id="in-photo"></label>
+          <label>🎥 Add video<input type="file" accept="video/*" capture="environment" id="in-video"></label>
+        </div>
+        <div class="gallery" id="gallery"><div class="empty">Loading media…</div></div>
+      </div>
+
+      <div class="card">
+        <h3>🔧 Parts finder <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
+        <div class="parts-in">
+          <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
+          <input id="pf-symptom" placeholder="Part / symptom (e.g. lower ice maker)" value="${esc(problem)}">
+        </div>
+        <button class="btn primary" id="pf-go" style="width:100%">Find the part</button>
+        <div id="pf-out" style="margin-top:11px"></div>
+      </div>
+
+      <div class="card">
+        <a class="ask-btn" href="tech-ant-chat.html?job_id=${job.id}&tech_id=${TECH_ID}">💬 Ask Ant about this job</a>
+      </div>
+
+      <div class="card">
+        <h3>👤 Customer</h3>
+        <div class="cust-name">${esc(name)}</div>
+        <div class="cust-addr">${esc(addr||'—')}</div>
+        <div class="cust-acts">
+          ${e164?`<a class="call" href="tel:${esc(e164)}">📞 Call</a>`:''}
+          ${e164?`<a class="text" href="sms:${esc(e164)}">💬 Text</a>`:''}
+          ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener">🗺 Navigate</a>`:''}
+        </div>
+      </div>
+    </div>
+  `;
+  wireActions();
+}
+
+function lifecycleStamp(){
+  const p=[];
+  if(job.tech_en_route_at)p.push('On way '+fmtTime(job.tech_en_route_at));
+  if(job.job_started_at)p.push('Started '+fmtTime(job.job_started_at));
+  if(job.job_completed_at)p.push('Completed '+fmtTime(job.job_completed_at));
+  return p.join(' · ');
+}
+
+function wireActions(){
+  document.getElementById('a-otw').onclick=()=>lifecycle('tech_on_the_way','On-my-way sent ✓');
+  document.getElementById('a-start').onclick=()=>lifecycle('tech_job_started','Job started ✓');
+  document.getElementById('a-done').onclick=completeFlow;
+  document.getElementById('save-notes').onclick=saveNotes;
+  document.getElementById('refresh-media').onclick=loadAttachments;
+  document.getElementById('in-photo').onchange=e=>uploadFile(e.target.files[0],'photo');
+  document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
+  document.getElementById('pf-go').onclick=findParts;
+}
+
+async function lifecycle(ep,okMsg){
+  toast('Sending…');
+  try{
+    const d=await xanoPost(ep,{job_id:JOB_ID,technician_id:TECH_ID});
+    if(d.success){ toast(okMsg); loadJob(); } else { toast('⚠ '+(d.error||'failed')); }
+  }catch(_){ toast('⚠ connection error'); }
+}
+
+function completeFlow(){
+  const types=[['repair_complete','Repair complete'],['parts_needed','Parts needed'],['reassignment_needed','Reassign'],['no_repair','No repair']];
+  const out=document.getElementById('lc-stamp');
+  out.innerHTML='How did it end?<div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
+  out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
+    toast('Completing…');
+    try{
+      const d=await xanoPost('tech_job_complete',{job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct});
+      if(d.success){ toast('Job completed ✓'); loadJob(); } else { toast('⚠ '+(d.error||'blocked')); }
+    }catch(_){ toast('⚠ connection error'); }
+  });
+}
+
+async function saveNotes(){
+  const txt=document.getElementById('notes').value.trim();
+  const note=document.getElementById('save-note'); const btn=document.getElementById('save-notes');
+  btn.disabled=true; note.className='save-note'; note.textContent='Saving…';
+  try{
+    const d=await xanoPost('create_tdr',{job_id:JOB_ID,technician_id:TECH_ID,technician_notes:txt});
+    if(d.success){ note.className='save-note ok'; note.textContent='Saved ✓'; }
+    else { note.className='save-note err'; note.textContent=d.error||'save failed'; }
+  }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
+  finally{ btn.disabled=false; setTimeout(()=>{note.textContent='';},4000); }
+}
+
+// ── media ───────────────────────────────────────────────────────
+async function loadAttachments(){
+  const g=document.getElementById('gallery'); if(!g) return;
+  try{
+    const d=await xanoGet('get_job_attachments','job_id='+JOB_ID);
+    const atts=(d&&d.attachments||[]).filter(a=>a.upload_complete_at);
+    if(!atts.length){ g.innerHTML='<div class="empty">No photos or video yet. Tap “Add photo” above.</div>'; return; }
+    const keys=atts.map(a=>a.s3_key);
+    const sd=await fetch('/.netlify/functions/s3-view-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_keys:keys})}).then(r=>r.json());
+    const urlMap={}; ((sd&&sd.signed_urls)||[]).forEach(s=>urlMap[s.s3_key]=s.view_url);
+    g.innerHTML=atts.map(a=>{
+      const u=urlMap[a.s3_key]||''; const isVid=(a.file_type==='video')||/\.(mp4|mov)$/i.test(a.s3_key);
+      if(!u) return '<a><div class="up">…</div></a>';
+      return isVid
+        ? `<a href="${esc(u)}" target="_blank" rel="noopener"><video src="${esc(u)}" muted playsinline preload="metadata"></video><span class="vbadge">▶ video</span></a>`
+        : `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy" alt=""></a>`;
+    }).join('');
+  }catch(_){ g.innerHTML='<div class="empty">media unavailable</div>'; }
+}
+
+async function uploadFile(file,kind){
+  if(!file) return;
+  toast('Uploading '+kind+'…');
+  try{
+    const gen=await xanoPost('generate_upload_url',{job_id:JOB_ID,attachment_type:'tdr',file_type:kind,original_filename:file.name||(kind+'.dat'),mime_type:file.type||(kind==='video'?'video/mp4':'image/jpeg'),uploaded_by:'tech',tech_id:TECH_ID});
+    if(!gen.success) throw new Error(gen.error||'gen failed');
+    const pres=await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key,mime_type:file.type||(kind==='video'?'video/mp4':'image/jpeg')})}).then(r=>r.json());
+    if(!pres.success||!pres.upload_url) throw new Error('presign failed');
+    const put=await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':file.type||(kind==='video'?'video/mp4':'image/jpeg')},body:file});
+    if(!put.ok) throw new Error('S3 upload failed');
+    await xanoPost('save_attachment',{attachment_id:gen.attachment_id,file_size_bytes:file.size||0});
+    toast(kind.charAt(0).toUpperCase()+kind.slice(1)+' added ✓');
+    loadAttachments();
+  }catch(e){ toast('⚠ upload failed: '+e.message); }
+}
+
+// ── parts finder ────────────────────────────────────────────────
+async function findParts(){
+  const model=document.getElementById('pf-model').value.trim();
+  const symptom=document.getElementById('pf-symptom').value.trim();
+  const out=document.getElementById('pf-out'); const btn=document.getElementById('pf-go');
+  if(!model){ out.innerHTML='<div class="empty">Enter the model number first.</div>'; return; }
+  btn.disabled=true; btn.textContent='Finding…'; out.innerHTML='<div class="loading"><div class="spinner"></div>Searching catalogs…</div>';
+  try{
+    const d=await fetch('/.netlify/functions/parts-finder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,brand:appliance.brand||'',appliance_type:appliance.type||'',symptom})}).then(r=>r.json());
+    if(!d.success) throw new Error(d.error||'lookup failed');
+    let html='';
+    if(d.candidates&&d.candidates.length){
+      html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">AI SUGGESTIONS — verify on the diagram</div>';
+      html+=d.candidates.map(c=>`<div class="cand"><span class="pn">${esc(c.part_number||'?')}</span><span class="conf ${esc((c.confidence||'low'))}">${esc(c.confidence||'low')}</span><div class="cn">${esc(c.name||'')}${c.note?(' — '+esc(c.note)):''}</div></div>`).join('');
+    }
+    if(d.ai_note) html+='<div class="ai-note">'+esc(d.ai_note)+'</div>';
+    html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">OPEN THE DIAGRAM (source of truth)</div>';
+    html+=(d.catalogs||[]).map(c=>`<a class="cat" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.label)} ↗</a>`).join('');
+    html+='<div class="warnbox">⚠ Confirm the part number on the exploded diagram before ordering. Never read part numbers to the customer.</div>';
+    out.innerHTML=html;
+  }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
+  finally{ btn.disabled=false; btn.textContent='Find the part'; }
+}
+
+// ── utils ───────────────────────────────────────────────────────
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDay(ms){try{return new Date(ms).toLocaleDateString('en-US',{timeZone:'America/Chicago',weekday:'short',month:'short',day:'numeric'});}catch(_){return '';}}
+function fmtTime(ms){try{return new Date(ms).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase().replace(/\s/g,'');}catch(_){return '';}}
+let toastTimer=null;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2600);}
+
+document.getElementById('pin').addEventListener('keypress',e=>{if(e.key==='Enter')submitPin();});
+initAuth();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
