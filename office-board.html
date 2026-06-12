@@ -574,11 +574,28 @@ async function antDo(p){
     try{await postJSON('reassign_job',{job_id:jobId,technician_id:tid});antMsg('it','✅ '+jobLabel+' assigned to '+antCap(p.target)+'.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
     return;
   }
-  if(p.intent==='labor'){
-    const amt=(p.amount||'').replace(/[^0-9.]/g,'');if(!amt){antMsg('it','How much labor?');return;}
-    try{const k='tn_inv_'+jobId;const cur=JSON.parse(localStorage.getItem(k)||'{}');cur.labor=amt;cur._savedAt=Date.now();localStorage.setItem(k,JSON.stringify(cur));}catch(_){}
-    try{await postJSON('record_job_invoice',{job_id:jobId,labor:amt});}catch(_){}
-    antMsg('it','✅ Logged $'+amt+' labor on '+jobLabel+'.');return;
+  if(p.intent==='labor'||p.intent==='invoice'){
+    const f=(p.fields&&typeof p.fields==='object')?Object.assign({},p.fields):{};
+    if(p.intent==='labor'&&p.amount){f.labor=(p.amount||'').replace(/[^0-9.]/g,'');}
+    const map={labor:'labor',part_cost:'parts',parts_charge:'parts',markup:'markup',shipping:'ship',tax:'tax',tip:'tip',tech_pay:'techpay'};
+    let cur={};try{cur=JSON.parse(localStorage.getItem('tn_inv_'+jobId)||'{}');}catch(_){}
+    const summ=[];
+    Object.keys(f).forEach(k=>{const wk=map[k];const v=(''+f[k]).replace(/[^0-9.]/g,'');if(wk&&v){cur[wk]=v;summ.push(k.replace('_',' ')+' $'+v);}});
+    if(!summ.length){antMsg('it','What amounts? e.g. "labor 140, part cost 48, tax 2.14, tech pay 60".');return;}
+    const total=['labor','parts','markup','ship','tax','tip'].reduce((s,k)=>s+(parseFloat(cur[k])||0),0);
+    cur.amount_invoiced=total.toFixed(2);cur._savedAt=Date.now();
+    try{localStorage.setItem('tn_inv_'+jobId,JSON.stringify(cur));}catch(_){}
+    try{await postJSON('record_job_invoice',{job_id:jobId,labor:cur.labor||'',parts_charge:cur.parts||'',markup:cur.markup||'',shipping:cur.ship||'',tax:cur.tax||'',tip:cur.tip||'',tech_pay:cur.techpay||'',amount_invoiced:cur.amount_invoiced});}catch(_){}
+    try{prefillInvoice(jobId);}catch(_){}
+    antMsg('it','✅ '+jobLabel+': '+summ.join(', ')+'  ·  invoiced $'+total.toFixed(2)+'.');return;
+  }
+  if(p.intent==='parts_arrived'){
+    try{await postJSON('mark_parts_arrived',{job_id:jobId,source:'office_ant',notes:'marked in via Ant'});antMsg('it','✅ Parts marked in for '+jobLabel+' — moved to Needs Scheduled. Say "auto-schedule it" to put it on the calendar.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
+    return;
+  }
+  if(p.intent==='schedule'){
+    try{await postJSON('enqueue_scheduling_queue_propose',{job_id:jobId,source:'office_ant_voice'});antMsg('it','✅ '+jobLabel+' queued to auto-schedule — slot options are on the way to confirm.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
+    return;
   }
   if(p.intent==='move'){
     const t=p.target;
