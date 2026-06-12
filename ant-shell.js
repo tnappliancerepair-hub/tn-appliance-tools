@@ -57,7 +57,7 @@
     office: [
       { label: 'Queue',          icon: '📥', page: 'needs-scheduled.html' },
       { label: 'Warranty',       icon: '📦', page: 'warranty-review.html' },
-      { label: 'Money',          icon: '💰', page: 'financial-dashboard.html' },
+      { label: 'Money',          icon: '💰', page: 'money.html' },
       { label: 'Needs Action',   icon: '✅',       page: 'office-todo.html' },
       { label: 'Live Pulse',     icon: '🟢', page: 'office-pulse.html' },
       { label: 'Parts Ledger',   icon: '🧾', page: 'parts-ledger.html' },
