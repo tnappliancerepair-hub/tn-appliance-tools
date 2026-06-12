@@ -200,20 +200,29 @@ async function loadBoard(){
 // tech). A job only moves to a tech column once it actually has a time.
 function placeOf(j){
   const ss=(j.scheduling_status||'');
-  if(ss==='completed'){ return (j.warranty_company? 'followup':'done'); }
+  const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
+  // Completed by a tech -> that tech's Invoice folder (ready to bill); no tech
+  // -> Completion. She then flows it on to Follow Up / Needs Invoice.
+  if(ss==='completed'){ return hasTech?('inv-'+t):'done'; }
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
   const scheduled=Number(j.scheduled_start||0)>0;
-  if(j.technician_id && TECH_NAME[j.technician_id] && scheduled) return 'tech-'+j.technician_id;
+  if(hasTech && scheduled) return 'rep-'+t;       // active work in tech's Report folder
   return 'schedule'; // needs scheduled: accepted, untimed, callbacks, 2nd trips
 }
 
 function renderBoard(){
   const techs=REGION_TECHS[region];
   const cols=[{id:'schedule',label:'Needs Scheduled',cls:''}];
-  techs.forEach(t=>cols.push({id:'tech-'+t,label:TECH_NAME[t],cls:'tech',tech:t}));
+  // Each tech gets two folders: Report (active work) and Invoice (done, ready
+  // to bill). Cards flow Report -> Invoice as the job completes.
+  techs.forEach(t=>{
+    cols.push({id:'rep-'+t,label:TECH_NAME[t]+' · Report',cls:'tech',tech:t});
+    cols.push({id:'inv-'+t,label:TECH_NAME[t]+' · Invoice',cls:'tech',tech:t});
+  });
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
   cols.push({id:'done',label:'Completion',cls:'done'});
-  cols.push({id:'followup',label:'Follow Up / Invoice',cls:'followup'});
+  cols.push({id:'followup',label:'Follow Up',cls:'followup'});
+  cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
 
   const items=allItems.filter(j=>jobRegion(j)===region);
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
@@ -271,7 +280,7 @@ function wireDnD(){
 }
 async function onDrop(colId,techId){
   if(!dragId)return; const id=dragId;
-  if(colId.startsWith('tech-') && techId){
+  if(techId){
     toast('Assigning '+TECH_NAME[techId]+'…');
     try{
       const r=await fetch(XANO+'/reassign_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),technician_id:parseInt(techId,10)})});
