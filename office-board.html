@@ -480,10 +480,19 @@ function renderDrawer(d){
 // ── invoice worksheet (labor logging) ──
 const INV_FIELDS=['labor','parts','markup','ship','tax','tip','techpay'];
 function invKey(jid){return 'tn_inv_'+jid;}
+const TECH_PAY_RATE=0.5; // Tech Pay = 50% of Labor (from the payroll sheets)
 function prefillInvoice(jid){
   let saved={};
   try{saved=JSON.parse(localStorage.getItem(invKey(jid))||'{}');}catch(_){}
   INV_FIELDS.forEach(f=>{const el=document.getElementById('inv-'+f);if(el){el.value=(saved[f]!=null?saved[f]:'');el.addEventListener('input',recomputeInvoice);}});
+  // Auto-fill Tech Pay at 50% of Labor as she types Labor — one less number.
+  // She can still override it; once she edits it by hand we stop overriding.
+  const lab=document.getElementById('inv-labor'), tp=document.getElementById('inv-techpay');
+  if(lab&&tp){
+    if(saved.techpay) tp.dataset.touched='1';
+    lab.addEventListener('input',()=>{ if(!tp.dataset.touched){ const v=parseFloat(lab.value); tp.value=isNaN(v)?'':(v*TECH_PAY_RATE).toFixed(2); } recomputeInvoice(); });
+    tp.addEventListener('input',()=>{ tp.dataset.touched='1'; });
+  }
   if(saved._savedAt){document.getElementById('inv-note').textContent='Last saved '+new Date(saved._savedAt).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
   recomputeInvoice();
 }
