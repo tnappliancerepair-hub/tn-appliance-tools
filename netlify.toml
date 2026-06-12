@@ -76,6 +76,12 @@
 [functions."job-safety-watch"]
   schedule = "*/30 * * * *"
 
+# Nightly event_log garbage collection (noise_only) — drains high-volume,
+# non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
+# 10GB cap. 3:10am CT = 08:10 UTC.
+[functions."nightly-event-log-gc"]
+  schedule = "10 8 * * *"
+
 # Practice auto-scheduler. Every 15 min, auto-places not_ready jobs from
 # May 30+ onto tech dashboards via mock-scheduler in practice_mode. Tags
 # placed jobs with test_run_id="PRACTICE_<date>" so the tech daily
