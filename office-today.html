@@ -1448,12 +1448,12 @@ function renderPendingAccept(p) {
 
 async function markPendingAccepted(jobId, btn) {
   if (!jobId) return;
-  if (!confirm('Mark this SquareTrade job as accepted?\n\nIt will move to scheduled status and appear on the assigned tech\'s dashboard.')) return;
+  if (!confirm('Mark this SquareTrade job as accepted?\n\nIt will move into the scheduling queue (needs-scheduled) so you can book the tech + day.')) return;
   btn.disabled = true; btn.textContent = '...';
   try {
     const d = await window.Ant.api.transitionJobState({
       job_id: jobId,
-      target_state: 'scheduled',
+      target_state: 'not_ready',
       actor: 'office',
       reason: 'SquareTrade accepted in Gmail',
     });
