@@ -198,16 +198,18 @@ async function loadBoard(){
 // "Needs Scheduled" is the catch-all entry: accepted jobs, callbacks, and
 // 2nd-trip/revisits all land here (anything not yet sitting on a day with a
 // tech). A job only moves to a tech column once it actually has a time.
+function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch(_){return '';}}
 function placeOf(j){
+  // Follow Up / Needs Invoice have no job-state enum yet — honor her manual
+  // placement (stored locally) so the card stays where she dragged it.
+  const ov=stageGet(j.id);
+  if(ov==='followup'||ov==='needinv') return ov;
   const ss=(j.scheduling_status||'');
   const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
-  // Completed by a tech -> that tech's Invoice folder (ready to bill); no tech
-  // -> Completion. She then flows it on to Follow Up / Needs Invoice.
-  if(ss==='completed'){ return hasTech?('inv-'+t):'done'; }
+  if(ss==='completed'){ return hasTech?('inv-'+t):'done'; }   // done -> tech Invoice folder
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
-  const scheduled=Number(j.scheduled_start||0)>0;
-  if(hasTech && scheduled) return 'rep-'+t;       // active work in tech's Report folder
-  return 'schedule'; // needs scheduled: accepted, untimed, callbacks, 2nd trips
+  if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
+  return 'schedule';                                           // accepted/untimed/callback
 }
 
 function renderBoard(){
@@ -275,25 +277,47 @@ function wireDnD(){
   document.querySelectorAll('.col').forEach(col=>{
     col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('dropok');});
     col.addEventListener('dragleave',()=>col.classList.remove('dropok'));
-    col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('dropok');onDrop(col.dataset.col,col.dataset.tech);});
+    col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('dropok');onDrop(col.dataset.col,col.dataset.tech,col);});
   });
 }
-async function onDrop(colId,techId){
+// Section automations — MeisterTask-style: dropping a card into a folder fires
+// the real Ant action. Optimistic move first (instant, buttery), then the
+// server write, then a quiet resync to confirm truth.
+const STATUS_MAP={parts:'awaiting_parts',done:'completed',schedule:'not_ready'};
+async function postJSON(ep,payload){
+  const r=await fetch(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  return r.json();
+}
+function refreshCounts(){
+  document.querySelectorAll('.col').forEach(c=>{const ct=c.querySelector('.ct');const n=c.querySelectorAll('.col-body .jcard').length;if(ct)ct.textContent=n;});
+}
+async function onDrop(colId,techId,colEl){
   if(!dragId)return; const id=dragId;
+  // optimistic move — card slides into the target column immediately
+  const card=document.querySelector('.jcard[data-id="'+id+'"]');
+  if(colEl&&card){const body=colEl.querySelector('.col-body');if(body){const em=body.querySelector('.empty-col');if(em)em.remove();body.appendChild(card);}refreshCounts();}
+
+  // Follow Up / Needs Invoice: no job-state enum yet — remember her placement
+  // locally so it sticks (this is a "not-yet-automated" stage, by design).
+  if(colId==='followup'||colId==='needinv'){
+    try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
+    toast('Moved to '+(colId==='needinv'?'Needs Invoice':'Follow Up'));
+    return;
+  }
+  // any real move clears a prior manual-stage override
+  try{localStorage.removeItem('tn_stage_'+id);}catch(_){}
+
   if(techId){
     toast('Assigning '+TECH_NAME[techId]+'…');
-    try{
-      const r=await fetch(XANO+'/reassign_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),technician_id:parseInt(techId,10)})});
-      const d=await r.json();
-      if(d&&d.success){toast('Assigned to '+TECH_NAME[techId]+' ✓');loadBoard();}
-      else{toast('⚠ '+((d&&d.error)||'failed'));}
-    }catch(_){toast('⚠ connection error');}
-  } else {
-    // Other columns (parts/done/followup) are status-driven — set from the
-    // card file or tech app, not a blind drag. Open the card so she can act.
-    toast('Open the card to change parts / completion');
-    openDrawer(id);
+    try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Assigned '+TECH_NAME[techId]+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
+    catch(_){toast('⚠ connection error');}
+  } else if(STATUS_MAP[colId]){
+    const label={parts:'Waiting Parts',done:'Completion',schedule:'Needs Scheduled'}[colId];
+    toast('Moving to '+label+'…');
+    try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?(label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
+    catch(_){toast('⚠ connection error');}
   }
+  setTimeout(loadBoard,800); // quiet resync to confirm server truth
 }
 
 // ── card drawer (the file + checklist + jumps) ──
