@@ -14,6 +14,7 @@ query record_job_invoice verb=POST {
 
   input {
     int job_id
+    int? technician_id?
     text? labor?
     text? parts_charge?
     text? markup?
@@ -40,6 +41,7 @@ query record_job_invoice verb=POST {
         action  : "office_invoice_logged"
         metadata: {
           job_id         : $input.job_id
+          technician_id  : ($input.technician_id ?? 0)
           labor          : (($input.labor ?? "")|trim)
           parts_charge   : (($input.parts_charge ?? "")|trim)
           markup         : (($input.markup ?? "")|trim)
