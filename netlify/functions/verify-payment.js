@@ -11,6 +11,7 @@
 'use strict';
 
 const Stripe = require('stripe');
+const { getSecret } = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 
@@ -47,7 +48,7 @@ exports.handler = async function (event) {
   const sessionId = ((event.queryStringParameters || {}).session_id || '').trim();
   if (!sessionId) return jsonResp(400, { ok: false, error: 'session_id required' });
 
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = await getSecret('STRIPE_SECRET_KEY');
   if (!key) return jsonResp(200, { ok: false, error: 'stripe_not_configured' });
 
   try {
