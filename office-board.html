@@ -137,6 +137,8 @@
   </div>
 </div>
 
+<div id="addons-banner"></div>
+
 <div id="board-host">
   <div class="loading"><div class="spinner"></div>Loading the board…</div>
 </div>
@@ -218,6 +220,7 @@ async function loadBoard(){
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
+    loadAddons();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -630,6 +633,32 @@ function antVoice(){
   rec.start();
 }
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.activeElement&&document.activeElement.id==='ant-in')antSend();});
+
+// ── Add-ons / weekly-deal fulfillment banner ──
+async function loadAddons(){
+  const el=document.getElementById('addons-banner'); if(!el)return;
+  try{
+    const r=await fetch('/.netlify/functions/addons-pending',{cache:'no-store'});
+    const d=await r.json();
+    const items=(d&&d.items)||[];
+    if(!items.length){el.innerHTML='';return;}
+    el.innerHTML='<div style="margin:0 12px 4px;background:#fff7ed;border:1px solid #f3dcc0;border-radius:12px;padding:11px 13px">'
+      +'<div style="font-size:13px;font-weight:800;color:#9a5a12;margin-bottom:6px">🛍️ '+items.length+' add-on'+(items.length===1?'':'s')+' to fulfill — order the part &amp; give the tech time</div>'
+      +items.map(a=>'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f3e6d3;font-size:13px">'
+          +'<span style="flex:1;min-width:0"><b>#'+esc(String(a.job_id))+'</b> · '+esc(a.name)+' · $'+esc(String(a.net_price))+(a.source==='weekly_deal'?' <span style="color:#d6432a;font-weight:700">[deal]</span>':'')+'</span>'
+          +'<button onclick="openDrawer(\''+esc(String(a.job_id))+'\')" style="background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">Open</button>'
+          +'<button onclick="fulfillAddon(\''+esc(String(a.job_id))+'\',\''+esc(a.addon_key)+'\',\''+esc(String(a.name)).replace(/[\x27\\]/g,"")+'\')" style="background:var(--ok);color:#fff;border:0;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer">Ordered ✓</button>'
+        +'</div>').join('')
+      +'</div>';
+  }catch(_){el.innerHTML='';}
+}
+async function fulfillAddon(jobId,key,name){
+  try{
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jobId,10),addon_key:key,name:name||key,status:'fulfilled',source:'office'})});
+    const d=await r.json();
+    if(d&&d.success){toast('Marked ordered ✓');loadAddons();}else{toast('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){toast('⚠ connection error');}
+}
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
