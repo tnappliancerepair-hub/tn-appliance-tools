@@ -16,21 +16,21 @@
   var DISCOUNT = 10; // $ off when added through the portal
   var CATALOG = {
     washer: [
-      { key: 'washer_supply_lines', name: 'New washer supply lines (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
+      { key: 'washer_supply_lines', name: 'New washer supply lines (installed)', price: 59, tech_cut: 20, discount: 10, // braided pair ~$20 part + markup + $20 tech
         pitch: "Burst or leaking washer hoses are a top cause of home water damage, and most makers recommend replacing them about every 5 years. We'll install a fresh set while we're there." },
     ],
     dryer: [
       { key: 'dryer_cleanout', name: 'Dryer clean-out', price: 70, tech_cut: 35, discount: 10, // $70 / 50% split -> tech $35, 15-30 min
         pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. We'll do a full clean-out while we're there — quick and worth it." },
-      { key: 'dryer_vent_hose', name: 'New dryer vent hose (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
+      { key: 'dryer_vent_hose', name: 'New dryer vent hose (installed)', price: 49, tech_cut: 20, discount: 10, // transition hose ~$15 part + markup + $20 tech
         pitch: "A fresh vent hose means better airflow and a safer dryer — installed while we're there." },
     ],
     refrigerator: [
       { key: 'fridge_coil_clean', name: 'Condenser coil vac + blow-out', price: 70, tech_cut: 35, discount: 10, // $70 / 50% split -> tech $35
         pitch: "Dirty condenser coils shorten your fridge's life and raise your energy bill. We'll vac + blow them out while we're there — recommended every 6-12 months." },
-      { key: 'fridge_supply_line', name: 'New fridge water/ice line (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
+      { key: 'fridge_supply_line', name: 'New fridge water/ice line (installed)', price: 49, tech_cut: 20, discount: 10, // braided line kit ~$15 part + markup + $20 tech
         pitch: "The water line behind the fridge is a common hidden leak source — cheap protection against a slow leak under your floor." },
-      { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', price: 45, tech_cut: 15, discount: 10, // TODO confirm price/cut
+      { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', price: 49, tech_cut: 15, discount: 10, // OEM filter cost varies $20-50; confirm per brand
         pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. We'll drop one in while we're there." },
     ],
   };

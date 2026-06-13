@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dryer Vent Cleaning Quote · Ant</title>
+<style>
+  :root{ --bg:#f5f7fa; --card:#fff; --ink:#10243e; --sub:#5a6b80; --line:#e3e8ef; --brand:#1f6fed; --ok:#1aa260; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  .top{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:12px 14px;display:flex;align-items:center;gap:10px;z-index:5}
+  .top .t{font-size:16px;font-weight:800}
+  .top .b{font-size:13px;color:var(--brand);background:none;border:0;cursor:pointer;font-weight:700}
+  .wrap{max-width:640px;margin:0 auto;padding:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px;box-shadow:0 1px 3px rgba(16,36,62,.05)}
+  h3{margin:0 0 10px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sub)}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .opt{border:2px solid var(--line);border-radius:11px;padding:12px 10px;text-align:center;cursor:pointer;font-weight:700;font-size:14px;background:#fff;transition:.12s}
+  .opt small{display:block;font-weight:600;color:var(--sub);font-size:11px;margin-top:3px}
+  .opt.on{border-color:var(--brand);background:#eef4ff;color:var(--brand)}
+  .opts3{grid-template-columns:1fr 1fr 1fr}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+  .row label{font-size:14px;font-weight:600}
+  .stepper{display:flex;align-items:center;gap:12px}
+  .stepper button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:20px;font-weight:800;cursor:pointer;color:var(--ink)}
+  .stepper .n{font-size:18px;font-weight:800;min-width:24px;text-align:center}
+  .quote{background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:16px;padding:18px;text-align:center;box-shadow:0 4px 16px rgba(31,111,237,.25);margin-bottom:14px}
+  .quote .lbl{font-size:12px;font-weight:700;opacity:.9;text-transform:uppercase;letter-spacing:.05em}
+  .quote .amt{font-size:40px;font-weight:900;line-height:1.05;margin-top:4px}
+  .quote .cut{font-size:14px;font-weight:700;margin-top:8px;background:rgba(255,255,255,.18);display:inline-block;padding:4px 12px;border-radius:20px}
+  .quote .edit{margin-top:10px}
+  .quote .edit input{width:120px;font-size:16px;padding:7px;border:0;border-radius:8px;text-align:center;font-weight:800}
+  .field{margin:8px 0}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:4px}
+  .field input{width:100%;font-size:16px;padding:11px;border:1px solid var(--line);border-radius:10px}
+  .go{width:100%;background:var(--ok);color:#fff;border:0;border-radius:12px;padding:15px;font-size:16px;font-weight:800;cursor:pointer;margin-top:4px}
+  .go:disabled{opacity:.5}
+  .note{font-size:12px;color:var(--sub);text-align:center;margin-top:10px;line-height:1.5}
+  .hidden{display:none}
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;padding:24px}
+  #auth .sub{color:var(--sub);font-size:14px}
+  #auth input{font-size:24px;letter-spacing:8px;text-align:center;width:170px;padding:12px;border:1px solid var(--line);border-radius:12px}
+  #auth button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:13px 28px;font-size:16px;font-weight:800;cursor:pointer}
+  #auth .err{color:#d6432a;font-size:13px;min-height:16px}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);background:#10243e;color:#fff;padding:12px 18px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:.25s;z-index:60}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:22px;font-weight:900">🐜 Vent Quote</div>
+  <div class="sub">enter your 4-digit PIN</div>
+  <input id="pin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off">
+  <button id="pinBtn">Unlock</button>
+  <div class="err" id="autherr"></div>
+</div>
+
+<div class="top">
+  <button class="b" id="back-btn">‹ Back</button>
+  <div class="t">Dryer Vent Cleaning — Quote</div>
+</div>
+
+<div class="wrap">
+  <div class="card">
+    <h3>Where does the vent exit?</h3>
+    <div class="opts" id="exit">
+      <div class="opt on" data-exit="side">Out the side / ground<small>1st floor or basement</small></div>
+      <div class="opt" data-exit="roof">Up to the roof / 2nd floor<small>harder access, more time</small></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>How long is the run?</h3>
+    <div class="opts opts3" id="len">
+      <div class="opt on" data-len="short">Short<small>under 10 ft</small></div>
+      <div class="opt" data-len="med">Medium<small>10–25 ft</small></div>
+      <div class="opt" data-len="long">Long<small>25 ft +</small></div>
+    </div>
+    <div class="row" style="border-top:1px solid var(--line);margin-top:10px">
+      <label>Extra 90° bends / turns</label>
+      <div class="stepper">
+        <button id="bMinus">−</button><span class="n" id="bends">0</span><button id="bPlus">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="quote">
+    <div class="lbl">Quote the customer</div>
+    <div class="amt" id="price">$99</div>
+    <div class="cut">Your cut: <b id="cut">$49.50</b></div>
+    <div class="edit">
+      <span style="font-size:12px;opacity:.9">adjust if needed&nbsp;</span>
+      $<input id="override" type="number" inputmode="decimal" min="0" step="5" placeholder="—">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>Job # (so it lands on your pay + the office board)</label>
+      <input id="jobId" type="tel" inputmode="numeric" placeholder="e.g. 18537">
+    </div>
+    <button class="go" id="logBtn">✓ Customer said yes — log it</button>
+    <div class="note">Vent cleaning is tech-quoted (too many variables for a fixed price). Prices reflect current market rates — adjust for the actual run. Your cut is 50% of the price.</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+const TECH_AUTH_KEY = 'tn_tech_auth_' + TECH_ID;
+const PREFILL_JOB = parseInt(params.get('job_id'), 10) || 0;
+
+// Market-rate matrix (2026): side/ground $80-150, roof/2nd $150-250; longer +
+// more bends cost more. These are starting points the tech adjusts on site.
+const TABLE = {
+  side: { short: 99,  med: 129, long: 169 },
+  roof: { short: 149, med: 189, long: 229 },
+};
+const BEND_ADD = 15;          // per extra 90° turn
+const TECH_PCT = 0.50;        // tech keeps half for their time
+let exitSel = 'side', lenSel = 'short', bends = 0;
+
+function authValid(){ try{ const c=JSON.parse(localStorage.getItem(TECH_AUTH_KEY)||'{}'); return c.ok && (Date.now()-c.t < 12*3600*1000); }catch(_){return false;} }
+function initAuth(){
+  if(TECH_ID && authValid()){ document.getElementById('auth').classList.add('hidden'); return; }
+}
+document.getElementById('pinBtn').onclick = async ()=>{
+  const err=document.getElementById('autherr');
+  const v=document.getElementById('pin').value.trim();
+  if(!/^\d{4}$/.test(v)){ err.textContent='Enter your 4-digit PIN'; return; }
+  if(!TECH_ID){ err.textContent='Open this from your My Day list'; return; }
+  err.textContent='Checking…';
+  try{
+    const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:TECH_ID,pin:v})});
+    const d=await r.json();
+    if(d.success){ localStorage.setItem(TECH_AUTH_KEY,JSON.stringify({ok:true,t:Date.now()})); document.getElementById('auth').classList.add('hidden'); }
+    else { err.textContent='Wrong PIN. Try again.'; document.getElementById('pin').value=''; }
+  }catch(_){ err.textContent='Connection error — try again.'; }
+};
+document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('pinBtn').click(); });
+
+document.getElementById('back-btn').onclick=()=>{ location.href = TECH_ID ? ('tech-daily-dashboard.html?tech_id='+TECH_ID) : 'office-dashboard.html'; };
+
+function basePrice(){ return TABLE[exitSel][lenSel] + bends*BEND_ADD; }
+function curPrice(){ const o=parseFloat(document.getElementById('override').value); return (o>0)?o:basePrice(); }
+function render(){
+  const p=curPrice();
+  document.getElementById('price').textContent='$'+p;
+  document.getElementById('cut').textContent='$'+(p*TECH_PCT).toFixed(2);
+}
+function bindOpts(groupId, attr, setter){
+  document.getElementById(groupId).querySelectorAll('.opt').forEach(el=>{
+    el.onclick=()=>{
+      document.getElementById(groupId).querySelectorAll('.opt').forEach(x=>x.classList.remove('on'));
+      el.classList.add('on'); setter(el.dataset[attr]);
+      document.getElementById('override').value=''; // a new selection resets the manual override
+      render();
+    };
+  });
+}
+bindOpts('exit','exit',v=>exitSel=v);
+bindOpts('len','len',v=>lenSel=v);
+document.getElementById('bMinus').onclick=()=>{ bends=Math.max(0,bends-1); document.getElementById('bends').textContent=bends; document.getElementById('override').value=''; render(); };
+document.getElementById('bPlus').onclick=()=>{ bends=Math.min(10,bends+1); document.getElementById('bends').textContent=bends; document.getElementById('override').value=''; render(); };
+document.getElementById('override').addEventListener('input',render);
+
+if(PREFILL_JOB) document.getElementById('jobId').value=PREFILL_JOB;
+
+document.getElementById('logBtn').onclick=async ()=>{
+  const btn=document.getElementById('logBtn');
+  const jid=parseInt(document.getElementById('jobId').value,10)||0;
+  if(!jid){ toast('Enter the job #'); return; }
+  const price=curPrice(); const cut=+(price*TECH_PCT).toFixed(2);
+  btn.disabled=true; btn.textContent='Logging…';
+  try{
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:jid, addon_key:'dryer_vent_cleaning', name:'Dryer vent cleaning ('+exitSel+', '+lenSel+(bends?(', '+bends+' bends'):'')+')', price:price, discount:0, tech_cut:cut, technician_id:TECH_ID, status:'fulfilled', source:'tech_vent_quote' })});
+    const d=await r.json();
+    if(d&&d.success){ btn.textContent='✓ Logged — $'+cut.toFixed(2)+' to your pay'; toast('Logged · your cut $'+cut.toFixed(2)); }
+    else { btn.disabled=false; btn.textContent='Try again'; toast('⚠ '+((d&&d.error)||'failed')); }
+  }catch(_){ btn.disabled=false; btn.textContent='Try again'; toast('⚠ connection error'); }
+};
+
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+
+initAuth(); render();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
