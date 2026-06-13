@@ -1202,31 +1202,41 @@
     const techId = (tech && tech.id) || job.technician_id || 0;
     if (viewState !== 'completed' || job.scheduling_status !== 'completed' || !first || !techId) { el.style.display = 'none'; return; }
     el.style.display = '';
-    const amts = [10, 20, 40];
+    // Tips framed as warm human gestures, not cold dollar buttons.
+    const gestures = [
+      { emoji: '☕', label: 'Coffee', verb: 'a coffee', amt: 8 },
+      { emoji: '🍔', label: 'Lunch', verb: 'lunch', amt: 20 },
+      { emoji: '🍺', label: 'A few beers', verb: 'a few beers', amt: 25 },
+    ];
     el.innerHTML =
       '<div style="background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:18px">' +
-        '<div style="font-size:16px;font-weight:800;color:#10243e">Thank ' + escapeHtml(first) + '</div>' +
-        '<div style="font-size:13px;color:#5a6b80;line-height:1.5;margin:5px 0 12px">A tip is never expected. But if your experience was better because of ' + escapeHtml(first) + ', you can say thanks here — <b>100% goes straight to ' + escapeHtml(first) + '</b>.</div>' +
-        '<div id="tipAmts" style="display:flex;gap:8px">' +
-          amts.map(a => '<button class="tip-amt" data-amt="' + a + '" style="flex:1;background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 0;font-size:16px;font-weight:800;color:#10243e;cursor:pointer">$' + a + '</button>').join('') +
-          '<button class="tip-amt" data-amt="other" style="flex:1;background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 0;font-size:14px;font-weight:700;color:#5a6b80;cursor:pointer">Other</button>' +
+        '<div style="font-size:16px;font-weight:800;color:#10243e">Treat ' + escapeHtml(first) + '?</div>' +
+        '<div style="font-size:13px;color:#5a6b80;line-height:1.5;margin:5px 0 12px">Never expected — but if ' + escapeHtml(first) + ' made your day a little easier, grab them something. <b>100% goes straight to ' + escapeHtml(first) + '.</b></div>' +
+        '<div id="tipAmts" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+          gestures.map(g => '<button class="tip-amt" data-amt="' + g.amt + '" data-verb="' + g.verb + '" style="background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 10px;font-size:14px;font-weight:800;color:#10243e;cursor:pointer;text-align:left">' + g.emoji + ' ' + g.label + ' <span style="color:#8a98aa;font-weight:700">$' + g.amt + '</span></button>').join('') +
+          '<button class="tip-amt" data-amt="other" data-verb="something" style="background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 10px;font-size:14px;font-weight:700;color:#5a6b80;cursor:pointer;text-align:left">✨ Something else</button>' +
         '</div>' +
-        '<input id="tipOther" type="number" inputmode="decimal" min="1" step="1" placeholder="Tip amount" style="display:none;width:100%;font-size:16px;padding:11px;border:1px solid #e3e8ef;border-radius:10px;margin-top:8px;box-sizing:border-box">' +
-        '<button id="tipSend" style="display:none;width:100%;background:linear-gradient(135deg,#1aa260,#12a05a);color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;margin-top:10px">Send tip</button>' +
+        '<input id="tipOther" type="number" inputmode="decimal" min="1" step="1" placeholder="Amount" style="display:none;width:100%;font-size:16px;padding:11px;border:1px solid #e3e8ef;border-radius:10px;margin-top:8px;box-sizing:border-box">' +
+        '<button id="tipSend" style="display:none;width:100%;background:linear-gradient(135deg,#1aa260,#12a05a);color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;margin-top:10px">Send</button>' +
         '<div style="font-size:11px;color:#aab4c0;text-align:center;margin-top:8px">Secure payment · no pressure · skip anytime</div>' +
       '</div>';
-    let chosen = 0;
+    let chosen = 0, chosenVerb = 'something';
     const sendBtn = $('tipSend'), other = $('tipOther');
+    function sendLabel() {
+      if (!(chosen > 0)) return 'Send to ' + first;
+      return (chosenVerb && chosenVerb !== 'something') ? ('Get ' + first + ' ' + chosenVerb + ' · $' + chosen.toFixed(0)) : ('Send $' + chosen.toFixed(0) + ' to ' + first);
+    }
     el.querySelectorAll('.tip-amt').forEach(b => {
       b.onclick = () => {
-        el.querySelectorAll('.tip-amt').forEach(x => { x.style.borderColor = '#e3e8ef'; x.style.background = '#f5f7fa'; x.style.color = '#10243e'; });
-        b.style.borderColor = '#1aa260'; b.style.background = '#e9f9f0'; b.style.color = '#127a4a';
+        el.querySelectorAll('.tip-amt').forEach(x => { x.style.borderColor = '#e3e8ef'; x.style.background = '#f5f7fa'; });
+        b.style.borderColor = '#1aa260'; b.style.background = '#e9f9f0';
+        chosenVerb = b.dataset.verb || 'something';
         if (b.dataset.amt === 'other') { other.style.display = ''; other.focus(); chosen = parseFloat(other.value) || 0; }
         else { other.style.display = 'none'; chosen = parseFloat(b.dataset.amt); }
-        sendBtn.style.display = ''; sendBtn.textContent = chosen > 0 ? ('Send $' + chosen.toFixed(0) + ' to ' + first) : ('Send tip to ' + first);
+        sendBtn.style.display = ''; sendBtn.textContent = sendLabel();
       };
     });
-    other.oninput = () => { chosen = parseFloat(other.value) || 0; sendBtn.textContent = chosen > 0 ? ('Send $' + chosen.toFixed(0) + ' to ' + first) : ('Send tip to ' + first); };
+    other.oninput = () => { chosen = parseFloat(other.value) || 0; sendBtn.textContent = sendLabel(); };
     sendBtn.onclick = async () => {
       const amt = chosen > 0 ? chosen : (parseFloat(other.value) || 0);
       if (!(amt > 0)) { other.style.display = ''; other.focus(); return; }
