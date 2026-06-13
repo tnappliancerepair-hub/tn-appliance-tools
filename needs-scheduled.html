@@ -404,8 +404,9 @@
       return;
     }
     list.innerHTML = items.map(j => {
-      const name = (j.customer_first + ' ' + j.customer_last).trim() || '(no name)';
-      const what = [j.appliance, j.brand].filter(Boolean).join(' • ') || '(no appliance)';
+      const rawName = ((j.customer_first || '') + ' ' + (j.customer_last || '')).trim();
+      const name = rawName || (j.warranty_company ? (j.warranty_company + (j.claim_number ? ' #' + j.claim_number : '') + ' — accept for details') : '(no name)');
+      const what = [j.appliance, j.brand].filter(Boolean).join(' • ') || (j.warranty_company ? 'details load after you accept' : '(no appliance)');
       const addr = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', ');
       const flex = Number(j.flex_score || 0);
       const flexColor = flex >= 71 ? '#4cc9c0' : flex >= 31 ? '#5b9bd5' : flex > 0 ? '#ffb454' : '#8a96a8';
