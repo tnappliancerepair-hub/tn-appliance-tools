@@ -204,7 +204,7 @@ const SETASIDE_RATE=0.25; // income/business-tax set-aside estimate (% of take-h
 async function renderTax(d,pr){
   const techs=d.techs||[];
   let tn=0,la=0,rev=0,pay=0;
-  techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; rev+=t.amount; pay+=(t.tech_pay-(t.addon_pay||0)); });
+  techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; rev+=t.amount; pay+=(t.tech_pay-(t.addon_pay||0)-(t.tip_pay||0)); });
   const salesTax=tn+la;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Building tax view…</div>';
   // pull parts cost + logged expenses to get a real take-home for the set-aside
@@ -247,7 +247,7 @@ async function renderTax(d,pr){
 async function renderPL(d,pr){
   const techs=d.techs||[];
   let rev=0,labor=0,partsBilled=0,tax=0,pay=0;
-  techs.forEach(t=>{rev+=t.amount;labor+=t.labor;partsBilled+=t.parts;tax+=t.tax;pay+=(t.tech_pay-(t.addon_pay||0));}); // invoice tech pay only; add-on cut handled in add-on margin line
+  techs.forEach(t=>{rev+=t.amount;labor+=t.labor;partsBilled+=t.parts;tax+=t.tax;pay+=(t.tech_pay-(t.addon_pay||0)-(t.tip_pay||0));}); // invoice tech pay only; add-on cut in margin line; tips are pass-through to tech
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Building P&amp;L…</div>';
   // Real parts COST + margin from the parts ledger (parts_orders) for this period.
   let partsCost=0,partsSold=0,costKnown=false;
@@ -346,7 +346,7 @@ async function renderPayroll(d,pr){
   if(!techs.length){document.getElementById('content').innerHTML='<div class="wrap"><div class="empty">No billed jobs in this period yet. As the office logs invoices, each tech’s pay shows here.</div></div>';return;}
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading payroll…</div>';
   // Which jobs are warranty-PAID (Danielle marked, or the watcher) -> ready to release.
-  const allIds=[]; techs.forEach(t=>t.jobs.forEach(j=>{ if(!j.addon) allIds.push(j.job_id); }));
+  const allIds=[]; techs.forEach(t=>t.jobs.forEach(j=>{ if(!j.addon && !j.tip) allIds.push(j.job_id); }));
   let paidMap={};
   try{
     const wr=await fetch(XANO+'/list_warranty_submissions_for_jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_ids_csv:allIds.join(',')})});
@@ -365,7 +365,7 @@ async function renderPayroll(d,pr){
       const right=j.released
         ? '<span style="color:var(--ok);font-size:12px;font-weight:700">✓ paid</span>'
         : `<button onclick="releaseJob(${t.technician_id},'${esc(String(j.job_id))}',${pay},'${esc(pr.label)}')" style="background:${isPaid?'#e3f6ec':'#eef4fe'};border:1px solid ${isPaid?'#9fdcbb':'#bcd5fb'};color:${isPaid?'var(--ok)':'var(--blue)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Release${isPaid?' 💰':''}</button>`;
-      const labelHtml=j.addon?('🛍️ '+esc(String(j.label||'Add-on'))):('Job #'+esc(String(j.job_id))+(isPaid?' <span title="warranty paid">💰</span>':'')+(j.labor?(' · labor $'+j.labor.toFixed(0)):''));
+      const labelHtml=(j.addon||j.tip)?esc(String(j.label||(j.tip?'Tip':'Add-on'))):('Job #'+esc(String(j.job_id))+(isPaid?' <span title="warranty paid">💰</span>':'')+(j.labor?(' · labor $'+j.labor.toFixed(0)):''));
       return `<div class="jrow"><span>${labelHtml}</span><span style="display:flex;align-items:center;gap:9px"><span class="p">$${pay.toFixed(2)}</span>${right}</span></div>`;
     }).join('');
     const nm=TECH_NAME[t.technician_id]||('Tech '+t.technician_id);

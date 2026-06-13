@@ -34,7 +34,7 @@
       if(d&&d.ok&&d.paid){
         card.innerHTML='<div class="ic">✅</div><h1>Payment received</h1>'
           +(d.amount?('<div class="amt">$'+Number(d.amount).toFixed(2)+'</div>'):'')
-          +'<p>Thank you! '+(d.kind==='addon'?'We\'ll get this out to you / set up on your visit.':'Your invoice is paid.')+'</p>'
+          +'<p>'+(d.kind==='tip'?'Thank you so much — 100% of your tip goes straight to your tech. They\'ll see it!':('Thank you! '+(d.kind==='addon'?'We\'ll get this out to you / set up on your visit.':'Your invoice is paid.')))+'</p>'
           +'<p class="muted">A receipt was emailed to you by Stripe.</p>'+back();
       } else if(d&&d.ok&&!d.paid){
         card.innerHTML='<div class="ic">⏳</div><h1>Payment pending</h1><p>We haven\'t seen this payment complete yet. If you were charged, it\'ll update shortly.</p>'+back();

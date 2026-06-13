@@ -48,6 +48,13 @@ async function recordPaidSession(session) {
     amount: amount.toFixed(2), addon_key: md.addon_key || null,
     source: md.source || 'customer_portal_pay', paid_at_ms: Date.now(),
   });
+  // A tip: 100% to the tech (shop absorbs the Stripe fee). Credits their pay.
+  if (kind === 'tip' && md.technician_id) {
+    await logRow('tech_tip_paid', {
+      session_id: sessionId, job_id: jobId, technician_id: Number(md.technician_id),
+      amount: amount.toFixed(2), tech_first: md.tech_first || '', source: 'customer_tip', at_ms: Date.now(),
+    });
+  }
   // A paid add-on lands as a REQUEST flagged paid — so the office still sees it
   // in the "to fulfill" list (the part still has to be shipped/installed). The
   // tech is credited when the office marks it fulfilled (Ordered ✓), same as

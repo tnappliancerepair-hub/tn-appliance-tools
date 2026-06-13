@@ -111,6 +111,13 @@ function render(d){
       <div class="pay">$${(a.cut||0).toFixed(2)}</div>
     </div>`).join(''):'';
   const addonCard=addons.length?`<div class="card"><h3>Add-on extras · +$${(d.addon_earned||0).toFixed(2)}</h3>${addonRows}</div>`:'';
+  const tips=d.tips||[];
+  const tipRows=tips.length?tips.map(t=>`
+    <div class="job">
+      <div class="info"><div class="jid">💚 Tip</div><div class="when">Job #${esc(String(t.job_id))}${t.when?(' · '+fmt(t.when)):''}</div></div>
+      <div class="pay">$${(t.amount||0).toFixed(2)}</div>
+    </div>`).join(''):'';
+  const tipCard=tips.length?`<div class="card"><h3>Tips from customers · +$${(d.tip_earned||0).toFixed(2)} <span style="font-size:11px;font-weight:600;color:var(--ok)">100% yours</span></h3>${tipRows}</div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="owed">
@@ -125,7 +132,8 @@ function render(d){
       </div>
       <div class="card"><h3>Per job</h3>${rows}</div>
       ${addonCard}
-      <div class="note">Pay runs the 3rd &amp; 18th · +$10 per 5-star review · add-ons pay your cut on top</div>
+      ${tipCard}
+      <div class="note">Pay runs the 3rd &amp; 18th · +$10 per 5-star review · add-ons + tips pay on top (tips are 100% yours)</div>
     </div>`;
 }
 

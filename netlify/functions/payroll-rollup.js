@@ -43,11 +43,12 @@ exports.handler = async function (event) {
   const end = parseInt(q.end_ms, 10) || Date.now();
 
   try {
-    const [invoices, payouts, feedback, addons] = await Promise.all([
+    const [invoices, payouts, feedback, addons, tips] = await Promise.all([
       fetchByAction('office_invoice_logged'),
       fetchByAction('tech_payout_recorded'),
       fetchByAction('customer_feedback_recorded'),
       fetchByAction('addon_fulfilled'),
+      fetchByAction('tech_tip_paid'),
     ]);
     // job_ids that have already been paid out (per-job release), so we never double-pay.
     const releasedJobs = new Set();
@@ -111,11 +112,33 @@ exports.handler = async function (event) {
       if (released) t.released_total += cut;
       t.jobs.push({ job_id: payoutId, label: (m.name || 'Add-on') + ' · #' + m.job_id, pay: cut, labor: 0, total: num(m.net_price || m.price), when: when, released: released, addon: true });
     }
+
+    // Tips -> 100% payable to the tech. De-dupe per Stripe session. Tracked in
+    // tip_pay so the P&L (pass-through, not shop revenue) doesn't count it.
+    const tipSeen = new Set();
+    for (const row of tips) {
+      const m = meta(row);
+      const tid = parseInt(m.technician_id, 10) || 0;
+      const amt = num(m.amount);
+      if (!tid || !amt) continue;
+      const when = num(m.at_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
+      if (when < start || when > end) continue;
+      const sid = m.session_id || (m.job_id + '|' + when);
+      if (tipSeen.has(sid)) continue;
+      tipSeen.add(sid);
+      const payoutId = 'T:' + (m.session_id || (m.job_id + ':' + when));
+      const released = releasedJobs.has(payoutId);
+      const t = techs[tid] || (techs[tid] = { technician_id: tid, tech_pay: 0, labor: 0, parts: 0, tax: 0, amount: 0, released_total: 0, addon_pay: 0, tip_pay: 0, jobs: [] });
+      t.tech_pay += amt; t.tip_pay = (t.tip_pay || 0) + amt;
+      if (released) t.released_total += amt;
+      t.jobs.push({ job_id: payoutId, label: '💚 Tip · #' + m.job_id, pay: amt, labor: 0, total: amt, when: when, released: released, tip: true });
+    }
     const out = Object.values(techs).map((t) => ({
       technician_id: t.technician_id,
       tech_pay: Number(t.tech_pay.toFixed(2)), labor: Number(t.labor.toFixed(2)),
       parts: Number(t.parts.toFixed(2)), tax: Number(t.tax.toFixed(2)), amount: Number(t.amount.toFixed(2)),
       addon_pay: Number((t.addon_pay || 0).toFixed(2)),
+      tip_pay: Number((t.tip_pay || 0).toFixed(2)),
       released_total: Number(t.released_total.toFixed(2)),
       remaining: Number((t.tech_pay - t.released_total).toFixed(2)),
       review_count: reviewByTech[t.technician_id] || 0,

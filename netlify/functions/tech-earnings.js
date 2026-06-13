@@ -51,10 +51,11 @@ exports.handler = async function (event) {
   if (!techId) return { statusCode: 400, body: JSON.stringify({ success: false, error: 'tech_id required' }) };
 
   try {
-    const [invoices, payouts, addons] = await Promise.all([
+    const [invoices, payouts, addons, tips] = await Promise.all([
       fetchByAction('office_invoice_logged'),
       fetchByAction('tech_payout_recorded'),
       fetchByAction('addon_fulfilled'),
+      fetchByAction('tech_tip_paid'),
     ]);
 
     // Latest invoice per job for this tech (an edit re-logs the job).
@@ -86,7 +87,24 @@ exports.handler = async function (event) {
     }
     const addonList = Object.values(addonByKey).sort((a, b) => b.when - a.when);
     const addonEarned = addonList.reduce((s, a) => s + a.cut, 0);
-    const earned = jobs.reduce((s, j) => s + j.pay, 0) + addonEarned;
+
+    // Tips (100% to the tech), de-duped per Stripe session.
+    const tipSeen = new Set();
+    const tipList = [];
+    for (const row of tips) {
+      const m = meta(row);
+      if (parseInt(m.technician_id, 10) !== techId) continue;
+      const sid = m.session_id || (m.job_id + '|' + (m.at_ms || row.created_at));
+      if (tipSeen.has(sid)) continue;
+      tipSeen.add(sid);
+      const amt = num(m.amount);
+      if (!amt) continue;
+      const when = num(m.at_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
+      tipList.push({ job_id: m.job_id, amount: amt, when });
+    }
+    const tipEarned = tipList.reduce((s, t) => s + t.amount, 0);
+
+    const earned = jobs.reduce((s, j) => s + j.pay, 0) + addonEarned + tipEarned;
 
     let paid = 0;
     for (const row of payouts) {
@@ -108,6 +126,9 @@ exports.handler = async function (event) {
         addon_earned: Number(addonEarned.toFixed(2)),
         addon_count: addonList.length,
         addons: addonList.slice(0, 100),
+        tip_earned: Number(tipEarned.toFixed(2)),
+        tip_count: tipList.length,
+        tips: tipList.sort((a, b) => b.when - a.when).slice(0, 100),
       }),
     };
   } catch (err) {
