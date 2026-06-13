@@ -367,6 +367,10 @@
       ⭐ Rate your visit
       <span class="sub">30-second feedback. Helps us improve.</span>
     </button>
+    <a class="btn" id="btnInvoice" href="#" style="display:none">
+      📄 View your invoice
+      <span class="sub">Itemized — labor, parts, tax, total.</span>
+    </a>
     <a class="btn" href="tel:+18662680111" id="btnCall">
       Call us · 866-268-0111
       <span class="sub">Mon-Fri 8am-6pm CT</span>
@@ -853,6 +857,19 @@
     const btnRate = $('btnRate');
     if (btnRate) {
       btnRate.style.display = (viewState === 'completed') ? '' : 'none';
+    }
+
+    // View invoice — completed jobs, customer already authed via last4
+    const btnInvoice = $('btnInvoice');
+    if (btnInvoice) {
+      if (viewState === 'completed' && job.scheduling_status === 'completed' && LAST4 && JOB_ID) {
+        btnInvoice.style.display = '';
+        btnInvoice.href = `/.netlify/functions/customer-invoice?job_id=${JOB_ID}&last4=${LAST4}`;
+        btnInvoice.target = '_blank';
+        btnInvoice.rel = 'noopener';
+      } else {
+        btnInvoice.style.display = 'none';
+      }
     }
 
     // 📦 Parts arrived — only when the job is awaiting parts AND parts
