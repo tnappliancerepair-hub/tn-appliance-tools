@@ -334,23 +334,32 @@ async function saveExpense(){
 function renderPayroll(d,pr){
   const techs=d.techs||[];
   if(!techs.length){document.getElementById('content').innerHTML='<div class="wrap"><div class="empty">No billed jobs in this period yet. As the office logs invoices, each tech’s pay shows here.</div></div>';return;}
-  let grandPay=0,grandTax=0;
+  let grandRemaining=0,grandTax=0;
   const cards=techs.map(t=>{
-    grandPay+=t.tech_pay;grandTax+=t.tax;
-    const rows=t.jobs.map(j=>`<div class="jrow"><span>Job #${esc(String(j.job_id))}${j.labor?(' · labor $'+j.labor.toFixed(0)):''}</span><span class="p">$${(j.pay||0).toFixed(2)}</span></div>`).join('');
+    const remaining=(t.remaining!=null?t.remaining:t.tech_pay);
+    grandRemaining+=remaining;grandTax+=t.tax;
+    const rows=t.jobs.map(j=>{
+      const pay=(j.pay||0);
+      const right=j.released
+        ? '<span style="color:var(--ok);font-size:12px;font-weight:700">✓ paid</span>'
+        : `<button onclick="releaseJob(${t.technician_id},'${esc(String(j.job_id))}',${pay},'${esc(pr.label)}')" style="background:#eef4fe;border:1px solid #bcd5fb;color:var(--blue);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Release</button>`;
+      return `<div class="jrow"><span>Job #${esc(String(j.job_id))}${j.labor?(' · labor $'+j.labor.toFixed(0)):''}</span><span style="display:flex;align-items:center;gap:9px"><span class="p">$${pay.toFixed(2)}</span>${right}</span></div>`;
+    }).join('');
     const nm=TECH_NAME[t.technician_id]||('Tech '+t.technician_id);
-    return `<div class="tech" data-tid="${t.technician_id}" data-pay="${t.tech_pay}">
-      <div class="tech-h"><div class="nm">${esc(nm)}</div><div class="pay" id="payout-${t.technician_id}">$${t.tech_pay.toFixed(2)}</div></div>
+    const paidNote=(t.released_total>0)?`<div style="font-size:11px;color:var(--ok);text-align:right;margin-top:4px">$${t.released_total.toFixed(2)} already paid this period</div>`:'';
+    return `<div class="tech" data-tid="${t.technician_id}" data-pay="${remaining}">
+      <div class="tech-h"><div class="nm">${esc(nm)}</div><div class="pay" id="payout-${t.technician_id}">$${remaining.toFixed(2)}</div></div>
       ${rows}
+      ${paidNote}
       <div class="bonus"><label>5★ review bonus $</label><input type="number" min="0" step="10" value="0" id="bonus-${t.technician_id}" oninput="recalc(${t.technician_id})"><span style="color:var(--dim);font-size:11px">$10 each</span></div>
-      <div class="payout"><div class="lbl">Payout</div><div class="amt" id="amt-${t.technician_id}">$${t.tech_pay.toFixed(2)}</div>
-        <button id="paybtn-${t.technician_id}" onclick="markPaid(${t.technician_id},'${esc(pr.label)}')">Mark paid</button></div>
+      <div class="payout"><div class="lbl">Pay remaining</div><div class="amt" id="amt-${t.technician_id}">$${remaining.toFixed(2)}</div>
+        <button id="paybtn-${t.technician_id}" onclick="markPaid(${t.technician_id},'${esc(pr.label)}')">Pay all</button></div>
     </div>`;
   }).join('');
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="summary">
-        <div class="b"><div class="v">$${grandPay.toFixed(0)}</div><div class="k">Tech pay</div></div>
+        <div class="b"><div class="v">$${grandRemaining.toFixed(0)}</div><div class="k">Owed (unpaid)</div></div>
         <div class="b"><div class="v">$${grandTax.toFixed(0)}</div><div class="k">Tax collected</div></div>
         <div class="b"><div class="v">${techs.length}</div><div class="k">Techs</div></div>
       </div>
@@ -364,19 +373,28 @@ function recalc(tid){
   const bonus=parseFloat(document.getElementById('bonus-'+tid).value)||0;
   document.getElementById('amt-'+tid).textContent='$'+(base+bonus).toFixed(2);
 }
+async function releaseJob(tid,jobId,amount,period){
+  if(!confirm('Release $'+Number(amount).toFixed(2)+' to '+(TECH_NAME[tid]||'tech')+' for job #'+jobId+'?'))return;
+  try{
+    const r=await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:Number(amount),job_id:String(jobId),period,note:'job #'+jobId})});
+    const d=await r.json();
+    if(d.success){toast('Released $'+Number(amount).toFixed(2));load();}else{toast('⚠ '+(d.error||'failed'));}
+  }catch(_){toast('⚠ connection error');}
+}
 async function markPaid(tid,period){
-  const card=document.querySelector('.tech[data-tid="'+tid+'"]');
-  const base=parseFloat(card.dataset.pay)||0;
   const bonus=parseFloat(document.getElementById('bonus-'+tid).value)||0;
-  const amount=(base+bonus).toFixed(2);
-  if(!confirm('Mark '+(TECH_NAME[tid]||('tech '+tid))+' paid $'+amount+'? This drops their owed balance.'))return;
+  const tech=(lastData&&lastData.techs||[]).find(t=>t.technician_id===tid);
+  const unrel=(tech?tech.jobs:[]).filter(j=>!j.released);
+  const remaining=unrel.reduce((s,j)=>s+(j.pay||0),0);
+  const total=remaining+bonus;
+  if(total<=0){toast('Nothing left to pay');return;}
+  if(!confirm('Pay '+(TECH_NAME[tid]||('tech '+tid))+' $'+total.toFixed(2)+'  ('+unrel.length+' job'+(unrel.length===1?'':'s')+(bonus>0?(' + $'+bonus.toFixed(2)+' bonus'):'')+')?'))return;
   const btn=document.getElementById('paybtn-'+tid);btn.disabled=true;btn.textContent='…';
   try{
-    const r=await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount,period,note:'payroll'})});
-    const d=await r.json();
-    if(d.success){btn.textContent='Paid ✓';toast((TECH_NAME[tid]||'Tech')+' paid $'+amount);}
-    else{btn.disabled=false;btn.textContent='Mark paid';toast('⚠ '+(d.error||'failed'));}
-  }catch(_){btn.disabled=false;btn.textContent='Mark paid';toast('⚠ connection error');}
+    for(const j of unrel){ await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:j.pay,job_id:j.job_id,period,note:'job #'+j.job_id})}); }
+    if(bonus>0){ await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:bonus,period,note:'5-star bonus'})}); }
+    toast((TECH_NAME[tid]||'Tech')+' paid $'+total.toFixed(2));load();
+  }catch(_){btn.disabled=false;btn.textContent='Pay all';toast('⚠ connection error');}
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

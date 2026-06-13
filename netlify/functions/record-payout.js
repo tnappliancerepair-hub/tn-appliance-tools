@@ -31,6 +31,7 @@ exports.handler = async function (event) {
       metadata: {
         technician_id,
         amount: amount.toFixed(2),
+        job_id: String(b.job_id || ''),
         period: String(b.period || ''),
         note: String(b.note || ''),
         paid_at_ms: Date.now(),
