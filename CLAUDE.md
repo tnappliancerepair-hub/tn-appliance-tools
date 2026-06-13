@@ -1,5 +1,23 @@
 # Appliance Ant
 
+## ✅ SATURDAY 2026-06-13 (mid-day) — pending actions cleared + Digits LIVE (sandbox), prod pending
+
+Worked the 3 pending operator actions live with Teddy. Two of three fully done; Digits real-books gated on one vendor email.
+
+- **Re-push DONE:** `xano workspace push` shipped `record_job_invoice` (+`technician_id`) and `update_job_basics` → `Pushed 2 documents`. Payroll + tech-earnings now attribute to the right tech as invoices get logged.
+- **Digits connector LIVE on sandbox + proven end-to-end:** Created Connect app **"Ant"** (Internal; scopes **Source Sync + Ledger Read**; redirect `…/digits-oauth-callback`). Set `DIGITS_CLIENT_ID`/`DIGITS_CLIENT_SECRET` in Netlify, provisioned the **Developer Sandbox**, authorized to "TN Appliance's Demo Firm" → set `DIGITS_REFRESH_TOKEN`. **Money → Books pulled a live P&L** (Net Income $72,144.74, demo data). OAuth → refresh → P&L → render all verified.
+- **Netlify 4KB deploy failure hit + fixed:** the 3 new `DIGITS_*` vars pushed per-function env over **AWS Lambda's hard 4KB env cap** ("Failed to create function: environment variables exceed 4KB"). **NOT a Netlify plan limit — no upgrade fixes it.** Fixed by **un-scoping** (not deleting; reversible) 3 not-live vars from Functions/Runtime: `STRIPE_WEBHOOK_SECRET`, `XANO_WEBHOOK_SHARED_SECRET`, `MOCK_MODE`. (`HCP_WEBHOOK_SECRET` wouldn't edit — has 4 per-context values; skipped, not needed.) Deploy went green; Digits lit up. **Headroom is now tight — don't ADD Netlify env vars without un-scoping more. Re-check a var's "Functions" scope to re-enable it (e.g., Stripe webhook when billing goes live).**
+- **New pages live:** `privacy.html` + `app-terms.html` (Digits production requires Privacy + Terms URLs). Left the SMS-compliance `terms.html` untouched.
+
+### ⏳ OPEN — Digits production (= real books)
+1. **Emailed developer@digits.com (sent 6/13)** requesting production access so "Ant" installs on the **real** firm. Dev apps only install to Demo/Sandbox; production is approval-gated per Digits docs (Configuration tab has no self-serve publish — only Redirect URLs). When Digits enables it: re-run `/.netlify/functions/digits-oauth-start` → pick **TN Appliance Exchange** (real firm; was the "ineligible option hidden") → if prod issues new keys, update `DIGITS_CLIENT_ID`/`SECRET` → paste new refresh token into `DIGITS_REFRESH_TOKEN` → redeploy → Books shows real P&L. (Swapping values is fine for 4KB; don't add new vars.)
+2. **Personal-card cleanup in Digits** — Teddy's personal card is mixed into the business book; mark those txns Owner's Draw/personal so the real P&L + taxes stay clean.
+
+### Digits API quick-ref (next session)
+Base `https://connect.digits.com/v1`; OAuth2 auth-code (refresh tokens don't expire). P&L: `GET /ledger/statement/profit-and-loss?startDate&endDate&interval=Month|Quarter|Year` → `rows[{label,total{amount(minor units),code},summary{kind}}]`. Income-push (Phase 2, makes Digits a complete ledger) = **Sync Transactions** (`POST /…sourcetransactionservice_sync`, idempotent). Connector: `netlify/functions/_lib/digits.js` + `digits-oauth-start`/`-callback` + `digits-pnl.js`; Books tab in `money.html`.
+
+---
+
 ## 🌅 MORNING BRIEF — 2026-06-13 (read first; saved end-of-day 2026-06-12)
 
 Today = the **unified "one app" build + the money/payroll spine + the Digits accounting hook**. Teddy fed reference screenshots of HCP (techs' comfort tool) + MeisterTask (Danielle's) + the Google payroll/parts/tax sheets, and we mirrored their layout/flow while wiring everything to live Ant data. Everyone who touched it today is happy. "To be continued tomorrow / late-night brainstorming."
