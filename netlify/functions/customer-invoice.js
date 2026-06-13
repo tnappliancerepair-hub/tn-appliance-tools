@@ -5,6 +5,33 @@
 // URL: /.netlify/functions/customer-invoice?job_id=X&last4=YYYY
 
 const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+
+// Pull the latest invoice the office logged for this job (event_log
+// action="office_invoice_logged"), so the customer invoice shows the real
+// labor/parts/tax breakdown instead of a placeholder.
+async function getLoggedInvoice(jobId) {
+  const token = process.env.XANO_METADATA_TOKEN;
+  if (!token) return null;
+  try {
+    const r = await fetch(`${META}/table/3/content/search`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ search: { action: 'office_invoice_logged' }, sort: { created_at: 'desc' }, per_page: 500, page: 1 }),
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    let best = null, bestWhen = -1;
+    for (const row of (d.items || [])) {
+      let m = row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      if (!m || String(m.job_id) !== String(jobId)) continue;
+      const when = Number(m.logged_at_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
+      if (when > bestWhen) { bestWhen = when; best = m; }
+    }
+    return best;
+  } catch (_) { return null; }
+}
+function n(v) { const x = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(x) ? 0 : x; }
 
 exports.handler = async function (event) {
   const p = event.queryStringParameters || {};
@@ -31,7 +58,28 @@ exports.handler = async function (event) {
   const date = job.job_completed_at ? new Date(Number(job.job_completed_at)).toLocaleDateString() : '—';
   const appl = [job.brand, job.appliance].filter(Boolean).join(' ') || 'appliance';
   const techName = `${tech.first_name || ''} ${tech.last_name || ''}`.trim() || 'TN Appliance';
-  const total = job.invoice_amount_cents ? `$${(job.invoice_amount_cents/100).toFixed(2)}` : 'See your texts for payment link';
+
+  // Build itemized lines from the office's logged invoice (preferred), else
+  // fall back to the job's stored amount, else a placeholder.
+  const inv = await getLoggedInvoice(jobId);
+  let lineRows = '', total = 'See your texts for payment link';
+  if (inv) {
+    const labor = n(inv.labor);
+    const parts = n(inv.parts_charge) + n(inv.markup); // customer sees combined parts price
+    const shipping = n(inv.shipping);
+    const tax = n(inv.tax);
+    const tip = n(inv.tip);
+    const amt = n(inv.amount_invoiced) || (labor + parts + shipping + tax + tip);
+    const line = (label, v) => v > 0 ? `<tr><td>${esc(label)}</td><td class="amt">$${v.toFixed(2)}</td></tr>` : '';
+    lineRows = line(`${appl} repair — labor`, labor) + line('Parts', parts) + line('Shipping', shipping) + line('Sales tax', tax) + line('Tip', tip);
+    if (!lineRows) lineRows = `<tr><td>${esc(appl)} repair</td><td class="amt">$${amt.toFixed(2)}</td></tr>`;
+    total = `$${amt.toFixed(2)}`;
+  } else if (job.invoice_amount_cents) {
+    total = `$${(job.invoice_amount_cents/100).toFixed(2)}`;
+    lineRows = `<tr><td>${esc(appl)} repair</td><td class="amt">${esc(total)}</td></tr>`;
+  } else {
+    lineRows = `<tr><td>${esc(appl)} repair</td><td class="amt">${esc(total)}</td></tr>`;
+  }
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Invoice - Job #${jobId}</title>
 <style>
@@ -78,7 +126,7 @@ exports.handler = async function (event) {
 
 <table>
   <tr><th>Description</th><th style="text-align:right">Amount</th></tr>
-  <tr><td>${esc(appl)} repair</td><td class="amt">${esc(total)}</td></tr>
+  ${lineRows}
   <tr class="total-row"><td>Total</td><td class="amt">${esc(total)}</td></tr>
 </table>
 
