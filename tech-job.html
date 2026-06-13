@@ -157,6 +157,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/ant-addons.js"></script>
 <script>
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
@@ -343,6 +344,12 @@ function render(){
         <div id="pf-out" style="margin-top:11px"></div>
       </div>
 
+      <div class="card" id="addons-card" style="display:none">
+        <h3>🛍️ Add-ons / offers <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">offer at the stop</span></h3>
+        <div id="addons-list"></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5">Install now = you do it on this visit, your cut hits your pay. Ship it = office mails it to the customer (you still earn a finder cut).</div>
+      </div>
+
       <div class="card">
         <a class="ask-btn" href="tech-ant-chat.html?job_id=${job.id}&tech_id=${TECH_ID}">💬 Ask Ant about this job</a>
         <a class="ask-btn" style="margin-top:8px;background:#fff;color:var(--brand,#1f6fed);border:1px solid var(--line,#e3e8ef)" href="tech-vent-quote.html?job_id=${job.id}&tech_id=${TECH_ID}">🌀 Dryer vent cleaning quote</a>
@@ -381,6 +388,48 @@ function wireActions(){
   document.getElementById('in-photo').onchange=e=>uploadFile(e.target.files[0],'photo');
   document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
   document.getElementById('pf-go').onclick=findParts;
+  renderTechAddons();
+}
+
+// ── Add-ons at the stop (install now or ship it) ───────────────
+function renderTechAddons(){
+  const card=document.getElementById('addons-card'); const list=document.getElementById('addons-list');
+  if(!card||!list||!window.AntAddons) return;
+  const items=AntAddons.forAppliance(appliance.type||appliance.appliance||'');
+  if(!items.length){ card.style.display='none'; return; }
+  card.style.display='';
+  list.innerHTML=items.map(a=>{
+    const net=Math.max(0,(a.price||0)-(a.discount||0));
+    let btns;
+    if(a.inquire){
+      btns='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="inquire" data-status="requested" data-price="0" data-disc="0" data-cut="0" style="background:#fff;border:1px solid var(--line,#e3e8ef)">Flag for quote</button>';
+    } else {
+      btns='<button class="btn primary" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="installed" data-status="fulfilled" data-price="'+a.price+'" data-disc="'+(a.discount||0)+'" data-cut="'+(a.tech_cut||0)+'">Install now · +$'+(a.tech_cut||0)+'</button>';
+      if(a.ship_price) btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="ship" data-status="requested" data-price="'+a.ship_price+'" data-disc="0" data-cut="'+(a.ship_cut||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">Ship it · +$'+(a.ship_cut||0)+'</button>';
+    }
+    return '<div class="ao-row" style="padding:9px 0;border-top:1px solid var(--line,#e3e8ef)">'
+      +'<div style="font-weight:700;font-size:14px">'+esc(a.name)+(a.inquire?'':(' · $'+net))+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center">'+btns+'<span class="ao-stat" style="font-size:12px;color:var(--ok,#1aa260);font-weight:700;margin-left:4px"></span></div>'
+      +'</div>';
+  }).join('');
+  list.querySelectorAll('button[data-k]').forEach(b=>{ b.onclick=()=>logTechAddon(b); });
+}
+async function logTechAddon(b){
+  const row=b.closest('.ao-row'); const stat=row?row.querySelector('.ao-stat'):null;
+  row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=true);
+  if(stat) stat.textContent='…';
+  try{
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:JOB_ID, technician_id:TECH_ID, addon_key:b.dataset.k, name:b.dataset.n,
+        price:parseFloat(b.dataset.price)||0, discount:parseFloat(b.dataset.disc)||0, tech_cut:parseFloat(b.dataset.cut)||0,
+        mode:b.dataset.mode, status:b.dataset.status, source:'tech_job' })});
+    const d=await r.json();
+    if(d&&d.success){
+      const mode=b.dataset.mode;
+      if(stat) stat.textContent = mode==='inquire' ? '✓ flagged for office quote'
+        : mode==='ship' ? '✓ office will ship it' : '✓ logged — +$'+(parseFloat(b.dataset.cut)||0)+' to your pay';
+    } else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'failed'); row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
+  }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
 }
 
 async function lifecycle(ep,okMsg){
