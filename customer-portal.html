@@ -1192,6 +1192,12 @@
     el.style.display = '';
     el.innerHTML = '<div class="addon-title">Add-ons for your ' + escapeHtml(job.appliance || 'appliance') + ' — $10 off, we ship it with your repair</div>' +
       list.map(a => {
+        if (a.inquire) {
+          return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
+            '<div class="addon-price" style="font-size:13px;color:#5a6b80">please inquire</div></div>' +
+            '<div class="addon-pitch">' + escapeHtml(a.pitch) + '</div>' +
+            '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="0" data-disc="0" data-cut="0" data-inquire="1">Ask us about it</button></div>';
+        }
         const net = Math.max(0, a.price - (a.discount || 0));
         return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
           '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
@@ -1201,14 +1207,15 @@
     el.querySelectorAll('.addon-add').forEach(btn => {
       btn.onclick = async () => {
         if (btn.classList.contains('added')) return;
-        btn.disabled = true; btn.textContent = 'Adding…';
+        const isInquire = btn.dataset.inquire === '1';
+        btn.disabled = true; btn.textContent = isInquire ? 'Sending…' : 'Adding…';
         try {
           const r = await fetch('/.netlify/functions/record-addon', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, source: 'customer_portal' }),
+            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
           });
           const d = await r.json();
-          if (d && d.success) { btn.classList.add('added'); btn.textContent = "✓ Added — we'll ship it with your repair"; }
+          if (d && d.success) { btn.classList.add('added'); btn.textContent = isInquire ? "✓ Got it — we'll quote it for you" : "✓ Added — we'll ship it with your repair"; }
           else { btn.disabled = false; btn.textContent = 'Try again'; }
         } catch (_) { btn.disabled = false; btn.textContent = 'Try again'; }
       };
