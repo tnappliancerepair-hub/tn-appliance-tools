@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thank you · TN Appliance Exchange</title>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f7fa;color:#10243e;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+  .card{background:#fff;border:1px solid #e3e8ef;border-radius:18px;padding:30px 26px;max-width:420px;width:100%;text-align:center;box-shadow:0 4px 20px rgba(16,36,62,.08)}
+  .ic{font-size:54px;line-height:1}
+  h1{font-size:22px;margin:14px 0 6px}
+  p{color:#5a6b80;font-size:15px;line-height:1.5;margin:6px 0}
+  .amt{font-size:32px;font-weight:900;margin:10px 0;color:#1aa260}
+  .spin{width:30px;height:30px;border:3px solid #e3e8ef;border-top-color:#1f6fed;border-radius:50%;animation:s 1s linear infinite;margin:18px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  a.btn{display:inline-block;margin-top:16px;background:#1f6fed;color:#fff;text-decoration:none;border-radius:11px;padding:12px 22px;font-weight:800;font-size:15px}
+  .muted{font-size:12px;color:#8a98aa;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="spin"></div>
+  <p>Confirming your payment…</p>
+</div>
+<script>
+(function(){
+  var card=document.getElementById('card');
+  var sid=new URLSearchParams(location.search).get('session_id')||'';
+  function back(){ return '<a class="btn" href="/customer-portal.html">Back to my repair</a>'; }
+  if(!sid){ card.innerHTML='<div class="ic">🐜</div><h1>Thanks!</h1><p>We\'ll be in touch about your order.</p>'+back(); return; }
+  fetch('/.netlify/functions/verify-payment?session_id='+encodeURIComponent(sid))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.ok&&d.paid){
+        card.innerHTML='<div class="ic">✅</div><h1>Payment received</h1>'
+          +(d.amount?('<div class="amt">$'+Number(d.amount).toFixed(2)+'</div>'):'')
+          +'<p>Thank you! '+(d.kind==='addon'?'We\'ll get this out to you / set up on your visit.':'Your invoice is paid.')+'</p>'
+          +'<p class="muted">A receipt was emailed to you by Stripe.</p>'+back();
+      } else if(d&&d.ok&&!d.paid){
+        card.innerHTML='<div class="ic">⏳</div><h1>Payment pending</h1><p>We haven\'t seen this payment complete yet. If you were charged, it\'ll update shortly.</p>'+back();
+      } else {
+        card.innerHTML='<div class="ic">🐜</div><h1>Thanks!</h1><p>We received your request. If you completed payment, your receipt is in your email.</p>'+back();
+      }
+    })
+    .catch(function(){ card.innerHTML='<div class="ic">🐜</div><h1>Thanks!</h1><p>We received your request.</p>'+back(); });
+})();
+</script>
+</body>
+</html>

@@ -1216,7 +1216,28 @@
         if (btn.classList.contains('added')) return;
         const mode = btn.dataset.mode || 'installed';
         const isInquire = mode === 'inquire';
-        btn.disabled = true; btn.textContent = isInquire ? 'Sending…' : 'Adding…';
+        // Ship-only is a pay-now purchase: open Stripe checkout. Payment success
+        // records + fulfills it (verify-payment). If Stripe isn't configured we
+        // fall through to just logging the request for the office to handle.
+        if (mode === 'ship') {
+          btn.disabled = true; btn.textContent = 'Opening secure checkout…';
+          try {
+            const pr = await fetch('/.netlify/functions/create-stripe-payment-link', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                job_id: JOB_ID, amount_cents: Math.round(parseFloat(btn.dataset.price) * 100),
+                description: btn.dataset.name + ' (shipped to you)', kind: 'addon',
+                metadata: { addon_key: btn.dataset.key, name: btn.dataset.name, mode: 'ship', tech_cut: btn.dataset.cut, cost: btn.dataset.cost, source: 'customer_portal' },
+              }),
+            });
+            const pd = await pr.json();
+            if (pd && pd.ok && pd.url && !pd.placeholder) { window.location.href = pd.url; return; }
+          } catch (_) {}
+          // Stripe not ready — fall back to logging the request below.
+          btn.textContent = 'Adding…';
+        } else {
+          btn.disabled = true; btn.textContent = isInquire ? 'Sending…' : 'Adding…';
+        }
         try {
           const r = await fetch('/.netlify/functions/record-addon', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
