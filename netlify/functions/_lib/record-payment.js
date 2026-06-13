@@ -48,13 +48,18 @@ async function recordPaidSession(session) {
     amount: amount.toFixed(2), addon_key: md.addon_key || null,
     source: md.source || 'customer_portal_pay', paid_at_ms: Date.now(),
   });
+  // A paid add-on lands as a REQUEST flagged paid — so the office still sees it
+  // in the "to fulfill" list (the part still has to be shipped/installed). The
+  // tech is credited when the office marks it fulfilled (Ordered ✓), same as
+  // every other add-on. (Previously this wrote addon_fulfilled directly, which
+  // hid paid ship-only items from the office's to-ship queue.)
   if (kind === 'addon' && md.addon_key) {
-    await logRow('addon_fulfilled', {
+    await logRow('addon_requested', {
       job_id: jobId, addon_key: md.addon_key, name: md.name || md.addon_key,
       net_price: amount.toFixed(2), price: amount.toFixed(2), discount: '0.00',
       tech_cut: (md.tech_cut || '0'), cost: (md.cost || '0'),
       technician_id: md.technician_id ? Number(md.technician_id) : null,
-      mode: md.mode || 'ship', status: 'fulfilled', paid: true,
+      mode: md.mode || 'ship', status: 'requested', paid: true,
       source: 'customer_paid', requested_at_ms: Date.now(),
     });
   }
