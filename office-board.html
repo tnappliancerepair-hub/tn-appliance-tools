@@ -221,6 +221,7 @@ async function loadBoard(){
     allItems=(d&&d.items)||[];
     renderBoard();
     loadAddons();
+    loadPaid();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -282,6 +283,16 @@ function overdue(j){
   const created=Number(j.created_at||0); if(!created)return false;
   return (Date.now()-created)>7*86400000;
 }
+// Paid-online job ids (card payments collected) — drives the 💵 paid tag.
+let PAID_JOBS=new Set();
+async function loadPaid(){
+  try{
+    const end=Date.now(), start=end-120*86400000;
+    const r=await fetch('/.netlify/functions/payments-rollup?start_ms='+start+'&end_ms='+end,{cache:'no-store'});
+    const d=await r.json();
+    if(d&&d.ok){ PAID_JOBS=new Set((d.paid_jobs||[]).map(String)); renderBoard(); }
+  }catch(_){}
+}
 function cardHtml(j){
   const name=((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';
   const appl=[j.brand,j.appliance].filter(Boolean).join(' ');
@@ -289,6 +300,7 @@ function cardHtml(j){
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
   else tags.push('<span class="tag cash">cash</span>');
+  if(PAID_JOBS.has(String(j.id)))tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 paid</span>');
   if(overdue(j))tags.push('<span class="tag over">overdue</span>');
   return `<div class="jcard" draggable="true" data-id="${j.id}">
     <div class="jc-top"><div class="jc-name">${esc(name)}</div></div>
