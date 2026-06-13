@@ -1,5 +1,11 @@
 # Cybertruck rolling-ad concept — TN Appliance / Ant
 
+> STATUS: 🅿️ PARKED (2026-06-13) — Teddy likes it, revisit later. Funnel +
+> creative + lead capture are BUILT and live; just not promoted yet. To
+> activate: put the QR (-> truck.html?src=cybertruck) on a decal/screen.
+> Next when we return: optional pay-$50-online (Stripe), a cybertruck leads
+> view, final creative wording/phone/logo.
+
 Saved 2026-06-13. Teddy's idea: run ads on his Cybertruck (digital LED side-screen,
 like the rolling billboards already out there). Develop into a measurable lead
 channel that funnels straight into the Ant system, and optionally a side revenue
