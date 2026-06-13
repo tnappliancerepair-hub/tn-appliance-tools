@@ -161,6 +161,7 @@ query lookup_customer_by_phone verb=GET {
             scheduled_start_ct  : $scheduled_ct
             tech_first_name     : $tech_first
             parts_status        : (($j.parts_status ?? "")|trim)
+            parts_eta_date      : (($j.parts_eta_date ?? "")|trim)
             warranty_company    : (($j.warranty_company ?? "")|trim)
             problem_summary     : (($j.problem_summary ?? "")|trim)
           }
