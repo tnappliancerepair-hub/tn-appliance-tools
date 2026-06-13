@@ -26,7 +26,7 @@ query list_recent_calls_for_office verb=GET {
   response = {
     success     : true
     calls       : $calls
-    count       : ($calls|length)
+    count       : ($calls|count)
     cutoff_ms   : $cutoff_ms
   }
 
