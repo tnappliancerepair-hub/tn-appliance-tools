@@ -200,21 +200,46 @@ async function renderBooks(pr){
   }catch(e){c.innerHTML='<div class="wrap"><div class="empty">Couldn’t reach Digits — '+esc(e.message)+'</div></div>';}
 }
 
-function renderTax(d,pr){
+const SETASIDE_RATE=0.25; // income/business-tax set-aside estimate (% of take-home) — tune with CPA
+async function renderTax(d,pr){
   const techs=d.techs||[];
-  let tn=0,la=0;
-  techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; });
-  const total=tn+la;
+  let tn=0,la=0,rev=0,pay=0;
+  techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; rev+=t.amount; pay+=t.tech_pay; });
+  const salesTax=tn+la;
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Building tax view…</div>';
+  // pull parts cost + logged expenses to get a real take-home for the set-aside
+  let partsCost=0,expTotal=0;
+  try{
+    const days=Math.max(1,Math.ceil((Date.now()-pr.start)/86400000)+1);
+    const pr1=await fetch(XANO+'/get_parts_cost_analysis?days_back='+days,{cache:'no-store'}).then(r=>r.json());
+    if(pr1&&pr1.success)(pr1.orders||[]).forEach(o=>{const t=Number(o.ordered_at||0);if(t>=pr.start&&t<=pr.end)partsCost+=((Number(o.cost_cents)||0)+(Number(o.shipping_cents)||0))/100;});
+  }catch(_){}
+  try{
+    const er=await fetch('/.netlify/functions/expenses-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'}).then(r=>r.json());
+    if(er&&er.success)expTotal=er.total;
+  }catch(_){}
+  const net=rev-salesTax-pay-partsCost-expTotal;
+  const incomeSetAside=Math.max(0,net*SETASIDE_RATE);
+  const totalSetAside=salesTax+incomeSetAside;
   document.getElementById('content').innerHTML=`
     <div class="wrap">
-      <div class="summary"><div class="b"><div class="v">$${total.toFixed(0)}</div><div class="k">Tax collected</div></div>
-        <div class="b"><div class="v">$${tn.toFixed(0)}</div><div class="k">TN</div></div>
-        <div class="b"><div class="v">$${la.toFixed(0)}</div><div class="k">LA</div></div></div>
+      <div class="summary">
+        <div class="b"><div class="v">$${salesTax.toFixed(0)}</div><div class="k">Sales tax owed</div></div>
+        <div class="b"><div class="v">$${incomeSetAside.toFixed(0)}</div><div class="k">Income set-aside</div></div>
+        <div class="b"><div class="v">$${totalSetAside.toFixed(0)}</div><div class="k">Set aside total</div></div>
+      </div>
       <div class="tech">
+        <div class="pl-note" style="padding:0 0 6px">Sales tax collected — owed to the state</div>
         <div class="pl-row"><span>Tennessee</span><span class="v">$${tn.toFixed(2)}</span></div>
         <div class="pl-row"><span>Louisiana</span><span class="v">$${la.toFixed(2)}</span></div>
-        <div class="pl-row net"><span>Total tax to remit</span><span class="v">$${total.toFixed(2)}</span></div>
-        <div class="pl-note">Sales tax collected on jobs billed this period, split by the tech's region. Replaces the Sales Tax Calculator sheet.</div>
+        <div class="pl-row net"><span>Sales tax to remit</span><span class="v">$${salesTax.toFixed(2)}</span></div>
+      </div>
+      <div class="tech">
+        <div class="pl-note" style="padding:0 0 6px">Set aside for income / business tax (est.)</div>
+        <div class="pl-row"><span>Take-home this period</span><span class="v">$${net.toFixed(2)}</span></div>
+        <div class="pl-row"><span>× ${(SETASIDE_RATE*100).toFixed(0)}% set-aside</span><span class="v">$${incomeSetAside.toFixed(2)}</span></div>
+        <div class="pl-row net"><span>Total to set aside (tax + income)</span><span class="v">$${totalSetAside.toFixed(2)}</span></div>
+        <div class="pl-note">Park this much so taxes never surprise the cash. Sales tax is owed to the state; the ${(SETASIDE_RATE*100).toFixed(0)}% income set-aside is an estimate — confirm your rate with the CPA. Replaces the Sales Tax Calculator sheet.</div>
       </div>
     </div>`;
 }
