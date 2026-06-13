@@ -364,8 +364,8 @@ async function renderPayroll(d,pr){
       <div class="tech-h"><div class="nm">${esc(nm)}</div><div class="pay" id="payout-${t.technician_id}">$${remaining.toFixed(2)}</div></div>
       ${rows}
       ${paidNote}
-      <div class="bonus"><label>5★ review bonus $</label><input type="number" min="0" step="10" value="0" id="bonus-${t.technician_id}" oninput="recalc(${t.technician_id})"><span style="color:var(--dim);font-size:11px">$10 each</span></div>
-      <div class="payout"><div class="lbl">Pay remaining</div><div class="amt" id="amt-${t.technician_id}">$${remaining.toFixed(2)}</div>
+      <div class="bonus"><label>5★ bonus $ ${t.review_count?('<span style="color:var(--ok)">('+t.review_count+'×$10 auto)</span>'):''}</label><input type="number" min="0" step="10" value="${(t.review_bonus||0)}" id="bonus-${t.technician_id}" oninput="recalc(${t.technician_id})"><span style="color:var(--dim);font-size:11px">$10 each</span></div>
+      <div class="payout"><div class="lbl">Pay remaining</div><div class="amt" id="amt-${t.technician_id}">$${(remaining+(t.review_bonus||0)).toFixed(2)}</div>
         ${readyBtn}
         <button id="paybtn-${t.technician_id}" onclick="markPaid(${t.technician_id},'${esc(pr.label)}')">Pay all</button></div>
     </div>`;
