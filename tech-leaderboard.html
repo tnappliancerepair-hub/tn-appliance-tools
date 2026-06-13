@@ -62,11 +62,20 @@
   async function refresh() {
     $('lb').innerHTML = '<div class="empty">loading…</div>';
     try {
-      const res = await fetch(`${XANO}/get_tech_leaderboard?month_offset=${offset}`);
+      const [res, addRes] = await Promise.all([
+        fetch(`${XANO}/get_tech_leaderboard?month_offset=${offset}`),
+        fetch(`/.netlify/functions/addons-leaderboard?month_offset=${offset}`).catch(() => null),
+      ]);
       const d = await res.json();
       if (!d || !d.success) throw new Error((d && d.message) || 'load failed');
+      let byTech = {};
+      try { const ad = addRes && await addRes.json(); byTech = (ad && ad.by_tech) || {}; } catch (_) {}
       $('monthLabel').textContent = d.month_label || '—';
-      render(d.leaderboard || []);
+      const rows = (d.leaderboard || []).map(t => {
+        const a = byTech[t.tech_id] || byTech[String(t.tech_id)] || { cut: 0, count: 0 };
+        return Object.assign({}, t, { addon_cut: a.cut || 0, addon_count: a.count || 0 });
+      });
+      render(rows);
     } catch (err) {
       $('lb').innerHTML = `<div class="empty" style="color:#ff6b6b">${escapeHtml(err.message)}</div>`;
     }
@@ -92,6 +101,7 @@
           <span><span class="num">${t.jobs_completed}</span> done</span>
           <span><span class="num">${t.jobs_started}</span> started</span>
           <span><span class="num">$${escapeHtml(earn)}</span></span>
+          ${t.addon_count ? `<span title="add-on extras">🛍️ <span class="num">${t.addon_count}</span> · $${escapeHtml(Number(t.addon_cut||0).toFixed(2))}</span>` : ''}
         </div>
       </div>`;
     }).join('');

@@ -1167,13 +1167,15 @@
       '<div class="dd">' + escapeHtml(deal.pitch) + '</div>' +
       '<button id="dealBtn">Yes — add it to my visit</button>';
     const b = $('dealBtn');
+    // Tech still earns their normal cut for the work, even on a deal week.
+    const dealCut = (AntAddons.get(deal.key) || {}).tech_cut || 0;
     if (b) b.onclick = async () => {
       if (b.classList.contains('claimed')) return;
       b.disabled = true; b.textContent = 'Adding…';
       try {
         const r = await fetch('/.netlify/functions/record-addon', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: (deal.normal - deal.sale), source: 'weekly_deal' }),
+          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: (deal.normal - deal.sale), tech_cut: dealCut, source: 'weekly_deal' }),
         });
         const d = await r.json();
         if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; }
@@ -1193,7 +1195,7 @@
         return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
           '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
           '<div class="addon-pitch">' + escapeHtml(a.pitch) + '</div>' +
-          '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '">Add it · save $' + (a.discount || 0) + '</button></div>';
+          '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '">Add it · save $' + (a.discount || 0) + '</button></div>';
       }).join('');
     el.querySelectorAll('.addon-add').forEach(btn => {
       btn.onclick = async () => {
@@ -1202,7 +1204,7 @@
         try {
           const r = await fetch('/.netlify/functions/record-addon', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), source: 'customer_portal' }),
+            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, source: 'customer_portal' }),
           });
           const d = await r.json();
           if (d && d.success) { btn.classList.add('added'); btn.textContent = "✓ Added — we'll ship it with your repair"; }

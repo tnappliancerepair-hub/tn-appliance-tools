@@ -8,11 +8,23 @@
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
+const JOBS_TABLE = 7;
 
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
+}
+
+// On fulfillment we want the add-on's tech cut to land on whoever's job it is.
+// Look up the job's assigned tech so the credit is attributed correctly.
+async function lookupJobTech(jobId) {
+  try {
+    const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: headers() });
+    if (!r.ok) return 0;
+    const j = await r.json();
+    return parseInt(j && j.technician_id, 10) || 0;
+  } catch (_) { return 0; }
 }
 
 exports.config = { timeout: 26 };
@@ -28,7 +40,12 @@ exports.handler = async function (event) {
     }
     const price = parseFloat(b.price) || 0;
     const discount = parseFloat(b.discount) || 0;
+    const tech_cut = parseFloat(b.tech_cut) || 0;
     const status = String(b.status || 'requested');
+    // Credit the tech only at fulfillment. Prefer an explicit technician_id from
+    // the caller (office board knows it), else resolve from the job record.
+    let technician_id = parseInt(b.technician_id, 10) || 0;
+    if (status === 'fulfilled' && !technician_id) technician_id = await lookupJobTech(job_id);
     const row = {
       action: status === 'fulfilled' ? 'addon_fulfilled' : 'addon_requested',
       metadata: {
@@ -38,6 +55,8 @@ exports.handler = async function (event) {
         price: price.toFixed(2),
         discount: discount.toFixed(2),
         net_price: Math.max(0, price - discount).toFixed(2),
+        tech_cut: tech_cut.toFixed(2),
+        technician_id: technician_id || null,
         status: status,
         source: String(b.source || 'customer_portal'),
         requested_at_ms: Date.now(),

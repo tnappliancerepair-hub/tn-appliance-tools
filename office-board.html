@@ -647,14 +647,14 @@ async function loadAddons(){
       +items.map(a=>'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #f3e6d3;font-size:13px">'
           +'<span style="flex:1;min-width:0"><b>#'+esc(String(a.job_id))+'</b> · '+esc(a.name)+' · $'+esc(String(a.net_price))+(a.source==='weekly_deal'?' <span style="color:#d6432a;font-weight:700">[deal]</span>':'')+'</span>'
           +'<button onclick="openDrawer(\''+esc(String(a.job_id))+'\')" style="background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">Open</button>'
-          +'<button onclick="fulfillAddon(\''+esc(String(a.job_id))+'\',\''+esc(a.addon_key)+'\',\''+esc(String(a.name)).replace(/[\x27\\]/g,"")+'\')" style="background:var(--ok);color:#fff;border:0;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer">Ordered ✓</button>'
+          +'<button onclick="fulfillAddon(\''+esc(String(a.job_id))+'\',\''+esc(a.addon_key)+'\',\''+esc(String(a.name)).replace(/[\x27\\]/g,"")+'\','+(parseFloat(a.tech_cut)||0)+')" style="background:var(--ok);color:#fff;border:0;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800;cursor:pointer">Ordered ✓</button>'
         +'</div>').join('')
       +'</div>';
   }catch(_){el.innerHTML='';}
 }
-async function fulfillAddon(jobId,key,name){
+async function fulfillAddon(jobId,key,name,techCut){
   try{
-    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jobId,10),addon_key:key,name:name||key,status:'fulfilled',source:'office'})});
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jobId,10),addon_key:key,name:name||key,tech_cut:parseFloat(techCut)||0,status:'fulfilled',source:'office'})});
     const d=await r.json();
     if(d&&d.success){toast('Marked ordered ✓');loadAddons();}else{toast('⚠ '+((d&&d.error)||'failed'));}
   }catch(_){toast('⚠ connection error');}
