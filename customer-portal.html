@@ -1204,12 +1204,12 @@
           // Dual option: we install (tech earns) OR ship-only / you install (cheaper).
           return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
             '<div class="addon-pitch">' + pitch + '</div>' +
-            '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-mode="installed">We install it · $' + net + '</button>' +
-            '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' <span style="opacity:.8">(you install)</span></button></div>';
+            '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">We install it · $' + net + '</button>' +
+            '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' <span style="opacity:.8">(you install)</span></button></div>';
         }
         return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
           '<div class="addon-pitch">' + pitch + '</div>' +
-          '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-mode="installed">Add it · save $' + (a.discount || 0) + '</button></div>';
+          '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">Add it · save $' + (a.discount || 0) + '</button></div>';
       }).join('');
     el.querySelectorAll('.addon-add').forEach(btn => {
       btn.onclick = async () => {
@@ -1220,7 +1220,7 @@
         try {
           const r = await fetch('/.netlify/functions/record-addon', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, mode: mode, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
+            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, cost: parseFloat(btn.dataset.cost) || 0, mode: mode, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
           });
           const d = await r.json();
           if (d && d.success) {

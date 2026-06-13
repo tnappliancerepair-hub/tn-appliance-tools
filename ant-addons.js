@@ -19,41 +19,41 @@
   // 2026-06-13. `price` is the sticker; net = price - discount is what they pay.
   var CATALOG = {
     washer: [
-      { key: 'washer_supply_lines', name: 'New washer supply lines', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
+      { key: 'washer_supply_lines', cost: 15, name: 'New washer supply lines', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
         pitch: "Burst or leaking washer hoses are a top cause of home water damage, and most makers recommend replacing them about every 5 years." },
-      { key: 'washer_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+      { key: 'washer_leak_detector', cost: 45, name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
         pitch: "A 5-pack of smart sensors for every water risk in the home — behind the washer, under the fridge, dishwasher, water heater and sinks. They alert your phone the second they sense water. Leaking valves and hoses cause some of the priciest damage we see — cheap insurance." },
     ],
     dryer: [
-      { key: 'dryer_cleanout', name: 'Dryer clean-out', price: 90, tech_cut: 35, discount: 10, // service, no part -> net $80, tech $35
+      { key: 'dryer_cleanout', cost: 0, name: 'Dryer clean-out', price: 90, tech_cut: 35, discount: 10, // service, no part -> net $80, tech $35
         pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. We'll do a full clean-out while we're there — quick and worth it." },
-      { key: 'dryer_vent_hose', name: 'New dryer vent hose', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
+      { key: 'dryer_vent_hose', cost: 9, name: 'New dryer vent hose', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
         pitch: "A fresh vent hose means better airflow and a safer dryer." },
-      { key: 'dryer_vent_magnetic', name: 'Magnetic quick-connect vent kit', price: 90, tech_cut: 20, discount: 10, ship_price: 55, ship_cut: 10, // installed net $80/t$20; ship-only net $55/t$10
+      { key: 'dryer_vent_magnetic', cost: 35, name: 'Magnetic quick-connect vent kit', price: 90, tech_cut: 20, discount: 10, ship_price: 55, ship_cut: 10, // installed net $80/t$20; ship-only net $55/t$10
         pitch: "Upgrade to an airtight magnetic quick-connect — best airflow and seal, and makes pulling the dryer out a snap next time." },
     ],
     refrigerator: [
-      { key: 'fridge_coil_clean', name: 'Condenser coil vac + blow-out', price: 90, tech_cut: 35, discount: 10, // service, no part -> net $80, tech $35
+      { key: 'fridge_coil_clean', cost: 0, name: 'Condenser coil vac + blow-out', price: 90, tech_cut: 35, discount: 10, // service, no part -> net $80, tech $35
         pitch: "Dirty condenser coils shorten your fridge's life and raise your energy bill. We'll vac + blow them out while we're there — recommended every 6-12 months." },
-      { key: 'fridge_supply_line', name: 'New fridge water/ice line', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
+      { key: 'fridge_supply_line', cost: 13, name: 'New fridge water/ice line', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
         pitch: "The water line behind the fridge is a common hidden leak source — cheap protection against a slow leak under your floor." },
       { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', inquire: true, tech_cut: 0, discount: 0, // OEM filter cost varies by brand -> quoted to the model
         pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. Ask us and we'll quote the right filter for your model and drop it in while we're there." },
-      { key: 'fridge_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+      { key: 'fridge_leak_detector', cost: 45, name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
         pitch: "A 5-pack of smart sensors — one under the fridge for ice-maker and water-line leaks, plus the washer, dishwasher, water heater and sinks. They text your phone, not just beep in an empty house." },
     ],
     dishwasher: [
-      { key: 'dishwasher_supply_line', name: 'New dishwasher supply line (installed)', price: 130, tech_cut: 60, discount: 10, // pull unit + under-sink shutoff -> net $120: 50% split, tech $60
+      { key: 'dishwasher_supply_line', cost: 13, name: 'New dishwasher supply line (installed)', price: 130, tech_cut: 60, discount: 10, // pull unit + under-sink shutoff -> net $120: 50% split, tech $60
         pitch: "The dishwasher supply line runs under your cabinet where a slow leak goes unseen for months. Replacing it means pulling the unit and working the shutoff — worth doing right while we're already in there." },
-      { key: 'dishwasher_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+      { key: 'dishwasher_leak_detector', cost: 45, name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
         pitch: "A 5-pack of smart sensors for the whole home — under the dishwasher (the #1 hidden source of cabinet and floor rot), plus the washer, fridge, water heater and sinks. Texts your phone the moment it gets wet." },
       { key: 'garbage_disposal', name: 'Garbage disposal replacement', inquire: true, tech_cut: 0, discount: 0, // quoted on site (varies by unit/install)
         pitch: "Since we're already under your sink — ask us about swapping a leaking or jammed disposal for a fresh unit. We'll quote it on the spot." },
     ],
     range: [
-      { key: 'range_antitip', name: 'Anti-tip safety bracket (installed)', price: 110, tech_cut: 50, discount: 10, // safety/code item -> net $100: 50% split, tech $50
+      { key: 'range_antitip', cost: 15, name: 'Anti-tip safety bracket (installed)', price: 110, tech_cut: 50, discount: 10, // safety/code item -> net $100: 50% split, tech $50
         pitch: "Code requires an anti-tip bracket on every range — it stops the stove from tipping if a child climbs or leans on an open door. Most homes are missing it. We'll secure yours while we're there." },
-      { key: 'range_hood_filter', name: 'Fresh range-hood filter', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
+      { key: 'range_hood_filter', cost: 15, name: 'Fresh range-hood filter', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
         pitch: "A clogged hood filter is a grease-fire risk and kills your ventilation. A fresh grease + charcoal filter is an easy swap." },
     ],
   };
