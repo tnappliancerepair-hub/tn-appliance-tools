@@ -472,7 +472,7 @@ function renderDrawer(d){
         <a href="parts-ledger.html">🧾 Parts $</a>
         ${c.phone?`<a href="/.netlify/functions/customer-invoice?job_id=${jid}&last4=${(''+c.phone).replace(/\\D/g,'').slice(-4)}" target="_blank" rel="noopener">📄 Invoice</a>`:''}
         ${t.id?`<a href="tech-job.html?job_id=${jid}&tech_id=${t.id}">🔧 Tech view</a>`:''}
-        ${c.phone?`<a href="customer-portal.html?job_id=${jid}">👤 Customer</a>`:''}
+        ${c.phone?`<a href="customer-portal.html?job_id=${jid}&last4=${(''+c.phone).replace(/\\D/g,'').slice(-4)}" target="_blank" rel="noopener">👤 Customer</a>`:''}
       </div>
     </div>
   `;
