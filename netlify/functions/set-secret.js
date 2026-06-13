@@ -8,7 +8,7 @@
 
 'use strict';
 
-const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SITE = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const { configTableId } = require('./_lib/secrets');
 
@@ -26,18 +26,20 @@ exports.handler = async function (event) {
   let b;
   try { b = JSON.parse(event.body || '{}'); } catch (_) { return jsonResp(400, { ok: false, error: 'invalid_json' }); }
 
-  const password = String(b.password || '');
+  const pin = String(b.pin || '');
   const name = String(b.name || '').trim();
   const value = String(b.value || '');
   if (!name || !value) return jsonResp(400, { ok: false, error: 'name and value required' });
 
-  // Office-password gate (same check the office pages use).
+  // OWNER-ONLY gate: Teddy's tech PIN (technician_id 1). The office password is
+  // intentionally NOT accepted here — Danielle has that, and the vault holds
+  // owner-level secrets (Stripe keys, etc.).
   try {
-    const vr = await fetch(`${XANO}/verify_office_password`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+    const vr = await fetch(`${SITE}/.netlify/functions/verify-pin-proxy`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ technician_id: 1, pin }),
     });
     const vd = await vr.json();
-    if (!vd || !(vd.success || vd.valid || vd.ok)) return jsonResp(401, { ok: false, error: 'bad_password' });
+    if (!vd || !vd.success) return jsonResp(401, { ok: false, error: 'owner_pin_required' });
   } catch (_) { return jsonResp(502, { ok: false, error: 'auth_unavailable' }); }
 
   try {
