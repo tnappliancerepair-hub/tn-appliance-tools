@@ -37,8 +37,8 @@
         pitch: "Dirty condenser coils shorten your fridge's life and raise your energy bill. We'll vac + blow them out while we're there — recommended every 6-12 months." },
       { key: 'fridge_supply_line', name: 'New fridge water/ice line (installed)', price: 60, tech_cut: 20, discount: 10, // braided line ~$13 -> net $50, tech $20
         pitch: "The water line behind the fridge is a common hidden leak source — cheap protection against a slow leak under your floor." },
-      { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', price: 80, tech_cut: 20, discount: 10, // OEM filter ~$30 (brand-varies) -> net $70, tech $20
-        pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. We'll drop one in while we're there." },
+      { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', inquire: true, tech_cut: 0, discount: 0, // OEM filter cost varies by brand -> quoted to the model
+        pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. Ask us and we'll quote the right filter for your model and drop it in while we're there." },
       { key: 'fridge_leak_detector', name: 'Smart water leak detector (placed)', price: 60, tech_cut: 20, discount: 10, // smart sensor ~$12 -> net $50, tech $20
         pitch: "A smart sensor under your fridge catches an ice-maker or water-line leak before it ruins your floor — and texts your phone, not just beeps in an empty kitchen." },
     ],
@@ -73,8 +73,8 @@
       pitch: "Dirty coils raise your energy bill and shorten your fridge's life. Full blow-out + vac, on special this week." },
     { key: 'dryer_vent_magnetic', name: 'Magnetic quick-connect vent kit, installed', normal: 80, sale: 60,
       pitch: "Upgrade to an airtight magnetic quick-connect — best airflow + seal, and pulling the dryer out next time is a snap. On special this week." },
-    { key: 'fridge_water_filter', name: 'Fresh refrigerator water filter, installed', normal: 80, sale: 60,
-      pitch: "Clean water and ice — makers recommend a fresh filter about every 6 months. We'll drop one in, on special this week." },
+    { key: 'fridge_supply_line', name: 'Refrigerator water/ice line, installed', normal: 50, sale: 40,
+      pitch: "The line behind your fridge is a common hidden leak source. Cheap protection against a slow leak under your floor — on special this week." },
     { key: 'washer_leak_detector', name: 'Smart water leak detector', normal: 60, sale: 40,
       pitch: "A smart sensor behind your washer texts your phone the second it senses water — cheap insurance against a leaking valve. On special this week." },
   ];
