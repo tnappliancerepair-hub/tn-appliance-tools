@@ -198,10 +198,18 @@
     }).join('');
     bar.innerHTML = html;
     doc.body.appendChild(bar);
-    // Spacer so fixed bar never covers page content / footers.
-    var spacer = doc.createElement('div');
-    spacer.id = 'ant-shell-spacer';
-    doc.body.appendChild(spacer);
+    // Spacer reserves bottom space so the fixed bar never covers content — but
+    // ONLY on normal-flow (block) bodies. On a CSS grid/flex body the spacer
+    // becomes an extra track/item and collapses the page's content area (blank
+    // page — e.g. office-calendar, job-detail). Those pages manage their own
+    // height + internal scroll, so skip the spacer there.
+    var bodyDisp = '';
+    try { bodyDisp = (root.getComputedStyle(doc.body).display || ''); } catch (_) {}
+    if (bodyDisp.indexOf('grid') === -1 && bodyDisp.indexOf('flex') === -1) {
+      var spacer = doc.createElement('div');
+      spacer.id = 'ant-shell-spacer';
+      doc.body.appendChild(spacer);
+    }
     var sheetBtn = bar.querySelector('[data-ant-sheet]');
     if (sheetBtn) {
       sheetBtn.addEventListener('click', function () {
