@@ -531,11 +531,11 @@ document.getElementById('search-in').addEventListener('input',e=>{
   st=setTimeout(async()=>{
     try{
       const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});
-      const d=await r.json();const rows=(d&&(d.results||d.customers||d.jobs))||[];
+      const d=await r.json();const rows=(d&&d.items)||[];
       if(!rows.length){box.innerHTML='<div class="empty-col">no matches</div>';return;}
       box.innerHTML=rows.slice(0,10).map(x=>{
-        const jid=x.job_id||x.recent_job_id||x.id;const nm=x.name||((x.first_name||'')+' '+(x.last_name||'')).trim()||'Customer';
-        const sub=[x.city,x.phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
+        const jid=x.job_id||x.id;const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
+        const sub=[x.city,x.customer_phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
         return jid?`<a class="sr" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}</div><div class="ss">${esc(sub)}</div></a>`:'';
       }).join('');
     }catch(_){box.innerHTML='<div class="empty-col">search unavailable</div>';}
@@ -565,8 +565,8 @@ async function antSend(){
 }
 async function searchJobs(q){
   try{const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});const d=await r.json();
-    const rows=(d&&(d.results||d.customers||d.jobs))||[];
-    return rows.map(x=>({job_id:x.job_id||x.recent_job_id||x.id,name:x.name||((x.first_name||'')+' '+(x.last_name||'')).trim()})).filter(x=>x.job_id);
+    const rows=(d&&d.items)||[];
+    return rows.map(x=>({job_id:x.job_id||x.id,name:((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer'})).filter(x=>x.job_id);
   }catch(_){return [];}
 }
 async function antDo(p){

@@ -223,10 +223,11 @@ async function loadDayJobs(){
     const today=new Date(); const ds=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
     const d=await xanoGet('get_tech_daily_dashboard','tech_id='+TECH_ID+'&date='+ds);
     dayJobs=(d&&d.jobs)||[];
-    const idx=dayJobs.findIndex(j=>Number(j.id)===JOB_ID);
+    const jid=(j)=>Number((j&&j.job&&j.job.id)||(j&&j.id)||0); // dashboard nests job under .job
+    const idx=dayJobs.findIndex(j=>jid(j)===JOB_ID);
     const prev=document.getElementById('prev-btn'), next=document.getElementById('next-btn');
-    if(idx>0){ prev.style.display='flex'; prev.onclick=()=>go(dayJobs[idx-1].id); }
-    if(idx>=0 && idx<dayJobs.length-1){ next.style.display='flex'; next.onclick=()=>go(dayJobs[idx+1].id); }
+    if(idx>0){ prev.style.display='flex'; prev.onclick=()=>go(jid(dayJobs[idx-1])); }
+    if(idx>=0 && idx<dayJobs.length-1){ next.style.display='flex'; next.onclick=()=>go(jid(dayJobs[idx+1])); }
   }catch(_){}
 }
 function go(id){ location.href='tech-job.html?job_id='+id+'&tech_id='+TECH_ID; }
@@ -247,12 +248,12 @@ document.getElementById('search-in').addEventListener('input',e=>{
     box.innerHTML='<div class="empty">searching…</div>';
     try{
       const d=await xanoGet('office_universal_search','q='+encodeURIComponent(q));
-      const rows=(d&&(d.results||d.customers||d.jobs))||[];
+      const rows=(d&&d.items)||[];
       if(!rows.length){ box.innerHTML='<div class="empty">no matches</div>'; return; }
       box.innerHTML=rows.slice(0,12).map(r=>{
-        const jid=r.job_id||r.recent_job_id||r.id;
-        const nm=r.name||((r.first_name||'')+' '+(r.last_name||'')).trim()||'Customer';
-        const sub=[r.city,r.phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
+        const jid=r.job_id||r.id;
+        const nm=((r.customer_first||'')+' '+(r.customer_last||'')).trim()||'Customer';
+        const sub=[r.city,r.customer_phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
         return jid?('<a class="sr" href="tech-job.html?job_id='+jid+'&tech_id='+TECH_ID+'"><div class="srn">'+esc(nm)+'</div><div class="srs">'+esc(sub)+'</div></a>'):'';
       }).join('');
     }catch(_){ box.innerHTML='<div class="empty">search unavailable</div>'; }
