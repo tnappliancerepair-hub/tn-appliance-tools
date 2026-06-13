@@ -15,10 +15,10 @@
 
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const CONFIG_TABLE_NAME = 'app_config';
-// The content-scoped metadata token can't LIST tables (403), so we point at the
-// app_config table by its fixed id. Set once we know it; falls back to the
-// (scope-permitting) name lookup otherwise.
-const CONFIG_TABLE_ID = Number(process.env.APP_CONFIG_TABLE_ID) || 0; // <-- set to the real id
+// The content-scoped metadata token can't LIST tables (403). The app_config UI
+// shows "#33" but the table URL is /database/53, so we probe both candidate ids
+// (content/search succeeds only on the real one) and cache the winner.
+const CANDIDATE_IDS = [53, 33];
 
 let _tableIdCache = null;
 const _secretCache = {};
@@ -29,18 +29,21 @@ function headers() {
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
 
-// Resolve the app_config table id by name (so we don't hardcode a workspace id).
+// Find the app_config table id by probing candidates (content-scoped token
+// can't list tables, so we just hit each id's content endpoint — the real one
+// returns 2xx, wrong ids 4xx).
 async function configTableId() {
-  if (CONFIG_TABLE_ID) return CONFIG_TABLE_ID;
   if (_tableIdCache) return _tableIdCache;
-  const r = await fetch(`${XANO_META}/table`, { headers: headers() });
-  if (!r.ok) throw new Error('table-list ' + r.status);
-  const d = await r.json();
-  const list = Array.isArray(d) ? d : (d && d.items) || [];
-  const t = list.find((x) => x && (x.name === CONFIG_TABLE_NAME || x.label === CONFIG_TABLE_NAME));
-  if (!t) throw new Error('app_config table not found — create it in Xano (columns: name, value)');
-  _tableIdCache = t.id;
-  return _tableIdCache;
+  for (const id of CANDIDATE_IDS) {
+    try {
+      const r = await fetch(`${XANO_META}/table/${id}/content/search`, {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ search: { name: '__probe__' }, per_page: 1, page: 1 }),
+      });
+      if (r.ok) { _tableIdCache = id; return id; }
+    } catch (_) {}
+  }
+  throw new Error('app_config table not found at ids ' + CANDIDATE_IDS.join('/') + ' — confirm the table id');
 }
 
 async function fetchFromXano(name) {
