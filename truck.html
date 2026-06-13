@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Free appliance diagnosis · TN Appliance Exchange</title>
+<title>$50 Quick Check · TN Appliance Exchange</title>
 <style>
   :root{--bg:#0c1320;--card:#141d2e;--ink:#eaf0f8;--sub:#9fb0c6;--line:#243349;--brand:#1f6fed;--ok:#1aa260}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -11,38 +11,47 @@
   .wrap{max-width:540px;margin:0 auto;padding:22px 16px 60px}
   .hero{text-align:center;padding:14px 0 6px}
   .hero .ant{font-size:40px}
-  h1{font-size:26px;font-weight:900;margin:8px 0 4px;line-height:1.15}
-  .hero p{color:var(--sub);font-size:15px;line-height:1.5;margin:6px 0 0}
+  .badge{display:inline-block;background:var(--ok);color:#fff;font-weight:900;font-size:13px;padding:6px 14px;border-radius:20px;letter-spacing:.03em;margin-bottom:8px}
+  h1{font-size:27px;font-weight:900;margin:6px 0 4px;line-height:1.15}
+  .hero p{color:var(--sub);font-size:15px;line-height:1.5;margin:8px 0 0}
+  .price{font-size:15px;color:#7ee0ab;font-weight:800;margin-top:8px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:18px}
   label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);margin:12px 0 6px}
   input,select,textarea{width:100%;font-size:16px;padding:13px;border:1px solid var(--line);border-radius:11px;background:#0f1828;color:var(--ink)}
-  textarea{min-height:84px;resize:vertical}
-  .photo{display:flex;align-items:center;gap:12px;margin-top:6px}
-  .photo label.btn{flex:1;text-align:center;background:#0f1828;border:1px dashed var(--line);border-radius:11px;padding:14px;font-size:14px;font-weight:700;color:var(--sub);cursor:pointer;text-transform:none;letter-spacing:0}
-  .photo img{width:64px;height:64px;object-fit:cover;border-radius:10px;display:none}
+  textarea{min-height:74px;resize:vertical}
   .go{width:100%;margin-top:16px;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border:0;border-radius:12px;padding:16px;font-size:17px;font-weight:900;cursor:pointer}
   .go:disabled{opacity:.55}
-  .result{margin-top:18px;background:#0f1d16;border:1px solid #1e4a34;border-radius:14px;padding:18px;display:none}
-  .result h3{margin:0 0 8px;font-size:15px;color:#7ee0ab}
-  .result .dx{font-size:16px;line-height:1.55;white-space:pre-wrap}
+  .perks{list-style:none;padding:0;margin:14px 0 0;display:flex;flex-direction:column;gap:8px}
+  .perks li{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink)}
+  .perks li b{color:#7ee0ab}
+  .result{margin-top:18px;background:#0f1d16;border:1px solid #1e4a34;border-radius:14px;padding:20px;display:none;text-align:center}
+  .result .ic{font-size:42px}
+  .result h3{margin:8px 0 6px;font-size:19px}
+  .result p{color:var(--sub);font-size:14px;line-height:1.5;margin:4px 0}
   .ctas{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}
   .ctas a{display:block;text-align:center;text-decoration:none;font-weight:800;border-radius:11px;padding:14px;font-size:15px}
   .ctas a.call{background:var(--ok);color:#fff;grid-column:1/-1}
   .ctas a.alt{background:#0f1828;border:1px solid var(--line);color:var(--ink)}
-  .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:s 1s linear infinite;margin:14px auto;display:none}
-  @keyframes s{to{transform:rotate(360deg)}}
-  .fine{color:var(--sub);font-size:12px;text-align:center;margin-top:14px;line-height:1.5}
+  .fine{color:var(--sub);font-size:12px;text-align:center;margin-top:16px;line-height:1.5}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
     <div class="ant">🐜</div>
-    <h1>Appliance acting up?<br>Get a free diagnosis.</h1>
-    <p>Snap a photo and tell us what's wrong — Ant takes a look and tells you what's likely going on, free. No call required.</p>
+    <div class="badge">$50 QUICK CHECK</div>
+    <h1>Appliance acting up?<br>We'll diagnose it right — for $50.</h1>
+    <p>A real tech comes out, finds the problem, and tells you exactly what it'll take to fix.</p>
+    <div class="price">And your $50 goes toward the repair.</div>
   </div>
 
   <div class="card" id="formCard">
+    <label for="name">Your name</label>
+    <input id="name" placeholder="First &amp; last">
+    <label for="phone">Phone</label>
+    <input id="phone" type="tel" inputmode="tel" placeholder="(615) 555-1234">
+    <label for="zip">Zip code</label>
+    <input id="zip" type="tel" inputmode="numeric" placeholder="for your area">
     <label for="appliance">What's the appliance?</label>
     <select id="appliance">
       <option value="">Pick one…</option>
@@ -50,88 +59,59 @@
       <option>Dishwasher</option><option>Oven / Range</option><option>Microwave</option>
       <option>Garbage disposal</option><option>Other</option>
     </select>
-    <label for="problem">What's it doing?</label>
-    <textarea id="problem" placeholder="e.g. fridge isn't getting cold, water pooling under the dishwasher, dryer won't heat…"></textarea>
-    <label>Add a photo (optional, but it helps a lot)</label>
-    <div class="photo">
-      <label class="btn" for="photo">📷 Add a photo</label>
-      <img id="preview" alt="">
-      <input id="photo" type="file" accept="image/*" capture="environment" style="display:none">
-    </div>
-    <label for="contact">Your number (so we can help if you want us to)</label>
-    <input id="contact" type="tel" inputmode="tel" placeholder="optional">
-    <button class="go" id="go">Get my free diagnosis</button>
+    <label for="problem">What's it doing? (optional)</label>
+    <textarea id="problem" placeholder="e.g. fridge isn't getting cold, dryer won't heat…"></textarea>
+    <button class="go" id="go">Book my $50 quick check</button>
+    <ul class="perks">
+      <li>✅ <span>A real technician — not a guess over the phone</span></li>
+      <li>💵 <span><b>$50 credited</b> toward your repair if you move forward</span></li>
+      <li>📍 <span>Serving Tennessee &amp; Louisiana</span></li>
+    </ul>
   </div>
-
-  <div class="spin" id="spin"></div>
 
   <div class="result" id="result">
-    <h3>🐜 Ant's take</h3>
-    <div class="dx" id="dx"></div>
+    <div class="ic">✅</div>
+    <h3>You're on the list!</h3>
+    <p>We just got your request — we'll text or call you shortly to lock in your day for the $50 quick check.</p>
     <div class="ctas">
-      <a class="call" href="tel:+18662680111">📞 Call us — we'll fix it</a>
-      <a class="alt" id="textBtn" href="#">💬 Text Ant</a>
-      <a class="alt" href="/book.html">📅 Book a visit</a>
+      <a class="call" href="tel:+18662680111">📞 Or call us now — (866) 268-0111</a>
+      <a class="alt" id="textBtn" href="#">💬 Text us</a>
+      <a class="alt" href="/book.html">📅 Pick a day</a>
     </div>
   </div>
 
-  <div class="fine">TN Appliance Exchange · TN &amp; Louisiana · Diagnosis is a best guess to help you — gas, electrical, and sealed-system issues should always be handled by a pro.</div>
+  <div class="fine">TN Appliance Exchange · powered by 🐜 Ant · TN &amp; Louisiana · The $50 quick check is a flat diagnostic fee, credited toward your repair.</div>
 </div>
 <script>
 (function(){
   var src=(new URLSearchParams(location.search).get('src'))||'web';
-  // count the scan/open
-  try{ fetch('/.netlify/functions/ad-diagnose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'scan',src:src})}); }catch(_){}
+  try{ fetch('/.netlify/functions/ad-lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'scan',src:src})}); }catch(_){}
 
-  var imgData='';
-  var photo=document.getElementById('photo'),preview=document.getElementById('preview');
-  photo.onchange=function(){
-    var f=photo.files&&photo.files[0]; if(!f)return;
-    var r=new FileReader();
-    r.onload=function(){
-      // downscale to keep the upload small
-      var im=new Image();
-      im.onload=function(){
-        var max=1200,sc=Math.min(1,max/Math.max(im.width,im.height));
-        var c=document.createElement('canvas');c.width=im.width*sc;c.height=im.height*sc;
-        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-        imgData=c.toDataURL('image/jpeg',0.8);
-        preview.src=imgData;preview.style.display='block';
-      };
-      im.src=r.result;
-    };
-    r.readAsDataURL(f);
-  };
-
-  document.getElementById('textBtn').addEventListener('click',function(e){
+  document.getElementById('textBtn').addEventListener('click',function(){
     var appl=document.getElementById('appliance').value||'appliance';
     var prob=document.getElementById('problem').value||'';
-    this.href='sms:+18662680111?&body='+encodeURIComponent('Hi Ant — my '+appl+' '+prob);
+    this.href='sms:+18662680111?&body='+encodeURIComponent('Hi — I\'d like the $50 quick check. My '+appl+' '+prob);
   });
 
   document.getElementById('go').onclick=async function(){
     var btn=this;
+    var name=document.getElementById('name').value.trim();
+    var phone=document.getElementById('phone').value.trim();
+    var zip=document.getElementById('zip').value.trim();
     var appliance=document.getElementById('appliance').value;
     var problem=document.getElementById('problem').value.trim();
-    var contact=document.getElementById('contact').value.trim();
-    if(!appliance&&!problem&&!imgData){ alert('Tell us the appliance, the problem, or add a photo.'); return; }
-    btn.disabled=true; document.getElementById('spin').style.display='block';
+    if(!name||!phone){ alert('Please add your name and phone so we can reach you.'); return; }
+    btn.disabled=true; btn.textContent='Sending…';
     try{
-      var r=await fetch('/.netlify/functions/ad-diagnose',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({mode:'diagnose',src:src,appliance:appliance,problem:problem,contact:contact,image_data_url:imgData})});
+      var r=await fetch('/.netlify/functions/ad-lead',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mode:'book',src:src,name:name,phone:phone,zip:zip,appliance:appliance,problem:problem})});
       var d=await r.json();
-      document.getElementById('spin').style.display='none';
-      if(d&&d.ok&&d.diagnosis){
-        document.getElementById('dx').textContent=d.diagnosis;
-        document.getElementById('result').style.display='block';
+      if(d&&d.ok){
         document.getElementById('formCard').style.display='none';
-        document.getElementById('textBtn').click&&document.getElementById('textBtn').dispatchEvent(new Event('click'));
+        document.getElementById('result').style.display='block';
         window.scrollTo({top:0,behavior:'smooth'});
-      } else {
-        btn.disabled=false;
-        alert('Ant couldn\'t read that one — give us a call at (866) 268-0111 and we\'ll help.');
-      }
-    }catch(_){ document.getElementById('spin').style.display='none'; btn.disabled=false; alert('Connection hiccup — try again or call (866) 268-0111.'); }
+      } else { btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Hmm — give us a call at (866) 268-0111 and we\'ll get you booked.'); }
+    }catch(_){ btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Connection hiccup — try again or call (866) 268-0111.'); }
   };
 })();
 </script>
