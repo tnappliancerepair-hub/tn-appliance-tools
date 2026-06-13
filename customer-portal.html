@@ -237,6 +237,7 @@
   .loading .ant { font-size: 36px; margin-bottom: 10px; }
 </style>
   <script src="/ant-spine.js" defer></script>
+  <script src="/ant-addons.js"></script>
 <script src="/ant-tdr-card.js?v=20260604-tdr-card" defer></script>
 </head>
 <body>
@@ -340,6 +341,17 @@
     .av-block { flex: 1; min-width: 80px; padding: 10px 6px; border-radius: 8px; border: 1px solid #e0e4ed; background: #f8f9fb; color: #8a96a8; font-size: 12px; cursor: pointer; text-align: center; user-select: none; transition: 0.12s; }
     .av-block.on { background: #4cc9c0; color: #fff; border-color: #4cc9c0; font-weight: 600; }
     .av-block:active { transform: scale(0.96); }
+    .addon-wrap { margin-top: 14px; }
+    .addon-title { font-size: 13px; font-weight: 700; color: #1a1f2c; margin-bottom: 10px; }
+    .addon { background: #fff; border: 1px solid #e6e9f0; border-radius: 12px; padding: 13px; margin-bottom: 9px; }
+    .addon-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .addon-name { font-weight: 700; font-size: 14px; color: #1a1f2c; }
+    .addon-price { font-weight: 800; font-size: 15px; color: #1faa6b; white-space: nowrap; }
+    .addon-price .was { color: #b0b7c3; text-decoration: line-through; font-weight: 500; font-size: 12px; margin-right: 4px; }
+    .addon-pitch { font-size: 12.5px; color: #5b6573; line-height: 1.45; margin: 6px 0 10px; }
+    .addon-add { width: 100%; padding: 10px; border: 0; border-radius: 9px; background: #ff8a00; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; }
+    .addon-add:active { transform: scale(0.98); }
+    .addon-add.added { background: #1faa6b; }
   </style>
 
   <div class="actions">
@@ -380,6 +392,8 @@
       <span class="sub">Mon-Fri 8am-6pm CT</span>
     </a>
   </div>
+
+  <div class="addon-wrap" id="addonsCard" style="display:none"></div>
 
   <div id="rateForm" class="action-form">
     <div class="title">How was your visit?</div>
@@ -880,6 +894,8 @@
     const btnGR = $('btnGoogleReview');
     if (btnGR) { btnGR.style.display = (viewState === 'completed' && job.scheduling_status === 'completed') ? '' : 'none'; }
 
+    renderAddons(job, viewState);
+
     // 📦 Parts arrived — only when the job is awaiting parts AND parts
     // haven't been marked arrived already. Customer-driven path: some
     // warranty vendors ship directly to the customer, so the customer
@@ -1127,6 +1143,36 @@
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(dt);
     }
     return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' }).format(new Date(Number(d)));
+  }
+
+  function renderAddons(job, viewState) {
+    const el = $('addonsCard'); if (!el) return;
+    const list = (window.AntAddons && AntAddons.forAppliance(job.appliance || job.brand)) || [];
+    if (!list.length || viewState === 'canceled') { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.innerHTML = '<div class="addon-title">Add-ons for your ' + escapeHtml(job.appliance || 'appliance') + ' — $10 off, we ship it with your repair</div>' +
+      list.map(a => {
+        const net = Math.max(0, a.price - (a.discount || 0));
+        return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
+          '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
+          '<div class="addon-pitch">' + escapeHtml(a.pitch) + '</div>' +
+          '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '">Add it · save $' + (a.discount || 0) + '</button></div>';
+      }).join('');
+    el.querySelectorAll('.addon-add').forEach(btn => {
+      btn.onclick = async () => {
+        if (btn.classList.contains('added')) return;
+        btn.disabled = true; btn.textContent = 'Adding…';
+        try {
+          const r = await fetch('/.netlify/functions/record-addon', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), source: 'customer_portal' }),
+          });
+          const d = await r.json();
+          if (d && d.success) { btn.classList.add('added'); btn.textContent = "✓ Added — we'll ship it with your repair"; }
+          else { btn.disabled = false; btn.textContent = 'Try again'; }
+        } catch (_) { btn.disabled = false; btn.textContent = 'Try again'; }
+      };
+    });
   }
 
   function escapeHtml(s) {
