@@ -402,10 +402,10 @@ function renderTechAddons(){
     const net=Math.max(0,(a.price||0)-(a.discount||0));
     let btns;
     if(a.inquire){
-      btns='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="inquire" data-status="requested" data-price="0" data-disc="0" data-cut="0" style="background:#fff;border:1px solid var(--line,#e3e8ef)">Flag for quote</button>';
+      btns='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="inquire" data-status="requested" data-price="0" data-disc="0" data-cut="0" data-cost="0" style="background:#fff;border:1px solid var(--line,#e3e8ef)">Flag for quote</button>';
     } else {
-      btns='<button class="btn primary" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="installed" data-status="fulfilled" data-price="'+a.price+'" data-disc="'+(a.discount||0)+'" data-cut="'+(a.tech_cut||0)+'">Install now · +$'+(a.tech_cut||0)+'</button>';
-      if(a.ship_price) btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="ship" data-status="requested" data-price="'+a.ship_price+'" data-disc="0" data-cut="'+(a.ship_cut||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">Ship it · +$'+(a.ship_cut||0)+'</button>';
+      btns='<button class="btn primary" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="installed" data-status="fulfilled" data-price="'+a.price+'" data-disc="'+(a.discount||0)+'" data-cut="'+(a.tech_cut||0)+'" data-cost="'+(a.cost||0)+'">Install now · +$'+(a.tech_cut||0)+'</button>';
+      if(a.ship_price) btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="ship" data-status="requested" data-price="'+a.ship_price+'" data-disc="0" data-cut="'+(a.ship_cut||0)+'" data-cost="'+(a.cost||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">Ship it · +$'+(a.ship_cut||0)+'</button>';
     }
     return '<div class="ao-row" style="padding:9px 0;border-top:1px solid var(--line,#e3e8ef)">'
       +'<div style="font-weight:700;font-size:14px">'+esc(a.name)+(a.inquire?'':(' · $'+net))+'</div>'
@@ -421,7 +421,7 @@ async function logTechAddon(b){
   try{
     const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ job_id:JOB_ID, technician_id:TECH_ID, addon_key:b.dataset.k, name:b.dataset.n,
-        price:parseFloat(b.dataset.price)||0, discount:parseFloat(b.dataset.disc)||0, tech_cut:parseFloat(b.dataset.cut)||0,
+        price:parseFloat(b.dataset.price)||0, discount:parseFloat(b.dataset.disc)||0, tech_cut:parseFloat(b.dataset.cut)||0, cost:parseFloat(b.dataset.cost)||0,
         mode:b.dataset.mode, status:b.dataset.status, source:'tech_job' })});
     const d=await r.json();
     if(d&&d.success){

@@ -273,7 +273,16 @@ async function renderPL(d,pr){
     const er=await fetch('/.netlify/functions/expenses-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
     const ed=await er.json(); if(ed&&ed.success) exp=ed;
   }catch(_){}
-  const net=rev-tax-pay-partsCost-exp.total; // owner take-home
+  // Add-on program margin for the period (revenue - tech cut - part cost).
+  let addon={count:0,revenue:0,tech_cut:0,part_cost:0,margin:0};
+  try{
+    const ar=await fetch('/.netlify/functions/addons-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
+    const ad=await ar.json(); if(ad&&ad.success) addon=ad;
+  }catch(_){}
+  const net=rev-tax-pay-partsCost-exp.total+addon.margin; // owner take-home (+ add-on margin)
+  const addonLine=addon.count>0
+    ? `<div class="pl-row"><span>+ Add-on sales (${addon.count} · margin after part + tech cut)</span><span class="v" style="color:var(--ok)">$${addon.margin.toFixed(2)}</span></div>`
+    : `<div class="pl-row"><span>Add-on sales</span><span class="v" style="color:var(--dim)">none yet</span></div>`;
   const costLine=costKnown
     ? `<div class="pl-row neg"><span>− Parts cost (paid)</span><span class="v">$${partsCost.toFixed(2)}</span></div>`
     : `<div class="pl-row"><span>Parts cost</span><span class="v" style="color:var(--dim)">ledger empty</span></div>`;
@@ -297,6 +306,7 @@ async function renderPL(d,pr){
         <div class="pl-row neg"><span>− Tech pay</span><span class="v">$${pay.toFixed(2)}</span></div>
         <div class="pl-row neg"><span>− Sales tax (owed to state)</span><span class="v">$${tax.toFixed(2)}</span></div>
         ${expBreak}
+        ${addonLine}
         <div class="pl-row net"><span>Take-home (owner net)</span><span class="v">$${net.toFixed(2)}</span></div>
         <div style="text-align:center;margin-top:12px"><button onclick="openExpense()" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;color:var(--blue);cursor:pointer">+ Log expense</button></div>
         <div class="pl-note">Parts cost = real spend from the Parts ledger. Gas/truck/fees: log them with the button (or pull from Digits once production's live). Business taxes layer in next.</div>
