@@ -123,6 +123,20 @@ exports.handler = async function (event) {
     }
   }
 
+  // ─── Office-direction dispatch (2026-06-13) ─────────────────────
+  // If the sender is a known OFFICE number (Danielle), route the text to the
+  // office assistant so she can just tell Ant what she needs and it does it +
+  // replies as Ant. Techs (incl. Teddy) are unaffected — they're not in the set.
+  try {
+    const office = require('./office-sms-inbound.js');
+    if (office.isOffice(parsed.from)) {
+      console.log('[tech-sms-inbound] dispatching to office assistant (from=' + parsed.from + ')');
+      return await office.handleParsed(parsed);
+    }
+  } catch (e) {
+    console.error('[tech-sms-inbound] office dispatch failed:', e.message);
+  }
+
   // 3. Forward to brain (v2) or legacy Xano endpoint (v1).
   //
   // 2026-05-20: feature-flag dispatch. The legacy Xano `tech_sms_inbound`
