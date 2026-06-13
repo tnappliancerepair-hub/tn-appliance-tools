@@ -28,8 +28,9 @@ exports.handler = async function (event) {
     }
     const price = parseFloat(b.price) || 0;
     const discount = parseFloat(b.discount) || 0;
+    const status = String(b.status || 'requested');
     const row = {
-      action: 'addon_requested',
+      action: status === 'fulfilled' ? 'addon_fulfilled' : 'addon_requested',
       metadata: {
         job_id,
         addon_key,
@@ -37,7 +38,7 @@ exports.handler = async function (event) {
         price: price.toFixed(2),
         discount: discount.toFixed(2),
         net_price: Math.max(0, price - discount).toFixed(2),
-        status: String(b.status || 'requested'),
+        status: status,
         source: String(b.source || 'customer_portal'),
         requested_at_ms: Date.now(),
       },
