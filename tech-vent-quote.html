@@ -120,6 +120,8 @@ const TABLE = {
 };
 const BEND_ADD = 15;          // per extra 90° turn
 const TECH_PCT = 0.50;        // tech keeps half for their time
+const TECH_MIN = 20;          // ...but never less than $20 (Teddy's floor)
+function techCut(p){ return Math.max(TECH_MIN, +(p*TECH_PCT).toFixed(2)); }
 let exitSel = 'side', lenSel = 'short', bends = 0;
 
 function authValid(){ try{ const c=JSON.parse(localStorage.getItem(TECH_AUTH_KEY)||'{}'); return c.ok && (Date.now()-c.t < 12*3600*1000); }catch(_){return false;} }
@@ -148,7 +150,7 @@ function curPrice(){ const o=parseFloat(document.getElementById('override').valu
 function render(){
   const p=curPrice();
   document.getElementById('price').textContent='$'+p;
-  document.getElementById('cut').textContent='$'+(p*TECH_PCT).toFixed(2);
+  document.getElementById('cut').textContent='$'+techCut(p).toFixed(2);
 }
 function bindOpts(groupId, attr, setter){
   document.getElementById(groupId).querySelectorAll('.opt').forEach(el=>{
@@ -172,7 +174,7 @@ document.getElementById('logBtn').onclick=async ()=>{
   const btn=document.getElementById('logBtn');
   const jid=parseInt(document.getElementById('jobId').value,10)||0;
   if(!jid){ toast('Enter the job #'); return; }
-  const price=curPrice(); const cut=+(price*TECH_PCT).toFixed(2);
+  const price=curPrice(); const cut=techCut(price);
   btn.disabled=true; btn.textContent='Logging…';
   try{
     const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},
