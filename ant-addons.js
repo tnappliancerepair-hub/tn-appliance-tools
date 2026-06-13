@@ -9,30 +9,34 @@
 (function (root) {
   'use strict';
 
-  // Customer-portal add-on offers: "$10 off, shipped with your repair." Office
-  // just orders + ships the item with the parts order. Prices/discount are easy
-  // to tune — Teddy, set these to your real numbers.
+  // Customer-portal add-on offers: "$10 off, shipped/installed with your repair."
+  // Each carries the customer price AND the tech's cut (techs earn for low-risk
+  // work + their time). 50% split on the service items; flat cut on hoses.
+  // Prices marked TODO need the real part cost — Teddy is pulling those.
   var DISCOUNT = 10; // $ off when added through the portal
   var CATALOG = {
     washer: [
-      { key: 'washer_supply_lines', name: 'New washer supply lines', price: 49, discount: 10,
-        pitch: "Burst or leaking washer hoses are a top cause of home water damage, and most makers recommend replacing them about every 5 years. We'll ship a fresh set with your repair." },
+      { key: 'washer_supply_lines', name: 'New washer supply lines (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
+        pitch: "Burst or leaking washer hoses are a top cause of home water damage, and most makers recommend replacing them about every 5 years. We'll install a fresh set while we're there." },
     ],
     dryer: [
-      { key: 'dryer_vent_clean', name: 'Dryer vent cleaning kit', price: 89, discount: 10,
-        pitch: "Clogged dryer vents make your dryer work harder and cause ~15,000 home fires a year. Recommended yearly." },
-      { key: 'dryer_vent_hose', name: 'New dryer vent hose', price: 35, discount: 10,
-        pitch: "Swap an old or crushed vent hose for better airflow and safety — shipped with your repair." },
+      { key: 'dryer_cleanout', name: 'Dryer clean-out', price: 70, tech_cut: 35, discount: 10, // $70 / 50% split -> tech $35, 15-30 min
+        pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. We'll do a full clean-out while we're there — quick and worth it." },
+      { key: 'dryer_vent_hose', name: 'New dryer vent hose (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
+        pitch: "A fresh vent hose means better airflow and a safer dryer — installed while we're there." },
     ],
     refrigerator: [
-      { key: 'fridge_coil_clean', name: 'Condenser coil cleaning kit', price: 49, discount: 10,
-        pitch: "Dirty condenser coils shorten your fridge's life and raise your energy bill. Recommended every 6–12 months." },
-      { key: 'fridge_supply_line', name: 'New fridge water / ice line', price: 39, discount: 10,
+      { key: 'fridge_coil_clean', name: 'Condenser coil vac + blow-out', price: 70, tech_cut: 35, discount: 10, // $70 / 50% split -> tech $35
+        pitch: "Dirty condenser coils shorten your fridge's life and raise your energy bill. We'll vac + blow them out while we're there — recommended every 6-12 months." },
+      { key: 'fridge_supply_line', name: 'New fridge water/ice line (installed)', price: 49, tech_cut: 20, discount: 10, // TODO price = part cost + markup + $20 tech
         pitch: "The water line behind the fridge is a common hidden leak source — cheap protection against a slow leak under your floor." },
-      { key: 'fridge_water_filter', name: 'Fresh water filter', price: 45, discount: 10,
-        pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. We'll ship one with your repair." },
+      { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', price: 45, tech_cut: 15, discount: 10, // TODO confirm price/cut
+        pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. We'll drop one in while we're there." },
     ],
   };
+  // NOTE: full dryer VENT cleaning (the long run to the roof/side) is NOT a
+  // fixed portal offer — too many variables (length, rooftop vs side). It's
+  // tech-quoted on site from Teddy's length/rooftop price list.
 
   // Deal of the week — a single 50%-off promo that rotates automatically by
   // calendar week and shows in every customer's portal. Edit the list / prices
