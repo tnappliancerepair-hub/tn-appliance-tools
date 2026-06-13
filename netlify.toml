@@ -97,10 +97,10 @@
   schedule = "*/15 * * * *"
 
 # 2026-06-02 8:30am — Teddy cancelled the morning SMS (missed the 7am
-# window). Schedule disabled. Function file kept for reference; no
-# longer cron-triggered.
-# [functions."tech-morning-mirror-and-encourage"]
-#   schedule = "0 12 * * *"
+# Daily tech morning briefing — each tech with jobs today gets a text with
+# their stop count + first stop + dashboard link + a nudge. 7:00am CT.
+[functions."tech-morning-mirror-and-encourage"]
+  schedule = "0 12 * * *"
 
 # Warranty-status email watcher (Phase 0 of warranty automation arc).
 # Scans Gmail for vendor confirmation/payment/denial emails. Defaults to
