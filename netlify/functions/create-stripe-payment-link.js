@@ -14,6 +14,50 @@
 const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 
+const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+const JOBS_TABLE = 7;
+const EVENT_LOG_TABLE = 3;
+function metaHeaders() {
+  const t = process.env.XANO_METADATA_TOKEN;
+  return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null;
+}
+function rowMeta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
+function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
+
+// For an invoice payment we look the job up server-side: NEVER charge a warranty
+// customer, and pull the amount from the logged invoice (don't trust the client).
+async function resolveInvoice(jobId) {
+  const h = metaHeaders();
+  if (!h) return { error: 'server_misconfigured' };
+  // 1) job -> customer_type (warranty jobs are covered; no charge)
+  try {
+    const jr = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: h });
+    if (jr.ok) {
+      const job = await jr.json();
+      const ct = String((job && job.customer_type) || '').toLowerCase();
+      if (ct && ct !== 'self_pay' && ct !== 'cash' && ct !== 'customer_pay') {
+        return { error: 'covered_by_warranty' };
+      }
+    }
+  } catch (_) {}
+  // 2) latest office_invoice_logged for this job -> amount
+  try {
+    const ir = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content/search`, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ search: { action: 'office_invoice_logged' }, sort: { created_at: 'desc' }, per_page: 500, page: 1 }),
+    });
+    if (ir.ok) {
+      const d = await ir.json();
+      const rows = ((d && d.items) || []).filter((r) => String(rowMeta(r).job_id) === String(jobId));
+      if (rows.length) {
+        const amt = num(rowMeta(rows[0]).amount_invoiced);
+        if (amt > 0) return { amountCents: Math.round(amt * 100) };
+      }
+    }
+  } catch (_) {}
+  return { error: 'no_invoice_due' };
+}
+
 const DEFAULT_SUCCESS = 'https://tnapplianceexchange.net/pay-thanks.html?session_id={CHECKOUT_SESSION_ID}';
 const DEFAULT_CANCEL = 'https://tnapplianceexchange.net/customer-portal.html';
 
@@ -27,13 +71,9 @@ exports.handler = async function (event) {
   catch (e) { return jsonResp(400, { ok: false, error: 'invalid_json' }); }
 
   const jobId = Number(body.job_id || 0);
-  const amountCents = Number(body.amount_cents || 0);
+  let amountCents = Number(body.amount_cents || 0);
   const description = String(body.description || `TN Appliance Exchange Job #${jobId}`);
   const customerEmail = String(body.customer_email || '').trim();
-
-  if (!jobId || amountCents <= 0) {
-    return jsonResp(400, { ok: false, error: 'job_id and amount_cents required' });
-  }
 
   // Optional passthrough metadata (e.g. an add-on purchase) so verify-payment
   // can record + fulfill the right thing. Stripe metadata values must be strings.
@@ -41,6 +81,18 @@ exports.handler = async function (event) {
   const m = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
   for (const k of Object.keys(m)) { if (m[k] != null) extraMeta[k] = String(m[k]); }
   const kind = String(body.kind || extraMeta.kind || 'invoice');
+
+  // Invoice payment with no amount passed -> resolve server-side (warranty guard
+  // + amount from the logged invoice).
+  if (kind === 'invoice' && jobId && amountCents <= 0) {
+    const r = await resolveInvoice(jobId);
+    if (r.error) return jsonResp(200, { ok: false, error: r.error });
+    amountCents = r.amountCents;
+  }
+
+  if (!jobId || amountCents <= 0) {
+    return jsonResp(400, { ok: false, error: 'job_id and amount_cents required' });
+  }
 
   const key = await getSecret('STRIPE_SECRET_KEY');
   if (!key) {
