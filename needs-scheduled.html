@@ -187,9 +187,13 @@
     <button class="add-manual" id="addManualBtn">+ Add</button>
   </div>
 
+  <div id="easiestBar" style="margin:10px 14px 0;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.5;font-weight:700">
+    💬 <b>Easiest way:</b> tap <b>"Talk to Ant"</b> (bottom-right) and just say what you need — like <i>"schedule the Carson job with Jimmy Thursday"</i> or <i>"auto-schedule the Smith job."</i> Ant does it for you.
+  </div>
+
   <div id="helpCard" style="margin:10px 14px;background:#eef4ff;border:1px solid #cfe0ff;border-radius:12px;padding:13px 15px;font-size:14px;line-height:1.55;color:#10243e">
     <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px">
-      <span>📋 How to put a job on a tech's schedule</span>
+      <span>📋 Or do it by hand</span>
       <button id="helpHide" style="margin-left:auto;background:none;border:0;color:#5a6b80;font-size:13px;font-weight:700;cursor:pointer">hide</button>
     </div>
     <ol style="margin:8px 0 0;padding-left:20px">
@@ -197,7 +201,7 @@
       <li>Pick the <b>tech</b>, then pick the <b>day</b> (time/window optional).</li>
       <li>Tap <b>Schedule</b> — that's it.</li>
     </ol>
-    <div style="margin-top:8px;color:#3a5680">It lands on the tech's calendar, the customer gets a confirmation text, and the tech is notified — all automatic. A job not listed here? Tap <b>+ Add</b> up top, enter it, then schedule it the same way.</div>
+    <div style="margin-top:8px;color:#3a5680">Either way, it lands on the tech's calendar, the customer gets a confirmation text, and the tech is notified — all automatic. A job not listed here? Tap <b>+ Add</b> up top (or just tell Ant), then schedule it.</div>
     <div style="margin-top:7px;font-size:13px;color:#5a6b80">Stuck on one? Text Teddy — he can get you an answer fast. 🙏</div>
   </div>
 
@@ -579,8 +583,12 @@
   var card=document.getElementById('helpCard'),btn=document.getElementById('helpHide');
   try{ if(localStorage.getItem('tn_sched_help_hidden')==='1'&&card) card.style.display='none'; }catch(_){}
   if(btn) btn.onclick=function(){ if(card)card.style.display='none'; try{localStorage.setItem('tn_sched_help_hidden','1');}catch(_){} };
+  // Let Talk-to-Ant refresh the list after it schedules/assigns something
+  // (clicks the refresh button, which is wired to the page's load()).
+  window.AntTalkReload=function(){ try{ var b=document.getElementById('refreshBtn'); if(b) b.click(); }catch(_){} };
 })();
 </script>
+<script src="/ant-talk.js?v=1"></script>
 <script src="/ant-shell.js?v=20260612-1" defer></script>
 </body>
 </html>
