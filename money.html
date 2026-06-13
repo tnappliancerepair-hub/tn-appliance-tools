@@ -331,28 +331,42 @@ async function saveExpense(){
   finally{btn.disabled=false;btn.textContent='Save';}
 }
 
-function renderPayroll(d,pr){
+async function renderPayroll(d,pr){
   const techs=d.techs||[];
   if(!techs.length){document.getElementById('content').innerHTML='<div class="wrap"><div class="empty">No billed jobs in this period yet. As the office logs invoices, each tech’s pay shows here.</div></div>';return;}
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading payroll…</div>';
+  // Which jobs are warranty-PAID (Danielle marked, or the watcher) -> ready to release.
+  const allIds=[]; techs.forEach(t=>t.jobs.forEach(j=>allIds.push(j.job_id)));
+  let paidMap={};
+  try{
+    const wr=await fetch(XANO+'/list_warranty_submissions_for_jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_ids_csv:allIds.join(',')})});
+    const wd=await wr.json();
+    (wd&&wd.submissions||[]).forEach(s=>{ if(String(s.status||'').toLowerCase()==='paid') paidMap[String(s.job_id)]=true; });
+  }catch(_){}
+  window.__paidMap=paidMap;
   let grandRemaining=0,grandTax=0;
   const cards=techs.map(t=>{
     const remaining=(t.remaining!=null?t.remaining:t.tech_pay);
     grandRemaining+=remaining;grandTax+=t.tax;
+    let readyCount=0,readyAmt=0;
     const rows=t.jobs.map(j=>{
-      const pay=(j.pay||0);
+      const pay=(j.pay||0); const isPaid=paidMap[String(j.job_id)]===true;
+      if(isPaid&&!j.released){readyCount++;readyAmt+=pay;}
       const right=j.released
         ? '<span style="color:var(--ok);font-size:12px;font-weight:700">✓ paid</span>'
-        : `<button onclick="releaseJob(${t.technician_id},'${esc(String(j.job_id))}',${pay},'${esc(pr.label)}')" style="background:#eef4fe;border:1px solid #bcd5fb;color:var(--blue);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Release</button>`;
-      return `<div class="jrow"><span>Job #${esc(String(j.job_id))}${j.labor?(' · labor $'+j.labor.toFixed(0)):''}</span><span style="display:flex;align-items:center;gap:9px"><span class="p">$${pay.toFixed(2)}</span>${right}</span></div>`;
+        : `<button onclick="releaseJob(${t.technician_id},'${esc(String(j.job_id))}',${pay},'${esc(pr.label)}')" style="background:${isPaid?'#e3f6ec':'#eef4fe'};border:1px solid ${isPaid?'#9fdcbb':'#bcd5fb'};color:${isPaid?'var(--ok)':'var(--blue)'};border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">Release${isPaid?' 💰':''}</button>`;
+      return `<div class="jrow"><span>Job #${esc(String(j.job_id))}${isPaid?' <span title="warranty paid">💰</span>':''}${j.labor?(' · labor $'+j.labor.toFixed(0)):''}</span><span style="display:flex;align-items:center;gap:9px"><span class="p">$${pay.toFixed(2)}</span>${right}</span></div>`;
     }).join('');
     const nm=TECH_NAME[t.technician_id]||('Tech '+t.technician_id);
     const paidNote=(t.released_total>0)?`<div style="font-size:11px;color:var(--ok);text-align:right;margin-top:4px">$${t.released_total.toFixed(2)} already paid this period</div>`:'';
+    const readyBtn=readyCount>0?`<button onclick="releaseAllPaid(${t.technician_id},'${esc(pr.label)}')" style="background:var(--ok);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer">Release paid 💰 $${readyAmt.toFixed(0)}</button>`:'';
     return `<div class="tech" data-tid="${t.technician_id}" data-pay="${remaining}">
       <div class="tech-h"><div class="nm">${esc(nm)}</div><div class="pay" id="payout-${t.technician_id}">$${remaining.toFixed(2)}</div></div>
       ${rows}
       ${paidNote}
       <div class="bonus"><label>5★ review bonus $</label><input type="number" min="0" step="10" value="0" id="bonus-${t.technician_id}" oninput="recalc(${t.technician_id})"><span style="color:var(--dim);font-size:11px">$10 each</span></div>
       <div class="payout"><div class="lbl">Pay remaining</div><div class="amt" id="amt-${t.technician_id}">$${remaining.toFixed(2)}</div>
+        ${readyBtn}
         <button id="paybtn-${t.technician_id}" onclick="markPaid(${t.technician_id},'${esc(pr.label)}')">Pay all</button></div>
     </div>`;
   }).join('');
@@ -379,6 +393,18 @@ async function releaseJob(tid,jobId,amount,period){
     const r=await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:Number(amount),job_id:String(jobId),period,note:'job #'+jobId})});
     const d=await r.json();
     if(d.success){toast('Released $'+Number(amount).toFixed(2));load();}else{toast('⚠ '+(d.error||'failed'));}
+  }catch(_){toast('⚠ connection error');}
+}
+async function releaseAllPaid(tid,period){
+  const tech=(lastData&&lastData.techs||[]).find(t=>t.technician_id===tid);
+  const pm=window.__paidMap||{};
+  const jobs=(tech?tech.jobs:[]).filter(j=>!j.released && pm[String(j.job_id)]===true);
+  const total=jobs.reduce((s,j)=>s+(j.pay||0),0);
+  if(!jobs.length){toast('No warranty-paid jobs to release');return;}
+  if(!confirm('Release $'+total.toFixed(2)+' to '+(TECH_NAME[tid]||('tech '+tid))+' for '+jobs.length+' warranty-paid job'+(jobs.length===1?'':'s')+'?'))return;
+  try{
+    for(const j of jobs){ await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:j.pay,job_id:j.job_id,period,note:'warranty-paid job #'+j.job_id})}); }
+    toast('Released $'+total.toFixed(2)+' to '+(TECH_NAME[tid]||'tech'));load();
   }catch(_){toast('⚠ connection error');}
 }
 async function markPaid(tid,period){
