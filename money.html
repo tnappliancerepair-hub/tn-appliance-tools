@@ -374,7 +374,7 @@ async function renderPayroll(d,pr){
     (wd&&wd.submissions||[]).forEach(s=>{ if(String(s.status||'').toLowerCase()==='paid') paidMap[String(s.job_id)]=true; });
   }catch(_){}
   window.__paidMap=paidMap;
-  let grandRemaining=0,grandTax=0;
+  let grandRemaining=0,grandTax=0,grandReady=0;
   const cards=techs.map(t=>{
     const remaining=(t.remaining!=null?t.remaining:t.tech_pay);
     grandRemaining+=remaining;grandTax+=t.tax;
@@ -388,6 +388,7 @@ async function renderPayroll(d,pr){
       const labelHtml=(j.addon||j.tip)?esc(String(j.label||(j.tip?'Tip':'Add-on'))):('Job #'+esc(String(j.job_id))+(isPaid?' <span title="warranty paid">💰</span>':'')+(j.labor?(' · labor $'+j.labor.toFixed(0)):''));
       return `<div class="jrow"><span>${labelHtml}</span><span style="display:flex;align-items:center;gap:9px"><span class="p">$${pay.toFixed(2)}</span>${right}</span></div>`;
     }).join('');
+    grandReady+=readyAmt;
     const nm=TECH_NAME[t.technician_id]||('Tech '+t.technician_id);
     const paidNote=(t.released_total>0)?`<div style="font-size:11px;color:var(--ok);text-align:right;margin-top:4px">$${t.released_total.toFixed(2)} already paid this period</div>`:'';
     const readyBtn=readyCount>0?`<button onclick="releaseAllPaid(${t.technician_id},'${esc(pr.label)}')" style="background:var(--ok);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer">Release paid 💰 $${readyAmt.toFixed(0)}</button>`:'';
@@ -405,9 +406,10 @@ async function renderPayroll(d,pr){
     <div class="wrap">
       <div class="summary">
         <div class="b"><div class="v">$${grandRemaining.toFixed(0)}</div><div class="k">Owed (unpaid)</div></div>
+        <div class="b"><div class="v" style="color:${grandReady>0?'var(--ok)':'inherit'}">$${grandReady.toFixed(0)}</div><div class="k">Ready 💰</div></div>
         <div class="b"><div class="v">$${grandTax.toFixed(0)}</div><div class="k">Tax collected</div></div>
-        <div class="b"><div class="v">${techs.length}</div><div class="k">Techs</div></div>
       </div>
+      ${grandReady>0?`<div style="text-align:center;margin:0 0 14px"><button onclick="releaseAllPaidEveryone('${esc(pr.label)}')" style="background:var(--ok);color:#fff;border:0;border-radius:11px;padding:12px 20px;font-size:15px;font-weight:800;cursor:pointer">Release all warranty-paid 💰 $${grandReady.toFixed(0)}</button></div>`:''}
       ${cards}
     </div>`;
 }
@@ -436,6 +438,21 @@ async function releaseAllPaid(tid,period){
   try{
     for(const j of jobs){ await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tid,amount:j.pay,job_id:j.job_id,period,note:'warranty-paid job #'+j.job_id})}); }
     toast('Released $'+total.toFixed(2)+' to '+(TECH_NAME[tid]||'tech'));load();
+  }catch(_){toast('⚠ connection error');}
+}
+async function releaseAllPaidEveryone(period){
+  const pm=window.__paidMap||{};
+  const tasks=[];let total=0,techCount=0;
+  for(const t of (lastData&&lastData.techs||[])){
+    const jobs=(t.jobs||[]).filter(j=>!j.released && pm[String(j.job_id)]===true);
+    if(!jobs.length)continue; techCount++;
+    for(const j of jobs){ total+=(j.pay||0); tasks.push({tid:t.technician_id,job_id:j.job_id,pay:j.pay}); }
+  }
+  if(!tasks.length){toast('Nothing warranty-paid to release');return;}
+  if(!confirm('Release $'+total.toFixed(2)+' across '+techCount+' tech'+(techCount===1?'':'s')+' for '+tasks.length+' warranty-paid job'+(tasks.length===1?'':'s')+'?'))return;
+  try{
+    for(const x of tasks){ await fetch('/.netlify/functions/record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:x.tid,amount:x.pay,job_id:x.job_id,period,note:'warranty-paid job #'+x.job_id})}); }
+    toast('Released $'+total.toFixed(2)+' to '+techCount+' tech'+(techCount===1?'':'s'));load();
   }catch(_){toast('⚠ connection error');}
 }
 async function markPaid(tid,period){
