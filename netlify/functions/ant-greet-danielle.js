@@ -14,6 +14,7 @@ const ANT_LINE = '+16158578800'; // tech/office Telnyx line (already wired for i
 const MESSAGE =
   "Hi Danielle! It's Ant 🐜 — your new helper at TN Appliance. From now on, just text me whatever you need and I'll take care of it. " +
   "Try things like: \"schedule the Carson job with Jimmy Thursday\", \"assign Andre to 18537\", or \"the Davis job parts came in\". " +
+  "And anytime you're not sure about something, just ask me any question — or send me a photo of what you're looking at and I'll help you work through it. " +
   "Text me back anything to give it a try — I've got you. (You can also tap the blue \"Talk to Ant\" button on the schedule screen.)";
 
 function headers() {
