@@ -43,13 +43,24 @@ exports.handler = async function (event) {
   const end = parseInt(q.end_ms, 10) || Date.now();
 
   try {
-    const [invoices, payouts] = await Promise.all([
+    const [invoices, payouts, feedback] = await Promise.all([
       fetchByAction('office_invoice_logged'),
       fetchByAction('tech_payout_recorded'),
+      fetchByAction('customer_feedback_recorded'),
     ]);
     // job_ids that have already been paid out (per-job release), so we never double-pay.
     const releasedJobs = new Set();
     for (const p of payouts) { const m = meta(p); if (m.job_id) releasedJobs.add(String(m.job_id)); }
+    // 5-star reviews per tech in the period -> $10 each bonus.
+    const reviewByTech = {};
+    for (const f of feedback) {
+      const m = meta(f);
+      const when = num(m.recorded_at_ms) || (f.created_at ? Date.parse(f.created_at) : 0);
+      if (parseInt(m.rating, 10) === 5 && when >= start && when <= end) {
+        const tt = parseInt(m.technician_id, 10) || 0;
+        if (tt) reviewByTech[tt] = (reviewByTech[tt] || 0) + 1;
+      }
+    }
 
     // Latest invoice per job, kept if it falls in the window.
     const byJob = {};
@@ -81,6 +92,8 @@ exports.handler = async function (event) {
       parts: Number(t.parts.toFixed(2)), tax: Number(t.tax.toFixed(2)), amount: Number(t.amount.toFixed(2)),
       released_total: Number(t.released_total.toFixed(2)),
       remaining: Number((t.tech_pay - t.released_total).toFixed(2)),
+      review_count: reviewByTech[t.technician_id] || 0,
+      review_bonus: Number(((reviewByTech[t.technician_id] || 0) * 10).toFixed(2)),
       job_count: t.jobs.length, jobs: t.jobs.sort((a, b) => b.when - a.when),
     })).sort((a, b) => a.technician_id - b.technician_id);
 
