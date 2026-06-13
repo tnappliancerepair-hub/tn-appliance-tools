@@ -273,6 +273,8 @@
 
   <div id="payDueCard" style="display:none"></div>
 
+  <div id="tipCard" style="display:none"></div>
+
   <div id="dealCard" class="deal-card" style="display:none"></div>
 
   <div id="infoCard" class="info-card"></div>
@@ -905,6 +907,7 @@
     // Required payment for self-pay jobs — prominent "Amount due — Pay now" that
     // stays until paid, then flips to "Paid in full". Warranty jobs: never shown.
     renderPayDue(job, viewState);
+    renderTip(job, tech, viewState);
 
     // One-tap Google review on completed jobs (the #1 maps-ranking lever)
     const btnGR = $('btnGoogleReview');
@@ -1188,6 +1191,55 @@
         if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; }
         else { b.disabled = false; b.textContent = 'Try again'; }
       } catch (_) { b.disabled = false; b.textContent = 'Try again'; }
+    };
+  }
+
+  // Tip your tech — completely optional, never pre-selected, 100% to the tech.
+  // Classy + low-key: only on completed jobs, only when we know the tech.
+  function renderTip(job, tech, viewState) {
+    const el = $('tipCard'); if (!el) return;
+    const first = (tech && tech.first_name) || '';
+    const techId = (tech && tech.id) || job.technician_id || 0;
+    if (viewState !== 'completed' || job.scheduling_status !== 'completed' || !first || !techId) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    const amts = [10, 20, 40];
+    el.innerHTML =
+      '<div style="background:#fff;border:1px solid #e3e8ef;border-radius:14px;padding:18px">' +
+        '<div style="font-size:16px;font-weight:800;color:#10243e">Thank ' + escapeHtml(first) + '</div>' +
+        '<div style="font-size:13px;color:#5a6b80;line-height:1.5;margin:5px 0 12px">A tip is never expected. But if your experience was better because of ' + escapeHtml(first) + ', you can say thanks here — <b>100% goes straight to ' + escapeHtml(first) + '</b>.</div>' +
+        '<div id="tipAmts" style="display:flex;gap:8px">' +
+          amts.map(a => '<button class="tip-amt" data-amt="' + a + '" style="flex:1;background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 0;font-size:16px;font-weight:800;color:#10243e;cursor:pointer">$' + a + '</button>').join('') +
+          '<button class="tip-amt" data-amt="other" style="flex:1;background:#f5f7fa;border:1.5px solid #e3e8ef;border-radius:10px;padding:12px 0;font-size:14px;font-weight:700;color:#5a6b80;cursor:pointer">Other</button>' +
+        '</div>' +
+        '<input id="tipOther" type="number" inputmode="decimal" min="1" step="1" placeholder="Tip amount" style="display:none;width:100%;font-size:16px;padding:11px;border:1px solid #e3e8ef;border-radius:10px;margin-top:8px;box-sizing:border-box">' +
+        '<button id="tipSend" style="display:none;width:100%;background:linear-gradient(135deg,#1aa260,#12a05a);color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;margin-top:10px">Send tip</button>' +
+        '<div style="font-size:11px;color:#aab4c0;text-align:center;margin-top:8px">Secure payment · no pressure · skip anytime</div>' +
+      '</div>';
+    let chosen = 0;
+    const sendBtn = $('tipSend'), other = $('tipOther');
+    el.querySelectorAll('.tip-amt').forEach(b => {
+      b.onclick = () => {
+        el.querySelectorAll('.tip-amt').forEach(x => { x.style.borderColor = '#e3e8ef'; x.style.background = '#f5f7fa'; x.style.color = '#10243e'; });
+        b.style.borderColor = '#1aa260'; b.style.background = '#e9f9f0'; b.style.color = '#127a4a';
+        if (b.dataset.amt === 'other') { other.style.display = ''; other.focus(); chosen = parseFloat(other.value) || 0; }
+        else { other.style.display = 'none'; chosen = parseFloat(b.dataset.amt); }
+        sendBtn.style.display = ''; sendBtn.textContent = chosen > 0 ? ('Send $' + chosen.toFixed(0) + ' to ' + first) : ('Send tip to ' + first);
+      };
+    });
+    other.oninput = () => { chosen = parseFloat(other.value) || 0; sendBtn.textContent = chosen > 0 ? ('Send $' + chosen.toFixed(0) + ' to ' + first) : ('Send tip to ' + first); };
+    sendBtn.onclick = async () => {
+      const amt = chosen > 0 ? chosen : (parseFloat(other.value) || 0);
+      if (!(amt > 0)) { other.style.display = ''; other.focus(); return; }
+      sendBtn.disabled = true; sendBtn.textContent = 'Opening secure checkout…';
+      try {
+        const r = await fetch('/.netlify/functions/create-stripe-payment-link', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, amount_cents: Math.round(amt * 100), kind: 'tip', description: 'Tip for ' + first + ' — TN Appliance Exchange', metadata: { technician_id: techId, name: 'Tip for ' + first, tech_first: first, source: 'customer_tip' } }),
+        });
+        const d = await r.json();
+        if (d && d.ok && d.url && !d.placeholder) { window.location.href = d.url; return; }
+        sendBtn.disabled = false; sendBtn.textContent = 'Try again';
+      } catch (_) { sendBtn.disabled = false; sendBtn.textContent = 'Try again'; }
     };
   }
 

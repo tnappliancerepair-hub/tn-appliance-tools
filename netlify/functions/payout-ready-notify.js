@@ -66,7 +66,7 @@ exports.handler = async function () {
     const unreleased = {};
     for (const t of techs) {
       for (const j of (t.jobs || [])) {
-        if (j.released || j.addon || !(j.pay > 0)) continue;
+        if (j.released || j.addon || j.tip || !(j.pay > 0)) continue;
         unreleased[String(j.job_id)] = { tech_id: t.technician_id, pay: j.pay };
       }
     }
