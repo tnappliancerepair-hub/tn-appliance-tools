@@ -6,6 +6,33 @@
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
+const JOBS_TABLE = 7;
+const CUSTOMER_FROM = '+16155889500'; // customer-direction Telnyx number
+
+// Best-effort SMS receipt to the customer who just paid (Stripe also emails one).
+async function smsCustomer(jobId, kind, amount) {
+  const key = process.env.TELNYX_API_KEY;
+  if (!key || !jobId) return;
+  let phone = '';
+  try {
+    const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: headers() });
+    if (r.ok) { const j = await r.json(); phone = String((j && j.customer_phone) || '').replace(/\D/g, ''); }
+  } catch (_) { return; }
+  if (!phone) return;
+  const to = phone.length === 10 ? '+1' + phone : (phone.length === 11 ? '+' + phone : phone);
+  const amt = '$' + Number(amount).toFixed(2);
+  const text = kind === 'tip'
+    ? 'TN Appliance Exchange: thank you for the tip! 100% goes straight to your tech — they\'ll see it. 🐜'
+    : kind === 'addon'
+      ? 'TN Appliance Exchange: got your order (' + amt + '). We\'ll take care of it with your repair. Thank you!'
+      : 'TN Appliance Exchange: payment received — thank you! ' + amt + ' paid. A receipt is on the way to your email.';
+  try {
+    await fetch('https://api.telnyx.com/v2/messages', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: CUSTOMER_FROM, to, text }),
+    });
+  } catch (_) {}
+}
 
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
@@ -74,6 +101,7 @@ async function recordPaidSession(session) {
       source: 'customer_paid', requested_at_ms: Date.now(),
     });
   }
+  await smsCustomer(jobId, kind, kind === 'addon' ? base : amount); // best-effort receipt SMS
   return { recorded: true, duplicate: false, kind, amount, job_id: jobId };
 }
 
