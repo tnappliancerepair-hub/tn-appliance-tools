@@ -48,6 +48,17 @@
   .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:16px;text-align:center;margin-bottom:11px;}
   .auth-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
   .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
+  .exp-scrim{position:fixed;inset:0;background:rgba(18,26,38,.45);z-index:70;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .exp-scrim.open{opacity:1;pointer-events:auto;}
+  .exp-modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);z-index:71;background:#fff;border-radius:16px;padding:20px;width:min(380px,92%);box-shadow:0 12px 40px rgba(20,30,50,.25);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-height:90vh;overflow-y:auto;}
+  .exp-modal.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1);}
+  .exp-modal h3{font-size:16px;font-weight:800;margin-bottom:10px;}
+  .exp-modal label{display:block;font-size:12px;color:var(--ink2);margin:9px 0 3px;font-weight:600;}
+  .exp-modal select,.exp-modal input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;}
+  .exp-modal .row2{display:flex;gap:8px;}
+  .exp-modal .acts{display:flex;gap:8px;margin-top:15px;}
+  .exp-modal .acts button{flex:1;padding:11px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--line);background:#fff;}
+  .exp-modal .acts .save{background:var(--blue);color:#fff;border:0;}
   .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;}
   .toast.show{opacity:1;}
 </style>
@@ -83,6 +94,24 @@
 </div>
 
 <div id="content"><div class="loading"><div class="spinner"></div>Loading…</div></div>
+<div class="exp-scrim" id="exp-scrim" onclick="closeExpense()"></div>
+<div class="exp-modal" id="exp-modal">
+  <h3>Log expense</h3>
+  <label>Category</label>
+  <select id="exp-cat"><option value="gas">Gas</option><option value="truck">Truck fee</option><option value="other">Other fee</option></select>
+  <label>Label (optional)</label>
+  <input id="exp-label" placeholder="e.g. Truck #2 oil change">
+  <div class="row2">
+    <div style="flex:1"><label>Amount $</label><input id="exp-amount" inputmode="decimal" placeholder="0.00"></div>
+    <div style="flex:1"><label>Date</label><input id="exp-date" type="date"></div>
+  </div>
+  <label>Applies to</label>
+  <select id="exp-scope"><option value="monthly">Monthly / overhead</option><option value="tech">Per tech</option><option value="job">Per job</option></select>
+  <label>Tech name or Job # (only if per-tech / per-job)</label>
+  <input id="exp-ref" placeholder="optional">
+  <div class="acts"><button onclick="closeExpense()">Cancel</button><button class="save" id="exp-save" onclick="saveExpense()">Save</button></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -213,13 +242,22 @@ async function renderPL(d,pr){
     }
   }catch(_){}
   const partsMargin=partsSold-partsCost;
-  const net=rev-tax-pay-partsCost; // truer take-home: revenue minus tax owed, tech pay, real parts cost
+  // Logged expenses (gas / truck / other) for the period.
+  let exp={total:0,by_category:{gas:0,truck:0,other:0}};
+  try{
+    const er=await fetch('/.netlify/functions/expenses-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
+    const ed=await er.json(); if(ed&&ed.success) exp=ed;
+  }catch(_){}
+  const net=rev-tax-pay-partsCost-exp.total; // owner take-home
   const costLine=costKnown
     ? `<div class="pl-row neg"><span>− Parts cost (paid)</span><span class="v">$${partsCost.toFixed(2)}</span></div>`
     : `<div class="pl-row"><span>Parts cost</span><span class="v" style="color:var(--dim)">ledger empty</span></div>`;
   const marginLine=costKnown&&partsSold>0
     ? `<div class="pl-row"><span>Parts margin (sold − cost)</span><span class="v" style="color:var(--ok)">$${partsMargin.toFixed(2)}</span></div>`
     : '';
+  const expBreak=exp.total>0
+    ? `<div class="pl-row neg"><span>− Expenses (gas $${exp.by_category.gas.toFixed(0)} · truck $${exp.by_category.truck.toFixed(0)} · other $${exp.by_category.other.toFixed(0)})</span><span class="v">$${exp.total.toFixed(2)}</span></div>`
+    : `<div class="pl-row"><span>Expenses (gas/truck/fees)</span><span class="v" style="color:var(--dim)">none logged</span></div>`;
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="summary"><div class="b"><div class="v">$${rev.toFixed(0)}</div><div class="k">Revenue</div></div>
@@ -233,10 +271,39 @@ async function renderPL(d,pr){
         ${marginLine}
         <div class="pl-row neg"><span>− Tech pay</span><span class="v">$${pay.toFixed(2)}</span></div>
         <div class="pl-row neg"><span>− Sales tax (owed to state)</span><span class="v">$${tax.toFixed(2)}</span></div>
-        <div class="pl-row net"><span>Take-home (after parts, pay, tax)</span><span class="v">$${net.toFixed(2)}</span></div>
-        <div class="pl-note">Parts cost is real spend from the Parts ledger; gas/truck/fees + business taxes layer in next. Replaces the Monthly Budget sheet.</div>
+        ${expBreak}
+        <div class="pl-row net"><span>Take-home (owner net)</span><span class="v">$${net.toFixed(2)}</span></div>
+        <div style="text-align:center;margin-top:12px"><button onclick="openExpense()" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;color:var(--blue);cursor:pointer">+ Log expense</button></div>
+        <div class="pl-note">Parts cost = real spend from the Parts ledger. Gas/truck/fees: log them with the button (or pull from Digits once production's live). Business taxes layer in next.</div>
       </div>
     </div>`;
+}
+
+// ── expense logger ──
+function openExpense(){
+  const d=new Date();
+  document.getElementById('exp-date').value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('exp-scrim').classList.add('open');
+  document.getElementById('exp-modal').classList.add('open');
+}
+function closeExpense(){document.getElementById('exp-scrim').classList.remove('open');document.getElementById('exp-modal').classList.remove('open');}
+async function saveExpense(){
+  const category=document.getElementById('exp-cat').value;
+  const label=document.getElementById('exp-label').value.trim();
+  const amount=document.getElementById('exp-amount').value.trim();
+  const scope=document.getElementById('exp-scope').value;
+  const ref=document.getElementById('exp-ref').value.trim();
+  const dv=document.getElementById('exp-date').value;
+  if(!amount||isNaN(parseFloat(amount))){toast('Enter an amount');return;}
+  const date_ms=dv?new Date(dv+'T12:00:00').getTime():Date.now();
+  const btn=document.getElementById('exp-save');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    const r=await fetch('/.netlify/functions/record-expense',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category,label,amount,scope,ref,date_ms})});
+    const d=await r.json();
+    if(d.success){toast('Logged $'+parseFloat(amount).toFixed(2)+' '+category);closeExpense();document.getElementById('exp-amount').value='';document.getElementById('exp-label').value='';document.getElementById('exp-ref').value='';renderActive();}
+    else{toast('⚠ '+(d.error||'failed'));}
+  }catch(_){toast('⚠ connection error');}
+  finally{btn.disabled=false;btn.textContent='Save';}
 }
 
 function renderPayroll(d,pr){
