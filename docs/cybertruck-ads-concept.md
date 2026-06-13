@@ -16,7 +16,8 @@ stream renting the screen to others.
 
 ## Goal (decided 2026-06-13)
 Promote **the Ant 🐜 platform + TN Appliance Exchange** — brand awareness + repair
-leads. NOT renting the screen to others. The truck is our billboard for our brand.
+leads. NOT renting the screen to others. **The offer is a paid $50 quick check**
+(real tech diagnoses it, $50 credited toward the repair) — NOT a free diagnosis.
 
 ## Two revenue plays (do both)
 1. **Lead-gen for TN Appliance / Ant** — drive repair calls + brand awareness.
@@ -24,11 +25,11 @@ leads. NOT renting the screen to others. The truck is our billboard for our bran
 
 ## The funnel (this is what makes it measurable)
 Screen shows a dead-simple message + a QR + a number:
-> "Appliance acting up? 📸 Text a photo to Ant — free diagnosis."
+> "Appliance acting up? $50 quick check — we diagnose it right (credited to your repair)."
 
 - QR → `truck.html?src=cybertruck` (the consumer landing we're building).
-- The landing gives an **instant free AI diagnosis** (Claude vision) from a photo
-  + a sentence, then a soft CTA: "Want us to fix it? Call / Text / Book."
+- The landing books a **$50 quick check** (real tech diagnoses it, $50 credited to
+  the repair). Captures name/phone/zip/appliance + texts the office to follow up.
 - Every scan + lead is tagged `source: cybertruck` in event_log, so we know
   exactly what the truck is worth: scans → diagnoses → leads → booked jobs.
 
@@ -46,9 +47,9 @@ Screen shows a dead-simple message + a QR + a number:
   zero power/legal fuss — good cheap test before the LED rig.
 
 ## Phased plan
-- **Phase 1 (now):** trackable landing (`truck.html`) + AI diagnosis
-  (`ad-diagnose.js`) + `source:cybertruck` tagging + QR. Test with a static
-  decal/QR first — proves the funnel for ~$0.
+- **Phase 1 (now):** trackable landing (`truck.html`) = $50 quick-check booking
+  + `ad-lead.js` (lead capture + office SMS) + `source:cybertruck` tagging + QR.
+  Test with a static decal/QR first — proves the funnel for ~$0.
 - **Phase 2:** add the LED screen; rotate messages; watch the scan→lead numbers.
 - **Phase 3:** if leads are strong, this becomes the launch billboard for the
   consumer platform (snap-a-pic diagnosis app) + rent spare screen time to others.
