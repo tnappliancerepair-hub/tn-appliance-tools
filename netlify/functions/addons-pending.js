@@ -50,7 +50,7 @@ exports.handler = async function () {
       if (done.has(key)) continue;
       const when = Number(m.requested_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
       if (!byKey[key] || when > byKey[key].when) {
-        byKey[key] = { job_id: m.job_id, addon_key: m.addon_key, name: m.name, net_price: m.net_price || m.price, source: m.source || '', when };
+        byKey[key] = { job_id: m.job_id, addon_key: m.addon_key, name: m.name, net_price: m.net_price || m.price, tech_cut: m.tech_cut || '0.00', source: m.source || '', when };
       }
     }
     const items = Object.values(byKey).sort((a, b) => b.when - a.when);

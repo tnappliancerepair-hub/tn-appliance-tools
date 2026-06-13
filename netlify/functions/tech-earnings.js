@@ -51,9 +51,10 @@ exports.handler = async function (event) {
   if (!techId) return { statusCode: 400, body: JSON.stringify({ success: false, error: 'tech_id required' }) };
 
   try {
-    const [invoices, payouts] = await Promise.all([
+    const [invoices, payouts, addons] = await Promise.all([
       fetchByAction('office_invoice_logged'),
       fetchByAction('tech_payout_recorded'),
+      fetchByAction('addon_fulfilled'),
     ]);
 
     // Latest invoice per job for this tech (an edit re-logs the job).
@@ -68,7 +69,24 @@ exports.handler = async function (event) {
       }
     }
     const jobs = Object.values(byJob).sort((a, b) => b.when - a.when);
-    const earned = jobs.reduce((s, j) => s + j.pay, 0);
+
+    // Fulfilled add-ons credit the tech their cut (extra money for low-risk
+    // work). De-dupe per job+addon (a re-fulfill shouldn't double-pay).
+    const addonByKey = {};
+    for (const row of addons) {
+      const m = meta(row);
+      if (parseInt(m.technician_id, 10) !== techId) continue;
+      const cut = num(m.tech_cut);
+      if (!cut) continue;
+      const key = m.job_id + '|' + m.addon_key;
+      const when = num(m.requested_at_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
+      if (!addonByKey[key] || when > addonByKey[key].when) {
+        addonByKey[key] = { job_id: m.job_id, addon_key: m.addon_key, name: m.name || m.addon_key, cut, when };
+      }
+    }
+    const addonList = Object.values(addonByKey).sort((a, b) => b.when - a.when);
+    const addonEarned = addonList.reduce((s, a) => s + a.cut, 0);
+    const earned = jobs.reduce((s, j) => s + j.pay, 0) + addonEarned;
 
     let paid = 0;
     for (const row of payouts) {
@@ -87,6 +105,9 @@ exports.handler = async function (event) {
         owed: Number((earned - paid).toFixed(2)),
         job_count: jobs.length,
         jobs: jobs.slice(0, 100),
+        addon_earned: Number(addonEarned.toFixed(2)),
+        addon_count: addonList.length,
+        addons: addonList.slice(0, 100),
       }),
     };
   } catch (err) {
