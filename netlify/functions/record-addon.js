@@ -41,6 +41,7 @@ exports.handler = async function (event) {
     const price = parseFloat(b.price) || 0;
     const discount = parseFloat(b.discount) || 0;
     const tech_cut = parseFloat(b.tech_cut) || 0;
+    const mode = String(b.mode || 'installed'); // installed | ship | inquire
     const status = String(b.status || 'requested');
     // Credit the tech only at fulfillment. Prefer an explicit technician_id from
     // the caller (office board knows it), else resolve from the job record.
@@ -57,6 +58,7 @@ exports.handler = async function (event) {
         net_price: Math.max(0, price - discount).toFixed(2),
         tech_cut: tech_cut.toFixed(2),
         technician_id: technician_id || null,
+        mode: mode,
         status: status,
         source: String(b.source || 'customer_portal'),
         requested_at_ms: Date.now(),
