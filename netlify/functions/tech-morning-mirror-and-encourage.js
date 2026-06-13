@@ -78,13 +78,14 @@ exports.handler = async () => {
   for (const t of roster) {
     const body = ENCOURAGEMENT(t.first).replace('__TECH_ID__', String(t.id));
     try {
+      // send_sms reads `to`/`body` (not `recipient`) — the old key silently sent nowhere.
       const r = await fetch(`${XANO_BASE}/send_sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          recipient: t.phone,
+          to: t.phone,
           body,
-          recipient_role: 'technician',
+          message: body,
           context_tag: 'tech_morning_encouragement_2026_06_02',
         }),
       });
