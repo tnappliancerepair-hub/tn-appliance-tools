@@ -43,7 +43,14 @@ exports.handler = async function (event) {
   const end = parseInt(q.end_ms, 10) || Date.now();
 
   try {
-    const invoices = await fetchByAction('office_invoice_logged');
+    const [invoices, payouts] = await Promise.all([
+      fetchByAction('office_invoice_logged'),
+      fetchByAction('tech_payout_recorded'),
+    ]);
+    // job_ids that have already been paid out (per-job release), so we never double-pay.
+    const releasedJobs = new Set();
+    for (const p of payouts) { const m = meta(p); if (m.job_id) releasedJobs.add(String(m.job_id)); }
+
     // Latest invoice per job, kept if it falls in the window.
     const byJob = {};
     for (const row of invoices) {
@@ -62,14 +69,18 @@ exports.handler = async function (event) {
     for (const j of Object.values(byJob)) {
       if (j.when < start || j.when > end) continue;
       if (!j.technician_id) continue;
-      const t = techs[j.technician_id] || (techs[j.technician_id] = { technician_id: j.technician_id, tech_pay: 0, labor: 0, parts: 0, tax: 0, amount: 0, jobs: [] });
+      const t = techs[j.technician_id] || (techs[j.technician_id] = { technician_id: j.technician_id, tech_pay: 0, labor: 0, parts: 0, tax: 0, amount: 0, released_total: 0, jobs: [] });
+      const released = releasedJobs.has(String(j.job_id));
       t.tech_pay += j.pay; t.labor += j.labor; t.parts += j.parts; t.tax += j.tax; t.amount += j.total;
-      t.jobs.push({ job_id: j.job_id, pay: j.pay, labor: j.labor, total: j.total, when: j.when });
+      if (released) t.released_total += j.pay;
+      t.jobs.push({ job_id: j.job_id, pay: j.pay, labor: j.labor, total: j.total, when: j.when, released: released });
     }
     const out = Object.values(techs).map((t) => ({
       technician_id: t.technician_id,
       tech_pay: Number(t.tech_pay.toFixed(2)), labor: Number(t.labor.toFixed(2)),
       parts: Number(t.parts.toFixed(2)), tax: Number(t.tax.toFixed(2)), amount: Number(t.amount.toFixed(2)),
+      released_total: Number(t.released_total.toFixed(2)),
+      remaining: Number((t.tech_pay - t.released_total).toFixed(2)),
       job_count: t.jobs.length, jobs: t.jobs.sort((a, b) => b.when - a.when),
     })).sort((a, b) => a.technician_id - b.technician_id);
 
