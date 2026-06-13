@@ -45,26 +45,36 @@
         pitch: "The dishwasher fill line runs under your cabinet where a slow leak goes unseen for months. A fresh braided line while we're there is cheap protection." },
       { key: 'dishwasher_leak_detector', name: 'Smart water leak detector (placed)', price: 49, tech_cut: 20, discount: 10, // smart sensor ~$12 -> net $39: shop $19, tech $20
         pitch: "Dishwasher leaks are the #1 hidden source of cabinet and floor rot. A smart sensor under the unit alerts your phone the moment it gets wet." },
+      { key: 'garbage_disposal', name: 'Garbage disposal replacement (installed)', price: 209, tech_cut: 99, discount: 10, // unit ~$80 -> net $199: shop $100 (cost+25%), tech $99 (50%)
+        pitch: "Since we're already under your sink — swap a leaking or jammed disposal for a fresh unit. Quieter, stronger, and we haul the old one away." },
+    ],
+    range: [
+      { key: 'range_antitip', name: 'Anti-tip safety bracket (installed)', price: 49, tech_cut: 20, discount: 10, // bracket ~$15 -> net $39: shop $19, tech $20
+        pitch: "Code requires an anti-tip bracket on every range — it stops the stove from tipping if a child climbs or leans on an open door. Most homes are missing it. We'll secure yours while we're there." },
+      { key: 'range_hood_filter', name: 'Fresh range-hood filter (installed)', price: 49, tech_cut: 20, discount: 10, // grease+charcoal ~$15 -> net $39: shop $19, tech $20
+        pitch: "A clogged hood filter is a grease-fire risk and kills your ventilation. We'll drop in a fresh grease + charcoal filter while we're there." },
     ],
   };
   // NOTE: full dryer VENT cleaning (the long run to the roof/side) is NOT a
   // fixed portal offer — too many variables (length, rooftop vs side). It's
   // tech-quoted on site from Teddy's length/rooftop price list.
 
-  // Deal of the week — a single 50%-off promo that rotates automatically by
-  // calendar week and shows in every customer's portal. Edit the list / prices
-  // freely; it cycles through them one per week, no weekly maintenance.
+  // Deal of the week — one rotating special, auto-advancing by calendar week.
+  // `normal` is the everyday portal net (honest anchor — never inflated), `sale`
+  // is the marked-down price. The shop gives up its margin as the promo; the
+  // tech still earns their full cut, so `sale` always covers part cost + cut.
+  // Only items with deal room are featured (service + the premium kit).
   var WEEKLY_DEALS = [
-    { key: 'dryer_cleanout', name: 'Dryer clean-out', normal: 150, sale: 75,
-      pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. Just let us know and we'll give your tech extra time to do a full clean-out while they're there." },
-    { key: 'dryer_vent_hose', name: 'Dryer vent hose, installed', normal: 60, sale: 30,
-      pitch: "A fresh vent hose means better airflow and a safer dryer — installed for half off this week." },
-    { key: 'fridge_supply_line', name: 'Refrigerator water/ice supply line', normal: 60, sale: 30,
-      pitch: "The line behind your fridge is a common hidden leak source. Cheap protection against a slow leak under your floor — half off this week." },
-    { key: 'washer_supply_lines', name: 'Washer supply lines', normal: 90, sale: 45,
-      pitch: "Burst washer hoses are a top cause of home water damage; makers recommend replacing about every 5 years. Half off this week." },
-    { key: 'fridge_coil_clean', name: 'Refrigerator condenser coil cleaning', normal: 90, sale: 45,
-      pitch: "Dirty coils raise your energy bill and shorten your fridge's life. Half off a full blow-out + vac this week." },
+    { key: 'dryer_cleanout', name: 'Dryer clean-out', normal: 70, sale: 50,
+      pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. This week we'll give your tech extra time to do a full clean-out — just let us know." },
+    { key: 'fridge_coil_clean', name: 'Refrigerator condenser coil cleaning', normal: 70, sale: 50,
+      pitch: "Dirty coils raise your energy bill and shorten your fridge's life. Full blow-out + vac, on special this week." },
+    { key: 'dryer_vent_magnetic', name: 'Magnetic quick-connect vent kit, installed', normal: 69, sale: 55,
+      pitch: "Upgrade to an airtight magnetic quick-connect — best airflow + seal, and pulling the dryer out next time is a snap. On special this week." },
+    { key: 'fridge_water_filter', name: 'Fresh refrigerator water filter, installed', normal: 59, sale: 50,
+      pitch: "Clean water and ice — makers recommend a fresh filter about every 6 months. We'll drop one in, on special this week." },
+    { key: 'washer_leak_detector', name: 'Smart water leak detector', normal: 39, sale: 33,
+      pitch: "A smart sensor behind your washer texts your phone the second it senses water — cheap insurance against a leaking valve. On special this week." },
   ];
 
   // ISO-week number, so the deal advances once a week consistently.
@@ -84,10 +94,11 @@
   // Map loose appliance text to a catalog key.
   function normalize(appl) {
     var a = String(appl || '').toLowerCase();
-    if (/dish/.test(a)) return 'dishwasher';
+    if (/dish|disposal/.test(a)) return 'dishwasher';
     if (/wash/.test(a)) return 'washer';
     if (/dry/.test(a)) return 'dryer';
     if (/fridge|refriger|freezer/.test(a)) return 'refrigerator';
+    if (/range|stove|oven|cooktop/.test(a)) return 'range';
     return '';
   }
 
