@@ -43,15 +43,8 @@ async function lastSignature() {
     return row ? (meta(row).signature || '') : '';
   } catch (_) { return ''; }
 }
-async function sendSms(text) {
-  const key = process.env.TELNYX_API_KEY;
-  if (!key) { console.error('[payout-ready-notify] TELNYX_API_KEY not set'); return false; }
-  const r = await fetch('https://api.telnyx.com/v2/messages', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to: OWNER, text }),
-  });
-  return r.ok;
-}
+const { sendSms: sendSmsXano } = require('./_lib/sms');
+async function sendSms(text) { return sendSmsXano(OWNER, text, 'owner', 'payout_ready_notify'); }
 
 // Schedule is declared in netlify.toml ([functions."payout-ready-notify"]).
 exports.handler = async function () {

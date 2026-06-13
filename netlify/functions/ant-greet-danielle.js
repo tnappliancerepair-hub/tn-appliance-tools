@@ -6,10 +6,10 @@
 
 'use strict';
 
+const { sendSms } = require('./_lib/sms');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const DANIELLE = '+16154850713';
-const ANT_LINE = '+16158578800'; // tech/office Telnyx line (already wired for inbound)
 
 const MESSAGE =
   "Hi Danielle! It's Ant 🐜 — your new helper at TN Appliance. From now on, just text me whatever you need and I'll take care of it. " +
@@ -36,13 +36,7 @@ exports.handler = async function (event) {
       });
       if (r.ok) { const d = await r.json(); if (((d && d.items) || []).length) return jsonResp(200, { ok: true, already_sent: true }); }
     }
-    const key = process.env.TELNYX_API_KEY;
-    if (!key) return jsonResp(200, { ok: false, error: 'TELNYX_API_KEY not set' });
-    const sr = await fetch('https://api.telnyx.com/v2/messages', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: ANT_LINE, to: DANIELLE, text: MESSAGE }),
-    });
-    const sent = sr.ok;
+    const sent = await sendSms(DANIELLE, MESSAGE, 'warranty_handler', 'ant_greet_danielle');
     await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
       method: 'POST', headers: headers(),
       body: JSON.stringify({ action: 'ant_greeted_danielle', metadata: { to: DANIELLE, sent, at_ms: Date.now() } }),

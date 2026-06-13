@@ -52,15 +52,7 @@ async function searchJobs(q) {
     return ((d && d.items) || []).map((x) => ({ job_id: x.job_id || x.id, name: ((x.customer_first || '') + ' ' + (x.customer_last || '')).trim() || 'Customer' })).filter((x) => x.job_id);
   } catch (_) { return []; }
 }
-async function sendSms(from, to, text) {
-  const key = process.env.TELNYX_API_KEY; if (!key) return;
-  try {
-    await fetch('https://api.telnyx.com/v2/messages', {
-      method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to, text }),
-    });
-  } catch (_) {}
-}
+const { sendSms } = require('./_lib/sms');
 
 // Free-form help: answer Danielle's questions (and read photos she sends) as Ant.
 async function antAnswer(text, mediaUrls) {
@@ -151,8 +143,8 @@ async function handleParsed(parsed) {
     reply = 'Hi ' + who + ' — it\'s Ant 🐜. Just text me whatever you need (schedule a job, assign a tech, "parts came in") and I\'ll handle it. ' + reply;
   }
 
-  // Reply as Ant, from the same line they texted.
-  await sendSms(parsed.to || '+16158578800', parsed.from, reply);
+  // Reply as Ant (Xano send_sms; warranty_handler bypasses the customer gate).
+  await sendSms(parsed.from, reply, 'warranty_handler', 'office_ant_reply');
   await logRow('office_sms_in', { from: parsed.from, who, body: (parsed.body || '').slice(0, 240), intent: (p && p.intent) || 'none', at_ms: Date.now() });
   await logRow('office_sms_reply', { to: parsed.from, who, reply: reply.slice(0, 300), at_ms: Date.now() });
   return { statusCode: 200, body: '' };
