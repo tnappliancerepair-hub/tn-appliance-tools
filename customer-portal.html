@@ -1192,30 +1192,46 @@
     el.style.display = '';
     el.innerHTML = '<div class="addon-title">Add-ons for your ' + escapeHtml(job.appliance || 'appliance') + ' — $10 off, we ship it with your repair</div>' +
       list.map(a => {
+        const nm = escapeHtml(a.name), pitch = escapeHtml(a.pitch);
+        const head = '<div class="addon"><div class="addon-h"><div class="addon-name">' + nm + '</div>';
         if (a.inquire) {
-          return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
-            '<div class="addon-price" style="font-size:13px;color:#5a6b80">please inquire</div></div>' +
-            '<div class="addon-pitch">' + escapeHtml(a.pitch) + '</div>' +
-            '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="0" data-disc="0" data-cut="0" data-inquire="1">Ask us about it</button></div>';
+          return head + '<div class="addon-price" style="font-size:13px;color:#5a6b80">please inquire</div></div>' +
+            '<div class="addon-pitch">' + pitch + '</div>' +
+            '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="0" data-disc="0" data-cut="0" data-inquire="1" data-mode="inquire">Ask us about it</button></div>';
         }
         const net = Math.max(0, a.price - (a.discount || 0));
-        return '<div class="addon"><div class="addon-h"><div class="addon-name">' + escapeHtml(a.name) + '</div>' +
-          '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
-          '<div class="addon-pitch">' + escapeHtml(a.pitch) + '</div>' +
-          '<button class="addon-add" data-key="' + a.key + '" data-name="' + escapeHtml(a.name) + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '">Add it · save $' + (a.discount || 0) + '</button></div>';
+        if (a.ship_price) {
+          // Dual option: we install (tech earns) OR ship-only / you install (cheaper).
+          return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
+            '<div class="addon-pitch">' + pitch + '</div>' +
+            '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-mode="installed">We install it · $' + net + '</button>' +
+            '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' <span style="opacity:.8">(you install)</span></button></div>';
+        }
+        return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
+          '<div class="addon-pitch">' + pitch + '</div>' +
+          '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-mode="installed">Add it · save $' + (a.discount || 0) + '</button></div>';
       }).join('');
     el.querySelectorAll('.addon-add').forEach(btn => {
       btn.onclick = async () => {
         if (btn.classList.contains('added')) return;
-        const isInquire = btn.dataset.inquire === '1';
+        const mode = btn.dataset.mode || 'installed';
+        const isInquire = mode === 'inquire';
         btn.disabled = true; btn.textContent = isInquire ? 'Sending…' : 'Adding…';
         try {
           const r = await fetch('/.netlify/functions/record-addon', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
+            body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, mode: mode, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
           });
           const d = await r.json();
-          if (d && d.success) { btn.classList.add('added'); btn.textContent = isInquire ? "✓ Got it — we'll quote it for you" : "✓ Added — we'll ship it with your repair"; }
+          if (d && d.success) {
+            btn.classList.add('added');
+            btn.textContent = isInquire ? "✓ Got it — we'll quote it for you"
+              : mode === 'ship' ? "✓ Got it — we'll ship it to you"
+              : "✓ Added — we'll install it with your repair";
+            // Picked one option — retire the sibling button in this card.
+            const card = btn.closest('.addon');
+            if (card) card.querySelectorAll('.addon-add').forEach(o => { if (o !== btn) { o.disabled = true; o.style.display = 'none'; } });
+          }
           else { btn.disabled = false; btn.textContent = 'Try again'; }
         } catch (_) { btn.disabled = false; btn.textContent = 'Try again'; }
       };
