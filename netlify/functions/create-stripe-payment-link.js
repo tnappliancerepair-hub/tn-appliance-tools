@@ -34,6 +34,13 @@ exports.handler = async function (event) {
     return jsonResp(400, { ok: false, error: 'job_id and amount_cents required' });
   }
 
+  // Optional passthrough metadata (e.g. an add-on purchase) so verify-payment
+  // can record + fulfill the right thing. Stripe metadata values must be strings.
+  const extraMeta = {};
+  const m = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+  for (const k of Object.keys(m)) { if (m[k] != null) extraMeta[k] = String(m[k]); }
+  const kind = String(body.kind || extraMeta.kind || 'invoice');
+
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) {
     // Dev fallback — return a mailto so the agent flow can still run
@@ -60,10 +67,12 @@ exports.handler = async function (event) {
       success_url: process.env.STRIPE_SUCCESS_URL || DEFAULT_SUCCESS,
       cancel_url: process.env.STRIPE_CANCEL_URL || DEFAULT_CANCEL,
       customer_email: customerEmail || undefined,
-      metadata: {
+      metadata: Object.assign({
         job_id: String(jobId),
-        source: 'colony_loop_stripe_payment_link',
-      },
+        kind: kind,
+        amount_cents: String(amountCents),
+        source: extraMeta.source || 'customer_portal_pay',
+      }, extraMeta),
     });
 
     return jsonResp(200, {
