@@ -115,8 +115,8 @@ const PREFILL_JOB = parseInt(params.get('job_id'), 10) || 0;
 // Market-rate matrix (2026): side/ground $80-150, roof/2nd $150-250; longer +
 // more bends cost more. These are starting points the tech adjusts on site.
 const TABLE = {
-  side: { short: 99,  med: 129, long: 169 },
-  roof: { short: 149, med: 189, long: 229 },
+  side: { short: 110, med: 140, long: 180 },
+  roof: { short: 160, med: 200, long: 240 },
 };
 const BEND_ADD = 15;          // per extra 90° turn
 const TECH_PCT = 0.50;        // tech keeps half for their time
