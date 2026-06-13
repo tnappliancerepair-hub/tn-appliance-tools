@@ -271,6 +271,8 @@
     <div class="detail" id="heroDetail"></div>
   </div>
 
+  <div id="payDueCard" style="display:none"></div>
+
   <div id="dealCard" class="deal-card" style="display:none"></div>
 
   <div id="infoCard" class="info-card"></div>
@@ -900,6 +902,10 @@
       }
     }
 
+    // Required payment for self-pay jobs — prominent "Amount due — Pay now" that
+    // stays until paid, then flips to "Paid in full". Warranty jobs: never shown.
+    renderPayDue(job, viewState);
+
     // One-tap Google review on completed jobs (the #1 maps-ranking lever)
     const btnGR = $('btnGoogleReview');
     if (btnGR) { btnGR.style.display = (viewState === 'completed' && job.scheduling_status === 'completed') ? '' : 'none'; }
@@ -1181,6 +1187,44 @@
         const d = await r.json();
         if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; }
         else { b.disabled = false; b.textContent = 'Try again'; }
+      } catch (_) { b.disabled = false; b.textContent = 'Try again'; }
+    };
+  }
+
+  async function renderPayDue(job, viewState) {
+    const el = $('payDueCard'); if (!el) return;
+    // Quick gate: only completed jobs that look self-pay (server re-checks too).
+    const ct = String(job.customer_type || '').toLowerCase();
+    const maybeSelfPay = !ct || ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay';
+    if (viewState !== 'completed' || job.scheduling_status !== 'completed' || !maybeSelfPay) { el.style.display = 'none'; return; }
+    let s;
+    try { s = await (await fetch('/.netlify/functions/get-invoice-status?job_id=' + JOB_ID, { cache: 'no-store' })).json(); }
+    catch (_) { el.style.display = 'none'; return; }
+    if (!s || !s.ok || !s.self_pay || !(s.amount > 0)) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    if (s.paid) {
+      el.innerHTML = '<div style="background:#e9f9f0;border:1px solid #9fe0bd;border-radius:14px;padding:16px;text-align:center">' +
+        '<div style="font-size:30px">✅</div><div style="font-size:17px;font-weight:800;color:#127a4a;margin-top:4px">Paid in full</div>' +
+        '<div style="font-size:13px;color:#4a6b58;margin-top:3px">Thank you! $' + s.amount.toFixed(2) + ' received.</div>' +
+        '<a href="/.netlify/functions/customer-invoice?job_id=' + JOB_ID + '&last4=' + LAST4 + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;font-size:12px;color:#127a4a">See itemized receipt →</a></div>';
+      return;
+    }
+    el.innerHTML = '<div style="background:linear-gradient(135deg,#fff4e6,#ffe9cc);border:1px solid #f0c98a;border-radius:14px;padding:18px;text-align:center">' +
+      '<div style="font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#9a5a12">Balance due</div>' +
+      '<div style="font-size:38px;font-weight:900;color:#10243e;line-height:1.1;margin:4px 0">$' + s.amount.toFixed(2) + '</div>' +
+      '<button id="payNowBtn" style="width:100%;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border:0;border-radius:11px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;margin-top:6px">Pay now — secure checkout</button>' +
+      '<a href="/.netlify/functions/customer-invoice?job_id=' + JOB_ID + '&last4=' + LAST4 + '" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px;font-size:12px;color:#9a5a12">See itemized invoice →</a></div>';
+    const b = $('payNowBtn');
+    if (b) b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Opening secure checkout…';
+      try {
+        const r = await fetch('/.netlify/functions/create-stripe-payment-link', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, kind: 'invoice', description: 'TN Appliance Exchange — Job #' + JOB_ID + ' invoice' }),
+        });
+        const d = await r.json();
+        if (d && d.ok && d.url && !d.placeholder) { window.location.href = d.url; return; }
+        b.disabled = false; b.textContent = (d && d.error === 'covered_by_warranty') ? 'Covered by warranty — nothing due' : 'Try again';
       } catch (_) { b.disabled = false; b.textContent = 'Try again'; }
     };
   }

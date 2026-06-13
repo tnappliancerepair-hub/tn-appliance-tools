@@ -130,6 +130,7 @@ query get_customer_job_view verb=POST {
         id                  : $job.id
         scheduling_status   : $sched_status
         current_status      : ($job.current_status ?? "")
+        customer_type       : ($job.customer_type ?? "")
         appliance           : ($job.appliance ?? "")
         brand               : ($job.brand ?? "")
         problem_summary     : ($job.problem_summary ?? "")
