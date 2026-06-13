@@ -15,6 +15,10 @@
 
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const CONFIG_TABLE_NAME = 'app_config';
+// The content-scoped metadata token can't LIST tables (403), so we point at the
+// app_config table by its fixed id. Set once we know it; falls back to the
+// (scope-permitting) name lookup otherwise.
+const CONFIG_TABLE_ID = Number(process.env.APP_CONFIG_TABLE_ID) || 0; // <-- set to the real id
 
 let _tableIdCache = null;
 const _secretCache = {};
@@ -27,6 +31,7 @@ function headers() {
 
 // Resolve the app_config table id by name (so we don't hardcode a workspace id).
 async function configTableId() {
+  if (CONFIG_TABLE_ID) return CONFIG_TABLE_ID;
   if (_tableIdCache) return _tableIdCache;
   const r = await fetch(`${XANO_META}/table`, { headers: headers() });
   if (!r.ok) throw new Error('table-list ' + r.status);
