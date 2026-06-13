@@ -1,5 +1,8 @@
 # Appliance Ant
 
+## 🎯 NORTH STAR — the next major goal (full vision in `docs/self-checkout-vision.md`)
+Customer self-checkout pays a **$50 quick check**, records a 10-sec video + model pic → Teddy Tool auto-loads + routes to Teddy + the zip's tech → honest **TDR back to the customer in hours** with **4 options** (OEM/aftermarket × DIY-ship/install) → **auto-scheduled** + (eventually) **parts auto-shipped in real time**, nobody touching a keyboard. Most pieces already exist (Stripe payments, media capture, Teddy Tool, zip routing, TDR, the 4-option model, auto-schedule, parts ledger) — the remaining work is **orchestrating them into one automated flow**. Do NOT start until HCP is cut over and Danielle + techs live in Ant daily. This is the seed of the consumer platform. ("This is where it all started." — Teddy, 2026-06-13)
+
 ## ✅ SATURDAY 2026-06-13 (evening) — RUNTIME SECRET VAULT + customer payments LIVE
 
 Closed the "we sell but can't collect" gap on the add-on engine, and permanently solved the Netlify/Lambda 4KB env-var wall.
