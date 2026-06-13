@@ -12,6 +12,7 @@
 // Falls back to placeholder mailto:tnappliancerepair@gmail.com link
 // when STRIPE_SECRET_KEY is unset (so the agent flow still works in dev).
 const Stripe = require('stripe');
+const { getSecret } = require('./_lib/secrets');
 
 const DEFAULT_SUCCESS = 'https://tnapplianceexchange.net/pay-thanks.html?session_id={CHECKOUT_SESSION_ID}';
 const DEFAULT_CANCEL = 'https://tnapplianceexchange.net/customer-portal.html';
@@ -41,7 +42,7 @@ exports.handler = async function (event) {
   for (const k of Object.keys(m)) { if (m[k] != null) extraMeta[k] = String(m[k]); }
   const kind = String(body.kind || extraMeta.kind || 'invoice');
 
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = await getSecret('STRIPE_SECRET_KEY');
   if (!key) {
     // Dev fallback — return a mailto so the agent flow can still run
     return jsonResp(200, {
