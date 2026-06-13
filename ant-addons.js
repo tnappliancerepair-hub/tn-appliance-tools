@@ -47,11 +47,11 @@
         pitch: "The dishwasher supply line runs under your cabinet where a slow leak goes unseen for months. Replacing it means pulling the unit and working the shutoff — worth doing right while we're already in there." },
       { key: 'dishwasher_leak_detector', name: 'Smart water leak detector (placed)', price: 60, tech_cut: 20, discount: 10, // smart sensor ~$12 -> net $50, tech $20
         pitch: "Dishwasher leaks are the #1 hidden source of cabinet and floor rot. A smart sensor under the unit alerts your phone the moment it gets wet." },
-      { key: 'garbage_disposal', name: 'Garbage disposal replacement (installed)', price: 220, tech_cut: 100, discount: 10, // unit ~$80 -> net $210: shop $110, tech $100
-        pitch: "Since we're already under your sink — swap a leaking or jammed disposal for a fresh unit. Quieter, stronger, and we haul the old one away." },
+      { key: 'garbage_disposal', name: 'Garbage disposal replacement', inquire: true, tech_cut: 0, discount: 0, // quoted on site (varies by unit/install)
+        pitch: "Since we're already under your sink — ask us about swapping a leaking or jammed disposal for a fresh unit. We'll quote it on the spot." },
     ],
     range: [
-      { key: 'range_antitip', name: 'Anti-tip safety bracket (installed)', price: 60, tech_cut: 20, discount: 10, // bracket ~$15 -> net $50, tech $20
+      { key: 'range_antitip', name: 'Anti-tip safety bracket (installed)', price: 110, tech_cut: 50, discount: 10, // safety/code item -> net $100: 50% split, tech $50
         pitch: "Code requires an anti-tip bracket on every range — it stops the stove from tipping if a child climbs or leans on an open door. Most homes are missing it. We'll secure yours while we're there." },
       { key: 'range_hood_filter', name: 'Fresh range-hood filter (installed)', price: 60, tech_cut: 20, discount: 10, // grease+charcoal ~$15 -> net $50, tech $20
         pitch: "A clogged hood filter is a grease-fire risk and kills your ventilation. We'll drop in a fresh grease + charcoal filter while we're there." },
