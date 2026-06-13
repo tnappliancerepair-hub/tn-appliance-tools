@@ -43,10 +43,11 @@ exports.handler = async function (event) {
   const end = parseInt(q.end_ms, 10) || Date.now();
 
   try {
-    const [invoices, payouts, feedback] = await Promise.all([
+    const [invoices, payouts, feedback, addons] = await Promise.all([
       fetchByAction('office_invoice_logged'),
       fetchByAction('tech_payout_recorded'),
       fetchByAction('customer_feedback_recorded'),
+      fetchByAction('addon_fulfilled'),
     ]);
     // job_ids that have already been paid out (per-job release), so we never double-pay.
     const releasedJobs = new Set();
@@ -86,10 +87,35 @@ exports.handler = async function (event) {
       if (released) t.released_total += j.pay;
       t.jobs.push({ job_id: j.job_id, pay: j.pay, labor: j.labor, total: j.total, when: j.when, released: released });
     }
+
+    // Fulfilled add-ons -> payable line items for the assigned tech. De-dupe per
+    // job+addon; carry a synthetic payout id ("A:<job>:<key>") so releasing an
+    // add-on doesn't collide with the job's base invoice payout.
+    const addonSeen = new Set();
+    for (const row of addons) {
+      const m = meta(row);
+      const tid = parseInt(m.technician_id, 10) || 0;
+      const cut = num(m.tech_cut);
+      if (!tid || !cut) continue;
+      const when = num(m.requested_at_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
+      if (when < start || when > end) continue;
+      const dedupe = m.job_id + '|' + m.addon_key;
+      if (addonSeen.has(dedupe)) continue;
+      addonSeen.add(dedupe);
+      const payoutId = 'A:' + m.job_id + ':' + m.addon_key;
+      const released = releasedJobs.has(payoutId);
+      const t = techs[tid] || (techs[tid] = { technician_id: tid, tech_pay: 0, labor: 0, parts: 0, tax: 0, amount: 0, released_total: 0, addon_pay: 0, jobs: [] });
+      // add-on cut counts toward what the tech is owed, tracked separately so the
+      // P&L (which has its own add-on margin line) doesn't double-count it.
+      t.tech_pay += cut; t.addon_pay = (t.addon_pay || 0) + cut;
+      if (released) t.released_total += cut;
+      t.jobs.push({ job_id: payoutId, label: (m.name || 'Add-on') + ' · #' + m.job_id, pay: cut, labor: 0, total: num(m.net_price || m.price), when: when, released: released, addon: true });
+    }
     const out = Object.values(techs).map((t) => ({
       technician_id: t.technician_id,
       tech_pay: Number(t.tech_pay.toFixed(2)), labor: Number(t.labor.toFixed(2)),
       parts: Number(t.parts.toFixed(2)), tax: Number(t.tax.toFixed(2)), amount: Number(t.amount.toFixed(2)),
+      addon_pay: Number((t.addon_pay || 0).toFixed(2)),
       released_total: Number(t.released_total.toFixed(2)),
       remaining: Number((t.tech_pay - t.released_total).toFixed(2)),
       review_count: reviewByTech[t.technician_id] || 0,
