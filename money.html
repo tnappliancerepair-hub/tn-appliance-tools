@@ -287,7 +287,16 @@ async function renderPL(d,pr){
     const ar=await fetch('/.netlify/functions/addons-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
     const ad=await ar.json(); if(ad&&ad.success) addon=ad;
   }catch(_){}
+  // Real cash collected via card (Stripe) this period — invoices + add-ons + tips.
+  let collected={total:0,invoice:0,addon:0,tip:0,count:0};
+  try{
+    const cr=await fetch('/.netlify/functions/payments-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'});
+    const cd=await cr.json(); if(cd&&cd.ok) collected=cd;
+  }catch(_){}
   const net=rev-tax-pay-partsCost-exp.total+addon.margin; // owner take-home (+ add-on margin)
+  const collectedLine=collected.count>0
+    ? `<div class="pl-row"><span>💳 Card payments collected (${collected.count} · inv $${collected.invoice.toFixed(0)} · add-ons $${collected.addon.toFixed(0)} · tips $${collected.tip.toFixed(0)})</span><span class="v" style="color:var(--ok)">$${collected.total.toFixed(2)}</span></div>`
+    : `<div class="pl-row"><span>💳 Card payments collected</span><span class="v" style="color:var(--dim)">none yet</span></div>`;
   const addonLine=addon.count>0
     ? `<div class="pl-row"><span>+ Add-on sales (${addon.count} · margin after part + tech cut)</span><span class="v" style="color:var(--ok)">$${addon.margin.toFixed(2)}</span></div>`
     : `<div class="pl-row"><span>Add-on sales</span><span class="v" style="color:var(--dim)">none yet</span></div>`;
@@ -316,6 +325,9 @@ async function renderPL(d,pr){
         ${expBreak}
         ${addonLine}
         <div class="pl-row net"><span>Take-home (owner net)</span><span class="v">$${net.toFixed(2)}</span></div>
+        <div style="height:8px"></div>
+        ${collectedLine}
+        <div class="pl-note" style="padding-top:2px">Take-home is accrual (work done). Card payments collected is real cash in via Stripe — they won't match until invoices are paid.</div>
         <div style="text-align:center;margin-top:12px"><button onclick="openExpense()" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;color:var(--blue);cursor:pointer">+ Log expense</button></div>
         <div class="pl-note">Parts cost = real spend from the Parts ledger. Gas/truck/fees: log them with the button (or pull from Digits once production's live). Business taxes layer in next.</div>
       </div>
