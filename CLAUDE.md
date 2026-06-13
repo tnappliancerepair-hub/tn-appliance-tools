@@ -1,5 +1,17 @@
 # Appliance Ant
 
+## ✅ SATURDAY 2026-06-13 (afternoon) — ADD-ON / UPSELL ENGINE shipped end-to-end
+
+Built the full add-on (portal-offer) money loop with Teddy live, iterating price-by-price. Everything below is LIVE on main.
+
+- **Catalog (`ant-addons.js`)** — offers keyed by appliance: washer, dryer, refrigerator, **dishwasher (new)**, **range/oven (new)**. Each item carries `price` (sticker), `discount` ($10 portal hook), `tech_cut`, `cost` (real part cost for honest margin), and optional `ship_price`/`ship_cut`. `forAppliance()` maps loose appliance text (dish/disposal→dishwasher, range/stove/oven→range). `dealOfTheWeek()` rotates one honest special by ISO week.
+- **Pricing rule (Teddy):** customer price = **part cost + 30% (shop) + tech cut**, tech cut = **50% but never below $20**. Prices raised $10 + **rounded to clean $10s (no 9-endings)**. Final menu nets: washer lines $50 · leak-detector **5-pack set $120 installed / $90 ship** (tech $50 install / $20 ship — priced to clear margin on a ~$45 5-pack; install pays well to avoid a 2nd trip) · dryer clean-out $80 · vent hose $50 · magnetic vent kit $80 · fridge coil $80 · fridge line $50 · dishwasher **supply line $120 (tech $60, pull-unit job)** · anti-tip **$100 (tech $50, safety/code)** · hood filter $50. **Inquire-only (varies):** fridge water filter (by brand), garbage disposal (by unit). **Tech-quoted:** dryer vent cleaning (`tech-vent-quote.html`, market-rate table side $110–180 / roof $160–240, 50% cut min $20).
+- **Dual-tier install-or-ship** (mirrors the cash-TDR DIY model): shippable parts offer **We install** (tech earns full cut) OR **Just ship it / you install** (cheaper, tech earns a $10–20 finder cut). Service items (clean-out, coil, vent, anti-tip, dishwasher line) are install-only.
+- **Surfaces wired:** customer portal (two buttons + weekly deal + inquire), **`tech-job.html` add-ons card** (Install now / Ship it / Flag for quote, instant inline confirm), office board 🛍️ banner (🔧 install / 📦 ship-only / ❓ inquiry tags), **tech Pay tab** + **leaderboard** (🛍️ count+$), **office Payroll** (each add-on a payable line via synthetic payout id `A:<job>:<key>` so it never collides with the job's base invoice), and **owner P&L** (add-on margin = revenue − tech cut − part cost flows into take-home).
+- **No double-count:** payroll-rollup exposes `addon_pay` separately; P&L uses invoice-only tech pay (`tech_pay − addon_pay`) and the single add-on margin line. Every catalog item has a real `cost` so margin is honest.
+- **New Netlify fns:** `addons-rollup.js` (period margin), `addons-leaderboard.js` (per-tech month). Updated: `record-addon.js` (stores mode/cost/tech_cut, resolves tech on fulfill), `addons-pending.js`, `tech-earnings.js`, `payroll-rollup.js`.
+- **OPEN / next ideas:** add-on **sales tax** not yet in the tax view; could expand menu (ice maker, door gasket, drum glides); ship-only fulfillment isn't yet wired into `parts_orders` (so add-on part spend shows via the catalog `cost` estimate, not the parts ledger).
+
 ## ✅ SATURDAY 2026-06-13 (mid-day) — pending actions cleared + Digits LIVE (sandbox), prod pending
 
 Worked the 3 pending operator actions live with Teddy. Two of three fully done; Digits real-books gated on one vendor email.
