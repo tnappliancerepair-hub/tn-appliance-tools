@@ -36,7 +36,10 @@ async function alreadyRecorded(sessionId) {
 async function recordPaidSession(session) {
   const md = (session && session.metadata) || {};
   const sessionId = session && session.id;
-  const amount = (session && session.amount_total != null) ? session.amount_total / 100 : 0;
+  const amount = (session && session.amount_total != null) ? session.amount_total / 100 : 0; // total charged (incl. tax)
+  const base = md.base_cents != null ? Number(md.base_cents) / 100 : amount; // pre-tax (the add-on price / margin basis)
+  const tax = md.tax_cents != null ? Number(md.tax_cents) / 100 : 0;
+  const region = md.region || '';
   const jobId = Number(md.job_id) || 0;
   const kind = md.kind || 'invoice';
 
@@ -45,7 +48,8 @@ async function recordPaidSession(session) {
 
   await logRow('customer_payment_received', {
     session_id: sessionId, job_id: jobId, kind,
-    amount: amount.toFixed(2), addon_key: md.addon_key || null,
+    amount: amount.toFixed(2), base: base.toFixed(2), tax: tax.toFixed(2), region,
+    addon_key: md.addon_key || null,
     source: md.source || 'customer_portal_pay', paid_at_ms: Date.now(),
   });
   // A tip: 100% to the tech (shop absorbs the Stripe fee). Credits their pay.
@@ -63,7 +67,7 @@ async function recordPaidSession(session) {
   if (kind === 'addon' && md.addon_key) {
     await logRow('addon_requested', {
       job_id: jobId, addon_key: md.addon_key, name: md.name || md.addon_key,
-      net_price: amount.toFixed(2), price: amount.toFixed(2), discount: '0.00',
+      net_price: base.toFixed(2), price: base.toFixed(2), discount: '0.00',
       tech_cut: (md.tech_cut || '0'), cost: (md.cost || '0'),
       technician_id: md.technician_id ? Number(md.technician_id) : null,
       mode: md.mode || 'ship', status: 'requested', paid: true,

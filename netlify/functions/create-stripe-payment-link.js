@@ -17,6 +17,10 @@ const { getSecret } = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const JOBS_TABLE = 7;
 const EVENT_LOG_TABLE = 3;
+// Add-on sales tax (tax-added): region from the job's tech, combined rate.
+// These are reasonable defaults; refine with the CPA / a tax service later.
+const TECH_REGION = { 1: 'TN', 2: 'TN', 3: 'LA', 4: 'TN', 5: 'LA', 6: 'LA' };
+const TAX_RATE = { TN: 0.0975, LA: 0.0945 };
 function metaHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
   return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null;
@@ -56,6 +60,17 @@ async function resolveInvoice(jobId) {
     }
   } catch (_) {}
   return { error: 'no_invoice_due' };
+}
+
+// Region (TN/LA) for a job, from its assigned tech — drives the add-on tax rate.
+async function jobRegion(jobId) {
+  const h = metaHeaders();
+  if (!h) return 'TN';
+  try {
+    const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: h });
+    if (r.ok) { const j = await r.json(); return TECH_REGION[parseInt(j && j.technician_id, 10)] || 'TN'; }
+  } catch (_) {}
+  return 'TN';
 }
 
 const DEFAULT_SUCCESS = 'https://tnapplianceexchange.net/pay-thanks.html?session_id={CHECKOUT_SESSION_ID}';
@@ -105,25 +120,41 @@ exports.handler = async function (event) {
     });
   }
 
+  // Add-ons are "tax added": charge the price + sales tax. (Invoices already
+  // include tax from the office worksheet; tips are not taxed.)
+  let taxCents = 0, region = '', rate = 0;
+  if (kind === 'addon') {
+    region = await jobRegion(jobId);
+    rate = TAX_RATE[region] || TAX_RATE.TN;
+    taxCents = Math.round(amountCents * rate);
+  }
+
   try {
     const stripe = new Stripe(key);
+    const lineItems = [{
+      price_data: { currency: 'usd', product_data: { name: description }, unit_amount: amountCents },
+      quantity: 1,
+    }];
+    if (taxCents > 0) {
+      lineItems.push({
+        price_data: { currency: 'usd', product_data: { name: 'Sales tax (' + region + ' ' + (rate * 100).toFixed(2) + '%)' }, unit_amount: taxCents },
+        quantity: 1,
+      });
+    }
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: { name: description },
-          unit_amount: amountCents,
-        },
-        quantity: 1,
-      }],
+      line_items: lineItems,
       success_url: process.env.STRIPE_SUCCESS_URL || DEFAULT_SUCCESS,
       cancel_url: process.env.STRIPE_CANCEL_URL || DEFAULT_CANCEL,
       customer_email: customerEmail || undefined,
       metadata: Object.assign({
         job_id: String(jobId),
         kind: kind,
-        amount_cents: String(amountCents),
+        base_cents: String(amountCents),
+        tax_cents: String(taxCents),
+        tax_rate: String(rate),
+        region: region,
+        amount_cents: String(amountCents + taxCents),
         source: extraMeta.source || 'customer_portal_pay',
       }, extraMeta),
     });
@@ -133,6 +164,8 @@ exports.handler = async function (event) {
       url: session.url,
       session_id: session.id,
       amount_cents: amountCents,
+      tax_cents: taxCents,
+      total_cents: amountCents + taxCents,
     });
   } catch (err) {
     console.error('[create-stripe-payment-link] stripe error', err.message);

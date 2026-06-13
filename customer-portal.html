@@ -1311,7 +1311,7 @@
           return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
             '<div class="addon-pitch">' + pitch + '</div>' +
             '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">We install it · $' + net + '</button>' +
-            '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' <span style="opacity:.8">(you install)</span></button></div>';
+            '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' + tax <span style="opacity:.8">(you install)</span></button></div>';
         }
         return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
           '<div class="addon-pitch">' + pitch + '</div>' +

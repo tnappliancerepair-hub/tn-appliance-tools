@@ -205,8 +205,15 @@ async function renderTax(d,pr){
   const techs=d.techs||[];
   let tn=0,la=0,rev=0,pay=0;
   techs.forEach(t=>{ const reg=TECH_REGION[t.technician_id]||'TN'; if(reg==='LA')la+=t.tax; else tn+=t.tax; rev+=t.amount; pay+=(t.tech_pay-(t.addon_pay||0)-(t.tip_pay||0)); });
-  const salesTax=tn+la;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Building tax view…</div>';
+  // Add-on sales tax collected at checkout (tax-added), split by region.
+  let addonTaxTn=0,addonTaxLa=0;
+  try{
+    const at=await fetch('/.netlify/functions/addon-tax-rollup?start_ms='+pr.start+'&end_ms='+pr.end,{cache:'no-store'}).then(r=>r.json());
+    if(at&&at.ok){ addonTaxTn=at.tn||0; addonTaxLa=at.la||0; tn+=addonTaxTn; la+=addonTaxLa; }
+  }catch(_){}
+  const addonTax=addonTaxTn+addonTaxLa;
+  const salesTax=tn+la;
   // pull parts cost + logged expenses to get a real take-home for the set-aside
   let partsCost=0,expTotal=0;
   try{
@@ -232,6 +239,7 @@ async function renderTax(d,pr){
         <div class="pl-note" style="padding:0 0 6px">Sales tax collected — owed to the state</div>
         <div class="pl-row"><span>Tennessee</span><span class="v">$${tn.toFixed(2)}</span></div>
         <div class="pl-row"><span>Louisiana</span><span class="v">$${la.toFixed(2)}</span></div>
+        ${addonTax>0?`<div class="pl-row"><span>· incl. add-on tax collected</span><span class="v" style="color:var(--dim)">$${addonTax.toFixed(2)}</span></div>`:''}
         <div class="pl-row net"><span>Sales tax to remit</span><span class="v">$${salesTax.toFixed(2)}</span></div>
       </div>
       <div class="tech">
