@@ -102,6 +102,11 @@
 [functions."tech-morning-mirror-and-encourage"]
   schedule = "0 12 * * *"
 
+# Danielle's daily "good morning" from Ant — what needs her (to schedule, parts
+# in, on hold, callbacks) in one text. 7:30am CT.
+[functions."office-morning-briefing"]
+  schedule = "30 12 * * *"
+
 # Warranty-status email watcher (Phase 0 of warranty automation arc).
 # Scans Gmail for vendor confirmation/payment/denial emails. Defaults to
 # DRY-RUN — parses + logs to event_log without updating warranty_submissions.
