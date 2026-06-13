@@ -21,8 +21,8 @@
     washer: [
       { key: 'washer_supply_lines', name: 'New washer supply lines', price: 60, tech_cut: 20, discount: 10, ship_price: 30, ship_cut: 10, // installed net $50/t$20; ship-only net $30/t$10
         pitch: "Burst or leaking washer hoses are a top cause of home water damage, and most makers recommend replacing them about every 5 years." },
-      { key: 'washer_leak_detector', name: 'Smart water leak detector', price: 110, tech_cut: 50, discount: 10, ship_price: 80, ship_cut: 20, // installed net $100/t$50 (done first visit, no 2nd trip); ship-only net $80/t$20
-        pitch: "A smart sensor sits behind your washer and alerts your phone the second it senses water — leaking valves and hoses cause some of the priciest damage we see. Cheap insurance." },
+      { key: 'washer_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+        pitch: "A 5-pack of smart sensors for every water risk in the home — behind the washer, under the fridge, dishwasher, water heater and sinks. They alert your phone the second they sense water. Leaking valves and hoses cause some of the priciest damage we see — cheap insurance." },
     ],
     dryer: [
       { key: 'dryer_cleanout', name: 'Dryer clean-out', price: 90, tech_cut: 35, discount: 10, // service, no part -> net $80, tech $35
@@ -39,14 +39,14 @@
         pitch: "The water line behind the fridge is a common hidden leak source — cheap protection against a slow leak under your floor." },
       { key: 'fridge_water_filter', name: 'Fresh water filter (installed)', inquire: true, tech_cut: 0, discount: 0, // OEM filter cost varies by brand -> quoted to the model
         pitch: "Clean water and ice — manufacturers recommend a new filter about every 6 months. Ask us and we'll quote the right filter for your model and drop it in while we're there." },
-      { key: 'fridge_leak_detector', name: 'Smart water leak detector', price: 110, tech_cut: 50, discount: 10, ship_price: 80, ship_cut: 20, // installed net $100/t$50 (done first visit, no 2nd trip); ship-only net $80/t$20
-        pitch: "A smart sensor under your fridge catches an ice-maker or water-line leak before it ruins your floor — and texts your phone, not just beeps in an empty kitchen." },
+      { key: 'fridge_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+        pitch: "A 5-pack of smart sensors — one under the fridge for ice-maker and water-line leaks, plus the washer, dishwasher, water heater and sinks. They text your phone, not just beep in an empty house." },
     ],
     dishwasher: [
       { key: 'dishwasher_supply_line', name: 'New dishwasher supply line (installed)', price: 130, tech_cut: 60, discount: 10, // pull unit + under-sink shutoff -> net $120: 50% split, tech $60
         pitch: "The dishwasher supply line runs under your cabinet where a slow leak goes unseen for months. Replacing it means pulling the unit and working the shutoff — worth doing right while we're already in there." },
-      { key: 'dishwasher_leak_detector', name: 'Smart water leak detector', price: 110, tech_cut: 50, discount: 10, ship_price: 80, ship_cut: 20, // installed net $100/t$50 (done first visit, no 2nd trip); ship-only net $80/t$20
-        pitch: "Dishwasher leaks are the #1 hidden source of cabinet and floor rot. A smart sensor under the unit alerts your phone the moment it gets wet." },
+      { key: 'dishwasher_leak_detector', name: 'Smart water leak detector set', price: 130, tech_cut: 50, discount: 10, ship_price: 90, ship_cut: 20, // 5-pack ~$45 -> installed net $120/t$50 (done first visit, no 2nd trip); ship net $90/t$20
+        pitch: "A 5-pack of smart sensors for the whole home — under the dishwasher (the #1 hidden source of cabinet and floor rot), plus the washer, fridge, water heater and sinks. Texts your phone the moment it gets wet." },
       { key: 'garbage_disposal', name: 'Garbage disposal replacement', inquire: true, tech_cut: 0, discount: 0, // quoted on site (varies by unit/install)
         pitch: "Since we're already under your sink — ask us about swapping a leaking or jammed disposal for a fresh unit. We'll quote it on the spot." },
     ],
@@ -75,8 +75,8 @@
       pitch: "Upgrade to an airtight magnetic quick-connect — best airflow + seal, and pulling the dryer out next time is a snap. On special this week." },
     { key: 'fridge_supply_line', name: 'Refrigerator water/ice line, installed', normal: 50, sale: 40,
       pitch: "The line behind your fridge is a common hidden leak source. Cheap protection against a slow leak under your floor — on special this week." },
-    { key: 'washer_leak_detector', name: 'Smart water leak detector, installed', normal: 100, sale: 80,
-      pitch: "A smart sensor behind your washer texts your phone the second it senses water — cheap insurance against a leaking valve. Installed, on special this week." },
+    { key: 'washer_leak_detector', name: 'Smart water leak detector 5-pack, installed', normal: 120, sale: 100,
+      pitch: "Smart sensors for every water risk in the home — washer, fridge, dishwasher, water heater, sinks. Text your phone the second they sense water. Installed, on special this week." },
   ];
 
   // ISO-week number, so the deal advances once a week consistently.
