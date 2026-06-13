@@ -190,24 +190,51 @@ function renderTax(d,pr){
     </div>`;
 }
 
-function renderPL(d,pr){
+async function renderPL(d,pr){
   const techs=d.techs||[];
-  let rev=0,labor=0,parts=0,tax=0,pay=0;
-  techs.forEach(t=>{rev+=t.amount;labor+=t.labor;parts+=t.parts;tax+=t.tax;pay+=t.tech_pay;});
-  const takeHome=rev-tax-pay; // rough: parts true-cost margin comes from the parts ledger
+  let rev=0,labor=0,partsBilled=0,tax=0,pay=0;
+  techs.forEach(t=>{rev+=t.amount;labor+=t.labor;partsBilled+=t.parts;tax+=t.tax;pay+=t.tech_pay;});
+  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Building P&amp;L…</div>';
+  // Real parts COST + margin from the parts ledger (parts_orders) for this period.
+  let partsCost=0,partsSold=0,costKnown=false;
+  try{
+    const days=Math.max(1,Math.ceil((Date.now()-pr.start)/86400000)+1);
+    const r=await fetch(XANO+'/get_parts_cost_analysis?days_back='+days,{cache:'no-store'});
+    const pd=await r.json();
+    if(pd&&pd.success){
+      costKnown=true;
+      (pd.orders||[]).forEach(o=>{
+        const t=Number(o.ordered_at||0);
+        if(t>=pr.start&&t<=pr.end){
+          partsCost+=((Number(o.cost_cents)||0)+(Number(o.shipping_cents)||0))/100;
+          partsSold+=(Number(o.sold_to_customer_cents)||0)/100;
+        }
+      });
+    }
+  }catch(_){}
+  const partsMargin=partsSold-partsCost;
+  const net=rev-tax-pay-partsCost; // truer take-home: revenue minus tax owed, tech pay, real parts cost
+  const costLine=costKnown
+    ? `<div class="pl-row neg"><span>− Parts cost (paid)</span><span class="v">$${partsCost.toFixed(2)}</span></div>`
+    : `<div class="pl-row"><span>Parts cost</span><span class="v" style="color:var(--dim)">ledger empty</span></div>`;
+  const marginLine=costKnown&&partsSold>0
+    ? `<div class="pl-row"><span>Parts margin (sold − cost)</span><span class="v" style="color:var(--ok)">$${partsMargin.toFixed(2)}</span></div>`
+    : '';
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="summary"><div class="b"><div class="v">$${rev.toFixed(0)}</div><div class="k">Revenue</div></div>
-        <div class="b"><div class="v">$${pay.toFixed(0)}</div><div class="k">Tech pay</div></div>
-        <div class="b"><div class="v">$${takeHome.toFixed(0)}</div><div class="k">After pay+tax</div></div></div>
+        <div class="b"><div class="v">$${partsCost.toFixed(0)}</div><div class="k">Parts cost</div></div>
+        <div class="b"><div class="v">$${net.toFixed(0)}</div><div class="k">Take-home</div></div></div>
       <div class="tech">
         <div class="pl-row"><span>Revenue (invoiced)</span><span class="v">$${rev.toFixed(2)}</span></div>
         <div class="pl-row"><span>· of which labor</span><span class="v">$${labor.toFixed(2)}</span></div>
-        <div class="pl-row"><span>· of which parts billed</span><span class="v">$${parts.toFixed(2)}</span></div>
-        <div class="pl-row neg"><span>− Sales tax (owed to state)</span><span class="v">$${tax.toFixed(2)}</span></div>
+        <div class="pl-row"><span>· of which parts billed</span><span class="v">$${partsBilled.toFixed(2)}</span></div>
+        ${costLine}
+        ${marginLine}
         <div class="pl-row neg"><span>− Tech pay</span><span class="v">$${pay.toFixed(2)}</span></div>
-        <div class="pl-row net"><span>Left after pay + tax</span><span class="v">$${takeHome.toFixed(2)}</span></div>
-        <div class="pl-note">Parts true cost (and real margin) drops in from the Parts ledger next — this view uses what's billed. Replaces the Monthly Budget sheet.</div>
+        <div class="pl-row neg"><span>− Sales tax (owed to state)</span><span class="v">$${tax.toFixed(2)}</span></div>
+        <div class="pl-row net"><span>Take-home (after parts, pay, tax)</span><span class="v">$${net.toFixed(2)}</span></div>
+        <div class="pl-note">Parts cost is real spend from the Parts ledger; gas/truck/fees + business taxes layer in next. Replaces the Monthly Budget sheet.</div>
       </div>
     </div>`;
 }
