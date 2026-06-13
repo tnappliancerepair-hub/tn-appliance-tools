@@ -34,6 +34,36 @@
     ],
   };
 
+  // Deal of the week — a single 50%-off promo that rotates automatically by
+  // calendar week and shows in every customer's portal. Edit the list / prices
+  // freely; it cycles through them one per week, no weekly maintenance.
+  var WEEKLY_DEALS = [
+    { key: 'dryer_cleanout', name: 'Dryer clean-out', normal: 150, sale: 75,
+      pitch: "Lint build-up is the #1 dryer fire risk and makes everything take longer to dry. Just let us know and we'll give your tech extra time to do a full clean-out while they're there." },
+    { key: 'dryer_vent_hose', name: 'Dryer vent hose, installed', normal: 60, sale: 30,
+      pitch: "A fresh vent hose means better airflow and a safer dryer — installed for half off this week." },
+    { key: 'fridge_supply_line', name: 'Refrigerator water/ice supply line', normal: 60, sale: 30,
+      pitch: "The line behind your fridge is a common hidden leak source. Cheap protection against a slow leak under your floor — half off this week." },
+    { key: 'washer_supply_lines', name: 'Washer supply lines', normal: 90, sale: 45,
+      pitch: "Burst washer hoses are a top cause of home water damage; makers recommend replacing about every 5 years. Half off this week." },
+    { key: 'fridge_coil_clean', name: 'Refrigerator condenser coil cleaning', normal: 90, sale: 45,
+      pitch: "Dirty coils raise your energy bill and shorten your fridge's life. Half off a full blow-out + vac this week." },
+  ];
+
+  // ISO-week number, so the deal advances once a week consistently.
+  function isoWeek(d) {
+    d = d || new Date();
+    var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var day = (t.getUTCDay() + 6) % 7;
+    t.setUTCDate(t.getUTCDate() - day + 3);
+    var first = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((t - first) / 86400000 - 3 + ((first.getUTCDay() + 6) % 7)) / 7);
+  }
+  function dealOfTheWeek() {
+    if (!WEEKLY_DEALS.length) return null;
+    return WEEKLY_DEALS[isoWeek() % WEEKLY_DEALS.length];
+  }
+
   // Map loose appliance text to a catalog key.
   function normalize(appl) {
     var a = String(appl || '').toLowerCase();
@@ -52,5 +82,5 @@
     return null;
   }
 
-  root.AntAddons = { CATALOG: CATALOG, forAppliance: forAppliance, get: get, normalize: normalize };
+  root.AntAddons = { CATALOG: CATALOG, WEEKLY_DEALS: WEEKLY_DEALS, forAppliance: forAppliance, get: get, normalize: normalize, dealOfTheWeek: dealOfTheWeek, isoWeek: isoWeek };
 })(window);

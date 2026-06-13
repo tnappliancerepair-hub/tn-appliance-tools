@@ -271,6 +271,8 @@
     <div class="detail" id="heroDetail"></div>
   </div>
 
+  <div id="dealCard" class="deal-card" style="display:none"></div>
+
   <div id="infoCard" class="info-card"></div>
 
   <!-- Help-us-help-you panel — clear ask for media + availability + Q&A.
@@ -352,6 +354,14 @@
     .addon-add { width: 100%; padding: 10px; border: 0; border-radius: 9px; background: #ff8a00; color: #fff; font-size: 13px; font-weight: 800; cursor: pointer; }
     .addon-add:active { transform: scale(0.98); }
     .addon-add.added { background: #1faa6b; }
+    .deal-card { background: linear-gradient(135deg,#ff5a3c,#ff8a00); color: #fff; border-radius: 14px; padding: 15px; margin-bottom: 14px; box-shadow: 0 6px 18px rgba(255,90,60,0.3); }
+    .deal-card .dk { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.95; }
+    .deal-card .dn { font-size: 18px; font-weight: 900; margin: 3px 0 2px; }
+    .deal-card .dp { font-size: 14px; font-weight: 800; margin-bottom: 6px; }
+    .deal-card .dp .was { text-decoration: line-through; opacity: 0.8; font-weight: 600; margin-right: 6px; }
+    .deal-card .dd { font-size: 12.5px; line-height: 1.45; opacity: 0.97; margin-bottom: 11px; }
+    .deal-card button { width: 100%; padding: 11px; border: 0; border-radius: 9px; background: #fff; color: #d6432a; font-size: 14px; font-weight: 800; cursor: pointer; }
+    .deal-card button.claimed { background: rgba(255,255,255,0.25); color: #fff; }
   </style>
 
   <div class="actions">
@@ -894,6 +904,7 @@
     const btnGR = $('btnGoogleReview');
     if (btnGR) { btnGR.style.display = (viewState === 'completed' && job.scheduling_status === 'completed') ? '' : 'none'; }
 
+    renderDeal(job, viewState);
     renderAddons(job, viewState);
 
     // 📦 Parts arrived — only when the job is awaiting parts AND parts
@@ -1143,6 +1154,32 @@
       return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(dt);
     }
     return new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' }).format(new Date(Number(d)));
+  }
+
+  function renderDeal(job, viewState) {
+    const el = $('dealCard'); if (!el) return;
+    const deal = (window.AntAddons && AntAddons.dealOfTheWeek());
+    if (!deal || viewState === 'canceled') { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.innerHTML = '<div class="dk">⚡ This week only · 50% off</div>' +
+      '<div class="dn">' + escapeHtml(deal.name) + '</div>' +
+      '<div class="dp"><span class="was">$' + deal.normal + '</span>$' + deal.sale + '</div>' +
+      '<div class="dd">' + escapeHtml(deal.pitch) + '</div>' +
+      '<button id="dealBtn">Yes — add it to my visit</button>';
+    const b = $('dealBtn');
+    if (b) b.onclick = async () => {
+      if (b.classList.contains('claimed')) return;
+      b.disabled = true; b.textContent = 'Adding…';
+      try {
+        const r = await fetch('/.netlify/functions/record-addon', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: (deal.normal - deal.sale), source: 'weekly_deal' }),
+        });
+        const d = await r.json();
+        if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; }
+        else { b.disabled = false; b.textContent = 'Try again'; }
+      } catch (_) { b.disabled = false; b.textContent = 'Try again'; }
+    };
   }
 
   function renderAddons(job, viewState) {
