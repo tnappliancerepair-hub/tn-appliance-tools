@@ -14,10 +14,13 @@ stream renting the screen to others.
 - We just built the thing it should point at: text/talk-to-Ant + photo → instant
   AI diagnosis. The truck demos the whole consumer vision in the wild.
 
+## Goal (decided 2026-06-13)
+Promote **the Ant 🐜 platform + TN Appliance Exchange** — brand awareness + repair
+leads. NOT renting the screen to others. The truck is our billboard for our brand.
+
 ## Two revenue plays (do both)
 1. **Lead-gen for TN Appliance / Ant** — drive repair calls + brand awareness.
-2. **Rent the screen to other businesses** — the truck becomes a paid mobile
-   billboard (digital LED truck ads rent per-campaign). You drive anyway.
+2. ~~Rent the screen to other businesses~~ — dropped; this is our brand's billboard.
 
 ## The funnel (this is what makes it measurable)
 Screen shows a dead-simple message + a QR + a number:
