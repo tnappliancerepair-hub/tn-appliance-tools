@@ -41,6 +41,27 @@ the needs-scheduled backlog, drive-time/geocode (`get-drive-time`).
 - Pull candidates from: unscheduled/open jobs near the tech's current zip
   (proximity via zip/geocode), prioritized by age + cluster fit.
 
+## Part 2b — THE ULTIMATE TECH PARTNER (live, bidirectional, both ways)
+Ant is the tech's real-time dispatch partner — proactive AND on-demand, managing
+the day as it actually unfolds, and handling all the customer comms both directions:
+
+- **Running AHEAD → pull work forward.** Ant notices (or the tech asks: "who's
+  near me?") and offers nearby open/available customers: "2 within 10 min — want
+  one?" Tech says yes → Ant messages that customer, books it, gives a live window.
+- **Running BEHIND → protect the later stops.** Ant notices the day slipping and
+  **proactively messages the upcoming customers** — "running a little behind, now
+  looking like early afternoon, still good?" — adjusts windows, offers to move
+  anyone who can't wait. The customer never sits wondering; the tech never has to
+  stop and make calls.
+- **Either party can start it.** Ant nudges the tech, or the tech texts/talks to
+  Ant ("I'm ahead, pull someone close" / "I'm behind 45 min, push my afternoon").
+  Maximizes the AI: Ant does the routing math, the proximity lookups, and the
+  customer messaging in real time so the tech just drives and fixes.
+
+This is "the ultimate tech partner" — a live co-pilot that fills slack when fast,
+cushions customers when slow, and keeps the whole day optimized without anyone
+touching the office.
+
 ## Why this is the achievement
 - **First-visit-fix + jobs-per-day climb**, trucks stop crisscrossing → lower cost.
 - **Customers served faster** (today, not next week) → the self-pay-parity goal.
