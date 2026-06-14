@@ -253,6 +253,17 @@ const PHONE_TOOLS = [
       required: ['customer_id', 'note'],
     },
   },
+  {
+    name: 'lookup_by_claim_number',
+    description: "Look up a job by a warranty CLAIM number, ServicePower DISPATCH number, or HCP WORK-ORDER number. Call this WHENEVER a caller gives you ANY reference number — warranty CSC reps always have one, and homeowners often read it off their paperwork. ALSO use it after lookup_customer_by_phone returns caller_id_masked or found:false. Returns a 'primary' summary (customer_name, appliance_type, scheduling_status, scheduled_start, tech_first_name, parts_status, parts_eta_date) plus been_out + is_scheduled booleans — read those back. If match_count is 0, read the number back digit-by-digit and try once more before saying you can't find it.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        claim_or_dispatch_number: { type: 'string', description: 'The claim, dispatch, or work-order number the caller gave (digits or alphanumeric).' },
+      },
+      required: ['claim_or_dispatch_number'],
+    },
+  },
 ];
 
 // ─── SCHEDULER TOOLS (read-only safe for any brain) ─────────────────
@@ -685,6 +696,15 @@ async function executeTool(toolName, toolInput, ctx) {
       } catch (e) {
         return { error: 'lookup failed: ' + (e.message || e) };
       }
+    }
+    case 'lookup_by_claim_number': {
+      const key = String(ti.claim_or_dispatch_number || '').trim();
+      if (!key) return { error: 'claim_or_dispatch_number required' };
+      return await timedFetch(`${XANO_BASE}/lookup_by_claim_number`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim_or_dispatch_number: key }),
+      });
     }
     case 'get_recent_call_summary': {
       const customerId = Number(ti.customer_id || 0);
