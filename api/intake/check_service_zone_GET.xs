@@ -42,17 +42,20 @@ query check_service_zone verb=GET {
       value = ($zone != null ? ($zone.accept_new_jobs ?? false) : false)
     }
 
-    // Smart-routing suggestion: the rank-1 active tech who covers this cluster
-    // (owner tech 1 skipped so routine work does not auto-route to Teddy). The
-    // office confirms; a cluster only the owner covers returns 0 (pick by hand).
+    // Smart-routing suggestion: the rank-1 ACTIVE NON-OWNER tech who covers
+    // this cluster. The owner (tech 1) is last resort only -- per Teddy he
+    // should never be the primary pick, only suggested when nobody else can
+    // help. So we walk ranks, take the first active non-owner; if NONE exists
+    // we fall back to the owner (so a cluster only Teddy covers still resolves
+    // to him). The office confirms with a tap.
     var $cluster_name {
       value = ($zone != null ? ($zone.cluster ?? "") : "")
     }
 
     db.query cluster_assignment {
-      where = $db.cluster_assignment.cluster == $cluster_name && $db.cluster_assignment.active == true && $db.cluster_assignment.technician_id != 1
+      where = $db.cluster_assignment.cluster == $cluster_name && $db.cluster_assignment.active == true
       sort = {cluster_assignment.rank: "asc"}
-      return = {type: "list", paging: {page: 1, per_page: 10}}
+      return = {type: "list", paging: {page: 1, per_page: 20}}
     } as $assign_rows
 
     var $suggested_tid {
@@ -63,8 +66,15 @@ query check_service_zone verb=GET {
       value = ""
     }
 
-    //  Walk ranks and take the first ACTIVE tech, mirroring get_tech_for_zip
-    //  so the suggestion never points at an inactive tech.
+    // Owner fallback captured separately so he only wins if no one else does.
+    var $owner_fallback_tid {
+      value = 0
+    }
+
+    var $owner_fallback_name {
+      value = ""
+    }
+
     foreach ($assign_rows.items) {
       each as $assign {
         conditional {
@@ -82,18 +92,50 @@ query check_service_zone verb=GET {
 
                 conditional {
                   if ($cand_tech != null && ($cand_tech.active ?? false) == true) {
-                    var.update $suggested_tid {
-                      value = $cand_tid
-                    }
+                    conditional {
+                      if ($cand_tid == 1) {
+                        // Owner: remember as last resort, do not pick yet.
+                        conditional {
+                          if ($owner_fallback_tid == 0) {
+                            var.update $owner_fallback_tid {
+                              value = $cand_tid
+                            }
 
-                    var.update $sug_name {
-                      value = (($cand_tech.first_name ?? "")|trim)
+                            var.update $owner_fallback_name {
+                              value = (($cand_tech.first_name ?? "")|trim)
+                            }
+                          }
+                        }
+                      }
+
+                      else {
+                        var.update $suggested_tid {
+                          value = $cand_tid
+                        }
+
+                        var.update $sug_name {
+                          value = (($cand_tech.first_name ?? "")|trim)
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           }
+        }
+      }
+    }
+
+    // No non-owner covers this cluster -> owner is the only one who can help.
+    conditional {
+      if ($suggested_tid == 0 && $owner_fallback_tid > 0) {
+        var.update $suggested_tid {
+          value = $owner_fallback_tid
+        }
+
+        var.update $sug_name {
+          value = $owner_fallback_name
         }
       }
     }

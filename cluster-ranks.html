@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Area Coverage - TN Appliance</title>
+<style>
+  html,body{overflow-x:hidden!important;max-width:100vw!important;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  :root{--bg:#f4f6fb;--panel:#fff;--line:#e2e7f0;--ink:#1a2233;--muted:#6b7488;--green:#0a7d33;--green-bg:#e7f7ec;--orange:#b3690a;--blue:#1f6feb;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:18px 14px 60px;max-width:620px;margin:0 auto;}
+  h1{font-size:21px;font-weight:800;text-align:center;}
+  .sub{color:var(--muted);font-size:13px;text-align:center;margin:4px 0 16px;line-height:1.5;}
+  .rule{background:#fff7e6;border:1px solid #f0d9a8;color:var(--orange);border-radius:12px;padding:11px 13px;font-size:13px;font-weight:600;margin-bottom:18px;line-height:1.45;}
+  .cluster{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .cname{font-size:17px;font-weight:800;}
+  .picks{font-size:13px;color:var(--green);font-weight:700;margin:4px 0 12px;}
+  .row{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid var(--line);}
+  .row:first-of-type{border-top:0;}
+  .rk{width:42px;}
+  .rk input{width:42px;padding:7px 4px;text-align:center;font-size:16px;font-weight:800;border:1px solid var(--line);border-radius:8px;}
+  .nm{flex:1;font-size:15px;font-weight:700;}
+  .nm small{display:block;color:var(--muted);font-weight:600;font-size:11px;}
+  .badge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;}
+  .b-pick{background:var(--green-bg);color:var(--green);}
+  .b-owner{background:#fdeee0;color:var(--orange);}
+  .b-off{background:#f0f0f0;color:var(--muted);}
+  .save{border:0;background:var(--blue);color:#fff;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:800;cursor:pointer;}
+  .save:disabled{opacity:.5;}
+  .toggle{font-size:12px;font-weight:700;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;padding:7px 9px;cursor:pointer;}
+  .loading,.empty{text-align:center;color:var(--muted);padding:40px 0;}
+  /* auth */
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:24px;z-index:50;}
+  #auth input{width:100%;max-width:280px;padding:13px;font-size:16px;border:1px solid var(--line);border-radius:10px;}
+  #auth button{padding:13px 22px;background:var(--blue);color:#fff;border:0;border-radius:10px;font-size:16px;font-weight:800;}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:#1a2233;color:#fff;padding:11px 18px;border-radius:30px;font-size:14px;font-weight:700;transition:transform .25s;z-index:60;}
+  #toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:34px">🐜</div>
+  <div style="font-weight:800">Office sign-in</div>
+  <input id="pw" type="password" placeholder="office password" autocomplete="current-password">
+  <button onclick="doAuth()">Unlock</button>
+  <div id="autherr" style="color:#c0392b;font-size:13px;min-height:16px"></div>
+</div>
+
+<h1>🗺️ Area coverage</h1>
+<div class="sub">Who Ant pre-picks to schedule in each area. Lower rank = first choice.</div>
+<div class="rule">🐜 Teddy is <b>last resort only</b> — he's suggested only when no other tech covers an area. Keep him a high number (or off) everywhere so a real tech is always first.</div>
+<div id="list"><div class="loading">Loading…</div></div>
+<div id="toast"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function load(){
+  const wrap=document.getElementById('list');
+  wrap.innerHTML='<div class="loading">Loading…</div>';
+  let data;
+  try{ const r=await fetch(XANO+'/list_cluster_assignments'); data=await r.json(); }
+  catch(_){ wrap.innerHTML='<div class="empty">Could not load. Pull to retry.</div>'; return; }
+  const rows=(data&&data.assignments)||[];
+  if(!rows.length){ wrap.innerHTML='<div class="empty">No coverage set yet.</div>'; return; }
+  // group by cluster
+  const by={};
+  rows.forEach(r=>{(by[r.cluster]=by[r.cluster]||[]).push(r);});
+  let html='';
+  Object.keys(by).sort().forEach(cl=>{
+    const techs=by[cl].sort((a,b)=>(a.rank||99)-(b.rank||99));
+    // Ant pick = first active non-owner; else owner fallback
+    const pick=techs.find(t=>t.active&&t.tech_active&&!t.is_owner) || techs.find(t=>t.active&&t.tech_active&&t.is_owner);
+    const pickTxt = pick ? ('🐜 Ant picks '+esc(pick.tech_name||('tech '+pick.technician_id))+(pick.is_owner?' (only Teddy covers this — add a tech!)':'')) : '⚠ no active tech covers this area';
+    html+='<div class="cluster"><div class="cname">'+esc(cl)+'</div><div class="picks">'+pickTxt+'</div>';
+    techs.forEach(t=>{
+      const off = !t.active || !t.tech_active;
+      let badge='';
+      if(pick && t.technician_id===pick.technician_id && !off) badge='<span class="badge b-pick">Ant picks</span>';
+      else if(t.is_owner) badge='<span class="badge b-owner">owner</span>';
+      else if(off) badge='<span class="badge b-off">off</span>';
+      html+='<div class="row" data-cluster="'+esc(cl)+'" data-tid="'+t.technician_id+'">'+
+        '<div class="rk"><input type="number" min="1" value="'+(t.rank||1)+'" id="rk_'+esc(cl).replace(/\W/g,'')+'_'+t.technician_id+'"></div>'+
+        '<div class="nm">'+esc(t.tech_name||('tech '+t.technician_id))+' '+badge+(t.is_owner?'<small>last resort only</small>':'')+'</div>'+
+        '<button class="toggle" onclick="toggleActive(this,\''+esc(cl)+'\','+t.technician_id+','+(t.active?1:0)+')">'+(t.active?'On':'Off')+'</button>'+
+        '<button class="save" onclick="saveRank(this,\''+esc(cl)+'\','+t.technician_id+')">Save</button>'+
+        '</div>';
+    });
+    html+='</div>';
+  });
+  wrap.innerHTML=html;
+}
+
+async function post(body){
+  const r=await fetch(XANO+'/set_cluster_rank',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  return r.json();
+}
+async function saveRank(btn,cluster,tid){
+  const inp=document.getElementById('rk_'+cluster.replace(/\W/g,'')+'_'+tid);
+  const rank=parseInt(inp.value,10);
+  if(!rank||rank<1){toast('Rank must be 1+');return;}
+  btn.disabled=true;btn.textContent='…';
+  const d=await post({cluster,technician_id:tid,rank});
+  if(d&&d.success){toast('Saved ✓');load();}
+  else{btn.disabled=false;btn.textContent='Save';toast('⚠ '+((d&&d.error)||'failed'));}
+}
+async function toggleActive(btn,cluster,tid,isActive){
+  const inp=document.getElementById('rk_'+cluster.replace(/\W/g,'')+'_'+tid);
+  const rank=parseInt(inp.value,10)||1;
+  btn.disabled=true;
+  const d=await post({cluster,technician_id:tid,rank,active:!isActive});
+  if(d&&d.success){toast(isActive?'Turned off':'Turned on');load();}
+  else{btn.disabled=false;toast('⚠ '+((d&&d.error)||'failed'));}
+}
+
+if(authOk()){document.getElementById('auth').style.display='none';load();}
+</script>
+</body>
+</html>

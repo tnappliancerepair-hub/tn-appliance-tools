@@ -60,6 +60,7 @@
       { label: 'Phone-Ready',    icon: '📞', page: 'office-ready.html' },
       { label: 'Call Stats',     icon: '📊', page: 'call-performance.html' },
       { label: 'Warranty',       icon: '📦', page: 'warranty-review.html' },
+      { label: 'Area Coverage',  icon: '🗺️', page: 'cluster-ranks.html' },
       { label: 'Money',          icon: '💰', page: 'money.html' },
       { label: 'Needs Action',   icon: '✅',       page: 'office-todo.html' },
       { label: 'Live Pulse',     icon: '🟢', page: 'office-pulse.html' },
