@@ -86,8 +86,9 @@ async function load(){
       if(unscheduled) q.push({type:'schedule',j:j});
       else if(noClaim||noPhone) q.push({type:'info',j:j,noClaim:!!noClaim,noPhone:!!noPhone});
     });
-    // schedule cards first (biggest lever), then info
-    q.sort((a,b)=>(a.type==='schedule'?0:1)-(b.type==='schedule'?0:1));
+    // schedule cards first (biggest lever), then info; within each group,
+    // oldest-waiting first so the longest-waiting customers get handled first.
+    q.sort((a,b)=>((a.type==='schedule'?0:1)-(b.type==='schedule'?0:1)) || ((Number(a.j.created_at)||0)-(Number(b.j.created_at)||0)));
     QUEUE=q; renderCard();
   }catch(e){document.getElementById('stage').innerHTML='<div class="loading">⚠ '+esc(e.message)+'</div>';}
 }
