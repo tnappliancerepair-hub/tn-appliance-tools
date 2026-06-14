@@ -187,7 +187,7 @@ function jobRegion(j){
 }
 
 // ── auth ──
-function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1';}
+function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
 function initAuth(){
   if(authValid()){document.getElementById('auth').classList.add('hidden');loadBoard();return;}
   document.getElementById('pw').focus();
@@ -198,7 +198,7 @@ async function submitAuth(){
   try{
     const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
     const d=await r.json();
-    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');document.getElementById('auth').classList.add('hidden');loadBoard();}
+    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');loadBoard();}
     else{err.textContent='Wrong password.';}
   }catch(_){err.textContent='Connection error.';}
 }

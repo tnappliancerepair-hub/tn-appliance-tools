@@ -746,7 +746,11 @@
   }
 
   function tryUnlock() {
-    if (localStorage.getItem(OFFICE_AUTH_KEY) === 'ok') {
+    // Accept EITHER office auth key so a login on any office page unlocks the
+    // calendar too (the rest of the office uses tn_office_auth='1'; this page
+    // historically used tn_office_auth_v1='ok' — that split was the "black
+    // screen": logged in elsewhere, calendar didn't recognize it).
+    if (localStorage.getItem(OFFICE_AUTH_KEY) === 'ok' || localStorage.getItem('tn_office_auth') === '1') {
       unlock();
     } else {
       authGate.classList.add('show');
@@ -778,6 +782,7 @@
     const val = authInput.value;
     if ((await __verifyOfficePassword(val))) {
       localStorage.setItem(OFFICE_AUTH_KEY, 'ok');
+      try { localStorage.setItem('tn_office_auth', '1'); } catch (_) {}
       authErr.textContent = '';
       unlock();
     } else {
