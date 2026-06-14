@@ -52,30 +52,48 @@ query check_service_zone verb=GET {
     db.query cluster_assignment {
       where = $db.cluster_assignment.cluster == $cluster_name && $db.cluster_assignment.active == true && $db.cluster_assignment.technician_id != 1
       sort = {cluster_assignment.rank: "asc"}
-      return = {type: "list", paging: {page: 1, per_page: 1}}
+      return = {type: "list", paging: {page: 1, per_page: 10}}
     } as $assign_rows
 
-    var $assign {
-      value = (($assign_rows.items|first) ?? null)
-    }
-
     var $suggested_tid {
-      value = ($assign != null ? ($assign.technician_id ?? 0) : 0)
+      value = 0
     }
 
     var $sug_name {
       value = ""
     }
 
-    conditional {
-      if ($suggested_tid > 0) {
-        db.get technicians {
-          field_name = "id"
-          field_value = $suggested_tid
-        } as $sug_tech
+    //  Walk ranks and take the first ACTIVE tech, mirroring get_tech_for_zip
+    //  so the suggestion never points at an inactive tech.
+    foreach ($assign_rows.items) {
+      each as $assign {
+        conditional {
+          if ($suggested_tid == 0) {
+            var $cand_tid {
+              value = ($assign.technician_id ?? 0)
+            }
 
-        var.update $sug_name {
-          value = (($sug_tech ?? {first_name: ""}).first_name ?? "")
+            conditional {
+              if ($cand_tid > 0) {
+                db.get technicians {
+                  field_name = "id"
+                  field_value = $cand_tid
+                } as $cand_tech
+
+                conditional {
+                  if ($cand_tech != null && ($cand_tech.active ?? false) == true) {
+                    var.update $suggested_tid {
+                      value = $cand_tid
+                    }
+
+                    var.update $sug_name {
+                      value = (($cand_tech.first_name ?? "")|trim)
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }

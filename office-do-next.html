@@ -168,15 +168,22 @@ async function suggestDay(tid, cluster, dateId, hint, techName, j){
       by[day].total++;
       if((s.cluster||'').trim().toLowerCase()===cl)by[day].same++;
     });
-    let best=null;
+    const today=ctDate(Date.now());
+    let best=null, light=null;
     Object.keys(by).forEach(day=>{
-      const o=by[day]; if(!o.same)return;
-      if(!best||o.same>best.same||(o.same===best.same&&o.total<best.total))best={day,same:o.same,total:o.total};
+      if(day<today)return; // don't suggest a past day
+      const o=by[day];
+      if(o.same&&(!best||o.same>best.same||(o.same===best.same&&o.total<best.total)))best={day,same:o.same,total:o.total};
+      if(!light||o.total<light.total)light={day,total:o.total};
     });
-    if(!best)return;
     const di=document.getElementById(dateId);
-    if(di&&!di.value)di.value=best.day;
-    hint.textContent=hint.textContent+' '+techName+' has '+best.same+' stop'+(best.same===1?'':'s')+' near here that day — routes well.';
+    if(best){
+      if(di&&!di.value)di.value=best.day;
+      hint.textContent=hint.textContent+' '+techName+' has '+best.same+' stop'+(best.same===1?'':'s')+' near here that day — routes well.';
+    }else if(light){
+      if(di&&!di.value)di.value=light.day;
+      hint.textContent=hint.textContent+' Pre-picked the lightest day '+techName+' is already out — change if needed.';
+    }
   }catch(_){}
 }
 
