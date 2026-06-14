@@ -50,6 +50,43 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
+    // MASKED CALLER ID guard. RingCentral forwards inbound calls into Vapi
+    // and replaces the real caller's number with one of the shop's OWN lines
+    // (mainly the 615-280-2949 main). Looking that up matches nothing real (or
+    // a junk record) and makes Ant greet wrong. Detect it and tell Ant to ask
+    // for name + claim/WO number instead. (Permanent fix = port 280-2949 to
+    // Telnyx straight into Ant Inbound so real caller ID passes through.)
+    var $shop_marker {
+      value = ("|" ~ $ten_digits ~ "|")
+    }
+    var $shop_numbers {
+      value = "|6152802949|6155889500|6158578800|"
+    }
+    var $caller_masked {
+      value = ($ten_digits != "" && ($shop_numbers|contains:$shop_marker))
+    }
+    conditional {
+      if ($caller_masked == true) {
+        db.add event_log {
+          data = {
+            action  : "caller_id_masked"
+            metadata: {from_digits: $ten_digits}
+          }
+        }
+        return {
+          value = {
+            found             : false
+            caller_id_masked  : true
+            is_internal       : false
+            customer          : null
+            open_jobs         : []
+            last_call_summary : ""
+            hint              : "Caller ID is masked (forwarded line). Do not assume who this is. Ask for their name and their claim or work-order number, then use lookup_by_claim_number."
+          }
+        }
+      }
+    }
+
     db.query customer {
       where = $db.customer.phone == $clean_phone || $db.customer.phone == $input.phone || $db.customer.phone == $digits || $db.customer.phone == $ten_digits
       sort = {customer.id: "desc"}
