@@ -283,6 +283,17 @@ function overdue(j){
   const created=Number(j.created_at||0); if(!created)return false;
   return (Date.now()-created)>7*86400000;
 }
+// Count phone-critical info gaps (same 4 checks as the Phone-Ready board) so
+// the office can see at a glance which jobs Ant can't answer calls about yet.
+const DONE_RE=/completed|canceled|cancelled|no_fix/i;
+function phoneGaps(j){
+  let m=0;
+  if(!DONE_RE.test(j.scheduling_status||'')){ if(!(Number(j.scheduled_start)>0&&Number(j.technician_id)>0)) m++; }
+  if((''+(j.customer_phone||'')).replace(/\D/g,'').length<10) m++;
+  if((j.warranty_company||'').trim() && !(j.claim_number||'').trim()) m++;
+  if(PARTS_WAIT.test(j.parts_status||'') && !(j.parts_eta_date||'').trim()) m++;
+  return m;
+}
 // Paid-online job ids (card payments collected) — drives the 💵 paid tag.
 let PAID_JOBS=new Set();
 async function loadPaid(){
@@ -301,6 +312,8 @@ function cardHtml(j){
   if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
   else tags.push('<span class="tag cash">cash</span>');
   if(PAID_JOBS.has(String(j.id)))tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 paid</span>');
+  const _g=phoneGaps(j);
+  if(_g>0)tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="missing info Ant needs to answer calls">⚠ needs info</span>');
   if(overdue(j))tags.push('<span class="tag over">overdue</span>');
   return `<div class="jcard" draggable="true" data-id="${j.id}">
     <div class="jc-top"><div class="jc-name">${esc(name)}</div></div>
