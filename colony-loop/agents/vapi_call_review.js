@@ -131,6 +131,7 @@ export async function run(signal) {
   let reviewed = 0;
   let skipped = 0;
   const sampleIdeas = [];
+  const struggled = []; // calls where Ant clearly fell short
 
   for (const c of calls) {
     if (c.status !== 'ended' && c.endedAt == null) {
@@ -159,7 +160,7 @@ export async function run(signal) {
         slot.ideas.push(review.improvement_idea);
         if (sampleIdeas.length < 8) sampleIdeas.push(`[${assistantName}] ${review.improvement_idea}`);
       }
-      await xano.logLocal('vapi_call_reviewed', {
+      const reviewMeta = {
         call_id: c.id,
         assistant_name: assistantName,
         outcome_quality: review.outcome_quality,
@@ -169,7 +170,20 @@ export async function run(signal) {
         efficiency: review.efficiency,
         tldr: review.tldr,
         improvement_idea: review.improvement_idea,
-      });
+      };
+      await xano.logLocal('vapi_call_reviewed', reviewMeta);
+      // Flag + DURABLY persist calls where Ant fell short (any of the
+      // outcome/tools/accuracy dimensions <= 2) so the office can pull them up
+      // and tune fast. Good calls stay stdout-only to keep event_log lean.
+      const worst = Math.min(
+        Number(review.outcome_quality || 5),
+        Number(review.tool_use_accuracy || 5),
+        Number(review.factual_accuracy || 5)
+      );
+      if (worst <= 2) {
+        struggled.push({ call_id: c.id, assistant: assistantName, worst, tldr: review.tldr, idea: review.improvement_idea });
+        try { await xano.recordEventLog('vapi_call_struggled', reviewMeta); } catch (_) {}
+      }
     } catch (e) {
       skipped++;
       await xano.logLocal('vapi_call_review_error', { call_id: c.id, error: e.message.slice(0, 200) });
@@ -183,11 +197,15 @@ export async function run(signal) {
     );
     lines.push(`${name} (n=${slot.count}): outcome ${avgs.outcome_quality} · brand ${avgs.brand_voice} · accuracy ${avgs.factual_accuracy} · tools ${avgs.tool_use_accuracy} · efficiency ${avgs.efficiency}`);
   }
+  if (struggled.length) {
+    lines.push(`⚠ STRUGGLED (${struggled.length}) — pull these up:`);
+    struggled.slice(0, 5).forEach((s) => lines.push(`• ${String(s.call_id).slice(0, 8)} (${s.assistant}): ${s.tldr || s.idea || 'low score'}`));
+  }
   if (sampleIdeas.length) {
     lines.push('TOP IDEAS:');
     sampleIdeas.slice(0, 5).forEach((i, idx) => lines.push(`${idx + 1}. ${i}`));
   }
-  const digest = lines.join('\n').slice(0, 1400);
+  const digest = lines.join('\n').slice(0, 1600);
 
   if (reviewed > 0) {
     await toOwner(digest, { source: 'vapi_call_review' });
@@ -196,9 +214,10 @@ export async function run(signal) {
   await xano.logLocal('vapi_call_review_completed', {
     reviewed,
     skipped,
+    struggled: struggled.length,
     assistants: Object.keys(byAssistant).length,
     ideas_surfaced: sampleIdeas.length,
   });
 
-  return { ok: true, reviewed, skipped };
+  return { ok: true, reviewed, skipped, struggled: struggled.length };
 }
