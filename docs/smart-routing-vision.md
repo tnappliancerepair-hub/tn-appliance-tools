@@ -69,12 +69,29 @@ touching the office.
   (everything through Ant), and it compounds: more data → better suggestions.
 
 ## Phased build
-1. **Cluster-suggest** (now): Ant pre-picks the tech by zip on the Do-Next /
-   Phone-Ready / schedule flows. Office confirms with a tap.
-2. **Route-aware day suggestion:** suggest the day that densifies the tech's route.
-3. **Dynamic route-fill agent:** "running ahead → here are 2 nearby open jobs →
-   want one?" tech-facing, real-time. Colony-loop agent + tech SMS reply handler.
+1. **Cluster-suggest** — ✅ DONE (2026-06-14). `check_service_zone` returns
+   `suggested_technician_id` + name (walks cluster ranks, skips inactive +
+   owner). Do-Next + Phone-Ready schedule cards pre-pick that tech.
+2. **Route-aware day suggestion** — ✅ DONE (2026-06-14). `get_tech_route_days`
+   returns the tech's upcoming stops tagged with cluster; the cards pre-fill the
+   day he already has same-cluster stops (else his lightest already-out day).
+3. **Dynamic route-fill agent** — 🟡 PARTIAL (2026-06-14). The pace pipeline is
+   live: `tech_pace_watcher` (every 30 min) emits TECH_RUNNING_AHEAD /
+   TECH_RUNNING_BEHIND. Both consumers now compute REAL data:
+   - `tech_running_ahead.js` scans nearby open jobs via `find_extra_work_for_tech`
+     (pre-diag + in-cluster first). **Shadow mode (default):** texts Teddy the
+     real candidate list. **Live mode (`ROUTE_FILL_LIVE=true`):** texts the TECH
+     "reply 1/2/no" and stashes a pending offer.
+   - `tech_running_behind.js` pulls remaining stops; shadow-texts Teddy who'd be
+     nudged; live-mode messages those customers a gentle behind note (also gated
+     by the Xano customer-SMS gate).
+   - **STILL TODO before flipping `ROUTE_FILL_LIVE` on:** the tech-SMS reply
+     handler in `tech_sms_inbound` must read `route_fill_pending_<tech_id>` and
+     book the chosen candidate (technician_id + scheduled_start + fire
+     APPOINTMENT_SCHEDULED), then text that customer a live window.
 4. **Full auto:** with the self-checkout TDR flow, jobs flow in pre-diagnosed and
    the router places + fills them with near-zero office touch.
 
-Sequence after the core cutover (Danielle + techs living in Ant daily).
+Sequence after the core cutover (Danielle + techs living in Ant daily). Parts 1+2
+serve the cutover now; Part 3 runs in shadow (Teddy-only) until validated, then
+build the reply handler and flip `ROUTE_FILL_LIVE=true`.

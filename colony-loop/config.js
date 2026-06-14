@@ -71,6 +71,12 @@ export const config = Object.freeze({
   // from zip + parts_eta_date) instead of just sending Teddy three
   // options to manually pick. Defaults OFF until smoke-verified live.
   autoBookEnabled: process.env.AUTO_BOOK_ENABLED === 'true',
+  // Route-fill (the "ultimate tech partner"): when true, a tech running
+  // ahead is texted DIRECTLY with nearby open jobs ("reply 1/2/no"); when
+  // false (default), only Teddy gets the candidate list to validate the
+  // signal + candidate quality before techs are pinged. Flip on after the
+  // core cutover, once Danielle + techs live in Ant daily.
+  routeFillLive: process.env.ROUTE_FILL_LIVE === 'true',
   // Claude call audit endpoint — fire-and-forget logged from claude.js
   // on every API call (success, error, timeout, dry-run). Empty disables
   // logging (back-compat). Set automatically from xanoIntakeBase below.

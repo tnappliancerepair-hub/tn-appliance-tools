@@ -210,6 +210,12 @@ export async function getColonyArchitectFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_colony_architect_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+// Nearby unscheduled jobs a tech could pick up (route-fill / EXTRA flow).
+// Returns { prediag_and_local:[], other_candidates:[], total_in_pool }.
+export async function findExtraWorkForTech(techId, limit = 3) {
+  return getJSON(`${INTAKE()}/find_extra_work_for_tech?tech_id=${encodeURIComponent(techId)}&limit=${encodeURIComponent(limit)}`);
+}
+
 export async function getAppointmentConfirmationSent(jobId, scheduledStartMs) {
   return getJSON(`${INTAKE()}/get_appointment_confirmation_sent?job_id=${jobId}&scheduled_start_ms=${scheduledStartMs}`);
 }
