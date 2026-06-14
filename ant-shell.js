@@ -55,6 +55,7 @@
   // Secondary destinations shown in the "More" sheet, per role.
   var MORE_SHEETS = {
     office: [
+      { label: 'Do Next',        icon: '🐜', page: 'office-do-next.html' },
       { label: 'Queue',          icon: '📥', page: 'needs-scheduled.html' },
       { label: 'Phone-Ready',    icon: '📞', page: 'office-ready.html' },
       { label: 'Call Stats',     icon: '📊', page: 'call-performance.html' },

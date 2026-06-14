@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Do Next · Ant Office</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#10243e;--sub:#5a6b80;--line:#e3e8ef;--brand:#1f6fed;--ok:#1aa260;--warn:#d6432a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  .top{padding:14px 16px 4px;text-align:center}
+  .top h1{font-size:18px;font-weight:900;margin:0}
+  .prog{font-size:13px;color:var(--sub);margin-top:3px}
+  .stage{max-width:520px;margin:0 auto;padding:14px 16px 90px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 4px 20px rgba(16,36,62,.07)}
+  .icon{font-size:46px;text-align:center}
+  .title{font-size:23px;font-weight:900;text-align:center;margin:10px 0 4px;line-height:1.15}
+  .who{font-size:15px;color:var(--sub);text-align:center;margin-bottom:4px}
+  .what{font-size:14px;color:var(--sub);text-align:center;margin-bottom:14px}
+  label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);margin:12px 0 5px}
+  select,input{width:100%;font-size:17px;padding:14px;border:1px solid var(--line);border-radius:12px}
+  .row2{display:flex;gap:10px}.row2>div{flex:1}
+  .primary{width:100%;margin-top:18px;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border:0;border-radius:14px;padding:18px;font-size:18px;font-weight:900;cursor:pointer}
+  .primary.green{background:linear-gradient(135deg,#1aa260,#12a05a)}
+  .primary:disabled{opacity:.55}
+  .skip{display:block;width:100%;text-align:center;margin-top:14px;background:none;border:0;color:var(--sub);font-size:14px;font-weight:700;cursor:pointer}
+  .done{text-align:center;padding:50px 16px}
+  .done .big{font-size:64px}.done h2{font-size:24px;margin:10px 0 6px}.done p{color:var(--sub)}
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;padding:24px}
+  #auth input{font-size:18px;padding:12px;border:1px solid var(--line);border-radius:12px;width:240px;text-align:center}
+  #auth button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:12px 26px;font-size:16px;font-weight:800;cursor:pointer}
+  #auth .err{color:var(--warn);font-size:13px;min-height:16px}
+  .loading{text-align:center;color:var(--sub);padding:50px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:#10243e;color:#fff;padding:12px 18px;border-radius:24px;font-size:14px;font-weight:700;opacity:0;transition:.25s;z-index:60}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:22px;font-weight:900">🐜 Do Next</div>
+  <div style="color:var(--sub);font-size:14px">office password</div>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="pwBtn">Unlock</button>
+  <div class="err" id="autherr"></div>
+</div>
+
+<div class="top">
+  <h1>🐜 Do Next</h1>
+  <div class="prog" id="prog">Loading…</div>
+</div>
+<div class="stage" id="stage"><div class="loading">Loading what needs doing…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
+let QUEUE=[], IDX=0, DONE=0;
+
+function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+document.getElementById('pwBtn').onclick=async function(){
+  const e=document.getElementById('autherr');const v=document.getElementById('pw').value.trim();
+  if(!v){e.textContent='Enter the office password';return;} e.textContent='Checking…';
+  if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ } document.getElementById('auth').style.display='none';load();}
+  else{e.textContent='Wrong password';}
+};
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pwBtn').click();});
+
+const PW=/(awaiting_parts|ordered|on_order|parts_needed|pending|backorder)/i, DONE_RE=/completed|canceled|cancelled|no_fix/i;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function nm(j){return ((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';}
+function appl(j){return [j.brand,j.appliance].filter(Boolean).join(' ')||'appliance';}
+function tomorrow(){var d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);}
+
+async function load(){
+  DONE=0;IDX=0;
+  try{
+    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    const d=await r.json();
+    const jobs=(d&&d.items)||[];
+    const q=[];
+    jobs.forEach(j=>{
+      const unscheduled=!DONE_RE.test(j.scheduling_status||'') && !(Number(j.scheduled_start)>0&&Number(j.technician_id)>0);
+      const noPhone=(''+(j.customer_phone||'')).replace(/\D/g,'').length<10;
+      const noClaim=(j.warranty_company||'').trim()&&!(j.claim_number||'').trim();
+      if(unscheduled) q.push({type:'schedule',j:j});
+      else if(noClaim||noPhone) q.push({type:'info',j:j,noClaim:!!noClaim,noPhone:!!noPhone});
+    });
+    // schedule cards first (biggest lever), then info
+    q.sort((a,b)=>(a.type==='schedule'?0:1)-(b.type==='schedule'?0:1));
+    QUEUE=q; renderCard();
+  }catch(e){document.getElementById('stage').innerHTML='<div class="loading">⚠ '+esc(e.message)+'</div>';}
+}
+
+function renderCard(){
+  const total=QUEUE.length+DONE;
+  if(IDX>=QUEUE.length){
+    document.getElementById('prog').textContent=DONE?('All done — '+DONE+' knocked out 🎉'):'';
+    document.getElementById('stage').innerHTML='<div class="done"><div class="big">🎉</div><h2>'+(DONE?'You crushed it!':'All caught up!')+'</h2><p>'+(DONE?(DONE+' job'+(DONE===1?'':'s')+' handled. Nothing else needs you right now.'):'Every job has what Ant needs. Nice.')+'</p><button class="skip" onclick="load()">↻ Check again</button></div>';
+    return;
+  }
+  document.getElementById('prog').textContent=(DONE+1)+' of '+total+' · '+QUEUE.length+' left';
+  const item=QUEUE[IDX], j=item.j;
+  let body='';
+  if(item.type==='schedule'){
+    body='<div class="icon">📅</div><div class="title">Schedule this job</div>'+
+      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+(j.service_city?(' · '+esc(j.service_city)):'')+(j.service_zip?(' · '+esc(j.service_zip)):'')+'</div>'+
+      '<div class="what">Put it on the tech who runs that area, on the day that fits the route. We don\'t promise a time — the customer gets a live window the morning of.</div>'+
+      '<label>Tech (whoever covers '+esc(j.service_city||j.service_zip||'this area')+')</label><select id="qTech"><option value="">— pick a tech —</option>'+
+        Object.keys(TECH).map(k=>'<option value="'+k+'">'+TECH[k]+'</option>').join('')+'</select>'+
+      '<label>Day</label><input id="qDate" type="date">'+
+      '<label>Arrival window (optional — only if they really need one)</label><input id="qWin" placeholder="usually leave blank">'+
+      '<input id="qTime" type="hidden" value="08:00">'+
+      '<button class="primary" id="qGo">Schedule it →</button>'+
+      '<button class="skip" onclick="skip()">Skip for now →</button>';
+  } else {
+    body='<div class="icon">✏️</div><div class="title">Add missing info</div>'+
+      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+'</div>'+
+      '<div class="what">Ant needs this to answer calls about this job.</div>'+
+      (item.noClaim?'<label>Warranty claim / work-order # ('+esc(j.warranty_company||'warranty')+')</label><input id="qClaim" placeholder="claim or WO #" value="'+esc(j.claim_number||'')+'">':'')+
+      (item.noPhone?'<label>Customer phone</label><input id="qPhone" type="tel" inputmode="tel" placeholder="(615) 555-1234" value="'+esc(j.customer_phone||'')+'">':'')+
+      '<button class="primary green" id="qSave">Save →</button>'+
+      '<button class="skip" onclick="skip()">Skip for now →</button>';
+  }
+  document.getElementById('stage').innerHTML='<div class="card">'+body+'</div>';
+  if(item.type==='schedule')document.getElementById('qGo').onclick=doSchedule;
+  else document.getElementById('qSave').onclick=doInfo;
+}
+
+function skip(){IDX++;renderCard();}
+function advance(){DONE++;QUEUE.splice(IDX,1);renderCard();}
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2400);}
+
+async function doSchedule(){
+  const j=QUEUE[IDX].j;
+  const tech=parseInt(document.getElementById('qTech').value,10);
+  const dateStr=document.getElementById('qDate').value;
+  const timeStr=document.getElementById('qTime').value||'09:00';
+  if(!tech){toast('Pick a tech');return;}
+  if(!dateStr){toast('Pick a day');return;}
+  const startMs=new Date(dateStr+'T'+timeStr+':00').getTime();
+  const win=document.getElementById('qWin').value.trim();
+  this.disabled=true;this.textContent='Scheduling…';
+  try{
+    const r=await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:j.id,technician_id:tech,scheduled_start_ms:startMs,service_eta_window:win})});
+    const d=await r.json();
+    if(d&&d.success){toast('Scheduled ✓');advance();}
+    else{this.disabled=false;this.textContent='Schedule it →';toast('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){this.disabled=false;this.textContent='Schedule it →';toast('⚠ connection error');}
+}
+async function doInfo(){
+  const j=QUEUE[IDX].j;
+  const claimEl=document.getElementById('qClaim'), phoneEl=document.getElementById('qPhone');
+  const claim=claimEl?claimEl.value.trim():'';
+  const phone=phoneEl?phoneEl.value.trim():'';
+  if(!claim&&!phone){toast('Enter the info');return;}
+  this.disabled=true;this.textContent='Saving…';
+  try{
+    const r=await fetch(XANO+'/office_quick_fill',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:j.id,claim_number:claim,customer_phone:phone,actor:'office'})});
+    const d=await r.json();
+    if(d&&d.success){toast('Saved ✓');advance();}
+    else{this.disabled=false;this.textContent='Save →';toast('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){this.disabled=false;this.textContent='Save →';toast('⚠ connection error');}
+}
+window.AntTalkReload=function(){load();};
+if(authOk()){document.getElementById('auth').style.display='none';load();}
+</script>
+<script src="/ant-talk.js?v=1"></script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
