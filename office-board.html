@@ -315,8 +315,10 @@ function cardHtml(j){
   const _g=phoneGaps(j);
   if(_g>0)tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="missing info Ant needs to answer calls">⚠ needs info</span>');
   if(overdue(j))tags.push('<span class="tag over">overdue</span>');
+  const _c=Number(j.created_at||0), _days=_c?Math.floor((Date.now()-_c)/86400000):0;
+  const _wait=(_days>=1 && j.scheduling_status!=='completed')?('<span class="jc-wait" style="font-size:11px;font-weight:800;color:'+(_days>=7?'#c0392b':(_days>=3?'#b3690a':'#8a96a8'))+'">⏳ '+_days+'d</span>'):'';
   return `<div class="jcard" draggable="true" data-id="${j.id}">
-    <div class="jc-top"><div class="jc-name">${esc(name)}</div></div>
+    <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div>${_wait}</div>
     <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
     ${j.claim_number?('<div class="jc-meta mono" style="font-family:ui-monospace,monospace;font-size:11px">#'+esc(j.claim_number)+'</div>'):''}
     <div class="jc-tags">${tags.join('')}</div>
