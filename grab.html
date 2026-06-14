@@ -53,8 +53,21 @@ function render(){
 }
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
+function taken(stage){
+  stage.innerHTML='<div class="card"><div class="big">Just taken 🤝</div><div class="note">Looks like this one was already grabbed or scheduled. No worries — keep crushing your day.</div></div>';
+}
 async function grab(){
   const btn=document.getElementById('go'); btn.disabled=true; btn.textContent='Adding…'; err.textContent='';
+  // Guard against a double-grab: make sure it is still open before booking.
+  try{
+    const sr=await fetch(XANO+'/get_job_event_stream?job_id='+JOB);
+    const sd=await sr.json();
+    const j=sd&&sd.current_state&&sd.current_state.job;
+    if(j){
+      const otherTech=j.technician_id&&Number(j.technician_id)!==TECH&&Number(j.technician_id)!==1;
+      if(j.scheduled_start||otherTech){ taken(stage); return; }
+    }
+  }catch(_){ /* if the check fails, fall through and let the booking decide */ }
   // He is ahead right now -> slot it ~30 min out today, no promised window.
   const startMs=Date.now()+30*60*1000;
   try{
