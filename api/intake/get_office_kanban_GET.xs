@@ -70,6 +70,8 @@ query get_office_kanban verb=GET {
             scheduling_status: (($j.scheduling_status ?? "")|trim)
             current_status   : (($j.current_status ?? "")|trim)
             parts_status     : (($j.parts_status ?? "")|trim)
+            parts_eta_date   : (($j.parts_eta_date ?? "")|trim)
+            customer_phone   : (($j.customer_phone ?? "")|trim)
             warranty_company : (($j.warranty_company ?? "")|trim)
             claim_number     : (($j.claim_number ?? "")|trim)
             intake_source    : (($j.intake_source ?? "")|trim)
