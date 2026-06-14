@@ -106,6 +106,19 @@
   </div>
 </div>
 
+<div class="modal" id="fillModal">
+  <div class="modal-card">
+    <h2>Add info</h2>
+    <div class="who" id="fillWho"></div>
+    <div id="fillClaimWrap"><label>Warranty claim / work-order #</label><input id="fillClaim" placeholder="claim or WO #"></div>
+    <div id="fillPhoneWrap"><label>Customer phone</label><input id="fillPhone" type="tel" inputmode="tel" placeholder="(615) 555-1234"></div>
+    <div class="modal-acts">
+      <button class="cancel" onclick="closeFill()">Cancel</button>
+      <button class="save" id="fillSave">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
@@ -176,11 +189,13 @@ function render(){
     const chips=j._a.checks.map(c=>'<span class="chip '+c.state+'">'+(c.state==='ok'?'✓ ':c.state==='miss'?'⚠ ':'– ')+c.label.replace(/^.. /,'')+'</span>').join('');
     const needsSched=j._a.checks.find(c=>c.key==='sched'&&c.state==='miss');
     const schedBtn=needsSched?'<button class="schedbtn" onclick="event.stopPropagation();openSched('+j.id+',&quot;'+esc(nm).replace(/"/g,'')+' · '+esc(appl).replace(/"/g,'')+'&quot;)">📅 Schedule it</button>':'';
+    const needInfo=j._a.checks.find(c=>(c.key==='claim'||c.key==='phone')&&c.state==='miss');
+    const fillBtn=needInfo?'<button class="schedbtn" style="background:#5a6b80;margin-left:7px" onclick="event.stopPropagation();openFill('+j.id+')">✏️ Add info</button>':'';
     return '<div class="job '+(j._a.gaps>0?'gaps':'ready')+'" onclick="fix('+j.id+')">'+
       '<div class="jh"><span class="nm">'+esc(nm)+'</span><span class="meta">'+esc(j.warranty_company||'cash')+(tech?(' · '+tech):'')+'</span></div>'+
       '<div class="appl">'+esc(appl)+(j.service_city?(' · '+esc(j.service_city)):'')+' · #'+j.id+'</div>'+
       '<div class="chips">'+chips+'</div>'+
-      schedBtn+
+      schedBtn+fillBtn+
     '</div>';
   }).join('');
 }
@@ -214,6 +229,32 @@ document.getElementById('schedSave').onclick=async function(){
     if(d&&d.success){closeSched();load();}
     else{this.disabled=false;this.textContent='Schedule it';alert('⚠ '+((d&&d.error)||'failed'));}
   }catch(_){this.disabled=false;this.textContent='Schedule it';alert('⚠ connection error');}
+};
+let FILL_JOB=0;
+function openFill(id){
+  const j=JOBS.find(x=>x.id===id); if(!j)return; FILL_JOB=id;
+  document.getElementById('fillWho').textContent=(((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer')+' · #'+id;
+  const needClaim=j._a.checks.find(c=>c.key==='claim'&&c.state==='miss');
+  const needPhone=j._a.checks.find(c=>c.key==='phone'&&c.state==='miss');
+  document.getElementById('fillClaimWrap').style.display=needClaim?'':'none';
+  document.getElementById('fillPhoneWrap').style.display=needPhone?'':'none';
+  document.getElementById('fillClaim').value=j.claim_number||'';
+  document.getElementById('fillPhone').value=j.customer_phone||'';
+  document.getElementById('fillSave').disabled=false;document.getElementById('fillSave').textContent='Save';
+  document.getElementById('fillModal').classList.add('show');
+}
+function closeFill(){document.getElementById('fillModal').classList.remove('show');FILL_JOB=0;}
+document.getElementById('fillSave').onclick=async function(){
+  const claim=document.getElementById('fillClaim').value.trim();
+  const phone=document.getElementById('fillPhone').value.trim();
+  if(!claim&&!phone){alert('Enter the claim # or phone');return;}
+  this.disabled=true;this.textContent='Saving…';
+  try{
+    const r=await fetch(XANO+'/office_quick_fill',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:FILL_JOB,claim_number:claim,customer_phone:phone,actor:'office'})});
+    const d=await r.json();
+    if(d&&d.success){closeFill();load();}
+    else{this.disabled=false;this.textContent='Save';alert('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){this.disabled=false;this.textContent='Save';alert('⚠ connection error');}
 };
 document.querySelectorAll('#filters button[data-f]').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
 document.getElementById('techFilter').onchange=function(){TECHF=this.value;render();};
