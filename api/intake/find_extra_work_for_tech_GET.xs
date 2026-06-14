@@ -10,7 +10,7 @@
 //    - service_zip is non-empty AND the zone allows this tech
 //    - tech_preferences hard rules don't block (skip appliance/zone)
 // 
-//  Sort: created_at desc (newest first — usually freshest urgency)
+//  Sort: created_at desc (newest first - usually freshest urgency)
 // 
 //  Returns flag `has_prediag` per job so the SMS can warn "no pre-diag
 //  yet" when applicable. Pre-diagnosed jobs surface first within the
@@ -49,43 +49,31 @@ query find_extra_work_for_tech verb=GET {
       return = {type: "list", paging: {page: 1, per_page: 50}}
     } as $tech_prefs
   
-    // Pre-lookup: clusters this tech serves (zones where tech is in
-    // allowed_technicians). Used to sort same-cluster candidates first.
-    db.query service_zone {
-      where = $db.service_zone.allowed_technicians != null && $db.service_zone.allowed_technicians != ""
-      return = {type: "list", paging: {page: 1, per_page: 500}}
-    } as $all_zones
-  
-    var $tech_id_marker {
-      value = ("," ~ ($input.tech_id|to_text) ~ ",")
-    }
-  
+    // Pre-lookup: clusters this tech serves. Source = cluster_assignment
+    // (the same authoritative table the zip-to-tech suggestion uses). The old
+    // path parsed service_zone.allowed_technicians as comma-separated tech IDs,
+    // but that column holds pipe-separated NAMES -- so it always resolved to
+    // empty and NO candidate was ever flagged in-cluster. Now route-fill is
+    // genuinely cluster-aware: nearby same-cluster jobs surface first.
+    db.query cluster_assignment {
+      where = $db.cluster_assignment.technician_id == $input.tech_id && $db.cluster_assignment.active == true
+      return = {type: "list", paging: {page: 1, per_page: 50}}
+    } as $my_clusters
+
     var $tech_clusters_csv {
       value = ""
     }
-  
-    foreach ($all_zones.items) {
-      each as $z {
-        var $allowed_padded {
-          value = ("," ~ (($z.allowed_technicians ?? "")|trim) ~ ",")
+
+    foreach ($my_clusters.items) {
+      each as $ca {
+        var $cl {
+          value = (($ca.cluster ?? "")|trim|lower)
         }
-      
-        var $strip {
-          value = $allowed_padded|replace:$tech_id_marker:""
-        }
-      
+
         conditional {
-          if (($allowed_padded|strlen) > ($strip|strlen)) {
-            var $cl {
-              value = (($z.cluster ?? "")|trim|lower)
-            }
-          
-            conditional {
-              if ($cl != "") {
-                var.update $tech_clusters_csv {
-                  value = ($tech_clusters_csv ~ "|" ~ $cl ~ "|")
-                }
-              }
+          if ($cl != "") {
+            var.update $tech_clusters_csv {
+              value = ($tech_clusters_csv ~ "|" ~ $cl ~ "|")
             }
           }
         }
@@ -135,7 +123,7 @@ query find_extra_work_for_tech verb=GET {
       }
     }
   
-    // Pull candidate jobs — scheduling_status non-terminal AND no
+    // Pull candidate jobs - scheduling_status non-terminal AND no
     // scheduled_start. technician_id=1 (Teddy fallback) counts as
     // "still up for grabs" since Teddy is the unassigned-routing default.
     db.query jobs {
@@ -214,11 +202,11 @@ query find_extra_work_for_tech verb=GET {
                           field_value = ($job.customer_id ?? 0)
                         } as $cust
                       
-                        // Pull ALL TDRs for this job — used both for
+                        // Pull ALL TDRs for this job - used both for
                         // pre-diag check (tech_id=1) AND for ownership
                         // exclusion (if any non-Teddy TDR exists, the
                         // job belongs to that tech for completion
-                        // continuity — skip for EXTRA flow).
+                        // continuity - skip for EXTRA flow).
                         db.query technician_decision_report {
                           where = $db.technician_decision_report.job_id == $job.id
                           return = {type: "list", paging: {page: 1, per_page: 10}}
@@ -256,7 +244,7 @@ query find_extra_work_for_tech verb=GET {
                       
                         conditional {
                           if (!$owned_by_other_tech) {
-                            // Same-cluster preference flag — used for sort
+                            // Same-cluster preference flag - used for sort
                             var $cluster_marker {
                               value = ("|" ~ $cluster_lower ~ "|")
                             }
@@ -297,14 +285,14 @@ query find_extra_work_for_tech verb=GET {
                               }
                             
                               elseif ($has_prediag) {
-                                // Has prediag but outside cluster — second priority
+                                // Has prediag but outside cluster - second priority
                                 var.update $without_prediag {
                                   value = $without_prediag|push:$summary
                                 }
                               }
                             
                               else {
-                                // No prediag — last priority regardless of cluster
+                                // No prediag - last priority regardless of cluster
                                 var.update $without_prediag {
                                   value = $without_prediag|push:$summary
                                 }
@@ -330,7 +318,7 @@ query find_extra_work_for_tech verb=GET {
     // NOTE: We tried building a single ranked $output array via foreach
     // over the categorized $with_prediag_first / $without_prediag /
     // $matches arrays + var.update $output|push. XS silently fails to
-    // populate $output in this pattern (verified — categorized arrays
+    // populate $output in this pattern (verified - categorized arrays
     // contain items but $output stays []). Workaround: return the two
     // categorized arrays directly; the calling agent slices the top-N
     // (pre-diag-in-cluster first, then the rest) in JS.
