@@ -91,6 +91,17 @@ async function load(){
         '<button class="save" onclick="saveRank(this,\''+esc(cl)+'\','+t.technician_id+')">Save</button>'+
         '</div>';
     });
+    // "+ add a tech" — any roster tech not already covering this area.
+    const have={}; techs.forEach(t=>{have[t.technician_id]=1;});
+    const opts=Object.keys(ROSTER).filter(id=>!have[id]).map(id=>'<option value="'+id+'">'+ROSTER[id]+'</option>').join('');
+    if(opts){
+      const cid=esc(cl).replace(/\W/g,'');
+      html+='<div class="row" style="border-top:1px dashed var(--line);gap:7px">'+
+        '<select id="add_'+cid+'" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px"><option value="">+ add a tech to this area</option>'+opts+'</select>'+
+        '<div class="rk"><input type="number" min="1" value="1" id="addrk_'+cid+'" title="rank"></div>'+
+        '<button class="save" onclick="addTech(this,\''+esc(cl)+'\')">Add</button>'+
+        '</div>';
+    }
     html+='</div>';
   });
   wrap.innerHTML=html;
@@ -118,6 +129,18 @@ async function toggleActive(btn,cluster,tid,isActive){
   else{btn.disabled=false;toast('⚠ '+((d&&d.error)||'failed'));}
 }
 
+async function addTech(btn,cluster){
+  const cid=cluster.replace(/\W/g,'');
+  const tid=parseInt(document.getElementById('add_'+cid).value,10);
+  const rank=parseInt(document.getElementById('addrk_'+cid).value,10)||1;
+  if(!tid){toast('Pick a tech');return;}
+  btn.disabled=true;btn.textContent='…';
+  const d=await post({cluster,technician_id:tid,rank});
+  if(d&&d.success){toast('Added ✓');load();}
+  else{btn.disabled=false;btn.textContent='Add';toast('⚠ '+((d&&d.error)||'failed'));}
+}
+
+const ROSTER={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 if(authOk()){document.getElementById('auth').style.display='none';load();}
 </script>
 </body>
