@@ -107,6 +107,11 @@
 [functions."office-morning-briefing"]
   schedule = "30 12 * * *"
 
+# One-time onboarding text to Danielle (the 5 things every job needs in Ant so
+# the phones stop getting confused). Sends ONCE — lands the morning she starts.
+[functions."ant-onboard-danielle"]
+  schedule = "15 12 * * *"
+
 # Warranty-status email watcher (Phase 0 of warranty automation arc).
 # Scans Gmail for vendor confirmation/payment/denial emails. Defaults to
 # DRY-RUN — parses + logs to event_log without updating warranty_submissions.
