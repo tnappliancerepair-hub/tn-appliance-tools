@@ -142,10 +142,42 @@ async function suggestTech(j){
     if(tid&&TECH[tid]){
       if(!sel.value)sel.value=String(tid);
       hint.textContent='🐜 Ant suggests '+(d.suggested_tech_name||TECH[tid])+' — covers '+(d.cluster||'this area')+'. Change if needed.';
+      suggestDay(tid, d.cluster||'', 'qDate', hint, (d.suggested_tech_name||TECH[tid]), j);
     }else if(d&&d.cluster){
       hint.textContent='Area: '+d.cluster+' — pick the tech who runs it.';
     }
   }catch(_){/* hint stays blank */}
+}
+
+// Day that densifies the route: the day this tech already has stops in the
+// same cluster. Pre-fills the date + appends to the hint. Never forces a day
+// if there's no cluster match (office still free-picks).
+function ctDate(ms){try{return new Date(ms).toLocaleDateString('en-CA',{timeZone:'America/Chicago'});}catch(_){return '';}}
+async function suggestDay(tid, cluster, dateId, hint, techName, j){
+  if(!cluster)return;
+  const cl=cluster.trim().toLowerCase();
+  try{
+    const r=await fetch(XANO+'/get_tech_route_days?technician_id='+tid+'&days=14');
+    const d=await r.json();
+    if(j!==QUEUE[IDX].j)return;
+    if(!d||!d.stops||!d.stops.length)return;
+    const by={};
+    d.stops.forEach(s=>{
+      const day=ctDate(s.scheduled_start_ms); if(!day)return;
+      by[day]=by[day]||{total:0,same:0};
+      by[day].total++;
+      if((s.cluster||'').trim().toLowerCase()===cl)by[day].same++;
+    });
+    let best=null;
+    Object.keys(by).forEach(day=>{
+      const o=by[day]; if(!o.same)return;
+      if(!best||o.same>best.same||(o.same===best.same&&o.total<best.total))best={day,same:o.same,total:o.total};
+    });
+    if(!best)return;
+    const di=document.getElementById(dateId);
+    if(di&&!di.value)di.value=best.day;
+    hint.textContent=hint.textContent+' '+techName+' has '+best.same+' stop'+(best.same===1?'':'s')+' near here that day — routes well.';
+  }catch(_){}
 }
 
 function skip(){IDX++;renderCard();}
