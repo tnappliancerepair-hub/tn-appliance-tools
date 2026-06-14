@@ -57,6 +57,10 @@ query get_office_kanban verb=GET {
         var $cust_last {
           value = (($cust ?? {last_name: ""}).last_name ?? "")
         }
+
+        var $cust_phone {
+          value = (($cust ?? {phone: ""}).phone ?? "")
+        }
       
         var $row {
           value = {
@@ -71,7 +75,7 @@ query get_office_kanban verb=GET {
             current_status   : (($j.current_status ?? "")|trim)
             parts_status     : (($j.parts_status ?? "")|trim)
             parts_eta_date   : (($j.parts_eta_date ?? "")|trim)
-            customer_phone   : (($j.customer_phone ?? "")|trim)
+            customer_phone   : (($cust_phone ?? "")|trim)
             warranty_company : (($j.warranty_company ?? "")|trim)
             claim_number     : (($j.claim_number ?? "")|trim)
             intake_source    : (($j.intake_source ?? "")|trim)
