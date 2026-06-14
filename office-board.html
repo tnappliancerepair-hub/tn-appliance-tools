@@ -505,8 +505,23 @@ function renderDrawer(d){
         ${c.phone?`<a href="customer-portal.html?job_id=${jid}&last4=${(''+c.phone).replace(/\\D/g,'').slice(-4)}" target="_blank" rel="noopener">👤 Customer</a>`:''}
       </div>
     </div>
+
+    <div class="dcard">
+      <h4>🗑 Remove from board</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">For junk or canceled-email jobs. Drops off the board, no customer texted.</div>
+      <button onclick="deleteJob(${jid},'${esc(name).replace(/'/g,'')}')" style="width:100%;padding:11px;border-radius:9px;background:#fdece9;color:#c0392b;border:1px solid #f3c0b7;font-weight:800;cursor:pointer">🗑 Delete (junk / canceled)</button>
+    </div>
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
+}
+
+async function deleteJob(jid,name){
+  if(!confirm('Delete '+(name||'this job')+' off the board? Use for junk / canceled-email jobs. Nobody gets texted.'))return;
+  try{
+    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:'Danielle'});
+    if(d&&d.success){toast('Deleted 🗑');closeDrawer();loadBoard();}
+    else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ that did not go through.');}
 }
 
 // ── invoice worksheet (labor logging) ──
