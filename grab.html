@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Grab a Job - TN Appliance Exchange</title>
+<style>
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root { --bg:#0e1118; --panel:#131720; --border:#2a3040; --muted:#8a93aa; --orange:#f5a623; --green:#00d68f; --red:#ff6b6b; --ink:#e8edf5; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100dvh; padding: 28px 18px; max-width: 540px; margin: 0 auto; }
+  .ant { font-size: 40px; text-align:center; }
+  h1 { font-size: 22px; font-weight: 800; text-align:center; margin: 10px 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; text-align:center; margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 22px 18px; }
+  .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .big { font-size: 20px; font-weight: 800; margin: 6px 0 14px; line-height: 1.3; }
+  .note { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 18px; }
+  button { width: 100%; border: 0; border-radius: 14px; padding: 16px; font-size: 17px; font-weight: 800; cursor: pointer; }
+  .go { background: var(--green); color: #04130d; }
+  .go:disabled { opacity: .55; }
+  .skip { background: transparent; color: var(--muted); margin-top: 10px; font-size: 14px; }
+  .ok { background: var(--panel); border: 1px solid var(--green); border-radius: 16px; padding: 26px 18px; text-align: center; }
+  .ok .big { color: var(--green); }
+  .err { color: var(--red); font-size: 14px; text-align:center; margin-top: 12px; min-height: 16px; }
+</style>
+</head>
+<body>
+  <div class="ant">🐜</div>
+  <h1>Grab this job</h1>
+  <div class="sub">Adds it to your day right now</div>
+  <div id="stage"></div>
+  <div class="err" id="err"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+function qp(k){return new URLSearchParams(location.search).get(k)||'';}
+const JOB=parseInt(qp('job'),10), TECH=parseInt(qp('tech'),10);
+const LABEL=qp('label')||('job #'+JOB);
+const stage=document.getElementById('stage'), err=document.getElementById('err');
+
+function render(){
+  if(!JOB||!TECH){stage.innerHTML='<div class="card"><div class="big">Bad link</div><div class="note">This grab link is missing the job or tech. Text Ant and we will resend.</div></div>';return;}
+  stage.innerHTML=
+    '<div class="card">'+
+      '<div class="label">Open job near you</div>'+
+      '<div class="big">'+esc(LABEL)+'</div>'+
+      '<div class="note">Tap below and Ant adds this stop to your day and texts the customer a live arrival window. Only grab it if you can get there today.</div>'+
+      '<button class="go" id="go">Add it to my day →</button>'+
+      '<button class="skip" onclick="window.close&&window.close();">Not now</button>'+
+    '</div>';
+  document.getElementById('go').onclick=grab;
+}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function grab(){
+  const btn=document.getElementById('go'); btn.disabled=true; btn.textContent='Adding…'; err.textContent='';
+  // He is ahead right now -> slot it ~30 min out today, no promised window.
+  const startMs=Date.now()+30*60*1000;
+  try{
+    const r=await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:JOB,technician_id:TECH,scheduled_start_ms:startMs,service_eta_window:''})});
+    const d=await r.json();
+    if(d&&d.success){
+      stage.innerHTML='<div class="ok"><div class="ant">✅</div><div class="big">Got it — it is yours.</div><div class="note">'+esc(LABEL)+' is on your day. We just texted the customer a live arrival window. Drive safe 🐜</div></div>';
+    }else{
+      btn.disabled=false; btn.textContent='Add it to my day →';
+      err.textContent='⚠ '+((d&&d.error)||'could not book — it may have just been taken');
+    }
+  }catch(_){ btn.disabled=false; btn.textContent='Add it to my day →'; err.textContent='⚠ connection error — try again'; }
+}
+render();
+</script>
+</body>
+</html>

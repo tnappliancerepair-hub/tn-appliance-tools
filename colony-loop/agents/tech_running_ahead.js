@@ -30,6 +30,16 @@ function describe(c) {
   return `#${c.id} ${who} ${appl}${where ? ' ' + where : ''}${pd}`;
 }
 
+// One-tap grab link for a candidate (books it onto the tech's day today).
+function grabLink(c, techId) {
+  const who = (c.customer_first || 'customer').trim();
+  const appl = (c.appliance || 'appliance').trim();
+  const where = (c.city || c.zip || '').trim();
+  const label = `${who} ${appl}${where ? ' ' + where : ''}`.trim();
+  const base = (config.publicSiteBase || 'https://tnapplianceexchange.net').replace(/\/+$/, '');
+  return `${base}/grab.html?job=${c.id}&tech=${techId}&label=${encodeURIComponent(label)}`;
+}
+
 export async function run(signal, ctx) {
   const { xano, sms, log } = ctx;
   const p = signal.payload || {};
@@ -97,9 +107,9 @@ export async function run(signal, ctx) {
 
     if (techPhone) {
       mode = 'offered_tech';
+      const grabLines = candidates.map((c, i) => `${i + 1}. ${describe(c)}\n   grab: ${grabLink(c, techId)}`).join('\n');
       const body =
-        `[ant] You're ${minutesAhead}min ahead, ${firstName} 🐜 — open jobs close by:\n${lines}\n` +
-        `Want one today? Reply 1${candidates.length > 1 ? ' or 2' : ''}, or NO.`;
+        `[ant] You're ${minutesAhead}min ahead, ${firstName} 🐜 — open jobs close by. Tap to add one to your day:\n${grabLines}`;
       try {
         const r = await sms.toTech(techPhone, body, { action: 'route_fill_offer', tech_id: techId });
         smsResult = r?.success ? 'ok' : (r?.error || 'failed');

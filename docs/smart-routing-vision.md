@@ -81,14 +81,18 @@ touching the office.
    - `tech_running_ahead.js` scans nearby open jobs via `find_extra_work_for_tech`
      (pre-diag + in-cluster first). **Shadow mode (default):** texts Teddy the
      real candidate list. **Live mode (`ROUTE_FILL_LIVE=true`):** texts the TECH
-     "reply 1/2/no" and stashes a pending offer.
+     each candidate with a one-tap **grab link** (`grab.html?job=&tech=&label=`).
+   - `grab.html` books the pick onto the tech's day (~30 min out, no promised
+     time) via the proven `danielle_schedule_parallel_job`, which fires
+     APPOINTMENT_SCHEDULED → the customer auto-gets a live arrival window. The
+     loop is end-to-end with NO fragile free-text reply parsing in the live
+     `tech_sms_inbound` path.
    - `tech_running_behind.js` pulls remaining stops; shadow-texts Teddy who'd be
      nudged; live-mode messages those customers a gentle behind note (also gated
      by the Xano customer-SMS gate).
-   - **STILL TODO before flipping `ROUTE_FILL_LIVE` on:** the tech-SMS reply
-     handler in `tech_sms_inbound` must read `route_fill_pending_<tech_id>` and
-     book the chosen candidate (technician_id + scheduled_start + fire
-     APPOINTMENT_SCHEDULED), then text that customer a live window.
+   - **To flip on:** validate the shadow signals + candidate quality from the
+     Teddy-only texts, then set `ROUTE_FILL_LIVE=true` on the Mac Mini and
+     kickstart the loop. (grab.html + the booking path are already live.)
 4. **Full auto:** with the self-checkout TDR flow, jobs flow in pre-diagnosed and
    the router places + fills them with near-zero office touch.
 
