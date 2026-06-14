@@ -30,6 +30,7 @@ const DESIRED_TOOL_FILES = [
   'lookup_by_claim_number.json',
   'search_customers.json',
   'capture_callback.json',
+  'voice_followup_send_links.json',
 ];
 const INBOUND_NAME = 'Ant Inbound';
 
