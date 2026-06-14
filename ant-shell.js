@@ -58,6 +58,7 @@
       { label: 'Do Next',        icon: '🐜', page: 'office-do-next.html' },
       { label: 'Queue',          icon: '📥', page: 'needs-scheduled.html' },
       { label: 'Phone-Ready',    icon: '📞', page: 'office-ready.html' },
+      { label: 'Callbacks',      icon: '📲', page: 'callbacks.html' },
       { label: 'Call Stats',     icon: '📊', page: 'call-performance.html' },
       { label: 'Warranty',       icon: '📦', page: 'warranty-review.html' },
       { label: 'Area Coverage',  icon: '🗺️', page: 'cluster-ranks.html' },
