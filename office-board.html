@@ -233,10 +233,13 @@ async function loadBoard(){
 // tech). A job only moves to a tech column once it actually has a time.
 function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch(_){return '';}}
 function placeOf(j){
-  // Follow Up / Needs Invoice have no job-state enum yet — honor her manual
-  // placement (stored locally) so the card stays where she dragged it.
+  // Honor her manual placement (stored locally) so a dragged card STAYS where
+  // she dropped it — MeisterTask behavior. Without this, placeOf recomputes the
+  // column from status+tech and the card snaps back (e.g. moving an assigned
+  // job to Needs Scheduled bounced back to the tech's Report column). The
+  // override is set on every drop and cleared when she drags it elsewhere.
   const ov=stageGet(j.id);
-  if(ov==='followup'||ov==='needinv') return ov;
+  if(ov) return ov;
   const ss=(j.scheduling_status||'');
   const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
   if(ss==='completed'){ return hasTech?('inv-'+t):'done'; }   // done -> tech Invoice folder
@@ -360,15 +363,15 @@ async function onDrop(colId,techId,colEl){
   const card=document.querySelector('.jcard[data-id="'+id+'"]');
   if(colEl&&card){const body=colEl.querySelector('.col-body');if(body){const em=body.querySelector('.empty-col');if(em)em.remove();body.appendChild(card);}refreshCounts();}
 
-  // Follow Up / Needs Invoice: no job-state enum yet — remember her placement
-  // locally so it sticks (this is a "not-yet-automated" stage, by design).
+  // Remember her placement so the card STAYS in the column she dropped it into
+  // (placeOf honors this first). Set for EVERY drop; replaced on the next drag.
+  try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
+
+  // Follow Up / Needs Invoice have no backend job-state — placement only.
   if(colId==='followup'||colId==='needinv'){
-    try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
     toast('Moved to '+(colId==='needinv'?'Needs Invoice':'Follow Up'));
     return;
   }
-  // any real move clears a prior manual-stage override
-  try{localStorage.removeItem('tn_stage_'+id);}catch(_){}
 
   if(techId){
     toast('Assigning '+TECH_NAME[techId]+'…');
