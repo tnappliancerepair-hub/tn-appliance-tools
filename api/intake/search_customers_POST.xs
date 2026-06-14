@@ -79,16 +79,27 @@ query search_customers verb=POST {
   
     // Name match. 2026-06-14: callers give a FULL name ("Sherri Rucker") but
     // first_name/last_name are separate columns, so matching the whole string
-    // against either field found nothing. Split into tokens and match first OR
-    // last against each token (plus the raw string for single-field names).
-    var $name_tokens {
-      value = ($q_raw|split:" ")
+    // found nothing. AND Xano == is CASE-SENSITIVE (verified: "Sherri" hits,
+    // "sherri" misses), while names are stored Title Case. So: split into
+    // tokens, lower then Title-Case each, and match first OR last against each
+    // (plus the raw string for exact-typed single-field names).
+    var $q_lc_n {
+      value = $q_raw|to_lower
     }
-    var $nt0 {
+    var $name_tokens {
+      value = ($q_lc_n|split:" ")
+    }
+    var $nt0_raw {
       value = ((($name_tokens|first) ?? "")|trim)
     }
+    var $nt1_raw {
+      value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $nt0_raw)
+    }
+    var $nt0 {
+      value = (($nt0_raw|substr:0:1|to_upper) ~ ($nt0_raw|substr:1))
+    }
     var $nt1 {
-      value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $nt0)
+      value = (($nt1_raw|substr:0:1|to_upper) ~ ($nt1_raw|substr:1))
     }
     db.query customer {
       where = $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw || $db.customer.first_name == $nt0 || $db.customer.last_name == $nt0 || $db.customer.first_name == $nt1 || $db.customer.last_name == $nt1
