@@ -68,7 +68,7 @@ query office_universal_search verb=GET {
       value = $q_digits_len >= 5
     }
   
-    // Address keyword detection — pre-bind all lengths to dodge XS filter
+    // Address keyword detection - pre-bind all lengths to dodge XS filter
     // footgun ("Invalid syntax. Please wrap your filter with parentheses").
     var $kw_check_str {
       value = (" " ~ $q_lower ~ " ")
@@ -144,7 +144,7 @@ query office_universal_search verb=GET {
       }
     }
   
-    // Name search via first_name OR last_name LIKE — XS doesn't have ILIKE
+    // Name search via first_name OR last_name LIKE - XS doesn't have ILIKE
     // so we approximate with substring contains pattern through field-name LIKE
     // (XS supports LIKE in where clause syntax: $db.tbl.col contains "x" via |contains)
     // Practical XS: use db.query with field == value won't do substring. Use a
@@ -206,8 +206,43 @@ query office_universal_search verb=GET {
       }
     }
   
+    // 2026-06-14 FIX: the JS-substring pass above only scans the 1000 NEWEST
+    // customers, so older customers came back "not found" by name (their WO #
+    // still found them). Add an UNCAPPED server-side exact match on first/last
+    // name tokens (same approach as search_customers), so name search reaches
+    // the whole table.
+    conditional {
+      if (!$is_phone_query) {
+        var $name_tokens {
+          value = ($q_lower|split:" ")
+        }
+        var $tok0 {
+          value = ((($name_tokens|first) ?? "")|trim)
+        }
+        var $tok1 {
+          value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $tok0)
+        }
+        conditional {
+          if ($tok0 != "") {
+            db.query customer {
+              where = $db.customer.first_name == $tok0 || $db.customer.last_name == $tok0 || $db.customer.first_name == $tok1 || $db.customer.last_name == $tok1 || $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw
+              sort = {customer.id: "desc"}
+              return = {type: "list", paging: {page: 1, per_page: 50}}
+            } as $name_exact_rows
+            foreach ($name_exact_rows.items) {
+              each as $nc {
+                var.update $matched_customer_ids {
+                  value = $matched_customer_ids|push:$nc.id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // 2026-06-02 NEW: WO# search. Hits jobs.claim_number, dispatch_source_id,
-    // housecall_pro_job_id, job_number — adds the customer_id of any match
+    // housecall_pro_job_id, job_number - adds the customer_id of any match
     // to the matched set. Danielle's most-common search pattern.
     conditional {
       if ($is_wo_query) {
@@ -239,11 +274,22 @@ query office_universal_search verb=GET {
     var $item_count {
       value = 0
     }
-  
+
+    // Dedup - the name + WO passes can match the same customer.
+    var $seen_cust {
+      value = []
+    }
+
     foreach ($matched_customer_ids) {
       each as $mcid {
+        var $already_seen {
+          value = $seen_cust|contains:$mcid
+        }
         conditional {
-          if ($item_count < 25) {
+          if ($item_count < 25 && $already_seen == false) {
+            var.update $seen_cust {
+              value = $seen_cust|push:$mcid
+            }
             db.query jobs {
               where = $db.jobs.customer_id == $mcid
               sort = {jobs.id: "desc"}
