@@ -641,7 +641,23 @@ async function executeTool(toolName, toolInput, ctx) {
       return await timedFetch(`${XANO_BASE}/get_office_pulse?limit=${ti.limit || 30}`, { method: 'GET' });
     case 'search_customers': {
       if (!ti.query) return { error: 'query required' };
-      return await timedFetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(ti.query)}`, { method: 'GET' });
+      // Use the FAST indexed search_customers (~0.3s) not office_universal_search
+      // (~3s 1000-row scan). Both are case-insensitive now. Return an explicit
+      // found/hint so the voice model can't misread results as empty.
+      const scRes = await timedFetch(`${XANO_BASE}/search_customers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ti.query }),
+      });
+      if (scRes.error) return scRes;
+      const scList = scRes.results || [];
+      return {
+        ...scRes,
+        found: scList.length > 0,
+        hint: scList.length > 0
+          ? `Found ${scList.length} match(es) for "${ti.query}". Confirm the right person by reading back their city/address, then use their job. Do NOT say you can't find them.`
+          : `No match for "${ti.query}". Ask them to spell the last name, or ask for a claim/work-order number and call lookup_by_claim_number.`,
+      };
     }
     case 'list_recent_jobs': {
       const lim = Math.min(ti.limit || 50, 200);
