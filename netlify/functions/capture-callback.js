@@ -34,25 +34,52 @@ exports.handler = async function (event) {
   const callerType = String(args.caller_type || 'customer').slice(0, 30); // customer | warranty | other
   const ref = String(args.ref || args.claim || '').slice(0, 60);
 
+  // A captured caller must NOT be lost. Try the durable event_log write (it
+  // feeds the office Callbacks queue) with retries, then the two SMS alerts
+  // with one retry each. Track whether ANY path landed.
+  async function retry(fn, attempts) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+      try { return await fn(); } catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 300 * (i + 1))); }
+    }
+    throw lastErr || new Error('failed');
+  }
+
+  let logged = false, ownerSent = false, danielleSent = false;
   const h = headers();
   if (h) {
     try {
-      await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
-        method: 'POST', headers: h,
-        body: JSON.stringify({ action: 'callback_request', metadata: { name, phone, summary, caller_type: callerType, ref, source: 'vapi', at_ms: Date.now() } }),
-      });
-    } catch (_) {}
+      await retry(async () => {
+        const r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
+          method: 'POST', headers: h,
+          body: JSON.stringify({ action: 'callback_request', metadata: { name, phone, summary, caller_type: callerType, ref, source: 'vapi', at_ms: Date.now() } }),
+        });
+        if (!r.ok) throw new Error('event_log ' + r.status);
+        return true;
+      }, 3);
+      logged = true;
+    } catch (_) { logged = false; }
   }
 
   const tag = callerType === 'warranty' ? 'WARRANTY' : 'customer';
   const alert = '[ant] 📞 callback needed (' + tag + '): ' + (name || '(no name)') + ' ' + (phone || '') +
     (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') + '. Please follow up.';
-  try { await sendSms(OWNER, alert, 'owner', 'vapi_callback'); } catch (_) {}
-  try { await sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback'); } catch (_) {}
+  try { await retry(() => sendSms(OWNER, alert, 'owner', 'vapi_callback'), 2); ownerSent = true; } catch (_) {}
+  try { await retry(() => sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback'), 2); danielleSent = true; } catch (_) {}
 
-  // What the assistant should say back to the caller.
+  const captured = logged || ownerSent || danielleSent;
+  // Last-ditch visibility if EVERYTHING failed — at least surface it in the
+  // function logs with a clear marker so it can be recovered manually.
+  if (!captured) {
+    console.error('CALLBACK_NOT_CAPTURED', JSON.stringify({ name, phone, summary, caller_type: callerType, ref, at: new Date().toISOString() }));
+  }
+
+  // Always reassure the caller (never alarm them mid-call); we've done our best
+  // to capture across three paths.
   return jsonResp(200, {
     ok: true,
+    captured,
+    logged,
     say: "Got it — I've passed your info to our office and someone will reach out to you very shortly. Anything else I can help with in the meantime?",
   });
 };
