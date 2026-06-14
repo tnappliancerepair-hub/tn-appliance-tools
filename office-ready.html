@@ -181,7 +181,7 @@ function render(){
   if(FILTER==='ready')rows=JOBS.filter(j=>j._a.gaps===0);
   if(TECHF==='unassigned')rows=rows.filter(j=>!(Number(j.technician_id)>0));
   else if(TECHF)rows=rows.filter(j=>Number(j.technician_id)===Number(TECHF));
-  rows.sort((a,b)=>b._a.gaps-a._a.gaps);
+  rows.sort((a,b)=>(b._a.gaps-a._a.gaps)||((Number(a.created_at)||0)-(Number(b.created_at)||0)));
   if(!rows.length){document.getElementById('list').innerHTML='<div class="empty">'+(FILTER==='gaps'?'🎉 Every open job is phone-ready!':'No jobs.')+'</div>';return;}
   document.getElementById('list').innerHTML=rows.map(j=>{
     const nm=((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';
@@ -194,7 +194,7 @@ function render(){
     const fillBtn=needInfo?'<button class="schedbtn" style="background:#5a6b80;margin-left:7px" onclick="event.stopPropagation();openFill('+j.id+')">✏️ Add info</button>':'';
     return '<div class="job '+(j._a.gaps>0?'gaps':'ready')+'" onclick="fix('+j.id+')">'+
       '<div class="jh"><span class="nm">'+esc(nm)+'</span><span class="meta">'+esc(j.warranty_company||'cash')+(tech?(' · '+tech):'')+'</span></div>'+
-      '<div class="appl">'+esc(appl)+(j.service_city?(' · '+esc(j.service_city)):'')+' · #'+j.id+'</div>'+
+      '<div class="appl">'+esc(appl)+(j.service_city?(' · '+esc(j.service_city)):'')+' · #'+j.id+waitBadge(j)+'</div>'+
       '<div class="chips">'+chips+'</div>'+
       schedBtn+fillBtn+
     '</div>';
@@ -319,6 +319,7 @@ document.getElementById('fillSave').onclick=async function(){
 document.querySelectorAll('#filters button[data-f]').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
 document.getElementById('techFilter').onchange=function(){TECHF=this.value;render();};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function waitBadge(j){var c=Number(j.created_at)||0;if(!c)return '';var days=Math.floor((Date.now()-c)/86400000);if(days<1)return '';var col=days>=7?'#c0392b':(days>=3?'#b3690a':'#6b7488');return ' · <span style="color:'+col+';font-weight:800">⏳ '+days+'d</span>';}
 window.AntTalkReload=function(){load();};
 if(authOk()){document.getElementById('auth').style.display='none';load();}
 </script>
