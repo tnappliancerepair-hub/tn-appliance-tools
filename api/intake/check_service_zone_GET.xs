@@ -41,6 +41,44 @@ query check_service_zone verb=GET {
     var $accepting {
       value = ($zone != null ? ($zone.accept_new_jobs ?? false) : false)
     }
+
+    // Smart-routing suggestion: the rank-1 active tech who covers this cluster
+    // (owner tech 1 skipped so routine work does not auto-route to Teddy). The
+    // office confirms; a cluster only the owner covers returns 0 (pick by hand).
+    var $cluster_name {
+      value = ($zone != null ? ($zone.cluster ?? "") : "")
+    }
+
+    db.query cluster_assignment {
+      where = $db.cluster_assignment.cluster == $cluster_name && $db.cluster_assignment.active == true && $db.cluster_assignment.technician_id != 1
+      sort = {cluster_assignment.rank: "asc"}
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $assign_rows
+
+    var $assign {
+      value = (($assign_rows.items|first) ?? null)
+    }
+
+    var $suggested_tid {
+      value = ($assign != null ? ($assign.technician_id ?? 0) : 0)
+    }
+
+    var $sug_name {
+      value = ""
+    }
+
+    conditional {
+      if ($suggested_tid > 0) {
+        db.get technicians {
+          field_name = "id"
+          field_value = $suggested_tid
+        } as $sug_tech
+
+        var.update $sug_name {
+          value = (($sug_tech ?? {first_name: ""}).first_name ?? "")
+        }
+      }
+    }
   }
 
   response = {
@@ -53,6 +91,8 @@ query check_service_zone verb=GET {
     cluster           : ($zone.cluster ?? "")
     state             : ($zone.state ?? "")
     notes             : ($zone.notes ?? "")
+    suggested_technician_id : $suggested_tid
+    suggested_tech_name     : $sug_name
   }
 
   guid = "check-service-zone-v1"
