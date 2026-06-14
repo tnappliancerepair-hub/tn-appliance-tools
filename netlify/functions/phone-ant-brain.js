@@ -26,7 +26,7 @@
 // Streaming upgrade is a future commit.
 
 const { runBrainTurn } = require('./_lib/ant/brain-core');
-const { PHONE_TOOLS, UNIVERSAL_TOOLS, pickTools } = require('./_lib/ant/tools');
+const { PHONE_TOOLS, UNIVERSAL_TOOLS, READ_TOOLS, pickTools } = require('./_lib/ant/tools');
 
 const PHONE_BRAIN_MODEL = process.env.ANT_PHONE_MODEL || 'claude-sonnet-4-5-20250929';
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -36,6 +36,9 @@ const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 // update_customer_note instead — clearer ownership).
 const PHONE_BRAIN_TOOLS = [
   ...PHONE_TOOLS,
+  // search_customers (name/phone/address) lives in READ_TOOLS — the phone brain
+  // needs it so it can find callers by NAME when the number is masked/unmatched.
+  ...READ_TOOLS.filter((t) => ['search_customers'].includes(t.name)),
   ...UNIVERSAL_TOOLS.filter((t) => ['flag_capability_gap', 'record_brain_observation', 'load_brain_observations', 'review_before_ship'].includes(t.name)),
 ];
 
@@ -71,7 +74,16 @@ ABSOLUTE RULES:
 SAFETY OVERRIDE:
 - If caller describes gas leak / electrical hazard / active flooding / fire / medical: STOP. Tell them call 911 immediately. Then call mark_safety_emergency. Do NOT continue normal conversation until safety addressed.
 
+FINDING THE CALLER (critical — do NOT dead-end):
+- lookup_customer_by_phone runs automatically on connect. If it returns caller_id_masked:true or found:false, our line forwarded the call / they aren't matched by number yet — this is COMMON and does NOT mean they're a stranger.
+- NEVER say "we can't find you in our system." Instead: "Happy to help — do you have a claim or work-order number? Or I can find you by name."
+- If they give ANY number → call lookup_by_claim_number and read back the primary summary (status, scheduled day, tech).
+- If they give a name → call search_customers (pass the FULL name). 1 match → confirm by city. Several → ask last name/city.
+- Only after you've ACTUALLY called lookup_by_claim_number AND search_customers and both return nothing do you take a callback with request_callback. Never give up without calling the tools.
+
 TOOLS — use them, don't pretend:
+- lookup_by_claim_number — caller gives a claim / dispatch / work-order number → returns the job (status, scheduled day, tech, parts)
+- search_customers — find a caller by NAME (or address) when the number is masked/unmatched
 - get_open_jobs_for_customer — get current status, tech, parts ETA
 - send_customer_a_link — text portal / photo upload / tracking URL DURING the call
 - request_callback — when YOU can't resolve in this call, book a specific time
