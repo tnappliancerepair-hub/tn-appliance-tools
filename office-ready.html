@@ -225,7 +225,9 @@ async function suggestTech(id){
     const d=await r.json();
     if(SCHED_JOB!==id)return;
     const tid=d&&d.suggested_technician_id;
-    if(tid&&SUG_TECH[tid]){
+    if(tid===1){
+      hint.innerHTML='⚠ Only Teddy covers '+esc(d.cluster||'this area')+' — assign a tech in <a href="cluster-ranks.html" style="color:#0a7d33">Area Coverage</a>.';
+    }else if(tid&&SUG_TECH[tid]){
       if(!sel.value)sel.value=String(tid);
       hint.textContent='🐜 Ant suggests '+(d.suggested_tech_name||SUG_TECH[tid])+' — covers '+(d.cluster||'this area')+'. Change if needed.';
       suggestDay(tid, d.cluster||'', id, hint, (d.suggested_tech_name||SUG_TECH[tid]));

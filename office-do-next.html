@@ -139,7 +139,9 @@ async function suggestTech(j){
     const d=await r.json();
     if(j!==QUEUE[IDX].j)return; // card moved on
     const tid=d&&d.suggested_technician_id;
-    if(tid&&TECH[tid]){
+    if(tid===1){
+      hint.innerHTML='⚠ Only Teddy covers '+esc(d.cluster||'this area')+' — assign a tech here in <a href="cluster-ranks.html" style="color:#0a7d33">Area Coverage</a>.';
+    }else if(tid&&TECH[tid]){
       if(!sel.value)sel.value=String(tid);
       hint.textContent='🐜 Ant suggests '+(d.suggested_tech_name||TECH[tid])+' — covers '+(d.cluster||'this area')+'. Change if needed.';
       suggestDay(tid, d.cluster||'', 'qDate', hint, (d.suggested_tech_name||TECH[tid]), j);
