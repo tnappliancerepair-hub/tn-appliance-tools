@@ -262,12 +262,16 @@ function renderBoard(){
   const items=allItems.filter(j=>jobRegion(j)===region);
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
   items.forEach(j=>{const p=placeOf(j); (byCol[p]||byCol['schedule']).push(j);});
+  // Oldest-first within every column so the stalest jobs float to the top.
+  cols.forEach(c=>byCol[c.id].sort((a,b)=>(Number(a.created_at)||0)-(Number(b.created_at)||0)));
 
   const html='<div class="board">'+cols.map(c=>{
     const list=byCol[c.id]||[];
+    const stale=list.filter(j=>{const cc=Number(j.created_at||0);return cc&&j.scheduling_status!=='completed'&&(Date.now()-cc)>7*86400000;}).length;
+    const staleBadge=stale>0?`<span class="ct" style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7" title="${stale} job${stale===1?'':'s'} waiting 7+ days">⏳ ${stale}</span>`:'';
     const cards=list.length?list.map(cardHtml).join(''):'<div class="empty-col">—</div>';
     return `<div class="col ${c.cls}" data-col="${c.id}" data-tech="${c.tech||''}">
-      <div class="col-h">${esc(c.label)}<span class="ct">${list.length}</span></div>
+      <div class="col-h">${esc(c.label)}<span class="ct">${list.length}</span>${staleBadge}</div>
       <div class="col-body">${cards}</div></div>`;
   }).join('')+'</div>';
   document.getElementById('board-host').innerHTML=html;
