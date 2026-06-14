@@ -467,6 +467,8 @@
         <div class="actions">
           <a class="btn-open-job" href="/job-detail.html?job_id=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
           <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}">Schedule</button>
+          <button class="btn-complete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">✓ Done/Archive</button>
+          <button class="btn-delete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(255,107,107,0.45);color:#ff6b6b;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">🗑 Delete</button>
         </div>
       </div>`;
     }).join('');
@@ -476,10 +478,17 @@
       row.addEventListener('click', (e) => {
         const t = e.target;
         if (!t) return;
-        if (t.closest('button.schedule') || t.closest('a.btn-open-job')) return;
+        if (t.closest('button.schedule') || t.closest('a.btn-open-job') || t.closest('button.btn-complete') || t.closest('button.btn-delete')) return;
         const id = row.dataset.id;
         if (id) window.location.href = `/job-detail.html?job_id=${id}`;
       });
+    });
+
+    list.querySelectorAll('button.btn-complete').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); removeJob(b, 'complete', b.dataset.name); });
+    });
+    list.querySelectorAll('button.btn-delete').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); removeJob(b, 'delete', b.dataset.name); });
     });
 
     list.querySelectorAll('button.schedule').forEach(b => {
@@ -492,6 +501,33 @@
         schedModal.classList.add('show');
       });
     });
+  }
+
+  async function removeJob(btn, action, name) {
+    const id = parseInt(btn.dataset.id, 10);
+    const verb = action === 'delete' ? 'Delete' : 'Mark done / archive';
+    const msg = action === 'delete'
+      ? `Delete "${name}"? Use this for junk or canceled-email jobs. It drops off this list (kept for records, no customer is texted).`
+      : `Mark "${name}" done / archived? It drops off this list. Use this when the job is already handled.`;
+    if (!confirm(msg)) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(XANO_BASE + '/office_remove_job', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ job_id: id, action, actor: 'office' })
+      });
+      const d = await r.json();
+      if (d && d.success) {
+        showToast(action === 'delete' ? 'Deleted ✓' : 'Archived ✓', 'ok');
+        const row = btn.closest('div.row'); if (row) row.remove();
+      } else {
+        btn.disabled = false; btn.textContent = action === 'delete' ? '🗑 Delete' : '✓ Done/Archive';
+        showToast((d && d.error) || 'Failed', 'err');
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = action === 'delete' ? '🗑 Delete' : '✓ Done/Archive';
+      showToast('Network error', 'err');
+    }
   }
 
   $('schedSubmitBtn').addEventListener('click', async () => {
