@@ -27,7 +27,11 @@
         },
         "caller_type": {
           "type": "string",
-          "enum": ["customer", "warranty", "other"],
+          "enum": [
+            "customer",
+            "warranty",
+            "other"
+          ],
           "description": "customer = homeowner; warranty = warranty company / CSC rep; other = anything else."
         },
         "ref": {
@@ -35,10 +39,15 @@
           "description": "Claim or work-order number if they gave one. Optional - leave empty if none."
         }
       },
-      "required": ["name", "phone", "summary", "caller_type"]
+      "required": [
+        "name",
+        "phone",
+        "summary",
+        "caller_type"
+      ]
     }
   },
   "server": {
-    "url": "https://tnapplianceexchange.net/.netlify/functions/capture-callback"
+    "url": "https://tnapplianceexchange.net/.netlify/functions/vapi-tool"
   }
 }

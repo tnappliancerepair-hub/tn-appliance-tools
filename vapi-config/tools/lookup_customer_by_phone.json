@@ -18,10 +18,12 @@
           "description": "The caller's phone number from caller ID. Any format works - the endpoint normalizes it."
         }
       },
-      "required": ["phone"]
+      "required": [
+        "phone"
+      ]
     }
   },
   "server": {
-    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_customer_by_phone"
+    "url": "https://tnapplianceexchange.net/.netlify/functions/vapi-tool"
   }
 }

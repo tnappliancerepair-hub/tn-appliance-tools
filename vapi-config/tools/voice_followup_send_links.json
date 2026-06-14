@@ -19,14 +19,20 @@
         },
         "offer_kind": {
           "type": "string",
-          "enum": ["portal_and_uploads", "status", "reschedule"],
+          "enum": [
+            "portal_and_uploads",
+            "status",
+            "reschedule"
+          ],
           "description": "portal_and_uploads = full portal + invite photo/video (default); status = just status link; reschedule = reschedule link."
         }
       },
-      "required": ["job_id"]
+      "required": [
+        "job_id"
+      ]
     }
   },
   "server": {
-    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/voice_followup_send_links"
+    "url": "https://tnapplianceexchange.net/.netlify/functions/vapi-tool"
   }
 }
