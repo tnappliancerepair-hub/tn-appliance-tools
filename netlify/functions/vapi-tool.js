@@ -64,6 +64,29 @@ function coerceArgs(args) {
   return args;
 }
 
+// Fire-and-forget visibility: log every proxy call + whether it found anything,
+// with the outcome baked into the action name so get_event_log_by_action can
+// read it (that endpoint returns only action+last_at, not metadata).
+async function logProxy(name, args, data) {
+  const tok = process.env.XANO_METADATA_TOKEN;
+  if (!tok) return;
+  let found = false;
+  if (data && typeof data === 'object') {
+    if (typeof data.match_count === 'number') found = data.match_count > 0;
+    else if (typeof data.found === 'boolean') found = data.found;
+    else if (data.primary || (Array.isArray(data.results) && data.results.length)) found = true;
+    else if (data.success === true && !data.error) found = true;
+  }
+  const action = `vapi_proxy_${name}_${found ? 'found' : 'empty'}`;
+  try {
+    await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1/table/3/content', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, metadata: { name, args, found, at_ms: Date.now() } }),
+    });
+  } catch (_) {}
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let body; try { body = JSON.parse(event.body || '{}'); } catch (_) { body = {}; }
@@ -71,9 +94,11 @@ exports.handler = async function (event) {
   const calls = parseToolCalls(body);
   const results = [];
   for (const c of calls) {
+    const a = coerceArgs(c.args);
     let data;
-    try { data = await callBackend(c.name, coerceArgs(c.args)); }
+    try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }
+    await logProxy(c.name || 'unknown', a, data);
     results.push({ toolCallId: c.id, result: typeof data === 'string' ? data : JSON.stringify(data) });
   }
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results }) };
