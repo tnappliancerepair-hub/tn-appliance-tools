@@ -20,11 +20,15 @@ cd ~/tn-appliance-tools && git fetch origin main && git checkout origin/main -- 
   api/intake/list_callback_requests_GET.xs \
   api/intake/mark_callback_handled_POST.xs \
   api/intake/list_struggled_calls_GET.xs \
-  api/intake/office_universal_search_GET.xs
+  api/intake/office_universal_search_GET.xs \
+  api/intake/search_customers_POST.xs \
+  api/intake/voice_followup_send_links_POST.xs
 ```
 ```
-/opt/homebrew/bin/xano workspace push -i "api/**/{check_service_zone,get_tech_route_days,list_cluster_assignments,set_cluster_rank,find_extra_work_for_tech,office_remove_job,office_quick_fill,lookup_customer_by_phone,lookup_by_claim_number,list_callback_requests,mark_callback_handled,list_struggled_calls,office_universal_search}*" --force
+/opt/homebrew/bin/xano workspace push -i "api/**/{check_service_zone,get_tech_route_days,list_cluster_assignments,set_cluster_rank,find_extra_work_for_tech,office_remove_job,office_quick_fill,lookup_customer_by_phone,lookup_by_claim_number,list_callback_requests,mark_callback_handled,list_struggled_calls,office_universal_search,search_customers,voice_followup_send_links}*" --force
 ```
+NOTE: Xano == is CASE-SENSITIVE; names stored Title Case. Name search
+(search_customers + office_universal_search) Title-Cases tokens to match.
 Then kickstart the loop (for the route-fill helper):
 `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`
 Ignore "table does not exist" warnings.
