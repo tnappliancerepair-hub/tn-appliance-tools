@@ -79,9 +79,11 @@ touching the office.
    live: `tech_pace_watcher` (every 30 min) emits TECH_RUNNING_AHEAD /
    TECH_RUNNING_BEHIND. Both consumers now compute REAL data:
    - `tech_running_ahead.js` scans nearby open jobs via `find_extra_work_for_tech`
-     (pre-diag + in-cluster first). **Shadow mode (default):** texts Teddy the
-     real candidate list. **Live mode (`ROUTE_FILL_LIVE=true`):** texts the TECH
-     each candidate with a one-tap **grab link** (`grab.html?job=&tech=&label=`).
+     (pre-diag + in-cluster first). **Shadow mode (default):** previews the list
+     to the TECH ("good pickup? text Teddy — no booking yet") AND CCs Teddy so he
+     can correlate the reply — the tech on the ground validates whether it routes
+     well. **Live mode (`ROUTE_FILL_LIVE=true`):** texts the TECH each candidate
+     with a one-tap **grab link** (`grab.html?job=&tech=&label=`).
    - `grab.html` books the pick onto the tech's day (~30 min out, no promised
      time) via the proven `danielle_schedule_parallel_job`, which fires
      APPOINTMENT_SCHEDULED → the customer auto-gets a live arrival window. The

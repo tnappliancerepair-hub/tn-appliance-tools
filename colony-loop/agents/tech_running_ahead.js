@@ -94,17 +94,21 @@ export async function run(signal, ctx) {
 
   const lines = candidates.map((c, i) => `${i + 1}. ${describe(c)}`).join('\n');
 
-  let mode, smsResult = 'skipped';
-  if (config.routeFillLive) {
-    // LIVE: offer the tech directly. Look up his phone.
-    let techPhone = '';
-    try {
-      const techsResp = await xano.getTechnicians();
-      const techs = Array.isArray(techsResp) ? techsResp : (techsResp.technicians || techsResp.items || []);
-      const t = techs.find(x => x && Number(x.id) === Number(techId));
-      techPhone = (t && t.phone) ? t.phone : '';
-    } catch (_) {}
+  // Always resolve the tech's phone — in BOTH modes we loop the tech in.
+  // The tech on the ground is the real judge of whether a nearby pickup
+  // routes well, so even in shadow we preview it to him and ask for a
+  // thumbs-up to Teddy (no booking) before route-fill goes fully live.
+  let techPhone = '';
+  try {
+    const techsResp = await xano.getTechnicians();
+    const techs = Array.isArray(techsResp) ? techsResp : (techsResp.technicians || techsResp.items || []);
+    const t = techs.find(x => x && Number(x.id) === Number(techId));
+    techPhone = (t && t.phone) ? t.phone : '';
+  } catch (_) {}
 
+  let mode, techSms = 'skipped', ownerSms = 'skipped';
+  if (config.routeFillLive) {
+    // LIVE: offer the tech directly with one-tap grab links.
     if (techPhone) {
       mode = 'offered_tech';
       const grabLines = candidates.map((c, i) => `${i + 1}. ${describe(c)}\n   grab: ${grabLink(c, techId)}`).join('\n');
@@ -112,9 +116,9 @@ export async function run(signal, ctx) {
         `[ant] You're ${minutesAhead}min ahead, ${firstName} 🐜 — open jobs close by. Tap to add one to your day:\n${grabLines}`;
       try {
         const r = await sms.toTech(techPhone, body, { action: 'route_fill_offer', tech_id: techId });
-        smsResult = r?.success ? 'ok' : (r?.error || 'failed');
-      } catch (e) { smsResult = String(e.message || e); }
-      // Stash the pending offer so the SMS reply handler can book a pick.
+        techSms = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) { techSms = String(e.message || e); }
+      // Stash the pending offer (audit / future reply paths).
       try {
         await xano.recordEventLog(`route_fill_pending_${techId}`, {
           tech_id: techId,
@@ -124,21 +128,33 @@ export async function run(signal, ctx) {
       } catch (_) {}
     } else {
       mode = 'offered_tech_no_phone';
-      smsResult = 'no_tech_phone';
+      techSms = 'no_tech_phone';
     }
   } else {
-    // SHADOW: validate with Teddy before pinging techs.
-    mode = 'shadow_to_owner';
+    // SHADOW: preview to the TECH (he tells Teddy if it's a good pickup),
+    // and CC Teddy so he sees what went out and can correlate the reply.
+    mode = 'preview_tech_and_owner';
+    if (techPhone) {
+      const body =
+        `[ant] You're ${minutesAhead}min ahead, ${firstName} 🐜 — open jobs near you:\n${lines}\n` +
+        `We're testing auto route-fill. If one's a good pickup, text Teddy and he'll send it your way. (No booking yet.)`;
+      try {
+        const r = await sms.toTech(techPhone, body, { action: 'route_fill_preview', tech_id: techId });
+        techSms = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) { techSms = String(e.message || e); }
+    } else {
+      techSms = 'no_tech_phone';
+    }
     if (config.ownerPhone) {
       const body =
-        `[ant] ${firstName} ${minutesAhead}min ahead (${p.completed}/${p.total_today} done). ${candidates.length} nearby open:\n${lines}\n` +
-        `Set ROUTE_FILL_LIVE=true to let Ant offer these to him directly.`;
+        `[ant] ${firstName} ${minutesAhead}min ahead (${p.completed}/${p.total_today} done). Previewed ${candidates.length} nearby open to him:\n${lines}\n` +
+        `He'll text you if one's good. Set ROUTE_FILL_LIVE=true to let him grab them himself.`;
       try {
         const r = await sms.toOwner(body, { action: 'tech_ahead_proposal', tech_id: techId, candidate_count: candidates.length });
-        smsResult = r?.success ? 'ok' : (r?.error || 'failed');
-      } catch (e) { smsResult = String(e.message || e); }
+        ownerSms = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) { ownerSms = String(e.message || e); }
     } else {
-      smsResult = 'no_owner_phone';
+      ownerSms = 'no_owner_phone';
     }
   }
 
@@ -149,7 +165,8 @@ export async function run(signal, ctx) {
     minutes_ahead: minutesAhead,
     candidate_count: candidates.length,
     candidate_job_ids: candidates.map(c => c.id),
-    sms_result: smsResult,
+    tech_sms: techSms,
+    owner_sms: ownerSms,
   };
   await xano.markSignalProcessed(signal.id, 'tech_ahead_handled', meta);
   try { await xano.recordEventLog(dedupKey, { tech_id: techId, minutes_ahead: minutesAhead, candidates: candidates.length }); } catch (_) {}
