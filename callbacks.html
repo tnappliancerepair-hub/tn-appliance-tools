@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Callbacks - TN Appliance</title>
+<style>
+  html,body{overflow-x:hidden!important;max-width:100vw!important;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  :root{--bg:#f4f6fb;--panel:#fff;--line:#e2e7f0;--ink:#1a2233;--muted:#6b7488;--green:#0a7d33;--red:#c0392b;--blue:#1f6feb;--amber:#b3690a;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:18px 14px 60px;max-width:620px;margin:0 auto;}
+  h1{font-size:21px;font-weight:800;text-align:center;}
+  .sub{color:var(--muted);font-size:13px;text-align:center;margin:4px 0 14px;line-height:1.5;}
+  .filters{display:flex;gap:8px;justify-content:center;margin-bottom:14px;}
+  .filters button{background:#fff;border:1px solid var(--line);border-radius:18px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;}
+  .filters button.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:11px;}
+  .card.done{opacity:.55;}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .who{font-size:16px;font-weight:800;}
+  .age{font-size:11px;color:var(--muted);white-space:nowrap;}
+  .tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;margin-top:4px;}
+  .t-warr{background:#eef3ff;color:var(--blue);}
+  .t-cust{background:#e7f7ec;color:var(--green);}
+  .t-other{background:#f0f0f0;color:var(--muted);}
+  .sum{font-size:14px;margin:8px 0;line-height:1.4;}
+  .ref{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted);}
+  .acts{display:flex;gap:8px;margin-top:10px;}
+  .acts a,.acts button{flex:1;text-align:center;text-decoration:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;border:0;}
+  .call{background:var(--blue);color:#fff;}
+  .done-btn{background:#e7f7ec;color:var(--green);border:1px solid #bfe6cb;}
+  .loading,.empty{text-align:center;color:var(--muted);padding:42px 0;}
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:24px;z-index:50;}
+  #auth input{width:100%;max-width:280px;padding:13px;font-size:16px;border:1px solid var(--line);border-radius:10px;}
+  #auth button{padding:13px 22px;background:var(--blue);color:#fff;border:0;border-radius:10px;font-size:16px;font-weight:800;}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:#1a2233;color:#fff;padding:11px 18px;border-radius:30px;font-size:14px;font-weight:700;transition:transform .25s;z-index:60;}
+  #toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:34px">🐜</div>
+  <div style="font-weight:800">Office sign-in</div>
+  <input id="pw" type="password" placeholder="office password" autocomplete="current-password">
+  <button onclick="doAuth()">Unlock</button>
+  <div id="autherr" style="color:#c0392b;font-size:13px;min-height:16px"></div>
+</div>
+
+<h1>📞 Callbacks</h1>
+<div class="sub">People Ant captured who need a call back. Work the list to zero so nobody slips.</div>
+<div class="filters">
+  <button data-f="open" class="on" onclick="setF('open')">Open</button>
+  <button data-f="all" onclick="setF('all')">All</button>
+</div>
+<div id="list"><div class="loading">Loading…</div></div>
+<div id="toast"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+let FILTER='open', ROWS=[];
+function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function ago(ms){ms=Number(ms)||0;if(!ms)return '';var s=Math.floor((Date.now()-ms)/1000);if(s<3600)return Math.max(1,Math.floor(s/60))+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
+function setF(f){FILTER=f;document.querySelectorAll('.filters button').forEach(b=>b.classList.toggle('on',b.dataset.f===f));render();}
+
+async function load(){
+  document.getElementById('list').innerHTML='<div class="loading">Loading…</div>';
+  try{const r=await fetch(XANO+'/list_callback_requests?days=7');const d=await r.json();ROWS=(d&&d.callbacks)||[];}
+  catch(_){document.getElementById('list').innerHTML='<div class="empty">Could not load.</div>';return;}
+  render();
+}
+function render(){
+  let rows=ROWS.slice();
+  if(FILTER==='open')rows=rows.filter(r=>!r.handled);
+  if(!rows.length){document.getElementById('list').innerHTML='<div class="empty">'+(FILTER==='open'?'🎉 No open callbacks — all worked!':'No callbacks in the last 7 days.')+'</div>';return;}
+  document.getElementById('list').innerHTML=rows.map(r=>{
+    const tcls=r.caller_type==='warranty'?'t-warr':(r.caller_type==='other'?'t-other':'t-cust');
+    const tel=(r.phone||'').replace(/[^0-9+]/g,'');
+    return '<div class="card '+(r.handled?'done':'')+'">'+
+      '<div class="top"><div class="who">'+esc(r.name||'(no name)')+'</div><div class="age">'+ago(r.created_at)+'</div></div>'+
+      '<span class="tag '+tcls+'">'+esc(r.caller_type||'customer')+'</span>'+
+      (r.ref?' <span class="ref">claim/WO '+esc(r.ref)+'</span>':'')+
+      '<div class="sum">'+esc(r.summary||'(no summary)')+'</div>'+
+      '<div class="acts">'+
+        (tel?'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(r.phone)+'</a>':'<span style="flex:1;color:#c0392b;font-weight:700;text-align:center;padding:11px">no number</span>')+
+        (r.handled?'':'<button class="done-btn" onclick="handled('+r.id+',this)">✓ Handled</button>')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+async function handled(id,btn){
+  btn.disabled=true;btn.textContent='…';
+  try{
+    const r=await fetch(XANO+'/mark_callback_handled',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({callback_id:id,actor:'office'})});
+    const d=await r.json();
+    if(d&&d.success){toast('Marked handled ✓');const row=ROWS.find(x=>x.id===id);if(row)row.handled=true;render();}
+    else{btn.disabled=false;btn.textContent='✓ Handled';toast('⚠ failed');}
+  }catch(_){btn.disabled=false;btn.textContent='✓ Handled';toast('⚠ connection error');}
+}
+if(authOk()){document.getElementById('auth').style.display='none';load();}
+</script>
+</body>
+</html>
