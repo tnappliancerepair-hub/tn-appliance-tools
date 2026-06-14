@@ -18,8 +18,15 @@ import { config } from '../config.js';
 function pickCandidates(extra, max = 2) {
   const local = Array.isArray(extra?.prediag_and_local) ? extra.prediag_and_local : [];
   const other = Array.isArray(extra?.other_candidates) ? extra.other_candidates : [];
-  // Pre-diagnosed + in-cluster first (best routing + ready to work), then rest.
-  return local.concat(other).slice(0, max);
+  const pool = local.concat(other);
+  // Rank: nearby (in the tech's cluster) first — that's the whole point of a
+  // route-fill offer — then pre-diagnosed (ready to work) within that.
+  const score = (c) => (c && c.in_tech_cluster ? 2 : 0) + (c && c.has_prediag ? 1 : 0);
+  return pool
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => score(b.c) - score(a.c) || a.i - b.i)
+    .map(x => x.c)
+    .slice(0, max);
 }
 
 function describe(c) {
