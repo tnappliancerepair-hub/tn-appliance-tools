@@ -44,7 +44,10 @@ function buildSystemPrompt({ callerPhone, vapiCallId, prefetched, calledNumberCo
   const openJobs = (prefetched && prefetched.open_jobs) || [];
   const lastCall = prefetched && prefetched.last_call_summary;
 
-  const intro = known
+  const masked = prefetched && prefetched.caller_id_masked;
+  const intro = masked
+    ? `MASKED CALLER ID: the number that came through is one of OUR OWN lines (our phone system forwards calls and hides the real caller's number). You do NOT know who this is — do not guess or greet by name. Ask for their name and a claim or work-order number, then call lookup_by_claim_number. Could be a homeowner OR a warranty company.`
+    : known
     ? `KNOWN CALLER: ${known.first_name || ''} ${known.last_name || ''} (customer_id=${known.id}). City: ${known.city || 'unknown'}. LTV: $${known.ltv_usd || 0}. Comms style: ${known.comms_style || 'unknown'}. Language: ${known.preferred_language || 'en'}.`
     : `UNKNOWN CALLER from ${callerPhone}. No customer record found — treat as first contact. Get their first name + city before deep diagnosis.`;
 
@@ -117,7 +120,7 @@ async function prefetchCallerContext(phone) {
     });
     if (!r.ok) return null;
     const data = await r.json();
-    if (!data || !data.found) return { customer: null, open_jobs: [], last_call_summary: '' };
+    if (!data || !data.found) return { customer: null, open_jobs: [], last_call_summary: '', caller_id_masked: !!(data && data.caller_id_masked) };
 
     const customerId = data.customer && data.customer.id;
     let openJobs = [];
