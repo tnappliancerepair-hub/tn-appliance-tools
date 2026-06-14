@@ -8,6 +8,7 @@ The phone system is the active push. Today's big diagnostic wins + what's left:
 - **XS pushed today** (confirm `Pushed`): `lookup_customer_by_phone` (now returns `parts_eta_date`), `list_recent_calls_for_office` (fixed `|length`→`|count`; office call log loads again). **STILL NEEDED in Xano UI:** add `scheduling_status`, `scheduled_start`, `parts_status`, `parts_eta_date`, tech name to **`lookup_by_claim_number`** (Xano-only) so warranty CSC callers get answers.
 - **Data home = the real unlock.** Job data lived in HCP/MeisterTask, not Xano. As Danielle schedules in Ant + enters claim#/parts/ETA/status, lookups stop missing. Watch `assistant-forwarded-call` + `callback_request` counts fall = phone getting better.
 - **Auto-fires tomorrow AM:** tech morning briefing (7:00 CT), Danielle onboarding text "5 things every job needs in Ant" (7:15, one-time), Danielle daily office briefing (7:30).
+- **✅ DANIELLE ASK DONE (2026-06-14):** she wanted Delete + Complete/Archive on the Needs Scheduled list (junk = canceled-email jobs cluttering it). Built **`office_remove_job`** (delete→status canceled, complete→completed; SILENT soft-remove, audited, no customer SMS / no warranty chain). Buttons live on `needs-scheduled.html` (🗑 Delete / ✓ Done-Archive) + `office-do-next.html`. **PUSH NEEDED:** `git checkout origin/main -- api/intake/office_remove_job_POST.xs && /opt/homebrew/bin/xano workspace push -i "api/**/office_remove_job*" --force`.
 
 
 ## 🎯 NORTH STAR — the next major goal (full vision in `docs/self-checkout-vision.md`)
