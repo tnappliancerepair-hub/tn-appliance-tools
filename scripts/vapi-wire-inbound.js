@@ -49,35 +49,49 @@ async function ensureTool(file) {
     return null;
   }
 
-  const existing = (await vapi.listTools());
-  const list = Array.isArray(existing) ? existing : (existing.results || existing.tools || []);
-  const match = list.find((t) => toolName(t) === name);
-
-  // Build the create/update body (no read-only fields).
   const body = { type: local.type, function: local.function, server: local.server };
   if (local.messages) body.messages = local.messages;
 
-  if (match) {
-    if (APPLY) {
-      const upd = { function: body.function, server: body.server };
-      if (body.messages) upd.messages = body.messages;
-      await vapi.updateTool(match.id, upd); // type is immutable on PATCH
-    }
-    console.log(`  ${APPLY ? 'updated' : 'would update'} ${name} (id ${String(match.id).slice(0, 8)}…)`);
-    return { name, id: match.id };
-  }
+  // Vapi PATCH does NOT reliably change a tool's server.url, so we DELETE every
+  // existing copy of this tool by name and CREATE it fresh pointing at the
+  // proxy. (The assistant is detached first by main() so deletes aren't blocked.)
+  const existing = await vapi.listTools();
+  const list = Array.isArray(existing) ? existing : (existing.results || existing.tools || []);
+  const matches = list.filter((t) => toolName(t) === name);
 
-  if (!APPLY) { console.log(`  would CREATE ${name}`); return { name, id: '(new)' }; }
+  if (!APPLY) {
+    console.log(`  would recreate ${name}${matches.length ? ` (delete ${matches.length} old)` : ''} -> ${url}`);
+    return { name, id: '(new)' };
+  }
+  for (const m of matches) {
+    try { await vapi.deleteTool(m.id); } catch (e) { console.log(`    (couldn't delete ${String(m.id).slice(0, 8)}: ${e.message})`); }
+  }
   const created = await vapi.createTool(body);
   local.id = created.id; writeJson(fullPath, local);
-  console.log(`  created ${name} (id ${String(created.id).slice(0, 8)}…)`);
+  console.log(`  recreated ${name} (id ${String(created.id).slice(0, 8)}…) -> proxy`);
   return { name, id: created.id };
 }
 
 (async () => {
   console.log(`Vapi wire Ant Inbound ${APPLY ? '(APPLY)' : '(dry run — pass --apply to write)'}\n`);
 
-  console.log('Ensuring our tools exist:');
+  // Find Ant Inbound FIRST so we can detach its tools before deleting them.
+  const aResp = await vapi.listAssistants();
+  const assistants = Array.isArray(aResp) ? aResp : (aResp.results || aResp.assistants || []);
+  const inbound = assistants.find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
+  if (!inbound) { console.error(`Could not find an assistant named "${INBOUND_NAME}". Found: ${assistants.map((a) => a.name).join(', ')}`); process.exit(1); }
+  const full = await vapi.getAssistant(inbound.id);
+  const model = full.model || {};
+  const beforeIds = Array.isArray(model.toolIds) ? model.toolIds : [];
+  console.log(`Ant Inbound (id ${String(inbound.id).slice(0, 8)}…) — BEFORE toolIds: ${beforeIds.length}`);
+
+  if (APPLY) {
+    // Detach all tools first so the old copies can be deleted + recreated.
+    await vapi.updateAssistant(inbound.id, { model: Object.assign({}, model, { toolIds: [] }) });
+    console.log('Detached existing tools.\n');
+  }
+
+  console.log('Recreating our tools (pointing at the proxy):');
   const ours = [];
   for (const f of DESIRED_TOOL_FILES) {
     try { const r = await ensureTool(f); if (r) ours.push(r); }
@@ -85,31 +99,13 @@ async function ensureTool(file) {
   }
   const ourIds = ours.map((t) => t.id).filter((id) => id && id !== '(new)');
 
-  // Find Ant Inbound
-  const aResp = await vapi.listAssistants();
-  const assistants = Array.isArray(aResp) ? aResp : (aResp.results || aResp.assistants || []);
-  const inbound = assistants.find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
-  if (!inbound) { console.error(`\nCould not find an assistant named "${INBOUND_NAME}". Found: ${assistants.map((a) => a.name).join(', ')}`); process.exit(1); }
-
-  const full = await vapi.getAssistant(inbound.id);
-  const model = full.model || {};
-  const beforeIds = Array.isArray(model.toolIds) ? model.toolIds : [];
-
-  // Name the before-set for readability
-  const allToolsResp = await vapi.listTools();
-  const allTools = Array.isArray(allToolsResp) ? allToolsResp : (allToolsResp.results || allToolsResp.tools || []);
-  const idToName = {}; allTools.forEach((t) => { idToName[t.id] = toolName(t); });
-
-  console.log(`\nAnt Inbound (id ${String(inbound.id).slice(0, 8)}…)`);
-  console.log(`  BEFORE toolIds (${beforeIds.length}): ${beforeIds.map((id) => idToName[id] || id.slice(0, 8)).join(', ') || '(none)'}`);
-  console.log(`  AFTER  toolIds (${ourIds.length}): ${ours.map((t) => t.name).join(', ')}`);
-  const dropping = beforeIds.filter((id) => !ourIds.includes(id)).map((id) => idToName[id] || id.slice(0, 8));
-  if (dropping.length) console.log(`  detaching: ${dropping.join(', ')}`);
-
+  console.log(`\n  AFTER toolIds (${ourIds.length}): ${ours.map((t) => t.name).join(', ')}`);
   if (!APPLY) { console.log('\nDry run only. Re-run with --apply to write.'); return; }
-  if (ourIds.length < DESIRED_TOOL_FILES.length) { console.error('\nNot all tools resolved to ids — aborting before touching the assistant.'); process.exit(1); }
+  if (ourIds.length < DESIRED_TOOL_FILES.length) {
+    console.error('\nNot all tools created — re-running may be needed. (Ant Inbound tools are currently detached.)');
+    process.exit(1);
+  }
 
-  const newModel = Object.assign({}, model, { toolIds: ourIds });
-  await vapi.updateAssistant(inbound.id, { model: newModel });
-  console.log('\n✅ Ant Inbound now has exactly our tools attached. transferCall/endCall (model.tools) left untouched.');
+  await vapi.updateAssistant(inbound.id, { model: Object.assign({}, model, { toolIds: ourIds }) });
+  console.log('\n✅ Ant Inbound now has FRESH proxy-pointed tools attached. transferCall/endCall (model.tools) untouched.');
 })().catch((e) => { console.error('FATAL:', e.message); process.exit(1); });
