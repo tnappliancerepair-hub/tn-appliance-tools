@@ -64,6 +64,11 @@ const KNOWN_WARRANTY_NUMBERS = (process.env.ANT_KNOWN_WARRANTY_NUMBERS || '')
   .split(',').map(s => s.trim()).filter(Boolean);
 
 function classifyCaller({ callerNumber, prefetchedCustomer }) {
+  // Masked caller ID (RingCentral forward hides the real number behind our own
+  // line). We genuinely don't know who this is — never assume, just ask.
+  if (prefetchedCustomer && prefetchedCustomer.caller_id_masked) {
+    return { tone: 'b2b', kind: 'masked_unknown' };
+  }
   // Known warranty company by exact number
   if (KNOWN_WARRANTY_NUMBERS.some((n) => callerNumber.endsWith(n.replace(/\D/g, '').slice(-10)))) {
     return { tone: 'b2b', kind: 'warranty_company' };
@@ -536,6 +541,7 @@ const TRANSFER_DESTINATIONS = [
 
 function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classification, numberProfile }) {
   const knownName = pf && pf.found && pf.customer && pf.customer.first_name;
+  const masked = !!(pf && pf.caller_id_masked);
   const tone = (classification && classification.tone) || 'warm_new';
   const kind = (classification && classification.kind) || 'new_customer';
   const role = (numberProfile && numberProfile.role) || 'unknown';
@@ -545,7 +551,10 @@ function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classifi
   // wins because that's the highest-context number — customer
   // probably called to follow up on a recent text.
   let firstMsg;
-  if (role === 'customer_sms_callback') {
+  if (masked) {
+    // Caller ID is masked (forwarded line) — don't guess. Ask who + claim/WO.
+    firstMsg = `Thanks for calling TN Appliance Exchange, this is Ant. Who am I speaking with, and do you have a claim or work-order number?`;
+  } else if (role === 'customer_sms_callback') {
     firstMsg = knownName
       ? `Hey ${knownName} — got your call, looks like you saw our text. What's going on?`
       : `Hey — got your number from a text we sent recently. What can I do for you?`;
@@ -606,6 +615,7 @@ function buildAssistantConfig({ callerNumber, calledNumber, callId, pf, classifi
         customer_id: pf && pf.found && pf.customer ? pf.customer.id : 0,
         customer_first_name: knownName || '',
         caller_classification: kind,
+        caller_id_masked: masked,
         caller_tone: tone,
         called_number_role: role,
         called_number_market: (numberProfile && numberProfile.market_context) || '',
