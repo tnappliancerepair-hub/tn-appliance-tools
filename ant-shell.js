@@ -57,6 +57,7 @@
     office: [
       { label: 'Queue',          icon: '📥', page: 'needs-scheduled.html' },
       { label: 'Phone-Ready',    icon: '📞', page: 'office-ready.html' },
+      { label: 'Call Stats',     icon: '📊', page: 'call-performance.html' },
       { label: 'Warranty',       icon: '📦', page: 'warranty-review.html' },
       { label: 'Money',          icon: '💰', page: 'money.html' },
       { label: 'Needs Action',   icon: '✅',       page: 'office-todo.html' },
