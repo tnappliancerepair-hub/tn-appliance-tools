@@ -635,7 +635,7 @@ Every new session: read this whole file, then in your first reply report (a) **w
 **Dawn is OUT (eye issue).** The manual warranty-submission workflow she usually runs is unstaffed. **Automation cutover is no longer optional — it is urgent.** Phase A (loop runtime, 2026-05-24) and Phase B (producers wired, 2026-05-25) both shipped. Vision-step-5 (Danielle/warranty automation) is the remaining slip-risk — every day it slips is a day of warranty paperwork piling up. This changes the risk calculus: prefer shipping a slightly rough automation today over a perfect one next week.
 
 ## Infrastructure
-
+- **⚠️ Vapi PRODUCTION account = `tnappliance@gmail.com`** (15 assistants incl. the inbound phone assistant + all live numbers 629/615/866/888/504). **`tnappliancerepair@gmail.com` is the orphan/test account — do NOT edit assistants there.** The inbound phone assistant = whatever the live numbers' Inbound binding points to (confirm via Phone Numbers → a number → Inbound). NOTE: `Ant Field Assist` is the tech's in-truck helper, NOT the phone assistant — don't edit it for calls.
 - **Xano API base:** `https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA`
 - **Netlify site:** `superlative-naiad-233aa7.netlify.app`
 - **Metadata API base:** `https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1` (bearer auth via `XANO_METADATA_TOKEN`)
