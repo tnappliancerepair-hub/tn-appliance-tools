@@ -115,7 +115,8 @@ function renderCard(){
       '<label>Arrival window (optional — only if they really need one)</label><input id="qWin" placeholder="usually leave blank">'+
       '<input id="qTime" type="hidden" value="08:00">'+
       '<button class="primary" id="qGo">Schedule it →</button>'+
-      '<button class="skip" onclick="skip()">Skip for now →</button>';
+      '<button class="skip" onclick="skip()">Skip for now →</button>'+
+      '<div style="display:flex;gap:8px;margin-top:6px"><button class="skip" style="flex:1;color:#0a7d33;border:1px solid #cfe6d6;border-radius:10px" onclick="removeJob(\'complete\')">✓ Already done</button><button class="skip" style="flex:1;color:#c0392b;border:1px solid #f0c9c9;border-radius:10px" onclick="removeJob(\'delete\')">🗑 Junk / delete</button></div>';
   } else {
     body='<div class="icon">✏️</div><div class="title">Add missing info</div>'+
       '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+waitBadge(j)+'</div>'+
@@ -123,7 +124,8 @@ function renderCard(){
       (item.noClaim?'<label>Warranty claim / work-order # ('+esc(j.warranty_company||'warranty')+')</label><input id="qClaim" placeholder="claim or WO #" value="'+esc(j.claim_number||'')+'">':'')+
       (item.noPhone?'<label>Customer phone</label><input id="qPhone" type="tel" inputmode="tel" placeholder="(615) 555-1234" value="'+esc(j.customer_phone||'')+'">':'')+
       '<button class="primary green" id="qSave">Save →</button>'+
-      '<button class="skip" onclick="skip()">Skip for now →</button>';
+      '<button class="skip" onclick="skip()">Skip for now →</button>'+
+      '<div style="display:flex;gap:8px;margin-top:6px"><button class="skip" style="flex:1;color:#0a7d33;border:1px solid #cfe6d6;border-radius:10px" onclick="removeJob(\'complete\')">✓ Already done</button><button class="skip" style="flex:1;color:#c0392b;border:1px solid #f0c9c9;border-radius:10px" onclick="removeJob(\'delete\')">🗑 Junk / delete</button></div>';
   }
   document.getElementById('stage').innerHTML='<div class="card">'+body+'</div>';
   if(item.type==='schedule'){document.getElementById('qGo').onclick=doSchedule;suggestTech(j);}
@@ -227,6 +229,20 @@ async function doInfo(){
     if(d&&d.success){toast('Saved ✓');advance();}
     else{this.disabled=false;this.textContent='Save →';toast('⚠ '+((d&&d.error)||'failed'));}
   }catch(_){this.disabled=false;this.textContent='Save →';toast('⚠ connection error');}
+}
+async function removeJob(action){
+  const j=QUEUE[IDX].j;
+  const msg=action==='delete'
+    ? 'Delete this job? Use for junk / canceled-email. Drops off the list (kept for records, no customer texted).'
+    : 'Mark this job done / archived? Use when it is already handled.';
+  if(!confirm(msg))return;
+  try{
+    const r=await fetch(XANO+'/office_remove_job',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:j.id,action:action,actor:'office'})});
+    const d=await r.json();
+    if(d&&d.success){toast(action==='delete'?'Deleted ✓':'Archived ✓');advance();}
+    else{toast('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){toast('⚠ connection error');}
 }
 window.AntTalkReload=function(){load();};
 if(authOk()){document.getElementById('auth').style.display='none';load();}
