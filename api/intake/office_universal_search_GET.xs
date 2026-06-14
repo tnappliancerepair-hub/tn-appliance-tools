@@ -216,11 +216,19 @@ query office_universal_search verb=GET {
         var $name_tokens {
           value = ($q_lower|split:" ")
         }
-        var $tok0 {
+        var $tok0_raw {
           value = ((($name_tokens|first) ?? "")|trim)
         }
+        var $tok1_raw {
+          value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $tok0_raw)
+        }
+        // Xano == is case-sensitive; names are stored Title Case. Title-case the
+        // lowered tokens so "sherri rucker" matches "Sherri" / "Rucker".
+        var $tok0 {
+          value = (($tok0_raw|substr:0:1|to_upper) ~ ($tok0_raw|substr:1))
+        }
         var $tok1 {
-          value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $tok0)
+          value = (($tok1_raw|substr:0:1|to_upper) ~ ($tok1_raw|substr:1))
         }
         conditional {
           if ($tok0 != "") {
