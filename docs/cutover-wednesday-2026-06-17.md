@@ -42,6 +42,15 @@ Ignore "table does not exist" warnings.
 - Permanent caller-ID fix = port 615-280-2949 to Telnyx (blocked on 2FA;
       masked-caller guard covers it meanwhile).
 
+## 2b. Vapi is now CODE-MANAGED (no more dashboard fights)
+- Tools: `node scripts/vapi-wire-inbound.js --apply` (attaches our tool set to
+  Ant Inbound, detaches dev tools).
+- Prompt: `node scripts/vapi-inbound-prompt.js --pull` (capture live prompt to
+  `vapi-config/prompts/ant_inbound.md` ONCE), then edit the file and
+  `node scripts/vapi-inbound-prompt.js --apply` to push. Dry-run by default.
+- That's the whole Vapi workflow now: edit JSON/markdown in `vapi-config/`, run
+  a script. The dashboard is only for transferCall + Summary toggles.
+
 ## 3. Office (Danielle) — live, just hard-refresh
 All shipped this weekend (Ctrl+Shift+R to load):
 - Calendar/Schedule black screen fixed · cards stay where dropped · Move-to-
