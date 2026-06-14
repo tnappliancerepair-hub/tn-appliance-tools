@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Phone-Ready Jobs · Ant Office</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#10243e;--sub:#5a6b80;--line:#e3e8ef;--brand:#1f6fed;--ok:#1aa260;--warn:#d6432a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  .top{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:12px 14px;z-index:5}
+  .top h1{font-size:17px;font-weight:800;margin:0}
+  .top .sub{font-size:12px;color:var(--sub);margin-top:2px}
+  .wrap{max-width:680px;margin:0 auto;padding:12px}
+  .summary{display:flex;gap:8px;margin-bottom:12px}
+  .stat{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .stat .v{font-size:24px;font-weight:900}.stat .k{font-size:11px;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  .stat.bad .v{color:var(--warn)} .stat.good .v{color:var(--ok)}
+  .filters{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+  .filters button{background:#fff;border:1px solid var(--line);border-radius:18px;padding:7px 13px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer}
+  .filters button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .job{background:#fff;border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:9px;cursor:pointer;transition:.1s}
+  .job:active{transform:scale(.995)}
+  .job.ready{border-left:4px solid var(--ok)} .job.gaps{border-left:4px solid var(--warn)}
+  .jh{display:flex;align-items:baseline;gap:8px}
+  .jh .nm{font-weight:800;font-size:15px}
+  .jh .meta{font-size:12px;color:var(--sub);margin-left:auto;white-space:nowrap}
+  .appl{font-size:13px;color:var(--sub);margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .chip{font-size:11px;font-weight:700;padding:4px 9px;border-radius:14px;display:inline-flex;align-items:center;gap:4px}
+  .chip.ok{background:#e9f9f0;color:#127a4a}
+  .chip.miss{background:#fdece9;color:var(--warn)}
+  .chip.na{background:#f0f3f7;color:#9aa7b6}
+  .empty{text-align:center;color:var(--sub);padding:40px 16px}
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;padding:24px}
+  #auth input{font-size:18px;padding:12px;border:1px solid var(--line);border-radius:12px;width:240px;text-align:center}
+  #auth button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:12px 26px;font-size:16px;font-weight:800;cursor:pointer}
+  #auth .err{color:var(--warn);font-size:13px;min-height:16px}
+  .loading{text-align:center;color:var(--sub);padding:40px}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:20px;font-weight:900">🐜 Phone-Ready Jobs</div>
+  <div style="color:var(--sub);font-size:14px">office password</div>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="pwBtn">Unlock</button>
+  <div class="err" id="autherr"></div>
+</div>
+
+<div class="top">
+  <h1>📞 Phone-Ready Jobs</h1>
+  <div class="sub">What each job needs so Ant can answer the phone about it. Fix the ⚠ red ones.</div>
+</div>
+<div class="wrap">
+  <div class="summary" id="summary"></div>
+  <div class="filters" id="filters">
+    <button data-f="gaps" class="on">⚠ Needs info</button>
+    <button data-f="all">All</button>
+    <button data-f="ready">✅ Ready</button>
+  </div>
+  <div id="list"><div class="loading">Loading jobs…</div></div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
+let JOBS=[], FILTER='gaps';
+
+function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+document.getElementById('pwBtn').onclick=async function(){
+  const e=document.getElementById('autherr');const v=document.getElementById('pw').value.trim();
+  if(!v){e.textContent='Enter the office password';return;} e.textContent='Checking…';
+  if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ } document.getElementById('auth').style.display='none';load();}
+  else{e.textContent='Wrong password';}
+};
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pwBtn').click();});
+
+const PARTS_WAIT=/awaiting|ordered|on_order|on order|pending|parts_needed|backorder/i;
+const DONE=/completed|canceled|cancelled|no_fix/i;
+
+// returns {checks:[{key,label,state}], gaps, applicable, ready}
+function assess(j){
+  const checks=[];
+  const isDone=DONE.test(j.scheduling_status||'');
+  // 1) Day + tech
+  const hasDay=Number(j.scheduled_start)>0 && Number(j.technician_id)>0;
+  checks.push({key:'sched',label:'📅 Day+Tech',state:isDone?'na':(hasDay?'ok':'miss')});
+  // 2) Customer phone
+  checks.push({key:'phone',label:'📞 Phone',state:(j.customer_phone&&(''+j.customer_phone).replace(/\D/g,'').length>=10)?'ok':'miss'});
+  // 3) Claim # (only for warranty jobs)
+  const warranty=!!(j.warranty_company&&(''+j.warranty_company).trim());
+  checks.push({key:'claim',label:'🎫 Claim #',state:warranty?((j.claim_number&&(''+j.claim_number).trim())?'ok':'miss'):'na'});
+  // 4) Parts ETA (only when waiting on parts)
+  const waiting=PARTS_WAIT.test(j.parts_status||'');
+  checks.push({key:'eta',label:'📦 Parts ETA',state:waiting?((j.parts_eta_date&&(''+j.parts_eta_date).trim())?'ok':'miss'):'na'});
+  const applicable=checks.filter(c=>c.state!=='na').length;
+  const gaps=checks.filter(c=>c.state==='miss').length;
+  return {checks,gaps,applicable,ready:gaps===0};
+}
+
+async function load(){
+  try{
+    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    const d=await r.json();
+    JOBS=((d&&d.items)||[]).map(j=>({...j,_a:assess(j)}));
+    render();
+  }catch(e){document.getElementById('list').innerHTML='<div class="empty">⚠ Could not load — '+esc(e.message)+'</div>';}
+}
+
+function render(){
+  const total=JOBS.length;
+  const withGaps=JOBS.filter(j=>j._a.gaps>0).length;
+  const ready=total-withGaps;
+  document.getElementById('summary').innerHTML=
+    '<div class="stat bad"><div class="v">'+withGaps+'</div><div class="k">Need info</div></div>'+
+    '<div class="stat good"><div class="v">'+ready+'</div><div class="k">Phone-ready</div></div>'+
+    '<div class="stat"><div class="v">'+total+'</div><div class="k">Open jobs</div></div>';
+  document.querySelectorAll('#filters button').forEach(b=>b.classList.toggle('on',b.dataset.f===FILTER));
+  let rows=JOBS;
+  if(FILTER==='gaps')rows=JOBS.filter(j=>j._a.gaps>0);
+  if(FILTER==='ready')rows=JOBS.filter(j=>j._a.gaps===0);
+  rows.sort((a,b)=>b._a.gaps-a._a.gaps);
+  if(!rows.length){document.getElementById('list').innerHTML='<div class="empty">'+(FILTER==='gaps'?'🎉 Every open job is phone-ready!':'No jobs.')+'</div>';return;}
+  document.getElementById('list').innerHTML=rows.map(j=>{
+    const nm=((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';
+    const appl=[j.brand,j.appliance].filter(Boolean).join(' ')||'appliance';
+    const tech=j.technician_id&&TECH[j.technician_id]?TECH[j.technician_id]:'';
+    const chips=j._a.checks.map(c=>'<span class="chip '+c.state+'">'+(c.state==='ok'?'✓ ':c.state==='miss'?'⚠ ':'– ')+c.label.replace(/^.. /,'')+'</span>').join('');
+    return '<div class="job '+(j._a.gaps>0?'gaps':'ready')+'" onclick="fix('+j.id+')">'+
+      '<div class="jh"><span class="nm">'+esc(nm)+'</span><span class="meta">'+esc(j.warranty_company||'cash')+(tech?(' · '+tech):'')+'</span></div>'+
+      '<div class="appl">'+esc(appl)+(j.service_city?(' · '+esc(j.service_city)):'')+' · #'+j.id+'</div>'+
+      '<div class="chips">'+chips+'</div>'+
+    '</div>';
+  }).join('');
+}
+function fix(id){ location.href='office-board.html?job='+id; }
+document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+window.AntTalkReload=function(){load();};
+if(authOk()){document.getElementById('auth').style.display='none';load();}
+</script>
+<script src="/ant-talk.js?v=1"></script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
