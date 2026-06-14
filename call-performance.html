@@ -143,7 +143,29 @@ function render(calls){
     (masked>0?'<div class="note">🔑 <b>'+pct(masked)+'% of calls show your own number as the caller</b> ('+masked+' of '+n+') — that\'s RingCentral forwarding masking the real caller ID, so phone lookups can\'t work. Porting 615-280-2949 onto Telnyx → Ant Inbound fixes this.</div>':'')+
     '<div class="card"><h3>Calls per day (orange = forwarded)</h3><div class="bars">'+bars+'</div></div>'+
     '<div class="card"><h3>How calls ended</h3>'+reasons+'</div>'+
-    '<div class="card"><h3>Where Ant struggled (forwarded / failed / silent)</h3>'+att+'</div>';
+    '<div class="card"><h3>Where Ant struggled (forwarded / failed / silent)</h3>'+att+'</div>'+
+    '<div id="reviewed"><div class="card"><h3>🤖 AI-reviewed struggled calls</h3><div class="loading" style="padding:14px 0">Loading reviews…</div></div></div>';
+  loadReviewed();
+}
+
+// AI-reviewed low-scoring calls (vapi_call_struggled rows from the daily review).
+async function loadReviewed(){
+  const host=document.getElementById('reviewed'); if(!host)return;
+  let calls=[];
+  try{ const r=await fetch(XANO+'/list_struggled_calls?days='+DAYS); const d=await r.json(); calls=(d&&d.calls)||[]; }
+  catch(_){ host.innerHTML=''; return; }
+  if(!calls.length){ host.innerHTML='<div class="card"><h3>🤖 AI-reviewed struggled calls</h3><div style="color:#6b7488;font-size:13px;padding:6px 0">None flagged in this window — the daily review runs each morning.</div></div>'; return; }
+  const rows=calls.map(c=>{
+    const sc=[['outcome',c.outcome_quality],['tools',c.tool_use_accuracy],['accuracy',c.factual_accuracy]]
+      .map(p=>'<span style="font-size:11px;font-weight:800;color:'+(Number(p[1])<=2?'#c0392b':'#6b7488')+'">'+p[0]+' '+p[1]+'</span>').join(' · ');
+    return '<div style="border-top:1px solid #e2e7f0;padding:10px 0">'+
+      '<div style="font-size:13px;font-weight:800">'+esc(c.tldr||'(call '+String(c.call_id).slice(0,8)+')')+'</div>'+
+      '<div style="margin:3px 0">'+sc+' <span style="font-size:11px;color:#8a96a8">· '+esc(c.assistant_name||'')+'</span></div>'+
+      (c.improvement_idea?'<div style="font-size:12px;color:#1f6feb">💡 '+esc(c.improvement_idea)+'</div>':'')+
+      '<div style="font-size:10px;color:#aab2c2;font-family:ui-monospace,monospace;margin-top:2px">'+esc(String(c.call_id))+'</div>'+
+    '</div>';
+  }).join('');
+  host.innerHTML='<div class="card"><h3>🤖 AI-reviewed struggled calls ('+calls.length+')</h3>'+rows+'</div>';
 }
 
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{DAYS=parseInt(b.dataset.d,10);document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));load();});
