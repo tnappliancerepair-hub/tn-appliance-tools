@@ -1,0 +1,44 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Let me get that to our office for you."
+    }
+  ],
+  "function": {
+    "name": "capture_callback",
+    "description": "Your graceful fallback whenever you CANNOT fully resolve a caller yourself: you can't find them, can't answer their question, the line is rough, or they want a human and a transfer isn't possible. Call this to hand the caller off to the office so NO caller is ever lost. Collect their name + best callback number + a one-line summary of what they need first. After it returns, tell the caller their info was passed to the office and someone will reach out shortly. Prefer this over a blind transferCall.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The caller's full name (or first name if that's all they give)."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Best callback number. If their caller ID is masked/forwarded, ASK for it explicitly. Digits only is fine."
+        },
+        "summary": {
+          "type": "string",
+          "description": "One sentence on what they need (e.g. 'AHS claim 49135689 - wants to know if tech has been out', 'washer not draining, wants to schedule')."
+        },
+        "caller_type": {
+          "type": "string",
+          "enum": ["customer", "warranty", "other"],
+          "description": "customer = homeowner; warranty = warranty company / CSC rep; other = anything else."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Claim or work-order number if they gave one. Optional - leave empty if none."
+        }
+      },
+      "required": ["name", "phone", "summary", "caller_type"]
+    }
+  },
+  "server": {
+    "url": "https://tnapplianceexchange.net/.netlify/functions/capture-callback"
+  }
+}
