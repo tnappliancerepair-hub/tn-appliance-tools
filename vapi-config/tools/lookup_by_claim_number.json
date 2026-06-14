@@ -18,10 +18,12 @@
           "description": "The claim, dispatch, or work-order number the rep gave you. Strip spaces. Examples: '49135689' (AHS), '22818' (work order)."
         }
       },
-      "required": ["claim_or_dispatch_number"]
+      "required": [
+        "claim_or_dispatch_number"
+      ]
     }
   },
   "server": {
-    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
+    "url": "https://tnapplianceexchange.net/.netlify/functions/vapi-tool"
   }
 }
