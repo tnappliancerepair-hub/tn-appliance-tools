@@ -77,10 +77,21 @@ query search_customers verb=POST {
       }
     }
   
-    // Name prefix match (first/last name starts with the query — XS lacks
-    // substring LIKE so this is the closest we can do without raw SQL).
+    // Name match. 2026-06-14: callers give a FULL name ("Sherri Rucker") but
+    // first_name/last_name are separate columns, so matching the whole string
+    // against either field found nothing. Split into tokens and match first OR
+    // last against each token (plus the raw string for single-field names).
+    var $name_tokens {
+      value = ($q_raw|split:" ")
+    }
+    var $nt0 {
+      value = ((($name_tokens|first) ?? "")|trim)
+    }
+    var $nt1 {
+      value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $nt0)
+    }
     db.query customer {
-      where = $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw
+      where = $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw || $db.customer.first_name == $nt0 || $db.customer.last_name == $nt0 || $db.customer.first_name == $nt1 || $db.customer.last_name == $nt1
       sort = {customer.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 15}}
     } as $name_rows
