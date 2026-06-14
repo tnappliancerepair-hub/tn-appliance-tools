@@ -329,7 +329,33 @@
     </div>
     <div style="font-size:32px;font-weight:800;color:#4a9eff;min-width:60px;text-align:right" id="wf-sched-count">…</div>
   </a>
+  <a href="/office-ready.html" target="_blank" style="flex:1;min-width:240px;background:linear-gradient(135deg,rgba(214,147,42,0.16),rgba(214,147,42,0.06));border:1px solid rgba(214,147,42,0.45);color:#e0a33a;padding:14px 16px;border-radius:12px;text-decoration:none;display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace">
+    <div style="font-size:22px">📞</div>
+    <div style="flex:1">
+      <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85">Step 3 — Phone-ready</div>
+      <div style="font-size:13px;color:#cbd2e0;margin-top:2px">Jobs missing info Ant needs for calls · <a href="/call-performance.html" target="_blank" style="color:#e0a33a">📊 call stats</a></div>
+    </div>
+    <div style="font-size:32px;font-weight:800;color:#e0a33a;min-width:60px;text-align:right" id="wf-ready-count">…</div>
+  </a>
 </div>
+<script>
+(function(){
+  var PW=/(awaiting_parts|ordered|on_order|parts_needed|pending|backorder)/i, DONE=/completed|canceled|cancelled|no_fix/i;
+  fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_office_kanban',{cache:'no-store'})
+    .then(function(r){return r.json();}).then(function(d){
+      var items=(d&&d.items)||[],gaps=0;
+      items.forEach(function(j){
+        var m=0;
+        if(!DONE.test(j.scheduling_status||'')){ if(!(Number(j.scheduled_start)>0&&Number(j.technician_id)>0)) m++; }
+        if((''+(j.customer_phone||'')).replace(/\D/g,'').length<10) m++;
+        if((j.warranty_company||'').trim()&&!(j.claim_number||'').trim()) m++;
+        if(PW.test(j.parts_status||'')&&!(j.parts_eta_date||'').trim()) m++;
+        if(m) gaps++;
+      });
+      var el=document.getElementById('wf-ready-count'); if(el) el.textContent=gaps;
+    }).catch(function(){});
+})();
+</script>
 
 <div class="view-toggle" id="view-toggle">
   <button id="vt-queue" class="active" onclick="setViewMode('queue')">▼ Priority Queue</button>
