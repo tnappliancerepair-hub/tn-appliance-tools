@@ -71,6 +71,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 function nm(j){return ((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';}
 function appl(j){return [j.brand,j.appliance].filter(Boolean).join(' ')||'appliance';}
 function tomorrow(){var d=new Date();d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);}
+function waitBadge(j){var c=Number(j.created_at)||0;if(!c)return '';var days=Math.floor((Date.now()-c)/86400000);if(days<1)return '';var col=days>=7?'#c0392b':(days>=3?'#b3690a':'#6b7488');return ' · <span style="color:'+col+';font-weight:800">⏳ '+days+'d waiting</span>';}
 
 async function load(){
   DONE=0;IDX=0;
@@ -105,7 +106,7 @@ function renderCard(){
   let body='';
   if(item.type==='schedule'){
     body='<div class="icon">📅</div><div class="title">Schedule this job</div>'+
-      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+(j.service_city?(' · '+esc(j.service_city)):'')+(j.service_zip?(' · '+esc(j.service_zip)):'')+'</div>'+
+      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+(j.service_city?(' · '+esc(j.service_city)):'')+(j.service_zip?(' · '+esc(j.service_zip)):'')+waitBadge(j)+'</div>'+
       '<div class="what">Put it on the tech who runs that area, on the day that fits the route. We don\'t promise a time — the customer gets a live window the morning of.</div>'+
       '<label>Tech (whoever covers '+esc(j.service_city||j.service_zip||'this area')+')</label><select id="qTech"><option value="">— pick a tech —</option>'+
         Object.keys(TECH).map(k=>'<option value="'+k+'">'+TECH[k]+'</option>').join('')+'</select>'+
@@ -117,7 +118,7 @@ function renderCard(){
       '<button class="skip" onclick="skip()">Skip for now →</button>';
   } else {
     body='<div class="icon">✏️</div><div class="title">Add missing info</div>'+
-      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+'</div>'+
+      '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+waitBadge(j)+'</div>'+
       '<div class="what">Ant needs this to answer calls about this job.</div>'+
       (item.noClaim?'<label>Warranty claim / work-order # ('+esc(j.warranty_company||'warranty')+')</label><input id="qClaim" placeholder="claim or WO #" value="'+esc(j.claim_number||'')+'">':'')+
       (item.noPhone?'<label>Customer phone</label><input id="qPhone" type="tel" inputmode="tel" placeholder="(615) 555-1234" value="'+esc(j.customer_phone||'')+'">':'')+
