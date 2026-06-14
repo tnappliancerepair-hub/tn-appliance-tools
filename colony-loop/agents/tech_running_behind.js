@@ -75,7 +75,16 @@ export async function run(signal, ctx) {
     return `${i + 1}. ${who} (${appl})`;
   }).join('\n');
 
-  let mode, smsResult = 'skipped', nudged = 0;
+  // Resolve the tech's own phone so we can loop him in (both modes).
+  let techPhone = '';
+  try {
+    const techsResp = await xano.getTechnicians();
+    const techs = Array.isArray(techsResp) ? techsResp : (techsResp.technicians || techsResp.items || []);
+    const t = techs.find(x => x && Number(x.id) === Number(techId));
+    techPhone = (t && t.phone) ? t.phone : '';
+  } catch (_) {}
+
+  let mode, techSms = 'skipped', ownerSms = 'skipped', nudged = 0;
   if (config.routeFillLive) {
     mode = 'nudged_customers';
     for (const s of soon) {
@@ -91,19 +100,32 @@ export async function run(signal, ctx) {
         if (r?.success) nudged++;
       } catch (_) {}
     }
-    smsResult = nudged > 0 ? `nudged_${nudged}` : 'none_sent_or_gated';
+    techSms = nudged > 0 ? `nudged_${nudged}` : 'none_sent_or_gated';
   } else {
-    mode = 'shadow_to_owner';
+    // SHADOW: ask the TECH whether to cushion his later customers (he knows
+    // if he'll catch up), and CC Teddy so he sees it + can correlate.
+    mode = 'preview_tech_and_owner';
+    if (techPhone) {
+      const body =
+        `[ant] You're ${minutesBehind}min behind, ${firstName} 🐜 — ${remaining.length} stops left. ` +
+        `Want me to text your later customers a heads-up so they're not waiting? Text Teddy yes/no. (Testing — none sent yet.)`;
+      try {
+        const r = await sms.toTech(techPhone, body, { action: 'tech_behind_preview', tech_id: techId });
+        techSms = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) { techSms = String(e.message || e); }
+    } else {
+      techSms = 'no_tech_phone';
+    }
     if (config.ownerPhone) {
       const body =
-        `[ant] ${firstName} ${minutesBehind}min behind, ${remaining.length} stops left. Would heads-up:\n${listLines}\n` +
+        `[ant] ${firstName} ${minutesBehind}min behind, ${remaining.length} stops left. Asked him about heads-up to:\n${listLines}\n` +
         `Set ROUTE_FILL_LIVE=true to let Ant message them proactively.`;
       try {
         const r = await sms.toOwner(body, { action: 'tech_behind_alert', tech_id: techId, remaining: remaining.length });
-        smsResult = r?.success ? 'ok' : (r?.error || 'failed');
-      } catch (e) { smsResult = String(e.message || e); }
+        ownerSms = r?.success ? 'ok' : (r?.error || 'failed');
+      } catch (e) { ownerSms = String(e.message || e); }
     } else {
-      smsResult = 'no_owner_phone';
+      ownerSms = 'no_owner_phone';
     }
   }
 
@@ -114,7 +136,8 @@ export async function run(signal, ctx) {
     minutes_behind: minutesBehind,
     remaining: remaining.length,
     nudged,
-    sms_result: smsResult,
+    tech_sms: techSms,
+    owner_sms: ownerSms,
   };
   await xano.markSignalProcessed(signal.id, 'tech_behind_handled', meta);
   try { await xano.recordEventLog(dedupKey, { tech_id: techId, minutes_behind: minutesBehind, remaining: remaining.length }); } catch (_) {}
