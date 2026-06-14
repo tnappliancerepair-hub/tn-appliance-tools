@@ -72,6 +72,14 @@
     <button data-f="all">All</button>
     <button data-f="ready">✅ Ready</button>
   </div>
+  <div class="filters">
+    <select id="techFilter" style="background:#fff;border:1px solid var(--line);border-radius:18px;padding:7px 12px;font-size:13px;font-weight:700;color:var(--ink)">
+      <option value="">All techs</option>
+      <option value="unassigned">🗓️ Unassigned (needs scheduling)</option>
+      <option value="1">Teddy</option><option value="2">Jimmy</option><option value="3">Andre</option>
+      <option value="4">Lee</option><option value="5">Billy</option><option value="6">John</option>
+    </select>
+  </div>
   <div id="list"><div class="loading">Loading jobs…</div></div>
 </div>
 
@@ -101,7 +109,7 @@
 <script>
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
-let JOBS=[], FILTER='gaps';
+let JOBS=[], FILTER='gaps', TECHF='';
 
 function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
 async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
@@ -157,6 +165,8 @@ function render(){
   let rows=JOBS;
   if(FILTER==='gaps')rows=JOBS.filter(j=>j._a.gaps>0);
   if(FILTER==='ready')rows=JOBS.filter(j=>j._a.gaps===0);
+  if(TECHF==='unassigned')rows=rows.filter(j=>!(Number(j.technician_id)>0));
+  else if(TECHF)rows=rows.filter(j=>Number(j.technician_id)===Number(TECHF));
   rows.sort((a,b)=>b._a.gaps-a._a.gaps);
   if(!rows.length){document.getElementById('list').innerHTML='<div class="empty">'+(FILTER==='gaps'?'🎉 Every open job is phone-ready!':'No jobs.')+'</div>';return;}
   document.getElementById('list').innerHTML=rows.map(j=>{
@@ -205,7 +215,8 @@ document.getElementById('schedSave').onclick=async function(){
     else{this.disabled=false;this.textContent='Schedule it';alert('⚠ '+((d&&d.error)||'failed'));}
   }catch(_){this.disabled=false;this.textContent='Schedule it';alert('⚠ connection error');}
 };
-document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
+document.querySelectorAll('#filters button[data-f]').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
+document.getElementById('techFilter').onchange=function(){TECHF=this.value;render();};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 window.AntTalkReload=function(){load();};
 if(authOk()){document.getElementById('auth').style.display='none';load();}
