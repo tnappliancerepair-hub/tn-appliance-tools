@@ -32,6 +32,19 @@
   .chip.miss{background:#fdece9;color:var(--warn)}
   .chip.na{background:#f0f3f7;color:#9aa7b6}
   .empty{text-align:center;color:var(--sub);padding:40px 16px}
+  .schedbtn{margin-top:9px;background:var(--brand);color:#fff;border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer}
+  .modal{position:fixed;inset:0;background:rgba(16,36,62,.5);display:none;align-items:flex-end;justify-content:center;z-index:60}
+  .modal.show{display:flex}
+  .modal-card{background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:18px;max-height:88vh;overflow:auto}
+  .modal-card h2{margin:0 0 4px;font-size:17px}
+  .modal-card .who{font-size:13px;color:var(--sub);margin-bottom:10px}
+  .modal-card label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sub);margin:10px 0 5px}
+  .modal-card select,.modal-card input{width:100%;font-size:16px;padding:12px;border:1px solid var(--line);border-radius:10px}
+  .row2{display:flex;gap:10px}.row2>div{flex:1}
+  .modal-acts{display:flex;gap:9px;margin-top:16px}
+  .modal-acts button{flex:1;border-radius:11px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;border:0}
+  .modal-acts .cancel{background:#f0f3f7;color:var(--sub)}
+  .modal-acts .save{background:var(--ok);color:#fff}
   #auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;padding:24px}
   #auth input{font-size:18px;padding:12px;border:1px solid var(--line);border-radius:12px;width:240px;text-align:center}
   #auth button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:12px 26px;font-size:16px;font-weight:800;cursor:pointer}
@@ -60,6 +73,29 @@
     <button data-f="ready">✅ Ready</button>
   </div>
   <div id="list"><div class="loading">Loading jobs…</div></div>
+</div>
+
+<div class="modal" id="schedModal">
+  <div class="modal-card">
+    <h2>Schedule this job</h2>
+    <div class="who" id="schedWho"></div>
+    <label>Tech</label>
+    <select id="schedTech">
+      <option value="">— pick a tech —</option>
+      <option value="1">Teddy</option><option value="2">Jimmy</option><option value="3">Andre</option>
+      <option value="4">Lee</option><option value="5">Billy</option><option value="6">John</option>
+    </select>
+    <div class="row2">
+      <div><label>Day</label><input id="schedDate" type="date"></div>
+      <div><label>Time</label><input id="schedTime" type="time" value="09:00"></div>
+    </div>
+    <label>Arrival window (optional)</label>
+    <input id="schedWindow" placeholder="9-12 / 1-4">
+    <div class="modal-acts">
+      <button class="cancel" onclick="closeSched()">Cancel</button>
+      <button class="save" id="schedSave">Schedule it</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -128,14 +164,47 @@ function render(){
     const appl=[j.brand,j.appliance].filter(Boolean).join(' ')||'appliance';
     const tech=j.technician_id&&TECH[j.technician_id]?TECH[j.technician_id]:'';
     const chips=j._a.checks.map(c=>'<span class="chip '+c.state+'">'+(c.state==='ok'?'✓ ':c.state==='miss'?'⚠ ':'– ')+c.label.replace(/^.. /,'')+'</span>').join('');
+    const needsSched=j._a.checks.find(c=>c.key==='sched'&&c.state==='miss');
+    const schedBtn=needsSched?'<button class="schedbtn" onclick="event.stopPropagation();openSched('+j.id+',&quot;'+esc(nm).replace(/"/g,'')+' · '+esc(appl).replace(/"/g,'')+'&quot;)">📅 Schedule it</button>':'';
     return '<div class="job '+(j._a.gaps>0?'gaps':'ready')+'" onclick="fix('+j.id+')">'+
       '<div class="jh"><span class="nm">'+esc(nm)+'</span><span class="meta">'+esc(j.warranty_company||'cash')+(tech?(' · '+tech):'')+'</span></div>'+
       '<div class="appl">'+esc(appl)+(j.service_city?(' · '+esc(j.service_city)):'')+' · #'+j.id+'</div>'+
       '<div class="chips">'+chips+'</div>'+
+      schedBtn+
     '</div>';
   }).join('');
 }
 function fix(id){ location.href='office-board.html?job='+id; }
+
+let SCHED_JOB=0;
+function openSched(id,who){
+  SCHED_JOB=id;
+  document.getElementById('schedWho').textContent=who+' · #'+id;
+  document.getElementById('schedTech').value='';
+  document.getElementById('schedWindow').value='';
+  try{document.getElementById('schedDate').value=new Date().toISOString().slice(0,10);}catch(_){}
+  document.getElementById('schedSave').disabled=false;
+  document.getElementById('schedSave').textContent='Schedule it';
+  document.getElementById('schedModal').classList.add('show');
+}
+function closeSched(){document.getElementById('schedModal').classList.remove('show');SCHED_JOB=0;}
+document.getElementById('schedSave').onclick=async function(){
+  const tech=parseInt(document.getElementById('schedTech').value,10);
+  const dateStr=document.getElementById('schedDate').value;
+  const timeStr=document.getElementById('schedTime').value||'09:00';
+  if(!tech){alert('Pick a tech');return;}
+  if(!dateStr){alert('Pick a day');return;}
+  const startMs=new Date(dateStr+'T'+timeStr+':00').getTime();
+  const win=document.getElementById('schedWindow').value.trim();
+  this.disabled=true;this.textContent='Scheduling…';
+  try{
+    const r=await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:SCHED_JOB,technician_id:tech,scheduled_start_ms:startMs,service_eta_window:win})});
+    const d=await r.json();
+    if(d&&d.success){closeSched();load();}
+    else{this.disabled=false;this.textContent='Schedule it';alert('⚠ '+((d&&d.error)||'failed'));}
+  }catch(_){this.disabled=false;this.textContent='Schedule it';alert('⚠ connection error');}
+};
 document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;render();});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 window.AntTalkReload=function(){load();};
