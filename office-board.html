@@ -469,6 +469,25 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
+      <h4>✏️ Add / edit info</h4>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Appliance</label>
+        <input id="ej-appliance" value="${esc(ap.type||'')}" placeholder="washer, dryer, refrigerator…" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Brand</label>
+        <input id="ej-brand" value="${esc(ap.brand||'')}" placeholder="Whirlpool, LG…" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Model #</label>
+        <input id="ej-model" value="${esc(ap.model_number||'')}" placeholder="model number" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Problem</label>
+        <textarea id="ej-problem" rows="2" placeholder="what's wrong" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(ap.problem_summary||ap.problem_description||'')}</textarea>
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Claim / WO #</label>
+        <input id="ej-claim" value="${esc(j.claim_number||'')}" placeholder="claim or work-order #" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Customer phone</label>
+        <input id="ej-phone" type="tel" value="${esc(c.phone||'')}" placeholder="(615) 555-1234" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <button onclick="saveJobInfo(${jid})" style="margin-top:4px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">Save info</button>
+      </div>
+    </div>
+
+    <div class="dcard">
       <h4>🔧 TDR — diagnosis &amp; parts</h4>
       <div class="kv">
         <div class="k">Diagnosis</div><div class="v">${esc(tdr.diagnosis||'—')}</div>
@@ -537,6 +556,20 @@ function renderDrawer(d){
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
 }
 
+async function saveJobInfo(id){
+  const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const basics={job_id:parseInt(id,10),appliance_type:g('ej-appliance'),brand:g('ej-brand'),model_number:g('ej-model'),problem_summary:g('ej-problem')};
+  const claim=g('ej-claim'), phone=g('ej-phone');
+  toast('Saving…');
+  let ok=true;
+  try{const d=await postJSON('update_job_basics',basics);if(!(d&&d.success))ok=false;}catch(_){ok=false;}
+  if(claim||phone){
+    try{const d2=await postJSON('office_quick_fill',{job_id:parseInt(id,10),claim_number:claim,customer_phone:phone,actor:'Danielle'});if(!(d2&&d2.success))ok=false;}catch(_){ok=false;}
+  }
+  toast(ok?'Saved ✓':'⚠ some fields did not save');
+  openDrawer(String(id)); // reload the job file with the new values
+  loadBoard();
+}
 async function moveJobFromDrawer(id){
   const sel=document.getElementById('moveSel'); if(!sel)return;
   const colId=sel.value; let techId='';
