@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Call Performance · Ant</title>
+<style>
+  :root{--bg:#f5f7fa;--card:#fff;--ink:#10243e;--sub:#5a6b80;--line:#e3e8ef;--brand:#1f6fed;--ok:#1aa260;--warn:#d6432a;--amber:#d6932a}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  .top{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:12px 14px;z-index:5}
+  .top h1{font-size:17px;font-weight:800;margin:0}
+  .top .sub{font-size:12px;color:var(--sub);margin-top:2px}
+  .wrap{max-width:720px;margin:0 auto;padding:12px}
+  .summary{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px;text-align:center}
+  .stat .v{font-size:21px;font-weight:900}.stat .k{font-size:10px;color:var(--sub);font-weight:700;text-transform:uppercase}
+  .stat.ok .v{color:var(--ok)}.stat.warn .v{color:var(--warn)}.stat.amber .v{color:var(--amber)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:12px}
+  .card h3{margin:0 0 10px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--sub)}
+  .bars{display:flex;align-items:flex-end;gap:5px;height:90px}
+  .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}
+  .bar .col{width:100%;background:var(--brand);border-radius:3px 3px 0 0;min-height:2px}
+  .bar .col .fwd{background:var(--amber);border-radius:3px 3px 0 0}
+  .bar .n{font-size:10px;color:var(--sub)}.bar .d{font-size:9px;color:#aab4c0}
+  .reason{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;border-top:1px solid #f0f3f7}
+  .reason .rb{height:8px;border-radius:4px;background:var(--brand)}
+  .reason .lbl{flex:1}.reason .n{font-weight:800}
+  .note{background:#fff4e6;border:1px solid #f0c98a;border-radius:10px;padding:11px 13px;font-size:13px;color:#9a5a12;line-height:1.5;margin-bottom:12px}
+  .att{padding:10px 0;border-top:1px solid #f0f3f7;font-size:13px}
+  .att .h{font-weight:700}.att .h .tag{font-size:11px;font-weight:800;padding:2px 7px;border-radius:10px;margin-left:6px}
+  .tag.fwd{background:#fdf0e3;color:var(--amber)}.tag.fail{background:#fdece9;color:var(--warn)}.tag.silence{background:#eef0f3;color:var(--sub)}
+  .att .t{color:var(--sub);margin-top:3px;line-height:1.45}
+  #auth{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:50;padding:24px}
+  #auth input{font-size:18px;padding:12px;border:1px solid var(--line);border-radius:12px;width:240px;text-align:center}
+  #auth button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:12px 26px;font-size:16px;font-weight:800;cursor:pointer}
+  #auth .err{color:var(--warn);font-size:13px;min-height:16px}
+  .loading{text-align:center;color:var(--sub);padding:40px}
+  .filters{display:flex;gap:7px;margin-bottom:10px}
+  .filters button{background:#fff;border:1px solid var(--line);border-radius:18px;padding:6px 12px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer}
+  .filters button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+</style>
+</head>
+<body>
+<div id="auth">
+  <div style="font-size:20px;font-weight:900">📊 Call Performance</div>
+  <div style="color:var(--sub);font-size:14px">office password</div>
+  <input id="pw" type="password" autocomplete="current-password">
+  <button id="pwBtn">Unlock</button>
+  <div class="err" id="autherr"></div>
+</div>
+
+<div class="top">
+  <h1>📊 Call Performance</h1>
+  <div class="sub">How Ant's handling the phones. Forwarded + failed should fall as we fix the data + the port.</div>
+</div>
+<div class="wrap">
+  <div class="filters" id="filters">
+    <button data-d="7" class="on">7 days</button>
+    <button data-d="14">14 days</button>
+    <button data-d="30">30 days</button>
+  </div>
+  <div id="body"><div class="loading">Loading calls…</div></div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SHOP_DIGITS='6152802949';
+let DAYS=7;
+
+function authOk(){try{return localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+document.getElementById('pwBtn').onclick=async function(){
+  const e=document.getElementById('autherr');const v=document.getElementById('pw').value.trim();
+  if(!v){e.textContent='Enter the office password';return;} e.textContent='Checking…';
+  if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ } document.getElementById('auth').style.display='none';load();}
+  else{e.textContent='Wrong password';}
+};
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pwBtn').click();});
+
+function meta(c){let m=c.metadata;if(typeof m==='string'){try{m=JSON.parse(m);}catch(_){m={};}}return m||c;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function dayKey(ms){try{return new Date(Number(ms)).toLocaleDateString('en-US',{timeZone:'America/Chicago',month:'numeric',day:'numeric'});}catch(_){return '?';}}
+
+async function load(){
+  document.getElementById('body').innerHTML='<div class="loading">Loading calls…</div>';
+  try{
+    const r=await fetch(XANO+'/list_recent_calls_for_office?days='+DAYS+'&limit=300',{cache:'no-store'});
+    const d=await r.json();
+    render((d&&d.calls||[]).map(meta));
+  }catch(e){document.getElementById('body').innerHTML='<div class="loading">⚠ '+esc(e.message)+'</div>';}
+}
+
+function render(calls){
+  const n=calls.length;
+  const er={};let masked=0,durSum=0,durN=0;
+  const byDay={};
+  calls.forEach(c=>{
+    const reason=(c.ended_reason||'?');er[reason]=(er[reason]||0)+1;
+    const cp=(''+(c.caller_phone||'')).replace(/\D/g,'');
+    if(cp.endsWith(SHOP_DIGITS))masked++;
+    const ds=Number(c.duration_sec)||0;if(ds){durSum+=ds;durN++;}
+    const when=Number(c.recorded_at)||(c.created_at?Date.parse(c.created_at):0);
+    const k=dayKey(when);if(!byDay[k])byDay[k]={t:0,f:0};byDay[k].t++;
+    if(/forward|transfer/i.test(reason))byDay[k].f++;
+  });
+  const handled=(er['customer-ended-call']||0)+(er['assistant-ended-call']||0);
+  const forwarded=Object.keys(er).filter(k=>/forward/i.test(k)).reduce((s,k)=>s+er[k],0);
+  const failed=Object.keys(er).filter(k=>/error|fail/i.test(k)).reduce((s,k)=>s+er[k],0);
+  const silence=er['silence-timed-out']||0;
+  const avg=durN?Math.round(durSum/durN):0;
+  const pct=x=>n?Math.round(x/n*100):0;
+
+  // per-day bars (chronological)
+  const days=Object.keys(byDay);
+  const maxT=Math.max(1,...days.map(k=>byDay[k].t));
+  const bars=days.map(k=>{
+    const o=byDay[k];const h=Math.round(o.t/maxT*78);const fh=Math.round(o.f/Math.max(1,o.t)*h);
+    return '<div class="bar"><div class="n">'+o.t+'</div><div class="col" style="height:'+h+'px"><div class="fwd" style="height:'+fh+'px"></div></div><div class="d">'+esc(k)+'</div></div>';
+  }).join('');
+
+  // ended-reason breakdown
+  const maxR=Math.max(1,...Object.values(er));
+  const reasons=Object.entries(er).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+    '<div class="reason"><div class="rb" style="width:'+Math.max(8,Math.round(v/maxR*120))+'px"></div><span class="lbl">'+esc(k)+'</span><span class="n">'+v+'</span></div>').join('');
+
+  // attention list — forwarded/failed/silence with transcript snippet
+  const att=calls.filter(c=>/forward|error|fail|silence/i.test(c.ended_reason||'')).slice(0,12).map(c=>{
+    const reason=(c.ended_reason||'');
+    const tag=/error|fail/i.test(reason)?'fail':(/silence/i.test(reason)?'silence':'fwd');
+    const tname=tag==='fail'?'transfer failed':(tag==='silence'?'silence':'forwarded');
+    const t=(c.transcript_preview||'').replace(/\s+/g,' ').slice(0,260);
+    return '<div class="att"><div class="h">'+dayKey(Number(c.recorded_at)||0)+' · '+(Number(c.duration_sec)||0)+'s<span class="tag '+tag+'">'+tname+'</span></div>'+(t?'<div class="t">'+esc(t)+'…</div>':'')+'</div>';
+  }).join('')||'<div class="att" style="color:var(--sub)">None — nice.</div>';
+
+  document.getElementById('body').innerHTML=
+    '<div class="summary">'+
+      '<div class="stat"><div class="v">'+n+'</div><div class="k">Calls</div></div>'+
+      '<div class="stat amber"><div class="v">'+pct(forwarded)+'%</div><div class="k">Forwarded</div></div>'+
+      '<div class="stat warn"><div class="v">'+failed+'</div><div class="k">Transfer fail</div></div>'+
+      '<div class="stat"><div class="v">'+avg+'s</div><div class="k">Avg length</div></div>'+
+    '</div>'+
+    (masked>0?'<div class="note">🔑 <b>'+pct(masked)+'% of calls show your own number as the caller</b> ('+masked+' of '+n+') — that\'s RingCentral forwarding masking the real caller ID, so phone lookups can\'t work. Porting 615-280-2949 onto Telnyx → Ant Inbound fixes this.</div>':'')+
+    '<div class="card"><h3>Calls per day (orange = forwarded)</h3><div class="bars">'+bars+'</div></div>'+
+    '<div class="card"><h3>How calls ended</h3>'+reasons+'</div>'+
+    '<div class="card"><h3>Where Ant struggled (forwarded / failed / silent)</h3>'+att+'</div>';
+}
+
+document.querySelectorAll('#filters button').forEach(b=>b.onclick=()=>{DAYS=parseInt(b.dataset.d,10);document.querySelectorAll('#filters button').forEach(x=>x.classList.toggle('on',x===b));load();});
+if(authOk()){document.getElementById('auth').style.display='none';load();}
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
