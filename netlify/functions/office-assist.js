@@ -48,6 +48,10 @@ function parseDeterministic(msg){
   if(numMatch) job_ref=numMatch[1];
   else { const nameMatch=(msg||'').match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/); if(nameMatch) job_ref=nameMatch[1]; }
 
+  // delete junk / canceled-email job (Danielle's clear-the-list need)
+  if(/(delete|trash|junk|bogus|duplicate|this is ?n'?t a (real )?job|not a (real )?job|canceled? email|cancelled? email|remove (it|this|that))/.test(m)){
+    return {reply:'Deleting'+(job_ref?(' '+job_ref):' it')+' off the list (junk / canceled). Nobody gets texted.',intent:'delete',job_ref,target:'',amount:'',fields:{}};
+  }
   // parts came in
   if(/parts?\s*(just\s*)?(came in|are in|is in|arrived|showed up|here|in now)/.test(m)){
     return {reply:'Marking parts in'+(job_ref?(' for '+job_ref):'')+' and moving it to Needs Scheduled.',intent:'parts_arrived',job_ref,target:'',amount:'',fields:{}};
@@ -85,7 +89,7 @@ async function parseWithClaude(msg){
   if(!key) return null;
   const sys='You are Ant, the office assistant for an appliance-repair company. The office manager talks in plain language (often by voice) to run her job board. '
     +'Parse her message into ONE action. Folders/statuses: needs_scheduled, waiting_parts, completed, follow_up, needs_invoice. Techs: Teddy, Jimmy, Andre, Lee, Billy, John. '
-    +'Intents: move (change folder/status); assign (to a tech); invoice (log any of these dollar amounts: labor, part_cost, markup, shipping, tax, tip, tech_pay, amount_invoiced — she may say several at once); parts_arrived (parts came in / are here); schedule (put it on the schedule / auto-schedule it); search (look up/open a job); none (unclear). '
+    +'Intents: move (change folder/status, incl. mark done/archive -> completed); assign (to a tech); invoice (log any of these dollar amounts: labor, part_cost, markup, shipping, tax, tip, tech_pay, amount_invoiced — she may say several at once); parts_arrived (parts came in / are here); schedule (put it on the schedule / auto-schedule it); delete (junk / canceled-email / not a real job / remove it off the list); search (look up/open a job); none (unclear). '
     +'job_ref = the job number OR customer name she names. target = folder/status (for move) or tech first name (for assign). '
     +'fields = object of any dollar amounts for invoice intent, e.g. {"labor":"140","part_cost":"48","tax":"2.14","tech_pay":"60"}. amount = a single dollar number if that is all she gives. '
     +'reply = one short friendly sentence confirming the action (or a clarifying question if intent=none). '
