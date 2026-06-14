@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "One moment, let me pull that up."
+    }
+  ],
+  "function": {
+    "name": "lookup_by_claim_number",
+    "description": "Resolve a warranty claim number, ServicePower dispatch number, or HCP work-order number to the matching job. Your first tool when a warranty/CSC rep gives you a number. When match_count is 1, read the 'primary' object for a straight answer: customer_name, appliance_type, scheduling_status, scheduled_start, tech_first_name, parts_status, parts_eta_date, plus shortcuts been_out (we've already been on-site) and is_scheduled (it's on the calendar). Answer the rep's question directly from those. If match_count is 0, read the number back digit-by-digit before saying we have no record.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "claim_or_dispatch_number": {
+          "type": "string",
+          "description": "The claim, dispatch, or work-order number the rep gave you. Strip spaces. Examples: '49135689' (AHS), '22818' (work order)."
+        }
+      },
+      "required": ["claim_or_dispatch_number"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number"
+  }
+}

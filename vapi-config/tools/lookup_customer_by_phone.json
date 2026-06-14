@@ -1,0 +1,27 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "One sec, pulling you up."
+    }
+  ],
+  "function": {
+    "name": "lookup_customer_by_phone",
+    "description": "Look up a caller by phone number. ALWAYS call this first when a call connects, using the caller-ID number. Returns {found, customer, open_jobs[], last_call_summary, caller_id_masked}. If found is true, greet by first name and reference their open jobs. If found is false, treat as a new caller. IMPORTANT: if caller_id_masked is true, our line forwarded the call and hid the real number - do NOT guess who they are; ask for their name and a claim or work-order number, then call lookup_by_claim_number.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "The caller's phone number from caller ID. Any format works - the endpoint normalizes it."
+        }
+      },
+      "required": ["phone"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_customer_by_phone"
+  }
+}
