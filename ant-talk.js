@@ -114,6 +114,11 @@
       var d3 = await postJSON('mark_parts_arrived', { job_id: jobId, source: 'office_ant', notes: 'marked in via Ant' });
       msg('it', (d3 && d3.success) ? ('✅ Parts marked in for ' + label + '.') : '⚠ that did not go through.'); reload(); return;
     }
+    if (p.intent === 'delete') {
+      if (!confirm('Delete ' + label + ' off the list? Use for junk / canceled-email jobs. Nobody gets texted.')) { msg('it', 'Okay, left it.'); return; }
+      var dd = await postJSON('office_remove_job', { job_id: jobId, action: 'delete', actor: 'Office (Ant)' });
+      msg('it', (dd && dd.success) ? ('🗑 Deleted ' + label + ' off the list.') : '⚠ that did not go through.'); reload(); return;
+    }
     if (p.intent === 'move') {
       var sm = { waiting_parts: 'awaiting_parts', completed: 'completed', needs_scheduled: 'not_ready' }; var st = sm[p.target];
       if (!st) { msg('it', 'Where should it go?'); return; }
