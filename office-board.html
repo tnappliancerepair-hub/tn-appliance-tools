@@ -232,6 +232,17 @@ async function loadBoard(){
 // 2nd-trip/revisits all land here (anything not yet sitting on a day with a
 // tech). A job only moves to a tech column once it actually has a time.
 function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch(_){return '';}}
+// Office checklist — manual ticks she can mark herself (the steps that aren't
+// auto-derived). Stored per job; a step shows done if auto-derived OR ticked.
+function chkGet(id){try{return JSON.parse(localStorage.getItem('tn_chk_'+id)||'[]');}catch(_){return [];}}
+function toggleChk(id,i,el,auto){
+  let arr=chkGet(id);
+  if(arr.includes(i))arr=arr.filter(x=>x!==i); else arr.push(i);
+  try{localStorage.setItem('tn_chk_'+id,JSON.stringify(arr));}catch(_){}
+  const on=!!auto||arr.includes(i); // auto-derived steps stay checked regardless
+  el.classList.toggle('done',on);
+  const box=el.querySelector('.box'); if(box)box.textContent=on?'✓':'';
+}
 function placeOf(j){
   // Honor her manual placement (stored locally) so a dragged card STAYS where
   // she dropped it — MeisterTask behavior. Without this, placeOf recomputes the
@@ -437,10 +448,12 @@ function renderDrawer(d){
     ['Pay out deductible (payroll)',(d.earnings||[]).length>0,''],
     ['Pay out invoice (payroll)',(d.earnings||[]).length>0,''],
   ];
-  const chkHtml=steps.map(s=>{
-    const cls=s[1]?'done':(s[2]==='gap'?'gap':'');
+  const chkManual=chkGet(j.id);
+  const chkHtml=steps.map((s,i)=>{
+    const done=s[1]||chkManual.includes(i);  // auto-derived OR manually ticked
+    const cls=done?'done':(s[2]==='gap'?'gap':'');
     const badge=s[2]==='gap'?'<span class="auto">gap</span>':(s[2]==='auto'?'<span class="auto">auto</span>':'');
-    return `<div class="chk ${cls}"><span class="box">${s[1]?'✓':''}</span><span class="lbl">${esc(s[0])}</span>${badge}</div>`;
+    return `<div class="chk ${cls}" style="cursor:pointer" onclick="toggleChk(${j.id},${i},this,${s[1]?1:0})"><span class="box">${done?'✓':''}</span><span class="lbl">${esc(s[0])}</span>${badge}</div>`;
   }).join('');
 
   const jid=j.id;
