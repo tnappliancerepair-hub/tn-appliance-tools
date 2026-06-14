@@ -1,0 +1,32 @@
+{
+  "type": "function",
+  "async": false,
+  "messages": [
+    {
+      "type": "request-start",
+      "content": "Sending that to your phone now."
+    }
+  ],
+  "function": {
+    "name": "voice_followup_send_links",
+    "description": "Text the caller a link so they can handle things themselves instead of staying on the phone. PROACTIVELY OFFER this once you've found their job: 'Want me to text you a link where you can check status, send a photo of the model sticker and a quick video of the problem, or reschedule?' Call it after they say yes. Needs the job_id from lookup_customer_by_phone or lookup_by_claim_number. The customer-SMS gate still applies.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "job_id": {
+          "type": "number",
+          "description": "The job id from a prior lookup (open_jobs[].id or primary.job_id)."
+        },
+        "offer_kind": {
+          "type": "string",
+          "enum": ["portal_and_uploads", "status", "reschedule"],
+          "description": "portal_and_uploads = full portal + invite photo/video (default); status = just status link; reschedule = reschedule link."
+        }
+      },
+      "required": ["job_id"]
+    }
+  },
+  "server": {
+    "url": "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/voice_followup_send_links"
+  }
+}
