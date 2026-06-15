@@ -107,5 +107,20 @@ exports.handler = async function (event) {
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
 
-  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first }) };
+  // ── Never lose the media ──────────────────────────────────────────────────
+  // If the video/photo didn't land (low signal that never recovered before the
+  // Stripe redirect), flag the job and text the customer a one-tap link to finish
+  // the upload from wherever they have signal — it links back by the same job.
+  const expectedMedia = (String(m.has_video) === 'yes' || String(m.has_video) === 'true') || (String(m.has_model) === 'yes' || String(m.has_model) === 'true');
+  if (jobId && expectedMedia && linkedAttachments === 0) {
+    try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
+    await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: m.conv_id || '', phone: m.phone, at_ms: Date.now() });
+    if (String(m.sms_consent) === 'yes' && m.phone) {
+      const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
+      const cmsg = 'TN Appliance: got your $' + amount + ' Quick Check! Your video didn\'t fully upload on the last signal. Tap to finish so we can diagnose it fast: ' + finishLink + '  (Reply STOP to opt out.)';
+      try { await sendSms(m.phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
+    }
+  }
+
+  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first, media_linked: linkedAttachments }) };
 };

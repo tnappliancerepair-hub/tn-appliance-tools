@@ -5,9 +5,18 @@ exports.config = {
   timeout: 10
 };
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 exports.handler = async function (event) {
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: CORS, body: "" };
+  }
   if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+    return { statusCode: 405, headers: CORS, body: "Method Not Allowed" };
   }
 
   try {
@@ -16,6 +25,7 @@ exports.handler = async function (event) {
     if (!body.s3_key || !body.mime_type) {
       return {
         statusCode: 400,
+        headers: { ...CORS, "Content-Type": "application/json" },
         body: JSON.stringify({ error: "Missing s3_key or mime_type" })
       };
     }
@@ -46,7 +56,7 @@ exports.handler = async function (event) {
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...CORS, "Content-Type": "application/json" },
       body: JSON.stringify({
         success: true,
         upload_url: uploadUrl,
@@ -57,6 +67,7 @@ exports.handler = async function (event) {
   } catch (err) {
     return {
       statusCode: 500,
+      headers: { ...CORS, "Content-Type": "application/json" },
       body: JSON.stringify({ error: err.message })
     };
   }
