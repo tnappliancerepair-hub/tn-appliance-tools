@@ -729,7 +729,10 @@ function __initCalendar() {
 
   // ── URL params ─────────────────────────────────────────────────
   const params = new URLSearchParams(window.location.search);
-  let currentWeekStart = params.get('week') || null;  // YYYY-MM-DD (Monday)
+  // Default to TODAY (CT) so the grid opens today-forward (the upcoming work),
+  // not the Mon-Sun week that's mostly in the past. The endpoint renders 7 days
+  // from whatever week_start we send (it only snaps to Monday when none given).
+  let currentWeekStart = params.get('week') || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   let serverTodayCT = null;
   let dashboardData = null;
   let lastTechs = [];
@@ -1268,7 +1271,7 @@ function __initCalendar() {
   viewTodayBtn?.addEventListener('click', () => setView('today'));
   todayBtn.addEventListener('click', () => {
     if (!serverTodayCT) return;
-    currentWeekStart = currentWeekOfDateStr(serverTodayCT);
+    currentWeekStart = serverTodayCT; // jump to today-forward, not the past week
     updateUrl();
     loadWeek();
   });
