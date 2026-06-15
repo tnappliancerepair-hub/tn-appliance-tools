@@ -130,6 +130,7 @@ const ORB = document.getElementById('orb');
 const HEAD = document.getElementById('head');
 const SUB = document.getElementById('sub');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN = 'https://tnapplianceexchange.net/.netlify/functions';  // absolute canonical — never hits the www 301
 const QC_PRICE = 1;   // test mode: $1 — restore to 50 when create-quickcheck-payment PRICE_CENTS goes back to 5000
 const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
 // Upload media before the job exists: tag it with a conversation_id; create_job_from_chat
@@ -142,18 +143,18 @@ async function uploadFile(file, fileType){ // fileType: 'video' | 'photo'
     original_filename: file.name||(fileType+(fileType==='video'?'.mp4':'.jpg')), mime_type:mime, uploaded_by:'customer'
   })})).json();
   if(!gen || !gen.s3_key || !gen.attachment_id) throw new Error('upload init failed');
-  const pres = await (await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key, mime_type:mime})})).json();
+  const pres = await (await fetch(FN+'/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key, mime_type:mime})})).json();
   if(!pres || !pres.upload_url) throw new Error('presign failed');
   const put = await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':mime},body:file});
   if(!put.ok) throw new Error('upload failed '+put.status);
   await fetch(XANO+'/save_attachment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attachment_id:gen.attachment_id, file_size_bytes:file.size||0})});
   return true;
 }
-// Fire-and-forget with one retry. The job is created after payment, so background
-// uploads finish well before the conversation_id auto-link runs. Never blocks the funnel.
+// Fire-and-forget with one retry. We AWAIT these before the Stripe redirect so the
+// navigation can't abort an in-flight upload (the bug that dropped the video).
 function uploadInBackground(file, fileType){
   state.uploads = state.uploads || [];
-  const p = uploadFile(file, fileType).catch(()=> uploadFile(file, fileType)).catch(e=>{ try{console.warn('upload failed',e);}catch(_){ } });
+  const p = uploadFile(file, fileType).then(()=>{ state.uploadOk=(state.uploadOk||0)+1; }).catch(()=> uploadFile(file, fileType).then(()=>{ state.uploadOk=(state.uploadOk||0)+1; })).catch(e=>{ try{console.warn('upload failed',e);}catch(_){ } });
   state.uploads.push(p);
 }
 
@@ -291,10 +292,17 @@ function payStep(){
   FLOW.appendChild(p);
   const payLabel='Pay $'+QC_PRICE+' & get my answer →';
   document.getElementById('pay-go').onclick=async()=>{
-    const btn=document.getElementById('pay-go'); btn.disabled=true; btn.textContent='Taking you to secure checkout…';
+    const btn=document.getElementById('pay-go'); btn.disabled=true;
+    // Make sure the video + photo finish uploading BEFORE we navigate to Stripe —
+    // the redirect aborts any in-flight upload (that's why the video was missing).
+    if(state.uploads && state.uploads.length){
+      btn.textContent='Finishing your video upload…';
+      try{ await Promise.race([ Promise.all(state.uploads), new Promise(res=>setTimeout(res,45000)) ]); }catch(_){ }
+    }
+    btn.textContent='Taking you to secure checkout…';
     try{
       // absolute canonical origin so it never hits the www 301 redirect
-      const r=await fetch('https://tnapplianceexchange.net/.netlify/functions/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      const r=await fetch(FN+'/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model
