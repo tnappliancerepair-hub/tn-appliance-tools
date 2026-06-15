@@ -22,7 +22,8 @@ async function postJson(url, body) {
 }
 
 // Tools that are GET on Xano (everything else is POST with the unwrapped args).
-const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'get_parts_status', 'get_job_status_for_warranty', 'get_schedule_history', 'get_customer_communications', 'get_job_arrival_status']);
+// Verified against the .xs endpoint method suffixes; everything else is POST.
+const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'get_parts_status', 'get_job_arrival_status']);
 // Tool name -> Xano endpoint path when they differ.
 const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat' };
 // Tools that live on Netlify, not Xano.
