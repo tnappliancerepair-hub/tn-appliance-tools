@@ -29,21 +29,30 @@
 <script>
 const sid = new URLSearchParams(location.search).get('session_id');
 const orb=document.getElementById('orb'), head=document.getElementById('head'), msg=document.getElementById('msg'), kicker=document.getElementById('kicker');
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function verifyOnce(){
+  // absolute canonical origin so a www load never 301s the POST cross-domain
+  const r=await fetch('https://tnapplianceexchange.net/.netlify/functions/verify-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid})});
+  return await r.json();
+}
 async function go(){
   if(!sid){ head.textContent='Hmm —'; msg.textContent='We couldn\'t find your payment session. If you were charged, text us at 866-268-0111 and we\'ll sort it instantly.'; return; }
-  try{
-    const r=await fetch('/.netlify/functions/verify-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid})});
-    const d=await r.json();
-    if(d&&d.ok&&d.paid){
-      orb.classList.add('ok');
-      kicker.textContent='Quick Check confirmed';
-      head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'.</span>';
-      msg.innerHTML='Our tech is reviewing your video right now. You\'ll have your <b>honest assessment and your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Keep an eye on your phone. 🐜';
-    } else {
-      head.textContent='Almost —';
-      msg.innerHTML='We didn\'t see the payment complete yet. If you were charged, text <b>866-268-0111</b> and we\'ll take care of you right away.';
-    }
-  }catch(_){ head.textContent='Almost —'; msg.innerHTML='Something hiccuped confirming. If you were charged, text <b>866-268-0111</b> — we\'ve got you.'; }
+  let d=null, lastStatus='';
+  for(let i=0;i<5;i++){            // Stripe payment_status can lag a beat on redirect — poll briefly
+    try{ d=await verifyOnce(); }catch(_){ d=null; }
+    if(d&&d.ok&&d.paid) break;
+    lastStatus=(d&&d.payment_status)||lastStatus;
+    if(i<4) await sleep(1600);
+  }
+  if(d&&d.ok&&d.paid){
+    orb.classList.add('ok');
+    kicker.textContent='Quick Check confirmed';
+    head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'.</span>';
+    msg.innerHTML='Our tech is reviewing your video right now. You\'ll have your <b>honest assessment and your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Keep an eye on your phone. 🐜';
+  } else {
+    head.textContent='Almost —';
+    msg.innerHTML='We didn\'t see the payment complete yet'+(lastStatus?(' (status: '+lastStatus+')'):'')+'. If you were charged, text <b>866-268-0111</b> and we\'ll take care of you right away.';
+  }
 }
 go();
 </script>

@@ -31,7 +31,7 @@ exports.handler = async function (event) {
   try { session = await new Stripe(key).checkout.sessions.retrieve(sessionId); }
   catch (e) { return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not verify payment' }) }; }
   if (!session || session.payment_status !== 'paid') {
-    return { statusCode: 200, body: JSON.stringify({ ok: true, paid: false }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: true, paid: false, payment_status: (session && session.payment_status) || 'none', status: (session && session.status) || 'none' }) };
   }
   const m = session.metadata || {};
   const first = String(m.name || '').trim().split(/\s+/)[0] || '';
