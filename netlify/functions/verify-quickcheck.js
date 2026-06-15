@@ -51,7 +51,7 @@ exports.handler = async function (event) {
   // uploaded during the AI flow by their shared conversation_id.
   const nameParts = String(m.name || '').trim().split(/\s+/);
   const convId = parseInt(String(m.conv_id || '').replace(/\D/g, ''), 10) || null;
-  let jobId = null;
+  let jobId = null, linkedAttachments = 0;
   try {
     const r = await fetch(`${XANO}/create_job_from_chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -74,6 +74,15 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
+  // confirm how many attachments actually linked (diagnostic + truth in the log)
+  if (jobId) {
+    try {
+      const ar = await fetch(`${XANO}/get_job_attachments?job_id=${jobId}`);
+      const ad = await ar.json().catch(() => ({}));
+      linkedAttachments = (ad && (ad.count != null ? ad.count : (Array.isArray(ad.attachments) ? ad.attachments.length : 0))) || 0;
+    } catch (_) {}
+  }
+
   // create_job_from_chat only takes zip — set the full service address on the job row
   if (jobId && (m.address || m.city)) {
     try {
@@ -87,7 +96,7 @@ exports.handler = async function (event) {
 
   // record the payment + the idempotency marker
   const amount = Number(m.amount_cents || 5000) / 100;
-  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, at_ms: Date.now() });
+  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, at_ms: Date.now() });
   await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'quick_check', session_id: sessionId, source: 'quick_check', at_ms: Date.now() });
 
   // 💵 CASH siren → Teddy + Danielle
