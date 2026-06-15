@@ -84,7 +84,7 @@ exports.handler = async function (event) {
 
   // record the payment + the idempotency marker
   const amount = Number(m.amount_cents || 5000) / 100;
-  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, amount, name: m.name, phone: m.phone, machine: m.machine, town: m.town, sms_consent: m.sms_consent, at_ms: Date.now() });
+  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, at_ms: Date.now() });
   await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'quick_check', session_id: sessionId, source: 'quick_check', at_ms: Date.now() });
 
   // 💵 CASH siren → Teddy + Danielle

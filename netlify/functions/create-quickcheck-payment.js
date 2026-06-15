@@ -26,10 +26,11 @@ exports.handler = async function (event) {
   const key = await getSecret('STRIPE_SECRET_KEY');
   if (!key) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'payments not configured' }) };
 
+  const email = s(b.email, 120);
   const machine = [s(b.brand, 40), s(b.appliance, 40)].filter(Boolean).join(' ') || 'appliance';
   try {
     const stripe = new Stripe(key);
-    const session = await stripe.checkout.sessions.create({
+    const opts = {
       mode: 'payment',
       line_items: [{
         price_data: { currency: 'usd', product_data: { name: 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)' }, unit_amount: PRICE_CENTS },
@@ -40,7 +41,7 @@ exports.handler = async function (event) {
       metadata: {
         kind: 'quick_check',
         amount_cents: String(PRICE_CENTS),
-        name: s(b.name, 120), phone: phone,
+        name: s(b.name, 120), phone: phone, email: email,
         address: s(b.address, 200), city: s(b.city, 80), zip: s(b.zip, 12),
         appliance: s(b.appliance, 60), brand: s(b.brand, 60), machine: s(machine, 80),
         problem: s(b.problem, 400),
@@ -52,7 +53,11 @@ exports.handler = async function (event) {
         has_model: b.has_model ? 'yes' : 'no',
         source: 'appliance_ai_quick_check',
       },
-    });
+    };
+    // pre-fill the Stripe email field so the customer doesn't have to type it (the
+    // exact friction that stalled the first test). Falls back to Stripe asking if blank.
+    if (email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) opts.customer_email = email;
+    const session = await stripe.checkout.sessions.create(opts);
     return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, url: session.url }) };
   } catch (e) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
