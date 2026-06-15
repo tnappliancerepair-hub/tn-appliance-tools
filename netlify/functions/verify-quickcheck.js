@@ -43,29 +43,44 @@ exports.handler = async function (event) {
     if (hit) return { statusCode: 200, body: JSON.stringify({ ok: true, paid: true, already: true, job_id: rowMeta(hit).job_id, first_name: first }) };
   } catch (_) {}
 
-  // create the cash job (lands in Needs Scheduled, flagged self_pay)
+  // create the cash job (lands in Needs Scheduled, flagged self_pay).
+  // create_job_from_chat auto-links the orphan video + model-photo attachments
+  // uploaded during the AI flow by their shared conversation_id.
   const nameParts = String(m.name || '').trim().split(/\s+/);
+  const convId = parseInt(String(m.conv_id || '').replace(/\D/g, ''), 10) || null;
   let jobId = null;
   try {
-    const r = await fetch(`${XANO}/create_job_from_call`, {
+    const r = await fetch(`${XANO}/create_job_from_chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        customer_first_name: nameParts[0] || 'Customer',
-        customer_last_name: nameParts.slice(1).join(' '),
-        customer_phone: m.phone || '',
-        customer_address: m.address || '',
-        customer_city: m.city || '',
-        customer_state: stateFromZip(m.zip),
-        customer_zip: m.zip || '',
+        first_name: nameParts[0] || 'Customer',
+        last_name: nameParts.slice(1).join(' '),
+        phone: m.phone || '',
+        zip: m.zip || '',
         appliance_type: m.appliance || 'appliance',
-        appliance_brand: m.brand || '',
+        brand: m.brand || '',
         problem_summary: '💵 QUICK CHECK ($50 PAID) — ' + (m.problem || ''),
         customer_type: 'self_pay',
+        recommended_service: 'quick_check',
+        channel: 'appliance_ai',
+        sms_consent: m.sms_consent === 'yes',
+        conversation_id: convId,
       }),
     });
     const d = await r.json().catch(() => ({}));
-    jobId = (d && d.job_id) || null;
+    jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
+
+  // create_job_from_chat only takes zip — set the full service address on the job row
+  if (jobId && (m.address || m.city)) {
+    try {
+      await crud.update(crud.TABLES.jobs, jobId, {
+        service_address: m.address || '',
+        service_city: m.city || '',
+        service_state: stateFromZip(m.zip),
+      });
+    } catch (_) {}
+  }
 
   // record the payment + the idempotency marker
   const amount = Number(m.amount_cents || 5000) / 100;

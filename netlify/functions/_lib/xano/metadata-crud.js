@@ -27,6 +27,8 @@ const TABLES = {
   event_log: 3,
   agent_conversation: 4,
   agent_message: 5,
+  customer: 6,
+  jobs: 7,
   technicians: 15,
   tech_preferences: 27,
 };
