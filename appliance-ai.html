@@ -279,7 +279,25 @@ function voice(){
   r.start();
 }
 
-start();
+// ── context-aware open: ?appliance=&brand=&town= (from any landing page) ──
+function getCtx(){ const u=new URLSearchParams(location.search); return { appliance:(u.get('appliance')||'').trim(), brand:(u.get('brand')||'').trim(), town:(u.get('town')||'').trim() }; }
+function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+function startContext(ctx){
+  const label = cap(ctx.appliance);
+  state.appliance = label; if(ctx.brand) state.brand=ctx.brand; if(ctx.town) state.town=ctx.town;
+  const machine = (ctx.brand?(ctx.brand+' '):'') + label.toLowerCase();
+  setHead('What’s going on with your <span class="accent">'+esc(machine)+'</span>'+(ctx.town?(' in '+esc(ctx.town)):'')+'?', 'I’m the appliance AI — tell me what it’s doing and I’ll help you figure it out.');
+  clearFlow();
+  antMsg('Hey — I see you’ve got a <b>'+esc(machine)+'</b> giving you trouble'+(ctx.town?(' over in '+esc(ctx.town)):'')+'. Let’s get it figured out. What’s it doing?');
+  const list=(PROBLEMS[label]||PROBLEMS.default).map(p=>({label:p}));
+  choices(list, p=>{ state.problem=p.label; youMsg(p.label); clearFlow(); think(600, askPayer); });
+  const chg=document.createElement('div'); chg.className='or'; chg.style.cursor='pointer'; chg.style.marginTop='16px';
+  chg.textContent='not a '+esc(label.toLowerCase())+'? tap to start over';
+  chg.onclick=()=>{ state.appliance=''; setHead('What’s going on with <span class="accent">your appliance?</span>','Tap what’s broken — I’ll figure it out with you.'); start(); };
+  FLOW.appendChild(chg);
+}
+const CTX = getCtx();
+if(CTX.appliance){ startContext(CTX); } else { start(); }
 </script>
 </body>
 </html>
