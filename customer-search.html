@@ -264,7 +264,9 @@ const $ = (id) => document.getElementById(id);
   async function doSearch(query) {
     results.innerHTML = '<div class="empty">searching…</div>';
     try {
-      const res = await fetch(`${XANO}/search_customers`, {
+      // Forgiving search runs in a Netlify function (substring + any-case +
+      // middle names; can't ParseError like the old XS endpoint). Same shape.
+      const res = await fetch(`/.netlify/functions/search-customers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query })
