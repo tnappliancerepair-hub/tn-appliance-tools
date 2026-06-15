@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Office Activity — Owner</title>
+<style>
+  :root{--bg:#0e1118;--panel:#161b25;--line:#262d3a;--ink:#e8edf5;--dim:#8b97a8;--ok:#34c759;--orange:#f5a623;--blue:#4a90e2}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,system-ui,sans-serif;padding:0 0 60px}
+  header{position:sticky;top:0;background:rgba(14,17,24,.97);border-bottom:1px solid var(--line);padding:14px 16px;display:flex;align-items:center;gap:10px;z-index:5}
+  h1{font-size:17px;margin:0;font-weight:800}
+  .sub{color:var(--dim);font-size:12px}
+  .wrap{max-width:680px;margin:0 auto;padding:14px 16px}
+  .gate{max-width:340px;margin:60px auto;padding:0 16px;text-align:center}
+  .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-size:18px;text-align:center;letter-spacing:.3em}
+  .gate button{width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;background:var(--ok);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .err{color:#ff6b6b;font-size:13px;margin-top:8px;min-height:16px}
+  .counts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px}
+  .pill b{color:var(--orange)}
+  .row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .row .t{color:var(--dim);font-size:12px;min-width:74px;font-variant-numeric:tabular-nums}
+  .row .l{flex:1;font-weight:600}
+  .row .j a{color:var(--blue);text-decoration:none;font-size:12px}
+  .row .who{color:var(--dim);font-size:11px}
+  .empty{color:var(--dim);text-align:center;padding:40px 0}
+  .muted{color:var(--dim);font-size:12px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <h1>🔒 Office Activity</h1>
+  <p class="sub">Owner only — your tech PIN.</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+  <button id="go">View today</button>
+  <div id="gerr" class="err"></div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <h1>📋 Office Activity</h1>
+      <div class="sub" id="dayLabel">today</div>
+    </div>
+    <div style="margin-left:auto"><button id="refresh" style="padding:7px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-weight:700;cursor:pointer">↻</button></div>
+  </header>
+  <div class="wrap">
+    <div class="muted" id="total"></div>
+    <div class="counts" id="counts"></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+  var PIN = sessionStorage.getItem('tn_owner_pin') || '';
+  function $(id){return document.getElementById(id);}
+
+  async function load(){
+    try{
+      const r = await fetch('/.netlify/functions/office-activity',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN})});
+      const d = await r.json();
+      if(!d.ok){
+        if(d.error==='wrong_pin'||d.error==='owner_pin_required'){ sessionStorage.removeItem('tn_owner_pin'); showGate('Wrong PIN.'); return; }
+        $('list').innerHTML='<div class="empty">'+(d.error||'error')+'</div>'; return;
+      }
+      $('gate').style.display='none'; $('app').style.display='block';
+      $('dayLabel').textContent=d.day_ct;
+      $('total').textContent=d.total+' action'+(d.total===1?'':'s')+' today';
+      const counts=d.counts||{};
+      $('counts').innerHTML=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(function(a){
+        var lbl=(d.timeline.find(function(t){return t.action===a;})||{}).label||a;
+        return '<span class="pill">'+esc(lbl)+' <b>'+counts[a]+'</b></span>';
+      }).join('')||'<span class="sub">no actions yet today</span>';
+      $('list').innerHTML=(d.timeline||[]).map(function(t){
+        var job=t.job_id?'<span class="j"><a href="/job-detail.html?job_id='+t.job_id+'&office=1">#'+t.job_id+'</a></span>':'';
+        var who=t.actor?'<span class="who">'+esc(String(t.actor))+'</span>':'';
+        return '<div class="row"><span class="t">'+esc(t.time)+'</span><span class="l">'+esc(t.label)+' '+who+'</span>'+job+'</div>';
+      }).join('')||'<div class="empty">No office activity logged today yet.</div>';
+    }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
+  }
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function showGate(msg){ $('app').style.display='none'; $('gate').style.display='block'; $('gerr').textContent=msg||''; }
+
+  $('go').addEventListener('click',function(){
+    PIN=$('pin').value.trim(); if(!PIN){ $('gerr').textContent='Enter your PIN.'; return; }
+    sessionStorage.setItem('tn_owner_pin',PIN); load();
+  });
+  $('pin').addEventListener('keydown',function(e){ if(e.key==='Enter') $('go').click(); });
+  $('refresh').addEventListener('click',load);
+  setInterval(function(){ if($('app').style.display!=='none') load(); }, 60000);
+
+  if(PIN) load();
+</script>
+</body>
+</html>
