@@ -17,7 +17,13 @@
   .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-size:18px;text-align:center;letter-spacing:.3em}
   .gate button{width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;background:var(--ok);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
   .err{color:#ff6b6b;font-size:13px;margin-top:8px;min-height:16px}
-  .counts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin:4px 0 6px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 10px;text-align:center}
+  .kpi .n{font-size:24px;font-weight:800;color:var(--ok)}
+  .kpi .lbl{font-size:11px;color:var(--ink);margin-top:2px}
+  .kpi .wk{font-size:10px;color:var(--dim);margin-top:2px}
+  .kpi.fvf .n{color:var(--orange)}
+  .counts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;margin-top:10px}
   .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:12px}
   .pill b{color:var(--orange)}
   .row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -48,6 +54,7 @@
     <div style="margin-left:auto"><button id="refresh" style="padding:7px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font-weight:700;cursor:pointer">↻</button></div>
   </header>
   <div class="wrap">
+    <div id="pulse"></div>
     <div class="muted" id="total"></div>
     <div class="counts" id="counts"></div>
     <div id="list"></div>
@@ -68,6 +75,7 @@
       }
       $('gate').style.display='none'; $('app').style.display='block';
       $('dayLabel').textContent=d.day_ct;
+      renderPulse(d.pulse);
       $('total').textContent=d.total+' action'+(d.total===1?'':'s')+' today';
       const counts=d.counts||{};
       $('counts').innerHTML=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(function(a){
@@ -82,6 +90,17 @@
     }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
   }
 
+  function renderPulse(p){
+    var el=$('pulse'); if(!p||!p.metrics){ el.innerHTML=''; return; }
+    var cards=Object.keys(p.metrics).map(function(a){
+      var m=p.metrics[a];
+      return '<div class="kpi"><div class="n">'+m.today+'</div><div class="lbl">'+esc(m.label)+'</div><div class="wk">'+m.week+' / 7d</div></div>';
+    }).join('');
+    var fvf=p.first_visit_fix
+      ? '<div class="kpi fvf"><div class="n">'+p.first_visit_fix.pct+'%</div><div class="lbl">First-visit-fix</div><div class="wk">'+p.first_visit_fix.clean+'/'+p.first_visit_fix.total+' · 7d</div></div>'
+      : '<div class="kpi fvf"><div class="n">—</div><div class="lbl">First-visit-fix</div><div class="wk">needs data</div></div>';
+    el.innerHTML='<div class="kpis">'+cards+fvf+'</div><div class="muted">today (big) · last 7 days (small). Grows as the cutover puts jobs through Ant.</div>';
+  }
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function showGate(msg){ $('app').style.display='none'; $('gate').style.display='block'; $('gerr').textContent=msg||''; }
 

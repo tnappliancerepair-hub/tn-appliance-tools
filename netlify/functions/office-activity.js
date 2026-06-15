@@ -99,9 +99,74 @@ exports.handler = async function (event) {
   }
 
   timeline.sort((x, y) => y.at_ms - x.at_ms);
+
+  // Efficiency pulse: honest volume + first-visit-fix proxy over today / 7d.
+  let pulse = null;
+  try { pulse = await computePulse(startMs); } catch (_) { pulse = null; }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ok: true, day_ct: new Date(startMs).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }), total: timeline.length, counts, timeline: timeline.slice(0, 200) }),
+    body: JSON.stringify({ ok: true, day_ct: new Date(startMs).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }), total: timeline.length, counts, pulse, timeline: timeline.slice(0, 200) }),
   };
 };
+
+// Metric actions -> friendly label. Counted over today + last 7 days.
+const PULSE_ACTIONS = {
+  new_job_greeting_sent: 'New jobs',
+  danielle_schedule_parallel_job: 'Scheduled',
+  tech_job_complete: 'Completed',
+  vapi_call_completed: 'Calls handled',
+  create_tdr: 'TDRs filed',
+  parts_pre_order_handled: 'Parts pre-ordered',
+};
+
+// Page an action's recent rows (desc) until older than sinceMs (bounded).
+async function rowsSince(action, sinceMs, maxPages) {
+  const out = [];
+  for (let p = 1; p <= (maxPages || 4); p++) {
+    const r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content/search`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ search: { action }, sort: { created_at: 'desc' }, per_page: 100, page: p }),
+    });
+    if (!r.ok) break;
+    const j = await r.json().catch(() => ({}));
+    const items = (j && j.items) || [];
+    let stop = false;
+    for (const row of items) { if (Number(row.created_at || 0) < sinceMs) { stop = true; break; } out.push(row); }
+    if (stop || items.length < 100) break;
+  }
+  return out;
+}
+
+async function computePulse(todayStartMs) {
+  const weekStart = Date.now() - 7 * 86400000;
+  const metrics = {};
+  await Promise.all(Object.keys(PULSE_ACTIONS).map(async (a) => {
+    const rows = await rowsSince(a, weekStart, 4);
+    let today = 0, week = 0;
+    for (const row of rows) {
+      const at = Number(row.created_at || 0);
+      if (at >= weekStart) week++;
+      if (at >= todayStartMs) today++;
+    }
+    metrics[a] = { label: PULSE_ACTIONS[a], today, week };
+  }));
+
+  // First-visit-fix proxy from repeat_visit_check_handled outcomes.
+  let fvf = null;
+  try {
+    const rows = await rowsSince('repeat_visit_check_handled', weekStart, 5);
+    let clean = 0, repeat = 0;
+    for (const row of rows) {
+      if (Number(row.created_at || 0) < weekStart) continue;
+      const oc = (row.metadata && row.metadata.outcome) || '';
+      if (oc === 'clean_first_visit') clean++;
+      else if (/repeat/i.test(oc)) repeat++;
+    }
+    const tot = clean + repeat;
+    if (tot > 0) fvf = { clean, repeat, total: tot, pct: Math.round((clean / tot) * 100) };
+  } catch (_) {}
+
+  return { metrics, first_visit_fix: fvf, window: '7 days' };
+}
