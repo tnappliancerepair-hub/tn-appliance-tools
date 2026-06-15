@@ -225,7 +225,7 @@ function capVideo(){
   document.getElementById('vfile').onchange=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
     state.video=true; uploadInBackground(file,'video');   // upload in background, keep moving
-    const b=document.getElementById('vbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Video added — nice';
+    const b=document.getElementById('vbtn'); b.classList.add('done'); const vl=b.querySelectorAll('span')[1]; if(vl) vl.textContent='✓ Video added — nice';
     setTimeout(()=>{clearFlow(); think(500, capModel);},700);
   };
 }
@@ -238,7 +238,7 @@ function capModel(){
   document.getElementById('mfile').onchange=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
     state.model=true; uploadInBackground(file,'photo');   // upload in background, keep moving
-    const b=document.getElementById('mbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Got it — reading the model now';
+    const b=document.getElementById('mbtn'); b.classList.add('done'); const ml=b.querySelectorAll('span')[1]; if(ml) ml.textContent='✓ Got it — reading the model now';
     setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect — I can read it. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},700);
   };
 }
