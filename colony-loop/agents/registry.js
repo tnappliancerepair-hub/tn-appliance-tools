@@ -16,6 +16,12 @@
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
+  // Manually added 2026-06-15 — these agent files existed but were absent from
+  // the 2026-06-04 generated map (added after generation), so their signals
+  // dead-lettered. Re-running build-registry.js on the Mac will formalize them.
+  'TECH_EOD_REPORT': './tech_eod_report.js',
+  'MARCONES_FIRST_BRIEF': './marcones_first_brief.js',
+  'QUICK_CHECK_SUBMITTED': './quick_check_submitted.js',
   'APPOINTMENT_NO_SHOW_PREDICTOR': './appointment_no_show_predictor.js',
   'APPOINTMENT_REMINDER_DUE': './appointment_reminder_due.js',
   'APPOINTMENT_SCHEDULED': './appointment_scheduled.js',
