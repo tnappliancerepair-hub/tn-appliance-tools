@@ -532,8 +532,12 @@ async function findParts(){
     const d=await fetch('/.netlify/functions/parts-finder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,brand:appliance.brand||'',appliance_type:appliance.type||'',symptom})}).then(r=>r.json());
     if(!d.success) throw new Error(d.error||'lookup failed');
     let html='';
+    if(d.from_history&&d.from_history.length){
+      html+='<div style="font-size:12px;font-weight:800;color:#127a4a;margin-bottom:6px">✅ WE\'VE USED THESE BEFORE — highest trust</div>';
+      html+=d.from_history.map(h=>`<div class="cand" style="border-left:3px solid #2ecc71;background:#f1faf4"><span class="pn">${esc(h.part_number)}</span><span class="conf high" style="background:#d6f5e3;color:#127a4a">${esc(h.match)}</span><div class="cn">${esc(h.failed_component||'')}</div></div>`).join('');
+    }
     if(d.candidates&&d.candidates.length){
-      html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">AI SUGGESTIONS — verify on the diagram</div>';
+      html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">AI SUGGESTIONS — verify on the diagram</div>';
       html+=d.candidates.map(c=>`<div class="cand"><span class="pn">${esc(c.part_number||'?')}</span><span class="conf ${esc((c.confidence||'low'))}">${esc(c.confidence||'low')}</span><div class="cn">${esc(c.name||'')}${c.note?(' — '+esc(c.note)):''}</div></div>`).join('');
     }
     if(d.ai_note) html+='<div class="ai-note">'+esc(d.ai_note)+'</div>';

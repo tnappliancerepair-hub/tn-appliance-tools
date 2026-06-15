@@ -14,6 +14,50 @@
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Tier 1 (highest trust): part numbers WE'VE actually used before on this
+// appliance/brand/model, pulled from our own verified TDR corpus. "You used
+// this exact part last time" beats any generic guess — this is the moat.
+async function historyMatches({ model, brand, appliance_type }) {
+  try {
+    const qs = new URLSearchParams();
+    if (appliance_type) qs.set('appliance_type', String(appliance_type).trim());
+    if (brand) qs.set('brand', String(brand).trim());
+    const r = await fetch(`${XANO}/get_common_failures?${qs.toString()}`, { method: 'GET' });
+    if (!r.ok) return [];
+    const d = await r.json().catch(() => ({}));
+    const rows = (d && d.entries) || [];
+    const modelLc = String(model || '').trim().toLowerCase();
+    const brandLc = String(brand || '').trim().toLowerCase();
+    const applLc = String(appliance_type || '').trim().toLowerCase();
+    const scored = [];
+    for (const e of rows) {
+      const pn = String(e.verified_part_number || '').trim();
+      if (!pn) continue;
+      const em = String(e.model_number || '').trim().toLowerCase();
+      const eb = String(e.brand || '').trim().toLowerCase();
+      const ea = String(e.appliance_type || '').trim().toLowerCase();
+      let match = '', rank = 0;
+      if (modelLc && em && (em === modelLc || em.includes(modelLc) || modelLc.includes(em))) { match = 'this exact model'; rank = 3; }
+      else if (brandLc && eb === brandLc && (!applLc || ea === applLc)) { match = 'this brand'; rank = 2; }
+      else if (applLc && ea === applLc) { match = 'this appliance'; rank = 1; }
+      else continue;
+      scored.push({ part_number: pn, failed_component: String(e.failed_component || '').trim(), match, rank, used_ms: Number(e.created_at || 0) });
+    }
+    // best match first, newest within a tier; dedupe by part number
+    scored.sort((a, b) => (b.rank - a.rank) || (b.used_ms - a.used_ms));
+    const seen = new Set(), out = [];
+    for (const s of scored) {
+      if (seen.has(s.part_number)) continue;
+      seen.add(s.part_number);
+      out.push(s);
+      if (out.length >= 5) break;
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
 function catalogLinks(model) {
   const m = encodeURIComponent(String(model || '').trim());
   if (!m) return [];
@@ -82,17 +126,17 @@ exports.handler = async function (event) {
       return { statusCode: 400, body: JSON.stringify({ success: false, error: 'model is required' }) };
     }
     const catalogs = catalogLinks(model);
-    const ai = await aiCandidates({
-      model,
-      brand: body.brand,
-      appliance_type: body.appliance_type,
-      symptom: body.symptom,
-    });
+    // Run our-history (tier 1) and AI candidates (tier 2) in parallel.
+    const [from_history, ai] = await Promise.all([
+      historyMatches({ model, brand: body.brand, appliance_type: body.appliance_type }),
+      aiCandidates({ model, brand: body.brand, appliance_type: body.appliance_type, symptom: body.symptom }),
+    ]);
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         model,
+        from_history,
         catalogs,
         candidates: ai.candidates,
         ai_note: ai.ai_note,
