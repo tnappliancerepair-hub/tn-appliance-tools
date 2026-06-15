@@ -9,6 +9,7 @@
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const TECH_TABLE = 15;
+const JOBS_TABLE = 7;
 const GUARD = 'tn-admin-tech-7b3e1f';
 
 function headers() {
@@ -35,6 +36,13 @@ exports.handler = async function (event) {
       const r = await fetch(`${META}/table/${TECH_TABLE}/content/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ phone }) });
       const j = await r.json().catch(() => ({}));
       return { statusCode: 200, body: JSON.stringify({ ok: r.ok, status: r.status, tech: { id: j.id, first_name: j.first_name, phone: j.phone } }) };
+    }
+    // Take a job off the calendar without canceling it: clear scheduled_start
+    // (+ tech) so it falls out of the week grid and back toward needs-scheduled.
+    if (q.action === 'cleardate') {
+      const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ scheduled_start: null }) });
+      const j = await r.json().catch(() => ({}));
+      return { statusCode: 200, body: JSON.stringify({ ok: r.ok, status: r.status, job: { id: j.id, scheduled_start: j.scheduled_start, scheduling_status: j.scheduling_status } }) };
     }
     return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'unknown action' }) };
   } catch (e) {
