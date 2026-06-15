@@ -38,7 +38,7 @@ const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'ge
 const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat' };
 // Tools that live on Netlify, not Xano. search_customers uses our forgiving
 // search fn (substring/any-case/middle-name) instead of the brittle XS endpoint.
-const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers' };
+const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers', message_for_tech: 'tech-message' };
 
 function qs(a) {
   const parts = Object.entries(a)
