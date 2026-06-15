@@ -649,6 +649,23 @@
 </head>
 <body>
 
+<!-- Error net: turn a silent black screen into a visible, screenshot-able error. -->
+<script>
+(function(){
+  function showErr(msg){
+    try{
+      var b=document.getElementById('__ant_err');
+      if(!b){b=document.createElement('div');b.id='__ant_err';
+        b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:#fff;padding:12px 14px;font:14px/1.4 system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+        (document.body||document.documentElement).appendChild(b);}
+      b.innerHTML='⚠ Page error: '+String(msg).slice(0,300)+' <button onclick="location.reload()" style="margin-left:8px;padding:4px 10px;border:0;border-radius:6px;background:#fff;color:#c0392b;font-weight:700;cursor:pointer">reload</button> <span style="opacity:.85">— screenshot this & send to Teddy</span>';
+    }catch(_){}
+  }
+  window.addEventListener('error',function(e){showErr((e&&e.message)||'script error');});
+  window.addEventListener('unhandledrejection',function(e){showErr((e&&e.reason&&e.reason.message)||(e&&e.reason)||'promise error');});
+})();
+</script>
+
 <!-- Office password gate -->
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
