@@ -171,6 +171,29 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Pull the current system prompt.
+  if (action === 'prompt') {
+    const msgs = Array.isArray(model.messages) ? model.messages : [];
+    const sys = msgs.find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({ ok: true, has_system: !!sys, system_prompt: (sys && sys.content) || '' }) };
+  }
+
+  // Replace the system prompt. POST {prompt:"..."} in the body.
+  if (action === 'setprompt') {
+    let parsed = {}; try { parsed = JSON.parse(event.body || '{}'); } catch (_) {}
+    const newPrompt = String(parsed.prompt || '');
+    if (newPrompt.length < 50) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'prompt too short / missing in POST body' }) };
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+    const i = msgs.findIndex((m) => m.role === 'system');
+    if (i >= 0) msgs[i] = Object.assign({}, msgs[i], { content: newPrompt });
+    else msgs.unshift({ role: 'system', content: newPrompt });
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vMsgs = (verify.json && verify.json.model && verify.json.model.messages) || [];
+    const vSys = vMsgs.find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, patch_status: patch.status, applied_len: (vSys && vSys.content || '').length, mentions_ahs: /ahs/i.test((vSys && vSys.content) || '') }) };
+  }
+
   // THE REAL FIX: the assistant's INLINE model.tools point straight at Xano, so
   // Vapi bypasses the proxy and Xano 400s on the wrapped envelope. Repoint every
   // inline function tool at the proxy. Drop the 5 that duplicate our standalone
