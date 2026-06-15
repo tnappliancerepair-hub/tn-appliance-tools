@@ -956,6 +956,10 @@ async function submitReschedule() {
   if (!input) { errEl.textContent = 'Pick a date and time'; return; }
   const ms = Date.parse(input);
   if (isNaN(ms)) { errEl.textContent = 'Invalid date'; return; }
+  // The schedule transition requires a tech on the job — guide instead of the
+  // cryptic "preconditions_failed" Danielle hit. Assign a tech first.
+  const hasTech = jobData && jobData.tech && jobData.tech.id;
+  if (!hasTech) { errEl.textContent = '⚠ Assign a tech first (use Reassign), then set the day.'; return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
@@ -963,7 +967,10 @@ async function submitReschedule() {
     closeModal('reschedule');
     loadJob();
   } catch (e) {
-    errEl.textContent = 'Failed: ' + e.message;
+    const m = String((e && e.message) || '');
+    errEl.textContent = /precondition/i.test(m)
+      ? "Couldn't schedule — make sure a tech is assigned (Reassign) and the day isn't in the past."
+      : ('Failed: ' + m);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save';
