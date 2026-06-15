@@ -131,7 +131,7 @@ const HEAD = document.getElementById('head');
 const SUB = document.getElementById('sub');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const QC_PRICE = 1;   // test mode: $1 — restore to 50 when create-quickcheck-payment PRICE_CENTS goes back to 5000
-const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
+const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
 // Upload media before the job exists: tag it with a conversation_id; create_job_from_chat
 // auto-links these attachments to the cash job after payment.
 async function uploadFile(file, fileType){ // fileType: 'video' | 'photo'
@@ -265,6 +265,7 @@ function collectContact(){
   const f=document.createElement('div'); f.className='field';
   f.innerHTML='<input id="f-name" placeholder="Your name" autocomplete="name">'
     +'<input id="f-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
+    +'<input id="f-email" type="email" placeholder="Email (for your receipt)" autocomplete="email">'
     +'<input id="f-addr" placeholder="Service address (street)" autocomplete="street-address">'
     +'<input id="f-city" placeholder="City" autocomplete="address-level2">'
     +'<input id="f-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
@@ -273,10 +274,12 @@ function collectContact(){
   document.getElementById('f-go').onclick=()=>{
     state.name=document.getElementById('f-name').value.trim();
     state.phone=document.getElementById('f-phone').value.trim();
+    state.email=document.getElementById('f-email').value.trim();
     state.address=document.getElementById('f-addr').value.trim();
     state.city=document.getElementById('f-city').value.trim();
     state.zip=document.getElementById('f-zip').value.trim();
     if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.address||!state.zip){ alert('Please add your name, a valid phone, the street address, and ZIP.'); return; }
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
     clearFlow(); think(500, payStep);
   };
 }
@@ -292,7 +295,7 @@ function payStep(){
     try{
       // absolute canonical origin so it never hits the www 301 redirect
       const r=await fetch('https://tnapplianceexchange.net/.netlify/functions/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        name:state.name, phone:state.phone, address:state.address, city:state.city, zip:state.zip,
+        name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model
       })});
