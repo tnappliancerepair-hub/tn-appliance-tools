@@ -1,5 +1,29 @@
 # Appliance Ant
 
+## ⏭️ NEXT SESSION (saved end of 2026-06-14 night, big session) — read first
+
+**Phone is FIXED + verified ("It works!!!!!!!").** Root cause was NOT just the masked caller ID — Ant Inbound had **14 inline `model.tools` pointing straight at Xano**, so Vapi's wrapped envelope hit flat endpoints → "No result returned." Fix: `netlify/functions/vapi-tool.js` is now a generic proxy; ALL tools route through it (verified end-to-end). Call **Summary turned ON**. transferCall destinations are correct (the `error-transfer-failed` is the RingCentral double-hop; the Telnyx port fixes it). Prompt no longer leads with "AHS."
+
+**Vapi is now cloud-manageable — KEEP THIS:** `netlify/functions/vapi-admin.js` (guard = vault secret `VAPI_ADMIN_SECRET`, falls back to legacy constant until set). Actions: `inspect|fix|voice|voiceon|prompt|setprompt|lastcall|phones|env`. This is how to change Vapi tools/prompt from anywhere without the dashboard. **Operator TODO: set `VAPI_ADMIN_SECRET` in admin-secrets.html, then tell Claude to strip the legacy fallback.**
+
+**Search rebuilt OFF the brittle XS** → `netlify/functions/search-customers.js` (forgiving: partial / middle-name / any-case substring scan; can't ParseError). Wired into `customer-search.html` + the phone proxy. (My earlier `|contains:` XS attempt ParseError'd everything — reverted; lesson: never blind-ship XS I can't test.)
+
+**OPERATOR PUSHES STILL PENDING (Mac):**
+- `get_tech_route_days` — returns each tech's profile (`max_stops_per_day`, `works_saturdays`, `appliance_specialties`, `brand_exclusions`, `home_zone`) so the per-tech stop cap reads their real preference (front-end caps at 6 until pushed):
+  `git fetch origin main && git checkout origin/main -- api/intake/get_tech_route_days_GET.xs && /opt/homebrew/bin/xano workspace push -i "api/**/get_tech_route_days*" --force`
+- (Already pushed + verified this session: `search_customers`/`office_universal_search` revert, `update_job_basics` re-fire, `create_job_from_email` name-hygiene.)
+- **Colony loop:** the half-wired agent fixes need a Mac `git pull origin main && launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop` (done once this session; re-do after pulling new agent changes).
+
+**SQUARETRADE DUPLICATES — root cause found, fix half-done.** Every SquareTrade *update* email creates a new customer + job because the parser doesn't extract the call# on update emails → `$call_number` empty → `servicepower_email_intake` dedup is SKIPPED → dupe (confirmed: dupes have `claim_number=""`, real one has it). **ROOT FIX NEEDS: one raw SquareTrade update email** to fix the regex in `servicepower-gmail-poller.js` (or add a name+zip fallback dedup in `servicepower_email_intake`). **Cleanup tool shipped:** `dupe-cleanup.html` (owner PIN) + `find-duplicate-jobs.js` — groups duplicated people, keep one / cancel the rest. Give to Danielle.
+
+**Office wins shipped this session (all live on Netlify):** board **📅 Schedule (tech+day)** card kills Danielle's double-entry; **calendar fixed** (was `ant-talk.js` null `addEventListener` + modal-binding-before-DOM → deferred init to DOMContentLoaded; also defaults to **today-forward**); reschedule error now guides "assign tech first"; **needs-scheduled pre-picks the cluster tech** + per-tech **stop limit** + **no auto next-day default**; **owner-activity.html** (PIN) = private daily activity feed + efficiency pulse (first-visit-fix proxy, today/7d counts).
+
+**Roster:** **Billy (tech 5) LEFT** — deactivated (suspend_tech, active=false), removed from assignable lists (kept for historical display). **LA coverage set:** North Shore (LA North) → John rank-1, South Shore (LA South) → Andre rank-1, Baton Rouge (LA West) → John. **TODO: map BR zips (e.g. 70812) to the LA West cluster** — they return no suggested tech. Also re-confirm TN Metro rank-1 is a non-owner.
+
+**Agent audit done (read `docs/`-less, it's in chat):** 546 agent files, ~118 LIVE, ~12 half-wired (fixed the registry typos this session — route-fill, vapi_call_review, etc.), ~236 dormant. `colony-loop/scripts/archive-dormant-agents.js` (dry-run safe) is ready to quarantine the dormant ones POST-CUTOVER (protects `parts_lookup_*` for the pending Marcone/Tribles APIs). **Discipline going forward: don't build an agent until it has a real trigger + a consumer.** The 3 efficiency agents already exist + 2 fire; the parts-memory moat is built but STARVED (needs TDRs with part#s — tech-job.html now captures "Part # used").
+
+**Vector intelligence is REAL** (OpenAI key set, text-embedding-3-small). Backfill: `node colony-loop/scripts/backfill-embeddings.js --max=2000` on the Mac to populate similar-jobs/ask-ant from history.
+
 ## ⏭️ TOMORROW (2026-06-14) — phone/Telnyx/Vapi punch list (saved end of a 10hr Sat)
 The phone system is the active push. Today's big diagnostic wins + what's left:
 - **🔑 ROOT CAUSE FOUND — caller ID is masked.** Nearly every call in the log shows `from: +16152802949` (the shop's OWN main number) because **RingCentral forwards calls into Vapi and replaces the real caller's number.** So `lookup_customer_by_phone` looks up the shop's number, never the customer → phone lookups can't work on forwarded calls. **THE FIX = finish porting 615-280-2949 to Telnyx and point it STRAIGHT at Ant Inbound (no RC forward in the middle)** so real caller ID passes through. This is the #1 phone fix.
