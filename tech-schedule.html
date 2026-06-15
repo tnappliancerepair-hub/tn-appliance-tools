@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant Scheduler</title>
+<style>
+  :root{--bg:#0e1118;--card:#161b24;--line:#262d3a;--ink:#e8edf5;--ink2:#9aa6b6;--blue:#4a9eff;--ok:#2ecc71;--accent:#ffb24a;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;flex-direction:column;padding-bottom:84px;}
+  header{padding:16px;padding-top:max(16px,env(safe-area-inset-top));border-bottom:1px solid var(--line);}
+  header h1{font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px;}
+  header .sub{font-size:13px;color:var(--ink2);margin-top:3px;}
+  .wrap{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px;}
+  .examples{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .examples h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);margin-bottom:8px;}
+  .examples .ex{font-size:14px;color:var(--ink);padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer;}
+  .examples .ex:last-child{border-bottom:0;}
+  .examples .ex:before{content:"💬 ";opacity:.7;}
+  .log{display:flex;flex-direction:column;gap:10px;}
+  .bub{max-width:88%;padding:11px 14px;border-radius:15px;font-size:15px;line-height:1.4;}
+  .me{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:5px;}
+  .ant{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:5px;}
+  .upcoming{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;}
+  .upcoming h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);margin-bottom:8px;}
+  .upcoming .row{display:flex;justify-content:space-between;font-size:14px;padding:6px 0;border-bottom:1px solid var(--line);}
+  .upcoming .row:last-child{border-bottom:0;}
+  .upcoming .row .r{color:var(--accent);}
+  .upcoming .none{font-size:13px;color:var(--ink2);}
+  .inputbar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;}
+  .inputbar input{flex:1;background:#0e1118;border:1px solid var(--line);border-radius:22px;padding:12px 15px;font-size:16px;color:var(--ink);}
+  .inputbar button{flex-shrink:0;border:0;border-radius:50%;width:46px;height:46px;font-size:19px;cursor:pointer;}
+  #mic{background:#1d2530;color:var(--ink);border:1px solid var(--line);}
+  #mic.live{background:#fde8e8;color:#c0392b;animation:pulse 1s infinite;}
+  @keyframes pulse{50%{opacity:.5;}}
+  #send{background:var(--blue);color:#fff;}
+  .auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;max-width:340px;width:100%;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;} .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;background:#0e1118;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:18px;text-align:center;letter-spacing:.3em;color:var(--ink);margin-bottom:11px;}
+  .auth-card button{width:100%;border:0;background:var(--blue);color:#fff;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;}
+  .auth-card .err{color:#ff6b6b;font-size:13px;margin-top:9px;min-height:17px;}
+</style>
+</head>
+<body>
+
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>🐜 Ant Scheduler</h2>
+    <div class="sub">enter your PIN</div>
+    <input id="pin" type="tel" inputmode="numeric" maxlength="6" autocomplete="off">
+    <button onclick="submitPin()">Open</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<header>
+  <h1>🐜 Ant Scheduler <span id="hdr-name" style="font-weight:600;color:var(--ink2);font-size:14px"></span></h1>
+  <div class="sub">Tell me when you need off — like you'd tell the office.</div>
+</header>
+
+<div class="wrap">
+  <div class="examples" id="examples">
+    <h3>Just say it</h3>
+    <div class="ex" onclick="useEx(this)">Doctor's appointment Thursday the 26th, 9 to 11</div>
+    <div class="ex" onclick="useEx(this)">Can't work March 3rd, it's my wife's birthday</div>
+    <div class="ex" onclick="useEx(this)">Taking off the day before and the day after Christmas</div>
+    <div class="ex" onclick="useEx(this)">Off next Friday, personal day</div>
+  </div>
+  <div class="log" id="log"></div>
+  <div class="upcoming" id="upcoming"></div>
+</div>
+
+<div class="inputbar">
+  <button id="mic" onclick="voice()" title="Speak">🎤</button>
+  <input id="in" placeholder="Type or tap the mic…" autocomplete="off">
+  <button id="send" onclick="send()" title="Send">➤</button>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const NAMES={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+const techId=parseInt(new URLSearchParams(location.search).get('tech_id')||'0',10);
+
+function authKey(){return 'tn_tech_pin_ok_'+techId;}
+function initAuth(){
+  if(!techId){document.getElementById('auth-err').textContent='Open from your dashboard (missing tech id).';return;}
+  if(sessionStorage.getItem(authKey())==='1'){pass();return;}
+  document.getElementById('pin').focus();
+}
+async function submitPin(){
+  const pin=(document.getElementById('pin').value||'').trim();const err=document.getElementById('auth-err');
+  if(!pin){err.textContent='Enter your PIN';return;}
+  try{
+    const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:techId,pin})});
+    const d=await r.json();
+    if(d&&d.success){sessionStorage.setItem(authKey(),'1');pass();}
+    else err.textContent='Wrong PIN.';
+  }catch(_){err.textContent='Connection error.';}
+}
+document.getElementById('pin').addEventListener('keypress',e=>{if(e.key==='Enter')submitPin();});
+function pass(){document.getElementById('auth').classList.add('hidden');document.getElementById('hdr-name').textContent=NAMES[techId]?('· '+NAMES[techId]):'';loadUpcoming();}
+
+function useEx(el){document.getElementById('in').value=el.textContent;document.getElementById('in').focus();}
+function bub(text,who){const l=document.getElementById('log');const d=document.createElement('div');d.className='bub '+who;d.textContent=text;l.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});}
+
+async function send(){
+  const inp=document.getElementById('in');const msg=(inp.value||'').trim();
+  if(!msg)return;
+  document.getElementById('examples').style.display='none';
+  bub(msg,'me');inp.value='';
+  const thinking=document.createElement('div');thinking.className='bub ant';thinking.textContent='…';document.getElementById('log').appendChild(thinking);
+  try{
+    const r=await fetch('/.netlify/functions/tech-schedule-talk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tech_id:techId,message:msg})});
+    const d=await r.json();
+    thinking.remove();
+    if(d&&d.ok){bub(d.reply||'Got it.','ant');if(d.written)loadUpcoming();}
+    else bub('⚠ '+((d&&d.error)||'Something went wrong — try again.'),'ant');
+  }catch(_){thinking.remove();bub('⚠ Connection error — try again.','ant');}
+}
+document.getElementById('in').addEventListener('keypress',e=>{if(e.key==='Enter')send();});
+
+// voice (browser speech-to-text)
+let rec=null;
+function voice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){document.getElementById('in').placeholder='Voice not supported — type it';return;}
+  const mic=document.getElementById('mic');
+  if(rec){rec.stop();return;}
+  rec=new SR();rec.lang='en-US';rec.interimResults=true;
+  let txt='';
+  rec.onresult=e=>{txt='';for(const r of e.results)txt+=r[0].transcript;document.getElementById('in').value=txt;};
+  rec.onend=()=>{mic.classList.remove('live');rec=null;if((document.getElementById('in').value||'').trim())send();};
+  rec.onerror=()=>{mic.classList.remove('live');rec=null;};
+  mic.classList.add('live');rec.start();
+}
+
+async function loadUpcoming(){
+  const box=document.getElementById('upcoming');
+  box.innerHTML='<h3>Your upcoming time off</h3><div class="none">Loading…</div>';
+  try{
+    const rows=await (await fetch(XANO+'/tech_availability',{cache:'no-store'})).json();
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+    const mine=(Array.isArray(rows)?rows:[]).filter(r=>Number(r.technician_id)===techId && (r.full_day_off||/(vacation|appoint|personal|sick|off|birthday|holiday)/i.test(r.reason||'')) && (r.blocked_date||'')>=today && (r.reason||'')!=='default_schedule');
+    mine.sort((a,b)=>(a.blocked_date||'').localeCompare(b.blocked_date||''));
+    if(!mine.length){box.innerHTML='<h3>Your upcoming time off</h3><div class="none">Nothing scheduled. You\'re all working days.</div>';return;}
+    box.innerHTML='<h3>Your upcoming time off</h3>'+mine.slice(0,20).map(r=>{
+      const dt=new Date((r.blocked_date||'')+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      const when=r.full_day_off?'all day':((r.start_time||'')+(r.end_time?('-'+r.end_time):''));
+      return '<div class="row"><span>'+dt+' · '+when+'</span><span class="r">'+esc(r.reason||'off')+'</span></div>';
+    }).join('');
+  }catch(_){box.innerHTML='<h3>Your upcoming time off</h3><div class="none">Could not load.</div>';}
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+initAuth();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
