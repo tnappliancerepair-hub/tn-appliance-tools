@@ -20,6 +20,28 @@ query get_tech_route_days verb=GET {
       error = "technician_id required"
     }
 
+    // Load the tech's profile so scheduling honors THEIR preferences.
+    db.get technicians {
+      field_name = "id"
+      field_value = $input.technician_id
+    } as $tech
+
+    var $max_stops {
+      value = (($tech.max_stops_per_day ?? 6) > 0 ? ($tech.max_stops_per_day ?? 6) : 6)
+    }
+    var $works_sat {
+      value = (($tech.works_saturdays ?? true))
+    }
+    var $appl_spec {
+      value = (($tech.appliance_specialties ?? ""))
+    }
+    var $brand_excl {
+      value = (($tech.brand_exclusions ?? ""))
+    }
+    var $home_zone_v {
+      value = (($tech.home_zone ?? ""))
+    }
+
     var $days_raw {
       value = ($input.days ?? 14)
     }
@@ -104,6 +126,11 @@ query get_tech_route_days verb=GET {
     now_ms        : $now_ms
     stop_count    : $stops|count
     stops         : $stops
+    max_stops_per_day     : $max_stops
+    works_saturdays       : $works_sat
+    appliance_specialties : $appl_spec
+    brand_exclusions      : $brand_excl
+    home_zone             : $home_zone_v
   }
 
   guid = "get-tech-route-days-v1"

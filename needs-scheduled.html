@@ -496,8 +496,7 @@
         e.stopPropagation();
         currentJob = { id: parseInt(b.dataset.id, 10), name: b.dataset.name, appl: b.dataset.appl };
         $('schedJobDesc').textContent = `${currentJob.name} — ${currentJob.appl}`;
-        const today = new Date(); today.setDate(today.getDate() + 1);
-        $('schedDate').value = today.toISOString().slice(0, 10);
+        $('schedDate').value = ''; // no auto next-day default — office picks the day (spreads the load)
         $('schedTech').value = '';
         const hintEl = $('schedSuggest'); if (hintEl) hintEl.textContent = '';
         schedModal.classList.add('show');
@@ -552,6 +551,19 @@
     if (!dateStr || !timeStr) { showToast('Pick date + time', 'err'); return; }
     const startMs = new Date(dateStr + 'T' + timeStr + ':00').getTime();
     const window = $('schedWindow').value.trim();
+    // Stop limit: don't overload a tech's day. Cap = the tech's own preference
+    // (max_stops_per_day) or 6. Count their existing stops that day.
+    try {
+      const rd = await fetch(`${XANO_BASE}/get_tech_route_days?technician_id=${techId}`).then(r => r.json());
+      const cap = (rd && Number(rd.max_stops_per_day)) || 6;
+      const sameDay = ((rd && rd.stops) || []).filter(s =>
+        new Date(s.scheduled_start_ms || 0).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === dateStr
+      ).length;
+      if (sameDay >= cap) {
+        const techName = $('schedTech').options[$('schedTech').selectedIndex].text;
+        if (!confirm(`${techName} already has ${sameDay} stops on ${dateStr} (their limit is ${cap}). Pick another day or tech — or OK to schedule anyway.`)) return;
+      }
+    } catch (_) {}
     $('schedSubmitBtn').disabled = true;
     try {
       const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
