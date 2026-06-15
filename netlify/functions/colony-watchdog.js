@@ -12,7 +12,7 @@
 // not 20+.
 
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const ALERT_THRESHOLD_MINUTES = parseInt(process.env.COLONY_WATCHDOG_THRESHOLD_MIN || '15', 10);
+const ALERT_THRESHOLD_MINUTES = parseInt(process.env.COLONY_WATCHDOG_THRESHOLD_MIN || '8', 10);
 const OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || '+16154855795';
 
 // Exponential back-off: ALWAYS at least N minutes between alerts.
