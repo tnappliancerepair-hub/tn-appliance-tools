@@ -451,7 +451,7 @@ export async function run(signal, ctx) {
   // into the Danielle digest path.
   try {
     await xano.emitSignal({
-      signal_type: 'TDR_QUALITY_CHECK',
+      signal_type: 'TDR_QUALITY_GATE',
       signal_strength: 65,
       payload: {
         job_id: jobId,

@@ -245,7 +245,7 @@ async function maybeEmitTimeSignals() {
   if (hour >= 5 && hour < 7) {
     try {
       await xano.emitSignal({
-        signal_type: 'WARRANTY_LEARNING_AGGREGATE',
+        signal_type: 'WARRANTY_LEARNING_AGGREGATOR',
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
       });
@@ -706,7 +706,7 @@ async function maybeEmitTimeSignals() {
     if (hour >= 9 && hour <= 17 && (ctMinute === 0 || ctMinute === 30)) {
       try {
         await xano.emitSignal({
-          signal_type: 'TECH_PACE_CHECK',
+          signal_type: 'TECH_PACE_WATCHER',
           signal_strength: 60,
           payload: { emitted_ct: fmtCT(nowTs), hour, minute: ctMinute },
         });
@@ -898,7 +898,7 @@ async function maybeEmitTimeSignals() {
     if (stuckFired && !stuckFired.fired) {
       try {
         await xano.emitSignal({
-          signal_type: 'STUCK_INTAKE_PROGRESS_BATCH',
+          signal_type: 'STUCK_INTAKE_PROGRESS',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
@@ -1296,7 +1296,7 @@ async function maybeEmitTimeSignals() {
     }
     if (vapiReviewFired === null || !(vapiReviewFired && vapiReviewFired.fired)) {
       await xano.emitSignal({
-        signal_type: 'DAILY_VAPI_CALL_REVIEW',
+        signal_type: 'VAPI_CALL_REVIEW',
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
       });
