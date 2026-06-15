@@ -714,7 +714,10 @@
 </div>
 
 <script>
-(function() {
+// Run after the DOM is parsed — the booking/manage modal elements are defined
+// BELOW this script, so binding them at parse time threw (null addEventListener)
+// and blanked the page. DOMContentLoaded guarantees they exist.
+function __initCalendar() {
   'use strict';
 
   // ── Config ─────────────────────────────────────────────────────
@@ -1689,7 +1692,8 @@
 
   // ── Boot ───────────────────────────────────────────────────────
   tryUnlock();
-})();
+}
+if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', __initCalendar); } else { __initCalendar(); }
 </script>
 
 <style>
