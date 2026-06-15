@@ -185,6 +185,17 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Turn ON call Summary (and success-eval) so the call log + daily review have content.
+  if (action === 'voiceon') {
+    const f = full.json || {};
+    const ap = Object.assign({}, f.analysisPlan || {});
+    ap.summaryPlan = Object.assign({}, ap.summaryPlan || {}, { enabled: true });
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { analysisPlan: ap });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vap = (verify.json && verify.json.analysisPlan) || {};
+    return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, patch_status: patch.status, summary_enabled: !!(vap.summaryPlan && vap.summaryPlan.enabled) }) };
+  }
+
   // Pull the current system prompt.
   if (action === 'prompt') {
     const msgs = Array.isArray(model.messages) ? model.messages : [];
