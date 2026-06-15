@@ -106,6 +106,9 @@ exports.handler = async function (event) {
       call_id: c.id,
       started: cj.startedAt, ended: cj.endedReason,
       assistantId: cj.assistantId,
+      caller_id: (cj.customer && cj.customer.number) || null,
+      dialed_number: (cj.phoneNumber && cj.phoneNumber.number) || cj.phoneNumberId || null,
+      caller_id_masked: !!(cj.customer && /2802949$/.test(String(cj.customer.number || ''))),
       transcript_tail: String(cj.transcript || '').slice(-600),
       tool_events: toolEvents,
     }, null, 2) };
