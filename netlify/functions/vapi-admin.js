@@ -201,7 +201,10 @@ exports.handler = async function (event) {
     const newTools = tools.map((t) => {
       if (t.type !== 'transferCall') return t;
       found = true;
-      return Object.assign({}, t, { destinations: [{ type: 'number', number: '+16154850713', message: 'One second, connecting you with our office.' }] });
+      return Object.assign({}, t, { destinations: [
+        { type: 'number', number: '+16154850713', message: 'One second, connecting you with our office.' },
+        { type: 'number', number: '+16154855795', message: 'One second, getting you the owner.' },
+      ] });
     });
     const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
     const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
