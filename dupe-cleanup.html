@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Duplicate Cleanup — Owner</title>
+<style>
+  :root{--bg:#0e1118;--panel:#161b25;--line:#262d3a;--ink:#e8edf5;--dim:#8b97a8;--ok:#34c759;--orange:#f5a623;--red:#ff6b6b;--blue:#4a90e2}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,system-ui,sans-serif;padding:0 0 60px}
+  header{position:sticky;top:0;background:rgba(14,17,24,.97);border-bottom:1px solid var(--line);padding:14px 16px;z-index:5}
+  h1{font-size:17px;margin:0;font-weight:800}
+  .sub{color:var(--dim);font-size:12px}
+  .wrap{max-width:720px;margin:0 auto;padding:14px 16px}
+  .gate{max-width:340px;margin:60px auto;text-align:center;padding:0 16px}
+  .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font-size:18px;text-align:center;letter-spacing:.3em}
+  .gate button{width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;background:var(--ok);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .err{color:var(--red);font-size:13px;margin-top:8px;min-height:16px}
+  .group{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+  .group h3{margin:0 0 2px;font-size:15px}
+  .group .meta{color:var(--dim);font-size:12px;margin-bottom:8px}
+  .job{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px}
+  .job.keep{border-color:var(--ok);background:rgba(52,199,89,0.08)}
+  .job .jid{font-weight:700;min-width:64px}
+  .job .st{font-size:12px;color:var(--dim);flex:1}
+  .job .tag{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line)}
+  .job .tag.claim{color:var(--ok);border-color:var(--ok)}
+  .keepbtn{font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+  .keepbtn.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .cancelbtn{margin-top:6px;width:100%;padding:10px;border:0;border-radius:9px;background:#3a2222;color:var(--red);border:1px solid rgba(255,107,107,.4);font-weight:800;cursor:pointer}
+  .empty{color:var(--dim);text-align:center;padding:40px 0}
+  .done{opacity:.5}
+</style>
+</head>
+<body>
+<!-- error net -->
+<script>window.addEventListener('error',function(e){var b=document.getElementById('app')||document.body;});</script>
+
+<div id="gate" class="gate">
+  <h1>🧹 Duplicate Cleanup</h1>
+  <p class="sub">Owner only — your tech PIN. Finds people duplicated by intake; keep the real job, cancel the rest.</p>
+  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+  <button id="go">Find duplicates</button>
+  <div id="gerr" class="err"></div>
+</div>
+
+<div id="app" style="display:none">
+  <header><h1>🧹 Duplicate Cleanup</h1><div class="sub" id="summary">scanning…</div></header>
+  <div class="wrap"><div id="list"></div></div>
+</div>
+
+<script>
+  var PIN='';
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  async function load(){
+    $('summary').textContent='scanning…';
+    try{
+      const r=await fetch('/.netlify/functions/find-duplicate-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN})});
+      const d=await r.json();
+      if(!d.ok){ if(d.error==='wrong_pin'||d.error==='owner_pin_required'){showGate('Wrong PIN.');return;} $('list').innerHTML='<div class="empty">'+esc(d.error||'error')+'</div>'; return; }
+      $('gate').style.display='none'; $('app').style.display='block';
+      render(d.groups||[]);
+    }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
+  }
+
+  function render(groups){
+    $('summary').textContent=groups.length+' duplicate'+(groups.length===1?'':'s')+' found';
+    if(!groups.length){ $('list').innerHTML='<div class="empty">🎉 No active duplicates found.</div>'; return; }
+    $('list').innerHTML=groups.map(function(g,gi){
+      var jobs=g.jobs.map(function(j){
+        var keep=j.id===g.keeper_job_id;
+        var claim=j.claim_number?'<span class="tag claim">claim '+esc(j.claim_number)+'</span>':'<span class="tag">no claim</span>';
+        return '<div class="job'+(keep?' keep':'')+'" data-gi="'+gi+'" data-jid="'+j.id+'">'+
+          '<span class="jid">#'+j.id+'</span>'+
+          '<span class="st">'+esc(j.status||'—')+' '+claim+'</span>'+
+          '<button class="keepbtn'+(keep?' on':'')+'" onclick="setKeep('+gi+','+j.id+')">'+(keep?'✓ keep':'keep')+'</button>'+
+          '</div>';
+      }).join('');
+      return '<div class="group" id="grp-'+gi+'">'+
+        '<h3>'+esc(g.name||'(no name)')+'</h3>'+
+        '<div class="meta">'+esc(g.city||'')+(g.zip?(' '+esc(g.zip)):'')+' · '+g.customer_records+' records · '+g.jobs.length+' active jobs</div>'+
+        jobs+
+        '<button class="cancelbtn" onclick="cancelRest('+gi+')">Cancel the others — keep #<span id="keep-'+gi+'">'+g.keeper_job_id+'</span></button>'+
+        '</div>';
+    }).join('');
+    window.__groups=groups;
+  }
+
+  window.setKeep=function(gi,jid){
+    window.__groups[gi].keeper_job_id=jid;
+    var grp=$('grp-'+gi);
+    grp.querySelectorAll('.job').forEach(function(el){
+      var on=Number(el.dataset.jid)===jid;
+      el.classList.toggle('keep',on);
+      var btn=el.querySelector('.keepbtn'); btn.classList.toggle('on',on); btn.textContent=on?'✓ keep':'keep';
+    });
+    $('keep-'+gi).textContent=jid;
+  };
+
+  window.cancelRest=async function(gi){
+    var g=window.__groups[gi];
+    var losers=g.jobs.filter(function(j){return j.id!==g.keeper_job_id;});
+    if(!losers.length){ return; }
+    if(!confirm('Keep #'+g.keeper_job_id+' and cancel '+losers.length+' duplicate job'+(losers.length===1?'':'s')+' for '+g.name+'? (no customer is texted)')) return;
+    var btn=$('grp-'+gi).querySelector('.cancelbtn'); btn.disabled=true; btn.textContent='Canceling…';
+    var ok=0;
+    for(const j of losers){
+      try{
+        const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/office_remove_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:j.id,action:'delete',actor:'dupe-cleanup'})});
+        const d=await r.json(); if(d&&d.success) ok++;
+      }catch(_){}
+    }
+    btn.textContent='✓ Canceled '+ok+' — kept #'+g.keeper_job_id;
+    $('grp-'+gi).classList.add('done');
+  };
+
+  function showGate(msg){ $('app').style.display='none'; $('gate').style.display='block'; $('gerr').textContent=msg||''; }
+  $('go').addEventListener('click',function(){ PIN=$('pin').value.trim(); if(!PIN){$('gerr').textContent='Enter your PIN.';return;} load(); });
+  $('pin').addEventListener('keydown',function(e){ if(e.key==='Enter')$('go').click(); });
+</script>
+</body>
+</html>
