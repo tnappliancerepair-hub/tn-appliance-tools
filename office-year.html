@@ -196,10 +196,14 @@ async function load(){
     const rows=await (await fetch(XANO+'/tech_availability',{cache:'no-store'})).json();
     (Array.isArray(rows)?rows:[]).forEach(r=>{
       if(Number(r.technician_id)!==Number(techId))return;
-      if(!r.full_day_off)return;                       // only days marked OFF
+      const reason=(r.reason||'');
+      // Show full days off AND partial appointments (any non-default entry the
+      // tech told the scheduler) — both belong on the office calendar.
+      const isTimeOff = r.full_day_off || (reason && reason.toLowerCase()!=='default_schedule');
+      if(!isTimeOff)return;
       const dt=(r.blocked_date||'');
       if(dt.slice(0,4)!==String(year))return;
-      offDays[dt]={reason:r.reason||'other',note:r.reason||''};
+      offDays[dt]={reason:reason||'other',full_day:!!r.full_day_off,start:r.start_time||'',end:r.end_time||''};
     });
     render();
   }catch(e){ document.getElementById('host').innerHTML='<div class="loading">⚠ '+e.message+'</div>'; }
@@ -232,7 +236,9 @@ function openDay(ds){
   const off=offDays[ds];
   const nm=(TECHS.find(t=>t.id===techId)||{}).name||'Tech';
   document.getElementById('m-title').textContent=(off?'Time off — ':'Mark off — ')+nm;
-  document.getElementById('m-sub').textContent=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const dlabel=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const win=(off&&!off.full_day&&off.start)?(' · '+off.start+(off.end?('-'+off.end):'')):'';
+  document.getElementById('m-sub').textContent=dlabel+win+(off?('  ·  '+off.reason):'');
   if(off){document.getElementById('m-reason').value=reasonOf(off.reason);document.getElementById('m-clear').style.display='block';}
   else{document.getElementById('m-reason').value='vacation';document.getElementById('m-clear').style.display='none';}
   document.getElementById('m-note').value='';
