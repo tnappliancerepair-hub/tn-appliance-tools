@@ -62,11 +62,13 @@
 
 <div class="wrap">
   <div class="examples" id="examples">
-    <h3>Just say it</h3>
+    <h3>Just say it — time off or how you like to work</h3>
     <div class="ex" onclick="useEx(this)">Doctor's appointment Thursday the 26th, 9 to 11</div>
     <div class="ex" onclick="useEx(this)">Can't work March 3rd, it's my wife's birthday</div>
-    <div class="ex" onclick="useEx(this)">Taking off the day before and the day after Christmas</div>
-    <div class="ex" onclick="useEx(this)">Off next Friday, personal day</div>
+    <div class="ex" onclick="useEx(this)">I like to start at 7 and be done by 4</div>
+    <div class="ex" onclick="useEx(this)">I don't work Wednesdays</div>
+    <div class="ex" onclick="useEx(this)">A great day is running Baton Rouge and everything on the way</div>
+    <div class="ex" onclick="useEx(this)">Don't put Hendersonville and Murfreesboro on the same day</div>
   </div>
   <div class="log" id="log"></div>
   <div class="upcoming" id="upcoming"></div>
@@ -100,7 +102,13 @@ async function submitPin(){
   }catch(_){err.textContent='Connection error.';}
 }
 document.getElementById('pin').addEventListener('keypress',e=>{if(e.key==='Enter')submitPin();});
-function pass(){document.getElementById('auth').classList.add('hidden');document.getElementById('hdr-name').textContent=NAMES[techId]?('· '+NAMES[techId]):'';loadUpcoming();}
+function pass(){
+  document.getElementById('auth').classList.add('hidden');
+  const nm=NAMES[techId]||'';
+  document.getElementById('hdr-name').textContent=nm?('· '+nm):'';
+  bub("Hey"+(nm?' '+nm:'')+" — this is the new Ant scheduler, and it works around YOU. Nobody's dictating your day. Tell me any time off, the hours you like to work, and what a great day looks like out there — how you like to run your areas — and I'll build your days to fit that.",'ant');
+  loadUpcoming();
+}
 
 function useEx(el){document.getElementById('in').value=el.textContent;document.getElementById('in').focus();}
 function bub(text,who){const l=document.getElementById('log');const d=document.createElement('div');d.className='bub '+who;d.textContent=text;l.appendChild(d);d.scrollIntoView({behavior:'smooth',block:'end'});}
