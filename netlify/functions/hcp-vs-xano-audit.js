@@ -16,16 +16,19 @@
 const HCP_BASE = 'https://api.housecallpro.com';
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const META_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+const { getSecret } = require('./_lib/secrets');
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return cors(200, '');
 
   const params = event.queryStringParameters || {};
   const daysBack = Math.min(Number(params.days || 7), 30);
-  const apiKey = process.env.HCP_API_KEY;
+  // env-first, then Xano vault — so HCP_API_KEY works whether it's scoped to
+  // Functions or (to dodge the 4KB Lambda cap) stored in the app_config vault.
+  const apiKey = await getSecret('HCP_API_KEY');
   const metaToken = process.env.XANO_METADATA_TOKEN;
 
-  if (!apiKey) return cors(500, JSON.stringify({ error: 'HCP_API_KEY not configured' }));
+  if (!apiKey) return cors(500, JSON.stringify({ error: 'HCP_API_KEY not in env or vault — add it in admin-secrets.html' }));
   if (!metaToken) return cors(500, JSON.stringify({ error: 'XANO_METADATA_TOKEN not configured' }));
 
   const sinceMs = Date.now() - daysBack * 86400000;
