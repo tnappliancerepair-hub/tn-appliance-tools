@@ -222,18 +222,26 @@ query office_universal_search verb=GET {
         var $tok1_raw {
           value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $tok0_raw)
         }
-        // Xano == is case-sensitive; names are stored Title Case. Title-case the
-        // lowered tokens so "sherri rucker" matches "Sherri" / "Rucker".
+        // 2026-06-15: SUBSTRING + case-insensitive. Exact-match missed real
+        // customers (warranty names stored "Young III", ALL CAPS "JOYCE
+        // MATTHEWS", etc.). Xano |contains: is proven but case-SENSITIVE, so
+        // substring-match each token in lower/Title/UPPER across first+last.
         var $tok0 {
           value = (($tok0_raw|substr:0:1|to_upper) ~ ($tok0_raw|substr:1))
         }
         var $tok1 {
           value = (($tok1_raw|substr:0:1|to_upper) ~ ($tok1_raw|substr:1))
         }
+        var $tok0_u {
+          value = $tok0_raw|to_upper
+        }
+        var $tok1_u {
+          value = $tok1_raw|to_upper
+        }
         conditional {
-          if ($tok0 != "") {
+          if (($tok0_raw|strlen) >= 2) {
             db.query customer {
-              where = $db.customer.first_name == $tok0 || $db.customer.last_name == $tok0 || $db.customer.first_name == $tok1 || $db.customer.last_name == $tok1 || $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw
+              where = $db.customer.last_name |contains: $tok0_raw || $db.customer.last_name |contains: $tok0 || $db.customer.last_name |contains: $tok0_u || $db.customer.first_name |contains: $tok0_raw || $db.customer.first_name |contains: $tok0 || $db.customer.first_name |contains: $tok0_u || $db.customer.last_name |contains: $tok1_raw || $db.customer.last_name |contains: $tok1 || $db.customer.last_name |contains: $tok1_u || $db.customer.first_name |contains: $tok1_raw || $db.customer.first_name |contains: $tok1 || $db.customer.first_name |contains: $tok1_u
               sort = {customer.id: "desc"}
               return = {type: "list", paging: {page: 1, per_page: 50}}
             } as $name_exact_rows
