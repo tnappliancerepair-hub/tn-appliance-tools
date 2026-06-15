@@ -206,6 +206,7 @@
     <div style="margin-top:9px"><a href="/office-ready.html" style="font-size:13px;font-weight:700;color:#1f6fed;text-decoration:none">📞 See which jobs are missing info for the phones →</a></div>
   </div>
 
+  <div id="ant-score" style="margin:0 0 10px;padding:9px 13px;border:1px solid rgba(76,201,192,0.35);background:rgba(76,201,192,0.08);border-radius:10px;font-size:13px;font-weight:700;color:#4cc9c0"></div>
   <div class="list" id="list"></div>
 </div>
 
@@ -412,6 +413,7 @@
       if (!d.success) throw new Error('failed');
       render(d.items || []);
       count.textContent = (d.count || 0);
+      loadScore();
     } catch (e) {
       list.innerHTML = '<div class="empty"><h3>Load failed</h3><p>' + escapeHtml(e.message) + '</p></div>';
     }
@@ -464,6 +466,7 @@
         </div>
         ${prefBadge ? `<div class="meta" style="margin-top:4px">${prefBadge}</div>` : ''}
         ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
+        <div class="ant-ghost" data-id="${j.id}" data-zip="${escapeHtml(j.service_zip || '')}" data-brand="${escapeHtml(j.brand || '')}" data-appl="${escapeHtml(j.appliance || '')}"></div>
         <div class="actions">
           <a class="btn-open-job" href="/job-detail.html?job_id=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
           <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}" data-zip="${escapeHtml(j.service_zip || '')}">Schedule</button>
@@ -513,6 +516,58 @@
         }
       });
     });
+
+    hydrateGhosts();
+  }
+
+  // ── Ant ghost suggestions (shadow mode) ──────────────────────────────
+  function hydrateGhosts() {
+    document.querySelectorAll('.ant-ghost[data-zip]').forEach(async (el) => {
+      const zip = el.dataset.zip; if (!zip) { el.innerHTML = ''; return; }
+      try {
+        const d = await (await fetch('/.netlify/functions/suggest-schedule?service_zip=' + encodeURIComponent(zip) + '&brand=' + encodeURIComponent(el.dataset.brand || '') + '&appliance_type=' + encodeURIComponent(el.dataset.appl || ''))).json();
+        const s = d && d.suggestion;
+        if (!s || !s.suggested_date) {
+          el.innerHTML = (d && d.reason) ? `<div style="font-size:12px;color:#8a96a8;margin-top:6px">🐜 ${escapeHtml(d.reason)}</div>` : '';
+          return;
+        }
+        const id = el.dataset.id;
+        el.innerHTML = `<div style="margin-top:8px;padding:9px 11px;border:1px dashed rgba(76,201,192,0.5);border-radius:9px;background:rgba(76,201,192,0.08)">
+          <div style="font-size:13px;color:#4cc9c0;font-weight:800">🐜 Ant suggests: ${escapeHtml(s.suggested_day_label || s.suggested_date)} · ${escapeHtml(s.suggested_tech_name)}</div>
+          <div style="font-size:12px;color:#8a96a8;margin:2px 0 8px">${escapeHtml(d.reason || '')}</div>
+          <button class="ghost-yes" data-id="${id}" data-tech="${s.suggested_technician_id}" data-date="${s.suggested_date}" style="background:#4cc9c0;color:#06241f;border:0;padding:7px 13px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">✓ Use this</button>
+          <button class="ghost-no" data-id="${id}" data-tech="${s.suggested_technician_id}" data-date="${s.suggested_date}" style="background:transparent;border:1px solid rgba(255,180,84,0.5);color:#ffb454;padding:7px 13px;border-radius:8px;font-weight:700;font-size:13px;margin-left:6px;cursor:pointer">✗ Not quite</button>
+        </div>`;
+        el.querySelector('.ghost-yes').addEventListener('click', (ev) => { ev.stopPropagation(); acceptSuggestion(ev.currentTarget); });
+        el.querySelector('.ghost-no').addEventListener('click', (ev) => { ev.stopPropagation(); rejectSuggestion(ev.currentTarget); });
+      } catch (_) { el.innerHTML = ''; }
+    });
+  }
+  async function acceptSuggestion(btn) {
+    const id = parseInt(btn.dataset.id, 10), tech = parseInt(btn.dataset.tech, 10), date = btn.dataset.date;
+    const startMs = new Date(date + 'T08:00:00').getTime();
+    btn.disabled = true; btn.textContent = 'Scheduling…';
+    try {
+      const d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      if (d && d.success) { logFeedback(id, 'accepted', tech, date); load(); }
+      else { alert('Could not schedule: ' + ((d && d.error) || 'failed')); btn.disabled = false; btn.textContent = '✓ Use this'; }
+    } catch (_) { btn.disabled = false; btn.textContent = '✓ Use this'; }
+  }
+  function rejectSuggestion(btn) {
+    logFeedback(parseInt(btn.dataset.id, 10), 'rejected', parseInt(btn.dataset.tech, 10), btn.dataset.date);
+    const g = btn.closest('.ant-ghost'); if (g) g.innerHTML = '<div style="font-size:12px;color:#8a96a8;margin-top:6px">👍 Noted — schedule it your way below.</div>';
+  }
+  function logFeedback(jobId, outcome, tech, date) {
+    try { fetch('/.netlify/functions/suggestion-feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, outcome, suggested_tech_id: tech, suggested_date: date }) }); } catch (_) {}
+    setTimeout(loadScore, 600);
+  }
+  async function loadScore() {
+    const el = document.getElementById('ant-score'); if (!el) return;
+    try {
+      const d = await (await fetch('/.netlify/functions/suggestion-feedback', { cache: 'no-store' })).json();
+      if (d && d.total) el.textContent = `🐜 Ant accuracy so far: ${d.rate_pct}% (${d.accepted}/${d.total} suggestions accepted)`;
+      else el.textContent = '🐜 Shadow mode on — accept or reject Ant\'s suggestions to train it.';
+    } catch (_) {}
   }
 
   async function removeJob(btn, action, name) {
