@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant — Year Schedule</title>
+<style>
+  :root{--ink:#1d2530;--ink2:#5b6675;--dim:#9aa4b2;--line:#e3e7ec;--blue:#1f6fed;--ok:#16a34a;--bad:#c0392b;--bg:#f4f6f9;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:80px;}
+  .topbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line);padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));}
+  .tb-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .tb-title{font-size:17px;font-weight:800;}
+  .yr-nav{display:inline-flex;align-items:center;gap:8px;margin-left:auto;}
+  .yr-nav button{border:1px solid var(--line);background:#fff;border-radius:8px;width:34px;height:34px;font-size:16px;cursor:pointer;}
+  .yr-nav .yr{font-weight:800;font-size:16px;min-width:62px;text-align:center;}
+  .techbar{display:flex;gap:7px;margin-top:9px;overflow-x:auto;scrollbar-width:none;}
+  .techbar::-webkit-scrollbar{display:none;}
+  .techbar button{flex:0 0 auto;border:1px solid var(--line);background:#f3f6fb;border-radius:999px;padding:7px 14px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;white-space:nowrap;}
+  .techbar button.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .actions{display:flex;gap:8px;margin-top:9px;}
+  .actions button{border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:800;cursor:pointer;}
+  .btn-vac{background:var(--ok);color:#fff;}
+  .btn-leg{background:#eef1f5;color:var(--ink2);}
+  .wrap{padding:12px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:10px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block;}
+  .months{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
+  .mon{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;}
+  .mon h3{font-size:13px;font-weight:800;margin-bottom:8px;color:var(--ink);}
+  .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .dow{font-size:10px;font-weight:700;color:var(--dim);text-align:center;padding-bottom:2px;}
+  .day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:12px;border-radius:6px;cursor:pointer;color:var(--ink);background:#f7f9fc;border:1px solid transparent;}
+  .day.empty{background:transparent;cursor:default;}
+  .day.today{border-color:var(--blue);font-weight:800;}
+  .day.off-vacation{background:#e8f1ff;color:#1f6fed;font-weight:700;}
+  .day.off-appt{background:#fff2dd;color:#b3690a;font-weight:700;}
+  .day.off-personal{background:#fde9ef;color:#c0392b;font-weight:700;}
+  .day.off-other{background:#eee6fb;color:#6f42c1;font-weight:700;}
+  .day.wknd{color:var(--dim);}
+  /* auth */
+  .auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px;max-width:340px;width:100%;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;} .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:16px;text-align:center;margin-bottom:11px;}
+  .auth-card button{width:100%;border:0;background:var(--blue);color:#fff;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;}
+  .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
+  .loading{text-align:center;color:var(--ink2);padding:40px;}
+  .toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(15,20,30,.4);z-index:90;display:none;}
+  .scrim.open{display:block;}
+  .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;padding:20px;z-index:91;width:min(360px,92vw);display:none;}
+  .modal.open{display:block;}
+  .modal h3{font-size:16px;margin-bottom:4px;} .modal .sub{font-size:13px;color:var(--ink2);margin-bottom:14px;}
+  .modal label{font-size:12px;font-weight:700;color:var(--ink2);display:block;margin:8px 0 4px;}
+  .modal input,.modal select{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:15px;}
+  .modal .mrow{display:flex;gap:8px;margin-top:14px;}
+  .modal .mrow button{flex:1;border:0;border-radius:9px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;}
+  .m-save{background:var(--ok);color:#fff;} .m-clear{background:#fde9ef;color:var(--bad);} .m-cancel{background:#eef1f5;color:var(--ink2);}
+</style>
+</head>
+<body>
+
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>🗓️ Year Schedule</h2>
+    <div class="sub">enter office password</div>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button onclick="submitAuth()">Open</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="tb-row">
+    <div class="tb-title">🗓️ Year Schedule</div>
+    <div class="yr-nav">
+      <button onclick="changeYear(-1)">‹</button>
+      <span class="yr" id="yr-label">2026</span>
+      <button onclick="changeYear(1)">›</button>
+    </div>
+  </div>
+  <div class="techbar" id="techbar"></div>
+  <div class="actions">
+    <button class="btn-vac" onclick="openRange()">+ Add vacation / time off</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="legend">
+    <span><i class="dot" style="background:#e8f1ff;border:1px solid #b9d4ff"></i> Vacation</span>
+    <span><i class="dot" style="background:#fff2dd;border:1px solid #ffd98a"></i> Appointment</span>
+    <span><i class="dot" style="background:#fde9ef;border:1px solid #f3b4c4"></i> Personal</span>
+    <span><i class="dot" style="background:#eee6fb;border:1px solid #d3bdf2"></i> Other</span>
+    <span style="color:var(--dim)">tap a day to add/remove</span>
+  </div>
+  <div id="host"><div class="loading">Loading…</div></div>
+</div>
+
+<!-- day modal -->
+<div class="scrim" id="scrim" onclick="closeModal()"></div>
+<div class="modal" id="modal">
+  <h3 id="m-title">Time off</h3>
+  <div class="sub" id="m-sub"></div>
+  <label>Type</label>
+  <select id="m-reason">
+    <option value="vacation">Vacation</option>
+    <option value="appointment">Appointment (dr / personal appt)</option>
+    <option value="personal">Personal day</option>
+    <option value="other">Other</option>
+  </select>
+  <label>Note (optional)</label>
+  <input id="m-note" placeholder="e.g. dentist, family trip">
+  <div class="mrow">
+    <button class="m-cancel" onclick="closeModal()">Cancel</button>
+    <button class="m-clear" id="m-clear" onclick="clearDay()" style="display:none">Clear off</button>
+    <button class="m-save" onclick="saveDay()">Mark off</button>
+  </div>
+</div>
+
+<!-- range modal -->
+<div class="scrim" id="rscrim" onclick="closeRange()"></div>
+<div class="modal" id="rmodal">
+  <h3>Add vacation / time off</h3>
+  <div class="sub" id="r-sub"></div>
+  <label>From</label><input type="date" id="r-from">
+  <label>To</label><input type="date" id="r-to">
+  <label>Type</label>
+  <select id="r-reason">
+    <option value="vacation">Vacation</option>
+    <option value="appointment">Appointment</option>
+    <option value="personal">Personal</option>
+    <option value="other">Other</option>
+  </select>
+  <label>Note (optional)</label>
+  <input id="r-note" placeholder="e.g. beach week">
+  <div class="mrow">
+    <button class="m-cancel" onclick="closeRange()">Cancel</button>
+    <button class="m-save" onclick="saveRange()">Mark range off</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const OFFICE_AUTH_KEY='tn_office_auth_v1';
+const TECHS=[{id:1,name:'Teddy'},{id:2,name:'Jimmy'},{id:4,name:'Lee'},{id:3,name:'Andre'},{id:6,name:'John'}];
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW=['S','M','T','W','T','F','S'];
+let year=new Date().getFullYear();
+let techId=TECHS[0].id;
+let offDays={};        // 'YYYY-MM-DD' -> {reason, note}
+let modalDate=null;
+
+function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
+function initAuth(){ if(authValid()){document.getElementById('auth').classList.add('hidden');boot();return;} document.getElementById('pw').focus(); }
+async function submitAuth(){
+  const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
+  if(!v){err.textContent='Enter password';return;}
+  try{
+    const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+    const d=await r.json();
+    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');boot();}
+    else err.textContent='Wrong password.';
+  }catch(_){err.textContent='Connection error.';}
+}
+document.getElementById('pw').addEventListener('keypress',e=>{if(e.key==='Enter')submitAuth();});
+
+function boot(){ renderTechbar(); load(); }
+function renderTechbar(){
+  document.getElementById('techbar').innerHTML=TECHS.map(t=>`<button class="${t.id===techId?'on':''}" onclick="pickTech(${t.id})">${t.name}</button>`).join('');
+}
+function pickTech(id){ techId=id; renderTechbar(); load(); }
+function changeYear(d){ year+=d; document.getElementById('yr-label').textContent=year; load(); }
+
+function reasonClass(reason){
+  const r=(reason||'').toLowerCase();
+  if(r.includes('vacation'))return 'off-vacation';
+  if(r.includes('appoint')||r.includes('dr')||r.includes('appt'))return 'off-appt';
+  if(r.includes('personal')||r.includes('sick'))return 'off-personal';
+  return 'off-other';
+}
+function pad(n){return String(n).padStart(2,'0');}
+function ymd(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d);}
+
+async function load(){
+  document.getElementById('yr-label').textContent=year;
+  document.getElementById('host').innerHTML='<div class="loading">Loading…</div>';
+  offDays={};
+  try{
+    const rows=await (await fetch(XANO+'/tech_availability',{cache:'no-store'})).json();
+    (Array.isArray(rows)?rows:[]).forEach(r=>{
+      if(Number(r.technician_id)!==Number(techId))return;
+      if(!r.full_day_off)return;                       // only days marked OFF
+      const dt=(r.blocked_date||'');
+      if(dt.slice(0,4)!==String(year))return;
+      offDays[dt]={reason:r.reason||'other',note:r.reason||''};
+    });
+    render();
+  }catch(e){ document.getElementById('host').innerHTML='<div class="loading">⚠ '+e.message+'</div>'; }
+}
+
+function render(){
+  const todayStr=new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+  let html='<div class="months">';
+  for(let m=0;m<12;m++){
+    const first=new Date(year,m,1).getDay();
+    const days=new Date(year,m+1,0).getDate();
+    html+='<div class="mon"><h3>'+MONTHS[m]+'</h3><div class="grid">';
+    DOW.forEach(d=>html+='<div class="dow">'+d+'</div>');
+    for(let i=0;i<first;i++)html+='<div class="day empty"></div>';
+    for(let d=1;d<=days;d++){
+      const ds=ymd(year,m,d);
+      const off=offDays[ds];
+      const dow=new Date(year,m,d).getDay();
+      let cls='day'+(off?(' '+reasonClass(off.reason)):'')+((dow===0||dow===6)?' wknd':'')+(ds===todayStr?' today':'');
+      html+='<div class="'+cls+'" onclick="openDay(\''+ds+'\')" title="'+(off?(off.reason):'')+'">'+d+'</div>';
+    }
+    html+='</div></div>';
+  }
+  html+='</div>';
+  document.getElementById('host').innerHTML=html;
+}
+
+function openDay(ds){
+  modalDate=ds;
+  const off=offDays[ds];
+  const nm=(TECHS.find(t=>t.id===techId)||{}).name||'Tech';
+  document.getElementById('m-title').textContent=(off?'Time off — ':'Mark off — ')+nm;
+  document.getElementById('m-sub').textContent=new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  if(off){document.getElementById('m-reason').value=reasonOf(off.reason);document.getElementById('m-clear').style.display='block';}
+  else{document.getElementById('m-reason').value='vacation';document.getElementById('m-clear').style.display='none';}
+  document.getElementById('m-note').value='';
+  document.getElementById('scrim').classList.add('open');document.getElementById('modal').classList.add('open');
+}
+function reasonOf(r){r=(r||'').toLowerCase();if(r.includes('vacation'))return 'vacation';if(r.includes('appoint')||r.includes('appt'))return 'appointment';if(r.includes('personal'))return 'personal';return 'other';}
+function closeModal(){document.getElementById('scrim').classList.remove('open');document.getElementById('modal').classList.remove('open');}
+
+async function setOff(date,off,reason){
+  return (await fetch(XANO+'/tech_set_day_off',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:techId,date:date,off:off,reason:reason})})).json();
+}
+async function saveDay(){
+  const type=document.getElementById('m-reason').value;
+  const note=(document.getElementById('m-note').value||'').trim();
+  const reason=note?(type+': '+note):type;
+  toast('Saving…');
+  try{const d=await setOff(modalDate,true,reason); if(d&&!d.error){offDays[modalDate]={reason};toast('Marked off ✓');closeModal();render();} else toast('⚠ '+((d&&d.error)||'failed'));}
+  catch(_){toast('⚠ connection error');}
+}
+async function clearDay(){
+  toast('Clearing…');
+  try{const d=await setOff(modalDate,false,''); if(d&&!d.error){delete offDays[modalDate];toast('Cleared ✓');closeModal();render();} else toast('⚠ '+((d&&d.error)||'failed'));}
+  catch(_){toast('⚠ connection error');}
+}
+
+function openRange(){
+  const nm=(TECHS.find(t=>t.id===techId)||{}).name||'Tech';
+  document.getElementById('r-sub').textContent='For '+nm;
+  document.getElementById('rscrim').classList.add('open');document.getElementById('rmodal').classList.add('open');
+}
+function closeRange(){document.getElementById('rscrim').classList.remove('open');document.getElementById('rmodal').classList.remove('open');}
+async function saveRange(){
+  const from=document.getElementById('r-from').value, to=document.getElementById('r-to').value;
+  const type=document.getElementById('r-reason').value;
+  const note=(document.getElementById('r-note').value||'').trim();
+  const reason=note?(type+': '+note):type;
+  if(!from||!to){toast('Pick both dates');return;}
+  if(to<from){toast('End is before start');return;}
+  toast('Marking range…');
+  let cur=new Date(from+'T12:00:00'), end=new Date(to+'T12:00:00'), n=0, fail=0;
+  while(cur<=end){
+    const ds=cur.toLocaleDateString('en-CA');
+    try{const d=await setOff(ds,true,reason); if(d&&!d.error){offDays[ds]={reason};n++;} else fail++;}catch(_){fail++;}
+    cur.setDate(cur.getDate()+1);
+    if(n+fail>60)break; // safety
+  }
+  toast(n+' day'+(n===1?'':'s')+' off'+(fail?(' ('+fail+' failed)'):'')+' ✓');
+  closeRange();render();
+}
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove('show'),2400);}
+
+initAuth();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
