@@ -171,6 +171,20 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Dump voice-call config: transferCall destinations + analysis/summary + recording.
+  if (action === 'voice') {
+    const f = full.json || {};
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    const transfer = tools.find((t) => t.type === 'transferCall') || null;
+    return { statusCode: 200, body: JSON.stringify({
+      ok: true,
+      transferCall: transfer ? { destinations: transfer.destinations || transfer.function && transfer.function.destinations || null, raw: transfer } : 'NONE',
+      analysisPlan: f.analysisPlan || null,
+      artifactPlan: f.artifactPlan || null,
+      serverUrl: f.serverUrl || (f.server && f.server.url) || null,
+    }, null, 2) };
+  }
+
   // Pull the current system prompt.
   if (action === 'prompt') {
     const msgs = Array.isArray(model.messages) ? model.messages : [];
