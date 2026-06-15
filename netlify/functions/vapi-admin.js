@@ -171,5 +171,41 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // THE REAL FIX: the assistant's INLINE model.tools point straight at Xano, so
+  // Vapi bypasses the proxy and Xano 400s on the wrapped envelope. Repoint every
+  // inline function tool at the proxy. Drop the 5 that duplicate our standalone
+  // toolId tools (those already proxy + have the best descriptions). Leave
+  // transferCall / non-function tools alone.
+  if (action === 'fix') {
+    const ourNames = new Set(TOOLS.map((t) => t.name));
+    const inline = Array.isArray(model.tools) ? model.tools : [];
+    const before = inline.map((t) => ({ type: t.type, name: tname(t), url: (t.server && t.server.url) || '(none)' }));
+    const newTools = [];
+    const dropped = [];
+    const repointed = [];
+    for (const t of inline) {
+      if (t.type !== 'function') { newTools.push(t); continue; }
+      const n = tname(t);
+      if (ourNames.has(n)) { dropped.push(n); continue; } // covered by toolId version
+      const nt = Object.assign({}, t, { server: Object.assign({}, t.server, { url: PROXY }) });
+      newTools.push(nt);
+      repointed.push(n);
+    }
+    if (q.dryrun === '1') {
+      return { statusCode: 200, body: JSON.stringify({ ok: true, dryrun: true, before, would_repoint: repointed, would_drop_dupes: dropped, keep_toolIds: beforeIds.length }, null, 2) };
+    }
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vTools = (verify.json && verify.json.model && verify.json.model.tools) || [];
+    const after = vTools.map((t) => ({ type: t.type, name: tname(t), url: (t.server && t.server.url) || '(none)' }));
+    const stillXano = after.filter((t) => /xano\.io/.test(t.url)).map((t) => t.name);
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status,
+      repointed, dropped_dupes: dropped,
+      after, still_pointing_at_xano: stillXano,
+      verify_clean: stillXano.length === 0,
+    }, null, 2) };
+  }
+
   return { statusCode: 400, body: 'unknown action' };
 };
