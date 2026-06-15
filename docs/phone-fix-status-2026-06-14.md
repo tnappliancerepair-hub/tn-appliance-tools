@@ -1,76 +1,61 @@
-# 📞 Phone (Vapi) fix status — 2026-06-14 (resume here)
+# 📞 Phone (Vapi) fix — RESOLVED 2026-06-15
 
-Spent the evening chasing "Ant can't find the customer on calls." Root cause is
-fully diagnosed and the hard part is solved. What's left is a 2-minute Vapi
-attach + **Publish**.
+The "Ant can't find the customer on calls / No result returned" bug is **fixed
+and live**. Root cause was found with full visibility (not guessed), the fix is
+applied to the production assistant, and every tool was verified through the
+proxy.
 
-## The architecture (confirmed)
-- Live inbound assistant = **Ant Inbound**, Vapi account **tnappliance@gmail.com**
-  (production), Model = **Anthropic Claude Sonnet 4.5** (standard Vapi model +
-  Vapi server tools — NOT the custom-llm brain; the brain's internal executeTool
-  is NOT in this path).
-- Calls are **forwarded from the old RingCentral 615-280-2949** -> caller ID is
-  **masked** (shows the shop's own number). `lookup_customer_by_phone` returns
-  `caller_id_masked:true` so Ant should ask for name/claim. (Permanent fix =
-  finish the Telnyx port of 280-2949; until then masked is expected + handled.)
+## The real root cause (proven via Vapi's own call logs)
+Ant Inbound had **14 INLINE `model.tools`, every one pointing straight at Xano**
+(`…xano.io/api:3e_TffpA/<tool>`). Those inline definitions are what Vapi actually
+executed — they shadowed the 5 proxy-pointed `toolIds`. So Vapi sent its wrapped
+envelope `{message:{toolCallList:[…]}}` to flat Xano endpoints → Xano returned
+**HTTP 400** → Vapi reported **"No result returned."**
 
-## THE ROOT CAUSE (proven)
-Vapi POSTs tool calls wrapped in `{message:{toolCalls:[{function:{arguments}}]}}`
-and expects `{results:[{toolCallId,result}]}` back. Our **Xano endpoints take
-flat params and return flat JSON** -> Vapi shows **"No result returned."**
-- Proof: `curl` Xano lookup_by_claim_number with a flat body = match; with Vapi's
-  wrapped body = `ERROR_CODE_INPUT_ERROR: Missing param`.
-- GET tools (lookup_customer_by_phone) reach Xano (caller_id_masked fires) but
-  Vapi still rejects the flat response shape.
+Proof: `vapi-admin action=lastcall&raw=1` showed the server log event
+`requestUrl: …xano.io/…/lookup_by_claim_number, error: status code 400` — Vapi
+was calling Xano directly, never the proxy. `inspect` originally only checked
+`toolIds` (which DID point at the proxy), hiding the inline tools.
 
-## THE FIX (built + verified)
-`netlify/functions/vapi-tool.js` = a proxy that unwraps Vapi's envelope, calls
-the right Xano endpoint, and returns Vapi's `{results:[{toolCallId,result}]}`.
-- VERIFIED working: POST Vapi-shaped body to
-  `https://tnapplianceexchange.net/.netlify/functions/vapi-tool` with
-  `search_customers`/`lookup_by_claim_number` returns the customer + matching
-  toolCallId. e.g. "work order 22818" -> job 18527; "Sherri Rucker" -> id 4104.
-- All 5 tool configs in `vapi-config/tools/` already point at the proxy:
-  lookup_customer_by_phone, lookup_by_claim_number, search_customers,
-  voice_followup_send_links, capture_callback.
-- Proxy logs every call as `vapi_proxy_<name>_found|empty` (queryable via
-  `get_event_log_by_action`) so you can SEE if a real call hit it.
+## The fix (applied + verified)
+1. **`netlify/functions/vapi-tool.js` is now a generic envelope bridge.** It
+   unwraps Vapi's toolCallList/toolCalls, calls the right Xano endpoint flat
+   (GET vs POST verified against the `.xs` method suffixes), and returns Vapi's
+   `{results:[{toolCallId,result}]}`. It also **shapes the read-tool results
+   lean** (lookup_by_claim_number → `{found,primary}`; ~4KB → ~380 bytes) and
+   **strips `notes_internal`/`problem_*`** so internal diagnosis text never
+   enters the LLM context (Teddy's no-diagnosis rule).
+2. **All inline `model.tools` repointed to the proxy** (`vapi-admin action=fix`):
+   10 unique tools repointed, 4 duplicates dropped (covered by the standalone
+   proxy toolId tools), `transferCall` untouched. Read-back: `verify_clean:true`,
+   `still_pointing_at_xano:[]`.
+3. **Prompt AHS over-reference fixed** (`vapi-admin action=setprompt`): neutralized
+   the two AHS-branded references and added a hard rule — never name/assume a
+   warranty company unless the caller says it; ask generically for "your claim or
+   work-order number." Repo copy synced: `vapi-config/prompts/ant_inbound.md`.
 
-## WHAT'S LEFT (the 2-minute finish)
-The live Ant Inbound is still attached to **old/"Missing"/Xano** tool copies, not
-the proxy ones. Repeated script re-wires + dashboard edits left DUPLICATE tools,
-and the attach never stuck (assistant showed "Missing tool" = deleted refs).
+## Verified through the proxy (real Vapi-shaped POSTs)
+- `lookup_by_claim_number "22818"` → job 18527 (Demika Augustus), lean.
+- `search_customers "Rucker"` → Sherri Rucker (id 4104).
+- `check_service_zone 37013` → covered, suggests Lee.
+- `get_parts_status 18527` → parts snapshot.
 
-Do this in the Vapi dashboard (it's authoritative):
-1. **Tools list:** for each of the 5 names, make sure the copy you keep has
-   Server URL = `https://tnapplianceexchange.net/.netlify/functions/vapi-tool`.
-   Delete extra/Xano-pointing duplicates.
-2. **Ant Inbound -> Tools:** remove any "Missing tool" entries; attach the 5
-   proxy tools (they should show their NAME, not "Missing tool").
-3. **Click Publish** (top-right). <- the call runs the PUBLISHED version; this
-   step was likely missing.
-4. Test call: say **"work order 22818"** (digits transcribe reliably; names get
-   mangled — Deepgram heard "Sherri Rucker" as "Sherry Walker").
+## TEST IT
+Call any Ant Inbound number and say a **work order number** (digits transcribe
+far more reliably than names — Deepgram heard "Sherri" as "Sherry"):
+> "My work order number is two-two-eight-one-eight."
+Ant should read back the job (Demika Augustus, LG washer, scheduled, tech John).
 
-## How to verify it worked (from this repo)
-After a test call, check:
-`curl ".../get_event_log_by_action?action=vapi_proxy_lookup_by_claim_number_found"`
-If `last_at` is recent -> the chain connects: Ant -> proxy -> Xano -> answer.
+Verify from the repo after a call:
+`vapi-admin action=lastcall` → tool results should be JSON, not "No result
+returned." Proxy hits also log `vapi_proxy_<name>_found|empty` to event_log.
 
-## Tooling that exists
-- `scripts/vapi-wire-inbound.js --apply` — deletes+recreates the 5 tools on the
-  proxy and attaches them (the attach-persist is the flaky part; dashboard
-  Publish is the reliable backstop).
-- `scripts/vapi-inbound-prompt.js --pull/--apply` — manage the prompt as code.
+## Caller-ID note (separate, expected)
+Calls still forward from RingCentral 615-280-2949 → caller ID masked → phone
+lookup can't match. Ant handles it (asks for claim/WO/name). Permanent fix =
+finish the Telnyx port of 280-2949 pointed straight at Ant (CLAUDE.md TOMORROW).
 
-## Prompt note
-The brain/standard prompt should: on `caller_id_masked` or no phone match, NEVER
-say "can't find you" — ask for claim/WO (-> lookup_by_claim_number) or name (->
-search_customers), and only take a callback after actually calling the tools.
-That guidance is in `vapi-config/prompts/ant_inbound.md` +
-`docs/vapi-inbound-prompt-2026-06-14.md`.
-
-## Reminder: do NOT diagnose to the customer
-Per Teddy: Ant never tells the homeowner what's wrong / how to fix it / part
-numbers. Pre-diagnosis stays internal (right part on first visit). Honest answers
-to the customer belong in the paid, tech-reviewed self-checkout TDR later.
+## Cleanup owed
+`netlify/functions/vapi-admin.js` is a TEMPORARY cloud admin (guard
+`tn-vapi-admin-9f83b1c4e7a206d5`). Now that tools are wired, either delete it or
+move the guard to a vault secret if we want to keep remote Vapi management.
