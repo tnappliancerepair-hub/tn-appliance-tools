@@ -78,6 +78,35 @@ function nameVariants(tok) {
   return [...new Set([title, upper, lower, tok])];
 }
 
+// Substring search needs candidates in memory — the Metadata API has no working
+// contains operator (verified: $contains 400s, array-operator returns
+// UNFILTERED). Pull the most-recent ~4000 customers once per warm container
+// (covers the whole cutover-era population; older still found by exact match).
+let _cust = null, _custAt = 0;
+const CUST_TTL_MS = 10 * 60 * 1000;
+async function recentCustomers(tableId) {
+  if (_cust && (Date.now() - _custAt) < CUST_TTL_MS) return _cust;
+  const PER = 200, MAX_PAGES = 20, BATCH = 5;
+  const all = [];
+  let stop = false;
+  for (let base = 1; base <= MAX_PAGES && !stop; base += BATCH) {
+    const pages = [];
+    for (let p = base; p < base + BATCH && p <= MAX_PAGES; p++) pages.push(p);
+    const batches = await Promise.all(pages.map(async (p) => {
+      const r = await fetch(`${META}/table/${tableId}/content/search`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ search: {}, sort: { id: 'desc' }, per_page: PER, page: p }),
+      });
+      if (!r.ok) return [];
+      const j = await r.json().catch(() => ({}));
+      return (j.items || []);
+    }));
+    for (const rows of batches) { all.push(...rows); if (rows.length < PER) stop = true; }
+  }
+  _cust = all; _custAt = Date.now();
+  return all;
+}
+
 async function run(query) {
   const ids = await resolveIds();
   if (!ids.customer) return { success: false, error: 'could not resolve customer table id', resolved: ids };
@@ -87,7 +116,7 @@ async function run(query) {
   const digits = q.replace(/[^0-9]/g, '');
   const map = new Map();
 
-  // Phone branch
+  // Phone branch (exact, indexed, fast)
   if (digits.length >= 7) {
     const last10 = digits.slice(-10);
     const phoneForms = [...new Set([digits, last10, '+1' + last10])];
@@ -95,20 +124,29 @@ async function run(query) {
     results.forEach((rows) => uniqByIdPush(map, rows));
   }
 
-  // Name branch — every token (so middle names don't hide the last name),
-  // each as first_name AND last_name, in Title/UPPER/lower (Xano exact match
-  // is case-sensitive; warranty names are stored mixed-case).
+  // Name branch
   if (digits.length < q.length) {
+    // 1) Exact fast-path (catches ALL customers incl. old, precise last name).
     const tokens = q.split(/\s+/).filter((t) => t.length >= 2).slice(0, 4);
-    const jobs = [];
+    const exactJobs = [];
     for (const tok of tokens) {
       for (const v of nameVariants(tok)) {
-        jobs.push(searchField(ids.customer, 'last_name', v, 15));
-        jobs.push(searchField(ids.customer, 'first_name', v, 15));
+        exactJobs.push(searchField(ids.customer, 'last_name', v, 15));
+        exactJobs.push(searchField(ids.customer, 'first_name', v, 15));
       }
     }
-    const results = await Promise.all(jobs);
-    results.forEach((rows) => uniqByIdPush(map, rows));
+    // 2) Substring pass over recent customers (partials, suffixes "Young III",
+    //    middle names). Match if EVERY token appears in "first last" (any case).
+    const [exactResults, pool] = await Promise.all([
+      Promise.all(exactJobs),
+      recentCustomers(ids.customer),
+    ]);
+    exactResults.forEach((rows) => uniqByIdPush(map, rows));
+    const toks = tokens.map((t) => t.toLowerCase());
+    for (const c of pool) {
+      const hay = ((c.first_name || '') + ' ' + (c.last_name || '')).toLowerCase();
+      if (toks.length && toks.every((t) => hay.includes(t))) uniqByIdPush(map, [c]);
+    }
   }
 
   // Decorate (bounded): latest job + count for up to 12 matches.
