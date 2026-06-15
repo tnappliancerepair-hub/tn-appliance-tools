@@ -25,7 +25,13 @@ exports.handler = async function (event) {
       credentials: {
         accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY
-      }
+      },
+      // AWS SDK v3 otherwise bakes a default crc32 checksum of the EMPTY command
+      // body into the presigned URL -> every real file PUT fails the checksum and
+      // the upload silently dies. WHEN_REQUIRED keeps PutObject checksum-free so a
+      // plain browser PUT of the file works.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED"
     });
 
     const command = new PutObjectCommand({

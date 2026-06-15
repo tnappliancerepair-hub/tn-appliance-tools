@@ -140,9 +140,16 @@ async function uploadFile(file, fileType){ // fileType: 'video' | 'photo'
   const pres = await (await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key, mime_type:mime})})).json();
   if(!pres || !pres.upload_url) throw new Error('presign failed');
   const put = await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':mime},body:file});
-  if(!put.ok) throw new Error('upload failed');
+  if(!put.ok) throw new Error('upload failed '+put.status);
   await fetch(XANO+'/save_attachment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attachment_id:gen.attachment_id, file_size_bytes:file.size||0})});
   return true;
+}
+// Fire-and-forget with one retry. The job is created after payment, so background
+// uploads finish well before the conversation_id auto-link runs. Never blocks the funnel.
+function uploadInBackground(file, fileType){
+  state.uploads = state.uploads || [];
+  const p = uploadFile(file, fileType).catch(()=> uploadFile(file, fileType)).catch(e=>{ try{console.warn('upload failed',e);}catch(_){ } });
+  state.uploads.push(p);
 }
 
 const APPLIANCES = [
@@ -215,12 +222,11 @@ function capVideo(){
   const w=document.createElement('div'); w.className='capture';
   w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>';
   FLOW.appendChild(w);
-  document.getElementById('vfile').onchange=async e=>{
+  document.getElementById('vfile').onchange=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
-    const b=document.getElementById('vbtn'); const lbl=b.querySelector('span:last-child');
-    b.classList.add('busy'); lbl.textContent='Uploading your video…';
-    try{ await uploadFile(file,'video'); state.video=true; b.classList.remove('busy'); b.classList.add('done'); lbl.textContent='✓ Video added — nice'; setTimeout(()=>{clearFlow(); think(500, capModel);},700); }
-    catch(_){ b.classList.remove('busy'); lbl.textContent='⚠ Upload hiccup — tap to try again'; }
+    state.video=true; uploadInBackground(file,'video');   // upload in background, keep moving
+    const b=document.getElementById('vbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Video added — nice';
+    setTimeout(()=>{clearFlow(); think(500, capModel);},700);
   };
 }
 function capModel(){
@@ -229,12 +235,11 @@ function capModel(){
   const w=document.createElement('div'); w.className='capture';
   w.innerHTML='<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to photograph the model sticker</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile"></label>';
   FLOW.appendChild(w);
-  document.getElementById('mfile').onchange=async e=>{
+  document.getElementById('mfile').onchange=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
-    const b=document.getElementById('mbtn'); const lbl=b.querySelector('span:last-child');
-    b.classList.add('busy'); lbl.textContent='Uploading the photo…';
-    try{ await uploadFile(file,'photo'); state.model=true; b.classList.remove('busy'); b.classList.add('done'); lbl.textContent='✓ Got it — reading the model now'; setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect — I can read it. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},700); }
-    catch(_){ b.classList.remove('busy'); lbl.textContent='⚠ Upload hiccup — tap to try again'; }
+    state.model=true; uploadInBackground(file,'photo');   // upload in background, keep moving
+    const b=document.getElementById('mbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Got it — reading the model now';
+    setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect — I can read it. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},700);
   };
 }
 
