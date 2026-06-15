@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>You're all set · TN Appliance Exchange</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+  :root{--black:#050505;--orange:#ff6200;--green:#39ff14;--white:#f0f0f0;--gray:#888;--mono:'Geist Mono',monospace;--serif:'Instrument Serif',serif;--block:'Bebas Neue',sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--black);color:var(--white);font-family:var(--mono);min-height:100%;}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 22px;min-height:100vh;}
+  .orb-wrap{position:relative;width:110px;height:110px;display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+  .orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 45%,#ff7c28,#ff6200 45%,#7a2f00);box-shadow:0 0 40px 6px rgba(255,98,0,.5);animation:breathe 3s ease-in-out infinite;}
+  .orb.ok{background:radial-gradient(circle at 50% 45%,#7dff5e,#39ff14 50%,#0d5e00);box-shadow:0 0 44px 8px rgba(57,255,20,.45);}
+  .ant{position:relative;z-index:2;font-size:44px;}
+  @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.07);}}
+  h1{font-family:var(--serif);font-style:italic;font-size:34px;font-weight:400;margin-bottom:14px;}
+  h1 .a{color:var(--green);}
+  p{color:var(--gray);font-size:15px;line-height:1.6;max-width:440px;margin:0 auto 10px;}
+  p b{color:var(--white);font-weight:500;}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:14px;}
+  .muted{font-size:12px;color:#555;margin-top:24px;}
+  .muted a{color:var(--gray);}
+</style></head><body>
+  <div class="orb-wrap"><div class="orb" id="orb"></div><div class="ant">🐜</div></div>
+  <div class="kicker" id="kicker">Confirming your Quick Check…</div>
+  <h1 id="head">One sec…</h1>
+  <p id="msg">Locking in your $50 Quick Check.</p>
+  <div class="muted">TN Appliance Exchange · <a href="/appliance-ai.html">Back to Ant</a></div>
+<script>
+const sid = new URLSearchParams(location.search).get('session_id');
+const orb=document.getElementById('orb'), head=document.getElementById('head'), msg=document.getElementById('msg'), kicker=document.getElementById('kicker');
+async function go(){
+  if(!sid){ head.textContent='Hmm —'; msg.textContent='We couldn\'t find your payment session. If you were charged, text us at 866-268-0111 and we\'ll sort it instantly.'; return; }
+  try{
+    const r=await fetch('/.netlify/functions/verify-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid})});
+    const d=await r.json();
+    if(d&&d.ok&&d.paid){
+      orb.classList.add('ok');
+      kicker.textContent='Quick Check confirmed';
+      head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'.</span>';
+      msg.innerHTML='Our tech is reviewing your video right now. You\'ll have your <b>honest assessment and your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Keep an eye on your phone. 🐜';
+    } else {
+      head.textContent='Almost —';
+      msg.innerHTML='We didn\'t see the payment complete yet. If you were charged, text <b>866-268-0111</b> and we\'ll take care of you right away.';
+    }
+  }catch(_){ head.textContent='Almost —'; msg.innerHTML='Something hiccuped confirming. If you were charged, text <b>866-268-0111</b> — we\'ve got you.'; }
+}
+go();
+</script>
+</body></html>
