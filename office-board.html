@@ -204,6 +204,11 @@ function jobRegion(j){
   const st=(((j.service_state||'')+'').trim()||smState).toUpperCase();
   if(st==='LA'||st==='LOUISIANA') return 'NOLA';
   if(st==='TN'||st==='TENNESSEE') return 'TN';
+  // Zip is ground-truth for WHERE the job is — intake often leaves service_state
+  // blank, which was filing NOLA jobs into TN. LA zips are 70xxx/71xxx, TN 37/38xxx.
+  const zip=((j.service_zip||'')+'').replace(/\D/g,'').slice(0,5);
+  if(/^7[01]/.test(zip)) return 'NOLA';
+  if(/^3[78]/.test(zip)) return 'TN';
   if(j.technician_id && TECH_REGION[j.technician_id]) return TECH_REGION[j.technician_id];
   if(NOLA_CITY.test((j.service_city||'')+' '+(j.service_zip||''))) return 'NOLA';
   return 'TN';
