@@ -55,6 +55,19 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Phone-number routing: does the dialed number use an assistantId or a
+  // server/assistant-request URL? This decides where the fix goes.
+  if (action === 'phones') {
+    const phones = listFrom(await vapi('GET', '/phone-number?limit=100', key));
+    return { statusCode: 200, body: JSON.stringify(phones.map((p) => ({
+      number: p.number, name: p.name,
+      assistantId: p.assistantId || null,
+      serverUrl: (p.server && p.server.url) || p.serverUrl || null,
+      fallbackAssistantId: p.fallbackDestination && p.fallbackDestination.assistantId || null,
+      squadId: p.squadId || null,
+    })), null, 2) };
+  }
+
   // Find Ant Inbound
   const aResp = await vapi('GET', '/assistant?limit=100', key);
   const inbound = listFrom(aResp).find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
