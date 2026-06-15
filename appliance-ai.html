@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ant — The Appliance AI · TN Appliance Exchange</title>
+<meta name="description" content="The AI for appliance repair. Tell Ant what's wrong — get an honest answer in hours. $50 Quick Check, credited to your repair.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black:#050505; --surface:#0c0c0c; --surf2:#111; --border:#1a1a1a; --bord2:#252525;
+    --orange:#ff6200; --oran2:#ff7c28; --green:#39ff14; --white:#f0f0f0; --gray:#888; --gray2:#333;
+    --mono:'Geist Mono',monospace; --serif:'Instrument Serif',serif; --block:'Bebas Neue',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{background:var(--black);color:var(--white);font-family:var(--mono);min-height:100%;}
+  body{display:flex;flex-direction:column;align-items:center;padding:22px 18px 60px;overflow-x:hidden;}
+  a{color:var(--orange);}
+  /* top */
+  .top{width:100%;max-width:640px;display:flex;align-items:center;justify-content:space-between;margin-bottom:30px;}
+  .brand{font-family:var(--block);font-size:20px;letter-spacing:.07em;color:var(--white);}
+  .brand .x{color:var(--orange);}
+  .top .ph{font-size:12px;color:var(--gray);text-decoration:none;border:1px solid var(--bord2);padding:7px 12px;border-radius:8px;}
+  /* the breathing orb */
+  .stage{width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .orb-wrap{position:relative;width:120px;height:120px;margin:18px 0 22px;display:flex;align-items:center;justify-content:center;}
+  .orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 45%, #ff7c28 0%, #ff6200 45%, #7a2f00 100%);
+    box-shadow:0 0 40px 6px rgba(255,98,0,.55), inset 0 0 30px rgba(0,0,0,.35);animation:breathe 3.4s ease-in-out infinite;}
+  .orb::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(255,98,0,.25);animation:ring 3.4s ease-in-out infinite;}
+  .orb-ant{position:relative;z-index:2;font-size:46px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));animation:bob 3.4s ease-in-out infinite;}
+  @keyframes breathe{0%,100%{transform:scale(1);box-shadow:0 0 36px 4px rgba(255,98,0,.45),inset 0 0 30px rgba(0,0,0,.35);}50%{transform:scale(1.07);box-shadow:0 0 60px 12px rgba(255,98,0,.7),inset 0 0 30px rgba(0,0,0,.3);}}
+  @keyframes ring{0%,100%{transform:scale(1);opacity:.4;}50%{transform:scale(1.12);opacity:.1;}}
+  @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+  .orb.thinking{animation-duration:1s;}
+  /* headline */
+  h1{font-family:var(--serif);font-size:34px;font-weight:400;line-height:1.12;margin-bottom:10px;letter-spacing:.01em;}
+  h1 .accent{color:var(--orange);font-style:italic;text-shadow:0 0 22px rgba(255,98,0,.45);}
+  .sub{font-size:13px;color:var(--gray);max-width:420px;margin:0 auto 4px;line-height:1.5;}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);opacity:.85;margin-bottom:14px;}
+  /* conversation */
+  .convo{width:100%;max-width:560px;margin-top:26px;display:flex;flex-direction:column;gap:12px;}
+  .msg{align-self:flex-start;max-width:88%;background:var(--surf2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:4px;padding:12px 15px;font-size:14px;line-height:1.45;color:var(--white);}
+  .msg.you{align-self:flex-end;background:var(--orange);color:#000;border-top-right-radius:4px;border-top-left-radius:14px;border-color:var(--orange);font-weight:500;}
+  .typing{display:inline-flex;gap:4px;align-items:center;}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--gray);display:inline-block;animation:tdot 1.1s infinite;}
+  .typing i:nth-child(2){animation-delay:.18s;} .typing i:nth-child(3){animation-delay:.36s;}
+  @keyframes tdot{0%,60%,100%{opacity:.25;transform:translateY(0);}30%{opacity:1;transform:translateY(-3px);}}
+  /* choices — big, caveman-obvious */
+  .choices{width:100%;max-width:560px;display:grid;gap:10px;margin-top:6px;}
+  .choices.grid2{grid-template-columns:1fr 1fr;}
+  .choices.grid3{grid-template-columns:1fr 1fr 1fr;}
+  .choice{background:var(--surface);border:1px solid var(--bord2);border-radius:13px;padding:16px 14px;font-family:var(--mono);font-size:15px;color:var(--white);
+    cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;transition:.12s;min-height:76px;justify-content:center;text-align:center;}
+  .choice .emo{font-size:26px;}
+  .choice:hover,.choice:active{border-color:var(--orange);background:rgba(255,98,0,.07);color:var(--orange);transform:translateY(-2px);}
+  .choice.wide{grid-column:1/-1;flex-direction:row;gap:10px;font-weight:500;}
+  /* type/talk bar */
+  .askbar{width:100%;max-width:560px;margin-top:14px;display:flex;gap:8px;align-items:center;}
+  .askbar input{flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:24px;padding:13px 16px;color:var(--white);font-family:var(--mono);font-size:14px;}
+  .askbar input:focus{outline:none;border-color:var(--orange);}
+  .askbar button{flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid var(--bord2);background:var(--surface);color:var(--white);font-size:17px;cursor:pointer;}
+  .askbar button.send{background:var(--orange);color:#000;border-color:var(--orange);}
+  .askbar .hint{display:none;}
+  .or{font-size:11px;color:var(--gray2);text-transform:uppercase;letter-spacing:.16em;margin:14px 0 2px;}
+  /* value strip */
+  .value{width:100%;max-width:560px;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px;}
+  .value div{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:11px 12px;font-size:12px;color:var(--gray);line-height:1.4;}
+  .value b{color:var(--white);font-weight:500;}
+  /* consent gate */
+  .consent{width:100%;max-width:560px;background:#0d0d0d;border:2px solid var(--orange);border-radius:16px;padding:20px 18px;margin-top:8px;}
+  .consent h3{font-family:var(--block);font-size:18px;letter-spacing:.04em;margin-bottom:8px;}
+  .consent p{font-size:13px;color:var(--gray);line-height:1.5;margin-bottom:14px;}
+  .consent p b{color:var(--white);font-weight:500;}
+  .consent .row{display:flex;gap:10px;}
+  .consent .row button{flex:1;padding:13px;border-radius:10px;font-family:var(--mono);font-size:14px;font-weight:500;cursor:pointer;}
+  .c-yes{background:var(--orange);border:1.5px solid var(--orange);color:#000;}
+  .c-no{background:transparent;border:1.5px solid var(--gray2);color:var(--gray);}
+  .consent .fine{font-size:11px;color:var(--gray2);margin-top:12px;line-height:1.5;}
+  .consent .fine a{color:var(--gray);}
+  /* field */
+  .field{width:100%;max-width:560px;display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+  .field input,.field textarea{background:var(--surf2);border:1px solid var(--border);border-radius:11px;padding:13px 14px;color:var(--white);font-family:var(--mono);font-size:15px;}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--orange);}
+  .field .go{background:var(--orange);color:#000;border:0;border-radius:11px;padding:15px;font-family:var(--mono);font-weight:500;font-size:15px;cursor:pointer;margin-top:4px;}
+  .capture{width:100%;max-width:560px;margin-top:6px;}
+  .cap-btn{width:100%;background:var(--surface);border:1.5px dashed var(--bord2);border-radius:13px;padding:22px;color:var(--white);font-family:var(--mono);font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .cap-btn .emo{font-size:30px;}
+  .cap-btn.done{border-style:solid;border-color:var(--green);color:var(--green);}
+  .pay{width:100%;max-width:560px;margin-top:6px;}
+  .pay .amt{font-family:var(--block);font-size:46px;color:var(--orange);text-align:center;letter-spacing:.02em;text-shadow:0 0 24px rgba(255,98,0,.4);}
+  .pay .amtsub{text-align:center;font-size:12px;color:var(--gray);margin-bottom:14px;}
+  .pay .go{width:100%;background:var(--orange);color:#000;border:0;border-radius:13px;padding:17px;font-family:var(--mono);font-weight:500;font-size:16px;cursor:pointer;}
+  .footer{margin-top:40px;font-size:11px;color:var(--gray2);text-align:center;}
+  .footer a{color:var(--gray);}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand">TN APPLIANCE<span class="x">.</span></div>
+    <a class="ph" href="tel:+18662680111">📞 866-268-0111</a>
+  </div>
+
+  <div class="stage">
+    <div class="orb-wrap"><div class="orb" id="orb"></div><div class="orb-ant">🐜</div></div>
+    <div class="kicker">The Appliance AI</div>
+    <h1 id="head">What's going on with <span class="accent">your appliance?</span></h1>
+    <div class="sub" id="sub">Tap what's broken — I'll figure it out with you. Honest answer, fast.</div>
+  </div>
+
+  <!-- dynamic flow renders here -->
+  <div id="flow" style="width:100%;display:flex;flex-direction:column;align-items:center"></div>
+
+  <div class="footer">
+    TN Appliance Exchange LLC · Tennessee &amp; Louisiana ·
+    <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a>
+  </div>
+
+<script>
+const FLOW = document.getElementById('flow');
+const ORB = document.getElementById('orb');
+const HEAD = document.getElementById('head');
+const SUB = document.getElementById('sub');
+const state = { appliance:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', zip:'', warranty:'', claim:'' };
+
+const APPLIANCES = [
+  ['🧊','Refrigerator'],['🌀','Washer'],['🔥','Dryer'],
+  ['🍽️','Dishwasher'],['♨️','Oven / Stove'],['📡','Microwave'],
+  ['❄️','Freezer'],['➕','Something else'],
+];
+const PROBLEMS = {
+  Refrigerator:['Not cooling','Leaking water','Making noise','Ice maker out','Won\'t run','Something else'],
+  Washer:['Won\'t start','Won\'t drain','Won\'t spin','Leaking','Loud / shaking','Something else'],
+  Dryer:['No heat','Won\'t start','Won\'t spin','Takes forever','Noisy','Something else'],
+  Dishwasher:['Not cleaning','Won\'t drain','Won\'t start','Leaking','Something else'],
+  default:['Won\'t turn on','Not working right','Leaking','Making noise','Something else'],
+};
+
+function setHead(h, s){ HEAD.innerHTML = h; SUB.textContent = s || ''; }
+function clearFlow(){ FLOW.innerHTML=''; }
+function think(ms, cb){ ORB.classList.add('thinking'); const t=document.createElement('div'); t.className='convo'; t.innerHTML='<div class="msg"><span class="typing"><i></i><i></i><i></i></span></div>'; FLOW.appendChild(t); setTimeout(()=>{ ORB.classList.remove('thinking'); t.remove(); cb(); }, ms); }
+function antMsg(html){ const c=document.createElement('div'); c.className='convo'; c.innerHTML='<div class="msg">'+html+'</div>'; FLOW.appendChild(c); c.scrollIntoView({behavior:'smooth',block:'center'}); }
+function youMsg(t){ const c=document.createElement('div'); c.className='convo'; c.innerHTML='<div class="msg you">'+esc(t)+'</div>'; FLOW.appendChild(c); }
+function choices(items, cb, cls){ const d=document.createElement('div'); d.className='choices '+(cls||''); items.forEach(it=>{ const b=document.createElement('div'); b.className='choice'+(it.wide?' wide':''); b.innerHTML=(it.emo?('<span class="emo">'+it.emo+'</span>'):'')+'<span>'+esc(it.label)+'</span>'; b.onclick=()=>cb(it); d.appendChild(b); }); FLOW.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'center'}); return d; }
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// ── STEP 1: appliance ──
+function start(){
+  clearFlow();
+  choices(APPLIANCES.map(a=>({emo:a[0],label:a[1]})), pickAppliance, 'grid2');
+  const bar=document.createElement('div'); bar.className='askbar';
+  bar.innerHTML='<input id="ask" placeholder="…or just type or talk to me" autocomplete="off"><button id="mic" title="Talk">🎤</button><button class="send" id="snd" title="Send">➤</button>';
+  FLOW.appendChild(bar);
+  document.getElementById('snd').onclick=()=>{ const v=document.getElementById('ask').value.trim(); if(v){ youMsg(v); state.appliance='(typed) '+v; think(700,askProblemTyped); } };
+  document.getElementById('ask').addEventListener('keypress',e=>{if(e.key==='Enter')document.getElementById('snd').click();});
+  document.getElementById('mic').onclick=voice;
+}
+function pickAppliance(it){ state.appliance=it.label; clearFlow(); setHead('Got it — your <span class="accent">'+esc(it.label.toLowerCase())+'</span>.','Now, what\'s it doing?'); youMsg(it.label); think(650, askProblem); }
+function askProblem(){
+  antMsg('What\'s it doing? Tap the closest one.');
+  const list=(PROBLEMS[state.appliance]||PROBLEMS.default).map(p=>({label:p}));
+  choices(list, p=>{ state.problem=p.label; youMsg(p.label); clearFlow(); think(600, askPayer); });
+}
+function askProblemTyped(){ antMsg('Okay — I\'ve got the gist. One quick thing first:'); think(500, askPayer); }
+
+// ── STEP: warranty vs cash ──
+function askPayer(){
+  setHead('Quick question.','This decides the fastest path for you.');
+  antMsg('Is this repair covered by a <b>home warranty</b> (AHS, ServicePower, Frontdoor, etc.) — or are you <b>paying out of pocket</b>?');
+  choices([{emo:'🛡️',label:'I have a warranty'},{emo:'💵',label:'I\'m paying myself'}], it=>{
+    state.payer = it.label.indexOf('warranty')>-1 ? 'warranty':'cash';
+    youMsg(it.label); clearFlow();
+    think(700, state.payer==='cash' ? pitchQuickCheck : warrantyPath);
+  }, 'grid2');
+}
+
+// ── CASH: $50 quick check pitch ──
+function pitchQuickCheck(){
+  setHead('Let\'s do the <span class="accent">$50 Quick Check</span>.','Honest answer in hours. Credited to your repair.');
+  antMsg('Here\'s how I\'ll get you a real answer fast — for <b>$50</b> (and it comes right off your repair if you go ahead):');
+  const v=document.createElement('div'); v.className='value';
+  v.innerHTML='<div><b>Honest answer in hours</b> — not days of waiting.</div>'
+    +'<div><b>$50, not $125+</b> — most shops charge that just to show up.</div>'
+    +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>'
+    +'<div><b>We\'ll tell you the truth</b> — even "don\'t fix it."</div>';
+  FLOW.appendChild(v);
+  choices([{emo:'📹',label:'Start my Quick Check',wide:true}], ()=>{ clearFlow(); think(500, capVideo); });
+}
+function capVideo(){
+  setHead('Show me the <span class="accent">problem.</span>','A 10-second video tells me more than 100 words.');
+  antMsg('Point your camera at the '+esc(state.appliance.toLowerCase())+' and show me what it\'s doing — about 10 seconds is perfect.');
+  const w=document.createElement('div'); w.className='capture';
+  w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>';
+  FLOW.appendChild(w);
+  document.getElementById('vfile').onchange=e=>{ if(e.target.files&&e.target.files[0]){ state.video=true; const b=document.getElementById('vbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Video added — nice'; setTimeout(()=>{clearFlow(); think(500, capModel);},700);} };
+}
+function capModel(){
+  setHead('Now the <span class="accent">model number.</span>','Usually on a sticker inside the door or on the back.');
+  antMsg('Snap a photo of the model sticker — that\'s how I get you the exact part and the real price.');
+  const w=document.createElement('div'); w.className='capture';
+  w.innerHTML='<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to photograph the model sticker</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile"></label>';
+  FLOW.appendChild(w);
+  document.getElementById('mfile').onchange=e=>{ if(e.target.files&&e.target.files[0]){ state.model=true; const b=document.getElementById('mbtn'); b.classList.add('done'); b.querySelector('span:last-child').textContent='✓ Got it — reading the model now'; setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect — I can read it. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},700);} };
+}
+
+// ── SMS CONSENT GATE (TCR / A2P compliance — preserved) ──
+function consentGate(){
+  setHead('How should we <span class="accent">reach you?</span>','We\'ll text your answer + options when they\'re ready.');
+  const c=document.createElement('div'); c.className='consent';
+  c.innerHTML='<h3>📲 Text me my results</h3>'
+    +'<p>By tapping <b>Yes</b>, you agree to receive text messages from <b>TN Appliance Exchange</b> about your repair (your diagnosis, options, and scheduling). Message &amp; data rates may apply. Message frequency varies. Reply <b>STOP</b> to opt out, <b>HELP</b> for help.</p>'
+    +'<div class="row"><button class="c-yes" id="cy">Yes, text me</button><button class="c-no" id="cn">No texts</button></div>'
+    +'<div class="fine">Consent is not a condition of purchase. See our <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms</a>.</div>';
+  FLOW.appendChild(c); c.scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('cy').onclick=()=>{ state.smsConsent=true; clearFlow(); collectContact(); };
+  document.getElementById('cn').onclick=()=>{ state.smsConsent=false; clearFlow(); antMsg('No problem — we\'ll call you instead. What\'s the best number + your ZIP?'); collectContact(); };
+}
+function collectContact(){
+  setHead('Almost done.','Where do we send your honest answer?');
+  const f=document.createElement('div'); f.className='field';
+  f.innerHTML='<input id="f-name" placeholder="Your name" autocomplete="name">'
+    +'<input id="f-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
+    +'<input id="f-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
+    +'<button class="go" id="f-go">Continue to payment →</button>';
+  FLOW.appendChild(f);
+  document.getElementById('f-go').onclick=()=>{
+    state.name=document.getElementById('f-name').value.trim();
+    state.phone=document.getElementById('f-phone').value.trim();
+    state.zip=document.getElementById('f-zip').value.trim();
+    if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.zip){ alert('Please add your name, a valid phone, and ZIP.'); return; }
+    clearFlow(); think(500, payStep);
+  };
+}
+function payStep(){
+  setHead('Lock in your <span class="accent">Quick Check.</span>','$50 now — credited to your repair.');
+  const p=document.createElement('div'); p.className='pay';
+  p.innerHTML='<div class="amt">$50</div><div class="amtsub">Credited to your repair · honest answer within 2 business hours</div>'
+    +'<button class="go" id="pay-go">Pay $50 &amp; get my answer →</button>';
+  FLOW.appendChild(p);
+  // NOTE: payment + intake wiring (Stripe $50 + create_job_from_call + cash-call siren) hooks in here.
+  document.getElementById('pay-go').onclick=()=>{ clearFlow(); think(900, done); };
+}
+function done(){
+  setHead('You\'re <span class="accent">all set.</span> 🎉','');
+  antMsg('Got everything, '+esc(state.name.split(' ')[0]||'')+'. Our tech is reviewing your video right now. You\'ll have your <b>honest assessment + your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Hang tight. 🐜');
+}
+
+// ── WARRANTY path ──
+function warrantyPath(){
+  setHead('You\'re <span class="accent">covered.</span>','Let\'s get you on the schedule — no charge.');
+  antMsg('Great — since it\'s under warranty, there\'s no Quick Check fee. I just need a couple things to get you scheduled.');
+  const f=document.createElement('div'); f.className='field';
+  f.innerHTML='<input id="w-co" placeholder="Warranty company (AHS, ServicePower…)">'
+    +'<input id="w-claim" placeholder="Claim / authorization # (if you have it)">'
+    +'<input id="w-name" placeholder="Your name" autocomplete="name">'
+    +'<input id="w-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
+    +'<input id="w-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
+    +'<button class="go" id="w-go">Get me scheduled →</button>';
+  FLOW.appendChild(f);
+  document.getElementById('w-go').onclick=()=>{
+    const nm=document.getElementById('w-name').value.trim(), ph=document.getElementById('w-phone').value.trim();
+    if(!nm||ph.replace(/\D/g,'').length<10){ alert('Please add your name and a valid phone.'); return; }
+    clearFlow(); think(800, ()=>{ setHead('Got it — <span class="accent">we\'re on it.</span>','');
+      antMsg('Thanks '+esc(nm.split(' ')[0])+'. We\'ve got your '+esc(state.appliance.toLowerCase())+' and we\'ll reach out to lock in your day. You\'ll get a text/call from our office shortly. 🐜'); });
+  };
+}
+
+// voice (browser speech-to-text)
+function voice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ document.getElementById('ask').placeholder='Type it — voice not supported here'; return; }
+  const r=new SR(); r.lang='en-US'; r.interimResults=true; let txt='';
+  ORB.classList.add('thinking');
+  r.onresult=e=>{ txt=''; for(const x of e.results) txt+=x[0].transcript; const a=document.getElementById('ask'); if(a)a.value=txt; };
+  r.onend=()=>{ ORB.classList.remove('thinking'); if((document.getElementById('ask').value||'').trim()) document.getElementById('snd').click(); };
+  r.onerror=()=>ORB.classList.remove('thinking');
+  r.start();
+}
+
+start();
+</script>
+</body>
+</html>
