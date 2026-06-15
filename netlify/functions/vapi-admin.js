@@ -55,6 +55,14 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  if (action === 'env') {
+    return { statusCode: 200, body: JSON.stringify({
+      ok: true,
+      has_metadata_token: !!process.env.XANO_METADATA_TOKEN,
+      has_vapi_key_env: !!process.env.VAPI_PRIVATE_KEY,
+    }) };
+  }
+
   // Dump the most recent call's tool activity (name, server URL, args, result/error).
   if (action === 'lastcall') {
     const calls = listFrom(await vapi('GET', '/call?limit=5', key));
@@ -71,6 +79,22 @@ exports.handler = async function (event) {
       if (m.role === 'tool_call_result' || m.role === 'tool') {
         toolEvents.push({ kind: 'result', name: m.name, result: String(m.result || m.content || '').slice(0, 300) });
       }
+    }
+    // raw=1: dump the full tool-related message objects + any Vapi server logs,
+    // so we can see EXACTLY what Vapi sent our proxy and what it got back.
+    if (q.raw === '1') {
+      const rawTool = msgs.filter((m) => /tool/i.test(m.role || '') || m.toolCalls || m.toolCallId);
+      const logs = await vapi('GET', `/logs?callId=${c.id}&limit=50`, key);
+      const logRows = listFrom(logs);
+      const serverEvents = logRows
+        .filter((l) => /tool|server|request/i.test(JSON.stringify(l).slice(0, 200)))
+        .map((l) => ({ type: l.type, requestUrl: l.requestUrl || (l.request && l.request.url), responseStatus: l.responseHttpStatus || (l.response && l.response.status), error: l.error, body: typeof l.requestBody === 'object' ? l.requestBody : undefined }));
+      return { statusCode: 200, body: JSON.stringify({
+        ok: true, call_id: c.id,
+        raw_tool_messages: rawTool,
+        server_log_events: serverEvents.slice(0, 20),
+        log_count: logRows.length,
+      }, null, 2) };
     }
     return { statusCode: 200, body: JSON.stringify({
       ok: true,
