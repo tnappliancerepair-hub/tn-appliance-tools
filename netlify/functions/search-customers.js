@@ -136,6 +136,27 @@ exports.handler = async function (event) {
       const ids = await resolveIds();
       return { statusCode: 200, body: JSON.stringify({ ok: true, resolved: ids }) };
     }
+    // Probe which metadata search shapes support substring/contains. ?debug=Brum
+    if (qp.debug) {
+      const ids = await resolveIds();
+      const term = qp.debug;
+      const shapes = {
+        exact: { search: { last_name: term }, per_page: 5 },
+        op_contains: { search: { last_name: { '$contains': term } }, per_page: 5 },
+        arr_contains: { search: [{ field: 'last_name', operator: 'contains', value: term }], per_page: 5 },
+        arr_includes: { search: [{ field: 'last_name', operator: 'includes', value: term }], per_page: 5 },
+      };
+      const out = {};
+      for (const [k, body] of Object.entries(shapes)) {
+        try {
+          const r = await fetch(`${META}/table/${ids.customer}/content/search`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+          const j = await r.json().catch(() => ({}));
+          out[k] = { status: r.status, count: (j.items || []).length, sample: (j.items || []).slice(0, 2).map((c) => c.first_name + ' ' + c.last_name) };
+        } catch (e) { out[k] = { error: String(e.message) }; }
+      }
+      // Also: what does Victor's record actually look like? find by dispatch via jobs
+      return { statusCode: 200, body: JSON.stringify({ ok: true, customer_table: ids.customer, term, shapes: out }, null, 2) };
+    }
     let query = qp.q || qp.query || '';
     if (!query && event.body) { try { query = (JSON.parse(event.body) || {}).query || ''; } catch (_) {} }
     const data = await run(query);
