@@ -33,14 +33,24 @@ Then kickstart the loop (for the route-fill helper):
 `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`
 Ignore "table does not exist" warnings.
 
-## 2. Phone (Vapi) — secured, just verify
-- ✅ Our tools wired onto Ant Inbound (`vapi-wire-inbound.js --apply` done).
-- [ ] **Test call**: give a claim/WO # (reads status + day), ask something it
-      can't answer (lands in 📲 Callbacks), confirm no mis-greet.
-- [ ] **transferCall** destination = a number that rings (dashboard).
-- [ ] **Analysis → Summary** on (dashboard).
+## 2. Phone (Vapi) — FIXED 2026-06-15 (tool calls now actually work)
+- ✅ **Root cause fixed:** Ant Inbound had 14 INLINE `model.tools` pointing
+      straight at Xano, so Vapi sent its wrapped envelope to flat endpoints ->
+      400 -> "No result returned." ALL tools now route through the `vapi-tool`
+      proxy (generic envelope bridge). Verified end-to-end; Teddy confirmed
+      live: "It works!!!!!!!"
+- ✅ **Lean + safe results:** proxy shapes read results (~4KB -> ~380b) and
+      strips internal diagnosis notes from the LLM context.
+- ✅ **Prompt:** no longer leads with "AHS" — asks generically for claim/WO #.
+- ✅ **Call Summary ON** so the call log + daily `vapi_call_review` have content.
+- ✅ **transferCall destinations correct** (Teddy +16154855795, Danielle
+      +16154850713). Earlier `error-transfer-failed` = RingCentral double-hop
+      (can't transfer an already-forwarded call); the Telnyx port fixes it.
 - Permanent caller-ID fix = port 615-280-2949 to Telnyx (blocked on 2FA;
       masked-caller guard covers it meanwhile).
+- **Cloud-manageable** via `netlify/functions/vapi-admin.js` (guard
+      `tn-vapi-admin-9f83b1c4e7a206d5`): inspect/fix/voice/voiceon/prompt/
+      setprompt/lastcall. Decide: delete it or move guard to a vault secret.
 
 ## 2b. Vapi is now CODE-MANAGED (no more dashboard fights)
 - Tools: `node scripts/vapi-wire-inbound.js --apply` (attaches our tool set to
@@ -55,7 +65,11 @@ Ignore "table does not exist" warnings.
 All shipped this weekend (Ctrl+Shift+R to load):
 - Calendar/Schedule black screen fixed · cards stay where dropped · Move-to-
   folder · Scheduled folder · edit/add job info · markable checklist · delete
-  junk · wait-age badges · oldest-first · name search (after push #1).
+  junk · wait-age badges · oldest-first.
+- ✅ **Name search now SUBSTRING + case-insensitive** (after push #1) — fixes
+  the false "not in system": warranty names stored "Young III" / ALL-CAPS
+  "JOYCE MATTHEWS" now match a partial/any-case search. Tell Danielle she can
+  search last name, phone, or claim/WO #. (Both search files are in push #1.)
 - [ ] Danielle hard-refreshes once after the push.
 
 ## 4. The real cutover work (data + habit) — daily through Wednesday
