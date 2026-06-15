@@ -130,12 +130,12 @@
 [functions."colony-watchdog"]
   schedule = "*/5 * * * *"
 
-# HCP poll catchup — every 15 min, force-call hcp_poll_recent_jobs with
-# override_enabled=true. Bridges the gap until HCP_POLL_ENABLED is set
-# in Xano env vars. Caught 8 missing jobs on first run 2026-06-02.
-# Safe to leave running indefinitely (idempotent — re-ingests update).
-[functions."hcp-poll-catchup"]
-  schedule = "*/15 * * * *"
+# HCP poll catchup — DISABLED 2026-06-15 for HCP cutover. Danielle now
+# schedules in Ant, so this poll only created duplicate records (an HCP twin
+# of every email-intake job). The function is also hard no-op'd. Re-enable by
+# uncommenting the two lines below.
+# [functions."hcp-poll-catchup"]
+#   schedule = "*/15 * * * *"
 
 # Multi-vendor warranty dispatch poller — catches NSA + SquareTrade +
 # Allstate dispatches the AHS/SP pollers don't see (missing 25 jobs/day

@@ -22,6 +22,12 @@ const XANO_HCP_POLL =
 const TIMEOUT_MS = 25000;
 
 exports.handler = async function () {
+  // ── DISABLED 2026-06-15 for HCP cutover ──────────────────────────────
+  // Danielle now schedules in Ant, so this poll only created duplicate
+  // records (an HCP twin of every email-intake job). Hard no-op so it can
+  // never re-ingest, even if invoked. Re-enable by removing this block.
+  return { statusCode: 200, body: JSON.stringify({ ok: true, disabled: true, note: 'HCP poll disabled for cutover 2026-06-15 — scheduling moved to Ant' }) };
+
   const startedAt = Date.now();
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
