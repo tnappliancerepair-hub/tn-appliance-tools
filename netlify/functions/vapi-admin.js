@@ -194,6 +194,21 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Route live transfers to Danielle (the office) only — Danielle handles all calls.
+  if (action === 'settransfer') {
+    const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    let found = false;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'transferCall') return t;
+      found = true;
+      return Object.assign({}, t, { destinations: [{ type: 'number', number: '+16154850713', message: 'One second, connecting you with our office.' }] });
+    });
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vt = ((verify.json && verify.json.model && verify.json.model.tools) || []).find((t) => t.type === 'transferCall');
+    return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, found, destinations: (vt && vt.destinations) || null }, null, 2) };
+  }
+
   // Turn ON call Summary (and success-eval) so the call log + daily review have content.
   if (action === 'voiceon') {
     const f = full.json || {};
