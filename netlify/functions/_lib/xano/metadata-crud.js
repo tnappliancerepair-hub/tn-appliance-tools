@@ -251,6 +251,9 @@ async function logEvent(action, metadata) {
 
 module.exports = {
   TABLES,
+  search,
+  searchPage,
+  searchOne,
   getTechByPhone,
   findOrCreateTechConversation,
   addAgentMessage,
