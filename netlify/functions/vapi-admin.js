@@ -133,10 +133,12 @@ exports.handler = async function (event) {
   const byId = {}; allTools.forEach((t) => { byId[t.id] = { name: tname(t), url: (t.server && t.server.url) || '' }; });
 
   if (action === 'inspect') {
+    const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
       ok: true,
       assistant: { id: inbound.id, model_provider: model.provider, model: model.model },
-      attached: beforeIds.map((id) => ({ id, ...(byId[id] || { name: 'MISSING/deleted' }) })),
+      attached_toolIds: beforeIds.map((id) => ({ id, ...(byId[id] || { name: 'MISSING/deleted' }) })),
+      inline_model_tools: inlineTools.map((t) => ({ type: t.type, name: tname(t), url: (t.server && t.server.url) || '(none)' })),
       all_tools_named: allTools.filter((t) => TOOLS.some((d) => d.name === tname(t))).map((t) => ({ id: t.id, name: tname(t), url: (t.server && t.server.url) || '' })),
     }, null, 2) };
   }
