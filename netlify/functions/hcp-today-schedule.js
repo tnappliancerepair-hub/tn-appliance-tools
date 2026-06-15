@@ -26,6 +26,26 @@ exports.handler = async (event) => {
   const minIso = new Date(`${day}T00:00:00-05:00`).toISOString();
   const maxIso = new Date(`${day}T23:59:59-05:00`).toISOString();
 
+  // DEBUG: see how HCP returns the data (job count, schedule shape, whether
+  // appointments are separate) so we can mirror the full schedule, not a subset.
+  if (qp.debug === '1') {
+    const out = {};
+    const tries = {
+      jobs_sched_window: `/jobs?per_page=100&scheduled_start_min=${encodeURIComponent(minIso)}&scheduled_start_max=${encodeURIComponent(maxIso)}`,
+      jobs_no_filter: `/jobs?per_page=100&page=1`,
+      appointments_window: `/appointments?per_page=100&scheduled_start_min=${encodeURIComponent(minIso)}&scheduled_start_max=${encodeURIComponent(maxIso)}`,
+    };
+    for (const [k, path] of Object.entries(tries)) {
+      try {
+        const r = await fetch(`${HCP_BASE}${path}`, { headers: { Authorization: 'Token ' + apiKey } });
+        const j = await r.json().catch(() => ({}));
+        const arr = j.jobs || j.appointments || j.data || [];
+        out[k] = { status: r.status, count: arr.length, total: j.total_items || j.total || j.page_count, sample_keys: arr[0] ? Object.keys(arr[0]).slice(0, 25) : [], sample_schedule: arr[0] && arr[0].schedule };
+      } catch (e) { out[k] = { error: String(e.message) }; }
+    }
+    return { statusCode: 200, body: JSON.stringify({ ok: true, day, probe: out }, null, 2) };
+  }
+
   // Pull jobs scheduled within the day window (1-2 pages covers a day).
   const jobs = [];
   try {
