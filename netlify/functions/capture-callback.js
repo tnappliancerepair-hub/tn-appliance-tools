@@ -63,7 +63,8 @@ exports.handler = async function (event) {
 
   const tag = callerType === 'warranty' ? 'WARRANTY' : 'customer';
   const alert = '[ant] 📞 callback needed (' + tag + '): ' + (name || '(no name)') + ' ' + (phone || '') +
-    (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') + '. Please follow up.';
+    (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') +
+    '. Follow up: https://tnapplianceexchange.net/callbacks.html';
   try { await retry(() => sendSms(OWNER, alert, 'owner', 'vapi_callback'), 2); ownerSent = true; } catch (_) {}
   try { await retry(() => sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback'), 2); danielleSent = true; } catch (_) {}
 

@@ -9,6 +9,11 @@
 
 'use strict';
 
+const { sendSms } = require('./_lib/sms');
+const OWNER_PHONE = '+16154855795';     // Teddy
+const DANIELLE_PHONE = '+16154850713';
+const SITE = 'https://tnapplianceexchange.net';
+
 const XANO = (process.env.XANO_INTAKE_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA').replace(/\/+$/, '');
 const NETLIFY = (process.env.NETLIFY_FUNCTIONS_BASE || 'https://tnapplianceexchange.net/.netlify/functions').replace(/\/+$/, '');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -170,6 +175,24 @@ async function captureCallerPhone(callerPhone, name, data) {
   } catch (_) {}
 }
 
+// When a call creates a job/ticket (esp. a CALLBACK on a failed repair), text
+// BOTH Teddy and Danielle the customer info + a link so it never gets missed.
+async function alertNewJob(name, args, data) {
+  if (name !== 'create_job_from_call') return;
+  if (!data || !data.success || !data.job_id) return;
+  try {
+    const who = [args.customer_first_name, args.customer_last_name].filter(Boolean).join(' ') || '(caller)';
+    const summ = String(args.problem_summary || '').slice(0, 150);
+    const isCb = /callback/i.test(args.problem_summary || '');
+    const link = `${SITE}/office-board.html?job=${data.job_id}`;
+    const msg = '[ant] ' + (isCb ? '📞 CALLBACK' : '🆕 new job') + ' from a call: ' + who + ' ' + (args.customer_phone || '')
+      + (args.appliance_type ? (' · ' + args.appliance_type) : '') + ' — ' + summ
+      + '  Job #' + data.job_id + ' (Needs Scheduled): ' + link;
+    await sendSms(OWNER_PHONE, msg, 'owner', 'vapi_new_job').catch(() => {});
+    await sendSms(DANIELLE_PHONE, msg, 'warranty_handler', 'vapi_new_job').catch(() => {});
+  } catch (_) {}
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let body; try { body = JSON.parse(event.body || '{}'); } catch (_) { body = {}; }
@@ -184,6 +207,7 @@ exports.handler = async function (event) {
     catch (e) { data = { error: String((e && e.message) || e) }; }
     await logProxy(c.name || 'unknown', a, data);
     await captureCallerPhone(callerPhone, c.name, data);
+    await alertNewJob(c.name, a, data);
     const shaped = shapeResult(c.name, data);
     results.push({ toolCallId: c.id, result: typeof shaped === 'string' ? shaped : JSON.stringify(shaped) });
   }
