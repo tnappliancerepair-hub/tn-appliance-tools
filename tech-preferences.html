@@ -119,6 +119,8 @@ function render(){
       <select class="person-sel" id="sel" onchange="pick(this.value)">
         ${TECHS.map(x=>`<option value="${x.id}"${x.id===cur?' selected':''}>${x.name}</option>`).join('')}
       </select>
+      <button onclick="outreach(cur)" style="margin-top:11px;width:100%;border:0;border-radius:10px;background:var(--blue);color:#fff;padding:11px;font-weight:800;cursor:pointer">📣 Text ${t.name} to fill in their own profile</button>
+      <div class="hint">Sends them the new Ant scheduler so they can set their own hours, days off &amp; "great day."</div>
     </div>
 
     <div class="card">
@@ -158,6 +160,16 @@ function render(){
 }
 function pick(id){cur=parseInt(id,10);render();}
 function toggleChip(el){el.classList.toggle('on');}
+async function outreach(id){
+  const body={office_password:pw||'',tech_id:id};
+  if(!body.office_password){const p=prompt('Office password:');if(!p)return;body.office_password=p;pw=p;}
+  toast('Texting them…');
+  try{
+    const d=await (await fetch('/.netlify/functions/tech-profile-outreach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if(d&&d.ok&&d.sent_count)toast('Texted ✓');
+    else toast('⚠ '+((d&&(d.error||(d.results&&d.results[0]&&d.results[0].error)))||'not sent'));
+  }catch(_){toast('⚠ connection error');}
+}
 
 async function save(){
   const t=tech();
