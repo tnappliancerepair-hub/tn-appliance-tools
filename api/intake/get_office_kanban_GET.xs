@@ -84,6 +84,8 @@ query get_office_kanban verb=GET {
             technician_id    : ($j.technician_id ?? null)
             service_city     : (($j.service_city ?? "")|trim)
             service_zip      : (($j.service_zip ?? "")|trim)
+            service_state    : (($j.service_state ?? "")|trim)
+            office_stage     : (($j.office_stage ?? "")|trim)
             job_completed_at : ($j.job_completed_at ?? 0)
             created_at       : ($j.created_at ?? 0)
           }
