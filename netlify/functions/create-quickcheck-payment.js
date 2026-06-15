@@ -16,15 +16,24 @@ const SITE = 'https://tnapplianceexchange.net';
 
 function s(v, max) { return String(v == null ? '' : v).slice(0, max || 480); }
 
+// Allow the call from any TN Appliance host (www or non-www) so a www page load
+// doesn't get "Load failed" on the cross-origin POST.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 exports.handler = async function (event) {
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 
   const phone = s(b.phone, 40);
-  if (phone.replace(/\D/g, '').length < 10) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'valid phone required' }) };
+  if (phone.replace(/\D/g, '').length < 10) return { statusCode: 400, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: false, error: 'valid phone required' }) };
 
   const key = await getSecret('STRIPE_SECRET_KEY');
-  if (!key) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'payments not configured' }) };
+  if (!key) return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: false, error: 'payments not configured' }) };
 
   const email = s(b.email, 120);
   const machine = [s(b.brand, 40), s(b.appliance, 40)].filter(Boolean).join(' ') || 'appliance';
@@ -58,8 +67,8 @@ exports.handler = async function (event) {
     // exact friction that stalled the first test). Falls back to Stripe asking if blank.
     if (email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) opts.customer_email = email;
     const session = await stripe.checkout.sessions.create(opts);
-    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, url: session.url }) };
+    return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, url: session.url }) };
   } catch (e) {
-    return { statusCode: 200, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
+    return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
   }
 };
