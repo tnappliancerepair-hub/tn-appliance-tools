@@ -95,7 +95,7 @@ async function recentCustomers(tableId) {
     const batches = await Promise.all(pages.map(async (p) => {
       const r = await fetch(`${META}/table/${tableId}/content/search`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ search: {}, sort: { id: 'desc' }, per_page: PER, page: p }),
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: PER, page: p }),
       });
       if (!r.ok) return [];
       const j = await r.json().catch(() => ({}));
@@ -193,6 +193,9 @@ exports.handler = async function (event) {
         } catch (e) { out[k] = { error: String(e.message) }; }
       }
       // Also: what does Victor's record actually look like? find by dispatch via jobs
+      const pool = await recentCustomers(ids.customer);
+      out.pool_size = pool.length;
+      out.pool_sample = pool.slice(0, 3).map((c) => c.first_name + ' | ' + c.last_name);
       return { statusCode: 200, body: JSON.stringify({ ok: true, customer_table: ids.customer, term, shapes: out }, null, 2) };
     }
     let query = qp.q || qp.query || '';
