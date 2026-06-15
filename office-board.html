@@ -497,6 +497,17 @@ function renderDrawer(d){
   const boardItem=allItems.find(x=>String(x.id)===String(jid))||j;
   const curRegion=jobRegion(boardItem);
   const curCol=placeOf(boardItem);
+  // Prefill the schedule day + time from whatever's already on the job so she
+  // SEES the current schedule and just adjusts it ("the schedule was not like
+  // how I had, needed a few adjustments"). 08:00 is the day-of placeholder, so
+  // we leave the time box blank in that case (no fake time shown).
+  const _schMs=Number(boardItem.scheduled_start||j.scheduled_start||0);
+  let schDayVal='',schTimeVal='';
+  if(_schMs>0){const _d=new Date(_schMs);
+    schDayVal=_d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+    const _h=_d.getHours(),_mi=_d.getMinutes();
+    if(!(_h===8&&_mi===0)) schTimeVal=String(_h).padStart(2,'0')+':'+String(_mi).padStart(2,'0');
+  }
   const moveOpts=moveCols.map(mc=>`<option value="${mc[0]}"${mc[0]===curCol?' selected':''}>${esc(mc[1])}</option>`).join('');
   // Schedule card: pick tech + DAY (day-of routing — no clock time). Default the
   // tech to whoever's already assigned. This is the place to put the schedule
@@ -592,11 +603,14 @@ function renderDrawer(d){
 
     <div class="dcard">
       <h4>📅 Schedule (tech + day)</h4>
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b>. We route by day — the customer gets a live arrival window the morning of. This saves the date right here in Ant, so there's nothing to enter anywhere else.</div>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b>. We route by day — the customer gets a live arrival window the morning of. Set a <b>time</b> too if you like (optional, just for your planning). This saves right here in Ant — nothing to enter anywhere else.</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
-        <input type="date" id="schDay" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
-        <button onclick="scheduleFromDrawer(${jid})" style="padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule this day</button>
+        <div style="display:flex;gap:8px">
+          <input type="date" id="schDay" value="${schDayVal}" style="flex:2;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+          <input type="time" id="schTime" value="${schTimeVal}" title="optional time" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        </div>
+        <button onclick="scheduleFromDrawer(${jid})" style="padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule</button>
       </div>
     </div>
 
@@ -641,9 +655,10 @@ async function saveJobInfo(id){
   loadBoard();
 }
 async function scheduleFromDrawer(id){
-  const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay');
+  const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay'), timeEl=document.getElementById('schTime');
   const tech=parseInt((techEl&&techEl.value)||'0',10);
   const day=(dayEl&&dayEl.value)||'';
+  const tm=(timeEl&&timeEl.value)||'';   // optional HH:MM — her planning time
   if(!tech){toast('Pick a tech');return;}
   if(!day){toast('Pick a day');return;}
   // Stop limit: cap = tech's preference (max_stops_per_day) or 6.
@@ -653,8 +668,9 @@ async function scheduleFromDrawer(id){
     const sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
     if(sameDay>=cap){ if(!confirm((TECH_NAME[tech]||'Tech')+' already has '+sameDay+' stops that day (their limit is '+cap+'). Schedule anyway?')) return; }
   }catch(_){}
-  // Day-of routing: the time is a placeholder (08:00) — only the DAY matters.
-  const startMs=new Date(day+'T08:00:00').getTime();
+  // Day-of routing: if she didn't set a time, 08:00 is the placeholder and only
+  // the DAY matters. If she DID set a time (her MeisterTask habit), honor it.
+  const startMs=new Date(day+'T'+(tm||'08:00')+':00').getTime();
   toast('Scheduling…');
   try{
     const d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
