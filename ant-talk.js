@@ -52,9 +52,12 @@
       '<button id="atk-send">Send</button></div>';
     document.body.appendChild(panel);
 
-    document.getElementById('atk-send').onclick = send;
-    document.getElementById('atk-in').addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
-    document.getElementById('atk-mic').onclick = voice;
+    var sendEl = document.getElementById('atk-send');
+    var inEl = document.getElementById('atk-in');
+    var micEl = document.getElementById('atk-mic');
+    if (sendEl) sendEl.onclick = send;
+    if (inEl) inEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
+    if (micEl) micEl.onclick = voice;
   }
 
   window.__antTalkClose = function () { document.getElementById('ant-talk-panel').classList.remove('open'); };
