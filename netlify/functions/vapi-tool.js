@@ -21,25 +21,66 @@ async function postJson(url, body) {
   try { return await r.json(); } catch (_) { return { error: `HTTP ${r.status}` }; }
 }
 
-// Route a tool name + args to the right backend.
+// Tools that are GET on Xano (everything else is POST with the unwrapped args).
+const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'get_parts_status', 'get_job_status_for_warranty', 'get_schedule_history', 'get_customer_communications', 'get_job_arrival_status']);
+// Tool name -> Xano endpoint path when they differ.
+const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat' };
+// Tools that live on Netlify, not Xano.
+const NETLIFY_TOOLS = { capture_callback: 'capture-callback' };
+
+function qs(a) {
+  const parts = Object.entries(a)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
+
+// Route a tool name + args to the right backend. Generic by default: unwrap the
+// Vapi envelope and call Xano flat (POST), so EVERY tool the assistant has works
+// without per-tool code. GET tools use query params; a couple have overrides.
 async function callBackend(name, a) {
   a = a || {};
-  switch (name) {
-    case 'lookup_customer_by_phone':
-      return getJson(`${XANO}/lookup_customer_by_phone?phone=${encodeURIComponent(String(a.phone || '').trim())}`);
-    case 'lookup_by_claim_number':
-      return postJson(`${XANO}/lookup_by_claim_number`, { claim_or_dispatch_number: String(a.claim_or_dispatch_number || a.claim || a.number || '').trim() });
-    case 'search_customers':
-      return postJson(`${XANO}/search_customers`, { query: String(a.query || a.name || '').trim() });
-    case 'voice_followup_send_links':
-      return postJson(`${XANO}/voice_followup_send_links`, { job_id: Number(a.job_id || 0), offer_kind: String(a.offer_kind || 'portal_and_uploads') });
-    case 'capture_callback':
-      return postJson(`${NETLIFY}/capture-callback`, a);
-    case 'check_service_zone':
-      return getJson(`${XANO}/check_service_zone?zip_code=${encodeURIComponent(String(a.zip_code || a.zip || '').trim())}`);
-    default:
-      return { error: 'unknown tool: ' + name };
+  if (!name) return { error: 'no tool name' };
+  if (NETLIFY_TOOLS[name]) return postJson(`${NETLIFY}/${NETLIFY_TOOLS[name]}`, a);
+  const path = ENDPOINT_OVERRIDE[name] || name;
+  if (GET_TOOLS.has(name)) return getJson(`${XANO}/${path}${qs(a)}`);
+  return postJson(`${XANO}/${path}`, a);
+}
+
+// Shape sensitive read results down to what the assistant needs — and strip
+// internal diagnosis notes so they never enter the LLM context (Teddy's rule:
+// Ant never tells the customer what's wrong / part numbers).
+function stripInternal(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(stripInternal);
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'notes_internal' || k === 'problem_description' || k === 'problem_summary' || k === 'notes') continue;
+    out[k] = (v && typeof v === 'object') ? stripInternal(v) : v;
   }
+  return out;
+}
+
+function shapeResult(name, data) {
+  if (!data || typeof data !== 'object') return data;
+  if (name === 'lookup_by_claim_number') {
+    return { found: (data.match_count || 0) > 0, match_count: data.match_count || 0, primary: data.primary || null };
+  }
+  if (name === 'lookup_customer_by_phone') {
+    const c = data.customer || {};
+    return {
+      found: !!data.found,
+      caller_id_masked: !!data.caller_id_masked,
+      hint: data.hint || '',
+      customer_first_name: c.first_name || '',
+      open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(stripInternal) : [],
+      last_call_summary: data.last_call_summary || '',
+    };
+  }
+  if (name === 'search_customers') {
+    return { match_count: data.match_count || (Array.isArray(data.matches) ? data.matches.length : 0), matches: stripInternal(data.matches || data.results || []) };
+  }
+  return stripInternal(data);
 }
 
 // Extract [{id, name, args}] from whatever shape Vapi sends.
@@ -99,7 +140,8 @@ exports.handler = async function (event) {
     try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }
     await logProxy(c.name || 'unknown', a, data);
-    results.push({ toolCallId: c.id, result: typeof data === 'string' ? data : JSON.stringify(data) });
+    const shaped = shapeResult(c.name, data);
+    results.push({ toolCallId: c.id, result: typeof shaped === 'string' ? shaped : JSON.stringify(shaped) });
   }
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results }) };
 };
