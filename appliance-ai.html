@@ -123,7 +123,7 @@ const FLOW = document.getElementById('flow');
 const ORB = document.getElementById('orb');
 const HEAD = document.getElementById('head');
 const SUB = document.getElementById('sub');
-const state = { appliance:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', zip:'', warranty:'', claim:'' };
+const state = { appliance:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', address:'', city:'', zip:'', warranty:'', claim:'' };
 
 const APPLIANCES = [
   ['🧊','Refrigerator'],['🌀','Washer'],['🔥','Dryer'],
@@ -189,8 +189,8 @@ function pitchQuickCheck(){
   choices([{emo:'📹',label:'Start my Quick Check',wide:true}], ()=>{ clearFlow(); think(500, capVideo); });
 }
 function capVideo(){
-  setHead('Show me the <span class="accent">problem.</span>','A 10-second video tells me more than 100 words.');
-  antMsg('Point your camera at the '+esc(state.appliance.toLowerCase())+' and show me what it\'s doing — about 10 seconds is perfect.');
+  setHead('Two quick things and you’re <span class="accent">set.</span>','① a 10-sec video  ②  a photo of the model sticker.');
+  antMsg('First — point your camera at the '+esc(state.appliance.toLowerCase())+' and show me what it’s doing. About 10 seconds is perfect.');
   const w=document.createElement('div'); w.className='capture';
   w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>';
   FLOW.appendChild(w);
@@ -218,18 +218,22 @@ function consentGate(){
   document.getElementById('cn').onclick=()=>{ state.smsConsent=false; clearFlow(); antMsg('No problem — we\'ll call you instead. What\'s the best number + your ZIP?'); collectContact(); };
 }
 function collectContact(){
-  setHead('Almost done.','Where do we send your honest answer?');
+  setHead('Almost done.','Where’s the appliance — and how do we reach you?');
   const f=document.createElement('div'); f.className='field';
   f.innerHTML='<input id="f-name" placeholder="Your name" autocomplete="name">'
     +'<input id="f-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
+    +'<input id="f-addr" placeholder="Service address (street)" autocomplete="street-address">'
+    +'<input id="f-city" placeholder="City" autocomplete="address-level2">'
     +'<input id="f-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
     +'<button class="go" id="f-go">Continue to payment →</button>';
   FLOW.appendChild(f);
   document.getElementById('f-go').onclick=()=>{
     state.name=document.getElementById('f-name').value.trim();
     state.phone=document.getElementById('f-phone').value.trim();
+    state.address=document.getElementById('f-addr').value.trim();
+    state.city=document.getElementById('f-city').value.trim();
     state.zip=document.getElementById('f-zip').value.trim();
-    if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.zip){ alert('Please add your name, a valid phone, and ZIP.'); return; }
+    if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.address||!state.zip){ alert('Please add your name, a valid phone, the street address, and ZIP.'); return; }
     clearFlow(); think(500, payStep);
   };
 }
