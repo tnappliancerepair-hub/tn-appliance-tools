@@ -243,13 +243,14 @@ document.getElementById('region-seg').addEventListener('click',e=>{
 // ── load ──
 // Server-side placement map {id:{office_stage,service_state}} so a card STAYS
 // where she dropped it on EVERY device (not just the browser that moved it).
-let STAGE_MAP={};
+let STAGE_MAP={}, CHECK_MAP={};
 async function loadStages(){
   try{
     const r=await fetch('/.netlify/functions/office-stage',{cache:'no-store'});
     const d=await r.json();
     STAGE_MAP=(d&&d.stages)||{};
-  }catch(_){STAGE_MAP={};}
+    CHECK_MAP=(d&&d.checklists)||{};
+  }catch(_){STAGE_MAP={};CHECK_MAP={};}
 }
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
@@ -272,11 +273,20 @@ async function loadBoard(){
 function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch(_){return '';}}
 // Office checklist — manual ticks she can mark herself (the steps that aren't
 // auto-derived). Stored per job; a step shows done if auto-derived OR ticked.
-function chkGet(id){try{return JSON.parse(localStorage.getItem('tn_chk_'+id)||'[]');}catch(_){return [];}}
+// Server-first (CHECK_MAP from office-stage) so manual ticks STICK across
+// devices/reloads — localStorage is just the instant fallback.
+function chkGet(id){
+  const sm=CHECK_MAP[id];
+  if(Array.isArray(sm)) return sm.slice();
+  try{return JSON.parse(localStorage.getItem('tn_chk_'+id)||'[]');}catch(_){return [];}
+}
 function toggleChk(id,i,el,auto){
   let arr=chkGet(id);
   if(arr.includes(i))arr=arr.filter(x=>x!==i); else arr.push(i);
   try{localStorage.setItem('tn_chk_'+id,JSON.stringify(arr));}catch(_){}
+  CHECK_MAP[id]=arr;                                  // keep local view fresh
+  // persist to the job so it sticks everywhere (fire-and-forget)
+  try{fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),checklist:arr,actor:'Danielle'})});}catch(_){}
   const on=!!auto||arr.includes(i); // auto-derived steps stay checked regardless
   el.classList.toggle('done',on);
   const box=el.querySelector('.box'); if(box)box.textContent=on?'✓':'';
@@ -577,6 +587,26 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
+      <h4>📦 Parts — order &amp; ETA</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Order the part + set its ETA. Marks the job <b>awaiting parts</b> so it won't get scheduled until it's in. Cost/charge are optional (feeds margin).</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="pt-num" placeholder="Part # (required to order)" value="${esc(tdr.verified_part_number||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <input id="pt-name" placeholder="Part name (optional)" value="${esc(tdr.failed_component||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <div style="display:flex;gap:8px">
+          <input id="pt-cost" inputmode="decimal" placeholder="Our cost $" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+          <input id="pt-charge" inputmode="decimal" placeholder="Charge $" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        </div>
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Parts ETA</label>
+        <input type="date" id="pt-eta" value="${esc(j.parts_eta_date||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <div style="display:flex;gap:8px">
+          <button onclick="orderParts(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📦 Order parts</button>
+          <button onclick="partsArrived(${jid})" style="flex:1;padding:11px;border-radius:9px;background:var(--blue);color:#fff;border:0;font-weight:800;cursor:pointer">✅ Arrived</button>
+        </div>
+        <div style="font-size:12px;color:var(--ink2)">Now: <b>${esc((j.parts_status||'none').replace(/_/g,' '))}</b>${j.parts_eta_date?(' · ETA '+esc(j.parts_eta_date)):''}</div>
+      </div>
+    </div>
+
+    <div class="dcard">
       <h4>📝 Tech notes</h4>
       <div class="notes-box ${techNote?'':'muted'}">${techNote?esc(techNote):'No tech notes yet — they flow here automatically once the tech writes them.'}</div>
     </div>
@@ -590,12 +620,16 @@ function renderDrawer(d){
       <h4>💵 Invoice worksheet <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">log the tech's labor here</span></h4>
       <div class="kv" style="grid-template-columns:1fr 110px;gap:8px 12px;align-items:center">
         <div class="k">Labor $ <span style="color:var(--dim)">(tech asks)</span></div><input class="inv" id="inv-labor" inputmode="decimal" placeholder="0.00">
-        <div class="k">Parts charge $</div><input class="inv" id="inv-parts" inputmode="decimal" placeholder="0.00">
-        <div class="k">Markup $</div><input class="inv" id="inv-markup" inputmode="decimal" placeholder="0.00">
+        <div class="k">Part cost $ <span style="color:var(--dim)">(what WE paid)</span></div><input class="inv" id="inv-partcost" inputmode="decimal" placeholder="0.00">
+        <div class="k">Parts charge $ <span style="color:var(--dim)">(customer)</span></div><input class="inv" id="inv-parts" inputmode="decimal" placeholder="0.00">
         <div class="k">Shipping $</div><input class="inv" id="inv-ship" inputmode="decimal" placeholder="0.00">
         <div class="k">Tax $</div><input class="inv" id="inv-tax" inputmode="decimal" placeholder="0.00">
         <div class="k">Tip $</div><input class="inv" id="inv-tip" inputmode="decimal" placeholder="0.00">
         <div class="k">Tech pay $</div><input class="inv" id="inv-techpay" inputmode="decimal" placeholder="0.00">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;padding:8px 10px;background:#f1faf4;border:1px solid #cdeeda;border-radius:9px">
+        <div style="font-size:13px;font-weight:700;color:var(--ink2)">Parts margin (charge − cost)</div>
+        <div style="font-size:15px;font-weight:800" id="inv-margin">$0.00</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:11px">
         <div style="flex:1;font-size:14px;font-weight:800">Amount invoiced: <span id="inv-total" style="color:var(--ok)">$0.00</span></div>
@@ -670,6 +704,30 @@ async function saveJobInfo(id){
   openDrawer(String(id)); // reload the job file with the new values
   loadBoard();
 }
+async function orderParts(id){
+  const pn=((document.getElementById('pt-num')||{}).value||'').trim();
+  const nm=((document.getElementById('pt-name')||{}).value||'').trim();
+  const eta=(document.getElementById('pt-eta')||{}).value||'';
+  const cost=parseFloat((document.getElementById('pt-cost')||{}).value);
+  const charge=parseFloat((document.getElementById('pt-charge')||{}).value);
+  if(!pn){toast('Enter the part # to order');return;}
+  const body={job_id:parseInt(id,10),part_number:pn,part_name:nm,parts_eta_date:eta,order_status:'ordered',source:'office'};
+  if(!isNaN(cost))body.cost_cents=Math.round(cost*100);
+  if(!isNaN(charge))body.sold_to_customer_cents=Math.round(charge*100);
+  toast('Ordering parts…');
+  try{const d=await postJSON('record_parts_order',body);
+    if(d&&!d.error){toast('Parts ordered ✓ — job set to awaiting parts');closeDrawer();loadBoard();}
+    else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ connection error');}
+}
+async function partsArrived(id){
+  if(!confirm('Mark parts arrived? This frees the job to be scheduled.'))return;
+  toast('Marking arrived…');
+  try{const d=await postJSON('mark_parts_arrived',{job_id:parseInt(id,10),source:'office'});
+    if(d&&!d.error){toast('Parts arrived ✓ — ready to schedule');closeDrawer();loadBoard();}
+    else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ connection error');}
+}
 async function scheduleFromDrawer(id){
   const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay'), timeEl=document.getElementById('schTime');
   const tech=parseInt((techEl&&techEl.value)||'0',10);
@@ -737,7 +795,7 @@ async function deleteJob(jid,name){
 }
 
 // ── invoice worksheet (labor logging) ──
-const INV_FIELDS=['labor','parts','markup','ship','tax','tip','techpay'];
+const INV_FIELDS=['labor','partcost','parts','ship','tax','tip','techpay'];
 function invKey(jid){return 'tn_inv_'+jid;}
 // Per-tech commission = % of labor (each tech's own deal). Editable here.
 const TECH_PAY_RATES={1:0.50,2:0.45,3:0.40,4:0.50,5:0.50,6:0.40};
@@ -759,22 +817,29 @@ function prefillInvoice(jid,rate){
 }
 function num(id){const v=parseFloat((document.getElementById(id)||{}).value);return isNaN(v)?0:v;}
 function recomputeInvoice(){
-  const total=num('inv-labor')+num('inv-parts')+num('inv-markup')+num('inv-ship')+num('inv-tax')+num('inv-tip');
+  const cost=num('inv-partcost'), charge=num('inv-parts'), margin=charge-cost;
+  // Customer invoice = labor + parts charge + shipping + tax + tip (our cost is
+  // internal, not billed). Margin = what we charge for parts − what we paid.
+  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip');
+  const m=document.getElementById('inv-margin');
+  if(m){m.textContent='$'+margin.toFixed(2);m.style.color=margin<0?'#c0392b':'#127a4a';}
   const el=document.getElementById('inv-total');if(el)el.textContent='$'+total.toFixed(2);
 }
 async function saveInvoice(jid){
   const data={};INV_FIELDS.forEach(f=>{data[f]=(document.getElementById('inv-'+f)||{}).value||'';});
-  const total=num('inv-labor')+num('inv-parts')+num('inv-markup')+num('inv-ship')+num('inv-tax')+num('inv-tip');
-  data.amount_invoiced=total.toFixed(2);data._savedAt=Date.now();
+  const cost=num('inv-partcost'), charge=num('inv-parts'), margin=charge-cost;
+  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip');
+  data.parts_margin=margin.toFixed(2);data.amount_invoiced=total.toFixed(2);data._savedAt=Date.now();
   // Always persist locally so her entries are never lost, then record to the
   // server audit (record_job_invoice writes an event_log row — no schema
   // change needed; once pushed it's the durable record).
   try{localStorage.setItem(invKey(jid),JSON.stringify(data));}catch(_){}
-  toast('Saved ✓ ($'+total.toFixed(2)+')');
+  toast('Saved ✓ ($'+total.toFixed(2)+' · margin $'+margin.toFixed(2)+')');
   document.getElementById('inv-note').textContent='Saved just now';
   try{
     await fetch(XANO+'/record_job_invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      job_id:parseInt(jid,10),technician_id:(window.__drawerTech||0),labor:data.labor,parts_charge:data.parts,markup:data.markup,
+      job_id:parseInt(jid,10),technician_id:(window.__drawerTech||0),labor:data.labor,
+      part_cost:data.partcost,parts_charge:data.parts,markup:margin.toFixed(2),parts_margin:margin.toFixed(2),
       shipping:data.ship,tax:data.tax,tip:data.tip,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
     })});
   }catch(_){/* endpoint may not be deployed yet; localStorage holds it */}
@@ -847,15 +912,16 @@ async function antDo(p){
   if(p.intent==='labor'||p.intent==='invoice'){
     const f=(p.fields&&typeof p.fields==='object')?Object.assign({},p.fields):{};
     if(p.intent==='labor'&&p.amount){f.labor=(p.amount||'').replace(/[^0-9.]/g,'');}
-    const map={labor:'labor',part_cost:'parts',parts_charge:'parts',markup:'markup',shipping:'ship',tax:'tax',tip:'tip',tech_pay:'techpay'};
+    const map={labor:'labor',part_cost:'partcost',cost:'partcost',parts_charge:'parts',parts:'parts',shipping:'ship',tax:'tax',tip:'tip',tech_pay:'techpay'};
     let cur={};try{cur=JSON.parse(localStorage.getItem('tn_inv_'+jobId)||'{}');}catch(_){}
     const summ=[];
     Object.keys(f).forEach(k=>{const wk=map[k];const v=(''+f[k]).replace(/[^0-9.]/g,'');if(wk&&v){cur[wk]=v;summ.push(k.replace('_',' ')+' $'+v);}});
-    if(!summ.length){antMsg('it','What amounts? e.g. "labor 140, part cost 48, tax 2.14, tech pay 60".');return;}
-    const total=['labor','parts','markup','ship','tax','tip'].reduce((s,k)=>s+(parseFloat(cur[k])||0),0);
-    cur.amount_invoiced=total.toFixed(2);cur._savedAt=Date.now();
+    if(!summ.length){antMsg('it','What amounts? e.g. "labor 140, part cost 48, parts charge 70, tax 2.14, tech pay 60".');return;}
+    const margin=(parseFloat(cur.parts)||0)-(parseFloat(cur.partcost)||0);
+    const total=['labor','parts','ship','tax','tip'].reduce((s,k)=>s+(parseFloat(cur[k])||0),0);
+    cur.parts_margin=margin.toFixed(2);cur.amount_invoiced=total.toFixed(2);cur._savedAt=Date.now();
     try{localStorage.setItem('tn_inv_'+jobId,JSON.stringify(cur));}catch(_){}
-    try{await postJSON('record_job_invoice',{job_id:jobId,labor:cur.labor||'',parts_charge:cur.parts||'',markup:cur.markup||'',shipping:cur.ship||'',tax:cur.tax||'',tip:cur.tip||'',tech_pay:cur.techpay||'',amount_invoiced:cur.amount_invoiced});}catch(_){}
+    try{await postJSON('record_job_invoice',{job_id:jobId,part_cost:cur.partcost||'',parts_charge:cur.parts||'',markup:margin.toFixed(2),parts_margin:margin.toFixed(2),labor:cur.labor||'',shipping:cur.ship||'',tax:cur.tax||'',tip:cur.tip||'',tech_pay:cur.techpay||'',amount_invoiced:cur.amount_invoiced});}catch(_){}
     try{prefillInvoice(jobId);}catch(_){}
     antMsg('it','✅ '+jobLabel+': '+summ.join(', ')+'  ·  invoiced $'+total.toFixed(2)+'.');return;
   }

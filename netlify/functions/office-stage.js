@@ -26,21 +26,31 @@ function normState(s) {
 
 exports.handler = async function (event) {
   try {
-    // READ: latest placement per job, from the event_log breadcrumbs.
+    // READ: latest placement + checklist per job, from the event_log breadcrumbs.
     if (event.httpMethod === 'GET') {
-      const rows = await crud.searchPage(EVENT_LOG_TABLE, { action: 'office_stage_set' }, { created_at: 'desc' }, 400);
+      const [stageRows, chkRows] = await Promise.all([
+        crud.searchPage(EVENT_LOG_TABLE, { action: 'office_stage_set' }, { created_at: 'desc' }, 400),
+        crud.searchPage(EVENT_LOG_TABLE, { action: 'office_checklist_set' }, { created_at: 'desc' }, 400),
+      ]);
       const stages = {};
-      for (const r of rows) {
+      for (const r of stageRows) {
         let m = r && r.metadata;
         if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
         m = m || {};
         const id = m.job_id;
-        if (id == null) continue;
-        // desc-sorted, so the FIRST time we see a job_id is its latest placement
-        if (stages[id] !== undefined) continue;
+        if (id == null || stages[id] !== undefined) continue;
         stages[id] = { office_stage: m.stage || '', service_state: m.service_state || '' };
       }
-      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, stages }) };
+      const checklists = {};
+      for (const r of chkRows) {
+        let m = r && r.metadata;
+        if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+        m = m || {};
+        const id = m.job_id;
+        if (id == null || checklists[id] !== undefined) continue;
+        checklists[id] = Array.isArray(m.checklist) ? m.checklist : [];
+      }
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, stages, checklists }) };
     }
 
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
@@ -48,6 +58,13 @@ exports.handler = async function (event) {
     const b = JSON.parse(event.body || '{}');
     const jobId = parseInt(b.job_id, 10);
     if (!jobId) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'job_id required' }) };
+
+    // Checklist save (manual ticks) — separate from stage so it never blanks it.
+    if (Array.isArray(b.checklist)) {
+      const list = b.checklist.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n));
+      await crud.logEvent('office_checklist_set', { job_id: jobId, checklist: list, actor: (b.actor || 'office') });
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, success: true, job_id: jobId, checklist: list }) };
+    }
     const stage = String(b.stage || '').trim();
     const st = normState(b.service_state);
 
