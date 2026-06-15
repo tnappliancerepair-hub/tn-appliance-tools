@@ -26,8 +26,9 @@ async function postJson(url, body) {
 const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'get_parts_status', 'get_job_arrival_status']);
 // Tool name -> Xano endpoint path when they differ.
 const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat' };
-// Tools that live on Netlify, not Xano.
-const NETLIFY_TOOLS = { capture_callback: 'capture-callback' };
+// Tools that live on Netlify, not Xano. search_customers uses our forgiving
+// search fn (substring/any-case/middle-name) instead of the brittle XS endpoint.
+const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers' };
 
 function qs(a) {
   const parts = Object.entries(a)
