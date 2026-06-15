@@ -11,6 +11,11 @@
 
 const XANO = (process.env.XANO_INTAKE_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA').replace(/\/+$/, '');
 const NETLIFY = (process.env.NETLIFY_FUNCTIONS_BASE || 'https://tnapplianceexchange.net/.netlify/functions').replace(/\/+$/, '');
+const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+
+// Our own lines — never save one of these as a customer's number (a forwarded
+// call used to show the shop's own number; defensive even now that's fixed).
+const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '6158578800', '6155889500', '5043559111', '6292607111', '6292477111', '7315031142', '5043800975']);
 
 async function getJson(url) {
   const r = await fetch(url);
@@ -130,10 +135,46 @@ async function logProxy(name, args, data) {
   } catch (_) {}
 }
 
+// The caller's real number, dug out of whatever shape Vapi sends.
+function callerNumberFrom(body) {
+  const m = (body && body.message) || {};
+  return (m.call && m.call.customer && m.call.customer.number)
+    || (m.customer && m.customer.number)
+    || (body && body.call && body.call.customer && body.call.customer.number)
+    || '';
+}
+
+// Learn the caller's number: when Ant resolves someone by CLAIM # (their phone
+// wasn't on file), save that number onto the customer record IF it's empty — so
+// next time they call, lookup_customer_by_phone matches them by name. Never
+// overwrites an existing number; only fills the blank warranty records. Best
+// effort — wrapped so it can never break the tool response.
+async function captureCallerPhone(callerPhone, name, data) {
+  try {
+    const tok = process.env.XANO_METADATA_TOKEN;
+    if (!tok) return;
+    if (name !== 'lookup_by_claim_number') return;
+    if (!data || (data.match_count || 0) !== 1 || !data.primary || !data.primary.job_id) return;
+    const digits = String(callerPhone || '').replace(/\D/g, '').slice(-10);
+    if (digits.length !== 10 || SHOP_DIGITS.has(digits)) return;
+    const h = { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' };
+    // job -> customer_id
+    const job = await (await fetch(`${META}/table/7/content/${data.primary.job_id}`, { headers: h })).json().catch(() => ({}));
+    const cid = job && job.customer_id;
+    if (!cid) return;
+    const cust = await (await fetch(`${META}/table/6/content/${cid}`, { headers: h })).json().catch(() => ({}));
+    const existing = String((cust && cust.phone) || '').replace(/\D/g, '');
+    if (existing.length >= 10) return; // already has a number — leave it
+    await fetch(`${META}/table/6/content/${cid}`, { method: 'PUT', headers: h, body: JSON.stringify({ phone: callerPhone }) });
+    await fetch(`${META}/table/3/content`, { method: 'POST', headers: h, body: JSON.stringify({ action: 'caller_phone_captured', metadata: { customer_id: cid, job_id: data.primary.job_id, phone: callerPhone, at_ms: Date.now() } }) });
+  } catch (_) {}
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let body; try { body = JSON.parse(event.body || '{}'); } catch (_) { body = {}; }
 
+  const callerPhone = callerNumberFrom(body);
   const calls = parseToolCalls(body);
   const results = [];
   for (const c of calls) {
@@ -142,6 +183,7 @@ exports.handler = async function (event) {
     try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }
     await logProxy(c.name || 'unknown', a, data);
+    await captureCallerPhone(callerPhone, c.name, data);
     const shaped = shapeResult(c.name, data);
     results.push({ toolCallId: c.id, result: typeof shaped === 'string' ? shaped : JSON.stringify(shaped) });
   }
