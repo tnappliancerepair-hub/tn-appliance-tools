@@ -200,7 +200,8 @@ function jobRegion(j){
   // Office's explicit call wins (service_state set from the drawer Region buttons
   // or from a clean intake). This is what lets Danielle move a NOLA job out of
   // the TN folder and have it STICK in NOLA — auto-detection was guessing wrong.
-  const st=((j.service_state||'')+'').trim().toUpperCase();
+  const smState=(STAGE_MAP[j.id]&&STAGE_MAP[j.id].service_state)||'';
+  const st=(((j.service_state||'')+'').trim()||smState).toUpperCase();
   if(st==='LA'||st==='LOUISIANA') return 'NOLA';
   if(st==='TN'||st==='TENNESSEE') return 'TN';
   if(j.technician_id && TECH_REGION[j.technician_id]) return TECH_REGION[j.technician_id];
@@ -235,10 +236,20 @@ document.getElementById('region-seg').addEventListener('click',e=>{
 });
 
 // ── load ──
+// Server-side placement map {id:{office_stage,service_state}} so a card STAYS
+// where she dropped it on EVERY device (not just the browser that moved it).
+let STAGE_MAP={};
+async function loadStages(){
+  try{
+    const r=await fetch('/.netlify/functions/office-stage',{cache:'no-store'});
+    const d=await r.json();
+    STAGE_MAP=(d&&d.stages)||{};
+  }catch(_){STAGE_MAP={};}
+}
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
@@ -267,11 +278,11 @@ function toggleChk(id,i,el,auto){
 }
 function placeOf(j){
   // Honor her manual placement so a dragged card STAYS where she dropped it
-  // (MeisterTask behavior). The server value (jobs.office_stage) is the truth —
-  // it sticks across devices and reloads, so cards no longer "snap back" on
-  // another screen. localStorage is only the instant-optimistic fallback for a
-  // placement that hasn't round-tripped to the server yet.
-  const ov=((j.office_stage||'')+'').trim()||stageGet(j.id);
+  // (MeisterTask behavior). Order of truth: the kanban's own office_stage (once
+  // the XS endpoint is pushed) -> the server STAGE_MAP (works today, cloud-side)
+  // -> localStorage (instant optimism for the move that hasn't synced yet).
+  const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
+  const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
   if(ov) return ov;
   const ss=(j.scheduling_status||'');
   const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
@@ -392,7 +403,7 @@ async function postJSON(ep,payload){
 // reloads). Optional serviceState moves the job's region (TN <-> LA) at the same
 // time. Fire-and-forget — the optimistic UI already moved the card.
 async function persistStage(id,colId,serviceState){
-  try{await fetch(XANO+'/office_set_stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});}catch(_){}
+  try{await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});}catch(_){}
 }
 function refreshCounts(){
   document.querySelectorAll('.col').forEach(c=>{const ct=c.querySelector('.ct');const n=c.querySelectorAll('.col-body .jcard').length;if(ct)ct.textContent=n;});
@@ -700,13 +711,14 @@ async function moveJobFromDrawer(id){
 }
 async function setRegion(id,st){
   // Move a job's region (TN <-> LA) without disturbing its column. Preserve any
-  // existing manual placement (office_stage) so the card doesn't jump folders.
+  // existing manual placement so the card doesn't jump folders on a region move.
   const bi=allItems.find(x=>String(x.id)===String(id))||{};
-  const keepStage=((bi.office_stage||'')+'').trim();
+  const keepStage=((bi.office_stage||'')+'').trim()||(STAGE_MAP[id]&&STAGE_MAP[id].office_stage)||stageGet(id)||'';
   toast('Moving region…');
   try{
-    const d=await postJSON('office_set_stage',{job_id:parseInt(id,10),stage:keepStage,service_state:st,actor:'Danielle'});
-    if(d&&d.success){ toast('Moved to '+(st==='LA'?'NOLA':'TN')+' ✓'); closeDrawer(); loadBoard(); }
+    const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:keepStage,service_state:st,actor:'Danielle'})});
+    const d=await r.json();
+    if(d&&(d.ok||d.success)){ toast('Moved to '+(st==='LA'?'NOLA':'TN')+' ✓'); closeDrawer(); loadBoard(); }
     else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ connection error');}
 }

@@ -254,6 +254,8 @@ module.exports = {
   search,
   searchPage,
   searchOne,
+  insert,
+  update,
   getTechByPhone,
   findOrCreateTechConversation,
   addAgentMessage,
