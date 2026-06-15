@@ -464,6 +464,10 @@ function renderDrawer(d){
   moveCols.push(['parts','Waiting Parts'],['done','Completion'],['followup','Follow Up'],['needinv','Needs Invoice']);
   const curCol=placeOf(j);
   const moveOpts=moveCols.map(mc=>`<option value="${mc[0]}"${mc[0]===curCol?' selected':''}>${esc(mc[1])}</option>`).join('');
+  // Schedule card: pick tech + DAY (day-of routing — no clock time). Default the
+  // tech to whoever's already assigned. This is the place to put the schedule
+  // date IN Ant (kills double-entry into the old tool).
+  const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
   document.getElementById('d-body').innerHTML=`
     <div class="dcard">
       <h4>📋 Job file</h4>
@@ -553,6 +557,16 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
+      <h4>📅 Schedule (tech + day)</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b>. We route by day — the customer gets a live arrival window the morning of. This saves the date right here in Ant, so there's nothing to enter anywhere else.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
+        <input type="date" id="schDay" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <button onclick="scheduleFromDrawer(${jid})" style="padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule this day</button>
+      </div>
+    </div>
+
+    <div class="dcard">
       <h4>📂 Move to folder</h4>
       <div style="display:flex;gap:8px;align-items:center">
         <select id="moveSel" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${moveOpts}</select>
@@ -582,6 +596,23 @@ async function saveJobInfo(id){
   toast(ok?'Saved ✓':'⚠ some fields did not save');
   openDrawer(String(id)); // reload the job file with the new values
   loadBoard();
+}
+async function scheduleFromDrawer(id){
+  const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay');
+  const tech=parseInt((techEl&&techEl.value)||'0',10);
+  const day=(dayEl&&dayEl.value)||'';
+  if(!tech){toast('Pick a tech');return;}
+  if(!day){toast('Pick a day');return;}
+  // Day-of routing: the time is a placeholder (08:00) — only the DAY matters.
+  const startMs=new Date(day+'T08:00:00').getTime();
+  toast('Scheduling…');
+  try{
+    const d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+    if(d&&d.success){
+      try{localStorage.setItem('tn_stage_'+id,'scheduled');}catch(_){}
+      toast('Scheduled ✓ — moved to Scheduled');closeDrawer();loadBoard();
+    } else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ connection error');}
 }
 async function moveJobFromDrawer(id){
   const sel=document.getElementById('moveSel'); if(!sel)return;
