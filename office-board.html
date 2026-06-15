@@ -603,6 +603,13 @@ async function scheduleFromDrawer(id){
   const day=(dayEl&&dayEl.value)||'';
   if(!tech){toast('Pick a tech');return;}
   if(!day){toast('Pick a day');return;}
+  // Stop limit: cap = tech's preference (max_stops_per_day) or 6.
+  try{
+    const rd=await (await fetch(XANO+'/get_tech_route_days?technician_id='+tech)).json();
+    const cap=(rd&&Number(rd.max_stops_per_day))||6;
+    const sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
+    if(sameDay>=cap){ if(!confirm((TECH_NAME[tech]||'Tech')+' already has '+sameDay+' stops that day (their limit is '+cap+'). Schedule anyway?')) return; }
+  }catch(_){}
   // Day-of routing: the time is a placeholder (08:00) — only the DAY matters.
   const startMs=new Date(day+'T08:00:00').getTime();
   toast('Scheduling…');
