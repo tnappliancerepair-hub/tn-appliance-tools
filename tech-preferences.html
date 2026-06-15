@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant — Team Preferences</title>
+<style>
+  :root{--ink:#1d2530;--ink2:#5b6675;--dim:#9aa4b2;--line:#e3e7ec;--blue:#1f6fed;--ok:#16a34a;--bad:#c0392b;--bg:#f4f6f9;}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);padding-bottom:90px;}
+  header{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);padding:14px 16px;padding-top:max(14px,env(safe-area-inset-top));}
+  header h1{font-size:18px;font-weight:800;}
+  header .sub{font-size:13px;color:var(--ink2);margin-top:2px;}
+  .wrap{padding:16px;max-width:620px;margin:0 auto;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  label{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);display:block;margin-bottom:7px;}
+  select,input[type=text],input[type=number],input[type=time]{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;font-size:16px;background:#fff;color:var(--ink);}
+  .person-sel{font-size:17px;font-weight:800;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{border:1px solid var(--line);background:#f3f6fb;border-radius:999px;padding:9px 14px;font-size:14px;font-weight:700;cursor:pointer;user-select:none;}
+  .chip.on{background:var(--bad);color:#fff;border-color:var(--bad);}
+  .chip.spec.on{background:var(--ok);color:#fff;border-color:var(--ok);}
+  .hint{font-size:12px;color:var(--ink2);margin-top:7px;}
+  .row2{display:flex;gap:10px;}
+  .row2>div{flex:1;}
+  .save{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));}
+  .save button{width:100%;border:0;border-radius:11px;background:var(--ok);color:#fff;padding:15px;font-size:16px;font-weight:800;cursor:pointer;}
+  .save button:disabled{opacity:.5;}
+  .mb{margin-bottom:14px;}
+  .auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth.hidden{display:none;}
+  .auth-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px;max-width:340px;width:100%;text-align:center;}
+  .auth-card h2{font-size:18px;margin-bottom:5px;} .auth-card .sub{color:var(--ink2);font-size:13px;margin-bottom:16px;}
+  .auth-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;font-size:16px;text-align:center;margin-bottom:11px;}
+  .auth-card button{width:100%;border:0;background:var(--blue);color:#fff;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;}
+  .auth-card .err{color:var(--bad);font-size:13px;margin-top:9px;min-height:17px;}
+  .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:#1d2530;color:#fff;padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:9998;opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  .loading{text-align:center;color:var(--ink2);padding:30px;}
+</style>
+</head>
+<body>
+
+<div class="auth" id="auth">
+  <div class="auth-card">
+    <h2>👥 Team Preferences</h2>
+    <div class="sub">enter office password</div>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button onclick="submitAuth()">Open</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<header>
+  <h1>👥 Team Preferences</h1>
+  <div class="sub">Set each person's recurring days off + how Ant routes them.</div>
+</header>
+
+<div class="wrap" id="wrap"><div class="loading">Loading…</div></div>
+
+<div class="save"><button id="saveBtn" onclick="save()" disabled>Save</button></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const OFFICE_AUTH_KEY='tn_office_auth_v1';
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const APPLIANCES=['washer','dryer','refrigerator','range','dishwasher','microwave','hvac','ice_maker','dryer_vent'];
+let TECHS=[], cur=null, pw='';
+
+function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
+function initAuth(){ if(authValid()){document.getElementById('auth').classList.add('hidden');load();return;} document.getElementById('pw').focus(); }
+async function submitAuth(){
+  const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
+  if(!v){err.textContent='Enter password';return;}
+  try{
+    const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+    const d=await r.json();
+    if(d&&d.success){pw=v;localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');load();}
+    else err.textContent='Wrong password.';
+  }catch(_){err.textContent='Connection error.';}
+}
+document.getElementById('pw').addEventListener('keypress',e=>{if(e.key==='Enter')submitAuth();});
+
+// recurring days off + note are stored inside personal_context: "OFF_DAYS=Wed,Sun;;the note"
+function parseContext(ctx){
+  ctx=ctx||''; let days=[], note=ctx;
+  const m=ctx.match(/OFF_DAYS=([^;]*);;?(.*)$/s);
+  if(m){ days=(m[1]||'').split(',').map(s=>s.trim()).filter(Boolean); note=(m[2]||'').trim(); }
+  return {days,note};
+}
+function buildContext(days,note){
+  const d=(days||[]).join(',');
+  if(!d && !note) return '';
+  return 'OFF_DAYS='+d+';;'+(note||'');
+}
+
+async function load(){
+  document.getElementById('wrap').innerHTML='<div class="loading">Loading…</div>';
+  try{
+    const d=await (await fetch('/.netlify/functions/tech-prefs',{cache:'no-store'})).json();
+    TECHS=(d&&d.techs)||[];
+    if(!TECHS.length){document.getElementById('wrap').innerHTML='<div class="loading">No team found.</div>';return;}
+    cur=TECHS[0].id;
+    render();
+    document.getElementById('saveBtn').disabled=false;
+  }catch(e){ document.getElementById('wrap').innerHTML='<div class="loading">⚠ '+e.message+'</div>'; }
+}
+
+function tech(){return TECHS.find(t=>t.id===cur)||TECHS[0];}
+function render(){
+  const t=tech();
+  const ctx=parseContext(t.personal_context);
+  let specs=[]; try{specs=JSON.parse(t.appliance_specialties||'[]');}catch(_){specs=(t.appliance_specialties||'').split(',').map(s=>s.trim()).filter(Boolean);}
+  const wrap=document.getElementById('wrap');
+  wrap.innerHTML=`
+    <div class="card">
+      <label>Person</label>
+      <select class="person-sel" id="sel" onchange="pick(this.value)">
+        ${TECHS.map(x=>`<option value="${x.id}"${x.id===cur?' selected':''}>${x.name}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="card">
+      <label>Preferred hours</label>
+      <div class="row2 mb">
+        <div><label style="text-transform:none;font-size:12px;color:var(--ink)">Likes to start</label><input type="time" id="hstart" value="${esc(t.preferred_hours_start)}"></div>
+        <div><label style="text-transform:none;font-size:12px;color:var(--ink)">Likes to finish</label><input type="time" id="hend" value="${esc(t.preferred_hours_end)}"></div>
+      </div>
+      <div class="hint">Their real working window — some start at 6am, some not till 10; some quit at 2, some go till 7. Ant builds the day inside these hours.</div>
+    </div>
+
+    <div class="card">
+      <label>Days off (recurring)</label>
+      <div class="chips" id="dayChips">
+        ${DAYS.map(d=>`<div class="chip ${ctx.days.includes(d)?'on':''}" data-day="${d}" onclick="toggleChip(this)">${d}</div>`).join('')}
+      </div>
+      <div class="hint">Tap the days this person normally <b>doesn't</b> work (e.g. Jimmy off Wed for Annalise). Untapped days = work days.</div>
+      <div class="mb"></div>
+      <label>Why / note</label>
+      <input type="text" id="note" value="${esc(ctx.note)}" placeholder="e.g. picks up son Tue/Thu; daughter on Wednesdays">
+    </div>
+
+    <div class="card">
+      <label>Routing</label>
+      <div class="row2 mb">
+        <div><label style="text-transform:none;font-size:11px">Max stops / day</label><input type="number" id="maxstops" min="1" max="12" value="${t.max_stops_per_day||6}"></div>
+        <div><label style="text-transform:none;font-size:11px">Home base / zone</label><input type="text" id="home" value="${esc(t.home_zone)}" placeholder="Antioch"></div>
+      </div>
+      <label style="text-transform:none;font-size:11px">Appliances they handle</label>
+      <div class="chips mb" id="specChips">
+        ${APPLIANCES.map(a=>`<div class="chip spec ${specs.includes(a)?'on':''}" data-spec="${a}" onclick="toggleChip(this)">${a.replace('_',' ')}</div>`).join('')}
+      </div>
+      <label style="text-transform:none;font-size:11px">Brands they won't do</label>
+      <input type="text" id="excl" value="${esc(t.brand_exclusions)}" placeholder="e.g. Bosch, Thermador, Viking">
+    </div>
+  `;
+}
+function pick(id){cur=parseInt(id,10);render();}
+function toggleChip(el){el.classList.toggle('on');}
+
+async function save(){
+  const t=tech();
+  const days=[...document.querySelectorAll('#dayChips .chip.on')].map(c=>c.dataset.day);
+  const specs=[...document.querySelectorAll('#specChips .chip.on')].map(c=>c.dataset.spec);
+  const note=(document.getElementById('note').value||'').trim();
+  const body={
+    office_password:pw||localStorage.getItem('tn_office_pw')||'',
+    tech_id:cur,
+    max_stops_per_day:document.getElementById('maxstops').value,
+    works_saturdays:!days.includes('Sat'),       // Saturday off-chip => doesn't work Saturdays
+    appliance_specialties:JSON.stringify(specs),
+    brand_exclusions:(document.getElementById('excl').value||'').trim(),
+    home_zone:(document.getElementById('home').value||'').trim(),
+    preferred_hours_start:document.getElementById('hstart').value||'',
+    preferred_hours_end:document.getElementById('hend').value||'',
+    personal_context:buildContext(days,note),
+  };
+  // if pw wasn't captured this session, ask once
+  if(!body.office_password){ const p=prompt('Office password to save:'); if(!p)return; body.office_password=p; pw=p; }
+  const btn=document.getElementById('saveBtn');btn.disabled=true;toast('Saving…');
+  try{
+    const d=await (await fetch('/.netlify/functions/tech-prefs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if(d&&(d.ok||d.success)){
+      // update local copy so switching away/back shows the saved values
+      Object.assign(t,{max_stops_per_day:parseInt(body.max_stops_per_day,10),works_saturdays:body.works_saturdays,appliance_specialties:body.appliance_specialties,brand_exclusions:body.brand_exclusions,home_zone:body.home_zone,preferred_hours_start:body.preferred_hours_start,preferred_hours_end:body.preferred_hours_end,personal_context:body.personal_context});
+      toast('Saved ✓ — '+t.name);
+    } else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ connection error');}
+  btn.disabled=false;
+}
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(window._tt);window._tt=setTimeout(()=>t.classList.remove('show'),2400);}
+
+initAuth();
+</script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
+</body>
+</html>
