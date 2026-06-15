@@ -41,9 +41,9 @@ query send_waiver_sms verb=POST {
       error = "Target phone number is missing"
     }
   
-    // Construct the Jotform waiver URL
+    // Construct the native Ant waiver URL (replaced Jotform 2026-06-15)
     var $prefilled_url {
-      value = "https://form.jotform.com/260495320372050?job_id=" ~ $job.id ~ "&name=" ~ ($customer.first_name|url_encode) ~ "&phone=" ~ ($target_phone|url_encode)
+      value = "https://tnapplianceexchange.net/waiver.html?job_id=" ~ $job.id ~ "&name=" ~ ($customer.first_name|url_encode) ~ "&phone=" ~ ($target_phone|url_encode)
     }
   
     // Construct the SMS message text
