@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Finish sending your video · TN Appliance</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+  :root{--black:#050505;--surface:#0c0c0c;--bord2:#262626;--orange:#ff6200;--green:#39ff14;--white:#f0f0f0;--gray:#888;--gray2:#555;--mono:'Geist Mono',monospace;--serif:'Instrument Serif',serif;--block:'Bebas Neue',sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--black);color:var(--white);font-family:var(--mono);min-height:100%;}
+  body{display:flex;flex-direction:column;align-items:center;padding:30px 22px 60px;min-height:100vh;}
+  .orb-wrap{position:relative;width:96px;height:96px;display:flex;align-items:center;justify-content:center;margin:6px 0 18px;}
+  .orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 45%,#ff7c28,#ff6200 45%,#7a2f00);box-shadow:0 0 36px 5px rgba(255,98,0,.5);animation:breathe 3s ease-in-out infinite;}
+  .orb.ok{background:radial-gradient(circle at 50% 45%,#7dff5e,#39ff14 50%,#0d5e00);box-shadow:0 0 40px 7px rgba(57,255,20,.45);}
+  .ant{position:relative;z-index:2;font-size:38px;}
+  @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:10px;text-align:center;}
+  h1{font-family:var(--serif);font-style:italic;font-size:30px;font-weight:400;margin-bottom:10px;text-align:center;}
+  h1 .a{color:var(--green);}
+  p{color:var(--gray);font-size:14px;line-height:1.6;max-width:460px;text-align:center;margin:0 auto 18px;}
+  .capture{width:100%;max-width:520px;margin-top:10px;}
+  .cap-btn{width:100%;background:var(--surface);border:1.5px dashed var(--bord2);border-radius:13px;padding:22px;color:var(--white);font-family:var(--mono);font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .cap-btn .emo{font-size:30px;}
+  .cap-btn.done{border-style:solid;border-color:var(--green);color:var(--green);}
+  .uprog{width:100%;height:7px;background:#1a1a1a;border-radius:6px;margin-top:9px;overflow:hidden;}
+  .upbar{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--green));border-radius:6px;transition:width .35s ease;}
+  .upbar.warn{background:#caa23a;}
+  .upstat{font-size:12px;color:var(--gray);margin-top:6px;text-align:center;}
+  .hidden{display:none!important;}
+  .footer{margin-top:36px;font-size:11px;color:var(--gray2);text-align:center;}
+  .footer a{color:var(--gray);}
+</style></head><body>
+  <div class="orb-wrap"><div class="orb" id="orb"></div><div class="ant">🐜</div></div>
+  <div class="kicker" id="kicker">Finish your Quick Check</div>
+  <h1 id="head">Let’s get your <span class="a">video in.</span></h1>
+  <p id="msg">Just tap below — we’ll keep trying even on weak signal, so it’s okay if it takes a moment.</p>
+  <div class="capture" id="cap">
+    <label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload your video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>
+    <div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>
+    <div style="height:14px"></div>
+    <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to photograph the model sticker</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile"></label>
+    <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
+  </div>
+  <div class="footer">TN Appliance Exchange · <a href="tel:+18662680111">866-268-0111</a></div>
+<script>
+if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.replace('://www.', '://')); }
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN='https://tnapplianceexchange.net/.netlify/functions';
+const jobId=parseInt(new URLSearchParams(location.search).get('job_id')||'0',10)||0;
+if(!jobId){ document.getElementById('head').textContent='Hmm —'; document.getElementById('msg').textContent='That link looks off. Text us at 866-268-0111 and we\'ll grab your video right away.'; document.getElementById('cap').classList.add('hidden'); }
+
+function fetchJSON(url, body, tries){ tries=tries||3; return (async()=>{ let last; for(let i=0;i<tries;i++){ try{ const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),25000); const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}); clearTimeout(to); return await r.json(); }catch(e){ last=e; await new Promise(s=>setTimeout(s,Math.min(1500*(i+1),5000))); } } throw last||new Error('network'); })(); }
+function putWithProgress(url, file, mime, onPct){ return new Promise((resolve,reject)=>{ const x=new XMLHttpRequest(); x.open('PUT',url,true); x.setRequestHeader('Content-Type',mime); x.timeout=180000; if(x.upload)x.upload.onprogress=e=>{ if(e.lengthComputable&&onPct)onPct(e.loaded/e.total); }; x.onload=()=>(x.status>=200&&x.status<300)?resolve(true):reject(new Error('s3 '+x.status)); x.onerror=()=>reject(new Error('network')); x.ontimeout=()=>reject(new Error('timeout')); try{x.send(file);}catch(e){reject(e);} }); }
+async function uploadMedia(file, fileType, onStatus){
+  const mime=file.type||(fileType==='video'?'video/mp4':'image/jpeg'); const maxTries=6; let lastErr='';
+  for(let a=1;a<=maxTries;a++){
+    try{
+      if(onStatus)onStatus('preparing',a,0);
+      const gen=await fetchJSON(XANO+'/generate_upload_url',{job_id:jobId, attachment_type:'intake', file_type:fileType, original_filename:file.name||(fileType+(fileType==='video'?'.mp4':'.jpg')), mime_type:mime, uploaded_by:'customer'});
+      if(!gen||!gen.s3_key||!gen.attachment_id) throw new Error('init');
+      const pres=await fetchJSON(FN+'/s3-presign',{s3_key:gen.s3_key, mime_type:mime});
+      if(!pres||!pres.upload_url) throw new Error('presign');
+      await putWithProgress(pres.upload_url,file,mime,pct=>{ if(onStatus)onStatus('uploading',a,pct); });
+      await fetchJSON(XANO+'/save_attachment',{attachment_id:gen.attachment_id, file_size_bytes:file.size||0}).catch(()=>{});
+      if(onStatus)onStatus('done',a,1); return {ok:true};
+    }catch(e){ lastErr=(e&&e.message)||'error'; if(a<maxTries){ if(onStatus)onStatus('retry',a,0); await new Promise(s=>setTimeout(s,Math.min(2000*a,9000))); } }
+  }
+  if(onStatus)onStatus('failed',maxTries,0); return {ok:false,error:lastErr};
+}
+function statusFn(bar,txt){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Uploaded — got it!';} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 866-268-0111.';} }; }
+function wire(fileId, btnId, progId, barId, statId, kind, label){
+  const fi=document.getElementById(fileId);
+  fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    const b=document.getElementById(btnId); b.classList.add('done'); const l=b.querySelectorAll('span')[1]; if(l)l.textContent=label;
+    document.getElementById(progId).classList.remove('hidden'); document.getElementById(statId).classList.remove('hidden');
+    uploadMedia(f,kind,statusFn(document.getElementById(barId),document.getElementById(statId)));
+  };
+}
+if(jobId){ wire('vfile','vbtn','vprog','vbar','vstat','video','✓ Video added'); wire('mfile','mbtn','mprog','mbar','mstat','photo','✓ Model photo added'); }
+</script>
+</body></html>
