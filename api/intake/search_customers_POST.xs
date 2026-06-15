@@ -77,12 +77,12 @@ query search_customers verb=POST {
       }
     }
   
-    // Name match. 2026-06-15: SUBSTRING + case-insensitive. Exact-match missed
-    // real customers because warranty names are stored mixed: Title ("Young
-    // III" — a "Young" search missed the suffix), ALL CAPS ("JOYCE MATTHEWS"),
-    // etc. Xano |contains: is proven (lookup_app_help) but case-SENSITIVE, so we
-    // substring-match each token in lower, Title, and UPPER forms across first
-    // AND last name. Guarded to tokens >= 2 chars so we don't match everyone.
+    // Name match. 2026-06-14: callers give a FULL name ("Sherri Rucker") but
+    // first_name/last_name are separate columns, so matching the whole string
+    // found nothing. AND Xano == is CASE-SENSITIVE (verified: "Sherri" hits,
+    // "sherri" misses), while names are stored Title Case. So: split into
+    // tokens, lower then Title-Case each, and match first OR last against each
+    // (plus the raw string for exact-typed single-field names).
     var $q_lc_n {
       value = $q_raw|to_lower
     }
@@ -101,29 +101,16 @@ query search_customers verb=POST {
     var $nt1 {
       value = (($nt1_raw|substr:0:1|to_upper) ~ ($nt1_raw|substr:1))
     }
-    var $nt0_u {
-      value = $nt0_raw|to_upper
-    }
-    var $nt1_u {
-      value = $nt1_raw|to_upper
-    }
-    var $name_ok {
-      value = (($nt0_raw|strlen) >= 2)
-    }
-    conditional {
-      if ($name_ok) {
-        db.query customer {
-          where = $db.customer.last_name |contains: $nt0_raw || $db.customer.last_name |contains: $nt0 || $db.customer.last_name |contains: $nt0_u || $db.customer.first_name |contains: $nt0_raw || $db.customer.first_name |contains: $nt0 || $db.customer.first_name |contains: $nt0_u || $db.customer.last_name |contains: $nt1_raw || $db.customer.last_name |contains: $nt1 || $db.customer.last_name |contains: $nt1_u || $db.customer.first_name |contains: $nt1_raw || $db.customer.first_name |contains: $nt1 || $db.customer.first_name |contains: $nt1_u
-          sort = {customer.created_at: "desc"}
-          return = {type: "list", paging: {page: 1, per_page: 25}}
-        } as $name_rows
-
-        foreach ($name_rows.items) {
-          each as $c {
-            var.update $matches {
-              value = $matches|push:$c
-            }
-          }
+    db.query customer {
+      where = $db.customer.first_name == $q_raw || $db.customer.last_name == $q_raw || $db.customer.first_name == $nt0 || $db.customer.last_name == $nt0 || $db.customer.first_name == $nt1 || $db.customer.last_name == $nt1
+      sort = {customer.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 15}}
+    } as $name_rows
+  
+    foreach ($name_rows.items) {
+      each as $c {
+        var.update $matches {
+          value = $matches|push:$c
         }
       }
     }
