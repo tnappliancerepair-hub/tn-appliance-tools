@@ -1,17 +1,21 @@
-// vapi-admin — TEMPORARY remote admin so we can fix Ant Inbound's tools from the
-// cloud (Teddy's on the road, the Vapi key lives in env/vault not on his laptop).
-// Guarded by a shared secret. DELETE THIS FILE once the phone is wired.
+// vapi-admin — remote admin for Ant Inbound so Vapi changes are a one-command
+// push from anywhere (no dashboard fights, key lives in env/vault not a laptop).
 //
-//   GET/POST ?secret=<GUARD>&action=inspect   -> dump Ant Inbound model + tools
-//   GET/POST ?secret=<GUARD>&action=apply     -> recreate 5 proxy tools + attach
+//   GET/POST ?secret=<GUARD>&action=<inspect|fix|voice|voiceon|prompt|setprompt|
+//            phones|lastcall|env|apply>
 //
-// Uses getSecret('VAPI_PRIVATE_KEY') (env-first, then Xano vault).
+// SECURITY: the access guard is read from the vault secret VAPI_ADMIN_SECRET
+// (env-first, then Xano app_config), falling back to the legacy constant only
+// until that secret is set. To lock it down: add VAPI_ADMIN_SECRET in
+// admin-secrets.html, then this file's fallback can be removed.
+// Uses getSecret('VAPI_PRIVATE_KEY') for the Vapi key (same vault path).
 
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
 
-const GUARD = 'tn-vapi-admin-9f83b1c4e7a206d5';
+// Legacy fallback — used ONLY if the VAPI_ADMIN_SECRET vault secret is unset.
+const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const VAPI = 'https://api.vapi.ai';
 const PROXY = 'https://tnapplianceexchange.net/.netlify/functions/vapi-tool';
 const INBOUND_NAME = 'Ant Inbound';
@@ -48,7 +52,8 @@ function tname(t) { return (t && t.function && t.function.name) || (t && t.name)
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  if (q.secret !== GUARD) return { statusCode: 403, body: 'forbidden' };
+  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };
 
   const key = await getSecret('VAPI_PRIVATE_KEY');
   if (!key) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'VAPI_PRIVATE_KEY not in env or vault — cannot reach Vapi from here' }) };
