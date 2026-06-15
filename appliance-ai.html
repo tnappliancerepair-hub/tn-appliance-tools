@@ -123,7 +123,7 @@ const FLOW = document.getElementById('flow');
 const ORB = document.getElementById('orb');
 const HEAD = document.getElementById('head');
 const SUB = document.getElementById('sub');
-const state = { appliance:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', address:'', city:'', zip:'', warranty:'', claim:'' };
+const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'' };
 
 const APPLIANCES = [
   ['🧊','Refrigerator'],['🌀','Washer'],['🔥','Dryer'],
@@ -243,8 +243,18 @@ function payStep(){
   p.innerHTML='<div class="amt">$50</div><div class="amtsub">Credited to your repair · honest answer within 2 business hours</div>'
     +'<button class="go" id="pay-go">Pay $50 &amp; get my answer →</button>';
   FLOW.appendChild(p);
-  // NOTE: payment + intake wiring (Stripe $50 + create_job_from_call + cash-call siren) hooks in here.
-  document.getElementById('pay-go').onclick=()=>{ clearFlow(); think(900, done); };
+  document.getElementById('pay-go').onclick=async()=>{
+    const btn=document.getElementById('pay-go'); btn.disabled=true; btn.textContent='Taking you to secure checkout…';
+    try{
+      const r=await fetch('/.netlify/functions/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:state.name, phone:state.phone, address:state.address, city:state.city, zip:state.zip,
+        appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town
+      })});
+      const d=await r.json();
+      if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
+      else { btn.disabled=false; btn.textContent='Pay $50 & get my answer →'; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 866-268-0111.')); }
+    }catch(_){ btn.disabled=false; btn.textContent='Pay $50 & get my answer →'; antMsg('⚠ Connection hiccup — try again, or call 866-268-0111.'); }
+  };
 }
 function done(){
   setHead('You\'re <span class="accent">all set.</span> 🎉','');
