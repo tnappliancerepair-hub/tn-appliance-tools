@@ -18,20 +18,23 @@ const DANIELLE = '+16154850713';
 function rowMeta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 function stateFromZip(zip) { const z = String(zip || '').replace(/\D/g, '').slice(0, 5); if (/^7[01]/.test(z)) return 'LA'; if (/^3[78]/.test(z)) return 'TN'; return ''; }
 
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
+
 exports.handler = async function (event) {
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
   const sessionId = String(b.session_id || '').trim();
-  if (!sessionId) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'session_id required' }) };
+  if (!sessionId) return { statusCode: 400, headers: CORS, body: JSON.stringify({ ok: false, error: 'session_id required' }) };
 
   const key = await getSecret('STRIPE_SECRET_KEY');
-  if (!key) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'payments not configured' }) };
+  if (!key) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, error: 'payments not configured' }) };
 
   let session;
   try { session = await new Stripe(key).checkout.sessions.retrieve(sessionId); }
-  catch (e) { return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not verify payment' }) }; }
+  catch (e) { return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, error: 'could not verify payment' }) }; }
   if (!session || session.payment_status !== 'paid') {
-    return { statusCode: 200, body: JSON.stringify({ ok: true, paid: false, payment_status: (session && session.payment_status) || 'none', status: (session && session.status) || 'none' }) };
+    return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: false, payment_status: (session && session.payment_status) || 'none', status: (session && session.status) || 'none' }) };
   }
   const m = session.metadata || {};
   const first = String(m.name || '').trim().split(/\s+/)[0] || '';
@@ -40,7 +43,7 @@ exports.handler = async function (event) {
   try {
     const prior = await crud.searchPage(crud.TABLES.event_log, { action: 'quick_check_paid' }, { created_at: 'desc' }, 200);
     const hit = (prior || []).find((r) => rowMeta(r).session_id === sessionId);
-    if (hit) return { statusCode: 200, body: JSON.stringify({ ok: true, paid: true, already: true, job_id: rowMeta(hit).job_id, first_name: first }) };
+    if (hit) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, already: true, job_id: rowMeta(hit).job_id, first_name: first }) };
   } catch (_) {}
 
   // create the cash job (lands in Needs Scheduled, flagged self_pay).
@@ -89,11 +92,11 @@ exports.handler = async function (event) {
 
   // 💵 CASH siren → Teddy + Danielle
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
-  const msg = '💵💵 CASH QUICK-CHECK PAID — $50 · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
+  const msg = '💵💵 CASH QUICK-CHECK PAID — $' + amount + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
     + (m.town ? (' · ' + m.town) : '') + ' — ' + (m.problem || '').slice(0, 120)
     + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
 
-  return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first }) };
+  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first }) };
 };
