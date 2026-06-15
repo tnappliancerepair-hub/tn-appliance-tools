@@ -130,12 +130,12 @@
 [functions."colony-watchdog"]
   schedule = "*/5 * * * *"
 
-# HCP poll catchup — every 15 min, force-call hcp_poll_recent_jobs. Keeps Ant's
-# board/calendar in sync with HCP's schedule. STAYS ON until scheduling is fully
-# reliable in Ant and HCP is ready to retire (dupes are the accepted cost of
-# dual-running until then). 2026-06-15: briefly disabled, re-enabled same day.
-[functions."hcp-poll-catchup"]
-  schedule = "*/15 * * * *"
+# HCP poll catchup — OFF as of 2026-06-15. Danielle doesn't want Ant live-
+# connected to HCP (the sync created a dupe of every email job). Replaced by a
+# read-only MORNING COMPARISON (hcp-morning-compare) that checks Ant's schedule
+# against HCP without writing anything. Re-enable by uncommenting if ever needed.
+# [functions."hcp-poll-catchup"]
+#   schedule = "*/15 * * * *"
 
 # Multi-vendor warranty dispatch poller — catches NSA + SquareTrade +
 # Allstate dispatches the AHS/SP pollers don't see (missing 25 jobs/day

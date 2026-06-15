@@ -22,6 +22,12 @@ const XANO_HCP_POLL =
 const TIMEOUT_MS = 25000;
 
 exports.handler = async function () {
+  // ── OFF 2026-06-15 ───────────────────────────────────────────────────
+  // Danielle doesn't want Ant live-connected to HCP (this poll created a dupe
+  // of every email-intake job). Replaced by the read-only morning comparison
+  // (hcp-morning-compare). Hard no-op so it can never re-ingest. Reversible.
+  return { statusCode: 200, body: JSON.stringify({ ok: true, disabled: true, note: 'HCP live poll off 2026-06-15 — replaced by read-only morning comparison' }) };
+
   const startedAt = Date.now();
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
