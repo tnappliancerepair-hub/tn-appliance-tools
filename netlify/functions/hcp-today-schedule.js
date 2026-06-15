@@ -46,17 +46,21 @@ exports.handler = async (event) => {
     return { statusCode: 200, body: JSON.stringify({ ok: true, day, probe: out }, null, 2) };
   }
 
-  // Pull jobs scheduled within the day window (1-2 pages covers a day).
+  // Pull jobs scheduled within the day window. HCP caps pages small and uses
+  // page_size (not per_page) — so paginate until we've got them all (stop on an
+  // empty page or once we've collected the reported total).
   const jobs = [];
   try {
-    for (let page = 1; page <= 4; page++) {
-      const url = `${HCP_BASE}/jobs?per_page=100&page=${page}&scheduled_start_min=${encodeURIComponent(minIso)}&scheduled_start_max=${encodeURIComponent(maxIso)}`;
+    let total = Infinity;
+    for (let page = 1; page <= 15; page++) {
+      const url = `${HCP_BASE}/jobs?page_size=100&per_page=100&page=${page}&scheduled_start_min=${encodeURIComponent(minIso)}&scheduled_start_max=${encodeURIComponent(maxIso)}`;
       const r = await fetch(url, { headers: { Authorization: 'Token ' + apiKey } });
       if (!r.ok) { if (page === 1) return { statusCode: 200, body: JSON.stringify({ ok: false, error: `HCP ${r.status}` }) }; break; }
       const j = await r.json().catch(() => ({}));
+      if (typeof j.total_items === 'number') total = j.total_items;
       const arr = j.jobs || j.data || [];
       jobs.push(...arr);
-      if (arr.length < 100) break;
+      if (arr.length === 0 || jobs.length >= total) break;
     }
   } catch (e) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: String(e.message || e) }) };
