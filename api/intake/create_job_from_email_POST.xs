@@ -248,6 +248,19 @@ query create_job_from_email verb=POST {
       }
     }
   
+    // Name hygiene: warranty parsers sometimes jam a full name into first_name
+    // with an empty last_name ("Victor Joseph Brumfield" / ""), which breaks
+    // name lookup. Title-case, and if last is blank split first word vs the rest.
+    var $fn_raw { value = (($input.customer_first_name ?? "")|trim) }
+    var $ln_raw { value = (($input.customer_last_name ?? "")|trim) }
+    var $fn_first_tok { value = ((($fn_raw|split:" ")|first) ?? $fn_raw) }
+    var $needs_split { value = ($ln_raw == "" && $fn_first_tok != $fn_raw) }
+    var $fn_pre { value = ($needs_split ? $fn_first_tok : $fn_raw) }
+    var $ln_rest { value = ($fn_raw|replace:($fn_first_tok ~ " "):"") }
+    var $ln_pre { value = ($needs_split ? $ln_rest : $ln_raw) }
+    var $fn_norm { value = (($fn_pre|substr:0:1|to_upper) ~ ($fn_pre|substr:1)) }
+    var $ln_norm { value = (($ln_pre|substr:0:1|to_upper) ~ ($ln_pre|substr:1)) }
+
     // Find/create customer by phone match (or just create new)
     var $cust_id_final {
       value = 0
@@ -284,8 +297,8 @@ query create_job_from_email verb=POST {
       if ($cust_id_final == 0) {
         db.add customer {
           data = {
-            first_name: (($input.customer_first_name ?? "")|trim)
-            last_name : (($input.customer_last_name ?? "")|trim)
+            first_name: $fn_norm
+            last_name : $ln_norm
             phone     : ($phone_in != "") ? $phone_in : $phone_last10
             email     : (($input.customer_email ?? "")|trim)
             address   : (($input.service_address ?? "")|trim)
