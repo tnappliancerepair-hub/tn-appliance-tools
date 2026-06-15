@@ -230,7 +230,18 @@ function parseServicePowerBody(body, subject) {
   }
   commit();
 
-  const email_type = classifyEmailType(subject, primarySectionHeader);
+  let email_type = classifyEmailType(subject, primarySectionHeader);
+
+  // Allstate/SquareTrade "Can you please provide an update on ..." emails are
+  // STATUS REQUESTS about an EXISTING job (work order: claim_########), NOT new
+  // dispatches. They were mis-classifying as DISPATCH_OFFER and creating a
+  // duplicate customer + job every time — the SquareTrade dupe machine. Detect
+  // the body pattern and force STATUS_REQUEST_REMINDER (logged-only in the
+  // intake → matches parent by claim, never creates).
+  const bodyLc = (body || '').toLowerCase();
+  if (bodyLc.includes('provide an update on') || bodyLc.includes('please provide an update') || bodyLc.includes('can you please provide an update')) {
+    email_type = 'STATUS_REQUEST_REMINDER';
+  }
 
   // Fallback for section-less emails (NEW NOTES, STATUS_UPDATE, etc.):
   // if the walker produced no dispatches, emit a single stub dispatch
