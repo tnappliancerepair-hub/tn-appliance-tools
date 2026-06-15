@@ -1,11 +1,11 @@
 //  Write-once job identity fields. The customer's machine info (brand, model,
-//  appliance, problem) lives on ONE job record that every surface reads — the
+//  appliance, problem) lives on ONE job record that every surface reads - the
 //  tech page, Danielle's board card, the Teddy Tool, the parts finder, the
 //  customer portal. So updating it here auto-populates everywhere at once.
 //
 //  Anyone who catches a correction can call this (no office password): the tech
 //  fixes a wrong model in the field, the office corrects a brand, intake seeds
-//  the first values. Only non-empty inputs overwrite — blanks leave a field
+//  the first values. Only non-empty inputs overwrite - blanks leave a field
 //  untouched, so a partial update never wipes good data.
 //
 //  XS rules: no em-dashes, no backticks, no try/catch, data = { } for db.edit.
@@ -71,6 +71,35 @@ query update_job_basics verb=POST {
         }
       }
     } as $log
+
+    // Re-fire the parts pre-order predictor when brand or model just got added.
+    // At intake, warranty jobs usually lack brand/model, so the JOB_CREATED
+    // pre-order skipped on insufficient_signal. Now that we have it, give the
+    // predictor another shot so the tech can bring the right part first trip.
+    var $has_signal {
+      value = ($brand != "" || $model != "")
+    }
+
+    var $preorder_payload {
+      value = {
+        job_id: $input.job_id
+        source: "job_basics_updated"
+      }
+    }
+
+    conditional {
+      if ($has_signal) {
+        db.add colony_signals {
+          data = {
+            signal_type    : "PARTS_PRE_ORDER_SUGGESTION"
+            signal_strength: 45
+            source_colony  : "office_board"
+            target_colonies: ""
+            payload        : ($preorder_payload|json_encode)
+          }
+        }
+      }
+    }
   }
 
   response = {
