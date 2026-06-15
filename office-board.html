@@ -153,6 +153,7 @@
   </nav>
 </div>
 
+<div id="msg-banner" style="padding:0 12px"></div>
 <div id="addons-banner"></div>
 
 <div id="board-host">
@@ -261,9 +262,22 @@ async function loadBoard(){
     renderBoard();
     loadAddons();
     loadPaid();
+    loadMessages();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
+}
+
+// Obvious message inbox alert — caller messages Ant captured, waiting for a reply.
+async function loadMessages(){
+  try{
+    const d=await (await fetch(XANO+'/list_callback_requests?days=7',{cache:'no-store'})).json();
+    const open=(d&&d.open_count)||0;
+    const el=document.getElementById('msg-banner'); if(!el)return;
+    el.innerHTML = open>0
+      ? '<a href="callbacks.html" style="display:block;background:#fff4e0;border:1px solid #ffd98a;border-radius:11px;padding:12px 14px;margin-bottom:8px;text-decoration:none;color:#b3690a;font-weight:800;font-size:14px">📲 '+open+' message'+(open===1?'':'s')+' waiting — tap to view &amp; text back</a>'
+      : '';
+  }catch(_){}
 }
 
 // place a job into a column id.
