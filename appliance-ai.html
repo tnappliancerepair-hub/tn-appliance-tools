@@ -121,11 +121,16 @@
   </div>
 
 <script>
+// Force the canonical (non-www) domain BEFORE anything fetches — the www host
+// 301-redirects /.netlify/functions/* cross-domain, which makes the browser kill
+// POST fetches ("Connection hiccup"). One redirect here and every fetch is same-origin.
+if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.replace('://www.', '://')); }
 const FLOW = document.getElementById('flow');
 const ORB = document.getElementById('orb');
 const HEAD = document.getElementById('head');
 const SUB = document.getElementById('sub');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const QC_PRICE = 1;   // test mode: $1 — restore to 50 when create-quickcheck-payment PRICE_CENTS goes back to 5000
 const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, name:'', phone:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
 // Upload media before the job exists: tag it with a conversation_id; create_job_from_chat
 // auto-links these attachments to the cash job after payment.
@@ -206,11 +211,11 @@ function askPayer(){
 // ── CASH: $50 quick check pitch ──
 function pitchQuickCheck(){
   if(!state.convId) state.convId = Date.now();  // stable id so video+photo+job all tie together
-  setHead('Let\'s do the <span class="accent">$50 Quick Check</span>.','Honest answer in hours. Credited to your repair.');
-  antMsg('Here\'s how I\'ll get you a real answer fast — for <b>$50</b> (and it comes right off your repair if you go ahead):');
+  setHead('Let\'s do the <span class="accent">$'+QC_PRICE+' Quick Check</span>.','Honest answer in hours. Credited to your repair.');
+  antMsg('Here\'s how I\'ll get you a real answer fast — for <b>$'+QC_PRICE+'</b> (and it comes right off your repair if you go ahead):');
   const v=document.createElement('div'); v.className='value';
   v.innerHTML='<div><b>Honest answer in hours</b> — not days of waiting.</div>'
-    +'<div><b>$50, not $125+</b> — most shops charge that just to show up.</div>'
+    +'<div><b>$'+QC_PRICE+', not $125+</b> — most shops charge that just to show up.</div>'
     +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>'
     +'<div><b>We\'ll tell you the truth</b> — even "don\'t fix it."</div>';
   FLOW.appendChild(v);
@@ -276,23 +281,25 @@ function collectContact(){
   };
 }
 function payStep(){
-  setHead('Lock in your <span class="accent">Quick Check.</span>','$50 now — credited to your repair.');
+  setHead('Lock in your <span class="accent">Quick Check.</span>','$'+QC_PRICE+' now — credited to your repair.');
   const p=document.createElement('div'); p.className='pay';
-  p.innerHTML='<div class="amt">$50</div><div class="amtsub">Credited to your repair · honest answer within 2 business hours</div>'
-    +'<button class="go" id="pay-go">Pay $50 &amp; get my answer →</button>';
+  p.innerHTML='<div class="amt">$'+QC_PRICE+'</div><div class="amtsub">Credited to your repair · honest answer within 2 business hours</div>'
+    +'<button class="go" id="pay-go">Pay $'+QC_PRICE+' &amp; get my answer →</button>';
   FLOW.appendChild(p);
+  const payLabel='Pay $'+QC_PRICE+' & get my answer →';
   document.getElementById('pay-go').onclick=async()=>{
     const btn=document.getElementById('pay-go'); btn.disabled=true; btn.textContent='Taking you to secure checkout…';
     try{
-      const r=await fetch('/.netlify/functions/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      // absolute canonical origin so it never hits the www 301 redirect
+      const r=await fetch('https://tnapplianceexchange.net/.netlify/functions/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
-      else { btn.disabled=false; btn.textContent='Pay $50 & get my answer →'; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 866-268-0111.')); }
-    }catch(_){ btn.disabled=false; btn.textContent='Pay $50 & get my answer →'; antMsg('⚠ Connection hiccup — try again, or call 866-268-0111.'); }
+      else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 866-268-0111.')); }
+    }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 866-268-0111.'); }
   };
 }
 function done(){
