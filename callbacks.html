@@ -29,6 +29,7 @@
   .acts a,.acts button{flex:1;text-align:center;text-decoration:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;border:0;}
   .call{background:var(--blue);color:#fff;}
   .done-btn{background:#e7f7ec;color:var(--green);border:1px solid #bfe6cb;}
+  .tb-btn{background:#eaf2ff;color:var(--blue);border:1px solid #c3dbff;}
   .loading,.empty{text-align:center;color:var(--muted);padding:42px 0;}
   #auth{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:24px;z-index:50;}
   #auth input{width:100%;max-width:280px;padding:13px;font-size:16px;border:1px solid var(--line);border-radius:10px;}
@@ -86,10 +87,23 @@ function render(){
       '<div class="sum">'+esc(r.summary||'(no summary)')+'</div>'+
       '<div class="acts">'+
         (tel?'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(r.phone)+'</a>':'<span style="flex:1;color:#c0392b;font-weight:700;text-align:center;padding:11px">no number</span>')+
+        (tel?'<button class="tb-btn" onclick="textBack('+r.id+',this)">📲 Text back</button>':'')+
         (r.handled?'':'<button class="done-btn" onclick="handled('+r.id+',this)">✓ Handled</button>')+
       '</div>'+
     '</div>';
   }).join('');
+}
+// One-tap "we got your message, getting you scheduled" reply. Optional day.
+async function textBack(id,btn){
+  const row=ROWS.find(x=>x.id===id); if(!row||!row.phone){toast('no number');return;}
+  const day=(prompt('Add a day if you know it (optional) — e.g. "Thursday":','')||'').trim();
+  btn.disabled=true;const old=btn.textContent;btn.textContent='Texting…';
+  try{
+    const r=await fetch('/.netlify/functions/message-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:row.phone,name:row.name||'',day,callback_id:id})});
+    const d=await r.json();
+    if(d&&d.ok){toast('Texted them back ✓');btn.textContent='✓ Texted';}
+    else{btn.disabled=false;btn.textContent=old;toast('⚠ '+((d&&d.error)||'not sent'));}
+  }catch(_){btn.disabled=false;btn.textContent=old;toast('⚠ connection error');}
 }
 async function handled(id,btn){
   btn.disabled=true;btn.textContent='…';
