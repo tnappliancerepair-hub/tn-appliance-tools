@@ -55,6 +55,33 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Dump the most recent call's tool activity (name, server URL, args, result/error).
+  if (action === 'lastcall') {
+    const calls = listFrom(await vapi('GET', '/call?limit=5', key));
+    const c = calls[0];
+    if (!c) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no calls' }) };
+    const detail = await vapi('GET', `/call/${c.id}`, key);
+    const cj = detail.json || {};
+    const msgs = (cj.messages || cj.artifact && cj.artifact.messages || []);
+    const toolEvents = [];
+    for (const m of msgs) {
+      if (m.role === 'tool_calls' || m.toolCalls) {
+        (m.toolCalls || []).forEach((tc) => toolEvents.push({ kind: 'call', name: tc.function && tc.function.name, args: tc.function && tc.function.arguments }));
+      }
+      if (m.role === 'tool_call_result' || m.role === 'tool') {
+        toolEvents.push({ kind: 'result', name: m.name, result: String(m.result || m.content || '').slice(0, 300) });
+      }
+    }
+    return { statusCode: 200, body: JSON.stringify({
+      ok: true,
+      call_id: c.id,
+      started: cj.startedAt, ended: cj.endedReason,
+      assistantId: cj.assistantId,
+      transcript_tail: String(cj.transcript || '').slice(-600),
+      tool_events: toolEvents,
+    }, null, 2) };
+  }
+
   // Phone-number routing: does the dialed number use an assistantId or a
   // server/assistant-request URL? This decides where the fix goes.
   if (action === 'phones') {
