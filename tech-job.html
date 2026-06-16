@@ -394,7 +394,7 @@ function wireActions(){
   document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
-  if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:problem||'', job_id:job.id||0, role:'tech' }); }
+  if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:(appliance.problem_summary||appliance.problem_description||''), job_id:job.id||0, role:'tech' }); }
 }
 
 // ── Add-ons at the stop (install now or ship it) ───────────────
