@@ -109,12 +109,13 @@ module.exports = {
     label: 'MSA World',
     tier: 'reference',
     intelligence: true,
-    confirmOnLogin: true, // URLs best-guess until we log in and see the real portal
-    loginUrl: 'https://www.msaworld.com/',
-    searchUrl: (q) => 'https://www.msaworld.com/search?q=' + encodeURIComponent(q),
+    // Confirmed live 2026-06-16: authenticated portal is members.msaworld.com,
+    // search is /Search?query=<model>, login uses MyMarcone credentials.
+    loginUrl: 'https://members.msaworld.com/',
+    searchUrl: (q) => 'https://members.msaworld.com/Search?query=' + encodeURIComponent(q),
     searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i], input[placeholder*="model" i]',
     note: 'Member-licensed manuals / tech sheets / fault codes / recalls / TSBs (all brands), via Marcone membership. On-demand + model-specific only — do NOT bulk-mirror.',
-    loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account, [class*="account" i]',
+    loggedInHint: 'a[href*="logout" i], a[href*="logoff" i], a[href*="signout" i], a[href*="log-out" i]',
   },
 
   // Broad multi-brand public catalogs — cover EVERY brand incl. Sub-Zero, Viking,
