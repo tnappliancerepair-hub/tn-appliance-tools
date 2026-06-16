@@ -26,7 +26,7 @@ async function lookupOne(supplier, query, { headless = true } = {}) {
   try {
     // try the direct search URL first
     await page.goto(cfg.searchUrl(query), { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
-    out.logged_in = !!(await page.$(cfg.loggedInHint).catch(() => null));
+    out.logged_in = cfg.noLogin ? true : (cfg.loggedInHint ? !!(await page.$(cfg.loggedInHint).catch(() => null)) : false);
 
     // if the URL search didn't land on results, try typing into the search box
     if (cfg.searchSelector) {

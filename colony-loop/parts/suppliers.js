@@ -30,4 +30,28 @@ module.exports = {
     searchSelector: 'input#twotabsearchtextbox, input[type="text"][name="field-keywords"]',
     loggedInHint: '#nav-link-accountList-nav-line-1, a[href*="sign-out" i]',
   },
+  searspartsdirect: {
+    label: 'Sears PartsDirect',
+    noLogin: true, // public — authoritative part # by model + exploded diagrams + retail price
+    loginUrl: 'https://www.searspartsdirect.com/',
+    searchUrl: (q) => 'https://www.searspartsdirect.com/search?q=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name*="search" i], input#searchInput, input[placeholder*="model" i], input[placeholder*="part" i]',
+    loggedInHint: null,
+  },
+  lg: {
+    label: 'LG Parts (OEM)',
+    noLogin: true, // public genuine-LG parts (use when the appliance is LG)
+    loginUrl: 'https://lgparts.com/',
+    searchUrl: (q) => 'https://lgparts.com/search?q=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
+    loggedInHint: null,
+  },
+  samsung: {
+    label: 'Samsung Parts (OEM)',
+    noLogin: true, // public genuine-Samsung parts (use when the appliance is Samsung)
+    loginUrl: 'https://samsungpartsusa.com/',
+    searchUrl: (q) => 'https://samsungpartsusa.com/search?q=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
+    loggedInHint: null,
+  },
 };
