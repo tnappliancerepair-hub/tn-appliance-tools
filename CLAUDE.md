@@ -29,6 +29,14 @@
 - Wire the To-Order board's Amazon button to ALSO trigger the authenticated `amazon-order.js` (today's path) alongside the API path.
 - Auto-schedule the tech proactively the moment ETA is set (vs waiting for arrival).
 
+### 📍 WHERE WE ENDED (2026-06-15 ~10:30pm CT) — pick up here tomorrow
+- **Parts sources LOCKED to Marcone + Amazon** (Teddy's call). `colony-loop/parts/lookup.js --all` runs ONLY those two; `--every` also hits the public reference catalogs (Sears/LG/Samsung/AppliancePartsPros/PartSelect — all wired, no login). Marcone = OEM cost (what we order at); Amazon = aftermarket tier.
+- **Marcone is logged in ✅** (profile saved). Marcone login URL fixed to `https://my.marcone.com/UserLogin` (was 404ing on /Account/UserLogin).
+- **HUGE finding: Amazon SEARCH works with NO login** — `lookup.js` already returned real aftermarket parts + prices + part#s off amazon.com/s (e.g. W10883955 Washer Control Board ~$169, W10538726 lid lock, belts $18-55). Amazon login is only needed for ORDERING, not pricing. So the aftermarket tier pricing works TONIGHT.
+- **TOMORROW (Teddy):** (1) `node login.js amazon` + `node login.js tribles` (couldn't see Tribles pw tonight); (2) `node lookup.js --all WTW5000DW1` and PASTE the **Marcone block** (need to confirm `logged_in:true` + candidates, and see Marcone's result HTML structure) → Claude tunes the Marcone extractor + wires both tiers into the cash-TDR auto-fill.
+- **CONFIRM the cash-TDR XS push landed** (`stripe_checkout_session_completed` → `Pushed 1 documents`) — Teddy was pasting it at end of night.
+- **To resume:** start a FRESH Claude Code session (NOT the 256k one — it chokes), `git pull origin main`, say "good morning." Everything's committed + live.
+
 ### ⚠️ KEY FOOTGUN LEARNED TONIGHT (the photo saga)
 The **browser→S3 direct presigned PUT was failing on the customer's phone** (worked in curl + server-side). Fixes that mattered: (a) `s3-presign` was baking a crc32 checksum of the EMPTY body into the URL → set `requestChecksumCalculation:"WHEN_REQUIRED"`; (b) the **www→non-www 301** killed POSTs cross-origin → force-canonical redirect + CORS on the functions; (c) the Stripe redirect aborted in-flight uploads → await uploads before redirect; (d) ultimately the reliable fix = **proxy the photo through our own Netlify function** (browser→Netlify is the always-works hop) + downscale client-side. Video sidestepped all this via Cloudflare. **Lesson: for customer uploads on bad signal, don't rely on browser→S3 direct PUT — proxy through a function or use Cloudflare.**
 
