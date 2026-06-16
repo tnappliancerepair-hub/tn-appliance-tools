@@ -243,6 +243,119 @@ query stripe_checkout_session_completed verb=POST {
       timeout = 30
     } as $danielle_sms
   
+    // Auto-create ship-to-customer parts orders for each picked repair option.
+    // Runs once (the confirmed_at duplicate guard above prevents re-runs). Each
+    // non-skip selection becomes a parts_orders row set to ship to the customer,
+    // landing in the office "To Order" queue (parts-orders.html).
+    var $ship_addr {
+      value = ((($job == null ? "" : ($job.service_address ?? ""))|trim) ~ ", " ~ (($job == null ? "" : ($job.service_city ?? ""))|trim) ~ ", " ~ (($job == null ? "" : ($job.service_state ?? ""))|trim) ~ " " ~ (($job == null ? "" : ($job.service_zip ?? ""))|trim))
+    }
+
+    db.query tdr_failure {
+      where = $db.tdr_failure.tdr_id == $tdr.id
+      return = {type: "list"}
+    } as $picked_failures
+
+    foreach ($picked_failures) {
+      each as $pf {
+        var $opt {
+          value = ($pf.selected_option ?? "skip")
+        }
+
+        conditional {
+          if ($opt == "diy_oem" || $opt == "diy_amazon" || $opt == "install_oem" || $opt == "install_amazon") {
+            var $is_amazon {
+              value = ($opt == "diy_amazon" || $opt == "install_amazon")
+            }
+
+            var $is_install {
+              value = ($opt == "install_oem" || $opt == "install_amazon")
+            }
+
+            var $po_cost {
+              value = 0
+            }
+
+            conditional {
+              if ($is_amazon == true) {
+                var.update $po_cost {
+                  value = ($pf.amazon_part_our_cost_cents ?? 0)
+                }
+              }
+            }
+
+            conditional {
+              if ($is_amazon == false) {
+                var.update $po_cost {
+                  value = ($pf.oem_part_our_cost_cents ?? 0)
+                }
+              }
+            }
+
+            var $po_sold {
+              value = ($po_cost * 13 / 10)|to_int
+            }
+
+            var $po_supplier {
+              value = "marcone"
+            }
+
+            conditional {
+              if ($is_amazon == true) {
+                var.update $po_supplier {
+                  value = "amazon"
+                }
+              }
+            }
+
+            var $po_notes_obj {
+              value = {
+                ship_to     : "customer"
+                option_type : $opt
+                install     : $is_install
+                ship_address: $ship_addr
+              }
+            }
+
+            var $po_notes {
+              value = $po_notes_obj|json_encode
+            }
+
+            db.add parts_orders {
+              data = {
+                job_id                 : ($job == null ? 0 : $job.id)
+                tech_id                : ($job == null ? 0 : ($job.technician_id ?? 0))
+                part_number            : "TBD"
+                part_name              : ($pf.failure_description ?? "Repair part")
+                supplier               : $po_supplier
+                cost_cents             : $po_cost
+                shipping_cents         : 0
+                sold_to_customer_cents : $po_sold
+                appliance_type         : ($job == null ? "" : ($job.appliance_type ?? ""))
+                brand                  : ($job == null ? "" : ($job.brand ?? ""))
+                model_number           : ($job == null ? "" : ($job.model_number ?? ""))
+                ordered_at             : now
+                order_status           : "to_order"
+                order_reference        : ""
+                source                 : "cash_tdr_pick"
+                notes                  : $po_notes
+              }
+            } as $po_row
+          }
+        }
+      }
+    }
+
+    conditional {
+      if ($job != null) {
+        db.edit jobs {
+          field_name = "id"
+          field_value = $job.id
+          data = {parts_status: "needs_to_order"}
+        } as $job_parts_flag
+      }
+    }
+
     // Audit log success
     db.add event_log {
       data = {
