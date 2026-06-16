@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.parts-daemon</string>
+
+  <!-- Keeps the live-session parts daemon (Marcone/Amazon lookups) running 24/7.
+       NOTE: a (re)start opens FRESH, logged-OUT "Google Chrome for Testing"
+       windows — you still log into Marcone + Amazon by hand once after each
+       cold start. The parts-watch agent texts Teddy when that's needed. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/parts/serve.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop/parts</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- don't respawn faster than once a minute if it crash-loops -->
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/parts-daemon.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/parts-daemon.err.log</string>
+</dict>
+</plist>
