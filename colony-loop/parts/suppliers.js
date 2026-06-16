@@ -1,14 +1,25 @@
-// Per-supplier config for authenticated parts lookups. The login URL is where
-// you sign in once (the session then persists in a per-supplier Chrome profile).
-// `searchUrl(q)` is the best-guess search URL; if a portal needs a typed search
-// instead, set `searchSelector` (the search box) and we'll type + Enter.
+// Per-supplier config for parts lookups. The login URL is where you sign in once
+// (the live-session daemon keeps the tab open so the session persists).
+// `searchUrl(q)` is the search URL; if a portal needs a typed search instead, set
+// `searchSelector` (the search box) and we'll type + Enter.
 //
-// These are STARTING POINTS — once you run a real login + lookup, paste the
-// result page and we lock in the exact search URL + result selectors.
+// TIERS (read `tier`):
+//   'price'     — OUR numbers: Marcone = OEM cost we order at, Amazon = aftermarket
+//                 tier + ship-to-customer ordering. These set the cash-TDR 4 options.
+//   'reference' — GENERAL parts search: find the right part #, exploded diagrams,
+//                 cross-reference, retail sanity-check price. Not our cost.
+//
+// LOOKUP IDENTIFIER (read `lookupBy`):
+//   'model'  (default) — search by appliance model number
+//   'serial' — Samsung especially: the exact part variant is tied to the
+//              production run, which the SERIAL encodes (model alone is ambiguous).
+//              Daemon accepts ?serial= and passes it here; falls back to model.
 
 module.exports = {
+  // ── PRICE TIER (our cost / what we charge) ──────────────────────────────────
   marcone: {
     label: 'Marcone',
+    tier: 'price',
     primary: true, // OEM cost source — what we order at
     loginUrl: 'https://my.marcone.com/UserLogin',
     // Real Marcone search-by-model endpoint (confirmed live).
@@ -17,42 +28,51 @@ module.exports = {
     // a logged-in page shows this; if missing we know the session died
     loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account',
   },
-  tribles: {
-    label: 'Tribles',
-    loginUrl: 'https://www.triblesinc.com/login',
-    searchUrl: (q) => 'https://www.triblesinc.com/search?q=' + encodeURIComponent(q),
-    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i]',
-    loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account',
-  },
   amazon: {
     label: 'Amazon Business',
+    tier: 'price',
     primary: true, // aftermarket-equivalent tier + ship-to-customer ordering
     loginUrl: 'https://www.amazon.com/gp/sign-in.html',
     searchUrl: (q) => 'https://www.amazon.com/s?k=' + encodeURIComponent(q + ' appliance part'),
     searchSelector: 'input#twotabsearchtextbox, input[type="text"][name="field-keywords"]',
     loggedInHint: '#nav-link-accountList-nav-line-1, a[href*="sign-out" i]',
   },
+
+  // ── REFERENCE TIER (general parts search: right part # + diagrams + cross-ref) ─
   searspartsdirect: {
     label: 'Sears PartsDirect',
+    tier: 'reference',
     noLogin: true, // public — authoritative part # by model + exploded diagrams + retail price
     loginUrl: 'https://www.searspartsdirect.com/',
     searchUrl: (q) => 'https://www.searspartsdirect.com/search?q=' + encodeURIComponent(q),
     searchSelector: 'input[type="search"], input[name*="search" i], input#searchInput, input[placeholder*="model" i], input[placeholder*="part" i]',
     loggedInHint: null,
   },
-  lg: {
-    label: 'LG Parts (OEM)',
-    noLogin: true, // public genuine-LG parts (use when the appliance is LG)
-    loginUrl: 'https://lgparts.com/',
-    searchUrl: (q) => 'https://lgparts.com/search?q=' + encodeURIComponent(q),
-    searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
-    loggedInHint: null,
+  tribles: {
+    label: 'Tribles',
+    tier: 'reference', // we have an account; useful cross-reference (Marcone is our price source)
+    loginUrl: 'https://www.triblesinc.com/login',
+    searchUrl: (q) => 'https://www.triblesinc.com/search?q=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i]',
+    loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account',
   },
   samsung: {
     label: 'Samsung Parts (OEM)',
-    noLogin: true, // public genuine-Samsung parts (use when the appliance is Samsung)
-    loginUrl: 'https://samsungpartsusa.com/',
-    searchUrl: (q) => 'https://samsungpartsusa.com/search?q=' + encodeURIComponent(q),
+    tier: 'reference',
+    noLogin: true, // public genuine-Samsung parts
+    lookupBy: 'serial', // Samsung: the exact part depends on the production variant the SERIAL encodes
+    note: 'Samsung varies parts by production run — use the SERIAL (or full model incl. the /XX suffix). Model alone can return the wrong variant.',
+    loginUrl: 'https://www.samsungparts.com/',
+    searchUrl: (q) => 'https://www.samsungparts.com/Products?SearchTerm=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name="SearchTerm"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i], input[placeholder*="serial" i]',
+    loggedInHint: null,
+  },
+  lg: {
+    label: 'LG Parts (OEM)',
+    tier: 'reference',
+    noLogin: true, // public genuine-LG parts (use when the appliance is LG)
+    loginUrl: 'https://www.lg.com/us/support/repair-service/lg-parts-accessories',
+    searchUrl: (q) => 'https://www.encompass.com/model/' + encodeURIComponent(q) + '/?mfg=LG',
     searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
     loggedInHint: null,
   },
@@ -60,6 +80,7 @@ module.exports = {
   // Wolf, Thermador, etc. by model. No login. Great cross-reference + retail price.
   appliancepartspros: {
     label: 'AppliancePartsPros',
+    tier: 'reference',
     noLogin: true,
     loginUrl: 'https://www.appliancepartspros.com/',
     searchUrl: (q) => 'https://www.appliancepartspros.com/search.aspx?model=' + encodeURIComponent(q),
@@ -68,6 +89,7 @@ module.exports = {
   },
   partselect: {
     label: 'PartSelect',
+    tier: 'reference',
     noLogin: true,
     loginUrl: 'https://www.partselect.com/',
     searchUrl: (q) => 'https://www.partselect.com/Search/?SearchTerm=' + encodeURIComponent(q),

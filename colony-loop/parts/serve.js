@@ -35,14 +35,17 @@ async function tabFor(supplier) {
   return page;
 }
 
-async function doLookup(supplier, model, debug) {
+async function doLookup(supplier, model, debug, serial) {
   const cfg = SUPPLIERS[supplier];
   const page = await tabFor(supplier);
+  // Samsung & friends: the exact part depends on the production variant the SERIAL
+  // encodes. Search by serial when the supplier asks for it and we have one.
+  const ident = (cfg.lookupBy === 'serial' && serial) ? serial : model;
   // search in the LIVE authenticated tab
-  await page.goto(cfg.searchUrl(model), { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  await page.goto(cfg.searchUrl(ident), { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
   if (cfg.searchSelector) {
     const box = await page.$(cfg.searchSelector).catch(() => null);
-    if (box) { try { await box.fill(model); await box.press('Enter'); await page.waitForLoadState('domcontentloaded', { timeout: 30000 }); } catch (_) {} }
+    if (box) { try { await box.fill(ident); await box.press('Enter'); await page.waitForLoadState('domcontentloaded', { timeout: 30000 }); } catch (_) {} }
   }
   await page.waitForTimeout(2500);
   const final_url = page.url();
@@ -99,12 +102,25 @@ async function doLookup(supplier, model, debug) {
     }
     return { candidates: out, debug: dbg };
   }, PART_SRC);
-  const resp = { supplier, label: cfg.label, model, final_url, page_title: await page.title().catch(() => ''), candidates: result.candidates };
+  const resp = { supplier, label: cfg.label, tier: cfg.tier || null, searched_by: (cfg.lookupBy === 'serial' && serial) ? 'serial' : 'model', model, serial: serial || null, final_url, page_title: await page.title().catch(() => ''), candidates: result.candidates };
+  if (cfg.note) resp.note = cfg.note;
   if (debug) resp.debug_html = result.debug;
   return resp;
 }
 
-const VERSION = '2026-06-16d-autoport';
+// Search a whole tier ('reference' = general parts search, 'price' = our cost) in
+// one call. One endpoint the colony loop / tools hit instead of N round-trips.
+async function doTierLookup(tier, model, serial, debug) {
+  const names = Object.keys(SUPPLIERS).filter((s) => (SUPPLIERS[s].tier || 'reference') === tier);
+  const results = [];
+  for (const s of names) {
+    try { results.push(await doLookup(s, model, debug, serial)); }
+    catch (e) { results.push({ supplier: s, label: (SUPPLIERS[s] && SUPPLIERS[s].label) || s, error: String((e && e.message) || e), candidates: [] }); }
+  }
+  return { tier, model, serial: serial || null, sources: results };
+}
+
+const VERSION = '2026-06-16e-tiers';
 
 function requestHandler(tabs) {
   return async (req, res) => {
@@ -115,13 +131,30 @@ function requestHandler(tabs) {
     if (u.pathname === '/lookup') {
       const supplier = (u.searchParams.get('supplier') || '').toLowerCase();
       const model = u.searchParams.get('model') || '';
-      if (!SUPPLIERS[supplier] || !model) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'supplier + model required' })); }
+      const serial = u.searchParams.get('serial') || '';
+      if (!SUPPLIERS[supplier] || (!model && !serial)) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'supplier + model (or serial) required' })); }
       const debug = u.searchParams.get('debug') === '1';
-      try { res.end(JSON.stringify(await doLookup(supplier, model, debug))); }
+      try { res.end(JSON.stringify(await doLookup(supplier, model, debug, serial))); }
       catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
       return;
     }
-    res.end(JSON.stringify({ ok: true, alive: true, version: VERSION, suppliers: Object.keys(SUPPLIERS), open_tabs: Object.keys(tabs) }));
+    // General parts search across a whole tier in one call.
+    //   /search?model=WTW6800WL            → reference tier (all general sources)
+    //   /search?tier=price&model=...        → our price sources (Marcone + Amazon)
+    //   /search?model=...&serial=...        → Samsung etc. use the serial automatically
+    if (u.pathname === '/search') {
+      const tier = (u.searchParams.get('tier') || 'reference').toLowerCase();
+      const model = u.searchParams.get('model') || '';
+      const serial = u.searchParams.get('serial') || '';
+      if (!model && !serial) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'model (or serial) required' })); }
+      const debug = u.searchParams.get('debug') === '1';
+      try { res.end(JSON.stringify(await doTierLookup(tier, model, serial, debug))); }
+      catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
+      return;
+    }
+    const byTier = {};
+    for (const s of Object.keys(SUPPLIERS)) { const t = SUPPLIERS[s].tier || 'reference'; (byTier[t] = byTier[t] || []).push(s); }
+    res.end(JSON.stringify({ ok: true, alive: true, version: VERSION, tiers: byTier, open_tabs: Object.keys(tabs) }));
   };
 }
 
