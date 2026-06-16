@@ -1,3 +1,4 @@
+const { getSecret } = require('./_lib/secrets');
 // Embedding endpoint scaffold. POST {text, source_table?, source_row_id?,
 // company_id?, namespace?}. Returns 1536-dim float[] (text-embedding-3-small).
 //
@@ -15,7 +16,7 @@ exports.handler = async function (event) {
   const text = String(body.text || '').trim();
   if (!text) return jsonResp(400, { ok: false, error: 'text required' });
 
-  const key = process.env.OPENAI_API_KEY;
+  const key = await getSecret('OPENAI_API_KEY');
   let embedding, model;
 
   if (!key) {

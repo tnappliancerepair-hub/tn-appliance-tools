@@ -1,3 +1,4 @@
+const { getSecret } = require('./_lib/secrets');
 // Semantic retrieval over the embeddings table. POST {query, company_id?,
 // namespace?, top_k?}.
 // Flow:
@@ -40,7 +41,7 @@ exports.handler = async function (event) {
   }
 
   // Direct OpenAI call for query (or dummy)
-  const key = process.env.OPENAI_API_KEY;
+  const key = await getSecret('OPENAI_API_KEY');
   if (key) {
     try {
       const resp = await fetch('https://api.openai.com/v1/embeddings', {
