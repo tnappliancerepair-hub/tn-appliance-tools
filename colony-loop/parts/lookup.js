@@ -10,7 +10,7 @@
 // Prints JSON: { supplier, query, logged_in, candidates:[{part_number,name,price,url}] }
 
 'use strict';
-const { openContext } = require('./browser');
+const { open } = require('./browser');
 const SUPPLIERS = require('./suppliers');
 
 // Looks like an appliance part number: 5-16 chars, has BOTH letters and digits,
@@ -20,8 +20,7 @@ const PART_RE = /\b(?=[A-Z0-9-]{5,16}\b)(?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*[0-9])[A
 async function lookupOne(supplier, query, { headless = true } = {}) {
   const cfg = SUPPLIERS[supplier];
   if (!cfg) return { supplier, error: 'unknown_supplier' };
-  const ctx = await openContext(supplier, { headless });
-  const page = ctx.pages()[0] || (await ctx.newPage());
+  const { browser, page } = await open(supplier, { headless });
   const out = { supplier, label: cfg.label, query, logged_in: false, candidates: [] };
   try {
     // try the direct search URL first
@@ -79,7 +78,7 @@ async function lookupOne(supplier, query, { headless = true } = {}) {
   } catch (e) {
     out.error = String((e && e.message) || e);
   } finally {
-    await ctx.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
   return out;
 }
