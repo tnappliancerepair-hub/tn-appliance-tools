@@ -74,7 +74,10 @@ async function lookupOne(supplier, query, { headless = true } = {}) {
 }
 
 async function lookupAll(query, opts) {
-  const names = Object.keys(SUPPLIERS);
+  // Default to the PRIMARY sources only (Marcone = OEM cost, Amazon = aftermarket).
+  // Pass {every:true} (CLI: --every) to also hit the public reference catalogs.
+  const every = opts && opts.every;
+  const names = Object.keys(SUPPLIERS).filter((s) => every || SUPPLIERS[s].primary);
   const results = [];
   for (const s of names) { results.push(await lookupOne(s, query, opts)); }
   return results;
@@ -84,9 +87,10 @@ if (require.main === module) {
   (async () => {
     const args = process.argv.slice(2);
     const headed = args.includes('--headed');
-    const clean = args.filter((a) => a !== '--headed');
+    const every = args.includes('--every');
+    const clean = args.filter((a) => a !== '--headed' && a !== '--every');
     if (clean[0] === '--all') {
-      const r = await lookupAll(clean.slice(1).join(' '), { headless: !headed });
+      const r = await lookupAll(clean.slice(1).join(' '), { headless: !headed, every });
       console.log(JSON.stringify(r, null, 2));
     } else {
       const r = await lookupOne((clean[0] || '').toLowerCase(), clean.slice(1).join(' '), { headless: !headed });

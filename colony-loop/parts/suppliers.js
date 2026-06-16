@@ -9,6 +9,7 @@
 module.exports = {
   marcone: {
     label: 'Marcone',
+    primary: true, // OEM cost source — what we order at
     loginUrl: 'https://my.marcone.com/UserLogin',
     // After login we land on the dashboard; lookup types the model into the search box.
     searchUrl: (q) => 'https://my.marcone.com/',
@@ -25,6 +26,7 @@ module.exports = {
   },
   amazon: {
     label: 'Amazon Business',
+    primary: true, // aftermarket-equivalent tier + ship-to-customer ordering
     loginUrl: 'https://www.amazon.com/gp/sign-in.html',
     searchUrl: (q) => 'https://www.amazon.com/s?k=' + encodeURIComponent(q + ' appliance part'),
     searchSelector: 'input#twotabsearchtextbox, input[type="text"][name="field-keywords"]',
