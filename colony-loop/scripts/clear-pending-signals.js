@@ -70,6 +70,7 @@ async function clear() {
     if (!items.length) break;
     const targets = items.filter(match);
     if (!targets.length) break; // nothing matching left in the pending window
+    console.log(`pass ${iter + 1}: ${targets.length} matching signals in this window…`);
     for (const group of chunk(targets, CONCURRENCY)) {
       await Promise.all(
         group.map((s) =>
@@ -79,8 +80,8 @@ async function clear() {
         )
       );
       cleared += group.length;
+      if (cleared % 200 < CONCURRENCY) console.log(`… ${cleared} cleared`);
     }
-    console.log(`… ${cleared} cleared`);
   }
   console.log(`DONE — cleared ${cleared} pending signals.`);
 }
