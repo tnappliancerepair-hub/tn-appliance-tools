@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tnappliance.parts-watch</string>
+
+  <!-- Every 30 min: ping the parts daemon's /health. If it's down or the
+       Marcone/Amazon live session has logged out, text Teddy to re-login.
+       Dedups (no nagging) — alerts on state change or once per 3h. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/tpivacek/tn-appliance-tools/colony-loop/parts/watch.js</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/tpivacek/tn-appliance-tools/colony-loop/parts</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OWNER_PHONE_NUMBER</key>
+    <string>+16154855795</string>
+    <key>XANO_INTAKE_BASE</key>
+    <string>https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/tpivacek/Library/Logs/parts-watch.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/tpivacek/Library/Logs/parts-watch.err.log</string>
+</dict>
+</plist>

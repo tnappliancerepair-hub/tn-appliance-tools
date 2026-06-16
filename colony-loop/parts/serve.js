@@ -139,6 +139,29 @@ function requestHandler(tabs) {
     res.setHeader('Content-Type', 'application/json');
     if (u.pathname === '/__shutdown') { res.end(JSON.stringify({ ok: true, bye: true })); setTimeout(() => process.exit(0), 200); return; }
     if (u.pathname === '/__version') { res.end(JSON.stringify({ version: VERSION })); return; }
+    if (u.pathname === '/health') {
+      // Per-login-supplier session status. The live session dies if a window is
+      // closed or logged out — this is how the keep-alive watcher (watch.js)
+      // knows to text Teddy to re-log in. noLogin suppliers are always "ok".
+      (async () => {
+        const out = {};
+        for (const s of Object.keys(SUPPLIERS)) {
+          const cfg = SUPPLIERS[s];
+          if (cfg.noLogin) continue;
+          const page = tabs[s];
+          const open = !!(page && !page.isClosed());
+          let logged_in = false;
+          if (open && cfg.loggedInHint) {
+            try { logged_in = !!(await page.$(cfg.loggedInHint)); } catch (_) { logged_in = false; }
+          }
+          out[s] = { open, logged_in };
+        }
+        // "healthy" = the two pricing sources (Marcone + Amazon) are logged in
+        const healthy = !!(out.marcone && out.marcone.logged_in && out.amazon && out.amazon.logged_in);
+        res.end(JSON.stringify({ ok: true, version: VERSION, healthy, suppliers: out }));
+      })().catch((e) => { res.statusCode = 500; res.end(JSON.stringify({ ok: false, error: String((e && e.message) || e) })); });
+      return;
+    }
     if (u.pathname === '/lookup') {
       const supplier = (u.searchParams.get('supplier') || '').toLowerCase();
       const model = u.searchParams.get('model') || '';

@@ -77,3 +77,29 @@ daemon uses it automatically for Samsung; `/search` does this per-source.
   results to Xano, so the tech tool + cash-TDR options auto-fill with the exact
   OEM part + your Marcone cost + Amazon aftermarket, plus the reference sources for
   general part-finding + diagrams.
+
+## Run it 24/7 (launchd) + keep-alive alert
+
+Two LaunchAgents (in `colony-loop/launchd/`) keep the daemon up and tell you when
+the live session needs a re-login:
+
+```bash
+cp colony-loop/launchd/com.tnappliance.parts-daemon.plist ~/Library/LaunchAgents/
+cp colony-loop/launchd/com.tnappliance.parts-watch.plist  ~/Library/LaunchAgents/
+launchctl load -w ~/Library/LaunchAgents/com.tnappliance.parts-daemon.plist
+launchctl load -w ~/Library/LaunchAgents/com.tnappliance.parts-watch.plist
+```
+
+- **parts-daemon** — runs `serve.js` at login + restarts it if it crashes.
+- **parts-watch** — every 30 min pings `/health`; if the daemon is down OR the
+  Marcone/Amazon **session logged out**, it texts Teddy to re-login (dedups; also
+  sends a ✅ when it recovers).
+
+**Important:** launchd keeps the *process* alive, but a (re)start opens FRESH,
+logged-OUT browser windows — the live session can't be restored automatically.
+So after a cold start / reboot you still **log into Marcone + Amazon by hand once**
+in the daemon's "Google Chrome for Testing" windows. The watcher is what tells you
+when that's needed. Minimize those windows with the **yellow** button, never red.
+
+Stop/restart: `launchctl unload ~/Library/LaunchAgents/com.tnappliance.parts-daemon.plist`
+(then `load` again). Health check anytime: `curl http://127.0.0.1:PORT/health`.

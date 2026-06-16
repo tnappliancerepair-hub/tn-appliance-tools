@@ -3,3 +3,4 @@ profiles/
 shots/
 package-lock.json
 .daemon-port
+.watch-state.json
