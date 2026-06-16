@@ -104,19 +104,11 @@ async function doLookup(supplier, model, debug) {
   return resp;
 }
 
-const VERSION = '2026-06-16c-marcone-precise';
+const VERSION = '2026-06-16d-autoport';
 
-async function main() {
-  // self-replace: tell any already-running instance to step aside, so a restart
-  // always picks up new code without manual port-killing.
-  try { await fetch(`http://127.0.0.1:${PORT}/__shutdown`); await new Promise((r) => setTimeout(r, 1500)); } catch (_) {}
-
-  browser = await chromium.launch({ headless: false });
-  // pre-open the login-required suppliers so you can sign in up front
-  for (const s of Object.keys(SUPPLIERS)) { if (!SUPPLIERS[s].noLogin) { try { await tabFor(s); } catch (_) {} } }
-
-  const server = http.createServer(async (req, res) => {
-    const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
+function requestHandler(tabs) {
+  return async (req, res) => {
+    const u = new URL(req.url, `http://127.0.0.1`);
     res.setHeader('Content-Type', 'application/json');
     if (u.pathname === '/__shutdown') { res.end(JSON.stringify({ ok: true, bye: true })); setTimeout(() => process.exit(0), 200); return; }
     if (u.pathname === '/__version') { res.end(JSON.stringify({ version: VERSION })); return; }
@@ -130,16 +122,37 @@ async function main() {
       return;
     }
     res.end(JSON.stringify({ ok: true, alive: true, version: VERSION, suppliers: Object.keys(SUPPLIERS), open_tabs: Object.keys(tabs) }));
-  });
-  server.on('error', (e) => {
-    if (e && e.code === 'EADDRINUSE') { console.error(`\n⚠ Port ${PORT} still busy. Run:  kill -9 $(lsof -ti:${PORT})  then start again.`); process.exit(1); }
-    throw e;
-  });
-  server.listen(PORT, '127.0.0.1', () => {
-    console.log(`\n✅ Parts session daemon on http://127.0.0.1:${PORT}  (version ${VERSION})`);
-    console.log(`   Log into the open windows (Marcone first). Then test:`);
-    console.log(`   curl "http://127.0.0.1:${PORT}/lookup?supplier=marcone&model=WTW6800WL"`);
-    console.log(`   (leave this running — it keeps the sessions alive)`);
-  });
+  };
+}
+
+// bind the FIRST free port (so a leftover zombie on 8787 can never crash us)
+async function bindFreePort(handler, startPort) {
+  for (let p = startPort; p < startPort + 20; p++) {
+    const server = http.createServer(handler);
+    const ok = await new Promise((resolve) => {
+      server.once('error', () => resolve(false));
+      server.listen(p, '127.0.0.1', () => resolve(true));
+    });
+    if (ok) return { server, port: p };
+    try { server.close(); } catch (_) {}
+  }
+  return null;
+}
+
+async function main() {
+  // 1) get the server up on a free port FIRST — never crash on a busy port
+  const bound = await bindFreePort(requestHandler(tabs), PORT);
+  if (!bound) { console.error('\n⚠ Could not find a free port near ' + PORT); process.exit(1); }
+  const ACTUAL = bound.port;
+
+  // 2) only now launch the browser + open the login tabs (so windows never vanish)
+  browser = await chromium.launch({ headless: false });
+  for (const s of Object.keys(SUPPLIERS)) { if (!SUPPLIERS[s].noLogin) { try { await tabFor(s); } catch (_) {} } }
+
+  console.log(`\n✅ Parts session daemon LIVE on http://127.0.0.1:${ACTUAL}  (version ${VERSION})`);
+  if (ACTUAL !== PORT) console.log(`   (port ${PORT} was busy — using ${ACTUAL} instead)`);
+  console.log(`   Log into the open "Google Chrome for Testing" windows (Marcone first), then:`);
+  console.log(`   open in a browser:  http://127.0.0.1:${ACTUAL}/lookup?supplier=marcone&model=WTW6800WL`);
+  console.log(`   (leave this terminal running — it keeps the sessions alive)`);
 }
 main().catch((e) => { console.error(e); process.exit(1); });
