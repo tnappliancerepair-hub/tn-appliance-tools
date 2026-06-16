@@ -1,5 +1,37 @@
 # Appliance Ant
 
+## ⏭️ NEXT SESSION (saved end of 2026-06-15 night — self-checkout + parts loop) — READ FIRST
+
+**This was the "self-checkout vision becomes real" session.** The customer $50 Quick Check now captures everything Teddy needs to diagnose, and the parts-order-to-customer + auto-schedule spine is built. Most of it is LIVE on Netlify; a few pieces need Mac-side action (below).
+
+### ✅ SHIPPED + LIVE (verified end-to-end)
+- **`appliance-ai.html` — the AI intake (the "$50 Quick Check"):** dark Claude-style page, appliance→problem→warranty/cash→ video + model-sticker photo → contact (name/phone/EMAIL/address/zip) → Stripe ($50). **Video → Cloudflare Stream (resumable tus, fail-proof on weak signal).** **Photo → reliable proxy upload** (`photo-upload.js`: browser shrinks photo to JPEG → sends to OUR function → S3 server-side; this routed AROUND the broken browser→S3 direct PUT that kept failing on Teddy's phone). **Claude Vision auto-reads the model # + serial** off the photo (`ocr-model-extract` wired into `verify-quickcheck` + tech tool). Verified: video plays in Teddy Tool, photo lands, model pulled. 💵 siren SMS to Teddy+Danielle on pay.
+- **Cloudflare Stream is LIVE** (vault: `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_STREAM_TOKEN` set + verified). `stream-direct-upload.js` mints tokenless tus URLs; records job_attachments `s3_key=cfstream:<uid>`; `s3-view-url` returns the player URL for `cfimg:`/`cfstream:` keys so media renders in EVERY tool. Video also wired into **tech-job.html** (techs' in-field videos) + finish-upload.html.
+- **Cloudflare Images** = built but **NOT enabled** (account shows "Contact Support"; photos use the reliable S3 proxy meanwhile — works great). If enabled later: set `CLOUDFLARE_IMAGES_HASH` + add Images:Edit to the token → photos auto-switch to Cloudflare. Hosted-Images is a support-request to turn on.
+- **Never-lose-media safety net:** if video OR photo doesn't land, `verify-quickcheck` flags the job + texts the customer a one-tap `finish-upload.html?job_id=X` link.
+- **Parts order → ship-to-customer → schedule-after-ETA spine (LIVE):** `create-parts-order.js` (ship to customer addr), `parts-orders-queue.js`, `mark-parts-ordered.js` (sets job awaiting_parts + ETA), **`parts-orders.html`** = office "To Order" board (password-gated, one-tap Ordered+tracking, **🅰 Order via Amazon Business** button = TrialMode→confirm→live).
+- **Amazon Business Ordering API** scaffold (`_lib/amazon-business.js` + `amazon-business-order.js`): real `placeOrder` ship-to-customer, TrialMode-safe, vault-gated, returns `configured:false` until enrolled. Setup doc: `docs/amazon-business-api-setup.md`. **API enrollment is enterprise-gated/slow — NOT the critical path** (use the authenticated-browser path below instead).
+- **Office calendar (`office-calendar.html`) fixes for Danielle (LIVE):** **drag-and-drop** job moves with INSTANT optimistic update (was freezing because every move did a full week reload); **color legend** (purple=warranty, green=self-pay, faded=completed); **📤 Unschedule** button + `unschedule-job.js` (sends a job back to needs-scheduled WITHOUT canceling — for jobs auto-placed at the 8:00 default that "say scheduled but aren't").
+- **Quick Check is back at $50** (was $1 for testing; flipped after verification).
+
+### ⏳ PENDING MAC-SIDE ACTIONS (Teddy — run on the Mac Mini)
+1. **`git pull origin main`** first (gets everything below + this brief).
+2. **Push the cash-TDR auto-order XS** (so a customer's option-pick auto-creates the ship-to-customer parts order on payment):
+   `git checkout origin/main -- api/cash_tdr/stripe_checkout_session_completed_POST.xs && /opt/homebrew/bin/xano workspace push -i "api/**/stripe_checkout_session_completed*" --force`
+3. **Authenticated parts lookup + ordering (the path that works NOW, no API approval):**
+   `cd colony-loop/parts && npm install && npx playwright install chromium`
+   then `node login.js marcone` / `tribles` / `amazon` (one-time logins; passwords stay on the Mac in `profiles/`),
+   then `node lookup.js --all WTW5000DW1` and `node amazon-order.js <ASIN> --to "Name|Street|City|ST|Zip|Phone" --headed` (review-only; `--place` actually orders).
+   **→ paste the lookup output + the `parts/shots/` screenshots back to Claude to tune the exact selectors**, then Claude wires it into the finder + cash-TDR options (exact parts + real pricing) and the To-Order board's Amazon path.
+
+### 🔜 NEXT BUILDS (Claude, after the logins/output land)
+- Tune Marcone/Tribles/Amazon selectors from real output → wire `PARTS_LOOKUP_REQUEST` agent that writes results to Xano so the tech tool + cash-TDR 4 options auto-fill exact parts + pricing.
+- Wire the To-Order board's Amazon button to ALSO trigger the authenticated `amazon-order.js` (today's path) alongside the API path.
+- Auto-schedule the tech proactively the moment ETA is set (vs waiting for arrival).
+
+### ⚠️ KEY FOOTGUN LEARNED TONIGHT (the photo saga)
+The **browser→S3 direct presigned PUT was failing on the customer's phone** (worked in curl + server-side). Fixes that mattered: (a) `s3-presign` was baking a crc32 checksum of the EMPTY body into the URL → set `requestChecksumCalculation:"WHEN_REQUIRED"`; (b) the **www→non-www 301** killed POSTs cross-origin → force-canonical redirect + CORS on the functions; (c) the Stripe redirect aborted in-flight uploads → await uploads before redirect; (d) ultimately the reliable fix = **proxy the photo through our own Netlify function** (browser→Netlify is the always-works hop) + downscale client-side. Video sidestepped all this via Cloudflare. **Lesson: for customer uploads on bad signal, don't rely on browser→S3 direct PUT — proxy through a function or use Cloudflare.**
+
 ## ⏭️ NEXT SESSION (saved end of 2026-06-14 night, big session) — read first
 
 **Phone is FIXED + verified ("It works!!!!!!!").** Root cause was NOT just the masked caller ID — Ant Inbound had **14 inline `model.tools` pointing straight at Xano**, so Vapi's wrapped envelope hit flat endpoints → "No result returned." Fix: `netlify/functions/vapi-tool.js` is now a generic proxy; ALL tools route through it (verified end-to-end). Call **Summary turned ON**. transferCall destinations are correct (the `error-transfer-failed` is the RingCentral double-hop; the Telnyx port fixes it). Prompt no longer leads with "AHS."
