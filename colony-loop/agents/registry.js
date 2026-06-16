@@ -22,6 +22,7 @@ export const AGENT_REGISTRY = {
   'TECH_EOD_REPORT': './tech_eod_report.js',
   'MARCONES_FIRST_BRIEF': './marcones_first_brief.js',
   'QUICK_CHECK_SUBMITTED': './quick_check_submitted.js',
+  'PARTS_LOOKUP_REQUEST': './parts_lookup_request.js',
   'APPOINTMENT_NO_SHOW_PREDICTOR': './appointment_no_show_predictor.js',
   'APPOINTMENT_REMINDER_DUE': './appointment_reminder_due.js',
   'APPOINTMENT_SCHEDULED': './appointment_scheduled.js',
