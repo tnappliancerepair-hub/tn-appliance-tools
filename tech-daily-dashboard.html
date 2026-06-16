@@ -927,9 +927,11 @@
     const num = index + 1;
     const start = j.scheduled_start;
     const end = j.scheduled_end;
-    const timeStr = start
-      ? (end ? `${fmtTimeShort(start)} – ${fmtTimeShort(end)}` : fmtTimeShort(start))
-      : '(unscheduled)';
+    const timeStr = item.untimed
+      ? '⏱ no time set'
+      : (start
+        ? (end ? `${fmtTimeShort(start)} – ${fmtTimeShort(end)}` : fmtTimeShort(start))
+        : '(unscheduled)');
     const status = (j.scheduling_status || j.current_status || 'other').toLowerCase();
     const statusClass = ['scheduled','in_progress','completed','prediagnosis_pending','needs_review'].includes(status) ? `status-${status}` : 'status-other';
     const statusLabel = status.replace(/_/g, ' ');
