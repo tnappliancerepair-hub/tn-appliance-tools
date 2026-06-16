@@ -1,2 +1,10 @@
 .env
 *.log
+
+# local SQLite store (the loop's working memory — never commit)
+loop.db
+loop.db-wal
+loop.db-shm
+*.db
+*.db-wal
+*.db-shm

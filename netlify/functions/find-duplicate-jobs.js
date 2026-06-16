@@ -54,16 +54,18 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 
-  const pin = String(b.pin || '');
-  if (!pin) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'owner_pin_required' }) };
+  // Office-accessible (was owner-PIN): gate by the office password so Danielle
+  // can run it. (Teddy 2026-06-16 — "remove the owner pin gate".)
+  const password = String(b.password || b.pin || '');
+  if (!password) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'password_required' }) };
   try {
-    const vr = await fetch(`${SITE}/.netlify/functions/verify-pin-proxy`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ technician_id: 1, pin }),
+    const vr = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
     });
     const vd = await vr.json().catch(() => ({}));
-    if (!vd || !vd.success) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'wrong_pin' }) };
+    if (!vd || !vd.success) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'wrong_password' }) };
   } catch (e) {
-    return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pin_verify_failed' }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'password_verify_failed' }) };
   }
 
   try {

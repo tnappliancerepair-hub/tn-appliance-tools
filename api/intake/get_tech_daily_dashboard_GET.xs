@@ -140,7 +140,7 @@ query get_tech_daily_dashboard verb=GET {
         }
       }
     }
-  
+
     // Personal block / day-off lookup so the dashboard can banner
     // "HAS ALEC" / "vacation" / etc. above the day's jobs.
     db.query tech_availability {

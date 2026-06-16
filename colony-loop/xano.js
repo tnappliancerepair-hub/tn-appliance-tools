@@ -536,8 +536,22 @@ export async function recordEventLog(action, metadata = {}) {
   });
 }
 
+// In-process "this scheduled emit already fired" guard. Backs checkEventLogFiredToday
+// so a FAILED Xano write of the '*_emitted' marker (when Xano is slow) can't cause
+// the scheduled signal to re-fire every tick. This was the record-fail dupe vector
+// behind the 2026-06-16 over-emission (watch signals duplicating 5x under Xano load).
+// Resets on process restart — which is fine (at most one extra emit per key per run).
+const _firedThisProcess = new Set();
+export function markFiredThisProcess(action, dayKey) {
+  if (action == null || dayKey == null) return;
+  _firedThisProcess.add(String(action) + '|' + String(dayKey));
+}
+
 // Alias used by newer agents.
 export async function recordEvent(action, metadata = {}) {
+  // Remember in-process that this dedup-keyed event fired, even if the Xano write
+  // below fails — so the emitter won't re-fire next tick on a dropped marker.
+  if (metadata && metadata.day != null) markFiredThisProcess(action, metadata.day);
   return recordEventLog(action, metadata);
 }
 
@@ -557,13 +571,18 @@ export async function listRecentEventLog({ action, days_back = 14, limit = 1000 
 // Has an action with this day-key value already fired today?
 // Used by daily-fired agents (briefings, aggregator) for idempotency.
 export async function checkEventLogFiredToday(action, dayKey) {
+  // In-memory guard FIRST — immune to Xano write failures. If this process
+  // already fired+recorded this key, never re-emit regardless of what Xano says.
+  if (_firedThisProcess.has(String(action) + '|' + String(dayKey))) return true;
   const params = new URLSearchParams({
     action: String(action || ''),
     day_key: String(dayKey || ''),
   });
   try {
     const r = await getJSON(`${INTAKE()}/check_event_log_fired_today?${params.toString()}`);
-    return !!(r && r.fired);
+    const fired = !!(r && r.fired);
+    if (fired) markFiredThisProcess(action, dayKey);
+    return fired;
   } catch (_) {
     // FAIL CLOSED: on any error (Xano slow / 503 / timeout) treat as ALREADY
     // FIRED so the scheduled emit does NOT re-fire. Call sites default
