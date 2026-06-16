@@ -594,7 +594,8 @@ function renderMediaSplit() {
     '</div>';
   };
   const renderPhoto = a => {
-    const url = a.signed_view_url;
+    const psk = a.s3_key || a.cf_key || "";
+    const url = (psk.indexOf("cfimg:") === 0) ? psk.slice(6) : a.signed_view_url;
     if (!url) {
       return '<div class="photo-thumb"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted2);font-size:9px;">N/A</div></div>';
     }
@@ -1214,7 +1215,7 @@ function openLightbox(idx) {
     document.getElementById("lightbox").classList.add("show");
     return;
   }
-  const url = a.signed_view_url;
+  const url = (sk.indexOf("cfimg:") === 0) ? sk.slice(6) : a.signed_view_url;
   if (!url) return;
   if (a.file_type === "video") {
     // playsinline is required on iOS Safari — without it the browser

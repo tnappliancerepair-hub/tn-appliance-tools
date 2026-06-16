@@ -75,6 +75,7 @@ function wire(fileId, btnId, progId, barId, statId, kind, label){
     document.getElementById(progId).classList.remove('hidden'); document.getElementById(statId).classList.remove('hidden');
     const st=statusFn(document.getElementById(barId),document.getElementById(statId));
     if(kind==='video' && window.AntVideo){ AntVideo.upload(f,{ jobId:jobId, uploadedBy:'customer', onStatus:st, s3Fallback:x=>uploadMedia(x,'video',st) }); }
+    else if(kind==='photo' && window.AntPhoto){ AntPhoto.upload(f,{ jobId:jobId, uploadedBy:'customer', onStatus:st, s3Fallback:x=>uploadMedia(x,'photo',st) }); }
     else uploadMedia(f,kind,st);
   };
 }

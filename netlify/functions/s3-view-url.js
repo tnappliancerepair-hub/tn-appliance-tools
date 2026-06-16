@@ -31,6 +31,17 @@ exports.handler = async function (event) {
 
     const signed_urls = await Promise.all(
       s3_keys.map(async (s3_key) => {
+        // Cloudflare-hosted media: the key already carries the public URL.
+        // cfimg:<delivery-url> → photo URL; cfstream:<uid> → Stream player URL.
+        // This makes Cloudflare photos render in EVERY tool that uses this signer.
+        const key = String(s3_key || '');
+        if (key.indexOf('cfimg:') === 0) {
+          return { s3_key, view_url: key.slice(6), kind: 'image' };
+        }
+        if (key.indexOf('cfstream:') === 0) {
+          const uid = key.slice(9);
+          return { s3_key, view_url: 'https://iframe.cloudflarestream.com/' + uid, stream_uid: uid, kind: 'video_stream' };
+        }
         // Force inline disposition + sane Content-Type for video files
         // so Safari plays inline instead of treating it like a download
         // (which manifests as the "play button with a line through it"
