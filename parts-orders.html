@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Parts Orders · Ant Office</title>
+<style>
+  :root{--bg:#0b0f14;--card:#121821;--card2:#0e141c;--bord:#1f2a37;--text:#e6edf3;--muted:#8b98a5;--green:#2ecc71;--orange:#ff8c42;--blue:#4cc9c0;--mono:ui-monospace,Menlo,monospace;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;padding:14px;max-width:760px;margin:0 auto;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:16px;}
+  .gate{max-width:320px;margin:60px auto;text-align:center;}
+  .gate input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--bord);background:var(--card);color:var(--text);font-size:16px;margin:10px 0;}
+  .gate button,.btn{background:var(--blue);color:#04201d;border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px;cursor:pointer;}
+  .sec{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;}
+  .card{background:var(--card);border:1px solid var(--bord);border-radius:12px;padding:14px;margin-bottom:10px;}
+  .card .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+  .part{font-weight:700;font-size:15px;}
+  .meta{color:var(--muted);font-size:12px;margin-top:3px;line-height:1.5;}
+  .ship{color:var(--orange);font-size:12px;margin-top:6px;}
+  .tag{font-size:10px;border:1px solid var(--bord);border-radius:20px;padding:2px 8px;color:var(--muted);white-space:nowrap;}
+  .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .row input{flex:1;min-width:120px;padding:10px;border-radius:9px;border:1px solid var(--bord);background:var(--card2);color:var(--text);font-size:14px;}
+  .ordered{border-color:#1d3b33;}
+  .empty{color:var(--muted);font-size:13px;padding:14px 0;}
+  a.joblink{color:var(--blue);font-size:12px;text-decoration:none;}
+</style></head><body>
+<div id="gate" class="gate">
+  <h1>🔩 Parts Orders</h1>
+  <input id="pw" type="password" placeholder="Office password" autocomplete="current-password">
+  <button onclick="unlock()">Unlock</button>
+  <div id="gerr" style="color:#ff6b6b;font-size:12px;margin-top:8px;"></div>
+</div>
+<div id="app" style="display:none;">
+  <h1>🔩 Parts Orders</h1>
+  <div class="sub">Order the part → ships to the customer → tech auto-schedules after it arrives.</div>
+  <div class="sec">🛒 To order</div>
+  <div id="toorder"><div class="empty">Loading…</div></div>
+  <div class="sec">🚚 Ordered / en route</div>
+  <div id="ordered"><div class="empty">—</div></div>
+</div>
+<script>
+const FN='/.netlify/functions';
+function unlock(){
+  const pw=document.getElementById('pw').value.trim();
+  fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+    .then(r=>r.json()).then(d=>{
+      if(d&&(d.valid||d.success||d.ok)){ localStorage.setItem('ant_office_pw',pw); show(); }
+      else document.getElementById('gerr').textContent='Wrong password';
+    }).catch(()=>document.getElementById('gerr').textContent='Connection error');
+}
+function show(){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; load(); }
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function money(c){ return '$'+((c||0)/100).toFixed(0); }
+async function load(){
+  try{
+    const d=await fetch(FN+'/parts-orders-queue').then(r=>r.json());
+    renderToOrder(d.to_order||[]); renderOrdered(d.ordered||[]);
+  }catch(_){ document.getElementById('toorder').innerHTML='<div class="empty">Could not load.</div>'; }
+}
+function renderToOrder(list){
+  const el=document.getElementById('toorder');
+  if(!list.length){ el.innerHTML='<div class="empty">Nothing waiting to be ordered. 🎉</div>'; return; }
+  el.innerHTML=list.map(o=>`<div class="card" id="o${o.order_id}">
+    <div class="top"><div>
+      <div class="part">${esc(o.part_name||o.part_number)} ${o.part_number&&o.part_name?('<span class="meta">#'+esc(o.part_number)+'</span>'):''}</div>
+      <div class="meta">${esc(o.appliance||'')} ${o.model?('· '+esc(o.model)):''} · ${esc(o.supplier||'')} · cost ${money(o.cost_cents)} → sell ${money(o.sold_cents)}</div>
+      <div class="ship">📦 Ship to ${o.ship_to==='customer'?'CUSTOMER':'shop'}: ${esc(o.ship_address||'—')}</div>
+      <a class="joblink" href="/teddy-tdr-tool.html?job_id=${o.job_id}" target="_blank">Job #${o.job_id} ↗</a>
+    </div><span class="tag">${esc(o.option_type||'')}</span></div>
+    <div class="row">
+      <input id="trk${o.order_id}" placeholder="Tracking # (optional)">
+      <input id="eta${o.order_id}" type="date" title="Expected delivery">
+      <button class="btn" onclick="placeOrder(${o.order_id})">✓ Ordered</button>
+    </div>
+  </div>`).join('');
+}
+function renderOrdered(list){
+  const el=document.getElementById('ordered');
+  if(!list.length){ el.innerHTML='<div class="empty">—</div>'; return; }
+  el.innerHTML=list.map(o=>`<div class="card ordered">
+    <div class="top"><div>
+      <div class="part">${esc(o.part_name||o.part_number)}</div>
+      <div class="meta">${esc(o.appliance||'')} · ${esc(o.supplier||'')} ${o.tracking?('· 📦 '+esc(o.tracking)):''}</div>
+      <div class="ship">ETA ${esc(o.eta||'TBD')} · ship to ${o.ship_to==='customer'?'customer':'shop'}</div>
+      <a class="joblink" href="/teddy-tdr-tool.html?job_id=${o.job_id}" target="_blank">Job #${o.job_id} ↗</a>
+    </div><span class="tag">ordered</span></div>
+  </div>`).join('');
+}
+async function placeOrder(id){
+  const tracking=document.getElementById('trk'+id).value.trim();
+  const eta=document.getElementById('eta'+id).value.trim();
+  const card=document.getElementById('o'+id); const btn=card.querySelector('button'); btn.disabled=true; btn.textContent='Saving…';
+  try{
+    const d=await fetch(FN+'/mark-parts-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:id,tracking,eta_date:eta})}).then(r=>r.json());
+    if(d&&d.ok){ load(); } else { btn.disabled=false; btn.textContent='✓ Ordered'; alert((d&&d.error)||'Failed'); }
+  }catch(_){ btn.disabled=false; btn.textContent='✓ Ordered'; alert('Connection error'); }
+}
+if(localStorage.getItem('ant_office_pw')) show();
+</script>
+</body></html>
