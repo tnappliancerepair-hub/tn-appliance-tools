@@ -159,6 +159,7 @@
 
 <script src="/ant-addons.js"></script>
 <script src="/ant-video-upload.js"></script>
+<script src="/ant-brain.js"></script>
 <script>
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
@@ -357,6 +358,8 @@ function render(){
         <a class="ask-btn" style="margin-top:8px;background:#fff;color:var(--brand,#1f6fed);border:1px solid var(--line,#e3e8ef)" href="tech-vent-quote.html?job_id=${job.id}&tech_id=${TECH_ID}">🌀 Dryer vent cleaning quote</a>
       </div>
 
+      <div class="card"><div id="ant-brain"></div></div>
+
       <div class="card">
         <h3>👤 Customer</h3>
         <div class="cust-name">${esc(name)}</div>
@@ -391,6 +394,7 @@ function wireActions(){
   document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
+  if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:problem||'', job_id:job.id||0, role:'tech' }); }
 }
 
 // ── Add-ons at the stop (install now or ship it) ───────────────
