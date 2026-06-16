@@ -540,8 +540,20 @@ async function uploadFileS3(file,kind){
     await xanoPost('save_attachment',{attachment_id:gen.attachment_id,file_size_bytes:file.size||0});
     toast(kind.charAt(0).toUpperCase()+kind.slice(1)+' added ✓');
     loadAttachments();
+    if(kind==='photo') readModelFromPhoto(gen.s3_key, gen.attachment_id);   // auto-OCR model/part stickers
     return {ok:true};
   }catch(e){ toast('⚠ upload failed: '+e.message); return {ok:false}; }
+}
+// Claude Vision reads a model/part sticker off the photo and auto-fills the job.
+async function readModelFromPhoto(s3Key, attachmentId){
+  try{
+    const sd=await fetch('/.netlify/functions/s3-view-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_keys:[s3Key]})}).then(r=>r.json());
+    const url=((sd&&sd.signed_urls&&sd.signed_urls[0]&&sd.signed_urls[0].view_url))||(sd&&sd.view_url)||'';
+    if(!url) return;
+    const r=await fetch('/.netlify/functions/ocr-model-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID,image_url:url,attachment_id:attachmentId})}).then(x=>x.json());
+    if(r&&r.kind==='model_sticker'&&r.model_number){ toast('📋 Read model: '+r.model_number); if(typeof loadJob==='function') loadJob(); }
+    else if(r&&r.kind==='part_sticker'&&r.part_number){ toast('🔩 Read part: '+r.part_number); }
+  }catch(_){ }
 }
 
 // ── parts finder ────────────────────────────────────────────────
