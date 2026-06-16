@@ -11,9 +11,9 @@ module.exports = {
     label: 'Marcone',
     primary: true, // OEM cost source — what we order at
     loginUrl: 'https://my.marcone.com/UserLogin',
-    // After login we land on the dashboard; lookup types the model into the search box.
-    searchUrl: (q) => 'https://my.marcone.com/',
-    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i], input[placeholder*="search" i], input[placeholder*="part" i], input[placeholder*="model" i]',
+    // Real Marcone search-by-model endpoint (confirmed live).
+    searchUrl: (q) => 'https://my.marcone.com/Home/RunSearchPartModelList?searchString=' + encodeURIComponent(q) + '&type=Part',
+    searchSelector: null,
     // a logged-in page shows this; if missing we know the session died
     loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account',
   },
