@@ -1,3 +1,4 @@
+const { getSecret } = require('./_lib/secrets');
 // Whisper transcription — receives an audio file (multipart/form-data),
 // forwards to OpenAI Whisper, returns the transcript.
 //
@@ -15,7 +16,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'POST only' };
   }
-  const key = process.env.OPENAI_API_KEY;
+  const key = await getSecret('OPENAI_API_KEY');
   if (!key) {
     // Friendlier message so techs in the field see something useful instead
     // of a cryptic env-var error. Returns 200 with ok=false so the client

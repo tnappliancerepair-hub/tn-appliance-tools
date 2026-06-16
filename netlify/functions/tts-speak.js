@@ -1,3 +1,4 @@
+const { getSecret } = require('./_lib/secrets');
 // OpenAI TTS — converts Ant's text reply into a natural-sounding voice.
 // Returns audio/mpeg bytes so the frontend can play() it via an <audio>
 // element (or Web Audio API).
@@ -16,7 +17,7 @@
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST only' };
-  const key = process.env.OPENAI_API_KEY;
+  const key = await getSecret('OPENAI_API_KEY');
   if (!key) {
     return {
       statusCode: 200,
