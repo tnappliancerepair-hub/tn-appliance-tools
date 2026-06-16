@@ -65,6 +65,17 @@ async function lookupOne(supplier, query, { headless = true } = {}) {
       }
       return cands;
     }, PART_RE.source);
+
+    // self-document: where did we actually land + a screenshot of what the script sees
+    out.final_url = page.url();
+    out.page_title = await page.title().catch(() => '');
+    try {
+      const fs = require('fs'), path = require('path');
+      const dir = path.join(__dirname, 'shots'); fs.mkdirSync(dir, { recursive: true });
+      const shotPath = path.join(dir, supplier + '_' + Date.now() + '.png');
+      await page.screenshot({ path: shotPath, fullPage: false }).catch(() => {});
+      out.screenshot = shotPath;
+    } catch (_) {}
   } catch (e) {
     out.error = String((e && e.message) || e);
   } finally {
