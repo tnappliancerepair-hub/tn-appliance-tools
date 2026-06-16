@@ -702,6 +702,12 @@
     <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
   </div>
 
+  <div class="cal-legend" id="calLegend">
+    <span class="lg"><i class="sw sw-warranty"></i> Warranty</span>
+    <span class="lg"><i class="sw sw-self"></i> Self-pay (cash)</span>
+    <span class="lg"><i class="sw sw-done"></i> Completed</span>
+    <span class="lg-note">Drag a job to another tech or day to move it · click it to reschedule / unschedule / cancel</span>
+  </div>
   <div class="scroll" id="scroll">
     <div id="content"></div>
   </div>
@@ -1667,6 +1673,18 @@ function __initCalendar() {
   document.getElementById('manageBtnReschedule').addEventListener('click', () => showManageView('reschedule'));
   document.getElementById('manageBtnReassign').addEventListener('click', () => showManageView('reassign'));
   document.getElementById('manageBtnCancel').addEventListener('click', () => showManageView('cancel'));
+  document.getElementById('manageBtnUnschedule').addEventListener('click', async () => {
+    if (!manageJobId) return;
+    if (!confirm('Take this job off the schedule and send it back to Needs Scheduled? (It is NOT canceled — you can re-schedule it anytime.)')) return;
+    const btn = document.getElementById('manageBtnUnschedule');
+    btn.disabled = true; btn.textContent = 'Unscheduling…';
+    try {
+      const res = await fetch('/.netlify/functions/unschedule-job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: manageJobId }) });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.ok) { closeManageJobModal(); loadWeek(); }
+      else { manageError.textContent = (data && data.error) || 'Could not unschedule.'; btn.disabled = false; btn.textContent = '📤 Unschedule (back to needs-scheduled)'; }
+    } catch (_) { manageError.textContent = 'Network problem. Try again.'; btn.disabled = false; btn.textContent = '📤 Unschedule (back to needs-scheduled)'; }
+  });
 
   function localDatetimeToMs(value) {
     // value like "2026-05-26T14:30" — interpret as America/Chicago wall time.
@@ -1779,6 +1797,13 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   .blk { cursor: grab; }
   .blk.dragging { opacity: 0.45; cursor: grabbing; }
   .cell.drag-over { outline: 2px dashed #39ff14; outline-offset: -2px; background: rgba(57,255,20,0.08); }
+  .cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px; font-family: 'Geist Mono', monospace; font-size: 11px; color: #aaa; border-bottom: 1px solid #1f2a37; }
+  .cal-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+  .cal-legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .cal-legend .sw-warranty { background: var(--violet); }
+  .cal-legend .sw-self { background: var(--green); }
+  .cal-legend .sw-done { background: var(--muted); opacity: 0.6; }
+  .cal-legend .lg-note { color: #6b7785; margin-left: auto; }
   #bookingModal {
     position: fixed; inset: 0; background: rgba(0,0,0,0.7);
     display: none; align-items: flex-start; justify-content: center;
@@ -1921,6 +1946,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
     <div id="manageActions">
       <button class="manage-action" id="manageBtnReschedule" type="button">Reschedule</button>
       <button class="manage-action" id="manageBtnReassign" type="button">Reassign tech</button>
+      <button class="manage-action" id="manageBtnUnschedule" type="button">📤 Unschedule (back to needs-scheduled)</button>
       <button class="manage-action danger" id="manageBtnCancel" type="button">Cancel job</button>
       <a id="manageOpenDetail" class="open-detail" href="#">Open full detail ↗</a>
     </div>
