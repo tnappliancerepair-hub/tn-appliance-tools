@@ -76,6 +76,28 @@ module.exports = {
     searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
     loggedInHint: null,
   },
+  // ── AUTHENTICATED BRAND PORTAL (intelligence-first: per-model troubleshooting,
+  // tech sheets, RECALLS + technical service bulletins, plus parts lookup) ──────
+  // Whirlpool University / Whirlpool-family servicer portal. Covers Whirlpool,
+  // Maytag, KitchenAid, Amana, Jenn-Air, Roper, Estate. We authenticate as an
+  // authorized servicer; the SAME session feeds parts AND the troubleshooting brain
+  // (same pattern as Marcone/MSA World — "one login, parts AND the brain").
+  // NOTE: confirm the real login + search URLs on first login (Marcone's were wrong
+  // until we logged in — same expectation here). Marcone is already our Whirlpool-
+  // family PRICE source, so this entry is primarily for intelligence + recalls/TSBs.
+  whirlpool: {
+    label: 'Whirlpool University',
+    tier: 'reference',
+    intelligence: true, // feeds troubleshooting / tech sheets / recalls / TSBs, not just parts
+    brands: ['whirlpool', 'maytag', 'kitchenaid', 'amana', 'jenn-air', 'jennair', 'roper', 'estate'],
+    confirmOnLogin: true, // URLs below are best-guess until we see the real portal
+    loginUrl: 'https://www.whirlpoolservicematters.com/',
+    searchUrl: (q) => 'https://www.whirlpoolservicematters.com/search?model=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name*="model" i], input[id*="search" i], input[placeholder*="model" i]',
+    note: 'Whirlpool-family per-model troubleshooting + recalls + technical service bulletins. Confirm portal URLs on first login; Marcone remains our Whirlpool-family parts PRICE source.',
+    loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account, [class*="account" i]',
+  },
+
   // Broad multi-brand public catalogs — cover EVERY brand incl. Sub-Zero, Viking,
   // Wolf, Thermador, etc. by model. No login. Great cross-reference + retail price.
   appliancepartspros: {
