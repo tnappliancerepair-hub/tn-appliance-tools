@@ -15,6 +15,7 @@ import * as xano from '../xano.js';
 
 const args = process.argv.slice(2);
 const REPORT = args.includes('--report');
+const ALL = args.includes('--all'); // clear the ENTIRE pending backlog, no filter
 const olderArg = args.find((a) => a.startsWith('--older-than-min='));
 const OLDER_MIN = olderArg ? Number(olderArg.split('=')[1]) : 0; // 0 = disabled
 const TYPES = new Set(args.filter((a) => !a.startsWith('--')).map((a) => a.toUpperCase()));
@@ -85,7 +86,7 @@ async function clear() {
 }
 
 async function main() {
-  const hasClearIntent = TYPES.size > 0 || OLDER_MIN > 0;
+  const hasClearIntent = ALL || TYPES.size > 0 || OLDER_MIN > 0;
   if (REPORT || !hasClearIntent) { await report(); return; }
   await clear();
 }
