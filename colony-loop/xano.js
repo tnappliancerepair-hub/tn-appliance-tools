@@ -561,8 +561,17 @@ export async function checkEventLogFiredToday(action, dayKey) {
     action: String(action || ''),
     day_key: String(dayKey || ''),
   });
-  const r = await getJSON(`${INTAKE()}/check_event_log_fired_today?${params.toString()}`);
-  return !!(r && r.fired);
+  try {
+    const r = await getJSON(`${INTAKE()}/check_event_log_fired_today?${params.toString()}`);
+    return !!(r && r.fired);
+  } catch (_) {
+    // FAIL CLOSED: on any error (Xano slow / 503 / timeout) treat as ALREADY
+    // FIRED so the scheduled emit does NOT re-fire. Call sites default
+    // firedAlready=false and re-emit on a throw — every 60s tick inside a
+    // multi-hour window — which is how a flaky dedup check piled up a ~15k
+    // stale-signal backlog (2026-06-16). Worst case here: skip one day's emit.
+    return true;
+  }
 }
 
 // Fetch a job's full dashboard view (job + customer + appliance + TDRs
