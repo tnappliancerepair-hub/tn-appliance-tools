@@ -125,6 +125,18 @@ function isQuietedForTech(action) {
   return !isAllowedForTech(action);
 }
 
+// 2026-06-16 per Teddy: HARD weekend mute. Zero automated texts to the field
+// techs on Saturday or Sunday (America/Chicago) — they don't want weekend
+// pestering. Overrides even the allow-list. Owner-as-tech (Teddy, tech_id 1)
+// is exempt; this is about the field techs, not the owner's own heads-ups.
+// Suppressed texts still write to event_log so nothing is lost.
+function isWeekendCT(d = new Date()) {
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', weekday: 'short',
+  }).format(d);
+  return wd === 'Sat' || wd === 'Sun';
+}
+
 export async function toTech(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
@@ -132,6 +144,19 @@ export async function toTech(phone, body, context = {}) {
   }
   const action = context.action || context.outcome || '';
   const isOwnerAsTech = (e164 === config.ownerPhone) || (Number(context.tech_id) === 1);
+
+  // Weekend hard-mute (field techs only). No force_send escape — Teddy asked
+  // for ALL texts silenced Sat/Sun.
+  if (isWeekendCT() && !isOwnerAsTech) {
+    try {
+      await xano.recordEventLog('tech_sms_quieted_weekend', {
+        action,
+        body_preview: String(body || '').slice(0, 240),
+        tech_id: context.tech_id || null,
+      });
+    } catch (_) {}
+    return { success: false, quieted: true, weekend: true, action };
+  }
 
   // Owner-as-tech inherits the broader owner denylist (everything in
   // OWNER_SMS_QUIET_PATTERNS plus the tech-specific list below).
