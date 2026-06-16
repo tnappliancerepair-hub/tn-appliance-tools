@@ -74,12 +74,26 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
-  // confirm how many attachments actually linked (diagnostic + truth in the log)
+  // confirm how many attachments actually linked (diagnostic + truth in the log),
+  // and auto-read the model sticker photo with Claude Vision so the job has the
+  // model # + serial before Teddy ever opens it.
   if (jobId) {
     try {
       const ar = await fetch(`${XANO}/get_job_attachments?job_id=${jobId}`);
       const ad = await ar.json().catch(() => ({}));
-      linkedAttachments = (ad && (ad.count != null ? ad.count : (Array.isArray(ad.attachments) ? ad.attachments.length : 0))) || 0;
+      const atts = (ad && Array.isArray(ad.attachments)) ? ad.attachments : [];
+      linkedAttachments = (ad && ad.count != null) ? ad.count : atts.length;
+      // find the model-sticker photo (a real S3 image, not a Stream video)
+      const photo = atts.find((a) => a && (a.file_type === 'photo' || (a.s3_key && !String(a.s3_key).startsWith('cfstream:') && /\.(jpe?g|png|heic|webp)$/i.test(a.s3_key))));
+      if (photo && photo.s3_key) {
+        const vr = await fetch(`${SITE}/.netlify/functions/s3-view-url`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s3_keys: [photo.s3_key] }) });
+        const vd = await vr.json().catch(() => ({}));
+        const viewUrl = (vd && vd.signed_urls && vd.signed_urls[0] && vd.signed_urls[0].view_url) || (vd && vd.view_url) || '';
+        if (viewUrl) {
+          // fire-and-forget OCR; writes model_number/serial to the job (only if empty)
+          fetch(`${SITE}/.netlify/functions/ocr-model-extract`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, image_url: viewUrl, attachment_id: photo.id || null }) }).catch(() => {});
+        }
+      }
     } catch (_) {}
   }
 
