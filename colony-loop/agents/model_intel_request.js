@@ -31,7 +31,11 @@ async function resolveDaemonBase() {
 }
 
 async function intel(base, source, brand, model) {
-  const url = `${base}/intel?source=${encodeURIComponent(source)}&brand=${encodeURIComponent(brand)}&model=${encodeURIComponent(model)}`;
+  // MSA (and member portals like it) match the bare MODEL number — adding the brand
+  // makes it an AND-search that returns zero results. Search by model; fall back to
+  // brand only when there's no model. (Confirmed live 2026-06-16 on MSA World.)
+  const query = model || brand;
+  const url = `${base}/intel?source=${encodeURIComponent(source)}&model=${encodeURIComponent(query)}`;
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 60000);
   try { const r = await fetch(url, { signal: ctrl.signal }); clearTimeout(t); if (!r.ok) return { error: `daemon ${r.status}` }; return await r.json(); }
   catch (e) { clearTimeout(t); return { error: String((e && e.message) || e) }; }

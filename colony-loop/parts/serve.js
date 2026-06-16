@@ -139,7 +139,9 @@ async function doIntel(source, brand, model, debug) {
   const cfg = SUPPLIERS[source];
   if (!cfg || !cfg.intelligence) throw new Error('unknown intel source');
   const page = await tabFor(source);
-  const q = [brand, model].filter(Boolean).join(' ') || model;
+  // Intel portals (MSA etc.) match the bare MODEL number; a brand prefix makes it an
+  // AND-search that returns nothing. Search by model, fall back to brand. (2026-06-16)
+  const q = model || brand;
   await page.goto(cfg.searchUrl(q), { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
   if (cfg.searchSelector) {
     const box = await page.$(cfg.searchSelector).catch(() => null);
