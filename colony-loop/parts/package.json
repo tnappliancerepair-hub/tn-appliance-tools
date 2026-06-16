@@ -1,0 +1,14 @@
+{
+  "name": "ant-parts-lookup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Authenticated parts lookups (Marcone / Tribles / Amazon Business) via Playwright on the Mac Mini. Kept separate from the zero-dep colony loop.",
+  "type": "commonjs",
+  "scripts": {
+    "login": "node login.js",
+    "lookup": "node lookup.js"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
