@@ -11,7 +11,7 @@
 const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 
-const PRICE_CENTS = 100; // TEST MODE: $1 (restore to 5000 = $50 after testing)
+const PRICE_CENTS = 5000; // $50 Quick Check (live)
 const SITE = 'https://tnapplianceexchange.net';
 
 function s(v, max) { return String(v == null ? '' : v).slice(0, max || 480); }
