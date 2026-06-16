@@ -277,8 +277,8 @@ function captureStatus(barEl, txtEl){
   };
 }
 function capVideo(){
-  setHead('Two quick things and you’re <span class="accent">set.</span>','① a 10-sec video  ②  a photo of the model sticker.');
-  antMsg('First — point your camera at the '+esc(state.appliance.toLowerCase())+' and show me what it’s doing. About 10 seconds is perfect.');
+  setHead('Show me what’s <span class="accent">going on.</span>','A video tells me more than anything else.');
+  antMsg('Take a video of your '+esc(state.appliance.toLowerCase())+' and <b>talk me through it</b> — tell me what it <b>is and isn’t doing</b>, what you’re seeing or hearing, and what you need help with. The more detail the better. <b>Take as long as you need</b> — walk me through exactly what you’re going through.');
   const w=document.createElement('div'); w.className='capture';
   w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>'
     +'<div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>';
@@ -308,8 +308,11 @@ function capModel(){
     state.model=true; state.modelFile=file;
     const b=document.getElementById('mbtn'); b.classList.add('done'); const ml=b.querySelectorAll('span')[1]; if(ml) ml.textContent='✓ Model photo added';
     document.getElementById('mprog').classList.remove('hidden'); document.getElementById('mstat').classList.remove('hidden');
+    if(!state.convId) state.convId = Date.now();
+    const mst = captureStatus(document.getElementById('mbar'), document.getElementById('mstat'));
+    // Cloudflare Images (reliable) first; S3 fallback. Photo is critical — never weak.
     state.uploads = state.uploads || [];
-    state.uploads.push(uploadMedia(file,'photo', captureStatus(document.getElementById('mbar'), document.getElementById('mstat'))).then(r=>{ state.modelUploaded=r.ok; return r; }));
+    state.uploads.push(AntPhoto.upload(file, { convId:state.convId, uploadedBy:'customer', onStatus:mst, s3Fallback:f=>uploadMedia(f,'photo',mst) }).then(r=>{ state.modelUploaded=!!(r&&r.ok); return r; }));
     setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},900);
   };
 }

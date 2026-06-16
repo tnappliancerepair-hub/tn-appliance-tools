@@ -76,4 +76,46 @@
   }
 
   window.AntVideo = { upload: upload };
+
+  // ── PHOTO: Cloudflare Images (reliable infra + CDN), S3 fallback ────────────
+  function postForm(url, file) {
+    var fd = new FormData(); fd.append('file', file, file.name || 'photo.jpg');
+    return fetch(url, { method: 'POST', body: fd });
+  }
+  function imageUpload(file, opts) {
+    var onStatus = opts.onStatus || function () {};
+    onStatus('preparing', 1, 0);
+    return postJSON(FN + '/images-direct-upload', {
+      conversation_id: opts.convId || null, job_id: opts.jobId || null,
+      uploaded_by: opts.uploadedBy || 'customer',
+    }).then(function (d) {
+      if (!d || !d.ok || !d.uploadURL) { var e = new Error('fallback'); e.fallback = true; throw e; }
+      // small files — retry the whole POST a few times on weak signal
+      var tries = 4;
+      function attempt(n) {
+        onStatus('uploading', n, 0.5);
+        return postForm(d.uploadURL, file).then(function (r) {
+          if (!r.ok) throw new Error('cf-img ' + r.status);
+          onStatus('done', n, 1);
+          return { ok: true, via: 'cfimages', deliveryUrl: d.deliveryUrl, id: d.id };
+        }).catch(function (err) {
+          if (n < tries) { onStatus('retry', n, 0); return new Promise(function (res) { setTimeout(res, Math.min(2000 * n, 8000)); }).then(function () { return attempt(n + 1); }); }
+          throw err;
+        });
+      }
+      return attempt(1);
+    });
+  }
+  function uploadPhoto(file, opts) {
+    opts = opts || {};
+    var onStatus = opts.onStatus || function () {};
+    return imageUpload(file, opts).catch(function () {
+      if (typeof opts.s3Fallback === 'function') {
+        return Promise.resolve(opts.s3Fallback(file)).then(function (r) { return { ok: !!(r && r.ok !== false), via: 's3' }; });
+      }
+      onStatus('failed', 1, 0);
+      return { ok: false, via: 'none' };
+    });
+  }
+  window.AntPhoto = { upload: uploadPhoto };
 })();
