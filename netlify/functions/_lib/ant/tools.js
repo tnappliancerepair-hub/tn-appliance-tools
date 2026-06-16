@@ -57,6 +57,21 @@ const READ_TOOLS = [
     },
   },
   {
+    name: 'diagnose_appliance',
+    description: "Run a grounded diagnosis for a specific machine. Give the brand, model, appliance type, and what the tech is seeing (symptom and/or error code). Returns a CITED brief: fault-code meaning + test, the most common failures OUR techs have logged on this model, similar past jobs, and any RECALLS or technical service bulletins for the model. ALWAYS use this when a tech (on the phone or in chat) names a model and describes a problem. If it returns a recall or bulletin, lead with that ('there's a recall/bulletin on this model — check X') before the rest. Never invent part numbers — defer to the parts lookup.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        brand: { type: 'string', description: 'Brand (Whirlpool, Samsung, LG, GE...)' },
+        model: { type: 'string', description: 'Full model number off the machine' },
+        appliance: { type: 'string', description: 'Appliance type (washer, dryer, refrigerator, range, dishwasher)' },
+        symptom: { type: 'string', description: "What the tech reports: symptom and/or error code (e.g. \"won't drain, F9E1\")" },
+        serial: { type: 'string', description: 'Optional serial (matters for Samsung — exact part variant)' },
+      },
+      required: ['symptom'],
+    },
+  },
+  {
     name: 'get_office_todo',
     description: 'Get the prioritized list of things that need a human in the office to take action: stale intake jobs, held jobs, parts arrived (need to schedule second visit), warranty completions blocked on TDR, callbacks. Use to answer "what should I work on?" / "what needs attention?"',
     input_schema: { type: 'object', properties: {}, required: [] },
@@ -622,6 +637,30 @@ async function executeTool(toolName, toolInput, ctx) {
       const appl = encodeURIComponent(ti.appliance_type || ctx.appliance || '');
       const model = encodeURIComponent(ti.model_number || '');
       return await timedFetch(`${XANO_BASE}/get_common_failures?brand=${brand}&appliance_type=${appl}&model_number=${model}&per_page=10`, { method: 'GET' });
+    }
+    case 'diagnose_appliance': {
+      const r = await timedFetch('https://tnapplianceexchange.net/.netlify/functions/ant-troubleshoot', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brand: ti.brand || ctx.brand || '',
+          model: ti.model || ctx.model || '',
+          appliance: ti.appliance || ctx.appliance || '',
+          symptom: ti.symptom || '',
+          serial: ti.serial || '',
+          job_id: ctx.job_id || 0,
+          role: ctx.role || 'tech',
+        }),
+      });
+      if (!r || r.error) return { error: (r && r.error) || 'diagnose failed' };
+      // hand the brain a compact, speakable shape
+      return {
+        answer: r.answer_md || '',
+        fault_code: r.fault_code ? { code: r.fault_code.code, meaning: r.fault_code.meaning, test: r.fault_code.test } : null,
+        recalls: r.recalls || [],
+        bulletins: r.bulletins || [],
+        common_failures: (r.common_failures || []).slice(0, 5),
+        grounded: !!r.grounded,
+      };
     }
     case 'get_office_todo':
       return await timedFetch(`${XANO_BASE}/get_office_todo`, { method: 'GET' });

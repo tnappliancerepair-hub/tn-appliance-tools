@@ -26,6 +26,8 @@
       + '.antb-out{margin-top:12px;font-size:14px;line-height:1.5;}'
       + '.antb-fc{border-left:3px solid #d98a00;background:rgba(217,138,0,.08);padding:9px 11px;border-radius:6px;margin-bottom:10px;font-size:13.5px;}'
       + '.antb-fc b{color:#d98a00;}'
+      + '.antb-recall{border-left:3px solid #d33;background:rgba(211,51,51,.09);padding:9px 11px;border-radius:6px;margin-bottom:10px;font-size:13.5px;}'
+      + '.antb-recall ul{margin:5px 0 0 18px;padding:0;} .antb-recall li{margin:2px 0;}'
       + '.antb-ans{white-space:normal;}'
       + '.antb-ans ul{margin:6px 0 6px 18px;padding:0;} .antb-ans li{margin:3px 0;}'
       + '.antb-cites{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}'
@@ -81,6 +83,11 @@
         btn.disabled = false; btn.textContent = orig;
         if (!j || !j.ok) { out.innerHTML = '<span class="antb-err">' + esc((j && j.error) || 'Diagnose failed') + '</span>'; return; }
         var html = '';
+        var recalls = (j.recalls || []).concat(j.bulletins || []);
+        if (recalls.length) {
+          var rl = recalls.slice(0, 4).map(function (x) { return '<li>' + esc(typeof x === 'string' ? x : (x.text || '')) + '</li>'; }).join('');
+          html += '<div class="antb-recall">⚠️ <b>Recall / bulletin on this model</b><ul>' + rl + '</ul></div>';
+        }
         if (j.fault_code) {
           html += '<div class="antb-fc"><b>' + esc((opts.brand || '') + ' ' + j.fault_code.code) + '</b> — ' + esc(j.fault_code.meaning)
             + (j.fault_code.test ? '<br/><span class="antb-muted">Test: ' + esc(j.fault_code.test) + '</span>' : '') + '</div>';

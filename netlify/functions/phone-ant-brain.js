@@ -38,7 +38,10 @@ const PHONE_BRAIN_TOOLS = [
   ...PHONE_TOOLS,
   // search_customers (name/phone/address) lives in READ_TOOLS — the phone brain
   // needs it so it can find callers by NAME when the number is masked/unmatched.
-  ...READ_TOOLS.filter((t) => ['search_customers'].includes(t.name)),
+  // diagnose_appliance: a tech on the phone gives a model + what he's seeing and
+  // Ant runs it (fault codes + our past jobs + recalls/bulletins). search_customers
+  // for finding callers by name when the number is masked/unmatched.
+  ...READ_TOOLS.filter((t) => ['search_customers', 'diagnose_appliance'].includes(t.name)),
   ...UNIVERSAL_TOOLS.filter((t) => ['flag_capability_gap', 'record_brain_observation', 'load_brain_observations', 'review_before_ship'].includes(t.name)),
 ];
 

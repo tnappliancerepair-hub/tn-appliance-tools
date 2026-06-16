@@ -15,6 +15,7 @@
 'use strict';
 const { runBrainTurn } = require('./_lib/ant/brain-core');
 const faultCodes = require('./fault-code-lookup');
+const modelIntel = require('./get-model-intel');
 
 const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FUNCTIONS_BASE = 'https://tnapplianceexchange.net/.netlify/functions';
@@ -72,16 +73,36 @@ exports.handler = async function (event) {
 
   // ── gather context (parallel) ──────────────────────────────────────────────
   const fcRes = code ? faultCodes.lookup(brand, code, appliance) : { match: null };
-  const [commonFailures, similarJobs] = await Promise.all([
+  const [commonFailures, similarJobs, intelHit] = await Promise.all([
     getCommonFailures(brand, appliance, model),
     getSimilarJobs([brand, appliance, model, symptom].filter(Boolean).join(' '), jobId),
+    (model || brand) ? modelIntel.readModelIntel({ brand, model }).catch(() => null) : Promise.resolve(null),
   ]);
 
   const faultMatch = fcRes.match || null;
-  const grounded = !!(faultMatch || commonFailures.length || similarJobs.length);
+  const intel = intelHit ? intelHit.md : null;
+  const recalls = (intel && intel.recalls) || [];
+  const bulletins = (intel && intel.bulletins) || [];
+
+  // Warm-on-miss: if we have a model but no cached MSA intel yet, fire a pull so
+  // the NEXT lookup (and the tech's follow-up) has recalls/bulletins ready.
+  if (!intelHit && model) {
+    fetch(`${FUNCTIONS_BASE}/request-model-intel`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brand, model, appliance }),
+    }).catch(() => {});
+  }
+
+  const grounded = !!(faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length);
 
   // ── build the grounded context block for Claude ─────────────────────────────
   const ctxParts = [];
+  if (recalls.length || bulletins.length) {
+    const lines = [];
+    for (const r of recalls.slice(0, 6)) lines.push('RECALL: ' + (typeof r === 'string' ? r : r.text));
+    for (const b of bulletins.slice(0, 6)) lines.push('BULLETIN/TSB: ' + (typeof b === 'string' ? b : b.text));
+    ctxParts.push('[recall] MSA World / manufacturer notices for this model — LEAD WITH THESE if relevant:\n' + lines.join('\n'));
+  }
   if (faultMatch) {
     ctxParts.push(`[fault-code] ${brand} ${faultMatch.appliance} code ${faultMatch.code}: ${faultMatch.meaning}. Likely causes: ${(faultMatch.likely_causes || []).join(', ')}. Confirming test: ${faultMatch.test}`);
   }
@@ -133,6 +154,8 @@ exports.handler = async function (event) {
 
   // citations the UI can render as chips
   const citations = [];
+  if (recalls.length) citations.push({ type: 'recall', label: 'recall' });
+  if (bulletins.length) citations.push({ type: 'bulletin', label: 'bulletin/TSB' });
   if (faultMatch) citations.push({ type: 'fault-code', label: `${brand} ${faultMatch.code}` });
   for (const e of commonFailures) if (e.job_id) citations.push({ type: 'job', label: `job #${e.job_id}`, job_id: e.job_id });
   for (const x of similarJobs) citations.push({ type: 'job', label: `job #${x.source_row_id}`, job_id: x.source_row_id });
@@ -144,6 +167,8 @@ exports.handler = async function (event) {
       grounded,
       answer_md: answer,
       fault_code: faultMatch,
+      recalls,
+      bulletins,
       common_failures: commonFailures,
       similar_jobs: similarJobs,
       citations,
