@@ -131,7 +131,42 @@ async function doTierLookup(tier, model, serial, debug) {
   return { tier, model, serial: serial || null, sources: results };
 }
 
-const VERSION = '2026-06-16e-tiers';
+// Intelligence pull (MSA World / Whirlpool University): given a model, navigate
+// the authenticated portal and extract recalls + technical service bulletins +
+// tech-sheet/manual links + key notes. Generic + tunable (use ?debug=1 to dump
+// HTML on first login). On-demand + model-specific only — never bulk-mirrored.
+async function doIntel(source, brand, model, debug) {
+  const cfg = SUPPLIERS[source];
+  if (!cfg || !cfg.intelligence) throw new Error('unknown intel source');
+  const page = await tabFor(source);
+  const q = [brand, model].filter(Boolean).join(' ') || model;
+  await page.goto(cfg.searchUrl(q), { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+  if (cfg.searchSelector) {
+    const box = await page.$(cfg.searchSelector).catch(() => null);
+    if (box) { try { await box.fill(q); await box.press('Enter'); await page.waitForLoadState('domcontentloaded', { timeout: 30000 }); } catch (_) {} }
+  }
+  await page.waitForTimeout(2500);
+  const logged_in = cfg.loggedInHint ? !!(await page.$(cfg.loggedInHint).catch(() => null)) : true;
+  const final_url = page.url();
+  const result = await page.evaluate(() => {
+    const txt = (el) => ((el && (el.innerText || el.textContent)) || '').replace(/\s+/g, ' ').trim();
+    const lines = Array.from(document.querySelectorAll('h1,h2,h3,h4,li,p,td,a,div'))
+      .map(txt).filter((t) => t && t.length > 8 && t.length < 400);
+    const uniq = Array.from(new Set(lines));
+    const recalls = uniq.filter((t) => /\brecall\b/i.test(t)).slice(0, 10);
+    const bulletins = uniq.filter((t) => /\b(service bulletin|technical bulletin|tsb|service flash|service pointer)\b/i.test(t)).slice(0, 10);
+    const tech_sheets = Array.from(document.querySelectorAll('a'))
+      .map((a) => ({ text: (a.innerText || '').replace(/\s+/g, ' ').trim(), href: a.href || '' }))
+      .filter((x) => x.href && /(\.pdf|tech.?sheet|service.?manual|manual|wiring|schematic|fast.?track|mini.?manual)/i.test(x.text + ' ' + x.href))
+      .slice(0, 12);
+    return { recalls, bulletins, tech_sheets, sample: uniq.slice(0, 20) };
+  });
+  const resp = { source, label: cfg.label, brand, model, logged_in, final_url, recalls: result.recalls, bulletins: result.bulletins, tech_sheets: result.tech_sheets };
+  if (debug) resp.debug_sample = result.sample;
+  return resp;
+}
+
+const VERSION = '2026-06-16f-intel';
 
 function requestHandler(tabs) {
   return async (req, res) => {
@@ -183,6 +218,19 @@ function requestHandler(tabs) {
       if (!model && !serial) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'model (or serial) required' })); }
       const debug = u.searchParams.get('debug') === '1';
       try { res.end(JSON.stringify(await doTierLookup(tier, model, serial, debug))); }
+      catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
+      return;
+    }
+    // Intelligence pull: recalls / bulletins / tech-sheets for a model.
+    //   /intel?source=msa&brand=Whirlpool&model=WTW5000DW1  (&debug=1 dumps a text sample)
+    if (u.pathname === '/intel') {
+      const source = (u.searchParams.get('source') || 'msa').toLowerCase();
+      const brand = u.searchParams.get('brand') || '';
+      const model = u.searchParams.get('model') || '';
+      if (!SUPPLIERS[source] || !SUPPLIERS[source].intelligence) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'valid intelligence source required (msa, whirlpool)' })); }
+      if (!model && !brand) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'brand or model required' })); }
+      const debug = u.searchParams.get('debug') === '1';
+      try { res.end(JSON.stringify(await doIntel(source, brand, model, debug))); }
       catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
       return;
     }

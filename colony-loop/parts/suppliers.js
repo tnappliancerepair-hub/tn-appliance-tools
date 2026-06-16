@@ -98,6 +98,25 @@ module.exports = {
     loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account, [class*="account" i]',
   },
 
+  // MSA World (Marcone Servicers Association) — THE authoritative intelligence
+  // anchor. Member-licensed manuals, tech sheets, fault codes, RECALLS + technical
+  // service bulletins, across ALL brands. Accessed via our Marcone membership →
+  // same authenticated-browser pattern (one session, parts AND the brain).
+  // INTELLIGENCE source (recalls/bulletins/tech-sheets), not a price source.
+  // IP-clean rule: on-demand, model-specific, for OUR service work — never
+  // bulk-mirror their library. Confirm real portal URLs on first login.
+  msa: {
+    label: 'MSA World',
+    tier: 'reference',
+    intelligence: true,
+    confirmOnLogin: true, // URLs best-guess until we log in and see the real portal
+    loginUrl: 'https://www.msaworld.com/',
+    searchUrl: (q) => 'https://www.msaworld.com/search?q=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i], input[placeholder*="model" i]',
+    note: 'Member-licensed manuals / tech sheets / fault codes / recalls / TSBs (all brands), via Marcone membership. On-demand + model-specific only — do NOT bulk-mirror.',
+    loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account, [class*="account" i]',
+  },
+
   // Broad multi-brand public catalogs — cover EVERY brand incl. Sub-Zero, Viking,
   // Wolf, Thermador, etc. by model. No login. Great cross-reference + retail price.
   appliancepartspros: {
