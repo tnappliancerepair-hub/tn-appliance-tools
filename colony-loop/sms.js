@@ -10,6 +10,53 @@ export function normalizeE164(phone) {
   return null;
 }
 
+// ── Global outbound-SMS circuit breaker ──────────────────────────────────────
+// 2026-06-16, per Teddy: "we should never send 15k texts." A stale-signal
+// backlog (or any runaway emitter) must NEVER be able to blast thousands of
+// texts. EVERY send routes through dispatchSms(), which tracks sends in a
+// rolling window; once they exceed the cap it HALTS all outbound texts and
+// alerts Teddy once (the alert bypasses the breaker so it still gets out).
+// Tunable via env: SMS_BREAKER_MAX (default 50), SMS_BREAKER_WINDOW_MIN (10).
+const SMS_BREAKER_MAX = Number(process.env.SMS_BREAKER_MAX || 50);
+const SMS_BREAKER_WINDOW_MS = Number(process.env.SMS_BREAKER_WINDOW_MIN || 10) * 60 * 1000;
+let _sendTimes = [];
+let _breakerAlertedAt = 0;
+
+function breakerAllows() {
+  const now = Date.now();
+  _sendTimes = _sendTimes.filter((t) => now - t < SMS_BREAKER_WINDOW_MS);
+  return _sendTimes.length < SMS_BREAKER_MAX;
+}
+
+async function dispatchSms(phone, body, context = {}) {
+  if (!breakerAllows()) {
+    const now = Date.now();
+    // Alert Teddy at most once / 30 min, bypassing the breaker so it gets out.
+    if (now - _breakerAlertedAt > 30 * 60 * 1000) {
+      _breakerAlertedAt = now;
+      try {
+        await xano.sendSms(
+          config.ownerPhone,
+          '[ant] 🚨 SMS circuit breaker TRIPPED — over ' + SMS_BREAKER_MAX + ' texts in ' +
+            Math.round(SMS_BREAKER_WINDOW_MS / 60000) + 'min. Halting all outbound texts. ' +
+            'Something is over-emitting — check the loop.',
+          { recipient_role: 'owner', action: 'sms_breaker_alert', company_id: config.companyId }
+        );
+      } catch (_) {}
+    }
+    try {
+      await xano.recordEventLog('sms_breaker_blocked', {
+        to: phone,
+        action: (context && (context.action || context.outcome)) || '',
+        body_preview: String(body || '').slice(0, 120),
+      });
+    } catch (_) {}
+    return { success: false, breaker_tripped: true };
+  }
+  _sendTimes.push(Date.now());
+  return dispatchSms(phone, body, context);
+}
+
 // All sms helpers now pass company_id in context so the Xano send_sms
 // endpoint can route to the per-tenant Telnyx FROM number (once the
 // endpoint is refactored to read company.telnyx_from_customer /
@@ -78,13 +125,13 @@ export async function toOwner(body, context = {}) {
     } catch (_) {}
     return { success: false, quieted: true, action };
   }
-  return xano.sendSms(config.ownerPhone, body, {
+  return dispatchSms(config.ownerPhone, body, {
     ...context, recipient_role: 'owner', company_id: config.companyId,
   });
 }
 
 export async function toDanielle(body, context = {}) {
-  return xano.sendSms(config.daniellePhone, body, {
+  return dispatchSms(config.daniellePhone, body, {
     ...context, recipient_role: 'warranty_handler', company_id: config.companyId,
   });
 }
@@ -94,7 +141,7 @@ export async function toCustomer(phone, body, context = {}) {
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
   }
-  return xano.sendSms(e164, body, {
+  return dispatchSms(e164, body, {
     ...context, recipient_role: 'customer', company_id: config.companyId,
   });
 }
@@ -125,6 +172,18 @@ function isQuietedForTech(action) {
   return !isAllowedForTech(action);
 }
 
+// 2026-06-16 per Teddy: HARD weekend mute. Zero automated texts to the field
+// techs on Saturday or Sunday (America/Chicago) — they don't want weekend
+// pestering. Overrides even the allow-list. Owner-as-tech (Teddy, tech_id 1)
+// is exempt; this is about the field techs, not the owner's own heads-ups.
+// Suppressed texts still write to event_log so nothing is lost.
+function isWeekendCT(d = new Date()) {
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', weekday: 'short',
+  }).format(d);
+  return wd === 'Sat' || wd === 'Sun';
+}
+
 export async function toTech(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
@@ -132,6 +191,19 @@ export async function toTech(phone, body, context = {}) {
   }
   const action = context.action || context.outcome || '';
   const isOwnerAsTech = (e164 === config.ownerPhone) || (Number(context.tech_id) === 1);
+
+  // Weekend hard-mute (field techs only). No force_send escape — Teddy asked
+  // for ALL texts silenced Sat/Sun.
+  if (isWeekendCT() && !isOwnerAsTech) {
+    try {
+      await xano.recordEventLog('tech_sms_quieted_weekend', {
+        action,
+        body_preview: String(body || '').slice(0, 240),
+        tech_id: context.tech_id || null,
+      });
+    } catch (_) {}
+    return { success: false, quieted: true, weekend: true, action };
+  }
 
   // Owner-as-tech inherits the broader owner denylist (everything in
   // OWNER_SMS_QUIET_PATTERNS plus the tech-specific list below).
@@ -158,7 +230,7 @@ export async function toTech(phone, body, context = {}) {
     } catch (_) {}
     return { success: false, quieted: true, action };
   }
-  return xano.sendSms(e164, body, {
+  return dispatchSms(e164, body, {
     ...context, recipient_role: 'tech', company_id: config.companyId,
   });
 }

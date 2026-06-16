@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/manifest-tech.json">
 <title>Job · Ant Field</title>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw-tech.js').catch(function(e){console.warn('sw',e.message);});});}</script>
 <style>
   :root{
     --blue:#1f6fed; --blue-d:#1559c9;
@@ -331,8 +333,8 @@ function render(){
       <div class="card">
         <h3>📷 Photos &amp; Video <a class="r" id="refresh-media" href="javascript:void(0)">↻ refresh</a></h3>
         <div class="media-actions">
-          <label>📷 Add photo<input type="file" accept="image/*" capture="environment" id="in-photo"></label>
-          <label>🎥 Add video<input type="file" accept="video/*" capture="environment" id="in-video"></label>
+          <label>📷 Add photo<input type="file" accept="image/*" multiple id="in-photo"></label>
+          <label>🎥 Add video<input type="file" accept="video/*" id="in-video"></label>
         </div>
         <div class="gallery" id="gallery"><div class="empty">Loading media…</div></div>
       </div>
@@ -390,8 +392,8 @@ function wireActions(){
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
   document.getElementById('refresh-media').onclick=loadAttachments;
-  document.getElementById('in-photo').onchange=e=>uploadFile(e.target.files[0],'photo');
-  document.getElementById('in-video').onchange=e=>uploadFile(e.target.files[0],'video');
+  document.getElementById('in-photo').onchange=async e=>{ const fs=Array.from(e.target.files||[]); for(const f of fs){ await uploadFile(f,'photo'); } e.target.value=''; };
+  document.getElementById('in-video').onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
   if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:(appliance.problem_summary||appliance.problem_description||''), job_id:job.id||0, role:'tech' }); }
