@@ -51,7 +51,7 @@ exports.handler = async function (event) {
   // uploaded during the AI flow by their shared conversation_id.
   const nameParts = String(m.name || '').trim().split(/\s+/);
   const convId = parseInt(String(m.conv_id || '').replace(/\D/g, ''), 10) || null;
-  let jobId = null, linkedAttachments = 0;
+  let jobId = null, linkedAttachments = 0, photoLinked = false, videoLinked = false;
   try {
     const r = await fetch(`${XANO}/create_job_from_chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -83,6 +83,8 @@ exports.handler = async function (event) {
       const ad = await ar.json().catch(() => ({}));
       const atts = (ad && Array.isArray(ad.attachments)) ? ad.attachments : [];
       linkedAttachments = (ad && ad.count != null) ? ad.count : atts.length;
+      videoLinked = atts.some((a) => a && (a.file_type === 'video' || (a.s3_key && String(a.s3_key).startsWith('cfstream:'))));
+      photoLinked = atts.some((a) => a && a.file_type === 'photo' && !(a.s3_key && String(a.s3_key).startsWith('cfstream:')));
       // find the model-sticker photo (a real S3 image, not a Stream video)
       const photo = atts.find((a) => a && (a.file_type === 'photo' || (a.s3_key && !String(a.s3_key).startsWith('cfstream:') && /\.(jpe?g|png|heic|webp)$/i.test(a.s3_key))));
       if (photo && photo.s3_key) {
@@ -125,13 +127,17 @@ exports.handler = async function (event) {
   // If the video/photo didn't land (low signal that never recovered before the
   // Stripe redirect), flag the job and text the customer a one-tap link to finish
   // the upload from wherever they have signal — it links back by the same job.
-  const expectedMedia = (String(m.has_video) === 'yes' || String(m.has_video) === 'true') || (String(m.has_model) === 'yes' || String(m.has_model) === 'true');
-  if (jobId && expectedMedia && linkedAttachments === 0) {
+  const yes = (v) => String(v) === 'yes' || String(v) === 'true';
+  const expectedVideo = yes(m.has_video), expectedPhoto = yes(m.has_model);
+  const videoMissing = expectedVideo && !videoLinked;
+  const photoMissing = expectedPhoto && !photoLinked;
+  if (jobId && (videoMissing || photoMissing)) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
-    await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: m.conv_id || '', phone: m.phone, at_ms: Date.now() });
-    if (String(m.sms_consent) === 'yes' && m.phone) {
+    await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: m.conv_id || '', phone: m.phone, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
+    if (yes(m.sms_consent) && m.phone) {
       const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
-      const cmsg = 'TN Appliance: got your $' + amount + ' Quick Check! Your video didn\'t fully upload on the last signal. Tap to finish so we can diagnose it fast: ' + finishLink + '  (Reply STOP to opt out.)';
+      const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
+      const cmsg = 'TN Appliance: got your $' + amount + ' Quick Check! It looks like ' + what + ' didn\'t fully upload on the last signal. Tap to finish so we can diagnose it fast: ' + finishLink + '  (Reply STOP to opt out.)';
       try { await sendSms(m.phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
     }
   }
