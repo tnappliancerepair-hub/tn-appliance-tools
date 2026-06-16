@@ -1113,8 +1113,8 @@ function __initCalendar() {
 
     const applLine = brand ? `${appl} · ${brand}` : appl;
     return `
-      <div class="blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
-           title="Click to reschedule, reassign, or cancel">
+      <div class="blk bk-${bk}" data-job-id="${j.id}" draggable="true" role="button" tabindex="0"
+           title="Drag to another tech/day, or click to reschedule, reassign, or cancel">
         <div class="row1">
           <span class="time">${time}</span>
           <span class="name">${escapeHtml(cust)}</span>
@@ -1163,6 +1163,76 @@ function __initCalendar() {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
       });
     });
+    attachDragHandlers();
+  }
+
+  // ── Drag-and-drop: move a job to another tech / day with an INSTANT optimistic
+  // move (no full reload — that's what was freezing). API fires in the background;
+  // on failure we reload to revert. Same-day tech change = reassign; day change =
+  // reschedule (keeps the time of day).
+  let draggingJobId = null;
+  function attachDragHandlers() {
+    document.querySelectorAll('.blk[data-job-id]').forEach((blk) => {
+      blk.addEventListener('dragstart', (e) => {
+        draggingJobId = Number(blk.dataset.jobId);
+        try { e.dataTransfer.setData('text/plain', String(draggingJobId)); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+        blk.classList.add('dragging');
+      });
+      blk.addEventListener('dragend', () => { blk.classList.remove('dragging'); document.querySelectorAll('.cell.drag-over').forEach((c) => c.classList.remove('drag-over')); });
+    });
+    document.querySelectorAll('.book-cell[data-tech-id]').forEach((cell) => {
+      cell.addEventListener('dragover', (e) => { e.preventDefault(); try { e.dataTransfer.dropEffect = 'move'; } catch (_) {} cell.classList.add('drag-over'); });
+      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+      cell.addEventListener('drop', (e) => {
+        e.preventDefault(); cell.classList.remove('drag-over');
+        const jobId = draggingJobId || Number((e.dataTransfer && e.dataTransfer.getData('text/plain')) || 0);
+        if (jobId) handleDrop(jobId, cell);
+        draggingJobId = null;
+      });
+    });
+  }
+
+  function jobDateStrCT(ms) {
+    if (!ms) return '';
+    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
+    const g = (t) => (parts.find((p) => p.type === t) || {}).value || '';
+    return `${g('year')}-${g('month')}-${g('day')}`;
+  }
+  function jobTimeHHMM_CT(ms) {
+    if (!ms) return '08:00';
+    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms));
+    const g = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
+    return `${g('hour')}:${g('minute')}`;
+  }
+
+  async function handleDrop(jobId, cell) {
+    const j = lastJobsById[jobId];
+    if (!j) { loadWeek(); return; }
+    const newTechId = Number(cell.dataset.techId);
+    const newDateStr = cell.dataset.date;
+    const curDateStr = jobDateStrCT(j.scheduled_start);
+    const dayChanged = newDateStr && newDateStr !== curDateStr;
+    const techChanged = newTechId && newTechId !== j.technician_id;
+    if (!dayChanged && !techChanged) return; // dropped where it already was
+
+    // optimistic move: relocate the DOM node now so it feels instant
+    const blk = document.querySelector(`.blk[data-job-id="${jobId}"]`);
+    const targetBlocks = cell.querySelector('.blocks');
+    if (blk && targetBlocks) targetBlocks.appendChild(blk);
+    j.technician_id = newTechId;
+    if (dayChanged) { const ms = localDatetimeToMs(`${newDateStr}T${jobTimeHHMM_CT(j.scheduled_start)}`); if (ms) j.scheduled_start = ms; }
+
+    try {
+      let res;
+      if (dayChanged) {
+        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId, scheduled_start_ms: j.scheduled_start }) });
+      } else {
+        res = await fetch(`${XANO_BASE}/reassign_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId }) });
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
+      // success: leave the optimistic move in place (no full reload = no freeze)
+    } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
   }
 
   function renderHeader(data) {
@@ -1706,6 +1776,9 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <style>
   .book-cell { cursor: pointer; }
   .book-cell.cap-off { cursor: not-allowed; }
+  .blk { cursor: grab; }
+  .blk.dragging { opacity: 0.45; cursor: grabbing; }
+  .cell.drag-over { outline: 2px dashed #39ff14; outline-offset: -2px; background: rgba(57,255,20,0.08); }
   #bookingModal {
     position: fixed; inset: 0; background: rgba(0,0,0,0.7);
     display: none; align-items: flex-start; justify-content: center;
