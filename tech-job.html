@@ -536,6 +536,7 @@ async function uploadFile(file,kind){
         s3Fallback:f=>uploadFileS3(f,'photo') });
       if(r&&r.ok){ toast('Photo added ✓'); loadAttachments();
         if(r.via==='cfimages' && r.deliveryUrl) readModelFromUrl(r.deliveryUrl, r.id||null);
+        else if(r.via==='proxy' && r.s3_key) readModelFromPhoto(r.s3_key, r.attachment_id||null);
       } else toast('⚠ photo upload failed — try again');
     }catch(e){ toast('⚠ upload failed: '+(e&&e.message||e)); }
     return;
