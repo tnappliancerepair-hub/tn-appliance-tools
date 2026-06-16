@@ -239,6 +239,40 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, found, destinations: (vt && vt.destinations) || null }, null, 2) };
   }
 
+  // Surgical fallback fix (2026-06-16): ADD capture_callback (so Ant can take a
+  // message) and REMOVE transferCall (which fails ~35% and drops callers — no
+  // live agent to hand off to right now). Leaves the other inline tools UNTOUCHED.
+  // This is the safe alternative to `apply` (whose TOOLS array is stale).
+  if (action === 'fixfallback') {
+    const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    let removedTransfer = false;
+    let newTools = tools.filter((t) => {
+      if (t.type === 'transferCall') { removedTransfer = true; return false; }
+      return true;
+    });
+    const hasCapture = newTools.some((t) => tname(t) === 'capture_callback');
+    let addedCapture = false;
+    if (!hasCapture) {
+      newTools.push({
+        type: 'function',
+        function: {
+          name: 'capture_callback',
+          description: 'Take a message when you cannot fully resolve the call OR the caller asks for a live person. There is NO live agent available to transfer to right now — do not promise a transfer. Instead say a human will call them back, and collect name + best callback number + a one-line summary.',
+          parameters: { type: 'object', properties: { name: { type: 'string' }, phone: { type: 'string' }, summary: { type: 'string' }, caller_type: { type: 'string' }, ref: { type: 'string' } }, required: ['name', 'phone', 'summary', 'caller_type'] },
+        },
+        server: { url: PROXY },
+      });
+      addedCapture = true;
+    }
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vt = (verify.json && verify.json.model && verify.json.model.tools) || [];
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status, removedTransfer, addedCapture,
+      now_tools: vt.map((t) => tname(t) || t.type),
+    }, null, 2) };
+  }
+
   // Turn ON call Summary (and success-eval) so the call log + daily review have content.
   if (action === 'voiceon') {
     const f = full.json || {};
