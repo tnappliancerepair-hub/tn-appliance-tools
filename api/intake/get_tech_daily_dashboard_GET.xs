@@ -141,62 +141,6 @@ query get_tech_daily_dashboard verb=GET {
       }
     }
 
-    // Also surface jobs ASSIGNED to this tech but with NO scheduled time yet —
-    // only on TODAY's view. Danielle assigns techs on the office board
-    // (reassign_job = technician_id only, no scheduled_start), so those jobs were
-    // invisible to the tech. Show them flagged "untimed" so the tech sees their
-    // whole day. (2026-06-16 — the 2-of-8 fix.)
-    conditional {
-      if ($resolved_date == $today_ct_str) {
-        db.query jobs {
-          where = $db.jobs.technician_id == $input.tech_id && $db.jobs.scheduled_start == null && $db.jobs.scheduling_status != "canceled" && $db.jobs.scheduling_status != "completed" && $db.jobs.scheduling_status != "no_fix_possible"
-          sort = {jobs.created_at: "desc"}
-          return = {type: "list", paging: {page: 1, per_page: 50}}
-        } as $untimed_rows
-
-        foreach ($untimed_rows.items) {
-          each as $ujob {
-            var $ucustomer {
-              value = null
-            }
-
-            var $ucust_id {
-              value = ($ujob.customer_id ?? 0)
-            }
-
-            conditional {
-              if ($ucust_id > 0) {
-                db.get customer {
-                  field_name = "id"
-                  field_value = $ucust_id
-                } as $ucust_lookup
-
-                var.update $ucustomer {
-                  value = $ucust_lookup
-                }
-              }
-            }
-
-            var $ujob_item {
-              value = {
-                job                : $ujob
-                customer           : $ucustomer
-                teddy_pre_diagnosis: null
-                latest_tdr         : null
-                attachments_count  : 0
-                attachments_preview: []
-                untimed            : true
-              }
-            }
-
-            var.update $jobs_out {
-              value = $jobs_out|push:$ujob_item
-            }
-          }
-        }
-      }
-    }
-
     // Personal block / day-off lookup so the dashboard can banner
     // "HAS ALEC" / "vacation" / etc. above the day's jobs.
     db.query tech_availability {
