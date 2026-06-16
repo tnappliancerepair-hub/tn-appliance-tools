@@ -828,6 +828,11 @@ function renderReview() {
     '<div class="section-card">' +
       '<div class="section-title">Part Recommendations</div>' +
 
+      '<button type="button" id="autoFindPartsBtn" onclick="autoFindParts()" ' +
+        'style="width:100%;margin-bottom:10px;padding:11px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
+        '🔍 Auto-find parts (Marcone + Amazon)</button>' +
+      '<div id="partsLookupStatus" style="margin:-2px 0 12px;font-size:12.5px;color:var(--muted);"></div>' +
+
       '<div class="part-block">' +
         '<div class="part-row-label oem">OEM PART</div>' +
         '<div class="part-row">' +
@@ -934,6 +939,95 @@ function updateLaborHint() {
   const c = parseDollarsToCents(state.laborEstimate);
   if (c == null) { wrap.innerHTML = '<div class="field-hint live error">Use a number like $215.</div>'; return; }
   wrap.innerHTML = '<div class="field-hint live">Customer pays ' + centsToDisplay(c) + ' directly (no markup)</div>';
+}
+
+// ── Auto-find parts: cloud → Mac parts daemon (Marcone OEM + Amazon aftermarket).
+// Fires PARTS_LOOKUP_REQUEST, polls the result, fills the OEM/Amazon fields.
+// Teddy reviews/edits before submitting — he keeps final say.
+function plStatus(html) { const el = document.getElementById('partsLookupStatus'); if (el) el.innerHTML = html; }
+function centsToDollarsInput(c) { return (c == null) ? '' : (c / 100).toFixed(2).replace(/\.00$/, ''); }
+
+async function autoFindParts() {
+  const btn = document.getElementById('autoFindPartsBtn');
+  const app = (state.cockpit && state.cockpit.appliance) || {};
+  const model = (app.model_number || app.model || '').trim();
+  const serial = (app.serial_number || app.serial || '').trim();
+  if (!model && !serial) { plStatus('<span style="color:#e0a800;">No model on this job yet — add the model number first.</span>'); return; }
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  plStatus('Searching Marcone + Amazon for <strong>' + escapeHtml(model || serial) + '</strong>…');
+
+  let requestId = '';
+  try {
+    const r = await fetch('/.netlify/functions/request-parts-lookup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: parseInt(state.jobId, 10) || 0,
+        model, serial,
+        appliance: app.appliance_type || app.appliance || '',
+        brand: app.brand || '',
+        component: (state.diagnosis || '').trim().slice(0, 120),
+      }),
+    });
+    const j = await r.json();
+    if (!j.ok || !j.request_id) throw new Error(j.error || 'could not start lookup');
+    requestId = j.request_id;
+  } catch (e) {
+    plStatus('<span style="color:#d33;">Lookup failed to start: ' + escapeHtml(e.message || String(e)) + '</span>');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+    return;
+  }
+
+  // poll up to ~70s (the daemon does a real browser search)
+  const started = Date.now();
+  const poll = async () => {
+    try {
+      const r = await fetch('/.netlify/functions/get-parts-lookup?request_id=' + encodeURIComponent(requestId), { cache: 'no-store' });
+      const j = await r.json();
+      if (j.ok && j.found) { applyPartsResult(j.result); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } return; }
+    } catch (_) {}
+    if (Date.now() - started > 70000) {
+      plStatus('<span style="color:#e0a800;">Still working — the Mac parts daemon may be offline. Start it (node serve.js) and try again.</span>');
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      return;
+    }
+    setTimeout(poll, 3000);
+  };
+  setTimeout(poll, 3000);
+}
+
+function applyPartsResult(res) {
+  if (!res || res.ok === false) {
+    plStatus('<span style="color:#e0a800;">' + escapeHtml((res && res.message) || 'Parts daemon offline. On the Mac: cd colony-loop/parts && node serve.js') + '</span>');
+    return;
+  }
+  let parts = [];
+  if (res.oem && res.oem.part_number) {
+    state.oemPartNumber = res.oem.part_number;
+    if (res.oem.our_cost_cents != null) state.oemPrice = centsToDollarsInput(res.oem.our_cost_cents);
+    const oi = document.getElementById('oemPartInput'); if (oi) oi.value = state.oemPartNumber;
+    const op = document.getElementById('oemPriceInput'); if (op) op.value = state.oemPrice;
+    updateOemHint();
+    parts.push('OEM ' + res.oem.part_number + (res.oem.stock ? ' · ' + res.oem.stock : ''));
+  }
+  if (res.amazon && res.amazon.part_number) {
+    state.amazonPartNumber = res.amazon.part_number;
+    if (res.amazon.our_cost_cents != null) state.amazonPrice = centsToDollarsInput(res.amazon.our_cost_cents);
+    const ai = document.getElementById('amazonPartInput'); if (ai) ai.value = state.amazonPartNumber;
+    const ap = document.getElementById('amazonPriceInput'); if (ap) ap.value = state.amazonPrice;
+    updateAmzHint();
+    parts.push('Amazon ' + res.amazon.part_number);
+  }
+  // default the parts decision toward ship-to-customer when we found a part
+  if (parts.length && state.parts_decision === 'no_parts_needed') {
+    state.parts_decision = 'ship_to_customer';
+    if (!state.parts_supplier) state.parts_supplier = res.oem ? 'Marcone' : 'Amazon';
+  }
+  if (parts.length) {
+    plStatus('<span style="color:#1a8f4c;">✓ Filled: ' + escapeHtml(parts.join('  ·  ')) + '. Review + edit, then submit.</span>');
+  } else {
+    const hint = res.marcone_error || res.amazon_error || 'No match — check the model, or that Marcone/Amazon are logged in on the Mac.';
+    plStatus('<span style="color:#e0a800;">No part matched. ' + escapeHtml(hint) + '</span>');
+  }
 }
 
 function togglePartsDetail() {

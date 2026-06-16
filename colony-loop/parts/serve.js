@@ -13,8 +13,19 @@
 
 'use strict';
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { chromium } = require('playwright');
 const SUPPLIERS = require('./suppliers');
+
+// The colony agent (parts_lookup_request.js) reads this to find the live daemon
+// even when it auto-hopped to a different port. Written on bind, removed on exit.
+const PORT_FILE = path.join(__dirname, '.daemon-port');
+function writePortFile(port) { try { fs.writeFileSync(PORT_FILE, String(port)); } catch (_) {} }
+function removePortFile() { try { fs.unlinkSync(PORT_FILE); } catch (_) {} }
+process.on('exit', removePortFile);
+process.on('SIGINT', () => { removePortFile(); process.exit(0); });
+process.on('SIGTERM', () => { removePortFile(); process.exit(0); });
 
 const PORT = process.env.PARTS_PORT ? Number(process.env.PARTS_PORT) : 8787;
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -177,6 +188,7 @@ async function main() {
   const bound = await bindFreePort(requestHandler(tabs), PORT);
   if (!bound) { console.error('\n⚠ Could not find a free port near ' + PORT); process.exit(1); }
   const ACTUAL = bound.port;
+  writePortFile(ACTUAL); // so the colony agent can find us on whatever port we landed on
 
   // 2) only now launch the browser + open the login tabs (so windows never vanish)
   browser = await chromium.launch({ headless: false });

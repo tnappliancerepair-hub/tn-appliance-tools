@@ -2,3 +2,4 @@ node_modules/
 profiles/
 shots/
 package-lock.json
+.daemon-port
