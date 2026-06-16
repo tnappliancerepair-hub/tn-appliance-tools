@@ -14,7 +14,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { openContext } = require('./browser');
+const { open } = require('./browser');
 
 const SHOTS = path.join(__dirname, 'shots');
 function ts() { return new Date().toISOString().replace(/[:.]/g, '-'); }
@@ -36,8 +36,7 @@ async function clickFirst(page, selectors) {
 
 async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, headless = true }) {
   const out = { ok: false, asin, step: 'start', placed: false, screenshots: [], notes: [] };
-  const ctx = await openContext('amazon', { headless });
-  const page = ctx.pages()[0] || (await ctx.newPage());
+  const { browser, ctx, page } = await open('amazon', { headless });
   try {
     // 1. product page
     out.step = 'product';
@@ -45,7 +44,7 @@ async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, h
     await page.waitForTimeout(2000);
     out.logged_in = !!(await page.$('#nav-link-accountList-nav-line-1, a[href*="sign-out" i]').catch(() => null));
     await shot(page, '1-product', out);
-    if (!out.logged_in) { out.notes.push('Not logged in — run: node login.js amazon'); await ctx.close(); return out; }
+    if (!out.logged_in) { out.notes.push('Not logged in — run: node login.js amazon'); await browser.close(); return out; }
 
     // 2. quantity (best-effort) + Buy Now
     out.step = 'buy_now';
@@ -109,7 +108,7 @@ async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, h
     out.error = String((e && e.message) || e);
     try { await shot(page, 'error', out); } catch (_) {}
   } finally {
-    await ctx.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
   return out;
 }
