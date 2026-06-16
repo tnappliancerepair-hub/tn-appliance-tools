@@ -15,9 +15,19 @@ import * as xano from '../xano.js';
 
 const args = process.argv.slice(2);
 const REPORT = args.includes('--report');
+const olderArg = args.find((a) => a.startsWith('--older-than-min='));
+const OLDER_MIN = olderArg ? Number(olderArg.split('=')[1]) : 0; // 0 = disabled
 const TYPES = new Set(args.filter((a) => !a.startsWith('--')).map((a) => a.toUpperCase()));
 const BATCH = 500;
 const CONCURRENCY = 10;
+
+// Parse a Xano created_at (epoch-ms number OR ISO string) → ms, or 0 if unknown.
+function createdMs(s) {
+  const c = s.created_at;
+  if (typeof c === 'number') return c;
+  if (typeof c === 'string') { const t = Date.parse(c); return Number.isNaN(t) ? 0 : t; }
+  return 0;
+}
 
 function chunk(arr, n) {
   const out = [];
@@ -40,13 +50,25 @@ async function report() {
 }
 
 async function clear() {
-  console.log(`Clearing pending signals of type(s): ${[...TYPES].join(', ')}`);
+  const cutoff = OLDER_MIN > 0 ? Date.now() - OLDER_MIN * 60000 : null;
+  const wantType = (s) => TYPES.size === 0 || TYPES.has(String(s.signal_type).toUpperCase());
+  const wantAge = (s) => cutoff === null || (createdMs(s) > 0 && createdMs(s) < cutoff);
+  const match = (s) => wantType(s) && wantAge(s);
+
+  const desc = [
+    TYPES.size ? `type(s): ${[...TYPES].join(', ')}` : 'ALL types',
+    cutoff !== null ? `older than ${OLDER_MIN} min` : '(no age filter)',
+  ].join(', ');
+  console.log(`Clearing pending signals — ${desc}`);
+
+  // Large window so we see ~the whole backlog each pass (ordering-independent).
+  const WINDOW = 5000;
   let cleared = 0;
-  for (let iter = 0; iter < 5000; iter++) {
-    const items = await xano.fetchPendingSignals(BATCH);
+  for (let iter = 0; iter < 200; iter++) {
+    const items = await xano.fetchPendingSignals(WINDOW);
     if (!items.length) break;
-    const targets = items.filter((s) => TYPES.has(String(s.signal_type).toUpperCase()));
-    if (!targets.length) break; // none of the target types visible in the pending window
+    const targets = items.filter(match);
+    if (!targets.length) break; // nothing matching left in the pending window
     for (const group of chunk(targets, CONCURRENCY)) {
       await Promise.all(
         group.map((s) =>
@@ -63,7 +85,8 @@ async function clear() {
 }
 
 async function main() {
-  if (REPORT || TYPES.size === 0) { await report(); return; }
+  const hasClearIntent = TYPES.size > 0 || OLDER_MIN > 0;
+  if (REPORT || !hasClearIntent) { await report(); return; }
   await clear();
 }
 
