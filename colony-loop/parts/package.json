@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "login": "node login.js",
-    "lookup": "node lookup.js"
+    "lookup": "node lookup.js",
+    "serve": "node serve.js"
   },
   "dependencies": {
     "playwright": "^1.48.0"
