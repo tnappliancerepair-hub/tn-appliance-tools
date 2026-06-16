@@ -12,7 +12,14 @@ This is the intelligence half of the north star (Ant making the tech's day easie
    is a paying MEMBER → legitimate licensed access to service manuals, tech sheets, error/fault
    codes, diagnostic guides, technical bulletins. **It lives behind the Marcone login we already
    authenticate** (the Playwright session in `colony-loop/parts`). One login → parts AND the brain.
-3. **Error/fault-code databases** by brand (Whirlpool F-codes, Samsung, LG, GE…). Compact, high
+3. **Whirlpool University / Whirlpool-family servicer portal — authoritative brand anchor.**
+   Per-model parts lookup AND troubleshooting, plus **recalls + technical service bulletins (TSBs)**
+   for Whirlpool, Maytag, KitchenAid, Amana, Jenn-Air. Authenticated as an authorized servicer →
+   same authenticated-browser pattern as Marcone/MSA World (one login → parts AND the brain).
+   Wired as source `whirlpool` in `colony-loop/parts/suppliers.js` (`intelligence:true`). Marcone
+   stays our Whirlpool-family parts *price* source; Whirlpool University is the *knowledge* source
+   (recalls/TSBs/model-specific diagnostics). Confirm real portal URLs on first login.
+4. **Error/fault-code databases** by brand (Whirlpool F-codes, Samsung, LG, GE…). Compact, high
    value, fastest win.
 4. **Tech sheets + service manuals** for our common models (the schematic-level truth).
 5. **Master Samurai Tech / Appliantology METHODOLOGY** — their circuit-based diagnostic *thinking*
