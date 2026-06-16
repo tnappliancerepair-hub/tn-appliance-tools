@@ -568,6 +568,14 @@ function renderMediaSplit() {
   });
 
   const renderVideo = a => {
+    // Cloudflare Stream video (resumable uploads) — render the Stream player.
+    const sk = a.s3_key || a.cf_key || "";
+    if (sk.indexOf("cfstream:") === 0) {
+      const uid = sk.slice(9);
+      return '<div class="video-card" style="padding:0;overflow:hidden;aspect-ratio:9/16;background:#000;">' +
+        '<iframe src="https://iframe.cloudflarestream.com/' + escapeAttr(uid) + '?preload=metadata" style="width:100%;height:100%;border:0;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>' +
+      '</div>';
+    }
     const url = a.signed_view_url;
     if (!url) {
       return '<div class="video-card" style="display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:11px;">Video unavailable</div>';
@@ -1194,9 +1202,20 @@ function launchPartsSearch() {
 function openLightbox(idx) {
   const a = state.cockpit && state.cockpit.attachments && state.cockpit.attachments[idx];
   if (!a) return;
+  const lightboxContent = document.getElementById("lightbox-content");
+  // Cloudflare Stream video → full-screen Stream player
+  const sk = a.s3_key || a.cf_key || "";
+  if (sk.indexOf("cfstream:") === 0) {
+    const uid = sk.slice(9);
+    lightboxContent.innerHTML =
+      '<div style="width:min(92vw,520px);height:80vh;background:#000;border-radius:10px;overflow:hidden;">' +
+        '<iframe src="https://iframe.cloudflarestream.com/' + escapeAttr(uid) + '?autoplay=true" style="width:100%;height:100%;border:0;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>' +
+      '</div>';
+    document.getElementById("lightbox").classList.add("show");
+    return;
+  }
   const url = a.signed_view_url;
   if (!url) return;
-  const lightboxContent = document.getElementById("lightbox-content");
   if (a.file_type === "video") {
     // playsinline is required on iOS Safari — without it the browser
     // tries to enter fullscreen and stalls because autoplay isn't

@@ -125,6 +125,7 @@
     <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a>
   </div>
 
+<script src="/ant-video-upload.js"></script>
 <script>
 // Force the canonical (non-www) domain BEFORE anything fetches — the www host
 // 301-redirects /.netlify/functions/* cross-domain, which makes the browser kill
@@ -287,9 +288,11 @@ function capVideo(){
     state.video=true; state.videoFile=file;
     const b=document.getElementById('vbtn'); b.classList.add('done'); const vl=b.querySelectorAll('span')[1]; if(vl) vl.textContent='✓ Video added';
     document.getElementById('vprog').classList.remove('hidden'); document.getElementById('vstat').classList.remove('hidden');
-    // start uploading now; track the promise so payStep can confirm before checkout
+    if(!state.convId) state.convId = Date.now();
+    const st = captureStatus(document.getElementById('vbar'), document.getElementById('vstat'));
+    // Cloudflare Stream (resumable) first; S3 fallback if Stream isn't configured.
     state.uploads = state.uploads || [];
-    state.uploads.push(uploadMedia(file,'video', captureStatus(document.getElementById('vbar'), document.getElementById('vstat'))).then(r=>{ state.videoUploaded=r.ok; return r; }));
+    state.uploads.push(AntVideo.upload(file, { convId:state.convId, uploadedBy:'customer', onStatus:st, s3Fallback:f=>uploadMedia(f,'video',st) }).then(r=>{ state.videoUploaded=!!(r&&r.ok); return r; }));
     setTimeout(()=>{clearFlow(); think(500, capModel);},900);   // keep moving while it uploads in parallel
   };
 }
