@@ -9,10 +9,10 @@
 module.exports = {
   marcone: {
     label: 'Marcone',
-    loginUrl: 'https://my.marcone.com/Account/UserLogin',
-    // Marcone servicer portal — model/part search. Tune after first real lookup.
-    searchUrl: (q) => 'https://my.marcone.com/Search?q=' + encodeURIComponent(q),
-    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i]',
+    loginUrl: 'https://my.marcone.com/UserLogin',
+    // After login we land on the dashboard; lookup types the model into the search box.
+    searchUrl: (q) => 'https://my.marcone.com/',
+    searchSelector: 'input[type="search"], input[name*="search" i], input[id*="search" i], input[placeholder*="search" i], input[placeholder*="part" i], input[placeholder*="model" i]',
     // a logged-in page shows this; if missing we know the session died
     loggedInHint: 'a[href*="logout" i], a[href*="signout" i], .account, #account',
   },
