@@ -1,17 +1,22 @@
 // Incident tool for a stale colony_signals backlog (built up while the loop was
 // down). On restart the loop drains the backlog and hold-and-re-emit agents fire
 // a flood of stale SMS / Vapi calls. This script lets you SEE the backlog and
-// CLEAR specific signal types WITHOUT running their agents (each matching signal
-// is marked processed with outcome 'cleared_stale_backlog').
+// CLEAR signals WITHOUT running their agents (each marked processed with outcome
+// 'cleared_stale_backlog').
+//
+// GENTLE on Xano: lean single-write per signal (no sibling event_log row), low
+// concurrency, a pause between batches, and backoff+retry on 503/5xx. A prior
+// version at concurrency 10 with double-writes triggered Xano 503s.
 //
 // Run with the colony loop STOPPED so it isn't racing you:
 //   launchctl bootout gui/$UID/com.tnappliance.colony-loop
 //   cd ~/tn-appliance-tools/colony-loop
 //
 //   node scripts/clear-pending-signals.js --report          # show pending counts by type
-//   node scripts/clear-pending-signals.js PRE_APPOINTMENT_CHECK
-//   node scripts/clear-pending-signals.js TYPE_A TYPE_B ...  # clear several types at once
+//   node scripts/clear-pending-signals.js --all             # clear the whole backlog
+//   node scripts/clear-pending-signals.js TYPE_A TYPE_B ... # clear only these types
 import * as xano from '../xano.js';
+import { config } from '../config.js';
 
 const args = process.argv.slice(2);
 const REPORT = args.includes('--report');
@@ -19,8 +24,32 @@ const ALL = args.includes('--all'); // clear the ENTIRE pending backlog, no filt
 const olderArg = args.find((a) => a.startsWith('--older-than-min='));
 const OLDER_MIN = olderArg ? Number(olderArg.split('=')[1]) : 0; // 0 = disabled
 const TYPES = new Set(args.filter((a) => !a.startsWith('--')).map((a) => a.toUpperCase()));
-const BATCH = 500;
-const CONCURRENCY = 10;
+
+const CONCURRENCY = 3;       // gentle — was 10, which 503'd Xano
+const BATCH_DELAY_MS = 150;  // pause between batches
+const WINDOW = 2000;         // pending rows pulled per pass
+
+const MARK_URL = `${config.xanoIntakeBase}/mark_signal_processed`;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Lean single-write mark with backoff/retry on Xano 5xx (503s under load).
+// Skips the sibling event_log write that xano.markSignalProcessed does, halving
+// the request load. Returns true on success.
+async function leanMark(id) {
+  for (let a = 0; a < 5; a++) {
+    try {
+      const res = await fetch(MARK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signal_id: id, result_action: 'cleared_stale_backlog', result_json: '' }),
+      });
+      if (res.ok) return true;
+      if (res.status >= 500) { await sleep(500 * (a + 1)); continue; } // back off on 503/5xx
+      return false; // 4xx — don't retry
+    } catch (_) { await sleep(500 * (a + 1)); }
+  }
+  return false;
+}
 
 // Parse a Xano created_at (epoch-ms number OR ISO string) → ms, or 0 if unknown.
 function createdMs(s) {
@@ -37,8 +66,7 @@ function chunk(arr, n) {
 }
 
 async function report() {
-  // Loop is stopped, so the pending set is static — pull a big window and tally.
-  const items = await xano.fetchPendingSignals(5000);
+  const items = await xano.fetchPendingSignals(WINDOW);
   const counts = {};
   for (const s of items) {
     const t = String(s.signal_type || '?').toUpperCase();
@@ -47,7 +75,7 @@ async function report() {
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   console.log(`\nPENDING colony_signals (window of ${items.length}):`);
   for (const [t, n] of rows) console.log(`  ${String(n).padStart(6)}  ${t}`);
-  console.log(`\n(If the window is exactly 5000, there may be more beyond it.)\n`);
+  console.log(`\n(If the window is exactly ${WINDOW}, there may be more beyond it.)\n`);
 }
 
 async function clear() {
@@ -60,30 +88,25 @@ async function clear() {
     TYPES.size ? `type(s): ${[...TYPES].join(', ')}` : 'ALL types',
     cutoff !== null ? `older than ${OLDER_MIN} min` : '(no age filter)',
   ].join(', ');
-  console.log(`Clearing pending signals — ${desc}`);
+  console.log(`Clearing — ${desc}  (gentle: concurrency ${CONCURRENCY}, ${BATCH_DELAY_MS}ms/batch)`);
 
-  // Large window so we see ~the whole backlog each pass (ordering-independent).
-  const WINDOW = 5000;
-  let cleared = 0;
-  for (let iter = 0; iter < 200; iter++) {
+  let ok = 0, failed = 0, lastLog = 0;
+  for (let iter = 0; iter < 1000; iter++) {
     const items = await xano.fetchPendingSignals(WINDOW);
     if (!items.length) break;
     const targets = items.filter(match);
-    if (!targets.length) break; // nothing matching left in the pending window
-    console.log(`pass ${iter + 1}: ${targets.length} matching signals in this window…`);
+    if (!targets.length) break;
+    console.log(`pass ${iter + 1}: ${targets.length} matching in this window…`);
     for (const group of chunk(targets, CONCURRENCY)) {
-      await Promise.all(
-        group.map((s) =>
-          xano.markSignalProcessed(s.id, 'cleared_stale_backlog', {
-            outcome: 'incident_cleanup', signal_type: String(s.signal_type).toUpperCase(),
-          }).catch((e) => console.error('  mark failed', s.id, String(e.message || e)))
-        )
-      );
-      cleared += group.length;
-      if (cleared % 200 < CONCURRENCY) console.log(`… ${cleared} cleared`);
+      const results = await Promise.all(group.map((s) => leanMark(s.id)));
+      for (const r of results) { if (r) ok++; else failed++; }
+      if (ok - lastLog >= 250) { console.log(`… ${ok} cleared (${failed} failed)`); lastLog = ok; }
+      await sleep(BATCH_DELAY_MS);
     }
+    // If a whole pass cleared nothing (all marks failing), stop — Xano's unhappy.
+    if (ok === 0 && failed > 0) { console.error('All marks failing — stopping. Is Xano up?'); break; }
   }
-  console.log(`DONE — cleared ${cleared} pending signals.`);
+  console.log(`DONE — cleared ${ok} pending signals (${failed} failed).`);
 }
 
 async function main() {
