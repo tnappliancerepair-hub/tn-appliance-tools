@@ -106,15 +106,56 @@
       return attempt(1);
     });
   }
+  // Shrink the photo in the browser → JPEG. Fixes iPhone HEIC (Safari decodes it),
+  // and a ~1600px/0.85 JPEG is ~150-400KB, so the proxy POST is tiny + OCR-ready.
+  function downscaleToJpeg(file, maxDim) {
+    return new Promise(function (resolve, reject) {
+      try {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          if (!w || !h) { URL.revokeObjectURL(url); return reject(new Error('no dims')); }
+          var scale = Math.min(1, (maxDim || 1600) / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+          var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+          c.getContext('2d').drawImage(img, 0, 0, cw, ch);
+          URL.revokeObjectURL(url);
+          try { resolve(c.toDataURL('image/jpeg', 0.85)); } catch (e) { reject(e); }
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+        img.src = url;
+      } catch (e) { reject(e); }
+    });
+  }
+  // Reliable photo path: browser → OUR function (proven hop) → S3 server-side.
+  function proxyUpload(file, opts) {
+    var onStatus = opts.onStatus || function () {};
+    onStatus('preparing', 1, 0);
+    return downscaleToJpeg(file, 1600).then(function (b64) {
+      onStatus('uploading', 1, 0.5);
+      return postJSON(FN + '/photo-upload', {
+        image_base64: b64, conversation_id: opts.convId || null,
+        job_id: opts.jobId || null, uploaded_by: opts.uploadedBy || 'customer',
+      });
+    }).then(function (d) {
+      if (!d || !d.ok) throw new Error('proxy');
+      onStatus('done', 1, 1);
+      return { ok: true, via: 'proxy', attachment_id: d.attachment_id, s3_key: d.s3_key };
+    });
+  }
   function uploadPhoto(file, opts) {
     opts = opts || {};
     var onStatus = opts.onStatus || function () {};
+    // 1) Cloudflare Images (when enabled) → 2) our reliable proxy → 3) direct-S3 last resort
     return imageUpload(file, opts).catch(function () {
-      if (typeof opts.s3Fallback === 'function') {
-        return Promise.resolve(opts.s3Fallback(file)).then(function (r) { return { ok: !!(r && r.ok !== false), via: 's3' }; });
-      }
-      onStatus('failed', 1, 0);
-      return { ok: false, via: 'none' };
+      return proxyUpload(file, opts).catch(function () {
+        if (typeof opts.s3Fallback === 'function') {
+          return Promise.resolve(opts.s3Fallback(file)).then(function (r) { return { ok: !!(r && r.ok !== false), via: 's3' }; });
+        }
+        onStatus('failed', 1, 0);
+        return { ok: false, via: 'none' };
+      });
     });
   }
   window.AntPhoto = { upload: uploadPhoto };
