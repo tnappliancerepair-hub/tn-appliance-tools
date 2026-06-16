@@ -83,3 +83,12 @@ brand exclusions, max stops) · **`schedule-shadow` (the agreement-rate harness,
 
 Baseline the night this was written: **76% untuned tech-agreement, 17 zip holes, 0 "no ranked
 tech" (cluster ranks are solid).** The hard problem was mostly a confidence problem.
+
+## ⭐ NORTH STAR (Teddy, 2026-06-16) — read this before building anything here
+The intelligence isn't about scheduling. **It's about solid communication with the team.**
+That's the most important variable — how well it's done determines whether techs LOVE working
+with us. Better communication → easier days → more opportunities → they live their lives more
+effectively → better careers with us. Good techs are the scarce resource in this industry; a
+shop techs love to work for wins on every axis (retention, recruiting, quality, growth, customer
+experience). Every scheduling/offer/learning feature is in service of THIS. Measure each build
+against: "does this make a tech's day easier and the communication better?" If not, reconsider.
