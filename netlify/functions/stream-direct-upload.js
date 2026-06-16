@@ -90,6 +90,10 @@ exports.handler = async function (event) {
         mime_type: 'video/mp4',
         uploaded_by: uploadedBy,
         uploaded_by_user_id: 0,
+        // mark complete now so the Teddy Tool / tech grid (which filter on this) show
+        // the player immediately; Cloudflare displays "processing" until it's ready.
+        upload_complete_at: Date.now(),
+        file_size_bytes: bytes,
       });
       attachmentId = (row && (row.id || row.attachment_id)) || null;
     } catch (_) {}

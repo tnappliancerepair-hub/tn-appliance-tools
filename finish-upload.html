@@ -41,6 +41,7 @@
     <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
   </div>
   <div class="footer">TN Appliance Exchange · <a href="tel:+18662680111">866-268-0111</a></div>
+<script src="/ant-video-upload.js"></script>
 <script>
 if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.replace('://www.', '://')); }
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -72,7 +73,9 @@ function wire(fileId, btnId, progId, barId, statId, kind, label){
   fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
     const b=document.getElementById(btnId); b.classList.add('done'); const l=b.querySelectorAll('span')[1]; if(l)l.textContent=label;
     document.getElementById(progId).classList.remove('hidden'); document.getElementById(statId).classList.remove('hidden');
-    uploadMedia(f,kind,statusFn(document.getElementById(barId),document.getElementById(statId)));
+    const st=statusFn(document.getElementById(barId),document.getElementById(statId));
+    if(kind==='video' && window.AntVideo){ AntVideo.upload(f,{ jobId:jobId, uploadedBy:'customer', onStatus:st, s3Fallback:x=>uploadMedia(x,'video',st) }); }
+    else uploadMedia(f,kind,st);
   };
 }
 if(jobId){ wire('vfile','vbtn','vprog','vbar','vstat','video','✓ Video added'); wire('mfile','mbtn','mprog','mbar','mstat','photo','✓ Model photo added'); }
