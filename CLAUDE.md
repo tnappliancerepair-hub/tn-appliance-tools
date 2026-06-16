@@ -1,5 +1,38 @@
 # Appliance Ant
 
+## ⏭️ NEXT SESSION (saved end of 2026-06-16 — MSA intel + the "15k-text" incident) — READ FIRST
+
+**This session was half MSA/parts wiring, half a real production incident.** Everything below shipped + merged to `main` (PR #26, 13 commits) and is pulled onto the Mac.
+
+### ✅ SHIPPED + LIVE
+- **MSA World intelligence WIRED + returning real data.** Real authenticated portal confirmed live: `members.msaworld.com/Search?query=<model>`, login = **MyMarcone creds**. `suppliers.js` fixed (was `www.msaworld.com/search?q=` — wrong). **Search MSA by MODEL ONLY** — a brand prefix returns zero (fixed in `serve.js doIntel` + `model_intel_request.js`). Verified: `WTW5000DW1` returns tech sheet **W10740624-RevB** + service pointer **W10887210** (lid lock) with direct PDF links. The generic recall/bulletin/tech-sheet extractor already catches these — no per-selector tuning needed.
+- **Daemon confirmed healthy** (`serve.js` on `2026-06-16f-intel`): Marcone + Amazon + Tribles + MSA all logged in. `/health` is the check. **Footgun: run curl in a SEPARATE terminal — the daemon holds its own terminal (foreground), so commands typed there get eaten as stdin.** Same for any long-running node script.
+- **Tech-tool field fixes (from the techs in the group chat today):**
+  - **Photo upload (Jimmy): removed forced camera capture** (`capture="environment"`) on `tech-job.html` → techs can now pick from camera roll + **multi-select** offline shots (uploaded sequentially). Fixes "no signal at the stop, took pics, couldn't upload from gallery."
+  - **Bad-signal load (John): app-shell caching like HCP.** `sw-tech.js` flipped network-first → **stale-while-revalidate** so pages open INSTANTLY from cache on weak signal; registered the SW + manifest on `tech-job.html` (had none); Leaflet CSS on the dashboard made non-render-blocking. **Caveat: a tech must open the tool ONCE on good signal to cache it**, then weak-signal opens work.
+- **🚨 SMS CIRCUIT BREAKER (`sms.js`)** — per Teddy "we should never send 15k texts." Every send routes through `dispatchSms`; past **~50 texts / 10 min** (env: `SMS_BREAKER_MAX`, `SMS_BREAKER_WINDOW_MIN`) it HALTS all outbound texts + alerts Teddy once. The hard backstop against any flood.
+- **Weekend tech-mute (`sms.js`)** — zero automated texts to FIELD techs Sat+Sun CT (owner/tech_id 1 exempt). Per Teddy + Danielle group-chat ask.
+- **Over-emission ROOT CAUSE fixed (`xano.js checkEventLogFiredToday`).** It threw on Xano errors; call sites catch + default `firedAlready=false` → re-emitted the scheduled signal **every 60s tick** across multi-hour windows when the dedup check was flaky (CLUSTER_ROUTE_MORNING_CHECK alone hit 825). Now **fails CLOSED** (returns true on error). This was the source of the 15k backlog.
+- **Ops tool: `colony-loop/scripts/clear-pending-signals.js`** — drains a stale `colony_signals` backlog without firing agents. `--report` (counts by type), `--all`, `<TYPE>...`, `--older-than-min=N`. **GENTLE on Xano**: lean single-write, concurrency 3, 150ms/batch, 503 backoff (an earlier concurrency-10 + double-write version 503'd Xano). Run with loop STOPPED; run detached (`nohup … &`) so it can't eat your keystrokes.
+
+### 🔥 THE INCIDENT (what happened, for context)
+The **colony loop was DOWN** (launchd service got unbootstrapped — likely a reboot). Caught it via `ps aux | grep index.js` (empty). Re-started with `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.tnappliance.colony-loop.plist`. On restart it began draining a **~15k stale-signal backlog** → flooded Teddy + techs with stale `PRE_APPOINTMENT_CHECK` etc. (1400+ texts). Stopped it (`launchctl bootout`), cleared the 15k with the gentle script, then restarted clean with the breaker + dedup fix live. **Danielle's "haven't gotten a text on any job" was the loop being down** — restart restored office notifications.
+
+### ⏳ PENDING / OPEN
+- **`launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`** to load the pulled `xano.js` dedup fix (Teddy running this at session end). Keep `node serve.js` running + logged into Marcone/Amazon/Tribles/MSA. Skip Whirlpool (paywall — only if MSA leaves a gap).
+- **🔎 BIGGEST OPEN BUG — techs see only 2 of 8 jobs.** Diagnosed not-fixed: `get_tech_daily_dashboard` (line 62) requires `scheduled_start` to be a timestamp INSIDE today. When Danielle assigns by day+tech, those jobs likely have `scheduled_start` null/not-today → fall out of the tech view (office still sees them). **Needs a real-data peek at Jimmy's 8 jobs (scheduled_start / scheduling_status) before fixing — do NOT blind-ship the XS.**
+- **Jimmy: "can't get a full report in"** — TDR submission not completing in the tech tool (same family as Andre's earlier issue). Investigate after the 2-of-8 fix.
+- **Over-emission secondary hardening (optional):** the emit-then-record ordering can still re-emit if `recordEvent('..._emitted')` fails (rarer than the check failing). Consider record-before-emit or a per-process in-memory fired-key guard in `tick.js`.
+- **Watch tonight/tomorrow AM:** confirm the loop's morning auto-fires resume cleanly and the breaker doesn't false-trip on legit volume (tune `SMS_BREAKER_MAX` up if it does).
+
+### ⚠️ FOOTGUNS LEARNED
+- **Run curl/commands in a SEPARATE terminal from any foreground node process** (daemon or a clear script) — typed input gets swallowed as stdin = "it did nothing." Use `nohup … &` for long scripts.
+- **Bulk Xano writes 503 at high concurrency** — lean single-writes + low concurrency + backoff.
+- **Front-end pages (Netlify) only reach users from `main`** — branch fixes need a PR/merge. Colony-loop/daemon code the Mac pulls directly.
+- **GitHub MCP server is turned down** — can't open PRs via MCP; use the `…/pull/new/<branch>` web URL.
+
+---
+
 ## ⏭️ NEXT SESSION (saved end of 2026-06-15 night — self-checkout + parts loop) — READ FIRST
 
 **This was the "self-checkout vision becomes real" session.** The customer $50 Quick Check now captures everything Teddy needs to diagnose, and the parts-order-to-customer + auto-schedule spine is built. Most of it is LIVE on Netlify; a few pieces need Mac-side action (below).
