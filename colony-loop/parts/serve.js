@@ -35,7 +35,7 @@ async function tabFor(supplier) {
   return page;
 }
 
-async function doLookup(supplier, model) {
+async function doLookup(supplier, model, debug) {
   const cfg = SUPPLIERS[supplier];
   const page = await tabFor(supplier);
   // search in the LIVE authenticated tab
@@ -46,22 +46,36 @@ async function doLookup(supplier, model) {
   }
   await page.waitForTimeout(2500);
   const final_url = page.url();
-  const candidates = await page.evaluate((src) => {
-    const out = []; const seen = new Set();
-    const priceRe = /\$\s?\d{1,4}(?:\.\d{2})?/; const partRe = new RegExp(src, 'g');
-    const nodes = Array.from(document.querySelectorAll('a, li, .product, [class*="product" i], [class*="result" i], tr'));
+  const result = await page.evaluate((src) => {
+    const partRe = new RegExp(src, 'g');
+    const priceRe = /\$\s?\d{1,4}(?:,\d{3})*(?:\.\d{2})?/;
+    const out = []; const seen = new Set(); const dbg = [];
+    const nodes = Array.from(document.querySelectorAll('tr, li, [class*="row" i], [class*="item" i], [class*="product" i], [class*="result" i], [class*="part" i], a'));
     for (const n of nodes) {
-      const text = (n.innerText || n.textContent || '').trim();
-      if (!text || text.length > 400) continue;
-      const priceM = text.match(priceRe); const partM = text.match(partRe);
-      if (!partM) continue; const pn = partM[0]; if (seen.has(pn)) continue; seen.add(pn);
-      const a = n.tagName === 'A' ? n : n.querySelector('a');
-      out.push({ part_number: pn, name: text.replace(/\s+/g, ' ').slice(0, 120), price: priceM ? priceM[0].replace(/\s/g, '') : '', url: a ? a.href : '' });
-      if (out.length >= 12) break;
+      const own = (n.innerText || n.textContent || '').trim();
+      if (!own) continue;
+      const pm = own.match(partRe); if (!pm) continue;
+      const pn = pm[0]; if (seen.has(pn)) continue;
+      // walk up to the row container (something with more than just the part #, ideally a price)
+      let row = n;
+      for (let i = 0; i < 5 && row.parentElement; i++) {
+        const t = (row.innerText || '').trim();
+        if (t.length > pn.length + 4 && (priceRe.test(t) || /^(TR|LI)$/i.test(row.tagName))) break;
+        row = row.parentElement;
+      }
+      const rtext = (row.innerText || '').replace(/\s+/g, ' ').trim();
+      seen.add(pn);
+      const priceM = rtext.match(priceRe);
+      const a = (row.querySelector && row.querySelector('a')) || (n.tagName === 'A' ? n : null);
+      out.push({ part_number: pn, name: rtext.slice(0, 180), price: priceM ? priceM[0].replace(/\s/g, '') : '', url: a ? a.href : '' });
+      if (dbg.length < 3) dbg.push((row.outerHTML || '').replace(/\s+/g, ' ').slice(0, 1400));
+      if (out.length >= 15) break;
     }
-    return out;
+    return { candidates: out, debug: dbg };
   }, PART_SRC);
-  return { supplier, label: cfg.label, model, final_url, page_title: await page.title().catch(() => ''), candidates };
+  const resp = { supplier, label: cfg.label, model, final_url, page_title: await page.title().catch(() => ''), candidates: result.candidates };
+  if (debug) resp.debug_html = result.debug;
+  return resp;
 }
 
 async function main() {
@@ -76,7 +90,8 @@ async function main() {
       const supplier = (u.searchParams.get('supplier') || '').toLowerCase();
       const model = u.searchParams.get('model') || '';
       if (!SUPPLIERS[supplier] || !model) { res.statusCode = 400; return res.end(JSON.stringify({ error: 'supplier + model required' })); }
-      try { res.end(JSON.stringify(await doLookup(supplier, model))); }
+      const debug = u.searchParams.get('debug') === '1';
+      try { res.end(JSON.stringify(await doLookup(supplier, model, debug))); }
       catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
       return;
     }
