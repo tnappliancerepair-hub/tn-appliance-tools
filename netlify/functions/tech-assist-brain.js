@@ -27,6 +27,7 @@ const TECH_TOOLS = [
   ...pickTools(READ_TOOLS, [
     'get_customer_service_history',
     'get_common_failures_for_model',
+    'diagnose_appliance',
     'get_pre_job_intelligence',
     'get_warranty_vendor_fingerprint',
   ]),
