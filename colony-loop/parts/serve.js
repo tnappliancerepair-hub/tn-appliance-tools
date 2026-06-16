@@ -48,7 +48,34 @@ async function doLookup(supplier, model, debug) {
   const final_url = page.url();
   const result = await page.evaluate((src) => {
     const partRe = new RegExp(src, 'g');
-    const priceRe = /\$\s?\d{1,4}(?:,\d{3})*(?:\.\d{2})?/;
+    const priceRe = /\$\s?\d[\d,]*(?:\.\d{2})?/;
+
+    // ── Marcone precise layout (li.searchResult_li_items) → clean fields incl. your cost + stock
+    const mli = document.querySelectorAll('li.searchResult_li_items');
+    if (mli.length) {
+      const out = []; const dbg = [];
+      mli.forEach((li, i) => {
+        const pEl = li.querySelector('[part]');
+        const part = ((pEl && pEl.getAttribute('part')) || (li.querySelector('h4 a') && li.querySelector('h4 a').innerText) || '').trim();
+        if (!part) return;
+        const priceEl = li.querySelector('.spanPrice');
+        const descEl = li.querySelector('span.coad[title]');
+        const brandEl = li.querySelector('.spanBrand');
+        const stockEl = li.querySelector('.spanInstock');
+        out.push({
+          part_number: part,
+          name: descEl ? (descEl.getAttribute('title') || descEl.innerText).trim() : '',
+          price: priceEl ? priceEl.innerText.replace(/\s/g, '').trim() : '',
+          brand: brandEl ? brandEl.innerText.trim() : '',
+          stock: stockEl ? stockEl.innerText.replace(/\s+/g, ' ').trim() : '',
+          url: '',
+        });
+        if (i < 3) dbg.push((li.outerHTML || '').replace(/\s+/g, ' ').slice(0, 900));
+      });
+      return { candidates: out.slice(0, 25), debug: dbg };
+    }
+
+    // ── Generic fallback (Amazon, etc.): walk up to the row container
     const out = []; const seen = new Set(); const dbg = [];
     const nodes = Array.from(document.querySelectorAll('tr, li, [class*="row" i], [class*="item" i], [class*="product" i], [class*="result" i], [class*="part" i], a'));
     for (const n of nodes) {
@@ -56,7 +83,6 @@ async function doLookup(supplier, model, debug) {
       if (!own) continue;
       const pm = own.match(partRe); if (!pm) continue;
       const pn = pm[0]; if (seen.has(pn)) continue;
-      // walk up to the row container (something with more than just the part #, ideally a price)
       let row = n;
       for (let i = 0; i < 5 && row.parentElement; i++) {
         const t = (row.innerText || '').trim();
