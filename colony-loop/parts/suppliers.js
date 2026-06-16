@@ -54,4 +54,22 @@ module.exports = {
     searchSelector: 'input[type="search"], input[name="q"], input[placeholder*="search" i], input[placeholder*="model" i]',
     loggedInHint: null,
   },
+  // Broad multi-brand public catalogs — cover EVERY brand incl. Sub-Zero, Viking,
+  // Wolf, Thermador, etc. by model. No login. Great cross-reference + retail price.
+  appliancepartspros: {
+    label: 'AppliancePartsPros',
+    noLogin: true,
+    loginUrl: 'https://www.appliancepartspros.com/',
+    searchUrl: (q) => 'https://www.appliancepartspros.com/search.aspx?model=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name*="model" i], input[id*="search" i], input[placeholder*="model" i]',
+    loggedInHint: null,
+  },
+  partselect: {
+    label: 'PartSelect',
+    noLogin: true,
+    loginUrl: 'https://www.partselect.com/',
+    searchUrl: (q) => 'https://www.partselect.com/Search/?SearchTerm=' + encodeURIComponent(q),
+    searchSelector: 'input[type="search"], input[name="SearchTerm"], input[id*="search" i], input[placeholder*="model" i]',
+    loggedInHint: null,
+  },
 };
