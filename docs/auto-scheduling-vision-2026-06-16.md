@@ -92,3 +92,11 @@ effectively → better careers with us. Good techs are the scarce resource in th
 shop techs love to work for wins on every axis (retention, recruiting, quality, growth, customer
 experience). Every scheduling/offer/learning feature is in service of THIS. Measure each build
 against: "does this make a tech's day easier and the communication better?" If not, reconsider.
+
+### The key: MANAGING the information correctly (Teddy, 2026-06-16)
+Communication is the output; managing the information correctly is the engine. "Correctly" =
+the RIGHT info, to the RIGHT person, at the RIGHT time, in the RIGHT amount (signal, not noise —
+over-communicating tunes techs out as badly as under-communicating). It must flow from ONE truth
+(the single job record), never re-entered, never scattered. Ant's core job is filtering the
+firehose down to exactly what each role needs to know or do. Chain: manage info correctly →
+communicate the right thing → tech's day gets easier → tech thrives → business thrives.
