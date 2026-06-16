@@ -11,8 +11,5 @@
     "smoke": "node scripts/smoke-test.js",
     "inject": "node scripts/inject-signal.js",
     "db:test": "node scripts/test-local-store.js"
-  },
-  "dependencies": {
-    "better-sqlite3": "^11.8.1"
   }
 }

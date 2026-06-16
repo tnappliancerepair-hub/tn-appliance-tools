@@ -2,16 +2,16 @@
 // plumbing OFF Xano (2026-06-16, after a night of Xano 502s caused by the loop
 // using Xano as a message queue + high-churn event log).
 //
-// This module is a DROP-IN replacement for the signal-queue / dedup / event-log
-// functions in xano.js. Same names, same signatures, same return shapes — so the
+// Uses Node's BUILT-IN SQLite (`node:sqlite`, available in Node 22+/26) — no
+// native compilation, no dependency, no node-gyp. Synchronous + fast + a single
+// file. This module is a DROP-IN replacement for the signal-queue / dedup /
+// event-log functions in xano.js: same names, signatures, return shapes — so the
 // cutover is a one-line import swap (or a LOOP_STORE=local router). Business data
-// (jobs, customers, money) stays in Xano; only the loop's working memory lives
-// here: the signal queue, dedup markers, and the noisy plumbing event log.
+// (jobs, customers, money) stays in Xano; only the loop's working memory is here.
 //
-// better-sqlite3 is synchronous + microsecond-fast + a single file. The exported
-// functions are async only to match xano.js's signatures (await on a value is a
-// no-op), so callers don't change.
-import Database from 'better-sqlite3';
+// The exported functions are async only to match xano.js's signatures (await on a
+// value is a no-op), so callers don't change.
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -22,9 +22,9 @@ const COLONY_NAME = process.env.COLONY_NAME || 'mac-mini-tn';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.LOOP_DB_PATH || join(__dirname, 'loop.db');
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');   // concurrent reads + durable, fast writes
-db.pragma('synchronous = NORMAL'); // good durability without fsync-per-write cost
+const db = new DatabaseSync(DB_PATH);
+db.exec('PRAGMA journal_mode = WAL');    // concurrent reads + durable, fast writes
+db.exec('PRAGMA synchronous = NORMAL');  // good durability without fsync-per-write
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS signals (
@@ -34,14 +34,16 @@ db.exec(`
     source_colony   TEXT,
     target_colonies TEXT DEFAULT '',
     payload         TEXT DEFAULT '{}',
+    job_id          TEXT,
     result_action   TEXT,
-    origin          TEXT DEFAULT 'local',   -- 'local' (loop-emitted) | 'inbox' (pulled from Xano)
-    inbox_ref       TEXT,                   -- the Xano colony_signals id, when origin='inbox'
+    origin          TEXT DEFAULT 'local',
+    inbox_ref       TEXT,
     created_at      INTEGER NOT NULL,
     processed_at    INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_signals_pending      ON signals (processed_at, created_at);
   CREATE INDEX IF NOT EXISTS idx_signals_type_pending ON signals (signal_type, processed_at);
+  CREATE INDEX IF NOT EXISTS idx_signals_job          ON signals (signal_type, job_id, processed_at);
   CREATE INDEX IF NOT EXISTS idx_signals_inbox_ref    ON signals (inbox_ref);
 
   CREATE TABLE IF NOT EXISTS fired_markers (
@@ -60,19 +62,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_event_log_action ON event_log (action, created_at);
 `);
 
-// ── prepared statements (compiled once) ──────────────────────────────────────
+// ── prepared statements (compiled once; positional ? params) ─────────────────
 const stmt = {
-  pending:        db.prepare(`SELECT id, signal_type, signal_strength, source_colony, target_colonies, payload, origin, created_at, processed_at FROM signals WHERE processed_at IS NULL ORDER BY created_at ASC LIMIT ?`),
-  insertSignal:   db.prepare(`INSERT INTO signals (signal_type, signal_strength, source_colony, target_colonies, payload, origin, inbox_ref, created_at) VALUES (@signal_type, @signal_strength, @source_colony, @target_colonies, @payload, @origin, @inbox_ref, @created_at)`),
-  markProcessed:  db.prepare(`UPDATE signals SET processed_at = @now, result_action = @result_action WHERE id = @id AND processed_at IS NULL`),
-  countForJob:    db.prepare(`SELECT COUNT(*) AS n FROM signals WHERE processed_at IS NULL AND signal_type = ? AND CAST(json_extract(payload, '$.job_id') AS TEXT) = CAST(? AS TEXT)`),
-  inboxSeen:      db.prepare(`SELECT 1 FROM signals WHERE inbox_ref = ? LIMIT 1`),
-  fired:          db.prepare(`SELECT 1 FROM fired_markers WHERE action = ? AND day_key = ? LIMIT 1`),
-  markFired:      db.prepare(`INSERT OR IGNORE INTO fired_markers (action, day_key, created_at) VALUES (?, ?, ?)`),
-  insertEvent:    db.prepare(`INSERT INTO event_log (action, metadata_json, created_at) VALUES (?, ?, ?)`),
-  pendingCount:   db.prepare(`SELECT COUNT(*) AS n FROM signals WHERE processed_at IS NULL`),
-  gcSignals:      db.prepare(`DELETE FROM signals WHERE processed_at IS NOT NULL AND processed_at < ?`),
-  gcEvents:       db.prepare(`DELETE FROM event_log WHERE created_at < ?`),
+  pending:       db.prepare(`SELECT id, signal_type, signal_strength, source_colony, target_colonies, payload, origin, created_at, processed_at FROM signals WHERE processed_at IS NULL ORDER BY created_at ASC LIMIT ?`),
+  insertSignal:  db.prepare(`INSERT INTO signals (signal_type, signal_strength, source_colony, target_colonies, payload, job_id, origin, inbox_ref, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+  markProcessed: db.prepare(`UPDATE signals SET processed_at = ?, result_action = ? WHERE id = ? AND processed_at IS NULL`),
+  countForJob:   db.prepare(`SELECT COUNT(*) AS n FROM signals WHERE processed_at IS NULL AND signal_type = ? AND job_id = ?`),
+  inboxSeen:     db.prepare(`SELECT 1 AS x FROM signals WHERE inbox_ref = ? LIMIT 1`),
+  fired:         db.prepare(`SELECT 1 AS x FROM fired_markers WHERE action = ? AND day_key = ? LIMIT 1`),
+  markFired:     db.prepare(`INSERT OR IGNORE INTO fired_markers (action, day_key, created_at) VALUES (?, ?, ?)`),
+  insertEvent:   db.prepare(`INSERT INTO event_log (action, metadata_json, created_at) VALUES (?, ?, ?)`),
+  pendingCount:  db.prepare(`SELECT COUNT(*) AS n FROM signals WHERE processed_at IS NULL`),
+  markerCount:   db.prepare(`SELECT COUNT(*) AS n FROM fired_markers`),
+  eventCount:    db.prepare(`SELECT COUNT(*) AS n FROM event_log`),
+  gcSignals:     db.prepare(`DELETE FROM signals WHERE processed_at IS NOT NULL AND processed_at < ?`),
+  gcEvents:      db.prepare(`DELETE FROM event_log WHERE created_at < ?`),
 };
 
 // ── trace ids + outcome classification (mirrors xano.js so logs match) ───────
@@ -109,22 +113,23 @@ export async function emitSignal({ signal_type, signal_strength = 50, source_col
     payloadObj = { ...payload };
   }
   if (!payloadObj.trace_id) payloadObj.trace_id = trace_id || newTraceId();
-  const info = stmt.insertSignal.run({
+  const jobId = payloadObj.job_id == null ? null : String(payloadObj.job_id);
+  const info = stmt.insertSignal.run(
     signal_type,
     signal_strength,
-    source_colony: source_colony || COLONY_NAME,
+    source_colony || COLONY_NAME,
     target_colonies,
-    payload: JSON.stringify(payloadObj),
-    origin: _origin,
-    inbox_ref: _inbox_ref,
-    created_at: Date.now(),
-  });
+    JSON.stringify(payloadObj),
+    jobId,
+    _origin,
+    _inbox_ref,
+    Date.now(),
+  );
   return { id: Number(info.lastInsertRowid), signal_type, success: true };
 }
 
 export async function markSignalProcessed(signalId, resultAction, resultObj = {}, opts = {}) {
-  stmt.markProcessed.run({ now: Date.now(), result_action: resultAction || '', id: signalId });
-  // The categorized sibling row (succeeded/skipped/errored) — local + cheap.
+  stmt.markProcessed.run(Date.now(), resultAction || '', signalId);
   const outcomeClass = opts.outcome_class || classifyOutcome(resultAction);
   try {
     stmt.insertEvent.run(
@@ -137,11 +142,11 @@ export async function markSignalProcessed(signalId, resultAction, resultObj = {}
 }
 
 export async function countPendingSignalsForJob(signalType, jobId) {
-  const row = stmt.countForJob.get(signalType, jobId);
+  const row = stmt.countForJob.get(signalType, jobId == null ? null : String(jobId));
   return { success: true, pending_count: (row && row.n) || 0 };
 }
 
-// ── dedup (drop-in) — now PERSISTENT + local + instant, no Xano 502 ──────────
+// ── dedup (drop-in) — PERSISTENT + local + instant, no Xano 502 ──────────────
 export function markFiredThisProcess(action, dayKey) {
   if (action == null || dayKey == null) return;
   stmt.markFired.run(String(action), String(dayKey), Date.now());
@@ -151,7 +156,7 @@ export async function checkEventLogFiredToday(action, dayKey) {
   return !!stmt.fired.get(String(action || ''), String(dayKey || ''));
 }
 
-// ── event log (drop-in) — the high-churn plumbing rows stay local ────────────
+// ── event log (drop-in) — high-churn plumbing rows stay local ────────────────
 export async function recordEventLog(action, metadata = {}) {
   stmt.insertEvent.run(String(action || ''), JSON.stringify(metadata || {}), Date.now());
   return { success: true };
@@ -163,8 +168,6 @@ export async function recordEvent(action, metadata = {}) {
 }
 
 // ── inbox helper (for the cutover's external-producer drain) ─────────────────
-// Insert a signal pulled from Xano colony_signals, idempotently (skip if its
-// Xano id was already pulled). Returns true if newly inserted.
 export async function ingestInboxSignal(xanoRow) {
   const ref = String(xanoRow.id);
   if (stmt.inboxSeen.get(ref)) return false;
@@ -185,14 +188,16 @@ export function gc({ processedOlderThanMs = 24 * 3600 * 1000, eventsOlderThanMs 
   const now = Date.now();
   const s = stmt.gcSignals.run(now - processedOlderThanMs).changes;
   const e = stmt.gcEvents.run(now - eventsOlderThanMs).changes;
-  return { signals_deleted: s, events_deleted: e };
+  return { signals_deleted: Number(s), events_deleted: Number(e) };
 }
 
 export function stats() {
-  const pending = stmt.pendingCount.get().n;
-  const markers = db.prepare('SELECT COUNT(*) AS n FROM fired_markers').get().n;
-  const events = db.prepare('SELECT COUNT(*) AS n FROM event_log').get().n;
-  return { db_path: DB_PATH, pending_signals: pending, fired_markers: markers, event_log_rows: events };
+  return {
+    db_path: DB_PATH,
+    pending_signals: stmt.pendingCount.get().n,
+    fired_markers: stmt.markerCount.get().n,
+    event_log_rows: stmt.eventCount.get().n,
+  };
 }
 
-export function _db() { return db; } // escape hatch for scripts/tests
+export function _db() { return db; }
