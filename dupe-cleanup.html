@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>Duplicate Cleanup — Owner</title>
+<title>Duplicate Cleanup — Office</title>
 <style>
   :root{--bg:#0e1118;--panel:#161b25;--line:#262d3a;--ink:#e8edf5;--dim:#8b97a8;--ok:#34c759;--orange:#f5a623;--red:#ff6b6b;--blue:#4a90e2}
   *{box-sizing:border-box}
@@ -39,14 +39,18 @@
 
 <div id="gate" class="gate">
   <h1>🧹 Duplicate Cleanup</h1>
-  <p class="sub">Owner only — your tech PIN. Finds people duplicated by intake; keep the real job, cancel the rest.</p>
-  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">
+  <p class="sub">Office tool. Finds people duplicated by intake; keep the real job, cancel the rest.</p>
+  <input id="pin" type="password" placeholder="Office password" autocomplete="off">
   <button id="go">Find duplicates</button>
   <div id="gerr" class="err"></div>
 </div>
 
 <div id="app" style="display:none">
-  <header><h1>🧹 Duplicate Cleanup</h1><div class="sub" id="summary">scanning…</div></header>
+  <header>
+    <h1>🧹 Duplicate Cleanup</h1>
+    <div class="sub" id="summary">scanning…</div>
+    <button id="combineAll" onclick="combineAll()" style="display:none;margin-top:9px;width:100%;padding:11px;border:0;border-radius:9px;background:var(--ok);color:#fff;font-weight:800;font-size:14px;cursor:pointer">✓ Combine ALL duplicates</button>
+  </header>
   <div class="wrap"><div id="list"></div></div>
 </div>
 
@@ -58,9 +62,9 @@
   async function load(){
     $('summary').textContent='scanning…';
     try{
-      const r=await fetch('/.netlify/functions/find-duplicate-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:PIN})});
+      const r=await fetch('/.netlify/functions/find-duplicate-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PIN})});
       const d=await r.json();
-      if(!d.ok){ if(d.error==='wrong_pin'||d.error==='owner_pin_required'){showGate('Wrong PIN.');return;} $('list').innerHTML='<div class="empty">'+esc(d.error||'error')+'</div>'; return; }
+      if(!d.ok){ if(d.error==='wrong_password'||d.error==='password_required'){showGate('Wrong password.');return;} $('list').innerHTML='<div class="empty">'+esc(d.error||'error')+'</div>'; return; }
       $('gate').style.display='none'; $('app').style.display='block';
       render(d.groups||[]);
     }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
@@ -68,6 +72,7 @@
 
   function render(groups){
     $('summary').textContent=groups.length+' duplicate'+(groups.length===1?'':'s')+' found';
+    var cbtn=$('combineAll'); if(cbtn) cbtn.style.display=groups.length?'block':'none';
     if(!groups.length){ $('list').innerHTML='<div class="empty">🎉 No active duplicates found.</div>'; return; }
     $('list').innerHTML=groups.map(function(g,gi){
       var jobs=g.jobs.map(function(j){
@@ -100,12 +105,13 @@
     $('keep-'+gi).textContent=jid;
   };
 
-  window.cancelRest=async function(gi){
+  async function doCancel(gi){
     var g=window.__groups[gi];
+    var grp=$('grp-'+gi);
+    if(!g||!grp||grp.classList.contains('done')) return 0;
     var losers=g.jobs.filter(function(j){return j.id!==g.keeper_job_id;});
-    if(!losers.length){ return; }
-    if(!confirm('Keep #'+g.keeper_job_id+' and cancel '+losers.length+' duplicate job'+(losers.length===1?'':'s')+' for '+g.name+'? (no customer is texted)')) return;
-    var btn=$('grp-'+gi).querySelector('.cancelbtn'); btn.disabled=true; btn.textContent='Canceling…';
+    if(!losers.length){ grp.classList.add('done'); return 0; }
+    var btn=grp.querySelector('.cancelbtn'); if(btn){btn.disabled=true; btn.textContent='Canceling…';}
     var ok=0;
     for(const j of losers){
       try{
@@ -113,12 +119,34 @@
         const d=await r.json(); if(d&&d.success) ok++;
       }catch(_){}
     }
-    btn.textContent='✓ Canceled '+ok+' — kept #'+g.keeper_job_id;
-    $('grp-'+gi).classList.add('done');
+    if(btn) btn.textContent='✓ Canceled '+ok+' — kept #'+g.keeper_job_id;
+    grp.classList.add('done');
+    return ok;
+  }
+
+  window.cancelRest=async function(gi){
+    var g=window.__groups[gi];
+    var losers=g.jobs.filter(function(j){return j.id!==g.keeper_job_id;});
+    if(!losers.length){ return; }
+    if(!confirm('Keep #'+g.keeper_job_id+' and cancel '+losers.length+' duplicate job'+(losers.length===1?'':'s')+' for '+g.name+'? (no customer is texted)')) return;
+    await doCancel(gi);
+  };
+
+  // Bulk: clear the whole pile. Keeps the suggested job in each group, cancels
+  // the rest. One confirm, then runs through every group. (Teddy 2026-06-16)
+  window.combineAll=async function(){
+    var groups=window.__groups||[];
+    if(!groups.length) return;
+    var totalLosers=groups.reduce(function(n,g){ return n+g.jobs.filter(function(j){return j.id!==g.keeper_job_id;}).length; },0);
+    if(!confirm('Combine ALL '+groups.length+' duplicate groups? Keeps the suggested job in each and cancels '+totalLosers+' duplicate job'+(totalLosers===1?'':'s')+' total. No customer is texted.')) return;
+    var cb=$('combineAll'); if(cb){cb.disabled=true; cb.textContent='Combining…';}
+    for(var gi=0; gi<groups.length; gi++){ await doCancel(gi); if(cb) cb.textContent='Combining… '+(gi+1)+'/'+groups.length; }
+    if(cb) cb.textContent='✓ All '+groups.length+' combined';
+    $('summary').textContent='✓ Combined all duplicates';
   };
 
   function showGate(msg){ $('app').style.display='none'; $('gate').style.display='block'; $('gerr').textContent=msg||''; }
-  $('go').addEventListener('click',function(){ PIN=$('pin').value.trim(); if(!PIN){$('gerr').textContent='Enter your PIN.';return;} load(); });
+  $('go').addEventListener('click',function(){ PIN=$('pin').value.trim(); if(!PIN){$('gerr').textContent='Enter the office password.';return;} load(); });
   $('pin').addEventListener('keydown',function(e){ if(e.key==='Enter')$('go').click(); });
 </script>
 </body>
