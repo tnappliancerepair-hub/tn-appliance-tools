@@ -70,6 +70,32 @@ exports.handler = async function (event) {
     }) };
   }
 
+  // Scoreboard of recent calls — each call's endedReason, caller, direction,
+  // duration. Read-only. ?action=calls&limit=30 (also &reason=<substr> to filter
+  // by endedReason, e.g. silence/transfer/error). For "how did we do today."
+  if (action === 'calls') {
+    const n = Math.min(Number(q.limit || 30), 100);
+    const raw = listFrom(await vapi('GET', `/call?limit=${n}`, key));
+    let rows = raw.map((c) => {
+      const started = c.startedAt || c.createdAt || '';
+      const ended = c.endedAt || '';
+      let dur = '';
+      if (started && ended) { try { dur = Math.round((new Date(ended) - new Date(started)) / 1000) + 's'; } catch (_) {} }
+      return {
+        started,
+        dur,
+        dir: (c.type || '').replace('PhoneCall', ''),
+        from: (c.customer && c.customer.number) || (c.phoneNumber && c.phoneNumber.number) || '',
+        ended_reason: c.endedReason || c.status || '',
+      };
+    });
+    if (q.reason) rows = rows.filter((r) => String(r.ended_reason).toLowerCase().includes(String(q.reason).toLowerCase()));
+    // tally endedReasons so the scoreboard is readable at a glance
+    const tally = {};
+    for (const r of rows) tally[r.ended_reason] = (tally[r.ended_reason] || 0) + 1;
+    return { statusCode: 200, body: JSON.stringify({ ok: true, count: rows.length, tally, calls: rows }, null, 2) };
+  }
+
   // Dump the most recent call's tool activity (name, server URL, args, result/error).
   if (action === 'lastcall') {
     const calls = listFrom(await vapi('GET', '/call?limit=5', key));
