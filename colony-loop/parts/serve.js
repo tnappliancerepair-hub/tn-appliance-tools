@@ -104,14 +104,22 @@ async function doLookup(supplier, model, debug) {
   return resp;
 }
 
+const VERSION = '2026-06-16c-marcone-precise';
+
 async function main() {
+  // self-replace: tell any already-running instance to step aside, so a restart
+  // always picks up new code without manual port-killing.
+  try { await fetch(`http://127.0.0.1:${PORT}/__shutdown`); await new Promise((r) => setTimeout(r, 1500)); } catch (_) {}
+
   browser = await chromium.launch({ headless: false });
   // pre-open the login-required suppliers so you can sign in up front
   for (const s of Object.keys(SUPPLIERS)) { if (!SUPPLIERS[s].noLogin) { try { await tabFor(s); } catch (_) {} } }
 
-  http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://127.0.0.1:${PORT}`);
     res.setHeader('Content-Type', 'application/json');
+    if (u.pathname === '/__shutdown') { res.end(JSON.stringify({ ok: true, bye: true })); setTimeout(() => process.exit(0), 200); return; }
+    if (u.pathname === '/__version') { res.end(JSON.stringify({ version: VERSION })); return; }
     if (u.pathname === '/lookup') {
       const supplier = (u.searchParams.get('supplier') || '').toLowerCase();
       const model = u.searchParams.get('model') || '';
@@ -121,9 +129,14 @@ async function main() {
       catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String((e && e.message) || e) })); }
       return;
     }
-    res.end(JSON.stringify({ ok: true, alive: true, suppliers: Object.keys(SUPPLIERS), open_tabs: Object.keys(tabs) }));
-  }).listen(PORT, '127.0.0.1', () => {
-    console.log(`\n✅ Parts session daemon on http://127.0.0.1:${PORT}`);
+    res.end(JSON.stringify({ ok: true, alive: true, version: VERSION, suppliers: Object.keys(SUPPLIERS), open_tabs: Object.keys(tabs) }));
+  });
+  server.on('error', (e) => {
+    if (e && e.code === 'EADDRINUSE') { console.error(`\n⚠ Port ${PORT} still busy. Run:  kill -9 $(lsof -ti:${PORT})  then start again.`); process.exit(1); }
+    throw e;
+  });
+  server.listen(PORT, '127.0.0.1', () => {
+    console.log(`\n✅ Parts session daemon on http://127.0.0.1:${PORT}  (version ${VERSION})`);
     console.log(`   Log into the open windows (Marcone first). Then test:`);
     console.log(`   curl "http://127.0.0.1:${PORT}/lookup?supplier=marcone&model=WTW6800WL"`);
     console.log(`   (leave this running — it keeps the sessions alive)`);
