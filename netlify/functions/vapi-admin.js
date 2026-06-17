@@ -273,6 +273,62 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Create (or update) the "Ant Tech Report" voice assistant: clones the inbound
+  // voice/transcriber/model so it sounds identical, with a context-aware prompt +
+  // two tools (pull the existing TDR, then submit the completed one). The tech
+  // talks, Ant fills the report. (2026-06-16)
+  if (action === 'createreport') {
+    const f = full.json || {};
+    const REPORT_PROMPT = [
+      'You are Ant, helping a TN Appliance Exchange TECHNICIAN file their job report (the TDR) by voice. The tech just finished a job and would rather talk than type. Be fast, warm, natural — they are tired, hands dirty, ready to move on.',
+      '',
+      'STEP 1 — KNOW THE JOB. As soon as you have the job_id (it may be passed in the call; otherwise ask "which job — the job number or the customer name"), call get_tech_report_context with that job_id. It returns what is ALREADY in the report (customer_complaint, pre_diagnosis from Teddy, parts) and a still_needed list of what is missing.',
+      '',
+      'STEP 2 — FILL THE GAPS ONLY. Do NOT re-ask what is already filled. Briefly confirm the known parts ("Teddy pre-diagnosed the lid lock — did that hold up?") and ask only for what is in still_needed: the diagnosis (what was actually wrong), failed_component (the part that failed), repair_completed (what you did + is it DONE or a second visit), verified_part_number (the part used — read it back), and labor_time_hours. If the tech volunteers several at once ("replaced the lid lock W10887210, about an hour, working now"), capture them all — do not make them repeat.',
+      '',
+      'STEP 3 — FILE IT. Read back a one-line summary. On the tech yes, call submit_tech_tdr with EVERYTHING — the fields from the context PLUS what the tech told you, merged so the report is complete. Always include job_id and technician_id. Then say "report is filed" and ask if there is anything else.',
+      '',
+      'You are the tech scribe, not their boss. Never lecture. Keep it under a minute when you can.',
+    ].join('\n');
+
+    const reportTools = [
+      { type: 'function', server: { url: PROXY }, function: {
+        name: 'get_tech_report_context',
+        description: 'Pull what is already in this job report (TDR) so you only ask the tech for what is missing. Call this FIRST with the job_id.',
+        parameters: { type: 'object', properties: { job_id: { type: 'number', description: 'the job id' } }, required: ['job_id'] },
+      } },
+      { type: 'function', server: { url: PROXY }, function: {
+        name: 'submit_tech_tdr',
+        description: 'File the completed report. Include the fields from get_tech_report_context PLUS what the tech told you, merged.',
+        parameters: { type: 'object', properties: {
+          job_id: { type: 'number' }, technician_id: { type: 'number' },
+          diagnosis: { type: 'string' }, failed_component: { type: 'string' }, failure_cause: { type: 'string' },
+          repair_completed: { type: 'string' }, second_visit_needed: { type: 'boolean' },
+          verified_part_number: { type: 'string' }, labor_time_hours: { type: 'number' }, technician_notes: { type: 'string' },
+        }, required: ['job_id', 'diagnosis'] },
+      } },
+    ];
+
+    const body = {
+      name: 'Ant Tech Report',
+      firstMessage: "Hey, it's Ant — let's knock out your report real quick. What job are you filing for?",
+      model: { provider: model.provider || 'anthropic', model: model.model || 'claude-sonnet-4-5-20250929', messages: [{ role: 'system', content: REPORT_PROMPT }], tools: reportTools },
+      voice: f.voice || undefined,
+      transcriber: f.transcriber || undefined,
+      server: { url: 'https://tnapplianceexchange.net/.netlify/functions/vapi-webhook' },
+    };
+
+    const existing = listFrom(aResp).find((a) => (a.name || '').trim().toLowerCase() === 'ant tech report');
+    const resp = existing
+      ? await vapi('PATCH', `/assistant/${existing.id}`, key, body)
+      : await vapi('POST', '/assistant', key, body);
+    return { statusCode: 200, body: JSON.stringify({
+      ok: resp.ok, status: resp.status,
+      assistant_id: (resp.json && resp.json.id) || (existing && existing.id) || null,
+      name: 'Ant Tech Report', updated: !!existing,
+    }, null, 2) };
+  }
+
   // Turn ON call Summary (and success-eval) so the call log + daily review have content.
   if (action === 'voiceon') {
     const f = full.json || {};
