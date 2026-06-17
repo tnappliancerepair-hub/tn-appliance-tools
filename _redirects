@@ -9,3 +9,8 @@
 /privacy-policy-2/    /privacy   301
 /terms-and-conditions     /terms   301
 /terms-and-conditions/    /terms   301
+
+# Tech app home — short, permanent link the techs install to their home screen
+# (remembers who they are, opens straight to their day). No more hunting texts.
+/tech     /tech.html   200
+/me       /tech.html   200
