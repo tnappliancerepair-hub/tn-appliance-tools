@@ -931,8 +931,53 @@ function renderReview() {
       (finalizing ? "Submitting…" : submitLabel) +
     '</button>' +
     ((state.submitResult && state.submitResult.tdr && state.submitResult.tdr.id)
-      ? '<button onclick="previewCustomerTDR()" style="width:100%;margin-top:10px;background:transparent;border:1px solid rgba(116,227,196,0.5);color:#74e3c4;padding:12px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--mono);">👁 Preview customer TDR (what they\'ll see — no text sent)</button>'
+      ? ('<button onclick="previewCustomerTDR()" style="width:100%;margin-top:10px;background:transparent;border:1px solid rgba(116,227,196,0.5);color:#74e3c4;padding:12px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--mono);">👁 Preview customer TDR (what they\'ll see — no text sent)</button>'
+        + '<div style="margin-top:12px;border:1px dashed var(--border2);border-radius:8px;padding:12px;">'
+        +   '<button onclick="toggleAddPart()" style="width:100%;background:transparent;border:0;color:var(--text);font-size:14px;font-weight:700;cursor:pointer;text-align:left;padding:0;">➕ Add another part to this TDR (e.g. 2nd filter)</button>'
+        +   '<div id="addPartForm" style="display:none;margin-top:12px;">'
+        +     '<input id="apDesc" placeholder="Part / problem (e.g. Fresh-air filter)" style="width:100%;margin-bottom:8px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" />'
+        +     '<div style="display:flex;gap:8px;margin-bottom:8px;"><input id="apOemPart" placeholder="OEM part #" style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" /><input id="apOemCost" placeholder="OEM our cost $" style="width:130px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" /></div>'
+        +     '<div style="display:flex;gap:8px;margin-bottom:8px;"><input id="apAmzPart" placeholder="Amazon part #" style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" /><input id="apAmzCost" placeholder="Amazon our cost $" style="width:130px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;" /></div>'
+        +     '<button onclick="submitAddPart()" style="width:100%;background:#1f6fed;border:0;color:#fff;padding:11px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Add part to TDR #' + state.submitResult.tdr.id + '</button>'
+        +     '<div id="apStatus" style="margin-top:8px;font-size:13px;"></div>'
+        +   '</div>'
+        + '</div>')
       : '');
+}
+
+function toggleAddPart() {
+  const f = document.getElementById('addPartForm');
+  if (f) f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
+}
+async function submitAddPart() {
+  const tdr = state.submitResult && state.submitResult.tdr;
+  const st = document.getElementById('apStatus');
+  if (!tdr || !tdr.id) return;
+  const val = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const desc = val('apDesc');
+  if (!desc) { if (st) st.innerHTML = '<span style="color:#e0a800;">Add a part / problem description.</span>'; return; }
+  const oemCents = val('apOemCost') ? parseDollarsToCents(val('apOemCost')) : 0;
+  const amzCents = val('apAmzCost') ? parseDollarsToCents(val('apAmzCost')) : 0;
+  if (st) st.innerHTML = 'Adding…';
+  try {
+    const res = await fetch('/.netlify/functions/xano-proxy', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: 'add_tdr_failure', api_group: 'intake', payload: {
+        tdr_id: tdr.id, failure_description: desc,
+        oem_part_number: val('apOemPart') || null, amazon_part_number: val('apAmzPart') || null,
+        oem_part_our_cost_cents: oemCents == null ? 0 : oemCents,
+        amazon_part_our_cost_cents: amzCents == null ? 0 : amzCents,
+        labor_customer_cost_cents: 0,
+      } }),
+    });
+    const d = await res.json();
+    if (d && d.success) {
+      if (st) st.innerHTML = '<span style="color:#74e3c4;">✓ Added "' + escapeHtml(desc) + '" to TDR #' + tdr.id + '. Tap Preview to see both parts.</span>';
+      ['apDesc', 'apOemPart', 'apOemCost', 'apAmzPart', 'apAmzCost'].forEach((id) => { const e = document.getElementById(id); if (e) e.value = ''; });
+    } else {
+      if (st) st.innerHTML = '<span style="color:#d33;">Failed: ' + escapeHtml((d && (d.error || d.message)) || 'unknown') + '</span>';
+    }
+  } catch (e) { if (st) st.innerHTML = '<span style="color:#d33;">Failed: ' + escapeHtml(e.message || String(e)) + '</span>'; }
 }
 
 // Open the EXACT customer-facing TDR page in a new tab to review before sending.
