@@ -817,6 +817,7 @@
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
       render(data);
+      loadHcpRoute(data.date_ct, data.today_ct);
     } catch (err) {
       console.error(err);
       showError('network error');
@@ -827,6 +828,37 @@
 
   function showError(msg) {
     jobsHost.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button class="retry" onclick="location.reload()">retry</button></div>`;
+  }
+
+  // Read-only mirror of the tech's REAL office (HCP) schedule, shown above the Ant
+  // jobs so the dashboard matches their actual day while Ant's calendar is being
+  // reconciled. Pure display — writes nothing, so no duplicates and no texts.
+  async function loadHcpRoute(dateCT, todayCT) {
+    let host = document.getElementById('hcpRoute');
+    if (!host) { host = document.createElement('div'); host.id = 'hcpRoute'; jobsHost.parentNode.insertBefore(host, jobsHost); }
+    host.innerHTML = '';
+    try {
+      let u = `/.netlify/functions/hcp-today-schedule?tech_id=${encodeURIComponent(TECH_ID)}`;
+      if (dateCT && todayCT && dateCT !== todayCT) u += `&date=${encodeURIComponent(dateCT)}`;
+      const r = await fetch(u);
+      const d = await r.json();
+      if (!d || !d.ok || !Array.isArray(d.my_stops) || !d.my_stops.length) return;
+      const rows = d.my_stops.map((s) => {
+        const addr = escapeHtml(s.address || '');
+        const nav = s.address ? `https://maps.google.com/?q=${encodeURIComponent(s.address)}` : '';
+        return '<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid #18313d;">'
+          + '<div style="min-width:62px;font-weight:800;color:#eafaff;font-size:13px;">' + escapeHtml(s.time || '—') + '</div>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-weight:700;color:#fff;font-size:14px;">' + escapeHtml(s.customer || '(customer)') + '</div>'
+          + (addr ? ('<a href="' + nav + '" target="_blank" style="color:#9fd9ff;font-size:13px;text-decoration:none;display:block;">' + addr + '</a>') : '')
+          + (s.what ? ('<div style="color:#8aa3b0;font-size:12px;margin-top:2px;">' + escapeHtml(s.what) + '</div>') : '')
+          + '</div></div>';
+      }).join('');
+      host.innerHTML = '<div style="background:#10202a;border:1px solid #1c3b49;border-radius:13px;padding:12px 15px;margin:0 0 14px;">'
+        + '<div style="font-size:12px;font-weight:800;color:#7fd8ef;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">📋 Your route today — office schedule</div>'
+        + '<div style="font-size:11px;color:#6f93a1;margin-bottom:6px;">' + d.my_stops.length + ' stop' + (d.my_stops.length === 1 ? '' : 's') + ' from the office calendar</div>'
+        + rows + '</div>';
+    } catch (_) {}
   }
 
   // ── Render ─────────────────────────────────────────────────────

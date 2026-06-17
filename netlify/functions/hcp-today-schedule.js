@@ -88,6 +88,21 @@ exports.handler = async (event) => {
     byTech[t].sort((x, y) => String(x.scheduled_start || '').localeCompare(String(y.scheduled_start || '')));
   }
 
+  // ?tech_id=N -> just that tech's stops (for the tech dashboard's read-only HCP
+  // mirror). Matches HCP names loosely by first name (HCP shows "Jimmy P" etc.)
+  // and includes shared jobs (e.g. "Teddy Pivacek, Lee Harding").
+  const ROSTER = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+  const techId = qp.tech_id ? Number(qp.tech_id) : 0;
+  if (techId && ROSTER[techId]) {
+    const first = ROSTER[techId].toLowerCase();
+    const mine = [];
+    for (const [name, stops] of Object.entries(byTech)) {
+      if (name.toLowerCase().includes(first)) mine.push(...stops);
+    }
+    mine.sort((x, y) => String(x.scheduled_start || '').localeCompare(String(y.scheduled_start || '')));
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, date: day, tech_id: techId, tech_first: ROSTER[techId], count: mine.length, my_stops: mine }) };
+  }
+
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' },
