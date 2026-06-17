@@ -45,7 +45,7 @@
       pointer-events: none;
       z-index: 0;
     }
-    .container { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 48px; }
+    .container { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
     .header { background: linear-gradient(135deg, #0e1118, #131a2a); border: 1px solid var(--border2); border-radius: 16px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; }
     .header-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .header-icon { font-size: 22px; }
