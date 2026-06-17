@@ -361,7 +361,11 @@ async function submitTDR() {
   if (state.laborEstimate.trim() !== "" && laborCents === null) { state.error = "Labor cost looks off — use a number like $215."; render(); return; }
 
   if (state.parts_decision !== "no_parts_needed" && oemCents == null && amzCents == null) { state.error = "Enter at least one part cost (OEM or Amazon)."; render(); return; }
-  if (laborCents == null) { state.error = "Labor customer cost is required."; render(); return; }
+  // Ship-to-customer (DIY / out-of-area) has no labor — default it to 0 instead of blocking.
+  if (laborCents == null) {
+    if (state.parts_decision === "ship_to_customer") { laborCents = 0; }
+    else { state.error = "Labor customer cost is required."; render(); return; }
+  }
 
   const job = state.cockpit.job;
   const appliance = state.cockpit.appliance;
@@ -925,7 +929,27 @@ function renderReview() {
 
     '<button class="' + submitClass + '" onclick="handleSubmit()" ' + (finalizing ? 'disabled' : '') + '>' +
       (finalizing ? "Submitting…" : submitLabel) +
-    '</button>';
+    '</button>' +
+    ((state.submitResult && state.submitResult.tdr && state.submitResult.tdr.id)
+      ? '<button onclick="previewCustomerTDR()" style="width:100%;margin-top:10px;background:transparent;border:1px solid rgba(116,227,196,0.5);color:#74e3c4;padding:12px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--mono);">👁 Preview customer TDR (what they\'ll see — no text sent)</button>'
+      : '');
+}
+
+// Open the EXACT customer-facing TDR page in a new tab to review before sending.
+// Uses an owner-only short-lived preview token (no SMS, not marked sent).
+async function previewCustomerTDR() {
+  const tdr = state.submitResult && state.submitResult.tdr;
+  if (!tdr || !tdr.id) { alert('Submit the TDR first, then preview.'); return; }
+  const w = window.open('', '_blank');
+  try {
+    const r = await fetch('/.netlify/functions/preview-qc-token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: 'tn-qc-preview-2026', job_id: parseInt(state.jobId, 10), tdr_id: tdr.id }),
+    });
+    const d = await r.json();
+    if (d && d.ok && d.url) { if (w) w.location = d.url; else window.location = d.url; }
+    else { if (w) w.close(); alert('Preview failed: ' + ((d && d.error) || 'unknown')); }
+  } catch (e) { if (w) w.close(); alert('Preview failed: ' + (e.message || e)); }
 }
 
 function updateOemHint() {
@@ -970,26 +994,52 @@ function priceToCents(s) {
   const n = parseFloat(m[0].replace(/,/g, ''));
   return Number.isFinite(n) ? Math.round(n * 100) : null;
 }
-function pickPartCandidate(cands, component) {
+// Pull an OEM-style part number out of free text (the diagnosis often already
+// names it, e.g. "ADQ36006101"). Searching the exact part beats the fridge model
+// (which returns a pile of unrelated parts).
+function extractPartNumber(text) {
+  const m = String(text || '').toUpperCase().match(/\b([A-Z]{2,4}\d{5,}[A-Z0-9-]*|W\d{8,}|DA\d{2}-\d{5,})\b/);
+  return m ? m[1] : '';
+}
+function pickPartCandidate(cands, component, wantPart) {
   if (!Array.isArray(cands) || !cands.length) return null;
+  const norm = (c) => String(c.part || c.part_number || '').toUpperCase().replace(/\s/g, '');
+  // 1) exact part-number match wins outright
+  if (wantPart) {
+    const wp = wantPart.toUpperCase().replace(/\s/g, '');
+    const exact = cands.find((c) => norm(c) === wp || norm(c).indexOf(wp) !== -1);
+    if (exact) return exact;
+  }
+  // 2) drop obvious junk rows (multipacks / bundles / sponsored / subscription)
+  const JUNK = /(business essentials|essentials|pack of|\d+[\s-]?pack|bundle|sponsored|subscribe|month'?s? supply|case of|results check|sort by)/i;
+  let pool = cands.filter((c) => !JUNK.test(c.name || c.description || ''));
+  if (!pool.length) pool = cands.slice();
+  // 3) drop wild price outliers (a multipack priced way above the pack of singles)
+  const prices = pool.map((c) => priceToCents(c.price)).filter((p) => p && p > 0).sort((a, b) => a - b);
+  if (prices.length >= 3) {
+    const med = prices[Math.floor(prices.length / 2)];
+    const trimmed = pool.filter((c) => { const p = priceToCents(c.price); return !p || p <= med * 3; });
+    if (trimmed.length) pool = trimmed;
+  }
+  // 4) prefer a candidate that mentions the failed component
   const kw = String(component || '').toLowerCase().split(/\s+/).filter((w) => w.length > 3);
   if (kw.length) {
-    const hit = cands.find((c) => {
+    const hit = pool.find((c) => {
       const t = ((c.description || '') + ' ' + (c.name || '') + ' ' + (c.part || '') + ' ' + (c.part_number || '')).toLowerCase();
       return kw.some((w) => t.indexOf(w) !== -1);
     });
     if (hit) return hit;
   }
-  return cands[0];
+  return pool[0];
 }
-async function tryDirectParts(model, component) {
-  if (!model) return null;
+async function tryDirectParts(term, component, wantPart) {
+  if (!term) return null;
   const sup = async (supplier) => {
     try {
-      const r = await fetch('/.netlify/functions/parts-lookup-direct?path=lookup&supplier=' + supplier + '&model=' + encodeURIComponent(model), { cache: 'no-store' });
+      const r = await fetch('/.netlify/functions/parts-lookup-direct?path=lookup&supplier=' + supplier + '&model=' + encodeURIComponent(term), { cache: 'no-store' });
       const j = await r.json();
       if (!j || !j.ok || !j.data || !Array.isArray(j.data.candidates)) return null;
-      return pickPartCandidate(j.data.candidates, component);
+      return pickPartCandidate(j.data.candidates, component, wantPart);
     } catch (_) { return null; }
   };
   const [marcone, amazon, tribles] = await Promise.all([sup('marcone'), sup('amazon'), sup('tribles')]);
@@ -1008,9 +1058,12 @@ async function autoFindParts() {
   plStatus('Searching Marcone + Amazon + Tribles for <strong>' + escapeHtml(model || serial) + '</strong>…');
 
   // FAST PATH: daemon direct via the Cloudflare tunnel (~3-5s). Falls through to
-  // the slow queue path below if the tunnel/daemon isn't up.
+  // the slow queue path below if the tunnel/daemon isn't up. Prefer searching the
+  // exact OEM part # if the diagnosis names one (model-only search returns junk).
   try {
-    const direct = await tryDirectParts(model || serial, (state.diagnosis || '').trim());
+    const wantPart = extractPartNumber(state.diagnosis);
+    const term = wantPart || model || serial;
+    const direct = await tryDirectParts(term, (state.diagnosis || '').trim(), wantPart);
     if (direct && (direct.oem || direct.amazon)) {
       applyPartsResult(direct);
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
