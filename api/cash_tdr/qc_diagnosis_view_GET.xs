@@ -108,14 +108,29 @@ query qc_diagnosis_view verb=GET {
     }
   
     // Resolve bill_to customer (multi-party support, fallback to primary customer).
+    // bill_to_customer_id defaults to 0 on quick-check jobs, and `0 ?? customer_id`
+    // keeps 0 -> wrong/empty customer (greeted "there"). Use it only when it's real.
     var $bill_to_id {
-      value = $job.bill_to_customer_id ?? $job.customer_id
+      value = ((($job.bill_to_customer_id ?? 0) > 0) ? ($job.bill_to_customer_id) : ($job.customer_id))
     }
-  
+
     db.get customer {
       field_name = "id"
       field_value = $bill_to_id
     } as $bill_to
+
+    // Out-of-area (outside TN/LA) -> the customer TDR drops the install options and
+    // shows ship-only. In-area zips: TN 37/38, LA 70/71. Empty zip -> treat in-area
+    // (show all, the prior default) so we never hide install on a missing zip.
+    var $oa_zip2 {
+      value = ((($bill_to.zip ?? "")|to_text)|substr:0:2)
+    }
+    var $oa_in_area {
+      value = ($oa_zip2 == "37" || $oa_zip2 == "38" || $oa_zip2 == "70" || $oa_zip2 == "71")
+    }
+    var $out_of_area {
+      value = ($oa_zip2 != "" && $oa_in_area == false)
+    }
   
     // Compose appliance display string from brand + appliance_type.
     var $appliance_str {
@@ -193,6 +208,7 @@ query qc_diagnosis_view verb=GET {
           first_name: ($bill_to.first_name ?? "there")
           appliance: ($appliance_str != "" ? $appliance_str : "Appliance")
           model: ($job.model_number ?? "")
+          out_of_area: $out_of_area
         }
         is_rental         : ($job.is_rental ?? false)
         diagnosis         : ($tdr.customer_facing_diagnosis ?? "")
