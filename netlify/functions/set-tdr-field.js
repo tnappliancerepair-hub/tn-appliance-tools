@@ -11,8 +11,9 @@ const md = require('./_lib/xano/metadata-crud');
 const TDR_TABLE = 12; // technician_decision_report
 
 const ALLOWED = new Set([
-  'diagnosis', 'failure_cause', 'failed_component', 'repair_completed',
-  'verified_part_number', 'customer_facing_diagnosis', 'technician_notes',
+  'diagnosis', 'failure_cause', 'failure_cause_notes', 'failed_component',
+  'repair_completed', 'verified_part_number', 'customer_facing_diagnosis',
+  'technician_notes',
 ]);
 
 function j(code, body) {
