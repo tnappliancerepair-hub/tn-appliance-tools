@@ -7,8 +7,10 @@
 //
 //   RECOVER  real warranty jobs (have a claim #), non-terminal  -> back to
 //            needs-scheduled (clear tech/time/tag) so Danielle sees them again.
-//   CANCEL   fake test jobs (no claim #), non-terminal          -> canceled so
-//            they stop showing on techs' days and don't flood the live queue.
+//   FLAG     no-claim jobs, non-terminal -> ALSO back to needs-scheduled, but
+//            stamped friendly_status "⚠️ REVIEW — no claim #" so Danielle can
+//            verify each (some are real jobs just missing the claim #, NOT
+//            fakes) and Schedule it or 🗑 Delete it. Nothing is auto-canceled.
 //   SKIP     already canceled / completed / awaiting_parts      -> left as-is
 //            (don't resurrect canceled, reset a completed job, or lose parts).
 //
@@ -19,6 +21,7 @@ const crud = require('./_lib/xano/metadata-crud');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const JOBS_TABLE = 7;
 const SECRET = 'tn-practice-cleanup-2026';
+const REVIEW_FLAG = '⚠️ REVIEW — no claim # (verify or delete)';
 
 // Statuses we never touch (terminal, or parts-state we must preserve).
 const SKIP_STATUS = new Set(['canceled', 'cancelled', 'completed', 'awaiting_parts']);
@@ -54,7 +57,7 @@ function classify(r) {
   const status = String(r.scheduling_status || '').toLowerCase();
   if (SKIP_STATUS.has(status)) return 'skip';
   const hasClaim = String(r.claim_number || '').trim().length > 0;
-  return hasClaim ? 'recover' : 'cancel';
+  return hasClaim ? 'recover' : 'flag';
 }
 
 exports.handler = async function (event) {
@@ -66,7 +69,7 @@ exports.handler = async function (event) {
   try { practice = await findPracticeJobs(25); }
   catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
 
-  const buckets = { recover: [], cancel: [], skip: [] };
+  const buckets = { recover: [], flag: [], skip: [] };
   for (const r of practice) buckets[classify(r)].push(r);
 
   const sample = (arr) => arr.slice(0, 10).map((r) => ({
@@ -77,14 +80,14 @@ exports.handler = async function (event) {
   if (!confirm) {
     return j(200, {
       ok: true, dry_run: true, total: practice.length,
-      counts: { recover: buckets.recover.length, cancel: buckets.cancel.length, skip: buckets.skip.length },
+      counts: { recover: buckets.recover.length, flag: buckets.flag.length, skip: buckets.skip.length },
       recover_sample: sample(buckets.recover),
-      cancel_sample: sample(buckets.cancel),
+      flag_sample: sample(buckets.flag),
       skip_sample: sample(buckets.skip),
     });
   }
 
-  let recovered = 0, canceled = 0; const failed = [];
+  let recovered = 0, flagged = 0; const failed = [];
   for (const r of buckets.recover) {
     try {
       await crud.update(JOBS_TABLE, r.id, {
@@ -94,17 +97,18 @@ exports.handler = async function (event) {
       recovered++;
     } catch (e) { failed.push({ id: r.id, op: 'recover', error: String((e && e.message) || e) }); }
   }
-  for (const r of buckets.cancel) {
+  for (const r of buckets.flag) {
     try {
       await crud.update(JOBS_TABLE, r.id, {
-        scheduling_status: 'canceled', current_status: 'canceled',
-        technician_id: null, scheduled_start: null, scheduled_end: null, test_run_id: '',
+        scheduling_status: 'not_ready', current_status: 'pending',
+        technician_id: null, scheduled_start: null, scheduled_end: null,
+        test_run_id: '', friendly_status: REVIEW_FLAG,
       });
-      canceled++;
-    } catch (e) { failed.push({ id: r.id, op: 'cancel', error: String((e && e.message) || e) }); }
+      flagged++;
+    } catch (e) { failed.push({ id: r.id, op: 'flag', error: String((e && e.message) || e) }); }
   }
-  try { await crud.logEvent('practice_placements_cleared', { recovered, canceled, skipped: buckets.skip.length, failed: failed.length, at_ms: Date.now() }); } catch (_) {}
-  return j(200, { ok: true, recovered, canceled, skipped: buckets.skip.length, failed_count: failed.length, failed });
+  try { await crud.logEvent('practice_placements_cleared', { recovered, flagged, skipped: buckets.skip.length, failed: failed.length, at_ms: Date.now() }); } catch (_) {}
+  return j(200, { ok: true, recovered, flagged, skipped: buckets.skip.length, failed_count: failed.length, failed });
 };
 
 function j(code, obj) {

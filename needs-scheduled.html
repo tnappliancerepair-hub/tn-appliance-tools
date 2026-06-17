@@ -449,7 +449,11 @@
       const prefBadge = j.customer_preference_text
         ? `<span class="badge" style="background:rgba(138,150,168,0.12);color:#4a5568">💬 "${escapeHtml(j.customer_preference_text).slice(0, 80)}${j.customer_preference_text.length > 80 ? '…' : ''}"</span>`
         : '';
+      const reviewFlag = (j.friendly_status && j.friendly_status.indexOf('REVIEW') !== -1)
+        ? `<div style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;font-weight:800">${escapeHtml(j.friendly_status)} — Schedule if real, 🗑 Delete if junk</div>`
+        : '';
       return `<div class="row" data-id="${j.id}" style="cursor:pointer">
+        ${reviewFlag}
         <div class="top">
           <div class="who">${escapeHtml(name)}</div>
           <div class="age">${fmtAge(j.created_at)}</div>
