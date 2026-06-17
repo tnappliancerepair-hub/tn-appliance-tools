@@ -424,6 +424,19 @@ exports.handler = async function (event) {
           summary: summary.slice(0, 800),
         }),
       });
+
+      // DURABLE TDR WRITE (2026-06-17). The whole point of the field-assist
+      // call is to fill the tech's TDR. Brooke has live tools to write fields
+      // mid-call, but if she misses them the report ends up EMPTY and Danielle
+      // gets nothing (job #19568 was the live case). So at end-of-call we
+      // extract the structured TDR fields from the FULL transcript with Claude
+      // and write them ourselves — the reliable backstop. Same scribe pattern
+      // that makes the SMS assist path work.
+      const numericJobId = Number(jobId);
+      const numericTechId = Number(techId);
+      if (numericJobId > 0 && (transcript || summary)) {
+        await extractAndWriteTdrFromCall(numericJobId, numericTechId, transcript, summary, callId);
+      }
     }
 
     // 4b. Missed Call Callback — when an INBOUND call ended without a
@@ -501,6 +514,86 @@ async function safePost(url, body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(8000),
+    });
+  } catch (_) {}
+}
+
+// End-of-call backstop: turn a field-assist voice call into a filled TDR.
+// Reads the transcript, has Claude pull the structured fields, writes each
+// one through the existing voice endpoints, then finalizes (which fires the
+// TDR_SUBMITTED → warranty pre-stage chain for Danielle). Never throws — the
+// webhook must always return 200.
+async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, callId) {
+  try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return;
+    const src = `CALL SUMMARY:\n${summary || '(none)'}\n\nFULL TRANSCRIPT:\n${(transcript || '').slice(0, 11000)}`;
+    const system =
+      'You are a service-report scribe for an appliance repair shop. From the ' +
+      'technician\'s call, extract the Technician Decision Report fields. Return ' +
+      'ONLY a JSON object, no prose, with these keys (all strings, "" when unknown):\n' +
+      '  diagnosis           - what was wrong, plain and specific\n' +
+      '  failed_component    - the part/component that failed\n' +
+      '  labor_hours         - hours of labor as a number string, e.g. "1" or "1.5"\n' +
+      '  repair_completed    - what the tech did to fix it; INCLUDE any part numbers ' +
+      'mentioned and any parts-to-return notes\n' +
+      'Only include what the tech actually said. Do not invent part numbers.';
+    let resp;
+    try {
+      resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 700,
+          system,
+          messages: [{ role: 'user', content: src }],
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (_) { return; }
+    if (!resp.ok) return;
+    const data = await resp.json().catch(() => ({}));
+    const raw = (data.content || []).find((b) => b.type === 'text')?.text || '';
+    let fields = null;
+    try {
+      const m = raw.match(/\{[\s\S]*\}/);
+      if (m) fields = JSON.parse(m[0]);
+    } catch (_) { return; }
+    if (!fields) return;
+
+    // Write each non-empty field. Don't clobber: the live tool may have
+    // already captured some — update_tdr_field_from_voice just edits the
+    // same row, so re-writing the same value is a safe no-op.
+    const map = [
+      ['diagnosis', fields.diagnosis],
+      ['failed_component', fields.failed_component],
+      ['labor_hours', fields.labor_hours],
+      ['repair_completed', fields.repair_completed],
+    ];
+    let wrote = 0;
+    for (const [field, value] of map) {
+      const v = String(value || '').trim();
+      if (!v) continue;
+      await safePost(`${XANO_BASE}/update_tdr_field_from_voice`, {
+        job_id: jobId, technician_id: techId, field, value: v,
+      });
+      wrote += 1;
+    }
+
+    // Finalize only if we actually captured the core of a report. This fires
+    // the TDR_SUBMITTED chain → warranty pre-stage draft for the office.
+    if (wrote >= 2) {
+      await safePost(`${XANO_BASE}/save_tdr_final_from_voice`, {
+        job_id: jobId, technician_id: techId,
+      });
+    }
+    await safePost(XANO_RECORD_EVENT, {
+      action: 'tdr_written_from_call_transcript',
+      metadata_json: JSON.stringify({
+        job_id: jobId, tech_id: techId, vapi_call_id: callId,
+        fields_written: wrote, finalized: wrote >= 2,
+      }),
     });
   } catch (_) {}
 }
