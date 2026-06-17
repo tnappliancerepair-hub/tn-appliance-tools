@@ -91,10 +91,14 @@ const TOOLS = [
 
 const PROMPT_BLOCK =
   '\n\n' + PROMPT_MARKER + ' As the tech talks, silently log each report field with ' +
-  'update_tdr_field_from_voice the moment it is clear (diagnosis, failed_component, failure_cause, ' +
+  'update_tdr_field_from_voice the moment it is clear (diagnosis, failed_component, ' +
   'repair_completed, labor_hours). Do not interrogate — capture what they volunteer, confirm briefly. ' +
-  'When the tech signals they are done, call save_tdr_final_from_voice once. Always pass the job_id ' +
-  'and technician_id from your call variables.';
+  'ALWAYS establish the CAUSE of the failure: if the tech has not said WHY it failed, ask once, ' +
+  'plainly — e.g. "what caused it — normal wear, lack of maintenance, customer misuse, pests, power ' +
+  'surge, manufacturer defect, improper install, external damage, or pre-existing?" — and make sure ' +
+  'their answer is said out loud so it is captured. (You do not write the cause yourself; just get ' +
+  'the tech to state it.) When the tech signals they are done, call save_tdr_final_from_voice once. ' +
+  'Always pass the job_id and technician_id from your call variables.';
 
 async function vapi(method, path_, key, body) {
   const r = await fetch(`${VAPI}${path_}`, {
@@ -129,23 +133,33 @@ function toolName(t) { return (t && t.function && t.function.name) || (t && t.na
   const toAdd = TOOLS.filter((t) => !have.has(toolName(t)));
   console.log('Tools to ADD:', toAdd.map(toolName).join(', ') || '(none — already wired)');
 
-  // 2) prompt line
+  // 2) prompt block — REPLACE any prior version so re-running updates the text
+  // (the block is always appended at the end, so strip from the marker onward
+  // and re-append the current block). Idempotent: identical content = no-op.
   const messages = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
-  let sys = messages.find((m) => m.role === 'system');
-  const promptPresent = sys && typeof sys.content === 'string' && sys.content.includes(PROMPT_MARKER);
-  console.log('Live-scribe prompt line:', promptPresent ? 'already present' : (sys ? 'WILL APPEND' : 'no system message found (will skip prompt edit)'));
+  const sys = messages.find((m) => m.role === 'system');
+  let desired = null;
+  let promptState = 'no system message found (will skip prompt edit)';
+  if (sys && typeof sys.content === 'string') {
+    const hadBlock = sys.content.includes(PROMPT_MARKER);
+    const base = (hadBlock ? sys.content.slice(0, sys.content.indexOf(PROMPT_MARKER)) : sys.content).replace(/\s+$/, '');
+    desired = base + PROMPT_BLOCK;
+    promptState = (sys.content === desired) ? 'already current' : (hadBlock ? 'WILL UPDATE' : 'WILL APPEND');
+  }
+  const promptCurrent = (promptState === 'already current') || !sys;
+  console.log('Live-scribe prompt:', promptState);
 
-  if (!toAdd.length && promptPresent) { console.log('\n✓ Nothing to do — already gold standard.\n'); return; }
+  if (!toAdd.length && promptCurrent) { console.log('\n✓ Nothing to do — already current.\n'); return; }
 
   // Build patched model
   const newTools = tools.concat(toAdd);
-  let newMessages = messages;
-  if (sys && !promptPresent) { sys.content = String(sys.content || '') + PROMPT_BLOCK; }
+  const newMessages = messages;
+  if (sys && desired != null && sys.content !== desired) { sys.content = desired; }
 
   if (!APPLY) {
     console.log('\n--- DRY RUN: would PATCH the assistant with ---');
     console.log('  + tools:', newTools.map(toolName).filter(Boolean).join(', '));
-    if (sys && !promptPresent) console.log('  + appended live-scribe line to the system prompt');
+    if (sys && !promptCurrent) console.log('  + ' + (promptState === 'WILL UPDATE' ? 'updated' : 'appended') + ' the live-scribe prompt (now asks the tech for the cause)');
     console.log('\nRe-run with --apply to make it live. (Do this when NO tech is mid-call.)\n');
     return;
   }
