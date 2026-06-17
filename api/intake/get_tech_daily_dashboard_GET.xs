@@ -141,6 +141,71 @@ query get_tech_daily_dashboard verb=GET {
       }
     }
 
+    // Also surface jobs ASSIGNED to this tech but with NO scheduled time (untimed),
+    // on the TODAY view only. Danielle assigns techs on the board (reassign_job =
+    // technician_id only, no scheduled_start), so those jobs were invisible.
+    // SAFE untimed detection: ($job.scheduled_start ?? 0) <= 0 — NO null comparison
+    // in the where clause (that crashed the endpoint with ERROR_FATAL before). The
+    // where uses only != / == comparisons. (2026-06-16, second attempt — verify by curl.)
+    conditional {
+      if ($resolved_date == $today_ct_str) {
+        db.query jobs {
+          where = $db.jobs.technician_id == $input.tech_id && $db.jobs.scheduling_status != "canceled" && $db.jobs.scheduling_status != "completed" && $db.jobs.scheduling_status != "no_fix_possible"
+          sort = {jobs.created_at: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 100}}
+        } as $assigned_rows
+
+        foreach ($assigned_rows.items) {
+          each as $ujob {
+            var $ustart {
+              value = ($ujob.scheduled_start ?? 0)
+            }
+
+            conditional {
+              if ($ustart <= 0) {
+                var $ucustomer {
+                  value = null
+                }
+
+                var $ucust_id {
+                  value = ($ujob.customer_id ?? 0)
+                }
+
+                conditional {
+                  if ($ucust_id > 0) {
+                    db.get customer {
+                      field_name = "id"
+                      field_value = $ucust_id
+                    } as $ucust_lookup
+
+                    var.update $ucustomer {
+                      value = $ucust_lookup
+                    }
+                  }
+                }
+
+                var $ujob_item {
+                  value = {
+                    job                : $ujob
+                    customer           : $ucustomer
+                    teddy_pre_diagnosis: null
+                    latest_tdr         : null
+                    attachments_count  : 0
+                    attachments_preview: []
+                    untimed            : true
+                  }
+                }
+
+                var.update $jobs_out {
+                  value = $jobs_out|push:$ujob_item
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Personal block / day-off lookup so the dashboard can banner
     // "HAS ALEC" / "vacation" / etc. above the day's jobs.
     db.query tech_availability {
