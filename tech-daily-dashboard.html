@@ -816,6 +816,18 @@
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
+      // TWO-MAN jobs: pull any job where this tech is the SECOND man and merge
+      // it in so it shows on his dashboard too. Best-effort — wrapped so a crew
+      // hiccup can NEVER break the normal schedule.
+      try {
+        const cr = await fetch(`/.netlify/functions/crew?action=list&tech_id=${encodeURIComponent(TECH_ID)}&date=${encodeURIComponent(data.date_ct || '')}`);
+        const cj = await cr.json();
+        if (cj && cj.ok && Array.isArray(cj.jobs) && cj.jobs.length && Array.isArray(data.jobs)) {
+          const have = new Set(data.jobs.map((it) => it && it.job && it.job.id));
+          cj.jobs.forEach((it) => { if (it && it.job && !have.has(it.job.id)) data.jobs.push(it); });
+          data.jobs.sort((a, b) => (Number((a.job || {}).scheduled_start) || Infinity) - (Number((b.job || {}).scheduled_start) || Infinity));
+        }
+      } catch (_) { /* crew overlay is optional; ignore */ }
       render(data);
     } catch (err) {
       console.error(err);
@@ -946,6 +958,7 @@
     const statusLabel = status.replace(/_/g, ' ');
     const isPractice = (j.test_run_id || '').startsWith('PRACTICE');
     const practicePill = isPractice ? `<div class="status-pill" style="background:rgba(245,166,35,0.18); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">🧪 PRACTICE</div>` : '';
+    const crewPill = item.crew_with ? `<div class="status-pill" style="background:rgba(116,227,196,0.18); border:1px solid rgba(116,227,196,0.5); color:#74e3c4; font-weight:700">👥 2-man w/ ${escapeHtml(item.crew_with)}</div>` : '';
 
     const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
@@ -1021,6 +1034,7 @@
           <div class="time-window">${timeStr}</div>
           <div class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</div>
           ${practicePill}
+          ${crewPill}
         </div>
         <div class="customer-line">${escapeHtml(custName)}</div>
         <div class="appliance-line">${applianceLine}</div>
