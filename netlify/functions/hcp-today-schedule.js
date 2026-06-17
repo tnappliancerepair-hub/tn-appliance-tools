@@ -73,14 +73,30 @@ exports.handler = async (event) => {
     const techName = (Array.isArray(emps) ? emps : [emps])
       .map((e) => `${(e && e.first_name) || ''} ${(e && e.last_name) || ''}`.trim()).filter(Boolean).join(', ') || 'Unassigned';
     const a = h.address || {};
+    const cu = h.customer || {};
+    const sch = h.schedule || {};
+    const startIso = sch.scheduled_start || sch.start_time || null;
+    const endIso = sch.scheduled_end || sch.end_time || null;
+    const toMs = (iso) => { const t = iso ? new Date(iso).getTime() : NaN; return Number.isFinite(t) ? t : null; };
     const stop = {
-      time: ctTime(h.schedule && (h.schedule.scheduled_start || h.schedule.start_time)),
-      scheduled_start: h.schedule && h.schedule.scheduled_start,
-      customer: h.customer ? `${h.customer.first_name || ''} ${h.customer.last_name || ''}`.trim() : '',
-      phone: (h.customer && (h.customer.mobile_number || h.customer.home_number)) || '',
+      time: ctTime(startIso),
+      scheduled_start: startIso,
+      customer: `${cu.first_name || ''} ${cu.last_name || ''}`.trim(),
+      phone: cu.mobile_number || cu.home_number || '',
       address: [a.street, a.city, a.state, a.zip].filter(Boolean).join(', '),
       what: h.description || (h.work_status || ''),
       status: h.work_status || '',
+      // raw fields for tap-to-work (import_hcp_job contract)
+      hcp_id: String(h.id || ''),
+      hcp_job_number: h.invoice_number || h.job_number || '',
+      first_name: cu.first_name || '',
+      last_name: cu.last_name || '',
+      email: cu.email || '',
+      street: a.street || '', city: a.city || '', state: a.state || '', zip: a.zip || '',
+      scheduled_start_ms: toMs(startIso),
+      scheduled_end_ms: toMs(endIso),
+      description: h.description || '',
+      work_status: h.work_status || '',
     };
     (byTech[techName] = byTech[techName] || []).push(stop);
   }
