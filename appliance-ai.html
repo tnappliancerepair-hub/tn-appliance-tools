@@ -148,6 +148,8 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FN = 'https://tnapplianceexchange.net/.netlify/functions';  // absolute canonical — never hits the www 301
 const QC_PRICE = 50;   // live $50 Quick Check
 const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
+// Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
+const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
 
 // ── FAIL-PROOF MEDIA UPLOAD (built for low / spotty signal) ───────────────────
 // XHR-based PUT with live progress, per-attempt timeout, and automatic retries
@@ -392,7 +394,8 @@ function payStep(){
       const r=await fetch(FN+'/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
-        conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending
+        conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
+        qc_test:QC_TEST
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
