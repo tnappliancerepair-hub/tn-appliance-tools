@@ -1,5 +1,29 @@
 # Appliance Ant
 
+## ⏭️ NEXT SESSION (saved end of 2026-06-17 afternoon — permanent tech app + practice-job cleanup + Andre SMS-gate bug) — READ FIRST
+
+**Short, focused afternoon session. All shipped + merged to `main` (PRs #35–#38). Front-end pieces are LIVE on Netlify; no Mac action required for any of it.**
+
+### ✅ SHIPPED + LIVE
+- **PERMANENT TECH APP (`/tech`)** — new `tech.html` (+ `/tech` and `/me` redirects, `manifest-tech.json` start_url, sw-tech.js registered). Reads localStorage `tn_tech_id` → opens straight to that tech's `tech-daily-dashboard.html`. First visit (or `?tech_id=`) shows a tech picker / locks the device to that tech. Add-to-Home-Screen hint makes it the "Ant" app icon. **No more hunting old texts for the right link.**
+- **LINKS SENT to all 5 techs** — one-time `send-tech-app-links.js` (guard `tn-tech-links-2026`) texted Jimmy/John/Lee/Andre/Teddy their personal `tnapplianceexchange.net/tech?tech_id=X`. Billy (5) excluded (left).
+- **🐞 ANDRE SMS-GATE BUG FOUND + worked around.** `send_sms` gate (`api/intake/send_sms_POST.xs`) only treats a number as "internal" if it matches `technicians.phone` (10-digit / +1 / 1-prefixed). **Andre's tech row stores `5049099413` (LA 504), but the CLAUDE.md roster said 615-969-3115** — so texting the 615 number got **gated** (dropped as customer-direction, CUSTOMER_FACING off). Teddy confirmed **BOTH numbers are Andre's**; the system uses the 504. His link was re-sent to the 504 successfully. **Takeaway: all Andre automation must use 504-909-9413 (on his tech row); the 615 will silently gate.** (Roster table below still lists 615 — leave both in mind.)
+- **PRACTICE-JOB CLEANUP (surgical) — `clear-practice-placements.js`.** The disabled practice-auto-scheduler had stamped **189** jobs `PRACTICE_<date>` + scheduled them onto real techs → hidden from techs (dashboard filters PRACTICE) AND out of Danielle's queue. The cleanup now sorts each into: **RECOVER** 135 real warranty jobs (have claim#) → back to needs-scheduled; **FLAG** 32 no-claim jobs → ALSO back to needs-scheduled but stamped `friendly_status="⚠️ REVIEW — no claim #"` (per Teddy: some are REAL jobs just missing the claim#/mislabeled cash, NOT fakes — Danielle Schedules or 🗑 Deletes each); **SKIP** 22 terminal (canceled/completed/awaiting_parts) untouched. `needs-scheduled.html` renders a red ⚠️ REVIEW banner per flagged card. **Dry-run:** `?secret=tn-practice-cleanup-2026`. **Execute:** add `&confirm=yes`. **Nothing is auto-canceled.**
+- **practice-auto-schedule-cron stays DISABLED** (netlify.toml — the source of the pollution).
+
+### ⏳ OPEN / NEXT
+- **RUN the practice cleanup live** if not already: `…/clear-practice-placements?secret=tn-practice-cleanup-2026&confirm=yes` → recovers 135 + flags 32. Then tell Danielle her queue jumped (intended) and the red ⚠️ cards need her verify/delete.
+- **2-of-8 / untimed-jobs XS** (`get_tech_daily_dashboard_GET.xs`) — SAFE version (detect untimed via `(scheduled_start ?? 0) <= 0` in foreach, NOT null-in-where) still needs a Mac `xano workspace push` + curl-verify (no `fatal`). Not pushed this session.
+- **The loop→local-SQLite cutover** (db.js foundation built + 13/13 tests pass) — still the deliberate next-session move. Loop currently OFF.
+- **Consider correcting CLAUDE.md roster** Andre row to note 504-909-9413 is the system-of-record number.
+
+### ⚠️ FOOTGUNS (this session)
+- **`send_sms` only un-gates numbers on the technicians table.** If a tech's real cell isn't stored on `technicians.phone` (exact 10-digit/+1/1 form), every automated text to it is silently gated/dropped. Andre was the live case.
+- **Long-lived branch + squash-merges = repeated merge conflicts** in the same file. Each PR off `claude/good-morning-aujwba` conflicted on `clear-practice-placements.js`; resolved by `git merge origin/main` → keep HEAD → recommit. Consider a fresh branch next session.
+- **Metadata content/search 400s on enum filters** (confirmed again) — paginate by `{sort:{id:'desc'}}` + filter in JS.
+
+---
+
 ## ⏭️ NEXT SESSION (saved end of 2026-06-16 — MSA intel + the "15k-text" incident) — READ FIRST
 
 **This session was half MSA/parts wiring, half a real production incident.** Everything below shipped + merged to `main` (PR #26, 13 commits) and is pulled onto the Mac.
