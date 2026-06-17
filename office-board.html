@@ -405,11 +405,18 @@ function cardHtml(j){
   if(overdue(j))tags.push('<span class="tag over">overdue</span>');
   const _c=Number(j.created_at||0), _days=_c?Math.floor((Date.now()-_c)/86400000):0;
   const _wait=(_days>=1 && j.scheduling_status!=='completed')?('<span class="jc-wait" style="font-size:11px;font-weight:800;color:'+(_days>=7?'#c0392b':(_days>=3?'#b3690a':'#8a96a8'))+'">⏳ '+_days+'d</span>'):'';
+  // Report-request button — on the cards she works toward invoicing (Completion /
+  // Needs Invoice / a tech's Report column). Taps Ant to text+call the tech to
+  // finish the report. (Teddy 2026-06-16 — "wherever her tickets are.")
+  const _col=placeOf(j);
+  const _showReportBtn=(_col==='done'||_col==='needinv'||(typeof _col==='string'&&_col.indexOf('rep-')===0));
+  const _reportBtn=_showReportBtn?`<button onclick="event.stopPropagation();reqTechReport(${j.id})" title="Ant texts + calls the tech to finish the report" style="margin-top:7px;width:100%;padding:7px;border:0;border-radius:7px;background:#fff4e0;color:#b3690a;border:1px solid #f3d49a;font-size:12px;font-weight:700;cursor:pointer">📋 Request report</button>`:'';
   return `<div class="jcard" draggable="true" data-id="${j.id}">
     <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div>${_wait}</div>
     <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
     ${j.claim_number?('<div class="jc-meta mono" style="font-family:ui-monospace,monospace;font-size:11px">#'+esc(j.claim_number)+'</div>'):''}
     <div class="jc-tags">${tags.join('')}</div>
+    ${_reportBtn}
   </div>`;
 }
 
@@ -491,6 +498,16 @@ async function openDrawer(id){
   }
 }
 function closeDrawer(){document.getElementById('scrim').classList.remove('open');document.getElementById('drawer').classList.remove('open');}
+async function reqTechReport(jobId){
+  const m=document.getElementById('reqrep-msg'); if(m)m.textContent='Texting the tech…';
+  try{
+    const r=await fetch('/.netlify/functions/request-tech-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId})});
+    const d=await r.json();
+    if(d&&d.ok){ if(m)m.textContent='✓ Texted the tech — Ant will call them to finish it ('+((d.missing||[]).join(', ')||'a few details')+').'; toast('Report requested ✓'); }
+    else if(d&&d.complete){ if(m)m.textContent='✓ This report\'s already complete.'; toast('Report complete ✓'); }
+    else { if(m)m.textContent='⚠ '+((d&&d.error)||'failed — is a tech assigned?'); }
+  }catch(_){ if(m)m.textContent='⚠ connection error'; }
+}
 
 function renderDrawer(d){
   const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
@@ -561,6 +578,12 @@ function renderDrawer(d){
   // date IN Ant (kills double-entry into the old tool).
   const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
   document.getElementById('d-body').innerHTML=`
+    ${!techReport ? `<div class="dcard" style="border-color:#f5a623">
+      <h4>📋 Report not filed</h4>
+      <p style="color:var(--dim,#8a93a1);font-size:13px;margin:4px 0 10px">No tech report yet. Ping ${esc(t.name||'the tech')} — Ant texts them what's missing + calls to finish it by voice.</p>
+      <button onclick="reqTechReport(${jid})" style="width:100%;padding:11px;border:0;border-radius:9px;background:#f5a623;color:#fff;font-weight:800;font-size:14px;cursor:pointer">📋 Request report from tech</button>
+      <div id="reqrep-msg" style="font-size:12px;color:var(--dim,#8a93a1);margin-top:6px"></div>
+    </div>` : ''}
     <div class="dcard">
       <h4>📋 Job file</h4>
       <div class="kv">
