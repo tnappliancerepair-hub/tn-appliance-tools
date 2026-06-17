@@ -24,6 +24,7 @@ const XANO_RECORD_EVENT = `${XANO_BASE}/record_event_log`;
 const XANO_LOOKUP_CUSTOMER = `${XANO_BASE}/lookup_customer_by_phone`;
 const XANO_RECORD_BRAIN_OBS = `${XANO_BASE}/record_brain_observation`;
 
+const SET_TDR_FIELD_URL = 'https://tnapplianceexchange.net/.netlify/functions/set-tdr-field';
 const PHONE_BRAIN_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-brain';
 const PHONE_OUTBOUND_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-outbound';
 
@@ -537,6 +538,12 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       '  labor_hours         - hours of labor as a number string, e.g. "1" or "1.5"\n' +
       '  repair_completed    - what the tech did to fix it; INCLUDE any part numbers ' +
       'mentioned and any parts-to-return notes\n' +
+      '  failure_cause       - the SINGLE best-fit cause, EXACTLY one of: normal_wear, ' +
+      'lack_of_maintenance, customer_misuse, pests, power_surge, manufacturer_defect, ' +
+      'improper_installation, external_damage, pre_existing, other. Map what the tech ' +
+      'said the cause was to the closest one. If the tech did not say or it is unclear, use "".\n' +
+      '  failure_cause_notes - a short plain explanation of the cause in the tech\'s words ' +
+      '(fill this whenever you set failure_cause, especially when it is "other")\n' +
       'Only include what the tech actually said. Do not invent part numbers.';
     let resp;
     try {
@@ -564,7 +571,9 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
 
     // Write each non-empty field. Don't clobber: the live tool may have
     // already captured some — update_tdr_field_from_voice just edits the
-    // same row, so re-writing the same value is a safe no-op.
+    // same row, so re-writing the same value is a safe no-op. We capture the
+    // returned tdr_id so we can set the enum cause (which the voice endpoint
+    // can't map) directly afterward.
     const map = [
       ['diagnosis', fields.diagnosis],
       ['failed_component', fields.failed_component],
@@ -572,13 +581,32 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       ['repair_completed', fields.repair_completed],
     ];
     let wrote = 0;
+    let tdrId = 0;
     for (const [field, value] of map) {
       const v = String(value || '').trim();
       if (!v) continue;
-      await safePost(`${XANO_BASE}/update_tdr_field_from_voice`, {
-        job_id: jobId, technician_id: techId, field, value: v,
-      });
+      try {
+        const r = await fetch(`${XANO_BASE}/update_tdr_field_from_voice`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: jobId, technician_id: techId, field, value: v }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d && d.tdr_id) tdrId = d.tdr_id;
+      } catch (_) {}
       wrote += 1;
+    }
+
+    // failure_cause is an ENUM the voice endpoint can't write — set it (and a
+    // plain-language note) via set-tdr-field, which validates against the menu.
+    // This is Ant recording the dropdown value from what the tech said the
+    // cause was, so Danielle's report is complete without anyone clicking.
+    const CAUSE_ENUM = new Set(['normal_wear', 'lack_of_maintenance', 'customer_misuse', 'pests', 'power_surge', 'manufacturer_defect', 'improper_installation', 'external_damage', 'pre_existing', 'other']);
+    const cause = String(fields.failure_cause || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (tdrId && CAUSE_ENUM.has(cause)) {
+      await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'failure_cause', value: cause });
+      const causeNotes = String(fields.failure_cause_notes || '').trim();
+      if (causeNotes) await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'failure_cause_notes', value: causeNotes });
     }
 
     // Finalize only if we actually captured the core of a report. This fires
@@ -592,7 +620,7 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       action: 'tdr_written_from_call_transcript',
       metadata_json: JSON.stringify({
         job_id: jobId, tech_id: techId, vapi_call_id: callId,
-        fields_written: wrote, finalized: wrote >= 2,
+        fields_written: wrote, finalized: wrote >= 2, cause: (tdrId && CAUSE_ENUM.has(cause)) ? cause : '',
       }),
     });
   } catch (_) {}
