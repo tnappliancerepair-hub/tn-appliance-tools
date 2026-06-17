@@ -88,13 +88,10 @@
 [functions."nightly-event-log-gc"]
   schedule = "10 8 * * *"
 
-# Practice auto-scheduler. Every 15 min, auto-places not_ready jobs from
-# May 30+ onto tech dashboards via mock-scheduler in practice_mode. Tags
-# placed jobs with test_run_id="PRACTICE_<date>" so the tech daily
-# dashboard renders a "🧪 PRACTICE" badge. No tech SMS, no customer SMS.
-# Disable by removing this block or changing the schedule.
-[functions."practice-auto-schedule-cron"]
-  schedule = "*/15 * * * *"
+# Practice auto-scheduler — DISABLED 2026-06-16. It was dumping PRACTICE_<date>
+# test placements onto real techs' real days (e.g. Jimmy seeing "5 of 8" — the 3
+# extras were practice jobs). The practice phase is over; this stays off.
+# (Was: [functions."practice-auto-schedule-cron"] schedule = "*/15 * * * *")
 
 # 2026-06-02 8:30am — Teddy cancelled the morning SMS (missed the 7am
 # Daily tech morning briefing — each tech with jobs today gets a text with
