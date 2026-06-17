@@ -544,6 +544,10 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       'said the cause was to the closest one. If the tech did not say or it is unclear, use "".\n' +
       '  failure_cause_notes - a short plain explanation of the cause in the tech\'s words ' +
       '(fill this whenever you set failure_cause, especially when it is "other")\n' +
+      '  parts_used          - JSON array of parts the tech actually INSTALLED on the unit, ' +
+      'each {"part_number":"...","name":"..."} (use "" for a field if unknown). [] if none.\n' +
+      '  parts_not_used      - JSON array of parts brought/ordered but NOT used that must be ' +
+      'RETURNED, same shape. [] if none.\n' +
       'Only include what the tech actually said. Do not invent part numbers.';
     let resp;
     try {
@@ -607,6 +611,16 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'failure_cause', value: cause });
       const causeNotes = String(fields.failure_cause_notes || '').trim();
       if (causeNotes) await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'failure_cause_notes', value: causeNotes });
+    }
+
+    // Parts the tech used / needs to return -> the structured fields the office
+    // view reads, so Danielle sees them as clean line items (not buried in the
+    // repair text). Only write when there's something, so we never wipe a list.
+    if (tdrId) {
+      const partsUsed = Array.isArray(fields.parts_used) ? fields.parts_used.filter((p) => p && (p.part_number || p.name)) : [];
+      const partsReturn = Array.isArray(fields.parts_not_used) ? fields.parts_not_used.filter((p) => p && (p.part_number || p.name)) : [];
+      if (partsUsed.length) await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'parts_used', value: partsUsed });
+      if (partsReturn.length) await safePost(SET_TDR_FIELD_URL, { tdr_id: tdrId, field: 'parts_not_used', value: partsReturn });
     }
 
     // Finalize only if we actually captured the core of a report. This fires

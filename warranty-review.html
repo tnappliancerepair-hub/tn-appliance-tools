@@ -784,6 +784,19 @@
       const tdr = b.tdr || {};
       const custName = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '(no name)';
       const addr = [c.address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+      // Parts used / to return — captured by Ant into structured fields. Accept
+      // an array of {part_number,name} (or plain strings) and show clean lines.
+      const fmtParts = (v) => {
+        let arr = v;
+        if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (_) { return arr; } }
+        if (!Array.isArray(arr)) return '';
+        return arr.map((p) => {
+          if (!p) return '';
+          if (typeof p === 'string') return p;
+          const nm = (p.name || '').trim(); const pn = (p.part_number || '').trim();
+          return nm && pn ? `${nm} (${pn})` : (nm || pn);
+        }).filter(Boolean).join(', ');
+      };
       const fields = [
         ['Claim #',          b.claim_number || b.dispatch_id || ''],
         ['Vendor',           b.warranty_company || ''],
@@ -799,6 +812,8 @@
         ['Failed component', tdr.failed_component || ''],
         ['Failure cause',    tdr.failure_cause || ''],
         ['Repair completed', tdr.repair_completed || ''],
+        ['🔧 Parts used',    fmtParts(tdr.parts_used)],
+        ['📦 Parts to return', fmtParts(tdr.parts_not_used)],
         ['Labor (hrs)',      (tdr.labor_time_hours != null) ? String(tdr.labor_time_hours) : ''],
         ['Tech',             ((t.first_name||'') + ' ' + (t.last_name||'')).trim() || '(unassigned)'],
       ];
