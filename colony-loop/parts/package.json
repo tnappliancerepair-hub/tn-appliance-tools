@@ -7,7 +7,8 @@
   "scripts": {
     "login": "node login.js",
     "lookup": "node lookup.js",
-    "serve": "node serve.js"
+    "serve": "node serve.js",
+    "tunnel": "bash tunnel.sh"
   },
   "dependencies": {
     "playwright": "^1.48.0"
