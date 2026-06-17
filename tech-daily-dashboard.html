@@ -830,35 +830,63 @@
     jobsHost.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button class="retry" onclick="location.reload()">retry</button></div>`;
   }
 
-  // Read-only mirror of the tech's REAL office (HCP) schedule, shown above the Ant
-  // jobs so the dashboard matches their actual day while Ant's calendar is being
-  // reconciled. Pure display — writes nothing, so no duplicates and no texts.
+  // Read-only mirror of the tech's REAL office (HCP) schedule. When HCP has the
+  // route, it BECOMES the dashboard's numbered cards + map pins (the complete real
+  // day), since Ant only has a sparse subset until cutover. Pure display — writes
+  // nothing, so no duplicates and no texts. These jobs are worked in HCP.
   async function loadHcpRoute(dateCT, todayCT) {
-    let host = document.getElementById('hcpRoute');
-    if (!host) { host = document.createElement('div'); host.id = 'hcpRoute'; jobsHost.parentNode.insertBefore(host, jobsHost); }
-    host.innerHTML = '';
+    const old = document.getElementById('hcpRoute'); if (old) old.remove();
     try {
       let u = `/.netlify/functions/hcp-today-schedule?tech_id=${encodeURIComponent(TECH_ID)}`;
       if (dateCT && todayCT && dateCT !== todayCT) u += `&date=${encodeURIComponent(dateCT)}`;
       const r = await fetch(u);
       const d = await r.json();
       if (!d || !d.ok || !Array.isArray(d.my_stops) || !d.my_stops.length) return;
-      const rows = d.my_stops.map((s) => {
-        const addr = escapeHtml(s.address || '');
-        const nav = s.address ? `https://maps.google.com/?q=${encodeURIComponent(s.address)}` : '';
-        return '<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid #18313d;">'
-          + '<div style="min-width:62px;font-weight:800;color:#eafaff;font-size:13px;">' + escapeHtml(s.time || '—') + '</div>'
-          + '<div style="flex:1;min-width:0;">'
-          + '<div style="font-weight:700;color:#fff;font-size:14px;">' + escapeHtml(s.customer || '(customer)') + '</div>'
-          + (addr ? ('<a href="' + nav + '" target="_blank" style="color:#9fd9ff;font-size:13px;text-decoration:none;display:block;">' + addr + '</a>') : '')
-          + (s.what ? ('<div style="color:#8aa3b0;font-size:12px;margin-top:2px;">' + escapeHtml(s.what) + '</div>') : '')
-          + '</div></div>';
-      }).join('');
-      host.innerHTML = '<div style="background:#10202a;border:1px solid #1c3b49;border-radius:13px;padding:12px 15px;margin:0 0 14px;">'
-        + '<div style="font-size:12px;font-weight:800;color:#7fd8ef;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">📋 Your route today — office schedule</div>'
-        + '<div style="font-size:11px;color:#6f93a1;margin-bottom:6px;">' + d.my_stops.length + ' stop' + (d.my_stops.length === 1 ? '' : 's') + ' from the office calendar</div>'
-        + rows + '</div>';
+      const stops = d.my_stops;
+
+      // Headline summary
+      summary.innerHTML = '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
+        + '<span style="font-size:17px;font-weight:800;color:#eafaff;">' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + '</span>'
+        + '<span style="font-size:13px;color:#8aa3b0;">first at ' + escapeHtml(stops[0].time || '') + '</span>'
+        + '<span style="font-size:10px;font-weight:800;color:#7fd8ef;background:#10202a;border:1px solid #1c3b49;border-radius:6px;padding:2px 7px;text-transform:uppercase;letter-spacing:.05em;">📋 office schedule</span>'
+        + '</div>';
+
+      // Numbered route cards (replace the sparse Ant cards)
+      jobsHost.className = 'jobs';
+      jobsHost.innerHTML = stops.map((s, i) => hcpCardHtml(s, i)).join('');
+
+      // Map pins for the whole route
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapMarkers = [];
+      await renderMap(stops.map((s) => ({ job: { service_address: s.address || '', service_city: '', service_state: '', service_zip: '' } })));
     } catch (_) {}
+  }
+
+  function hcpCardHtml(s, i) {
+    const num = i + 1;
+    const st = (s.status || 'scheduled').toLowerCase().replace(/\s+/g, '_');
+    const statusClass = ['scheduled', 'in_progress', 'completed'].includes(st) ? ('status-' + st) : 'status-other';
+    const phone = (s.phone || '').replace(/[^\d+]/g, '');
+    const telHref = phone ? `tel:${phone.startsWith('+') ? phone : '+1' + phone.replace(/^1/, '')}` : null;
+    const addrForMaps = encodeURIComponent(s.address || '');
+    return `
+      <div class="card" id="card-${i}" data-index="${i}" style="animation-delay:${i * 60}ms">
+        <div class="card-top">
+          <div class="stop-num">${num}</div>
+          <div class="time-window">${escapeHtml(s.time || '')}</div>
+          <div class="status-pill ${statusClass}">${escapeHtml((s.status || 'scheduled').replace(/_/g, ' '))}</div>
+        </div>
+        <div class="customer-line">${escapeHtml(s.customer || '(customer)')}</div>
+        ${s.what ? `<div class="appliance-line">${escapeHtml(s.what)}</div>` : ''}
+        <div class="address-line"><div class="icon">📍</div><div class="text">${escapeHtml(s.address || '')}</div></div>
+        <div class="card-cta">
+          <div class="open-btn" style="opacity:.55;font-size:12px;">📋 Office job · work in HCP</div>
+          <div class="quick-actions">
+            ${telHref ? `<a href="${telHref}" class="quick-btn" title="call" onclick="event.stopPropagation()">📞</a>` : ''}
+            <a href="https://maps.apple.com/?q=${addrForMaps}" class="quick-btn" title="navigate" onclick="event.stopPropagation()">🧭</a>
+          </div>
+        </div>
+      </div>`;
   }
 
   // ── Render ─────────────────────────────────────────────────────
