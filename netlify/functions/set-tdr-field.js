@@ -33,9 +33,17 @@ exports.handler = async function (event) {
   if (!ALLOWED.has(field)) return j(400, { ok: false, error: 'field not allowed', allowed: [...ALLOWED] });
 
   try {
-    await md.update(TDR_TABLE, tdrId, { [field]: value });
+    // Xano's content PUT replaces the row, so read-modify-write: load the
+    // current TDR, set just the one field, write the whole thing back.
+    const rows = await md.search(TDR_TABLE, { id: tdrId });
+    const row = Array.isArray(rows) ? rows.find((r) => Number(r.id) === tdrId) || rows[0] : null;
+    if (!row) return j(404, { ok: false, error: 'tdr not found', tdr_id: tdrId });
+    const merged = Object.assign({}, row, { [field]: value });
+    delete merged.id;            // id is in the path, not the body
+    delete merged.created_at;    // don't try to rewrite the timestamp
+    await md.update(TDR_TABLE, tdrId, merged);
     return j(200, { ok: true, tdr_id: tdrId, field, value });
   } catch (e) {
-    return j(200, { ok: false, error: String((e && e.message) || e) });
+    return j(200, { ok: false, error: String((e && e.message) || e), detail: (e && e.body) ? String(e.body).slice(0, 400) : undefined });
   }
 };
