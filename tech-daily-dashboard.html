@@ -817,7 +817,6 @@
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
       render(data);
-      loadHcpRoute(data.date_ct, data.today_ct);
     } catch (err) {
       console.error(err);
       showError('network error');
@@ -828,98 +827,6 @@
 
   function showError(msg) {
     jobsHost.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button class="retry" onclick="location.reload()">retry</button></div>`;
-  }
-
-  // Read-only mirror of the tech's REAL office (HCP) schedule. When HCP has the
-  // route, it BECOMES the dashboard's numbered cards + map pins (the complete real
-  // day), since Ant only has a sparse subset until cutover. Pure display — writes
-  // nothing, so no duplicates and no texts. These jobs are worked in HCP.
-  async function loadHcpRoute(dateCT, todayCT) {
-    const old = document.getElementById('hcpRoute'); if (old) old.remove();
-    try {
-      let u = `/.netlify/functions/hcp-today-schedule?tech_id=${encodeURIComponent(TECH_ID)}`;
-      if (dateCT && todayCT && dateCT !== todayCT) u += `&date=${encodeURIComponent(dateCT)}`;
-      const r = await fetch(u);
-      const d = await r.json();
-      if (!d || !d.ok || !Array.isArray(d.my_stops) || !d.my_stops.length) return;
-      const stops = d.my_stops;
-
-      // Headline summary
-      summary.innerHTML = '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">'
-        + '<span style="font-size:17px;font-weight:800;color:#eafaff;">' + stops.length + ' stop' + (stops.length === 1 ? '' : 's') + '</span>'
-        + '<span style="font-size:13px;color:#8aa3b0;">first at ' + escapeHtml(stops[0].time || '') + '</span>'
-        + '<span style="font-size:10px;font-weight:800;color:#7fd8ef;background:#10202a;border:1px solid #1c3b49;border-radius:6px;padding:2px 7px;text-transform:uppercase;letter-spacing:.05em;">📋 office schedule</span>'
-        + '</div>';
-
-      // Numbered route cards (replace the sparse Ant cards)
-      jobsHost.className = 'jobs';
-      window.__hcpStops = stops;
-      jobsHost.innerHTML = stops.map((s, i) => hcpCardHtml(s, i)).join('');
-
-      // Map pins for the whole route
-      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-      mapMarkers = [];
-      await renderMap(stops.map((s) => ({ job: { service_address: s.address || '', service_city: '', service_state: '', service_zip: '' } })));
-    } catch (_) {}
-  }
-
-  function hcpCardHtml(s, i) {
-    const num = i + 1;
-    const st = (s.status || 'scheduled').toLowerCase().replace(/\s+/g, '_');
-    const statusClass = ['scheduled', 'in_progress', 'completed'].includes(st) ? ('status-' + st) : 'status-other';
-    const phone = (s.phone || '').replace(/[^\d+]/g, '');
-    const telHref = phone ? `tel:${phone.startsWith('+') ? phone : '+1' + phone.replace(/^1/, '')}` : null;
-    const addrForMaps = encodeURIComponent(s.address || '');
-    return `
-      <div class="card" id="card-${i}" data-index="${i}" style="animation-delay:${i * 60}ms;cursor:pointer" onclick="openHcpJob(${i})">
-        <div class="card-top">
-          <div class="stop-num">${num}</div>
-          <div class="time-window">${escapeHtml(s.time || '')}</div>
-          <div class="status-pill ${statusClass}">${escapeHtml((s.status || 'scheduled').replace(/_/g, ' '))}</div>
-        </div>
-        <div class="customer-line">${escapeHtml(s.customer || '(customer)')}</div>
-        ${s.what ? `<div class="appliance-line">${escapeHtml(s.what)}</div>` : ''}
-        <div class="address-line"><div class="icon">📍</div><div class="text">${escapeHtml(s.address || '')}</div></div>
-        <div class="card-cta">
-          <div class="open-btn">Open & work →</div>
-          <div class="quick-actions">
-            ${telHref ? `<a href="${telHref}" class="quick-btn" title="call" onclick="event.stopPropagation()">📞</a>` : ''}
-            <a href="https://maps.apple.com/?q=${addrForMaps}" class="quick-btn" title="navigate" onclick="event.stopPropagation()">🧭</a>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  // Tap a stop -> import THAT job into Ant (idempotent) and open the tech work page.
-  async function openHcpJob(i) {
-    const s = (window.__hcpStops || [])[i];
-    if (!s || !s.hcp_id) { alert('This job has no HCP id — refresh and try again.'); return; }
-    const card = document.getElementById('card-' + i);
-    const btn = card && card.querySelector('.open-btn');
-    const orig = btn ? btn.textContent : '';
-    if (btn) btn.textContent = 'Opening…';
-    try {
-      const r = await fetch('/.netlify/functions/open-hcp-job', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hcp_id: s.hcp_id, hcp_job_number: s.hcp_job_number, work_status: s.work_status,
-          first_name: s.first_name, last_name: s.last_name, phone: s.phone, email: s.email,
-          street: s.street, city: s.city, state: s.state, zip: s.zip,
-          scheduled_start_ms: s.scheduled_start_ms, scheduled_end_ms: s.scheduled_end_ms,
-          description: s.description, technician_id: parseInt(TECH_ID, 10) || null,
-        }),
-      });
-      const d = await r.json();
-      if (d && d.ok && d.job_id) {
-        window.location.href = `tech-job.html?job_id=${d.job_id}&tech_id=${TECH_ID}&v=${Date.now()}`;
-      } else {
-        if (btn) btn.textContent = orig;
-        alert('Could not open the job: ' + ((d && d.error) || 'try again') + '. Call the office if it keeps failing.');
-      }
-    } catch (e) {
-      if (btn) btn.textContent = orig;
-      alert('Could not open the job (' + (e.message || e) + '). Try again.');
-    }
   }
 
   // ── Render ─────────────────────────────────────────────────────
