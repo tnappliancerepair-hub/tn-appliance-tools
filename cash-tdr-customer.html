@@ -59,6 +59,7 @@
 
   .options { display:grid; grid-template-columns:1fr; gap:10px; margin-bottom:10px; }
   @media (min-width:560px) { .options { grid-template-columns:1fr 1fr; } }
+  .ship-note { font-size:13px; color:var(--white); background:rgba(80,150,255,0.08); border:1px solid rgba(80,150,255,0.28); border-radius:10px; padding:11px 14px; margin:4px 0 2px; line-height:1.5; }
   .opt { background:var(--surf2); border:1px solid var(--bord2); border-radius:10px; padding:14px; text-align:left; cursor:pointer; color:var(--white); font:inherit; transition:border-color .15s, background .15s; }
   .opt:hover { border-color:var(--gray2); }
   .opt.selected { border-color:var(--green); background:var(--grn-bg); }
@@ -222,28 +223,15 @@ function renderFailures() {
 
 function failureCardHTML(f) {
   const isRental = state.data.is_rental;
+  // Out-of-area (outside our TN/LA service area): ship-the-part only, no labor.
+  // qc_diagnosis_view sets customer.out_of_area; absent => in-area (show all).
+  const outOfArea = !!(state.data.customer && state.data.customer.out_of_area);
   const badge = isRental
     ? `<div class="badge">${f.tenant_reported ? 'Reported by tenant' : 'Found during diagnosis'}</div>`
     : '';
   const sel = (k) => state.selections[f.id] === k ? ' selected' : '';
   const p = f.pricing;
-  return `
-    <article class="failure-card" data-failure-id="${esc(f.id)}">
-      <div class="head">
-        <h3>${esc(f.failure_description)}</h3>
-        ${badge}
-      </div>
-      <div class="options">
-        <button class="opt${sel('diy_oem')}" data-failure-id="${esc(f.id)}" data-option="diy_oem">
-          <span class="name">DIY · OEM Part</span>
-          <span class="price">${money(p.diy_oem.total)}</span>
-          <span class="desc">Brand-name original part. You install.</span>
-        </button>
-        <button class="opt${sel('diy_amazon')}" data-failure-id="${esc(f.id)}" data-option="diy_amazon">
-          <span class="name">DIY · Amazon</span>
-          <span class="price">${money(p.diy_amazon.total)}</span>
-          <span class="desc">Aftermarket equivalent. You install.</span>
-        </button>
+  const installButtons = outOfArea ? '' : `
         <button class="opt${sel('install_oem')}" data-failure-id="${esc(f.id)}" data-option="install_oem">
           <span class="name">We Install · OEM</span>
           <span class="price">${money(p.install_oem.total)}</span>
@@ -253,8 +241,29 @@ function failureCardHTML(f) {
           <span class="name">We Install · Amazon</span>
           <span class="price">${money(p.install_amazon.total)}</span>
           <span class="desc">Aftermarket part + tech installs.</span>
-        </button>
+        </button>`;
+  const shipNote = outOfArea
+    ? `<p class="ship-note">📦 You're outside our service area, so we ship you the part and <b>Ant walks you through the install</b> — most are quick, no tools. No labor charge.</p>`
+    : '';
+  return `
+    <article class="failure-card" data-failure-id="${esc(f.id)}">
+      <div class="head">
+        <h3>${esc(f.failure_description)}</h3>
+        ${badge}
       </div>
+      <div class="options">
+        <button class="opt${sel('diy_oem')}" data-failure-id="${esc(f.id)}" data-option="diy_oem">
+          <span class="name">${outOfArea ? 'OEM Part · Shipped' : 'DIY · OEM Part'}</span>
+          <span class="price">${money(p.diy_oem.total)}</span>
+          <span class="desc">Brand-name original part. ${outOfArea ? 'Shipped to you.' : 'You install.'}</span>
+        </button>
+        <button class="opt${sel('diy_amazon')}" data-failure-id="${esc(f.id)}" data-option="diy_amazon">
+          <span class="name">${outOfArea ? 'Aftermarket · Shipped' : 'DIY · Amazon'}</span>
+          <span class="price">${money(p.diy_amazon.total)}</span>
+          <span class="desc">Aftermarket equivalent. ${outOfArea ? 'Shipped to you.' : 'You install.'}</span>
+        </button>${installButtons}
+      </div>
+      ${shipNote}
       <button class="opt-skip${sel('skip')}" data-failure-id="${esc(f.id)}" data-option="skip">Skip this repair · $0</button>
     </article>`;
 }
@@ -301,16 +310,31 @@ function renderSummary() {
   const CREDIT_CENTS = 5000;
   const creditApplied = laborSubtotal > 0 ? Math.min(CREDIT_CENTS, laborSubtotal) : 0;
   const laborAfterCredit = Math.max(0, laborSubtotal - CREDIT_CENTS);
-  const shipping = anyNonSkip ? SHIPPING_CENTS : 0;
+
+  // Delivery: when qc_diagnosis_view supplies per-supplier rates (and the Stripe
+  // XS matches them), charge the real shipped-part cost — Marcone (OEM) + Amazon
+  // (aftermarket) — and ONLY on shipped (DIY) options; install parts ride with the
+  // tech. Until that lands, fall back to the legacy flat rate (no display/charge
+  // drift). One Marcone shipment covers all OEM parts; one Amazon covers aftermarket.
+  const shipCfg = state.data.shipping || null; // { oem_cents, amazon_cents }
+  let shipping, shipLabel = 'Shipping and parts sourcing';
+  if (shipCfg) {
+    const hasOemShip = failures.some(f => sels[f.id] === 'diy_oem');
+    const hasAmzShip = failures.some(f => sels[f.id] === 'diy_amazon');
+    shipping = (hasOemShip ? (shipCfg.oem_cents || 0) : 0) + (hasAmzShip ? (shipCfg.amazon_cents || 0) : 0);
+    shipLabel = 'Delivery';
+  } else {
+    shipping = anyNonSkip ? SHIPPING_CENTS : 0;
+  }
   const total = partsSubtotal + laborAfterCredit + shipping;
 
-  // Build math rows: credit (if labor > 0), shipping (if any non-skip), total.
+  // Build math rows: credit (if labor > 0), shipping (if charged), total.
   const mathRows = [];
   if (laborSubtotal > 0) {
     mathRows.push(`<div class="row credit"><span>Quick Check Credit (applied to labor)</span><span>−${money(creditApplied)}</span></div>`);
   }
-  if (anyNonSkip) {
-    mathRows.push(`<div class="row"><span>Shipping and parts sourcing</span><span>${money(SHIPPING_CENTS)}</span></div>`);
+  if (shipping > 0) {
+    mathRows.push(`<div class="row"><span>${shipLabel}</span><span>${money(shipping)}</span></div>`);
   }
   mathRows.push(`<div class="row total"><span>Total</span><span>${money(total)}</span></div>`);
 
