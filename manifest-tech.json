@@ -2,7 +2,7 @@
   "name": "Ant Field",
   "short_name": "Ant",
   "description": "Your field partner — talk to Ant, snap photos, fill the TDR. Built for the truck.",
-  "start_url": "/tech-ant-chat.html",
+  "start_url": "/tech.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

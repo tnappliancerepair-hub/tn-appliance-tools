@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ant">
+<link rel="manifest" href="/manifest-tech.json">
+<link rel="apple-touch-icon" href="/icons/ant-512.svg">
+<title>Ant Field</title>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw-tech.js').catch(function(e){console.warn('sw',e.message);});});}</script>
+<style>
+  :root{--bg:#0b0d10;--card:#14161b;--line:#222530;--ink:#e8edf5;--dim:#8a93a1;--accent:#1fae64;--accent2:#27e08a}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,system-ui,'Segoe UI',Roboto,sans-serif;min-height:100%}
+  body{padding:max(28px,env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;text-align:center}
+  .logo{font-size:64px;margin-top:24px}
+  h1{font-size:24px;font-weight:800;margin:10px 0 2px}
+  .sub{color:var(--dim);font-size:14px;margin:0 0 26px}
+  .who{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:8px 0 12px}
+  .techs{width:100%;max-width:380px;display:grid;gap:10px}
+  .tech{display:flex;align-items:center;gap:12px;width:100%;padding:15px 16px;border:1px solid var(--line);border-radius:13px;background:var(--card);color:var(--ink);font-size:17px;font-weight:700;cursor:pointer;text-align:left}
+  .tech:active{transform:scale(.985)}
+  .tech .dot{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:14px;color:#04210f;font-weight:900;flex:0 0 auto}
+  .open{margin-top:30px;color:var(--dim);font-size:15px}
+  .install{margin-top:34px;max-width:380px;width:100%;background:#10202a;border:1px solid #1c3b49;border-radius:13px;padding:14px 16px;text-align:left;font-size:13.5px;color:#bfe6f2}
+  .install b{color:#eafaff}
+  .switch{margin-top:18px;font-size:13px;color:var(--dim);background:none;border:0;text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="logo">🐜</div>
+  <h1>Ant Field</h1>
+  <div class="sub">Your day, your jobs, your reports.</div>
+
+  <div id="opening" class="open" style="display:none">Opening your day…</div>
+
+  <div id="pick" style="display:none;width:100%;max-width:380px">
+    <div class="who">Who are you?</div>
+    <div class="techs" id="techs"></div>
+  </div>
+
+  <div class="install" id="install" style="display:none"></div>
+
+<script>
+  var TECHS = [
+    { id: 2, name: 'Jimmy' }, { id: 3, name: 'Andre' }, { id: 4, name: 'Lee' },
+    { id: 6, name: 'John' }, { id: 1, name: 'Teddy' },
+  ];
+  var KEY = 'tn_tech_id';
+
+  function go(id){
+    try { localStorage.setItem(KEY, String(id)); } catch(_){}
+    location.replace('tech-daily-dashboard.html?tech_id=' + id);
+  }
+
+  // Allow a fresh link (?tech_id=) to (re)set who this device belongs to.
+  var qp = new URLSearchParams(location.search);
+  var fromUrl = qp.get('tech_id');
+  var stored = null; try { stored = localStorage.getItem(KEY); } catch(_){}
+
+  if (fromUrl) { go(fromUrl); }
+  else if (stored && !qp.get('switch')) {
+    document.getElementById('opening').style.display = 'block';
+    setTimeout(function(){ location.replace('tech-daily-dashboard.html?tech_id=' + stored); }, 250);
+  } else {
+    // Show the picker
+    var wrap = document.getElementById('techs');
+    wrap.innerHTML = TECHS.map(function(t){
+      return '<button class="tech" onclick="go(' + t.id + ')"><span class="dot">' + t.name[0] + '</span>' + t.name + '</button>';
+    }).join('');
+    document.getElementById('pick').style.display = 'block';
+    showInstall();
+  }
+
+  // Add-to-home-screen guidance (so it lives as an app icon, no more hunting texts).
+  function showInstall(){
+    var el = document.getElementById('install');
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isStandalone) return; // already installed
+    var ua = navigator.userAgent || '';
+    var iOS = /iPhone|iPad|iPod/.test(ua);
+    el.innerHTML = iOS
+      ? '📲 <b>Make it an app:</b> tap the <b>Share</b> button below, then <b>Add to Home Screen</b>. Then just tap the Ant icon — straight to your day, every time.'
+      : '📲 <b>Make it an app:</b> tap the <b>⋮ menu</b> (top right) → <b>Add to Home screen</b> / <b>Install app</b>. Then tap the Ant icon — straight to your day, every time.';
+    el.style.display = 'block';
+  }
+</script>
+</body>
+</html>
