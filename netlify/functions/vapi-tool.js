@@ -35,10 +35,10 @@ async function postJson(url, body) {
 // Verified against the .xs endpoint method suffixes; everything else is POST.
 const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'get_parts_status', 'get_job_arrival_status']);
 // Tool name -> Xano endpoint path when they differ.
-const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat' };
+const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat', submit_tech_tdr: 'create_tdr' };
 // Tools that live on Netlify, not Xano. search_customers uses our forgiving
 // search fn (substring/any-case/middle-name) instead of the brittle XS endpoint.
-const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers', message_for_tech: 'tech-message' };
+const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers', message_for_tech: 'tech-message', get_tech_report_context: 'vapi-tech-report-context' };
 
 function qs(a) {
   const parts = Object.entries(a)
