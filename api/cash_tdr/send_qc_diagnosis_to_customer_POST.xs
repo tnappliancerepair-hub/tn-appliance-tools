@@ -89,8 +89,11 @@ query send_qc_diagnosis_to_customer verb=POST {
     }
   
     // 5. Resolve bill_to customer (per multi-party support locked 2026-05-05)
+    //    bill_to_customer_id defaults to 0 on quick-check jobs (create_job_from_chat
+    //    never sets it), and `0 ?? customer_id` keeps the 0 -> looks up customer #0 ->
+    //    "Bill-to customer record not found". Only use bill_to when it's a real id (>0).
     var $bill_to_id {
-      value = $job.bill_to_customer_id ?? $job.customer_id
+      value = ((($job.bill_to_customer_id ?? 0) > 0) ? ($job.bill_to_customer_id) : ($job.customer_id))
     }
   
     db.get customer {
