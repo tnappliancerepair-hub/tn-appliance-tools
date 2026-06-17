@@ -147,6 +147,9 @@ const SUB = document.getElementById('sub');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FN = 'https://tnapplianceexchange.net/.netlify/functions';  // absolute canonical — never hits the www 301
 const QC_PRICE = 50;   // live $50 Quick Check
+// FREE_MODE: skip payment entirely + never block on a slow upload, so a customer
+// on bad signal can always finish. Flip to false to restore the paid flow.
+const FREE_MODE = true;
 const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
 // Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
 const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
@@ -267,12 +270,16 @@ function askPayer(){
 // ── CASH: $50 quick check pitch ──
 function pitchQuickCheck(){
   if(!state.convId) state.convId = Date.now();  // stable id so video+photo+job all tie together
-  setHead('Let\'s do the <span class="accent">$'+QC_PRICE+' Quick Check</span>.','Honest answer in hours. Credited to your repair.');
-  antMsg('Here\'s how I\'ll get you a real answer fast — for <b>$'+QC_PRICE+'</b> (and it comes right off your repair if you go ahead):');
+  setHead('Let\'s do your <span class="accent">'+(FREE_MODE?'free ':'$'+QC_PRICE+' ')+'Quick Check</span>.','Honest answer in hours.'+(FREE_MODE?'':' Credited to your repair.'));
+  antMsg(FREE_MODE
+    ? 'Here\'s how I\'ll get you a real, honest answer fast — <b>free</b>:'
+    : 'Here\'s how I\'ll get you a real answer fast — for <b>$'+QC_PRICE+'</b> (and it comes right off your repair if you go ahead):');
   const v=document.createElement('div'); v.className='value';
   v.innerHTML='<div><b>Honest answer in hours</b> — not days of waiting.</div>'
-    +'<div><b>$'+QC_PRICE+', not $125+</b> — most shops charge that just to show up.</div>'
-    +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>'
+    +(FREE_MODE
+       ? '<div><b>Completely free</b> — most shops charge $125+ just to show up.</div>'
+       : '<div><b>$'+QC_PRICE+', not $125+</b> — most shops charge that just to show up.</div>'
+         +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>')
     +'<div><b>We\'ll tell you the truth</b> — even "don\'t fix it."</div>';
   FLOW.appendChild(v);
   choices([{emo:'📹',label:'Start my Quick Check',wide:true}], ()=>{ clearFlow(); think(500, capVideo); });
@@ -359,8 +366,35 @@ function collectContact(){
     state.city=document.getElementById('f-city').value.trim();
     state.zip=document.getElementById('f-zip').value.trim();
     if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.address||!state.zip){ alert('Please add your name, a valid phone, the street address, and ZIP.'); return; }
-    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
-    clearFlow(); think(500, payStep);
+    if(!FREE_MODE && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
+    clearFlow(); think(500, FREE_MODE ? submitFree : payStep);
+  };
+}
+// FREE submit — no payment, and we DO NOT block on the media upload (that's what
+// dropped on bad signal). We create the job immediately; whatever media landed is
+// linked, and if it didn't, the customer gets a one-tap finish-upload text.
+function submitFree(){
+  setHead('One tap and <span class="accent">you\'re done.</span>','Free — honest answer within 2 business hours.');
+  const p=document.createElement('div'); p.className='pay';
+  p.innerHTML='<div class="amt" style="font-size:28px">Free Quick Check</div><div class="amtsub">No charge · honest answer within 2 business hours</div>'
+    +'<button class="go" id="free-go">Get my honest answer →</button>';
+  FLOW.appendChild(p);
+  document.getElementById('free-go').onclick=async()=>{
+    const btn=document.getElementById('free-go'); btn.disabled=true; btn.textContent='Sending…';
+    // Fire-and-forget the uploads — they keep going in the background and link by
+    // conversation_id whenever they land. We never wait on them, so a weak signal
+    // can't strand her here. media_status=pending is set server-side if needed.
+    state.mediaPending = (state.video && !state.videoUploaded) || (state.model && !state.modelUploaded);
+    try{
+      const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
+        appliance:state.appliance, brand:state.brand, problem:state.problem, sms_consent:state.smsConsent, town:state.town,
+        conv_id:state.convId, has_video:state.video, has_model:state.model
+      })});
+      const d=await r.json().catch(()=>({}));
+      if(d&&d.ok){ clearFlow(); done(); }
+      else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 866-268-0111.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 866-268-0111.'); }
   };
 }
 function payStep(){
