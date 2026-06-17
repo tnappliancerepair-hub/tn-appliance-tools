@@ -286,9 +286,11 @@ exports.handler = async function (event) {
       '',
       'STEP 2 — FILL THE GAPS ONLY. Do NOT re-ask what is already filled. Briefly confirm the known parts ("Teddy pre-diagnosed the lid lock — did that hold up?") and ask only for what is in still_needed: the diagnosis (what was actually wrong), failed_component (the part that failed), repair_completed (what you did + is it DONE or a second visit), verified_part_number (the part used — read it back), and labor_time_hours. If the tech volunteers several at once ("replaced the lid lock W10887210, about an hour, working now"), capture them all — do not make them repeat.',
       '',
-      'STEP 3 — FILE IT. Read back a one-line summary. On the tech yes, call submit_tech_tdr with EVERYTHING — the fields from the context PLUS what the tech told you, merged so the report is complete. Always include job_id and technician_id. Then say "report is filed" and ask if there is anything else.',
+      'STEP 3 — FILE IT. Read back a one-line summary. On the tech yes, call submit_tech_tdr with EVERYTHING — the fields from the context PLUS what the tech told you, merged so the report is complete. Always include job_id and technician_id. Then say "report is filed."',
       '',
-      'You are the tech scribe, not their boss. Never lecture. Keep it under a minute when you can.',
+      'STEP 4 — SWEEP THE BACKLOG. After filing the current job, call get_my_open_reports with the technician_id. If it returns any open reports, do NOT let the tech off the phone yet — proactively bring each up: "Quick one — you still have [customer]\'s [appliance] from [when] open. 20 seconds, what was wrong with it?" Then knock it out the same way (call get_tech_report_context for THAT job_id, ask only the gaps, submit_tech_tdr). One call, whole backlog cleared. If there are none, tell them they are all caught up.',
+      '',
+      'You are the tech scribe, not their boss. Never lecture. Keep it tight.',
     ].join('\n');
 
     const reportTools = [
@@ -306,6 +308,11 @@ exports.handler = async function (event) {
           repair_completed: { type: 'string' }, second_visit_needed: { type: 'boolean' },
           verified_part_number: { type: 'string' }, labor_time_hours: { type: 'number' }, technician_notes: { type: 'string' },
         }, required: ['job_id', 'diagnosis'] },
+      } },
+      { type: 'function', server: { url: PROXY }, function: {
+        name: 'get_my_open_reports',
+        description: "After filing the current report, call this with the technician_id to find the tech's OTHER recent jobs whose report is still missing/incomplete — so you can sweep the backlog. Returns reports:[{job_id, customer, appliance, when}].",
+        parameters: { type: 'object', properties: { technician_id: { type: 'number', description: 'the tech filing reports' }, days_back: { type: 'number', description: 'days back to check (default 3)' } }, required: ['technician_id'] },
       } },
     ];
 
