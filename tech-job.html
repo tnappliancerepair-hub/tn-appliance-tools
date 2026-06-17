@@ -223,11 +223,51 @@ async function loadJob(){
     if(!d.success) throw new Error(d.error||'not found');
     job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
     render();
+    renderAntTdr(tdr, allTdrs);
+    startAntTdrPoll();
     loadAttachments();
     loadDayJobs();
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
   }
+}
+
+// ── "From your Ant call" live panel ────────────────────────────
+// Read-only mirror of the structured TDR Ant fills while you talk to it.
+// Polls every 20s and updates ONLY this panel — never your report textarea,
+// so it can't clobber what you're typing. This is the "watch it fill" view.
+function latestStructuredTdr(tdrObj, tdrs){
+  const all=(tdrs||[]).slice();
+  if(tdrObj && tdrObj.id) all.push(tdrObj);
+  all.sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+  for(const t of all){
+    if((t.diagnosis||'').trim()||(t.failed_component||'').trim()||(t.repair_completed||'').trim()||Number(t.labor_time_hours||0)>0) return t;
+  }
+  return null;
+}
+function renderAntTdr(tdrObj, tdrs){
+  const el=document.getElementById('ant-tdr-live'); if(!el) return;
+  const t=latestStructuredTdr(tdrObj, tdrs);
+  if(!t){ el.style.display='none'; el.innerHTML=''; return; }
+  const row=(lbl,v)=> (v&&String(v).trim()) ? '<div style="margin:5px 0"><span style="color:#7a869a;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">'+lbl+'</span><br>'+esc(String(v))+'</div>' : '';
+  const lh=Number(t.labor_time_hours||0);
+  el.innerHTML='<h3 style="margin:0 0 4px">🎤 From your Ant call</h3>'
+    +'<div style="font-size:12px;color:#7a869a;margin:0 0 8px">Ant filled this from what you told it — edit in your report below if anything’s off.</div>'
+    +row('Diagnosis',t.diagnosis)+row('Failed part',t.failed_component)+row('Cause',t.failure_cause)
+    +row('Repair',t.repair_completed)+(lh>0?row('Labor',lh+' hr'):'')
+    +(t.finalized? '<div style="margin-top:8px;color:#1aa260;font-weight:700;font-size:13px">✓ Sent to the office</div>':'');
+  el.style.display='';
+}
+let __antTdrPoll=null;
+function startAntTdrPoll(){
+  if(__antTdrPoll) return;
+  __antTdrPoll=setInterval(async()=>{
+    if(document.visibilityState!=='visible') return;
+    try{
+      const d=await xanoPost('get_job_for_dashboard',{job_id:JOB_ID});
+      if(d&&d.success) renderAntTdr(d.tdr||{}, d.all_tdrs||[]);
+    }catch(_){}
+  }, 20000);
 }
 
 // prev/next from the tech's day + back link
@@ -328,6 +368,8 @@ function render(){
         </div>
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
       </div>
+
+      <div class="card" id="ant-tdr-live" style="display:none"></div>
 
       <div class="card">
         <h3>📝 Notes / Report</h3>
