@@ -12,6 +12,10 @@ const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 
 const PRICE_CENTS = 5000; // $50 Quick Check (live)
+// Test override: a link carrying ?qc=<this token> charges $1 so we can run the
+// full flow end-to-end without flipping the live price (real customers stay $50).
+const QC_TEST_TOKEN = 'tn-qc-test-2026';
+const TEST_PRICE_CENTS = 100; // $1
 const SITE = 'https://tnapplianceexchange.net';
 
 function s(v, max) { return String(v == null ? '' : v).slice(0, max || 480); }
@@ -37,19 +41,25 @@ exports.handler = async function (event) {
 
   const email = s(b.email, 120);
   const machine = [s(b.brand, 40), s(b.appliance, 40)].filter(Boolean).join(' ') || 'appliance';
+  const isTest = s(b.qc_test, 40) === QC_TEST_TOKEN;
+  const priceCents = isTest ? TEST_PRICE_CENTS : PRICE_CENTS;
+  const productName = isTest
+    ? 'Appliance Quick Check — TEST ($1)'
+    : 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)';
   try {
     const stripe = new Stripe(key);
     const opts = {
       mode: 'payment',
       line_items: [{
-        price_data: { currency: 'usd', product_data: { name: 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)' }, unit_amount: PRICE_CENTS },
+        price_data: { currency: 'usd', product_data: { name: productName }, unit_amount: priceCents },
         quantity: 1,
       }],
       success_url: `${SITE}/quick-check-thanks.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/appliance-ai.html`,
       metadata: {
         kind: 'quick_check',
-        amount_cents: String(PRICE_CENTS),
+        amount_cents: String(priceCents),
+        is_test: isTest ? 'yes' : 'no',
         name: s(b.name, 120), phone: phone, email: email,
         address: s(b.address, 200), city: s(b.city, 80), zip: s(b.zip, 12),
         appliance: s(b.appliance, 60), brand: s(b.brand, 60), machine: s(machine, 80),
