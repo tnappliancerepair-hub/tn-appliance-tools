@@ -1048,6 +1048,73 @@ async function tryDirectParts(term, component, wantPart) {
   return { ok: true, oem: norm(marcone), amazon: norm(amazon || tribles) };
 }
 
+// Fetch the FULL candidate lists from every supplier (for the "show all" panel).
+async function directAllCandidates(term) {
+  const sup = async (supplier) => {
+    try {
+      const r = await fetch('/.netlify/functions/parts-lookup-direct?path=lookup&supplier=' + supplier + '&model=' + encodeURIComponent(term), { cache: 'no-store' });
+      const j = await r.json();
+      return (j && j.ok && j.data && Array.isArray(j.data.candidates)) ? j.data.candidates : [];
+    } catch (_) { return []; }
+  };
+  const [marcone, amazon, tribles] = await Promise.all([sup('marcone'), sup('amazon'), sup('tribles')]);
+  return { marcone, amazon, tribles };
+}
+function candPart(c) { return String((c && (c.part || c.part_number)) || '').trim(); }
+function candPriceCents(c) { return priceToCents(c && c.price); }
+
+// Fill the OEM or Amazon field from a clicked candidate row.
+function usePart(field, supplier, idx) {
+  const c = ((window.__partCands || {})[supplier] || [])[idx];
+  if (!c) return;
+  const pn = candPart(c), cents = candPriceCents(c);
+  if (field === 'oem') {
+    state.oemPartNumber = pn; if (cents != null) state.oemPrice = centsToDollarsInput(cents);
+    const oi = document.getElementById('oemPartInput'); if (oi) oi.value = pn;
+    const op = document.getElementById('oemPriceInput'); if (op) op.value = state.oemPrice;
+    if (typeof updateOemHint === 'function') updateOemHint();
+  } else {
+    state.amazonPartNumber = pn; if (cents != null) state.amazonPrice = centsToDollarsInput(cents);
+    const ai = document.getElementById('amazonPartInput'); if (ai) ai.value = pn;
+    const ap = document.getElementById('amazonPriceInput'); if (ap) ap.value = state.amazonPrice;
+    if (typeof updateAmzHint === 'function') updateAmzHint();
+  }
+}
+
+// Render every candidate (Marcone + Amazon + Tribles), price + stock, with
+// →OEM / →Amz buttons so Teddy sees all options and picks.
+function renderCandidatePanel(all) {
+  window.__partCands = all;
+  const groups = [
+    { key: 'marcone', label: 'Marcone — OEM (your cost)' },
+    { key: 'amazon', label: 'Amazon — aftermarket' },
+    { key: 'tribles', label: 'Tribles' },
+  ];
+  let html = '<div style="margin-top:10px;max-height:300px;overflow:auto;border:1px solid var(--border2);border-radius:8px;">';
+  let any = false;
+  groups.forEach((g) => {
+    const cands = (all[g.key] || []).slice(0, 10);
+    if (!cands.length) return;
+    any = true;
+    html += '<div style="padding:6px 10px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:rgba(255,255,255,0.03);border-top:1px solid var(--border);">' + escapeHtml(g.label) + '</div>';
+    cands.forEach((c, i) => {
+      const pn = escapeHtml(candPart(c) || '—');
+      const pr = escapeHtml(c.price || '');
+      const st = escapeHtml(c.stock || '');
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-top:1px solid var(--border);font-size:12px;">'
+        + '<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span style="font-family:var(--mono);">' + pn + '</span>'
+        + (pr ? ' <span style="color:#74e3c4;font-weight:700;">' + pr + '</span>' : '')
+        + (st ? ' <span style="color:var(--muted);">· ' + st + '</span>' : '') + '</div>'
+        + '<button onclick="usePart(\'oem\',\'' + g.key + '\',' + i + ')" style="background:rgba(116,227,196,0.12);border:1px solid rgba(116,227,196,0.4);color:#74e3c4;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;flex:0 0 auto;">→ OEM</button>'
+        + '<button onclick="usePart(\'amazon\',\'' + g.key + '\',' + i + ')" style="background:rgba(255,165,0,0.12);border:1px solid rgba(255,165,0,0.4);color:#ffb454;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;flex:0 0 auto;">→ Amz</button>'
+        + '</div>';
+    });
+  });
+  html += '</div>';
+  const statusEl = document.getElementById('partsLookupStatus');
+  if (statusEl && any) statusEl.innerHTML += html;
+}
+
 async function autoFindParts() {
   const btn = document.getElementById('autoFindPartsBtn');
   const app = (state.cockpit && state.cockpit.appliance) || {};
@@ -1057,15 +1124,22 @@ async function autoFindParts() {
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
   plStatus('Searching Marcone + Amazon + Tribles for <strong>' + escapeHtml(model || serial) + '</strong>…');
 
-  // FAST PATH: daemon direct via the Cloudflare tunnel (~3-5s). Falls through to
-  // the slow queue path below if the tunnel/daemon isn't up. Prefer searching the
-  // exact OEM part # if the diagnosis names one (model-only search returns junk).
+  // FAST PATH: daemon direct via the Cloudflare tunnel (~3-5s). Pull the FULL
+  // candidate lists from Marcone + Amazon + Tribles, auto-fill the best guess, and
+  // render every option (price + stock) so Teddy can see all of them and pick.
+  // Falls through to the slow queue path if the tunnel/daemon isn't up.
   try {
     const wantPart = extractPartNumber(state.diagnosis);
     const term = wantPart || model || serial;
-    const direct = await tryDirectParts(term, (state.diagnosis || '').trim(), wantPart);
-    if (direct && (direct.oem || direct.amazon)) {
-      applyPartsResult(direct);
+    const all = await directAllCandidates(term);
+    if (all && (all.marcone.length || all.amazon.length || all.tribles.length)) {
+      const comp = (state.diagnosis || '').trim();
+      const norm = (c) => c ? { part_number: candPart(c), our_cost_cents: candPriceCents(c), stock: c.stock || '' } : null;
+      const bestM = pickPartCandidate(all.marcone, comp, wantPart);
+      const bestA = pickPartCandidate(all.amazon.length ? all.amazon : all.tribles, comp, wantPart);
+      applyPartsResult({ ok: true, oem: norm(bestM), amazon: norm(bestA) });
+      plStatus('<span style="color:#74e3c4;">✓ Found — best guess filled. Tap any row below to use it instead:</span>');
+      renderCandidatePanel(all);
       if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
       return;
     }
