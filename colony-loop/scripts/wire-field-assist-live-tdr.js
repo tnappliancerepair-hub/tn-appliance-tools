@@ -17,8 +17,11 @@
 // Idempotent: re-running is a no-op once the tools + prompt line are present.
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const VAPI = 'https://api.vapi.ai';
 const ASSISTANT_ID = 'a22edcd1-495a-4d77-a66a-fb167997c70a'; // Ant Field Assist
@@ -30,7 +33,7 @@ const APPLY = process.argv.includes('--apply');
 function loadKey() {
   if (process.env.VAPI_PRIVATE_KEY) return process.env.VAPI_PRIVATE_KEY.trim();
   try {
-    const envPath = path.join(__dirname, '..', '.env');
+    const envPath = path.join(HERE, '..', '.env');
     const txt = fs.readFileSync(envPath, 'utf8');
     const m = txt.match(/^\s*VAPI_PRIVATE_KEY\s*=\s*(.+)\s*$/m);
     if (m) return m[1].replace(/^["']|["']$/g, '').trim();
