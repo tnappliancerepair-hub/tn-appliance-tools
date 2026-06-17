@@ -1,5 +1,41 @@
 # Appliance Ant
 
+## ⏭️ NEXT SESSION (saved 2026-06-17 ~9:45am — the morning HCP over-build incident + recovery) — READ FIRST
+
+**A real field outage caused by ME over-building. Ended in a good, working state. Read this before touching the tech dashboard or anything HCP.**
+
+### ⛔ HARD RULES (learned the hard way this morning)
+- **DO NOT build ANY Housecall Pro hook / mirror / import / sync.** TN is dropping HCP **next week**. HCP is ONLY a **morning screenshot reference** so Teddy can see which jobs are missing from Ant and add them manually. Nothing automated touches HCP. (`hcp-today-schedule.js` exists as a read-only flashlight; do not wire it into the tech dashboard or any live flow.)
+- **The tech tooling was ALREADY WORKING.** The real problem is narrow: *get the correct jobs INTO Ant*. Don't rebuild systems to solve a "missing jobs" complaint — match the fix to the actual gap (jobs not entered/assigned in Ant), not the whole pipeline.
+- **The real cure = the cutover: schedule directly in Ant, not HCP.** Then jobs are native, dashboards just work, the morning ritual disappears. That's the next-week goal.
+
+### ✅ GOOD STATE (locked, on `main`, deployed)
+- **Tech dashboard REVERTED to the working version** (`tech-daily-dashboard.html` → commit `8d4b0d0`, PR #57): native `get_tech_daily_dashboard` cards with **"Open Tech Ant"** (clickable into `tech-job.html`), the untimed-jobs front-end handling, GA. **No HCP mirror.** Verified live.
+- **Service worker fixed (PR #56):** `sw-tech.js` was **stale-while-revalidate** → served techs the PREVIOUS page every load, so every deployed fix looked broken until a 2nd load (this caused HALF of today's "it's not working" confusion). Now **network-first with a 2.5s timeout** (fresh when online, cache fallback on weak signal). Cache bumped to v3. **Techs must fully close + reopen the app once to pick up the new SW.**
+- **Teddy's 6 jobs reactivated onto his dashboard** (data fix, not code) — he can work.
+
+### 🔑 HOW TO REACTIVATE A CANCELED JOB (today's recovery recipe)
+`danielle_schedule_parallel_job` **fails on canceled jobs** → `{error:"terminal_locked"}` (state machine locks terminal states). To bring a canceled job back + assign it:
+1. `office_set_job_status` `{job_id, scheduling_status:"scheduled"}` (the override — bypasses the state machine).
+2. `reassign_job` `{job_id, technician_id}` (sets the tech).
+Then the dashboard shows it (filter = `technician_id == tech AND scheduled_start in today AND status != canceled`). `scheduled_start` is preserved through the cancel.
+
+### ⏭️ OPEN / NEXT (in priority order)
+1. **Other techs' jobs (Lee 4, John 6, Andre 3, Jimmy 2) are NOT loaded in Ant** — only Teddy's were. Teddy paused before I loaded the crew. He'll likely want them on. The blocker: `book_appointment_from_office` **requires a phone** to create a new customer; the screenshots don't have phones. (Teddy's 6 already had data from an earlier import, so reactivation worked for him.) Decide the clean entry path WITH Teddy — no HCP hook.
+2. **🚨 XS DEPLOYS ARE SILENTLY NO-OP'ING** — `qc_diagnosis_view`, `add_tdr_failure`, and the `get_tech_daily_dashboard` untimed-jobs fix were all "pushed" but never landed live. This is FOUNDATIONAL — we can't ship backend fixes if `xano workspace push` reports success but doesn't apply. (Likely: brace-glob in `-i` matched nothing, OR the body-no-op footgun, OR needs a UI "Publish".) **Fix the deploy path first next session.**
+3. **🚨 COLONY LOOP IS DOWN** — phone alert "No loop_tick events ever - has the loop been started?". The Mac loop isn't running → no agents/SMS/automation. Restart: `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop` (or bootstrap the plist).
+4. **untimed-jobs dashboard fix** (`get_tech_daily_dashboard_GET.xs`, written, not deployed) — so day-assigned jobs (no clock time) show. Needs a *reliable* XS deploy (see #2).
+5. **Cleanup:** `open-hcp-job.js` + the `hcp-today-schedule.js` raw-import-field edit are now **unused** HCP code (dashboard no longer calls them). Safe to delete to honor the no-HCP rule.
+
+### From the EARLIER marathon (2026-06-17, Cathy Ellis) — still pending
+- Free bad-signal Quick Check (`appliance-ai.html` FREE_MODE), Cloudflare **parts tunnel** (Marcone/Amazon/MSA fast — `parts-lookup-direct` + `tunnel.sh`), Find Part claude_only fix, **bill_to send fix**, TDR preview, multi-part TDRs — all LIVE on Netlify.
+- **Pending Mac XS pushes** (subject to the deploy issue #2 above): `qc_diagnosis_view` (greet "Hi Cathy" + out-of-area ship-only) and `add_tdr_failure` (multi-part). Cathy Ellis = job #19691, a real happy test customer.
+
+### ⚠️ THE LESSON
+A tech (Lee) reported a few missing jobs. I diagnosed it as HCP/Ant divergence and built a whole HCP mirror → tap-to-import → which **replaced the working clickable dashboard with read-only cards, then broke clicking entirely, while real techs were at customers' houses.** Teddy had to firefight for an hour. The dashboard was fine; the jobs just weren't in Ant. **Smallest correct fix. Don't rebuild working systems.**
+
+---
+
 ## ⏭️ NEXT SESSION (saved end of 2026-06-17 afternoon — permanent tech app + practice-job cleanup + Andre SMS-gate bug) — READ FIRST
 
 **Short, focused afternoon session. All shipped + merged to `main` (PRs #35–#38). Front-end pieces are LIVE on Netlify; no Mac action required for any of it.**
