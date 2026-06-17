@@ -8,7 +8,7 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v2-2026-06-16';
+const CACHE_VERSION = 'ant-field-v3-2026-06-17';
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
@@ -58,18 +58,22 @@ self.addEventListener('fetch', (event) => {
   const isShellAsset = /\.(?:js|css|webmanifest|json|svg|png|woff2?)$/i.test(url.pathname);
 
   if (isHTML || isShellAsset) {
-    // Stale-while-revalidate: instant from cache (opens on weak/no signal),
-    // refresh in the background for next time.
+    // NETWORK-FIRST with a short timeout: always show the FRESH page/asset when
+    // there's signal (so a deployed fix shows immediately — no more stale cached
+    // versions), but if the network is slow/dead, fall back to cache fast so the
+    // app still opens on weak signal (John's rural LA case). Best of both.
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_VERSION);
-      const cached = await cache.match(req);
-      const fromNet = fetch(req)
+      const net = fetch(req)
         .then((res) => { if (res && res.ok) cache.put(req, res.clone()); return res; })
         .catch(() => null);
+      const timeout = new Promise((r) => setTimeout(() => r('__TIMEOUT__'), 2500));
+      const first = await Promise.race([net, timeout]);
+      if (first && first !== '__TIMEOUT__') return first;     // network won → fresh
+      const cached = await cache.match(req);                  // slow/offline → cache
       return (
         cached ||
-        (await fromNet) ||
-        (await cache.match(req)) ||
+        (await net) ||
         new Response('Offline — reconnect to load.', {
           status: 503, headers: { 'Content-Type': 'text/plain' },
         })
