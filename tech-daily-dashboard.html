@@ -842,7 +842,6 @@
       const r = await fetch(u);
       const d = await r.json();
       if (!d || !d.ok || !Array.isArray(d.my_stops) || !d.my_stops.length) return;
-<<<<<<< HEAD
       const stops = d.my_stops;
 
       // Headline summary
