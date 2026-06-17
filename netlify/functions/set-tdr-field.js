@@ -13,8 +13,10 @@ const TDR_TABLE = 12; // technician_decision_report
 const ALLOWED = new Set([
   'diagnosis', 'failure_cause', 'failure_cause_notes', 'failed_component',
   'repair_completed', 'verified_part_number', 'customer_facing_diagnosis',
-  'technician_notes',
+  'technician_notes', 'parts_used', 'parts_not_used',
 ]);
+// JSON (array) columns — value is parsed/written as an array, not a string.
+const JSON_FIELDS = new Set(['parts_used', 'parts_not_used']);
 
 function j(code, body) {
   return { statusCode: code, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) };
@@ -29,9 +31,18 @@ exports.handler = async function (event) {
 
   const tdrId = Number(b.tdr_id);
   const field = String(b.field || '').trim();
-  const value = String(b.value == null ? '' : b.value);
   if (!tdrId) return j(400, { ok: false, error: 'tdr_id required' });
   if (!ALLOWED.has(field)) return j(400, { ok: false, error: 'field not allowed', allowed: [...ALLOWED] });
+
+  // JSON fields take an array (or a JSON string); text fields take a string.
+  let value;
+  if (JSON_FIELDS.has(field)) {
+    let arr = b.value;
+    if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (_) { arr = []; } }
+    value = Array.isArray(arr) ? arr : [];
+  } else {
+    value = String(b.value == null ? '' : b.value);
+  }
 
   try {
     // Xano's content PUT replaces the row, so read-modify-write: load the
