@@ -959,6 +959,45 @@ function updateLaborHint() {
 function plStatus(html) { const el = document.getElementById('partsLookupStatus'); if (el) el.innerHTML = html; }
 function centsToDollarsInput(c) { return (c == null) ? '' : (c / 100).toFixed(2).replace(/\.00$/, ''); }
 
+// ── FAST direct lookup: call the Mac daemon straight through the Cloudflare
+// tunnel (parts-lookup-direct) — Marcone (OEM cost) + Amazon + Tribles in
+// parallel, ~3-5s. Returns the OEM/Amazon shape applyPartsResult expects, or
+// null so autoFindParts falls back to the slow queue path.
+function priceToCents(s) {
+  if (s == null) return null;
+  const m = String(s).match(/\d[\d,]*(?:\.\d{1,2})?/);
+  if (!m) return null;
+  const n = parseFloat(m[0].replace(/,/g, ''));
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+function pickPartCandidate(cands, component) {
+  if (!Array.isArray(cands) || !cands.length) return null;
+  const kw = String(component || '').toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+  if (kw.length) {
+    const hit = cands.find((c) => {
+      const t = ((c.description || '') + ' ' + (c.name || '') + ' ' + (c.part || '') + ' ' + (c.part_number || '')).toLowerCase();
+      return kw.some((w) => t.indexOf(w) !== -1);
+    });
+    if (hit) return hit;
+  }
+  return cands[0];
+}
+async function tryDirectParts(model, component) {
+  if (!model) return null;
+  const sup = async (supplier) => {
+    try {
+      const r = await fetch('/.netlify/functions/parts-lookup-direct?path=lookup&supplier=' + supplier + '&model=' + encodeURIComponent(model), { cache: 'no-store' });
+      const j = await r.json();
+      if (!j || !j.ok || !j.data || !Array.isArray(j.data.candidates)) return null;
+      return pickPartCandidate(j.data.candidates, component);
+    } catch (_) { return null; }
+  };
+  const [marcone, amazon, tribles] = await Promise.all([sup('marcone'), sup('amazon'), sup('tribles')]);
+  if (!marcone && !amazon && !tribles) return null;
+  const norm = (c) => c ? { part_number: String(c.part || c.part_number || '').trim(), our_cost_cents: priceToCents(c.price), stock: c.stock || '' } : null;
+  return { ok: true, oem: norm(marcone), amazon: norm(amazon || tribles) };
+}
+
 async function autoFindParts() {
   const btn = document.getElementById('autoFindPartsBtn');
   const app = (state.cockpit && state.cockpit.appliance) || {};
@@ -966,7 +1005,18 @@ async function autoFindParts() {
   const serial = (app.serial_number || app.serial || '').trim();
   if (!model && !serial) { plStatus('<span style="color:#e0a800;">No model on this job yet — add the model number first.</span>'); return; }
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
-  plStatus('Searching Marcone + Amazon for <strong>' + escapeHtml(model || serial) + '</strong>…');
+  plStatus('Searching Marcone + Amazon + Tribles for <strong>' + escapeHtml(model || serial) + '</strong>…');
+
+  // FAST PATH: daemon direct via the Cloudflare tunnel (~3-5s). Falls through to
+  // the slow queue path below if the tunnel/daemon isn't up.
+  try {
+    const direct = await tryDirectParts(model || serial, (state.diagnosis || '').trim());
+    if (direct && (direct.oem || direct.amazon)) {
+      applyPartsResult(direct);
+      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+      return;
+    }
+  } catch (_) {}
 
   let requestId = '';
   try {

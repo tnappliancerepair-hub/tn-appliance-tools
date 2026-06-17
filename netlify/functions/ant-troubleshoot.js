@@ -22,6 +22,20 @@ const FUNCTIONS_BASE = 'https://tnapplianceexchange.net/.netlify/functions';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function s(v, m) { return String(v == null ? '' : v).slice(0, m || 200); }
 
+// Live MSA/Whirlpool intel straight off the Mac daemon via the fast tunnel
+// (parts-lookup-direct, path=intel). Returns {recalls, bulletins, tech_sheets}
+// or null if the tunnel/daemon is unavailable (caller falls back to the cache).
+async function liveModelIntel(brand, model) {
+  try {
+    const u = `${FUNCTIONS_BASE}/parts-lookup-direct?path=intel&source=msa&brand=${encodeURIComponent(brand || '')}&model=${encodeURIComponent(model || '')}`;
+    const r = await fetch(u);
+    const d = await r.json().catch(() => null);
+    const data = (d && d.ok && d.data) ? d.data : null;
+    if (!data) return null;
+    return { recalls: data.recalls || [], bulletins: data.bulletins || [], tech_sheets: data.tech_sheets || [], source: data.source, final_url: data.final_url, live: true };
+  } catch (_) { return null; }
+}
+
 // Pull a code-looking token out of free text ("getting a 4C", "F5 E2", "OE error")
 function detectCode(text) {
   const m = String(text || '').toUpperCase().match(/\b([A-Z]{1,2}\d{0,2}\s?E?\d{0,2}|\d[CE]|[A-Z]{2})\b/g);
@@ -80,18 +94,25 @@ exports.handler = async function (event) {
   ]);
 
   const faultMatch = fcRes.match || null;
-  const intel = intelHit ? intelHit.md : null;
-  const recalls = (intel && intel.recalls) || [];
-  const bulletins = (intel && intel.bulletins) || [];
+  let intel = intelHit ? intelHit.md : null;
 
-  // Warm-on-miss: if we have a model but no cached MSA intel yet, fire a pull so
-  // the NEXT lookup (and the tech's follow-up) has recalls/bulletins ready.
-  if (!intelHit && model) {
+  // Cache miss + we have a model: pull LIVE off the daemon via the fast tunnel
+  // (parts-lookup-direct, path=intel) so the FIRST troubleshooting already has
+  // MSA recalls/bulletins/tech-sheets — not just the next one. Silent fallback if
+  // the tunnel is down. Either way, warm the cache for next time.
+  if (!intel && model) {
+    const live = await liveModelIntel(brand, model);
+    if (live && ((live.recalls && live.recalls.length) || (live.bulletins && live.bulletins.length) || (live.tech_sheets && live.tech_sheets.length))) {
+      intel = live;
+    }
     fetch(`${FUNCTIONS_BASE}/request-model-intel`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ brand, model, appliance }),
     }).catch(() => {});
   }
+
+  const recalls = (intel && intel.recalls) || [];
+  const bulletins = (intel && intel.bulletins) || [];
 
   const grounded = !!(faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length);
 
