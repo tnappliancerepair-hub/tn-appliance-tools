@@ -274,6 +274,31 @@ query tech_job_complete verb=POST {
       }
     } as $job_updated
 
+    // AUTO-START GUARD (2026-06-17): the state machine refuses
+    // scheduled -> completed / no_fix_possible directly (must pass through
+    // in_progress). Techs routinely do the work and tap Complete without ever
+    // tapping Start, so the completion was silently REJECTED and the job got
+    // stranded "scheduled" with a phantom current_status (cost 2 jobs this AM:
+    // Eyob #19568, Ramon #19569). When the job is still "scheduled" and we're
+    // headed to a state that needs in_progress, promote it first so the real
+    // transition below is legal instead of rejected.
+    conditional {
+      if ($job.scheduling_status == "scheduled" && ($new_status == "completed" || $new_status == "no_fix_possible")) {
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+          method = "POST"
+          params = {
+            job_id      : $input.job_id
+            target_state: "in_progress"
+            actor       : "tech"
+            reason      : "auto_start_before_complete"
+          }
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $autostart_resp
+      }
+    }
+
     // Delegate the scheduling_status write to the state machine.
     api.request {
       url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"

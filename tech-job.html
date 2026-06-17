@@ -464,6 +464,14 @@ function completeFlow(){
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
     toast('Completing…');
     try{
+      // Auto-Start guard: the backend state machine won't let a job go
+      // straight scheduled -> completed (it must pass through in_progress).
+      // Techs do the work and tap Complete without ever tapping Start, so the
+      // completion was silently rejected. If this job was never started, fire
+      // Start first so Complete actually lands.
+      if(!job.job_started_at){
+        try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){}
+      }
       const d=await xanoPost('tech_job_complete',{job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct});
       if(d.success){ toast('Job completed ✓'); loadJob(); } else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
