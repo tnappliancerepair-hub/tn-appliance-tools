@@ -52,6 +52,7 @@
   .jcard{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,50,.05);}
   .jcard:active{transform:scale(.99);}
   .jcard.dragging{opacity:.5;}
+  .jcard.over{border:2px solid #e05a43;background:#fff6f4;box-shadow:0 1px 3px rgba(214,67,42,.18);}
   .jc-top{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
   .jc-name{font-weight:700;font-size:14px;flex:1;line-height:1.2;}
   .jc-meta{font-size:12px;color:var(--ink2);line-height:1.35;}
@@ -371,10 +372,23 @@ function renderBoard(){
   if(pj && !window.__openedPending){ window.__openedPending=true; openDrawer(pj); }
 }
 
+// OVERDUE = the job missed its expected timing (Danielle, 2026-06-18) — not just
+// "old." Flags the jobs that actually slipped so they stand out from on-track work:
+//   1) parts waiting PAST their ETA, or
+//   2) a scheduled day that already passed without the job completing.
+// ISO date strings (YYYY-MM-DD) compare chronologically as plain strings.
 function overdue(j){
-  if(j.scheduling_status==='completed')return false;
-  const created=Number(j.created_at||0); if(!created)return false;
-  return (Date.now()-created)>7*86400000;
+  const ss=String(j.scheduling_status||'');
+  if(ss==='completed'||ss==='canceled')return false;
+  const todayCT=new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+  const eta=String(j.parts_eta_date||'').trim();
+  if(PARTS_WAIT.test(j.parts_status||'') && eta && eta<todayCT) return true;
+  const schMs=Number(j.scheduled_start||0);
+  if(schMs>0){
+    const schDay=new Date(schMs).toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+    if(schDay<todayCT) return true;
+  }
+  return false;
 }
 // Count phone-critical info gaps (same 4 checks as the Phone-Ready board) so
 // the office can see at a glance which jobs Ant can't answer calls about yet.
@@ -411,7 +425,8 @@ function cardHtml(j){
   if(PAID_JOBS.has(String(j.id)))tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 paid</span>');
   const _g=phoneGaps(j);
   if(_g>0)tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="missing info Ant needs to answer calls">⚠ needs info</span>');
-  if(overdue(j))tags.push('<span class="tag over">overdue</span>');
+  const _over=overdue(j);
+  if(_over)tags.unshift('<span class="tag over">⏰ OVERDUE</span>');
   const _c=Number(j.created_at||0), _days=_c?Math.floor((Date.now()-_c)/86400000):0;
   const _wait=(_days>=1 && j.scheduling_status!=='completed')?('<span class="jc-wait" style="font-size:11px;font-weight:800;color:'+(_days>=7?'#c0392b':(_days>=3?'#b3690a':'#8a96a8'))+'">⏳ '+_days+'d</span>'):'';
   // Report-request button — on the cards she works toward invoicing (Completion /
@@ -420,7 +435,7 @@ function cardHtml(j){
   const _col=placeOf(j);
   const _showReportBtn=(_col==='done'||_col==='needinv'||(typeof _col==='string'&&_col.indexOf('rep-')===0));
   const _reportBtn=_showReportBtn?`<button onclick="event.stopPropagation();reqTechReport(${j.id})" title="Ant texts + calls the tech to finish the report" style="margin-top:7px;width:100%;padding:7px;border:0;border-radius:7px;background:#fff4e0;color:#b3690a;border:1px solid #f3d49a;font-size:12px;font-weight:700;cursor:pointer">📋 Request report</button>`:'';
-  return `<div class="jcard" draggable="true" data-id="${j.id}">
+  return `<div class="jcard${_over?' over':''}" draggable="true" data-id="${j.id}">
     <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div>${_wait}</div>
     <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
     ${j.claim_number?('<div class="jc-meta mono" style="font-family:ui-monospace,monospace;font-size:11px">#'+esc(j.claim_number)+'</div>'):''}
