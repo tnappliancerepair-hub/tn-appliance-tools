@@ -8,12 +8,13 @@
 'use strict';
 
 const { defaultRedirect } = require('./_lib/digits');
+const { getSecretPreferVault } = require('./_lib/secrets');
 
 exports.handler = async function () {
-  const id = process.env.DIGITS_CLIENT_ID;
+  const id = await getSecretPreferVault('DIGITS_CLIENT_ID');
   if (!id) {
     return { statusCode: 500, headers: { 'Content-Type': 'text/html' },
-      body: '<p>Set <b>DIGITS_CLIENT_ID</b> (and DIGITS_CLIENT_SECRET) in Netlify env first, then reload.</p>' };
+      body: '<p>Add <b>DIGITS_CLIENT_ID</b> (and DIGITS_CLIENT_SECRET) to the vault via <b>admin-secrets.html</b> first, then reload.</p>' };
   }
   const u = new URL('https://connect.digits.com/v1/oauth/authorize');
   u.searchParams.set('response_type', 'code');

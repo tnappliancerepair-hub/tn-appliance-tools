@@ -8,12 +8,12 @@
 
 'use strict';
 
-const { isConfigured, getAccessToken, apiGet } = require('./_lib/digits');
+const { isConnected, getAccessToken, apiGet } = require('./_lib/digits');
 
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
-  if (!isConfigured()) {
+  if (!(await isConnected())) {
     return { statusCode: 200, body: JSON.stringify({ success: false, configured: false, error: 'Digits not connected yet' }) };
   }
   const q = event.queryStringParameters || {};

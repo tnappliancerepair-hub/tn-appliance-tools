@@ -74,4 +74,43 @@ async function getSecret(name) {
   }
 }
 
-module.exports = { getSecret, configTableId, CONFIG_TABLE_NAME };
+// VAULT-FIRST read — for keys whose Netlify env value is STALE and can't be
+// edited (the 4KB cap blocks env saves). Checks the vault first, falls back to
+// env only if the vault has nothing. (Doesn't cache the empty case, so a value
+// added to the vault later is picked up on the next warm call.)
+async function getSecretPreferVault(name) {
+  try {
+    const v = await fetchFromXano(name);
+    if (v) { _secretCache[name] = v; return v; }
+  } catch (err) {
+    console.error('[secrets] getSecretPreferVault(' + name + ') failed:', err.message);
+  }
+  return process.env[name] || '';
+}
+
+// Upsert a secret into the vault — used when a function legitimately obtains a
+// secret it should persist (e.g. the Digits OAuth callback saving the refresh
+// token, so nobody pastes it into Netlify env). No PIN gate: callers are
+// trusted server contexts already holding the metadata token.
+async function setSecret(name, value) {
+  const tid = await configTableId();
+  const sr = await fetch(`${XANO_META}/table/${tid}/content/search`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
+  });
+  const sd = sr.ok ? await sr.json() : { items: [] };
+  const existing = ((sd && sd.items) || []).find((x) => x && x.name === name);
+  if (existing) {
+    await fetch(`${XANO_META}/table/${tid}/content/${existing.id}`, {
+      method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }),
+    });
+  } else {
+    await fetch(`${XANO_META}/table/${tid}/content`, {
+      method: 'POST', headers: headers(), body: JSON.stringify({ name, value }),
+    });
+  }
+  _secretCache[name] = value;
+  return true;
+}
+
+module.exports = { getSecret, getSecretPreferVault, setSecret, configTableId, CONFIG_TABLE_NAME };
