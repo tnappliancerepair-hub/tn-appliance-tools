@@ -635,6 +635,27 @@ export async function markPartsArrived({ job_id, source, notes = '' }) {
   return postJSON(`${INTAKE()}/mark_parts_arrived`, { job_id, source, notes });
 }
 
+// The ✏️ Status override Danielle uses — set a job's scheduling_status directly
+// (bypasses the state machine, silent, no customer SMS). Same endpoint the
+// office board drag-to-folder hits. Used by the TDR auto-route to drop a
+// finished report into Waiting Parts (awaiting_parts).
+export async function officeSetJobStatus(jobId, schedulingStatus, actor = 'Ant auto-route') {
+  return postJSON(`${INTAKE()}/office_set_job_status`, {
+    job_id: jobId, scheduling_status: schedulingStatus, actor,
+  });
+}
+
+// Force a job into a board folder — exactly what Danielle does when she drags a
+// card. Writes jobs.office_stage via the deployed office-stage Netlify function
+// (plain-text column, Metadata-API clean, no XS push). office_stage is the #1
+// priority in the board's placeOf(), so it sticks across every device.
+//   stage: 'parts' | 'followup' | 'done' | 'rep-<techId>' | 'schedule' | ...
+export async function setOfficeStage(jobId, stage, actor = 'Ant auto-route') {
+  return postJSON(`${config.netlifyFunctionsBase}/office-stage`, {
+    job_id: jobId, stage, actor,
+  });
+}
+
 // Find open / parts-ready jobs near a tech's recent location. Used by
 // the scheduler_fill_gap agent to surface fill-in work when a tech
 // wraps ahead of schedule.

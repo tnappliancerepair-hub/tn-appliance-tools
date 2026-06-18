@@ -29,6 +29,20 @@ export async function run(signal, ctx) {
     return { success: false, action: 'skipped_missing_ids' };
   }
 
+  // ── Auto-route the finished report (Danielle's ask) ──────────────
+  // The moment a tech finishes a TDR, drop the job into the right board folder
+  // by its disposition — Waiting Parts (a part must be ordered) or Follow Up
+  // (a second visit is needed) — so she stops hand-routing every report. Runs
+  // BEFORE the no-part early-return below, because a follow-up with no part
+  // still needs routing. Best-effort; never blocks the rest of the chain.
+  let autoRoute = 'not_attempted';
+  try {
+    autoRoute = (await routeFinishedReport(jobId, payload, ctx)).outcome;
+    log('tdr_auto_route', { job_id: jobId, tdr_id: tdrId, outcome: autoRoute });
+  } catch (err) {
+    autoRoute = `error:${String(err.message || err).slice(0, 60)}`;
+  }
+
   const failedComponent = String(payload.failed_component || '').trim();
   const verifiedPart = String(payload.verified_part_number || '').trim();
   if (!failedComponent && !verifiedPart) {
@@ -36,10 +50,11 @@ export async function run(signal, ctx) {
       job_id: jobId,
       tdr_id: tdrId,
       outcome: 'skipped_no_failed_component',
+      auto_route: autoRoute,
     };
     await xano.markSignalProcessed(signal.id, 'tdr_submitted_handled', meta);
     log('tdr_submitted_handled', meta);
-    return { success: true, action: 'skipped_no_failed_component', job_id: jobId };
+    return { success: true, action: 'skipped_no_failed_component', job_id: jobId, auto_route: autoRoute };
   }
 
   // Fan out to suppliers.
@@ -145,11 +160,83 @@ export async function run(signal, ctx) {
     suppliers_emitted: emitted.length,
     emitted,
     warranty_pre_stage: warrantyPreStage,
+    auto_route: autoRoute,
   };
   await xano.markSignalProcessed(signal.id, 'tdr_submitted_handled', meta);
   log('tdr_submitted_handled', meta);
 
   return { success: true, action: 'parts_lookup_fanout', job_id: jobId, suppliers_emitted: emitted.length };
+}
+
+// Decide where a finished report belongs and move it there — the same two
+// folders Danielle routes to by hand: Waiting Parts (a part needs ordering) or
+// Follow Up (a second visit is needed, no specific part). Never auto-completes
+// a job — the tech's "Complete" action owns that. Prefers the signal payload
+// (carries full disposition once create_tdr's expanded emit is pushed); falls
+// back to the job dashboard's latest TDR so PARTS routing works tonight even
+// before that XS push lands (Follow Up needs second_visit_needed, which arrives
+// with the push).
+async function routeFinishedReport(jobId, payload, ctx) {
+  const { xano } = ctx;
+  const ACTOR = 'Ant auto-route (TDR)';
+
+  let repairCompleted = payload.repair_completed;
+  let secondVisit = payload.second_visit_needed;
+  let notCompletedReason = payload.repair_not_completed_reason;
+  let failedComponent = payload.failed_component;
+  const partNums = [payload.verified_part_number, payload.oem_part_number, payload.amazon_part_number];
+
+  // Need the job's current state for the terminal guard, plus anything the
+  // (not-yet-expanded) payload left out — one dashboard read fills both. Skip
+  // the read only when the payload already carries everything (post-push).
+  let schedulingStatus = payload.scheduling_status;
+  if (schedulingStatus === undefined || repairCompleted === undefined
+      || secondVisit === undefined || failedComponent === undefined) {
+    const dash = await xano.getJobForDashboard(jobId).catch(() => null);
+    const job = (dash && dash.job) || {};
+    const tdr = (dash && dash.tdr) || {};
+    if (schedulingStatus === undefined) schedulingStatus = job.scheduling_status;
+    if (repairCompleted === undefined) repairCompleted = tdr.repair_completed;
+    if (failedComponent === undefined) failedComponent = tdr.failed_component;
+    partNums.push(tdr.verified_part_number);
+  }
+  schedulingStatus = String(schedulingStatus || '').toLowerCase();
+
+  // Never auto-route a terminal job.
+  if (['completed', 'canceled', 'cancelled', 'no_fix_possible'].includes(schedulingStatus)) {
+    return { outcome: `skip_terminal_${schedulingStatus}` };
+  }
+
+  const substantive = (v) => {
+    const s = String(v == null ? '' : v).trim().toLowerCase();
+    return !!s && !['n/a', 'na', 'none', 'no', 'not completed', '-', 'tbd', 'null'].includes(s);
+  };
+  const repairDone = substantive(repairCompleted);
+  const hasPart = substantive(failedComponent) || partNums.some((p) => String(p == null ? '' : p).trim().length >= 3);
+  const needsFollowup = secondVisit === true || String(secondVisit).toLowerCase() === 'true' || substantive(notCompletedReason);
+
+  // Repair finished on-site and no second visit → leave it for the tech's
+  // Complete action; don't move it.
+  if (repairDone && !needsFollowup) return { outcome: 'repair_completed_no_route' };
+
+  // A part still needs ordering → Waiting Parts. Set the real state
+  // (awaiting_parts) AND the folder placement, exactly like dragging the card.
+  if (hasPart && !repairDone) {
+    if (schedulingStatus !== 'awaiting_parts') {
+      await xano.officeSetJobStatus(jobId, 'awaiting_parts', ACTOR).catch(() => {});
+    }
+    await xano.setOfficeStage(jobId, 'parts', ACTOR).catch(() => {});
+    return { outcome: 'routed_waiting_parts' };
+  }
+
+  // Second visit needed, no specific part → Follow Up (placement only; the
+  // board's Follow Up column has no backend status).
+  if (needsFollowup) {
+    await xano.setOfficeStage(jobId, 'followup', ACTOR).catch(() => {});
+    return { outcome: 'routed_follow_up' };
+  }
+
+  return { outcome: 'no_clear_disposition' };
 }
 
 function composeStagedNotes(bundle, payload) {
