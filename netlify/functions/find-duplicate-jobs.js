@@ -1,19 +1,18 @@
-// find-duplicate-jobs — OFFICE tool. Finds customers with multiple jobs that are
-// really the SAME ticket and should be combined into one. Office-password gated.
+// find-duplicate-jobs — OFFICE tool. Finds jobs that are the SAME warranty job
+// duplicated, so they can be combined into one. Office-password gated.
 //
-// Rule (Teddy 2026-06-18): group by NAME, then combine everything into one
-// ticket UNLESS two jobs are provably DISTINCT real jobs:
-//   • different (non-empty) job numbers AND different addresses (multi-home
-//     owners / separate locations stay separate), OR
-//   • different (non-empty) appliance types (fridge + washer at one house = two
-//     real tickets).
+// RULE (Teddy 2026-06-18): combine ONLY jobs that share the SAME claim number.
+// The claim # is the one unambiguous identifier — two records with the same claim
+// are definitively the same job. Nothing else merges (no name/address guessing),
+// so there are ZERO false-positives. Jobs with no claim # are never auto-combined.
+// (Pairs with the SquareTrade parser fix that ensures update emails carry the
+// claim #, so the dupe + original share it and get caught here.)
 //
-// PERF + correctness: job rows carry NO customer name (only customer_id), so we
-// bulk-pull customers (for names) AND jobs (for address/appliance/job#) in two
-// paginated passes and join in memory by customer_id — no per-customer lookups.
+// PERF: one bulk paginated jobs pass + one customers pass (for display names),
+// joined in memory by customer_id.
 //
-//   POST { password }  ->  { ok, group_count, groups:[{ name, address, appliance,
-//                            keeper_job_id, jobs:[...] }] }
+//   POST { password }  ->  { ok, group_count, groups:[{ name, claim_number,
+//                            address, appliance, keeper_job_id, jobs:[...] }] }
 'use strict';
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -29,7 +28,6 @@ function headers() {
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
 
-// Bulk-pull a table (id desc), batched pages.
 async function bulk(tableId, maxPages) {
   const PER = 250, BATCH = 6;
   const all = []; let stop = false;
@@ -51,55 +49,7 @@ async function bulk(tableId, maxPages) {
 }
 
 const DONE = /completed|canceled|cancelled/i;
-
 function norm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
-function jobNumOf(j) { return norm(j.claim_number || j.job_number || j.dispatch_number || ''); }
-function addrOf(j) {
-  return (norm(j.service_address || j.address) + '|' + norm(j.service_zip || j.zip || ''))
-    .replace(/[^a-z0-9|]/g, '');
-}
-function applOf(j) { return norm(j.appliance_type || j.appliance || ''); }
-
-// Two jobs are provably DISTINCT real jobs (do NOT merge) when:
-//   different non-empty job#s AND different addresses, OR different appliances.
-function areDistinct(a, b) {
-  const jnA = jobNumOf(a), jnB = jobNumOf(b);
-  const jobNumsDiffer = !!jnA && !!jnB && jnA !== jnB;
-  const adA = addrOf(a), adB = addrOf(b);
-  const adAbare = adA.replace(/\|/g, ''), adBbare = adB.replace(/\|/g, '');
-  const addrsDiffer = !!adAbare && !!adBbare && adA !== adB;
-  if (jobNumsDiffer && addrsDiffer) return true;     // multi-home / separate locations
-  const apA = applOf(a), apB = applOf(b);
-  if (apA && apB && apA !== apB) return true;         // different appliance = different ticket
-  return false;
-}
-
-// Two jobs MERGE only with POSITIVE proof they're the same ticket: a shared
-// (non-empty) address, or a shared (non-empty) job/claim number — and not
-// distinct by appliance/location. "Absence of proof they differ" is NOT enough
-// (that wrongly merged 57 unparsed "(Pending review)" drafts that share a blank
-// name + blank address).
-function mergeable(a, b) {
-  if (areDistinct(a, b)) return false;
-  const jn = jobNumOf(a);
-  const sameJobNum = !!jn && jn === jobNumOf(b);
-  const adBare = addrOf(a).replace(/\|/g, '');
-  const sameAddr = !!adBare && addrOf(a) === addrOf(b);
-  return sameJobNum || sameAddr;
-}
-
-// Union-find: cluster a name's jobs into "same ticket" sets.
-function clusterJobs(jobs) {
-  const parent = jobs.map((_, i) => i);
-  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
-  const union = (i, j) => { parent[find(i)] = find(j); };
-  for (let i = 0; i < jobs.length; i++)
-    for (let j = i + 1; j < jobs.length; j++)
-      if (mergeable(jobs[i], jobs[j])) union(i, j);
-  const comps = {};
-  for (let i = 0; i < jobs.length; i++) { const r = find(i); (comps[r] = comps[r] || []).push(jobs[i]); }
-  return Object.values(comps);
-}
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
@@ -122,23 +72,20 @@ exports.handler = async function (event) {
     const custById = {};
     for (const c of customers) custById[c.id] = c;
 
-    // Group LIVE, non-test jobs by their customer's name (joined via customer_id).
-    const byName = {};
-    let unmatched = 0;
+    // Group LIVE, non-test jobs by CLAIM NUMBER — the only identifier that proves
+    // two records are the SAME job. Jobs with no claim # are never combined.
+    const byClaim = {};
     for (const j of jobsRaw) {
       if (DONE.test(j.scheduling_status || '')) continue;
-      if (String(j.test_run_id || '').trim()) continue; // test jobs handled separately
-      const c = custById[j.customer_id];
-      if (!c) { unmatched++; continue; }
-      const fn = norm(c.first_name), ln = norm(c.last_name);
-      if (!fn && !ln) continue;
-      const key = `${fn} ${ln}`.trim();
-      if (/pending review|\btest\b|smoke\s*test|smoketest|lifecycle|placeholder|unknown|do not use/i.test(key)) continue; // not real names
-      (byName[key] = byName[key] || []).push({
+      if (String(j.test_run_id || '').trim()) continue;
+      const claim = norm(j.claim_number);
+      if (!claim) continue;
+      const c = custById[j.customer_id] || {};
+      (byClaim[claim] = byClaim[claim] || []).push({
         id: j.id, customer_id: j.customer_id,
-        claim_number: j.claim_number || '', job_number: j.job_number || '', dispatch_number: j.dispatch_number || '',
+        claim_number: j.claim_number || '',
         appliance_type: j.appliance_type || '',
-        service_address: j.service_address || '', service_zip: j.service_zip || '',
+        service_address: j.service_address || '',
         name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
         zip: c.zip || '', city: c.city || '',
         status: j.scheduling_status || '', created_at: j.created_at || 0,
@@ -146,32 +93,25 @@ exports.handler = async function (event) {
     }
 
     if (b.debug) {
-      const names2 = Object.keys(byName).filter((k) => byName[k].length >= 2);
-      return { statusCode: 200, body: JSON.stringify({
-        ok: true, debug: true, customers: customers.length, jobs_scanned: jobsRaw.length,
-        unmatched_jobs: unmatched, names_total: Object.keys(byName).length, names_with_2plus_jobs: names2.length,
-      }, null, 2) };
+      const claims2 = Object.keys(byClaim).filter((k) => byClaim[k].length >= 2);
+      return { statusCode: 200, body: JSON.stringify({ ok: true, debug: true, jobs_scanned: jobsRaw.length, distinct_claims: Object.keys(byClaim).length, claims_with_2plus_jobs: claims2.length }, null, 2) };
     }
 
     const out = [];
-    for (const key of Object.keys(byName)) {
-      const jobs = byName[key];
-      if (jobs.length < 2) continue;
-      const clusters = clusterJobs(jobs); // one name → maybe several (multi-home)
-      for (const cluster of clusters) {
-        if (cluster.length < 2) continue; // only real dupes
-        const keeper = cluster.find((j) => jobNumOf(j)) ||
-          cluster.find((j) => /scheduled/i.test(j.status)) ||
-          cluster.slice().sort((a, c) => a.id - c.id)[0];
-        const k = cluster[0];
-        out.push({
-          key: key + '|' + (keeper ? keeper.id : ''),
-          name: k.name, address: keeper ? keeper.service_address : '', zip: k.zip, city: k.city,
-          appliance: keeper ? keeper.appliance_type : '',
-          keeper_job_id: keeper ? keeper.id : null,
-          jobs: cluster.sort((a, c) => (a.id === (keeper && keeper.id) ? -1 : 1)),
-        });
-      }
+    for (const claim of Object.keys(byClaim)) {
+      const jobs = byClaim[claim];
+      if (jobs.length < 2) continue; // same claim # on 2+ live jobs = dupe
+      const keeper = jobs.find((j) => /scheduled/i.test(j.status)) ||
+        jobs.slice().sort((a, c) => a.id - c.id)[0];
+      const k = jobs[0];
+      out.push({
+        key: claim,
+        name: k.name, claim_number: k.claim_number,
+        address: keeper.service_address, zip: k.zip, city: k.city,
+        appliance: keeper.appliance_type,
+        keeper_job_id: keeper.id,
+        jobs: jobs.sort((a, c) => (a.id === keeper.id ? -1 : 1)),
+      });
     }
     out.sort((a, c) => c.jobs.length - a.jobs.length);
     return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out }) };
