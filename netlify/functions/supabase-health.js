@@ -6,7 +6,7 @@
 'use strict';
 
 const supa = require('./_lib/supabase');
-const { getSecretPreferVault } = require('./_lib/secrets');
+const { getSecret } = require('./_lib/secrets');
 
 const TOKEN = 'tn-supabase-dbg-2026';
 
@@ -23,8 +23,8 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   if (q.token !== TOKEN) return j(401, { ok: false, error: 'bad_token' });
 
-  const url = await getSecretPreferVault('SUPABASE_URL').catch(() => null);
-  const key = await getSecretPreferVault('SUPABASE_SERVICE_KEY').catch(() => null);
+  const url = await getSecret('SUPABASE_URL').catch(() => null);
+  const key = await getSecret('SUPABASE_SERVICE_KEY').catch(() => null);
   const connected = await supa.isConnected().catch(() => false);
 
   const out = {
