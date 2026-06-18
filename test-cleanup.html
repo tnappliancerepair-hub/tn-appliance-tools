@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Test-job cleanup · Ant</title>
+<style>
+  :root{--bg:#f4f6f9;--ink:#1d2530;--ink2:#5a6678;--line:#e3e8ef;--bad:#d6432a;--ok:#1aa260;--blue:#2f6fed;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:18px;max-width:680px;margin:0 auto}
+  h1{font-size:20px;margin:6px 0 2px}
+  .sub{color:var(--ink2);font-size:13px;margin-bottom:16px}
+  input{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:15px;margin-bottom:10px}
+  button{width:100%;padding:12px;border:0;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer;margin-bottom:10px}
+  .find{background:var(--blue);color:#fff}
+  .del{background:var(--bad);color:#fff;display:none}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:8px}
+  .row{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+  .big{font-size:34px;font-weight:900;text-align:center;margin:6px 0}
+  .muted{color:var(--ink2);font-size:12px}
+  #msg{font-size:13px;color:var(--ink2);margin:8px 0;min-height:18px}
+  .err{color:var(--bad)}
+</style>
+</head>
+<body>
+  <h1>🧪 Test-job cleanup</h1>
+  <div class="sub">Finds + deletes jobs tagged as TEST (<code>test_run_id</code> set). Real warranty/HCP jobs are never touched. Always dry-run first.</div>
+
+  <input id="pw" type="password" inputmode="text" placeholder="Office password" autocomplete="off" />
+  <button class="find" id="findBtn" onclick="findAll()">🔍 Find test jobs (dry run)</button>
+  <button class="del" id="delBtn" onclick="deleteAll()">🗑 Delete all test jobs</button>
+  <div id="msg"></div>
+  <div id="out"></div>
+
+<script>
+const FN='/.netlify/functions/cleanup-test-jobs';
+let PW='', TOTAL=0, BYRUN={}, SAMPLE=[];
+const $=id=>document.getElementById(id);
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function call(confirm,page){
+  const r=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,confirm:confirm,start_page:page})});
+  return r.json();
+}
+
+async function findAll(){
+  PW=$('pw').value.trim(); if(!PW){$('msg').innerHTML='<span class="err">Enter the office password.</span>';return;}
+  TOTAL=0;BYRUN={};SAMPLE=[];$('out').innerHTML='';$('delBtn').style.display='none';
+  $('findBtn').disabled=true;
+  let page=1,more=true,pagesScanned=0;
+  while(more){
+    $('msg').textContent='Scanning… (page '+page+', found '+TOTAL+' so far)';
+    let d; try{ d=await call(false,page); }catch(_){ $('msg').innerHTML='<span class="err">Network error.</span>'; break; }
+    if(!d.ok){ $('msg').innerHTML='<span class="err">'+esc(d.error||'error')+'</span>'; break; }
+    TOTAL+=d.found; pagesScanned+=d.scanned_pages||0;
+    for(const k in (d.by_run_id||{})) BYRUN[k]=(BYRUN[k]||0)+d.by_run_id[k];
+    if(SAMPLE.length<25) SAMPLE=SAMPLE.concat(d.sample||[]).slice(0,25);
+    more=d.more; page=d.next_page||(page+1);
+  }
+  $('findBtn').disabled=false;
+  render(pagesScanned);
+}
+
+function render(pagesScanned){
+  $('msg').textContent='Done scanning '+pagesScanned+' pages.';
+  const rows=Object.keys(BYRUN).sort((a,b)=>BYRUN[b]-BYRUN[a]).map(k=>'<div class="row"><span>'+esc(k)+'</span><b>'+BYRUN[k]+'</b></div>').join('');
+  $('out').innerHTML='<div class="card"><div class="big">'+TOTAL+'</div><div class="muted" style="text-align:center">test jobs found</div>'
+    +(rows?('<div style="margin-top:10px"><div class="muted">By test_run_id:</div>'+rows+'</div>'):'')
+    +(SAMPLE.length?('<div style="margin-top:10px"><div class="muted">Sample:</div>'+SAMPLE.map(s=>'<div class="row"><span>#'+s.id+' '+esc(s.name||'')+'</span><span class="muted">'+esc(s.test_run_id)+'</span></div>').join('')):'')
+    +'</div>';
+  $('delBtn').textContent='🗑 Delete all '+TOTAL+' test jobs';
+  $('delBtn').style.display=TOTAL>0?'block':'none';
+}
+
+async function deleteAll(){
+  if(!confirm('Permanently DELETE all '+TOTAL+' test jobs (and their reports)? This cannot be undone. Real jobs are not touched.')) return;
+  $('delBtn').disabled=true;$('findBtn').disabled=true;
+  let page=1,more=true,deleted=0,tdr=0;
+  while(more){
+    $('msg').textContent='Deleting… ('+deleted+' done, page '+page+')';
+    let d; try{ d=await call(true,page); }catch(_){ $('msg').innerHTML='<span class="err">Network error — re-run to continue.</span>'; break; }
+    if(!d.ok){ $('msg').innerHTML='<span class="err">'+esc(d.error||'error')+'</span>'; break; }
+    deleted+=d.deleted||0; tdr+=d.tdr_deleted||0; more=d.more; page=d.next_page||(page+1);
+  }
+  $('delBtn').disabled=false;$('findBtn').disabled=false;$('delBtn').style.display='none';
+  $('msg').innerHTML='<span style="color:var(--ok);font-weight:700">✓ Deleted '+deleted+' test jobs + '+tdr+' reports.</span>';
+  $('out').innerHTML='';
+}
+</script>
+</body>
+</html>
