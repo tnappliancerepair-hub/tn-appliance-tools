@@ -86,6 +86,30 @@ Xano write; nothing else is affected.
 
 ---
 
+## 2b. Loop dual-write — activation (Mac Mini, one-time)
+
+Status: **wired + flag-gated, default OFF.** `colony-loop/supabase.js` (ESM) +
+`colony-loop/xano.js recordEventLog` already mirror every loop event into Supabase
+when the flag is on. To activate (Mac Mini, where the loop runs):
+
+1. `git pull origin main` (gets `colony-loop/supabase.js` + the gated dual-write).
+2. Add to `colony-loop/.env`:
+   ```
+   SUPABASE_URL=https://iqpyubevwsaguekujsax.supabase.co
+   SUPABASE_SERVICE_KEY=sb_secret_...      # same key as the vault
+   SUPABASE_DUAL_WRITE=true
+   ```
+   (Loop reads these from .env via config.js — NO Xano metadata API involved.)
+3. `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`
+4. Verify: Supabase → Table Editor → `event_log` shows new rows with `source=loop`
+   accumulating alongside the Xano writes. Xano is unchanged (still dual-writing).
+
+**Rollback:** remove `SUPABASE_DUAL_WRITE=true` (or set false) → kickstart. Back to
+Xano-only instantly.
+
+Once loop rows look right in Supabase for a day, do the read-cut (step 2) + drop the
+loop's Xano `record_event_log` write — that's the step that actually sheds load.
+
 ## 3. What stays on Xano (on purpose)
 
 Jobs, customers, technicians, money/payroll, warranty_submissions, parts_orders,
