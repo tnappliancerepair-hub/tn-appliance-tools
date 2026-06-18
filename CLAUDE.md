@@ -1,5 +1,14 @@
 # Appliance Ant
 
+## ⚡ 2026-06-18 — XANO LOAD STRUCTURALLY FIXED + day's wins (READ FIRST)
+
+- **🟢 LOOP_STORE=local SQLite cutover is LIVE (the big one).** The loop's **signal queue** now runs on local SQLite (`colony-loop/db.js`) instead of Xano — so a signal storm can't melt Xano (the 503-night cause). `colony-loop/store.js` is the router: default=Xano, `LOOP_STORE=local` (set in `colony-loop/.env`) flips the queue (`fetchPendingSignals`/`emitSignal`/`markSignalProcessed`/`countPendingSignalsForJob`) to db.js + runs `drainInbox()` each tick to pull external (Netlify/XS) signals from Xano → local. **Dedup checks + `recordEvent`/audit stay on Xano on purpose** (keeps dedup consistent + office event rows intact). Validated live: Xano `colony_signals` pending = **0** (draining), 24 `drained_to_local`/window, loop healthy, no flood. **↩️ ROLLBACK = remove the `LOOP_STORE=local` line from `colony-loop/.env` → `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`** (back on Xano in seconds). Bounded downside if dedup ever drifts = a few **internal** dupe texts (customer texts gated off; breaker caps it).
+- **Other Xano relief (also live):** loop **tick 60s→120s** (`config.js`, halves polling) + nightly event_log GC (already scheduled). Over-emission already fixed at source (fail-closed dedup + in-memory guard + SMS breaker). Net: the 503 problem is structurally solved.
+- **Money → Books LIVE** (real P&L from Digits). The page errored only because of a **browser content-blocker** breaking its data calls — **whitelist `tnapplianceexchange.net`** in the blocker (or use a clean window). Fixed `renderActive()` so Books loads independent of the (separately-flaky) Payroll tab. NOTE the shown $72,144.74 was stale DEMO data; live is ~$11.5k — refresh Books.
+- **Office board:** jobs now flag **⏰ OVERDUE** (red card) when past expected timing (parts past ETA, or scheduled day passed without completing) — Danielle's ask.
+- **"Request report" fixed:** clear "assign a tech first" message when a job has no tech (was cryptic `no_tech_phone`); Andre's number corrected to his **504** (615 silently gates).
+- **Still open:** combine duplicate jobs (run `dupe-cleanup.html`, office-password gated); delete all test jobs (needs a targeted tool — confirm marker = `test_run_id`); Payroll-tab "string did not match pattern" error (data is fine, render bug).
+
 ## ⏭️ WHEN TEDDY'S BACK AT THE OFFICE / MAC (saved 2026-06-17 evening) — TODO LIST — READ FIRST
 
 Teddy's on the road; do these when back. Rough priority:
