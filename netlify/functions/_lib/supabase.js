@@ -14,17 +14,21 @@
 // Use a FRESH project dedicated to Ant ops (kept clean of the bigger-idea build).
 'use strict';
 
-const { getSecretPreferVault } = require('./secrets');
+const { getSecret } = require('./secrets');
 
 let _cfg = null;
 async function cfg() {
   // Only reuse a COMPLETE cache. Never trust a blank cache — a cold start during
-  // a Xano outage would otherwise poison this permanently (creds live in the
-  // Xano-backed vault, so a failed read must NOT be cached as "empty forever").
+  // a Xano outage would otherwise poison this permanently.
   if (_cfg && _cfg.url && _cfg.key) return _cfg;
+  // ENV-FIRST (getSecret = Netlify env, then Xano vault). Critical: the whole
+  // point of this offload is to NOT depend on Xano. The vault lives behind Xano's
+  // metadata API, which flaps down — so Supabase creds must be readable from
+  // Netlify env directly (set SUPABASE_URL + SUPABASE_SERVICE_KEY in Netlify env).
+  // Vault stays as a fallback for when env isn't set.
   const [url, key] = await Promise.all([
-    getSecretPreferVault('SUPABASE_URL'),
-    getSecretPreferVault('SUPABASE_SERVICE_KEY'),
+    getSecret('SUPABASE_URL'),
+    getSecret('SUPABASE_SERVICE_KEY'),
   ]);
   const c = { url: String(url || '').replace(/\/+$/, ''), key: String(key || '') };
   if (c.url && c.key) _cfg = c; // cache only when complete
