@@ -500,6 +500,14 @@ query create_tdr verb=POST {
         failed_component    : ($input.failed_component ?? "")
         verified_part_number: ($input.verified_part_number ?? "")
         technician_id       : ($input.technician_id ?? null)
+        repair_completed    : ($input.repair_completed ?? "")
+        repair_not_completed_reason: ($input.repair_not_completed_reason ?? "")
+        second_visit_needed : ($input.second_visit_needed ?? false)
+        oem_part_number     : ($input.oem_part_number ?? "")
+        amazon_part_number  : ($input.amazon_part_number ?? "")
+        failure_cause       : ($input.failure_cause ?? "")
+        diagnosis           : ($input.diagnosis ?? "")
+        scheduling_status   : ($tdr_job.scheduling_status ?? "")
       }
     }
   
