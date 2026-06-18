@@ -9,20 +9,33 @@
 'use strict';
 
 const BASE = 'https://connect.digits.com/v1';
+// Creds are read VAULT-FIRST: the production values live in the Xano app_config
+// vault because Netlify env is full (4KB cap) and can't be edited. Env stays as
+// a fallback so older deploys keep working.
+const { getSecretPreferVault } = require('./secrets');
 
 function defaultRedirect() {
   return process.env.DIGITS_REDIRECT_URI
     || 'https://tnapplianceexchange.net/.netlify/functions/digits-oauth-callback';
 }
 
-function isConfigured() {
-  return !!(process.env.DIGITS_CLIENT_ID && process.env.DIGITS_CLIENT_SECRET && process.env.DIGITS_REFRESH_TOKEN);
+// {id, secret, refresh} — vault-first, env fallback.
+async function getCreds() {
+  const [id, secret, refresh] = await Promise.all([
+    getSecretPreferVault('DIGITS_CLIENT_ID'),
+    getSecretPreferVault('DIGITS_CLIENT_SECRET'),
+    getSecretPreferVault('DIGITS_REFRESH_TOKEN'),
+  ]);
+  return { id, secret, refresh };
+}
+
+async function isConnected() {
+  const { id, secret, refresh } = await getCreds();
+  return !!(id && secret && refresh);
 }
 
 async function getAccessToken() {
-  const id = process.env.DIGITS_CLIENT_ID;
-  const secret = process.env.DIGITS_CLIENT_SECRET;
-  const refresh = process.env.DIGITS_REFRESH_TOKEN;
+  const { id, secret, refresh } = await getCreds();
   if (!id || !secret || !refresh) {
     throw new Error('Digits not connected yet (missing DIGITS_CLIENT_ID / DIGITS_CLIENT_SECRET / DIGITS_REFRESH_TOKEN)');
   }
@@ -51,4 +64,4 @@ async function apiGet(path, token) {
   try { return JSON.parse(text); } catch (_) { return {}; }
 }
 
-module.exports = { BASE, defaultRedirect, isConfigured, getAccessToken, apiGet };
+module.exports = { BASE, defaultRedirect, getCreds, isConnected, getAccessToken, apiGet };

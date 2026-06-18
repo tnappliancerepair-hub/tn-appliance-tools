@@ -1,5 +1,33 @@
 # Appliance Ant
 
+## ⏭️ WHEN TEDDY'S BACK AT THE OFFICE / MAC (saved 2026-06-17 evening) — TODO LIST — READ FIRST
+
+Teddy's on the road; do these when back. Rough priority:
+
+1. **Finish Digits production** (live books/P&L — Brian @ Digits unblocked it: use the PRODUCTION client_id+secret, no further approval). No new env vars, just swap values: (a) Digits app → **Keys tab** → copy PRODUCTION `client_id` + `secret`; (b) Netlify → replace `DIGITS_CLIENT_ID` + `DIGITS_CLIENT_SECRET`; (c) visit `/.netlify/functions/digits-oauth-start` → authorize → pick **TN Appliance Exchange** (real firm; shows as the "unapproved" Ant app per Brian); (d) paste new refresh token into `DIGITS_REFRESH_TOKEN` → redeploy → Money→Books shows real P&L.
+
+2. **Frontdoor "AHS Status API" — FOLLOW UP / REVIVE (biggest Danielle-replacement lever).** Teddy submitted the **AHS Status API Integration Request** (forms.office.com) **WEEKS AGO — no response yet** (it's stalled on Frontdoor's side, not ours). Selected **Both Inbound + Outbound**. The win = the **Inbound ops: Dispatch Status Update + Dispatch Note Update** = Ant pushes a job's status/notes straight into the Frontdoor Contractor Portal → **Danielle's manual portal updating GONE.** Real path confirmed: **`developer.frontdoorhome.com`** = Developer Portal w/ the **API docs + "Generate Token using API Keys"** (+ `/help`). **ACTIONS:** (a) **try logging into `developer.frontdoorhome.com`** with AHS/Frontdoor contractor creds — if already provisioned, self-serve the API docs + mint a token and send to Claude → wire immediately, no waiting; (b) **follow up on the stalled request** (draft email is in the 2026-06-17 chat) — best recipient = a human Frontdoor contact (acct mgr / contractor relations / whoever the form came from). Inbound auth = token from the Developer Portal; Outbound (Frontdoor→us) will need an endpoint URL + auth on OUR side (Claude stands up the receiver once the spec lands). **Direct Frontdoor API beats the Dispatch middleman route** (Dispatch = real, dispatch.me Gateway Partners, syncs to AHS/Frontdoor — fallback only if the direct API stalls).
+
+3. **Restart the colony loop — it's DOWN** (no morning briefings / office warranty auto-draft / automations). First the SAFE backlog check (sends nothing): `node colony-loop/scripts/clear-pending-signals.js --report` → send Claude the output → then **bootstrap** (NOT kickstart — service isn't loaded; "Could not find service" today): `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.tnappliance.colony-loop.plist`.
+
+4. **Apply the live-TDR cause prompt** (Mac): `git pull origin main` then `node colony-loop/scripts/wire-field-assist-live-tdr.js` (dry run → "Live-scribe prompt: WILL UPDATE") then add `--apply`. Makes Ant ASK the tech for the failure cause so it's never blank.
+
+5. **Push the backend auto-start guard** (XS): `/opt/homebrew/bin/xano workspace push -i "api/**/tech_job_complete*" --force` → "Pushed 1 documents" + verify a still-scheduled job can complete. (Front-end guard already live.)
+
+6. **AHS-company → Teddy's cell.** ONLY a real AHS warranty-company rep calling the shop → Teddy's cell (NOT all of 615-280-2949 — that floods his phone; the whole-number forward was explicitly rejected). Decide detection: Ant ASKS "homeowner or American Home Shield?" (any number) vs match known AHS numbers. Tell Claude → wire into Ant Inbound. **RingCentral is GONE so transfers should work now** (RC double-hop was the old ~35% drop cause). One test call after.
+
+### Danielle's workflow asks (her texts 2026-06-17)
+7. **Auto-routing she requested (build it):** finished report → job moves to the **tech's folder** → she routes to the next folder by TDR diagnosis (waiting-parts / follow-up). This is the disposition-from-the-Ant-call routing.
+8. **Fix "TDR COMPLETE" notification** mislabeling EMPTY reports as complete (should say "report needed" — empty TDR shouldn't read "complete").
+9. **Lee's two EMPTY TDRs** — Rachel Thomas #19579 + Margy Brady #19654 (both awaiting-parts, blank diagnosis). Lee's jobs aren't getting reported through Ant like Teddy's are → office has no diagnosis to order the parts. Get Lee to run them through Ant.
+10. **"Report from the job on Monday"** Danielle needs — identify which job.
+11. **🥇 PARTS-STATUS AUTO-CHASE + AUTO-UPDATE (biggest NEW win for Danielle's day).** Her most repetitive task 2026-06-17: she manually emailed **12 vendors one-by-one** asking "where's my part?" (24 jobs in awaiting_parts). Automate: Ant auto-sends the "status/ETA please?" follow-up for each awaiting-parts job past its ETA, AND the existing parts-vendor Gmail poller reads the vendor reply → auto-updates `parts_eta_date` → flips the job to ready-to-schedule when it lands. Half is already built (the inbound poller / `parts-vendor-gmail-poller` + `docs/parts-email-auto-tracking-2026-06-11.md`); the NEW piece = the outbound auto-chase + auto-status-update so she stops chasing by hand.
+
+### Today's wins (2026-06-17 evening, all LIVE on main)
+Voice→TDR backstop (writes the TDR from the call transcript); tech-job.html "🎤 From your Ant call" panel; auto-Start-before-Complete; **two-man job feature** (crew 2nd tech shows on both dashboards — Rachel/Lee+Teddy, Eda/Teddy+Jimmy); Ant records the **failure-cause dropdown** + **parts used / parts to return** into structured fields (Danielle's view); `set-tdr-field` + `set-call-forwarding` (Telnyx) helpers. Backfilled today's 5 jobs (Eyob/Ramon/Rosalyn/Jason/Eda) complete for Danielle. Eda Bagby proved parts auto-capture end-to-end.
+
+---
+
 ## ⏭️ NEXT SESSION (saved 2026-06-17 ~9:45am — the morning HCP over-build incident + recovery) — READ FIRST
 
 **A real field outage caused by ME over-building. Ended in a good, working state. Read this before touching the tech dashboard or anything HCP.**
