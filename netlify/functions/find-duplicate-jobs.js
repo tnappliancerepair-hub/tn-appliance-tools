@@ -72,6 +72,23 @@ exports.handler = async function (event) {
     const custById = {};
     for (const c of customers) custById[c.id] = c;
 
+    // Test-job sweep: list every LIVE job that is a test — either tagged
+    // (test_run_id) or named like a test. Read-only; caller cancels the ids.
+    if (b.mode === 'test_names') {
+      const TESTPAT = /\btest\b|smoke\s*test|smoketest|lifecycle|\bdemo\b|placeholder|do not use|sample customer|\bfake\b|\bqa\b|practice/i;
+      const hits = [];
+      for (const j of jobsRaw) {
+        if (DONE.test(j.scheduling_status || '')) continue;
+        const c = custById[j.customer_id] || {};
+        const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+        const tagged = String(j.test_run_id || '').trim();
+        if (tagged || TESTPAT.test(name)) {
+          hits.push({ id: j.id, name, test_run_id: tagged, status: j.scheduling_status || '', claim: j.claim_number || '' });
+        }
+      }
+      return { statusCode: 200, body: JSON.stringify({ ok: true, mode: 'test_names', count: hits.length, jobs: hits }, null, 2) };
+    }
+
     // Group LIVE, non-test jobs by CLAIM NUMBER — the only identifier that proves
     // two records are the SAME job. Jobs with no claim # are never combined.
     const byClaim = {};
