@@ -68,9 +68,16 @@ exports.handler = async function (event) {
   const pages = Math.min(Math.max(Number(b.pages || 12), 4), 24);
   try {
     const [ev, sig] = await Promise.all([bulk(EVENT_LOG, pages), bulk(COLONY_SIGNALS, pages).catch(() => [])]);
+    // Isolate POST-restart rows so we can tell if the loop is STILL writing to
+    // Xano right now (vs. these being pre-restart rows in the window).
+    const now = Date.now();
+    const recent = (rows, mins) => rows.filter((r) => (now - (Number(r.created_at) || 0)) <= mins * 60000);
+    const ev5 = recent(ev, 5), ev15 = recent(ev, 15);
     return { statusCode: 200, body: JSON.stringify({
       ok: true,
       event_log: { scanned: ev.length, window: windowSpan(ev), by_action: topCounts(ev, (r) => r.action, 25) },
+      last_5min:  { rows: ev5.length,  by_action: topCounts(ev5, (r) => r.action, 12) },
+      last_15min: { rows: ev15.length, by_action: topCounts(ev15, (r) => r.action, 12) },
       signals: { scanned: sig.length, window: windowSpan(sig), by_type: topCounts(sig, (r) => r.signal_type, 25), by_source: topCounts(sig, (r) => r.source_colony, 15) },
     }, null, 2) };
   } catch (e) {
