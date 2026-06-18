@@ -717,6 +717,7 @@
     <span class="lg"><i class="sw sw-done"></i> Completed</span>
     <span class="lg-note">Drag a job to another tech or day to move it · click it to reschedule / unschedule / cancel</span>
   </div>
+  <div class="cal-summary" id="calSummary"></div>
   <div class="scroll" id="scroll">
     <div id="content"></div>
   </div>
@@ -861,9 +862,34 @@ function __initCalendar() {
     content.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button onclick="location.reload()">retry</button></div>`;
   }
 
+  // Bird's-eye health bar: how many jobs are placed, across how many techs, and
+  // how many still need scheduling — so the office can verify "is everyone in
+  // and correct" in one glance.
+  function renderSummaryBar(data) {
+    const el = document.getElementById('calSummary');
+    if (!el) return;
+    const jobs = data.jobs || [];
+    const unscheduled = data.unscheduled || [];
+    let scheduled = 0, unassigned = 0;
+    const techSet = {};
+    for (const j of jobs) {
+      if (j.technician_id && j.technician_id !== 0) { scheduled++; techSet[j.technician_id] = 1; }
+      else { unassigned++; }
+    }
+    const needs = unassigned + unscheduled.length;
+    const nTechs = Object.keys(techSet).length;
+    const needsCls = needs > 0 ? 'cs-strong cs-warn' : 'cs-strong';
+    el.innerHTML =
+      `<span class="cs-label">📋 this week:</span> `
+      + `<span class="cs-strong">${scheduled}</span> scheduled across <span class="cs-strong">${nTechs}</span> ${nTechs === 1 ? 'tech' : 'techs'}`
+      + `<span class="cs-sep">·</span>`
+      + `<span class="${needsCls}">${needs}</span> still need scheduling`;
+  }
+
   // ── Render ─────────────────────────────────────────────────────
   function render(data) {
     renderHeader(data);
+    renderSummaryBar(data);
 
     const techs = data.technicians || [];
     const jobs = data.jobs || [];
@@ -1806,6 +1832,12 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   .blk { cursor: grab; }
   .blk.dragging { opacity: 0.45; cursor: grabbing; }
   .cell.drag-over { outline: 2px dashed #39ff14; outline-offset: -2px; background: rgba(57,255,20,0.08); }
+  .cal-summary { display: flex; align-items: center; gap: 6px; padding: 9px 14px; font-family: 'Geist Mono', monospace; font-size: 13px; color: #cdd6e4; background: #11161d; border-bottom: 1px solid #1f2a37; }
+  .cal-summary .cs-strong { font-weight: 800; color: #fff; }
+  .cal-summary .cs-strong.cs-warn { color: #f5a623; }
+  .cal-summary .cs-sep { opacity: 0.4; margin: 0 4px; }
+  .cal-summary .cs-label { color: #8a94a6; }
+  .cal-summary:empty { display: none; }
   .cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px; font-family: 'Geist Mono', monospace; font-size: 11px; color: #aaa; border-bottom: 1px solid #1f2a37; }
   .cal-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
   .cal-legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
