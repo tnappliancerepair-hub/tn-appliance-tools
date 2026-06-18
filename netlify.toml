@@ -37,9 +37,11 @@
 # Netlify poller (commit bb269ad) forwards gmail_message_id + headers in
 # the Xano POST payload.
 [functions."ahs-gmail-poller"]
-  # Bumped to */3 (every 3 min) 2026-06-01 — combined with label safety net,
-  # this beats Danielle's manual delete race. Was every 15 min before.
-  schedule = "*/3 * * * *"
+  # STAGGERED 2026-06-18 to cure the Xano 503 spikes: 5 pollers were all firing
+  # on the :00/:05/:10 marks, bursting Xano writes -> gateway shed load (instant
+  # 503). Now each poller fires on its own minute offset (5-min cadence). AHS = :01.
+  # (Was */3; 5-min latency is fine for warranty email intake. Revert to */3 if needed.)
+  schedule = "1-59/5 * * * *"
 
 # Scheduled function: ServicePower dispatch email poller (every 15 minutes).
 # Phase A1 step 13 cleared 2026-05-13. Reads tnappliancerepair@gmail.com via
@@ -54,8 +56,8 @@
 # system. NO cutover yet — parallel running + validation phase until both
 # pollers are stable and warranty intake automation is proven.
 [functions."servicepower-gmail-poller"]
-  # Bumped to */3 (every 3 min) 2026-06-01 — see ahs-gmail-poller note.
-  schedule = "*/3 * * * *"
+  # STAGGERED 2026-06-18 — ServicePower poller on the :02 offset (see ahs note).
+  schedule = "2-59/5 * * * *"
 
 # Parts-vendor delivery-notification poller. Scans the same Gmail inbox
 # the AHS / SP pollers use for shipping-confirmation + delivery emails
@@ -140,7 +142,8 @@
 # Danielle reviews + assigns from office-today instead of typing into
 # HCP from scratch. Idempotent via Gmail label + Xano dedup.
 [functions."warranty-multi-poller"]
-  schedule = "*/5 * * * *"
+  # STAGGERED 2026-06-18 — :03 offset so it doesn't collide with the others.
+  schedule = "3-59/5 * * * *"
 
 # Parse warranty drafts — picks up placeholder (Pending review) jobs
 # from warranty-multi-poller, calls Claude Haiku to extract customer
@@ -149,4 +152,7 @@
 # update_warranty_draft_parsed. Effect: Danielle sees fully-populated
 # queue cards instead of placeholders + walls of raw email text.
 [functions."parse-warranty-drafts"]
-  schedule = "*/5 * * * *"
+  # STAGGERED 2026-06-18 — :04 offset (runs just after warranty-multi-poller
+  # lands its drafts, so it picks them up on the next fire). colony-watchdog
+  # keeps the :00 mark to itself.
+  schedule = "4-59/5 * * * *"
