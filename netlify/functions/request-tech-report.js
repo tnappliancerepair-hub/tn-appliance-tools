@@ -11,8 +11,9 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 
 // Tech roster phones (stable; matches vapi-out / verify-quickcheck hardcoding).
+// Andre = 504-909-9413 (the number on his tech row). His old 615 silently gates.
 const TECH_PHONES = {
-  1: '+16154855795', 2: '+16159671304', 3: '+16159693115',
+  1: '+16154855795', 2: '+16159671304', 3: '+15049099413',
   4: '+16158291654', 5: '+17315049617', 6: '+18133527686',
 };
 const has = (v) => v != null && String(v).trim() !== '';
@@ -34,7 +35,12 @@ exports.handler = async function (event) {
   const job = d.job || {}, appl = d.appliance || {}, tdr = d.tdr || {}, cust = d.customer || {};
   const techId = Number(job.technician_id || 0);
   const techPhone = TECH_PHONES[techId];
-  if (!techPhone) return j(200, { ok: false, error: 'no_tech_phone', technician_id: techId });
+  if (!techPhone) {
+    // Clear, actionable message for the office instead of a cryptic code.
+    return j(200, { ok: false, technician_id: techId, error: techId > 0
+      ? ('Tech #' + techId + ' has no phone on file — fix the tech record before requesting the report.')
+      : 'No tech is assigned to this job yet — assign a tech first, then request the report.' });
+  }
 
   // What's still missing for a complete report (matches get_techs_with_open_tdr).
   const missing = [];
