@@ -51,7 +51,11 @@ export const config = Object.freeze({
   vacationBackupPhone: process.env.VACATION_BACKUP_PHONE || '',
   vacationModeActive: !!(process.env.VACATION_BACKUP_PHONE || '').trim(),
   colonyName: process.env.COLONY_NAME || 'mac-mini-tn',
-  tickMs: Number(process.env.TICK_MS) || 60000,
+  // 120s (was 60s) — halves the loop's Xano polling load. The loop is the
+  // heaviest Xano client (polls colony_signals + dedup-scans event_log every
+  // tick); a wider tick cuts that ~in half with no real downside (time signals
+  // still land within ~2 min). Override with TICK_MS env if needed.
+  tickMs: Number(process.env.TICK_MS) || 120000,
   dryRun: process.env.DRY_RUN === 'true',
   logLevel: process.env.LOG_LEVEL || 'info',
   claudeModel: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
