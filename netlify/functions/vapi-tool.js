@@ -29,6 +29,9 @@ const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '61585788
 // result that tells Ant to KEEP TALKING and take the caller's details — never
 // freeze. (When Xano is healthy this never triggers; lookups return in ~0.1s.)
 const TOOL_TIMEOUT_MS = 8000;
+// Post-lookup audit/capture/alert writes hit the (flaky) metadata API. Cap how
+// long they may block the tool response so they can never re-introduce silence.
+const BOOKKEEPING_CAP_MS = 2500;
 const SLOW_FALLBACK = {
   ok: false,
   lookup_unavailable: true,
@@ -153,6 +156,7 @@ async function logProxy(name, args, data) {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, metadata: { name, args, found, at_ms: Date.now() } }),
+      signal: AbortSignal.timeout(BOOKKEEPING_CAP_MS),
     });
   } catch (_) {}
 }
@@ -222,11 +226,23 @@ exports.handler = async function (event) {
     let data;
     try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }
-    await logProxy(c.name || 'unknown', a, data);
-    await captureCallerPhone(callerPhone, c.name, data);
-    await alertNewJob(c.name, a, data);
+    // Shape + push the caller's answer FIRST so the tool response is ready the
+    // instant the lookup returns. The bookkeeping below talks to the flaky Xano
+    // metadata API — it must never delay (or silence) the call.
     const shaped = shapeResult(c.name, data);
     results.push({ toolCallId: c.id, result: typeof shaped === 'string' ? shaped : JSON.stringify(shaped) });
+    // Best-effort audit/capture/alert, hard-bounded. A slow or hung metadata API
+    // can't add more than BOOKKEEPING_CAP_MS to the tool response (this is the
+    // other half of the silence-timeout fix — the lookup timeout alone wasn't
+    // enough because these awaited metadata writes sat in the hot path too).
+    await Promise.race([
+      Promise.all([
+        logProxy(c.name || 'unknown', a, data),
+        captureCallerPhone(callerPhone, c.name, data),
+        alertNewJob(c.name, a, data),
+      ]).catch(() => {}),
+      new Promise((r) => setTimeout(r, BOOKKEEPING_CAP_MS)),
+    ]);
   }
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ results }) };
 };
