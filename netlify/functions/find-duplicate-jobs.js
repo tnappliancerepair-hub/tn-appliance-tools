@@ -133,7 +133,7 @@ exports.handler = async function (event) {
       const fn = norm(c.first_name), ln = norm(c.last_name);
       if (!fn && !ln) continue;
       const key = `${fn} ${ln}`.trim();
-      if (/pending review|\btest\b|placeholder|unknown/i.test(key)) continue; // not real names
+      if (/pending review|\btest\b|smoke\s*test|smoketest|lifecycle|placeholder|unknown|do not use/i.test(key)) continue; // not real names
       (byName[key] = byName[key] || []).push({
         id: j.id, customer_id: j.customer_id,
         claim_number: j.claim_number || '', job_number: j.job_number || '', dispatch_number: j.dispatch_number || '',
