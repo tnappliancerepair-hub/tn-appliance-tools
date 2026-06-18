@@ -181,8 +181,10 @@ async function load(){
 
 function setTab(t){activeTab=t;document.querySelectorAll('#tabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));renderActive();}
 function renderActive(){
+  // Books pulls straight from Digits — it must NOT depend on the payroll load,
+  // so a payroll hiccup can never blank the Books tab.
+  if(activeTab==='books')return renderBooks(lastPr||periodRange());
   if(!lastData)return;
-  if(activeTab==='books')return renderBooks(lastPr);
   if(activeTab==='tax')return renderTax(lastData,lastPr);
   if(activeTab==='pl')return renderPL(lastData,lastPr);
   return renderPayroll(lastData,lastPr);
