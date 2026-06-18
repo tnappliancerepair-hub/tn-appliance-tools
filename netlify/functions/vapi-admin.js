@@ -96,6 +96,8 @@ exports.handler = async function (event) {
         ant_spoke: had_bot,
         caller_spoke: had_user,
         n_tools,
+
+        transcript: String(c.transcript || "").slice(-700),
       };
     });
     if (q.reason) rows = rows.filter((r) => String(r.ended_reason).toLowerCase().includes(String(q.reason).toLowerCase()));
