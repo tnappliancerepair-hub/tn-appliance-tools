@@ -74,6 +74,20 @@ function areDistinct(a, b) {
   return false;
 }
 
+// Two jobs MERGE only with POSITIVE proof they're the same ticket: a shared
+// (non-empty) address, or a shared (non-empty) job/claim number — and not
+// distinct by appliance/location. "Absence of proof they differ" is NOT enough
+// (that wrongly merged 57 unparsed "(Pending review)" drafts that share a blank
+// name + blank address).
+function mergeable(a, b) {
+  if (areDistinct(a, b)) return false;
+  const jn = jobNumOf(a);
+  const sameJobNum = !!jn && jn === jobNumOf(b);
+  const adBare = addrOf(a).replace(/\|/g, '');
+  const sameAddr = !!adBare && addrOf(a) === addrOf(b);
+  return sameJobNum || sameAddr;
+}
+
 // Union-find: cluster a name's jobs into "same ticket" sets.
 function clusterJobs(jobs) {
   const parent = jobs.map((_, i) => i);
@@ -81,7 +95,7 @@ function clusterJobs(jobs) {
   const union = (i, j) => { parent[find(i)] = find(j); };
   for (let i = 0; i < jobs.length; i++)
     for (let j = i + 1; j < jobs.length; j++)
-      if (!areDistinct(jobs[i], jobs[j])) union(i, j);
+      if (mergeable(jobs[i], jobs[j])) union(i, j);
   const comps = {};
   for (let i = 0; i < jobs.length; i++) { const r = find(i); (comps[r] = comps[r] || []).push(jobs[i]); }
   return Object.values(comps);
@@ -119,6 +133,7 @@ exports.handler = async function (event) {
       const fn = norm(c.first_name), ln = norm(c.last_name);
       if (!fn && !ln) continue;
       const key = `${fn} ${ln}`.trim();
+      if (/pending review|\btest\b|placeholder|unknown/i.test(key)) continue; // not real names
       (byName[key] = byName[key] || []).push({
         id: j.id, customer_id: j.customer_id,
         claim_number: j.claim_number || '', job_number: j.job_number || '', dispatch_number: j.dispatch_number || '',
