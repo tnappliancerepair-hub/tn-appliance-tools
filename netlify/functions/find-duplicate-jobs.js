@@ -7,11 +7,10 @@
 //     owners / separate locations stay separate), OR
 //   • different (non-empty) appliance types (fridge + washer at one house = two
 //     real tickets).
-// Catches self-checkout triple-submits (Cathy), SquareTrade update dupes, etc.
 //
-// PERF: pulls recent JOB rows in one bulk paginated pass (the rows already carry
-// customer_first_name/last_name + address + appliance), then groups + clusters in
-// memory — no per-customer lookups (which timed out under a slow metadata API).
+// PERF + correctness: job rows carry NO customer name (only customer_id), so we
+// bulk-pull customers (for names) AND jobs (for address/appliance/job#) in two
+// paginated passes and join in memory by customer_id — no per-customer lookups.
 //
 //   POST { password }  ->  { ok, group_count, groups:[{ name, address, appliance,
 //                            keeper_job_id, jobs:[...] }] }
@@ -19,6 +18,7 @@
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const CUSTOMER_TABLE = 6;
 const JOBS_TABLE = 7;
 
 exports.config = { timeout: 26 };
@@ -29,15 +29,15 @@ function headers() {
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
 
-// Bulk-pull recent job rows (id desc), batched.
-async function recentJobs() {
-  const PER = 250, MAX_PAGES = 40, BATCH = 6;
+// Bulk-pull a table (id desc), batched pages.
+async function bulk(tableId, maxPages) {
+  const PER = 250, BATCH = 6;
   const all = []; let stop = false;
-  for (let base = 1; base <= MAX_PAGES && !stop; base += BATCH) {
+  for (let base = 1; base <= maxPages && !stop; base += BATCH) {
     const pages = [];
-    for (let p = base; p < base + BATCH && p <= MAX_PAGES; p++) pages.push(p);
+    for (let p = base; p < base + BATCH && p <= maxPages; p++) pages.push(p);
     const batches = await Promise.all(pages.map(async (p) => {
-      const r = await fetch(`${META}/table/${JOBS_TABLE}/content/search`, {
+      const r = await fetch(`${META}/table/${tableId}/content/search`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ sort: { id: 'desc' }, per_page: PER, page: p }),
       });
@@ -104,44 +104,45 @@ exports.handler = async function (event) {
   }
 
   try {
-    const jobsRaw = await recentJobs();
+    const [customers, jobsRaw] = await Promise.all([bulk(CUSTOMER_TABLE, 40), bulk(JOBS_TABLE, 40)]);
+    const custById = {};
+    for (const c of customers) custById[c.id] = c;
 
-    if (b.debug) {
-      const sample = (jobsRaw || []).slice(0, 4).map((j) => ({
-        id: j.id, customer_id: j.customer_id,
-        customer_first_name: j.customer_first_name, customer_last_name: j.customer_last_name,
-        service_address: j.service_address, appliance_type: j.appliance_type,
-        claim_number: j.claim_number, job_number: j.job_number, scheduling_status: j.scheduling_status,
-        field_names: Object.keys(j).filter((k) => /name|address|appliance|claim|job_num|customer/i.test(k)),
-      }));
-      const withName = (jobsRaw || []).filter((j) => (j.customer_first_name || j.customer_last_name)).length;
-      return { statusCode: 200, body: JSON.stringify({ ok: true, debug: true, jobs_scanned: (jobsRaw || []).length, jobs_with_name_on_row: withName, sample }, null, 2) };
-    }
-
-    // Group LIVE (non-terminal, non-test) jobs by customer name carried on the row.
+    // Group LIVE, non-test jobs by their customer's name (joined via customer_id).
     const byName = {};
+    let unmatched = 0;
     for (const j of jobsRaw) {
       if (DONE.test(j.scheduling_status || '')) continue;
       if (String(j.test_run_id || '').trim()) continue; // test jobs handled separately
-      const fn = norm(j.customer_first_name), ln = norm(j.customer_last_name);
+      const c = custById[j.customer_id];
+      if (!c) { unmatched++; continue; }
+      const fn = norm(c.first_name), ln = norm(c.last_name);
       if (!fn && !ln) continue;
       const key = `${fn} ${ln}`.trim();
       (byName[key] = byName[key] || []).push({
         id: j.id, customer_id: j.customer_id,
         claim_number: j.claim_number || '', job_number: j.job_number || '', dispatch_number: j.dispatch_number || '',
         appliance_type: j.appliance_type || '',
-        service_address: j.service_address || '', service_zip: j.service_zip || j.zip || '',
-        customer_first_name: j.customer_first_name || '', customer_last_name: j.customer_last_name || '',
+        service_address: j.service_address || '', service_zip: j.service_zip || '',
+        name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+        zip: c.zip || '', city: c.city || '',
         status: j.scheduling_status || '', created_at: j.created_at || 0,
       });
+    }
+
+    if (b.debug) {
+      const names2 = Object.keys(byName).filter((k) => byName[k].length >= 2);
+      return { statusCode: 200, body: JSON.stringify({
+        ok: true, debug: true, customers: customers.length, jobs_scanned: jobsRaw.length,
+        unmatched_jobs: unmatched, names_total: Object.keys(byName).length, names_with_2plus_jobs: names2.length,
+      }, null, 2) };
     }
 
     const out = [];
     for (const key of Object.keys(byName)) {
       const jobs = byName[key];
       if (jobs.length < 2) continue;
-      // One name → possibly multiple clusters (e.g. a multi-home owner).
-      const clusters = clusterJobs(jobs);
+      const clusters = clusterJobs(jobs); // one name → maybe several (multi-home)
       for (const cluster of clusters) {
         if (cluster.length < 2) continue; // only real dupes
         const keeper = cluster.find((j) => jobNumOf(j)) ||
@@ -150,9 +151,7 @@ exports.handler = async function (event) {
         const k = cluster[0];
         out.push({
           key: key + '|' + (keeper ? keeper.id : ''),
-          name: `${k.customer_first_name || ''} ${k.customer_last_name || ''}`.trim(),
-          address: keeper ? keeper.service_address : '',
-          zip: keeper ? keeper.service_zip : '',
+          name: k.name, address: keeper ? keeper.service_address : '', zip: k.zip, city: k.city,
           appliance: keeper ? keeper.appliance_type : '',
           keeper_job_id: keeper ? keeper.id : null,
           jobs: cluster.sort((a, c) => (a.id === (keeper && keeper.id) ? -1 : 1)),
