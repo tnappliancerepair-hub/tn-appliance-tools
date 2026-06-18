@@ -1,5 +1,9 @@
 import { config } from './config.js';
-import * as xano from './xano.js';
+import store, { drainInbox, usingLocal } from './store.js';
+// Route ALL plumbing through the store (Xano by default; local SQLite signal
+// queue when LOOP_STORE=local). Aliased as `xano` so every existing call site +
+// makeCtx() (which hands this to agents) routes through it with no other edits.
+const xano = store;
 import { dispatch } from './dispatch.js';
 import { ctMidnightMs, ctHour, ctParts, fmtCT } from './time.js';
 import * as sms from './sms.js';
@@ -22,6 +26,12 @@ export async function tick() {
   let errors = 0;
 
   try {
+    // When LOOP_STORE=local: pull any external (Netlify/XS) signals from Xano
+    // into the local queue first, so the loop processes everything from local
+    // and a storm can't pile up on Xano. No-op on Xano.
+    if (usingLocal) {
+      try { const d = await drainInbox(); if (d.drained) xano.logLocal('inbox_drained', d); } catch (_) {}
+    }
     await maybeEmitTimeSignals();
 
     const signals = await xano.fetchPendingSignals();
