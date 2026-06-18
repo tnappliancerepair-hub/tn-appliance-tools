@@ -164,6 +164,15 @@ function periodRange(){
   return {start:start.getTime(),end:end.getTime(),label:f(start)+' – '+f(end),payday:'paid '+payday.toLocaleDateString('en-US',{month:'short',day:'numeric'})};
 }
 
+// Turn a cryptic fetch failure into a clear cause. The "string did not match
+// the expected pattern" / "Load failed" errors mean a browser ad/content blocker
+// (or a privacy extension) is killing the data requests — not a real outage.
+function dataErr(e){
+  const m=String((e&&e.message)||e||'');
+  if(/did not match the expected pattern|load failed|failed to fetch|networkerror/i.test(m))
+    return 'A browser ad/content blocker is blocking the data. Whitelist tnapplianceexchange.net (or open a Private window) and reload.';
+  return m;
+}
 async function load(){
   const pr=periodRange();
   document.getElementById('p-range').textContent=pr.label;
@@ -175,7 +184,7 @@ async function load(){
     if(!d.success)throw new Error(d.error||'failed');
     lastData=d;lastPr=pr;renderActive();
   }catch(e){
-    document.getElementById('content').innerHTML='<div class="empty">Couldn’t load payroll — '+esc(e.message)+'</div>';
+    document.getElementById('content').innerHTML='<div class="empty">Couldn’t load payroll — '+esc(dataErr(e))+'</div>';
   }
 }
 
@@ -208,7 +217,7 @@ async function renderBooks(pr){
     if(!rows.length){c.innerHTML='<div class="wrap"><div class="empty">No P&amp;L rows for this period.</div></div>';return;}
     const html=rows.map(rw=>`<div class="pl-row ${rw.amount<0?'neg':''}"><span>${esc(rw.label)}</span><span class="v">$${(rw.amount||0).toFixed(2)}</span></div>`).join('');
     c.innerHTML='<div class="wrap"><div class="tech"><div class="pl-note" style="padding:0 0 8px">📚 Live from Digits — '+esc(pr.label)+'</div>'+html+'</div></div>';
-  }catch(e){c.innerHTML='<div class="wrap"><div class="empty">Couldn’t reach Digits — '+esc(e.message)+'</div></div>';}
+  }catch(e){c.innerHTML='<div class="wrap"><div class="empty">Couldn’t reach Digits — '+esc(dataErr(e))+'</div></div>';}
 }
 
 const SETASIDE_RATE=0.25; // income/business-tax set-aside estimate (% of take-home) — tune with CPA
