@@ -567,8 +567,8 @@
   <div class="pin-card">
     <div class="ant">🐜</div>
     <div class="title">tech pin</div>
-    <div class="sub">enter your pin to see today's jobs</div>
-    <input type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" class="pin-input" id="pinInput" placeholder="••••" autofocus>
+    <div class="sub">enter your pin to see today's jobs<br><span style="opacity:.6;font-size:12px">office: use the office password</span></div>
+    <input type="password" inputmode="text" maxlength="40" class="pin-input" id="pinInput" placeholder="PIN or office password" autocomplete="off" autofocus>
     <button class="pin-submit" id="pinSubmit">unlock</button>
     <div class="pin-err" id="pinErr"></div>
   </div>
@@ -686,10 +686,35 @@
     }
   }
 
+  // Office override: lets the office (Danielle) open ANY tech's dashboard with
+  // the OFFICE PASSWORD — she doesn't carry tech PINs. Additive: the tech's own
+  // PIN still works unchanged; this only runs as a fallback when the PIN check
+  // fails. Read-only view either way.
+  async function verifyOfficePassword(pw) {
+    try {
+      const res = await fetch(`${XANO_BASE}/verify_office_password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw })
+      });
+      const data = await res.json();
+      return data && data.success === true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // Unlock if EITHER the tech's PIN OR the office password matches.
+  async function verifyAccess(secret) {
+    if (await verifyPin(secret)) return true;
+    if (await verifyOfficePassword(secret)) return true;
+    return false;
+  }
+
   async function tryUnlock() {
     const cached = localStorage.getItem(PIN_STORAGE_KEY);
     if (cached) {
-      const ok = await verifyPin(cached);
+      const ok = await verifyAccess(cached);
       if (ok) { unlock(); return; }
       localStorage.removeItem(PIN_STORAGE_KEY);
     }
@@ -706,10 +731,10 @@
     if (!pin) return;
     pinSubmit.disabled = true;
     pinErr.textContent = '';
-    const ok = await verifyPin(pin);
+    const ok = await verifyAccess(pin);
     pinSubmit.disabled = false;
     if (!ok) {
-      pinErr.textContent = 'wrong pin. try again.';
+      pinErr.textContent = 'wrong pin or office password. try again.';
       pinInput.value = '';
       pinInput.focus();
       return;
