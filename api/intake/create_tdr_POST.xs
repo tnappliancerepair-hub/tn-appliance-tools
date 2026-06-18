@@ -388,10 +388,29 @@ query create_tdr verb=POST {
         var $sf_tech_last {
           value = ($input.technician_last_name ?? "")
         }
-      
+
+        var $sf_diag_trim {
+          value = (($input.diagnosis ?? "")|trim)
+        }
+
+        var $sf_repair_trim {
+          value = (($input.repair_completed ?? "")|trim)
+        }
+
+        // Empty-report guard: if the tech submitted with no real diagnosis AND no
+        // repair detail, this is NOT a finished report. Label it "REPORT NEEDED"
+        // so Danielle is never told an empty TDR is complete.
+        var $tdr_is_substantive {
+          value = ($sf_diag_trim != "" || $sf_repair_trim != "")
+        }
+
+        var $tdr_header_prefix {
+          value = ($tdr_is_substantive ? "🔧 TDR COMPLETE" : "📋 REPORT NEEDED (tech submitted an empty report)")
+        }
+
         var $summary_template {
           value = """
-            🔧 TDR COMPLETE - Job #%s
+            %s - Job #%s
             Customer: %s
             Appliance: %s %s
             Model: %s
@@ -418,7 +437,7 @@ query create_tdr verb=POST {
       
         var $summary_text {
           value = $summary_template
-            |sprintf:$sf_job_id:$customer_name:$sf_brand:$sf_appl:$sf_model:$sf_diag:$sf_repair:$sf_labor:$sf_second_visit:$parts_used_list:$parts_not_used_list:$office_lookup_list:$sf_recommendation:$sf_tech_first:$sf_tech_last
+            |sprintf:$tdr_header_prefix:$sf_job_id:$customer_name:$sf_brand:$sf_appl:$sf_model:$sf_diag:$sf_repair:$sf_labor:$sf_second_visit:$parts_used_list:$parts_not_used_list:$office_lookup_list:$sf_recommendation:$sf_tech_first:$sf_tech_last
         }
       
         api.request {
