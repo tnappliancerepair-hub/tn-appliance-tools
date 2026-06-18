@@ -330,14 +330,20 @@ exports.handler = async (event) => {
 
         let jobId = 0;
         let matchCount = 0;
-        try {
-          const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
-          const fd = await fr.json().catch(() => ({}));
-          // find_job_by_claim_number returns { best:{job_id}, candidates:[{job_id}], count }.
-          const cands = Array.isArray(fd.candidates) ? fd.candidates : [];
-          matchCount = (typeof fd.count === 'number') ? fd.count : cands.length;
-          jobId = Number((fd.best && fd.best.job_id) || (cands[0] && cands[0].job_id) || fd.job_id || 0);
-        } catch (_) {}
+        // DRY-RUN doesn't exclude already-seen emails, so it re-scans the same
+        // "ordered" emails every run — and was hammering find_job_by_claim_number
+        // thousands of times a day for nothing. Only look the job up when we're
+        // actually going to record an order (ORDER_LIVE).
+        if (ORDER_LIVE) {
+          try {
+            const fr = await fetch(`${FIND_JOB_ENDPOINT}?claim_number=${encodeURIComponent(ex.dispatch_id)}`);
+            const fd = await fr.json().catch(() => ({}));
+            // find_job_by_claim_number returns { best:{job_id}, candidates:[{job_id}], count }.
+            const cands = Array.isArray(fd.candidates) ? fd.candidates : [];
+            matchCount = (typeof fd.count === 'number') ? fd.count : cands.length;
+            jobId = Number((fd.best && fd.best.job_id) || (cands[0] && cands[0].job_id) || fd.job_id || 0);
+          } catch (_) {}
+        }
 
         const rec = { fp: fp.name, dispatch_id: ex.dispatch_id, part_hint: ex.part_hint || '', job_id: jobId, match_count: matchCount, subject: subject.slice(0, 100) };
         if (!ORDER_LIVE) { orderResults.push({ ...rec, action: 'dry_run' }); continue; }
