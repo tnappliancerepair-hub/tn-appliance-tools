@@ -22,13 +22,30 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 // call used to show the shop's own number; defensive even now that's fixed).
 const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '6158578800', '6155889500', '5043559111', '6292607111', '6292477111', '7315031142', '5043800975']);
 
+// THE #1 DROPPED-CALL FIX: every backend call MUST return fast. With no timeout,
+// a slow/hung Xano made the tool call hang forever → Vapi got no result → the
+// caller sat in dead air until "silence-timed-out" (66% of inbound calls). Now
+// we cap every lookup at TOOL_TIMEOUT_MS and, on any timeout/error, return a
+// result that tells Ant to KEEP TALKING and take the caller's details — never
+// freeze. (When Xano is healthy this never triggers; lookups return in ~0.1s.)
+const TOOL_TIMEOUT_MS = 8000;
+const SLOW_FALLBACK = {
+  ok: false,
+  lookup_unavailable: true,
+  say: "I'm having a little trouble pulling that up this second — let me grab your details so we get you taken care of.",
+  instruction: "The lookup backend did not respond in time. Do NOT go silent and do NOT end the call. Briefly apologize, then ask the caller for their name and the best callback number, confirm what they need, and log it with capture_callback so the office follows up right away.",
+};
 async function getJson(url) {
-  const r = await fetch(url);
-  try { return await r.json(); } catch (_) { return { error: `HTTP ${r.status}` }; }
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(TOOL_TIMEOUT_MS) });
+    return await r.json();
+  } catch (_) { return SLOW_FALLBACK; }
 }
 async function postJson(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  try { return await r.json(); } catch (_) { return { error: `HTTP ${r.status}` }; }
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(TOOL_TIMEOUT_MS) });
+    return await r.json();
+  } catch (_) { return SLOW_FALLBACK; }
 }
 
 // Tools that are GET on Xano (everything else is POST with the unwrapped args).
