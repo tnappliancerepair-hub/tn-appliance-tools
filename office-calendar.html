@@ -1650,6 +1650,13 @@ function __initCalendar() {
     manageHeader.textContent = `Job #${jobId} — ${cust}`;
     manageSubhead.textContent = `${(j.appliance_type||'').toLowerCase()} · ${day} ${time}`;
     manageError.textContent = '';
+    // Reset the action buttons. On a successful action they close the modal and
+    // reload BEFORE re-enabling, so without this reset they stay disabled for
+    // every job opened afterward (the "can't cancel others" bug).
+    [['cancelSubmit', 'Cancel job'], ['rescheduleSubmit', 'Schedule'], ['reassignSubmit', 'Reassign'], ['manageBtnUnschedule', '📤 Unschedule (back to needs-scheduled)']].forEach(([id, label]) => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = false; el.textContent = label; }
+    });
     showManageView('actions');
     manageOpenDetail.href = `job-detail.html?job_id=${jobId}`;
     // Pre-fill reschedule with current scheduled_start (CT)
