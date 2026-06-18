@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import * as supa from './supabase.js';
 
 // Retry transient network failures (TypeError: fetch failed, DNS blips,
 // TLS reset). HTTP errors (4xx/5xx response bodies) fall through to the
@@ -530,6 +531,22 @@ export async function recordHeartbeat({ colony, uptime_ms, signals_processed_in_
 }
 
 export async function recordEventLog(action, metadata = {}) {
+  // DUAL-WRITE (flag-gated, best-effort): when SUPABASE_DUAL_WRITE=true and the
+  // loop's .env has SUPABASE_URL + SUPABASE_SERVICE_KEY, also mirror the event
+  // into Supabase. Fire-and-forget so it NEVER blocks or breaks a tick. The Xano
+  // write below is unchanged — this is the safe on-ramp before cutting reads to
+  // Supabase and dropping the Xano write (the step that actually relieves Xano).
+  if (process.env.SUPABASE_DUAL_WRITE === 'true' && supa.isConfigured()) {
+    const m = metadata || {};
+    supa.recordEvent({
+      action,
+      metadata: m,
+      job_id: m.job_id,
+      customer_id: m.customer_id,
+      technician_id: m.technician_id,
+      source: 'loop',
+    }).catch(() => {});
+  }
   return postJSON(`${INTAKE()}/record_event_log`, {
     action: String(action || ''),
     metadata_json: JSON.stringify(metadata || {}),
