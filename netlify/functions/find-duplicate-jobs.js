@@ -50,6 +50,46 @@ async function jobsForCustomer(customerId) {
 
 const DONE = /completed|canceled|cancelled/i;
 
+// ── Teddy's dedup rule (2026-06-18) ──────────────────────────────────────────
+// Group candidates by NAME, then within a name combine everything into one
+// ticket UNLESS two jobs are provably DISTINCT real jobs:
+//   • different (non-empty) job numbers AND different addresses, OR
+//   • different (non-empty) appliance types  ← safety so a washer + dryer at the
+//     same house (two real claims) don't get merged into one.
+// Everything else (same address, or blank job#s, or a self-checkout submitted
+// 3×) collapses to a single ticket.
+function norm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+function jobNumOf(j) { return norm(j.claim_number || j.job_number || j.dispatch_number || ''); }
+function addrOf(j) {
+  return (norm(j.service_address || j.address) + '|' + norm(j.service_zip || j.zip || ''))
+    .replace(/[^a-z0-9|]/g, '');
+}
+function applOf(j) { return norm(j.appliance_type || j.appliance || ''); }
+
+function areDistinct(a, b) {
+  const jnA = jobNumOf(a), jnB = jobNumOf(b);
+  const jobNumsDiffer = !!jnA && !!jnB && jnA !== jnB;
+  const adA = addrOf(a), adB = addrOf(b);
+  const addrsDiffer = adA.replace(/\|/g, '') && adB.replace(/\|/g, '') && adA !== adB;
+  if (jobNumsDiffer && addrsDiffer) return true;            // Teddy's rule
+  const apA = applOf(a), apB = applOf(b);
+  if (apA && apB && apA !== apB) return true;               // safety: different appliance
+  return false;
+}
+
+// Union-find: cluster a name's jobs into "same ticket" groups.
+function clusterJobs(jobs) {
+  const parent = jobs.map((_, i) => i);
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  const union = (i, j) => { parent[find(i)] = find(j); };
+  for (let i = 0; i < jobs.length; i++)
+    for (let j = i + 1; j < jobs.length; j++)
+      if (!areDistinct(jobs[i], jobs[j])) union(i, j);
+  const comps = {};
+  for (let i = 0; i < jobs.length; i++) { const r = find(i); (comps[r] = comps[r] || []).push(jobs[i]); }
+  return Object.values(comps);
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
@@ -70,54 +110,62 @@ exports.handler = async function (event) {
 
   try {
     const customers = await recentCustomers();
-    // Group customers by normalized name + zip.
-    const groups = {};
+    // Group candidates by NAME (address / job# / appliance discriminate WITHIN a
+    // name — see areDistinct/clusterJobs).
+    const byName = {};
     for (const c of customers) {
-      const fn = String(c.first_name || '').trim().toLowerCase();
-      const ln = String(c.last_name || '').trim().toLowerCase();
-      const zip = String(c.zip || '').trim();
+      const fn = norm(c.first_name), ln = norm(c.last_name);
       if (!fn && !ln) continue;
-      const key = `${fn} ${ln}|${zip}`.trim();
-      (groups[key] = groups[key] || []).push(c);
+      const key = `${fn} ${ln}`.trim();
+      (byName[key] = byName[key] || []).push(c);
     }
-    // Keep only groups with 2+ customer records (the dupes).
-    const dupeKeys = Object.keys(groups).filter((k) => groups[k].length >= 2);
+    // The dupe pattern makes a NEW customer record each intake, so only names
+    // with 2+ records are candidates. Bound the work.
+    const nameKeys = Object.keys(byName).filter((k) => byName[k].length >= 2).slice(0, 80);
 
     const out = [];
-    for (const key of dupeKeys.slice(0, 60)) {
-      const custs = groups[key];
-      // Gather each customer's jobs.
+    for (const nk of nameKeys) {
+      const custs = byName[nk];
       const jobArrays = await Promise.all(custs.map((c) => jobsForCustomer(c.id)));
-      const jobs = [];
-      jobArrays.forEach((arr, i) => {
+      const allJobs = [];
+      jobArrays.forEach((arr) => {
         for (const j of arr) {
-          jobs.push({
+          allJobs.push({
             id: j.id, customer_id: j.customer_id,
-            claim_number: j.claim_number || '',
+            claim_number: j.claim_number || '', job_number: j.job_number || '',
+            dispatch_number: j.dispatch_number || '',
+            appliance_type: j.appliance_type || '',
+            service_address: j.service_address || '', service_zip: j.service_zip || j.zip || '',
             status: j.scheduling_status || '',
             created_at: j.created_at || 0,
             terminal: DONE.test(j.scheduling_status || ''),
           });
         }
       });
-      const liveJobs = jobs.filter((j) => !j.terminal);
-      if (liveJobs.length < 2) continue; // only show real active dupes
-      // Suggested keeper: has a claim#, else scheduled, else oldest.
-      let keeper = liveJobs.find((j) => j.claim_number) ||
-        liveJobs.find((j) => /scheduled/i.test(j.status)) ||
-        liveJobs.slice().sort((a, c) => a.id - c.id)[0];
+      const liveJobs = allJobs.filter((j) => !j.terminal);
+      if (liveJobs.length < 2) continue;
+      // Cluster into "same ticket" sets. A single name can yield MULTIPLE groups
+      // (e.g. a multi-home owner → one group per address).
+      const clusters = clusterJobs(liveJobs);
       const c0 = custs[0];
-      out.push({
-        key,
-        name: `${c0.first_name || ''} ${c0.last_name || ''}`.trim(),
-        zip: c0.zip || '',
-        city: c0.city || '',
-        customer_records: custs.length,
-        keeper_job_id: keeper ? keeper.id : null,
-        jobs: liveJobs.sort((a, c) => (a.id === (keeper && keeper.id) ? -1 : 1)),
-      });
+      for (const cluster of clusters) {
+        if (cluster.length < 2) continue; // only real dupes
+        const keeper = cluster.find((j) => jobNumOf(j)) ||
+          cluster.find((j) => /scheduled/i.test(j.status)) ||
+          cluster.slice().sort((a, b) => a.id - b.id)[0];
+        out.push({
+          key: nk + '|' + (keeper ? keeper.id : ''),
+          name: `${c0.first_name || ''} ${c0.last_name || ''}`.trim(),
+          zip: c0.zip || '', city: c0.city || '',
+          address: keeper ? keeper.service_address : '',
+          appliance: keeper ? keeper.appliance_type : '',
+          customer_records: custs.length,
+          keeper_job_id: keeper ? keeper.id : null,
+          jobs: cluster.sort((a, b) => (a.id === (keeper && keeper.id) ? -1 : 1)),
+        });
+      }
     }
-    out.sort((a, c) => c.jobs.length - a.jobs.length);
+    out.sort((a, b) => b.jobs.length - a.jobs.length);
     return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out }) };
   } catch (e) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: String(e.message || e) }) };
