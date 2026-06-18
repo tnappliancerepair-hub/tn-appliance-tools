@@ -106,6 +106,18 @@ exports.handler = async function (event) {
   try {
     const jobsRaw = await recentJobs();
 
+    if (b.debug) {
+      const sample = (jobsRaw || []).slice(0, 4).map((j) => ({
+        id: j.id, customer_id: j.customer_id,
+        customer_first_name: j.customer_first_name, customer_last_name: j.customer_last_name,
+        service_address: j.service_address, appliance_type: j.appliance_type,
+        claim_number: j.claim_number, job_number: j.job_number, scheduling_status: j.scheduling_status,
+        field_names: Object.keys(j).filter((k) => /name|address|appliance|claim|job_num|customer/i.test(k)),
+      }));
+      const withName = (jobsRaw || []).filter((j) => (j.customer_first_name || j.customer_last_name)).length;
+      return { statusCode: 200, body: JSON.stringify({ ok: true, debug: true, jobs_scanned: (jobsRaw || []).length, jobs_with_name_on_row: withName, sample }, null, 2) };
+    }
+
     // Group LIVE (non-terminal, non-test) jobs by customer name carried on the row.
     const byName = {};
     for (const j of jobsRaw) {
