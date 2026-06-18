@@ -256,6 +256,32 @@
     flex-direction: column;
     gap: 12px;
   }
+  .seg-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted, #8a94a6);
+    margin: 6px 2px -2px;
+    padding-top: 6px;
+  }
+  .seg-header:first-child { padding-top: 0; }
+  .seg-count {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    color: #cdd6e4;
+    font-size: 12px;
+    font-weight: 800;
+  }
   .card {
     background: var(--panel);
     border: 1px solid var(--border-soft);
@@ -922,6 +948,24 @@
     summary.innerHTML = parts.join(' ');
   }
 
+  // HCP-style day segments. Order = the order sections appear (done last).
+  const SEGMENTS = [
+    { key: 'todo',       label: '🆕 To Do' },
+    { key: 'inprogress', label: '🔧 In Progress' },
+    { key: 'parts',      label: '📦 Awaiting Parts' },
+    { key: 'notime',     label: '⏱ No Time Set' },
+    { key: 'done',       label: '✅ Completed' },
+  ];
+  function segmentOf(it) {
+    const j = it.job || {};
+    const s = String(j.scheduling_status || j.current_status || '').toLowerCase();
+    if (s === 'completed' || s === 'no_fix_possible') return 'done';
+    if (s === 'in_progress') return 'inprogress';
+    if (['awaiting_parts', 'parts_needed', 'ordered', 'on_order'].includes(s)) return 'parts';
+    if (it.untimed) return 'notime';
+    return 'todo';
+  }
+
   function renderJobs(jobs) {
     if (jobs.length === 0) {
       const isToday = currentDateStr === serverTodayCT;
@@ -935,7 +979,22 @@
       return;
     }
     jobsHost.className = 'jobs';
-    const html = jobs.map((it, i) => renderCard(it, i)).join('');
+    // HCP-style SEGMENTS: group the day into sections (new vs in-progress vs
+    // done) so a tech sees at a glance what's left and what's finished. We keep
+    // each card's ORIGINAL index so the click/crew/thumbnail wiring below is
+    // untouched — only the visual grouping changes.
+    const groups = {};
+    jobs.forEach((it, i) => {
+      const seg = segmentOf(it);
+      (groups[seg] = groups[seg] || []).push({ it, i });
+    });
+    let html = '';
+    for (const seg of SEGMENTS) {
+      const arr = groups[seg.key];
+      if (!arr || !arr.length) continue;
+      html += `<div class="seg-header">${seg.label} <span class="seg-count">${arr.length}</span></div>`;
+      html += arr.map(({ it, i }) => renderCard(it, i)).join('');
+    }
     jobsHost.innerHTML = html;
     // Hook up click handlers
     jobs.forEach((it, i) => {
@@ -975,6 +1034,16 @@
     const isPractice = (j.test_run_id || '').startsWith('PRACTICE');
     const practicePill = isPractice ? `<div class="status-pill" style="background:rgba(245,166,35,0.18); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">🧪 PRACTICE</div>` : '';
     const crewPill = item.crew_with ? `<div class="status-pill" style="background:rgba(116,227,196,0.18); border:1px solid rgba(116,227,196,0.5); color:#74e3c4; font-weight:700">👥 2-man w/ ${escapeHtml(item.crew_with)}</div>` : '';
+
+    // Job-level parts tag: WARRANTY vs OUR (cash) parts, so the guys know the
+    // parts source/billing at a glance. Cash only when customer_type is an
+    // explicit self-pay value; otherwise warranty (matches the office board:
+    // blank vendor defaults to warranty, since ~all jobs are warranty).
+    const ctype = (j.customer_type || '').trim().toLowerCase();
+    const isCash = ctype === 'self_pay' || ctype === 'cash' || ctype === 'customer_pay';
+    const partsTag = isCash
+      ? `<div class="status-pill" style="background:rgba(245,166,35,0.16); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">💵 Our parts</div>`
+      : `<div class="status-pill" style="background:rgba(116,160,255,0.16); border:1px solid rgba(116,160,255,0.5); color:#8ab4ff; font-weight:700">🛡️ Warranty</div>`;
 
     const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
@@ -1049,6 +1118,7 @@
           <div class="stop-num">${num}</div>
           <div class="time-window">${timeStr}</div>
           <div class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</div>
+          ${partsTag}
           ${practicePill}
           ${crewPill}
         </div>
