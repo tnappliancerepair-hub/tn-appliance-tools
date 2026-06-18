@@ -854,22 +854,6 @@
           data.jobs.sort((a, b) => (Number((a.job || {}).scheduled_start) || Infinity) - (Number((b.job || {}).scheduled_start) || Infinity));
         }
       } catch (_) { /* crew overlay is optional; ignore */ }
-      // UNTIMED jobs: pull jobs assigned to this tech with NO clock time (the
-      // office assigns on the board = technician_id only, no scheduled_start),
-      // so they show on the TODAY view instead of vanishing ("she schedules in
-      // Ant but they aren't all there"). Best-effort — a hiccup here can NEVER
-      // break the normal schedule. Today-view only so old days stay clean.
-      try {
-        if ((data.date_ct || '') === (data.today_ct || '')) {
-          const ur = await fetch(`/.netlify/functions/tech-unscheduled?tech_id=${encodeURIComponent(TECH_ID)}`);
-          const uj = await ur.json();
-          if (uj && uj.ok && Array.isArray(uj.jobs) && uj.jobs.length && Array.isArray(data.jobs)) {
-            const have = new Set(data.jobs.map((it) => it && it.job && it.job.id));
-            uj.jobs.forEach((it) => { if (it && it.job && !have.has(it.job.id)) { it.untimed = true; data.jobs.push(it); } });
-            data.jobs.sort((a, b) => (Number((a.job || {}).scheduled_start) || Infinity) - (Number((b.job || {}).scheduled_start) || Infinity));
-          }
-        }
-      } catch (_) { /* unscheduled overlay is optional; ignore */ }
       render(data);
     } catch (err) {
       console.error(err);
