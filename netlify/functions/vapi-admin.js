@@ -81,12 +81,23 @@ exports.handler = async function (event) {
       const ended = c.endedAt || '';
       let dur = '';
       if (started && ended) { try { dur = Math.round((new Date(ended) - new Date(started)) / 1000) + 's'; } catch (_) {} }
+      const msgs = Array.isArray(c.messages) ? c.messages : [];
+      const roles = msgs.map((m) => String(m.role || '').toLowerCase());
+      const had_bot = roles.includes('bot') || roles.includes('assistant');
+      const had_user = roles.includes('user');
+      const n_tools = msgs.filter((m) => m.toolCalls || m.role === 'tool_calls' || m.role === 'function').length;
       return {
         started,
         dur,
         dir: (c.type || '').replace('PhoneCall', ''),
         from: (c.customer && c.customer.number) || (c.phoneNumber && c.phoneNumber.number) || '',
         ended_reason: c.endedReason || c.status || '',
+        transcript_len: (c.transcript || '').length,
+        ant_spoke: had_bot,
+        caller_spoke: had_user,
+        n_tools,
+
+        transcript: String(c.transcript || "").slice(-700),
       };
     });
     if (q.reason) rows = rows.filter((r) => String(r.ended_reason).toLowerCase().includes(String(q.reason).toLowerCase()));
