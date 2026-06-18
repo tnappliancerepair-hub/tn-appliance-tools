@@ -62,10 +62,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_event_log_action ON event_log (action, created_at);
 `);
 
+// Deadline-aware scheduling. A signal can carry `process_after` (unix ms); the
+// queue will NOT hand it to an agent until that time arrives. So a "fire 24h
+// before the appointment" signal sleeps as ONE row until it's due, instead of
+// the old hold-and-re-emit pattern that re-fired every pending reminder EVERY
+// tick — which was generating ~34k Xano writes/day on a dead week. Migrate
+// existing DBs to add the column (CREATE TABLE IF NOT EXISTS won't add it).
+try {
+  const has = db.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('signals') WHERE name = 'process_after'`).get().n;
+  if (!has) db.exec(`ALTER TABLE signals ADD COLUMN process_after INTEGER`);
+} catch (_) {}
+db.exec(`CREATE INDEX IF NOT EXISTS idx_signals_due ON signals (processed_at, process_after, created_at)`);
+
 // ── prepared statements (compiled once; positional ? params) ─────────────────
 const stmt = {
-  pending:       db.prepare(`SELECT id, signal_type, signal_strength, source_colony, target_colonies, payload, origin, created_at, processed_at FROM signals WHERE processed_at IS NULL ORDER BY created_at ASC LIMIT ?`),
-  insertSignal:  db.prepare(`INSERT INTO signals (signal_type, signal_strength, source_colony, target_colonies, payload, job_id, origin, inbox_ref, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+  pending:       db.prepare(`SELECT id, signal_type, signal_strength, source_colony, target_colonies, payload, origin, created_at, processed_at FROM signals WHERE processed_at IS NULL AND (process_after IS NULL OR process_after <= ?) ORDER BY created_at ASC LIMIT ?`),
+  insertSignal:  db.prepare(`INSERT INTO signals (signal_type, signal_strength, source_colony, target_colonies, payload, job_id, origin, inbox_ref, created_at, process_after) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
   markProcessed: db.prepare(`UPDATE signals SET processed_at = ?, result_action = ? WHERE id = ? AND processed_at IS NULL`),
   countForJob:   db.prepare(`SELECT COUNT(*) AS n FROM signals WHERE processed_at IS NULL AND signal_type = ? AND job_id = ?`),
   inboxSeen:     db.prepare(`SELECT 1 AS x FROM signals WHERE inbox_ref = ? LIMIT 1`),
@@ -102,7 +114,9 @@ export function logLocal(action, metadata = {}) {
 
 // ── signal queue (drop-in for xano.js) ───────────────────────────────────────
 export async function fetchPendingSignals(limit = 50) {
-  return stmt.pending.all(limit);
+  // Only signals whose process_after has arrived (or have none) — future-dated
+  // signals stay asleep in the queue instead of being re-emitted every tick.
+  return stmt.pending.all(Date.now(), limit);
 }
 
 export async function emitSignal({ signal_type, signal_strength = 50, source_colony, target_colonies = '', payload = {}, trace_id = '', _origin = 'local', _inbox_ref = null }) {
@@ -114,6 +128,10 @@ export async function emitSignal({ signal_type, signal_strength = 50, source_col
   }
   if (!payloadObj.trace_id) payloadObj.trace_id = trace_id || newTraceId();
   const jobId = payloadObj.job_id == null ? null : String(payloadObj.job_id);
+  // Deadline-aware: if the signal carries a future fire-time, it sleeps until
+  // then (no per-tick re-emit). Covers the *_DUE / scheduled signals that were
+  // the churn. Signals without a deadline get null -> processed immediately.
+  const processAfter = Number(payloadObj.process_after_ms ?? payloadObj.deadline_ms ?? payloadObj.scheduled_for_ms ?? 0) || null;
   const info = stmt.insertSignal.run(
     signal_type,
     signal_strength,
@@ -124,6 +142,7 @@ export async function emitSignal({ signal_type, signal_strength = 50, source_col
     _origin,
     _inbox_ref,
     Date.now(),
+    processAfter,
   );
   return { id: Number(info.lastInsertRowid), signal_type, success: true };
 }
