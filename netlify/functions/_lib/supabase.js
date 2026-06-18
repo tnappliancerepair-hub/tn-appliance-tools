@@ -18,13 +18,17 @@ const { getSecretPreferVault } = require('./secrets');
 
 let _cfg = null;
 async function cfg() {
-  if (_cfg) return _cfg;
+  // Only reuse a COMPLETE cache. Never trust a blank cache — a cold start during
+  // a Xano outage would otherwise poison this permanently (creds live in the
+  // Xano-backed vault, so a failed read must NOT be cached as "empty forever").
+  if (_cfg && _cfg.url && _cfg.key) return _cfg;
   const [url, key] = await Promise.all([
     getSecretPreferVault('SUPABASE_URL'),
     getSecretPreferVault('SUPABASE_SERVICE_KEY'),
   ]);
-  _cfg = { url: String(url || '').replace(/\/+$/, ''), key: String(key || '') };
-  return _cfg;
+  const c = { url: String(url || '').replace(/\/+$/, ''), key: String(key || '') };
+  if (c.url && c.key) _cfg = c; // cache only when complete
+  return c;
 }
 
 async function isConnected() {
