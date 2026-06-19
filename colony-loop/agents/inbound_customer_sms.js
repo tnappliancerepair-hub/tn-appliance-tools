@@ -66,12 +66,14 @@ export async function run(signal, ctx) {
   let route = classify(body);
 
   // Availability collection override — if we recently ASKED this customer for
-  // their available/unavailable times and they haven't answered yet, treat this
-  // reply as that answer and route it to the parser, regardless of keywords.
-  // Explicit cancel/reschedule still win (classify already matched those).
+  // their available/unavailable times and they haven't answered yet, treat a
+  // GENERIC reply (or a bare time word like "mornings") as that answer.
+  // A reply that matched a real intent — parts / payment / tech / complaint /
+  // cancel / reschedule — is a genuine question and must NOT be swallowed as
+  // availability; let its own handler win.
   const availJobId = Number(payload.job_id || 0);
-  if (availJobId && route.type !== 'SMS_RESPONSE_CANCEL_REQUEST'
-      && route.type !== 'SMS_RESPONSE_RESCHEDULE_REQUEST') {
+  const availOverridable = route.type === FALLBACK_TYPE || route.type === 'SMS_RESPONSE_TIME_PREFERENCE';
+  if (availJobId && availOverridable) {
     try {
       const asked = await xano.getEventLogByAction(`availability_requested_${availJobId}`).catch(() => null);
       if (asked && asked.exists) {
