@@ -18,6 +18,7 @@
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
+    { id: 'templates', label: '💬 Texts',    href: '/office-templates.html',  color: '#ffb86b' },
     { id: 'calls',     label: '📞 Calls',    href: '/recent-calls.html',     color: '#4ca7ff' },
     { id: 'vacation',  label: '🏖 Status',   href: '/vacation-status.html',  color: '#ff8cbc' },
     { id: 'dashboard', label: '📊 All Jobs', href: '/office-dashboard.html', color: '#f5a623' },

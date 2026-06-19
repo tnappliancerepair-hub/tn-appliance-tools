@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0EF3THNXLE');
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Text Templates · Ant Office</title>
+<script src="/office-nav.js?v=20260619-templates"></script>
+<style>
+  :root { --bg:#0e1118; --card:#161b25; --card2:#1b212e; --line:#2a3040; --fg:#e8edf5; --mut:#9aa6b8; }
+  * { box-sizing:border-box; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    margin:0; background:var(--bg); color:var(--fg); padding:0 0 80px;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap { max-width:720px; margin:0 auto; padding:16px 14px; }
+  h1 { font-size:22px; margin:6px 0 2px; }
+  .sub { color:var(--mut); font-size:13px; margin:0 0 14px; line-height:1.45; }
+  .banner {
+    background:linear-gradient(135deg,#13233a,#162a44);
+    border:1px solid #244a73; border-radius:14px; padding:13px 15px;
+    margin:0 0 16px; font-size:13.5px; line-height:1.5; color:#cfe2f7;
+  }
+  .banner b { color:#8fc6ff; }
+  .search {
+    width:100%; padding:13px 15px; font-size:16px; border-radius:12px;
+    border:1px solid var(--line); background:var(--card); color:var(--fg);
+    margin:0 0 14px;
+  }
+  .search::placeholder { color:#6b7689; }
+  .cat { margin:22px 0 8px; font-size:12px; font-weight:800; letter-spacing:.08em;
+    text-transform:uppercase; color:#7f8ba0; }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px 15px; margin:0 0 12px; transition:border-color .12s, transform .05s;
+  }
+  .card:active { transform:scale(0.995); }
+  .card.copied { border-color:#4ad991; }
+  .card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .title { font-size:15.5px; font-weight:800; color:#fff; }
+  .body {
+    margin:9px 0 12px; font-size:14.5px; line-height:1.5; color:#d4dceb;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .row { display:flex; gap:9px; }
+  button {
+    font-family:inherit; cursor:pointer; border:none; border-radius:11px;
+    font-weight:800; font-size:14px; padding:12px 14px; transition:transform .05s, background .12s;
+  }
+  button:active { transform:scale(0.97); }
+  .copy { flex:1; background:#2f6df0; color:#fff; }
+  .copy.ok { background:#1f9d5b; }
+  .edit { background:#222a38; color:#9fb0c8; border:1px solid var(--line); padding:12px 15px; }
+  textarea {
+    width:100%; min-height:130px; font-family:inherit; font-size:15px; line-height:1.5;
+    border-radius:11px; border:1px solid #3a455a; background:#0f1420; color:var(--fg);
+    padding:11px 12px; margin:4px 0 10px; resize:vertical;
+  }
+  .mini { font-size:12px; color:var(--mut); background:none; border:none; padding:8px 4px; }
+  .mini.reset { color:#e08a8a; }
+  .toast {
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:#1f9d5b; color:#fff; font-weight:800; font-size:14px;
+    padding:12px 22px; border-radius:30px; opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s; z-index:9999; box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .empty { color:var(--mut); text-align:center; padding:40px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💬 Customer Text Templates</h1>
+  <p class="sub">Tap <b style="color:#7fa8ff">Copy</b> on any message, then paste it into your texting app and send.</p>
+
+  <div class="banner">
+    <b>Heads up:</b> Ant now texts customers <b>automatically</b> for scheduling &amp; availability
+    (the "what days/times work for you" messages). You don't need to send those by hand anymore.
+    Use this page for <b>everything else</b> — warranty status, parts updates, replacement reviews,
+    reschedules, and review requests.
+  </div>
+
+  <input id="search" class="search" type="text" placeholder="Search templates (e.g. parts, replacement, review)…" autocomplete="off">
+
+  <div id="list"></div>
+</div>
+
+<div id="toast" class="toast">Copied ✓</div>
+
+<script>
+// ---- Default template library (transcribed from Danielle's saved texts, light typo cleanup) ----
+const DEFAULTS = [
+  { id:'info_request', cat:'Getting started', title:'Need more info (model # + problem)',
+    body:`Hi, this is TN Appliance Exchange LLC reaching out because we have received your claim for repair and require more information. When able, please send the model number on the appliance and a description of what is going on with the unit. Thank you.` },
+
+  { id:'replacement_review', cat:'Replacement', title:'Unit requested for replacement — under review',
+    body:`Your unit has been requested for replacement and is under review. There is no guarantee that it will be replaced — that is up to your home warranty. They should be in contact with you within the next 48 hrs with discussion/options. If within that 48-hour time frame you do not hear from them, please give them a call.` },
+
+  { id:'part_not_local', cat:'Parts', title:'Part not local (3–5 days)',
+    body:`Your part is not local and will take 3–5 days to arrive. Once it's in, we will reach out to get you on the schedule.` },
+
+  { id:'report_approved_warranty_supply', cat:'Parts', title:'Report approved — warranty supplying parts',
+    body:`Report has been submitted and approved. Due to availability of parts, they have been requested for warranty to supply. Once parts are ordered, they will be shipped to you. Please allow 3–5 days for these parts to arrive. Once they arrive, please reach out to our office and we will get you on the next available appointment.` },
+
+  { id:'claim_review_ship_direct', cat:'Parts', title:'Claim under review — parts shipped DIRECTLY to you',
+    body:`Your claim has been submitted and is under review for repair. Due to the availability of your parts, we have requested that they be supplied by your home warranty and shipped DIRECTLY to you. Once approved and parts are ordered, please allow 3–5 days for these parts to arrive. Once they have all arrived, please reach back out for a completion appointment to install the part.` },
+
+  { id:'part_ordered_ship_direct', cat:'Parts', title:'Part ordered — shipping DIRECTLY to you',
+    body:`I have ordered the part and it is being shipped DIRECTLY to you. Once you have received this part, please let us know asap so we can get you on the schedule.` },
+
+  { id:'parts_last_week_ship_direct', cat:'Parts', title:'Parts requested last week — shipping DIRECTLY',
+    body:`Parts were requested last week for your warranty to supply. They are being shipped DIRECTLY to you. Once you have received these parts, please let us know asap so we can get you on the schedule.` },
+
+  { id:'reschedule_squaretrade', cat:'Scheduling', title:'Reschedule (SquareTrade pre-booked jobs)',
+    body:`Your warranty scheduled you with a date and/or time I did not have available. I have rescheduled it to the date and time above. If this does not work, please let me know.` },
+
+  { id:'checkin_review', cat:'Follow-up', title:'Check-in + review request',
+    body:`Just checking in to see how the unit is working. Please advise if you are still having any issues. We leave claims open for 48 hrs before closing with the warranty company. If all seems to be well and you wouldn't mind giving us a review here, we would appreciate it — we are striving to improve and be better in any way. Thank you, TN Appliance Exchange.` },
+];
+
+const LS_KEY = 'tn_office_templates_v1';
+
+function load() {
+  let overrides = {};
+  try { overrides = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e){}
+  return DEFAULTS.map(t => ({ ...t, body: overrides[t.id] != null ? overrides[t.id] : t.body }));
+}
+function saveOverride(id, body) {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e){}
+  o[id] = body;
+  localStorage.setItem(LS_KEY, JSON.stringify(o));
+}
+function clearOverride(id) {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch(e){}
+  delete o[id];
+  localStorage.setItem(LS_KEY, JSON.stringify(o));
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+async function copyText(text, cardEl, btnEl) {
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch(e) {
+    // Fallback for older / non-secure contexts
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch(e2){ ok = false; }
+  }
+  if (ok) {
+    toast('Copied ✓ — paste into your text');
+    if (cardEl) { cardEl.classList.add('copied'); setTimeout(()=>cardEl.classList.remove('copied'), 1200); }
+    if (btnEl) { btnEl.classList.add('ok'); btnEl.textContent='Copied ✓'; setTimeout(()=>{btnEl.classList.remove('ok'); btnEl.textContent='Copy';},1200); }
+  } else {
+    toast('Couldn’t copy — long-press the text to copy');
+  }
+}
+
+function render(filter) {
+  const list = document.getElementById('list');
+  const templates = load();
+  const q = (filter||'').trim().toLowerCase();
+  const shown = q
+    ? templates.filter(t => (t.title+' '+t.body+' '+t.cat).toLowerCase().includes(q))
+    : templates;
+
+  list.innerHTML = '';
+  if (!shown.length) { list.innerHTML = '<div class="empty">No templates match "'+q+'".</div>'; return; }
+
+  let lastCat = null;
+  shown.forEach(t => {
+    if (t.cat !== lastCat) {
+      const h = document.createElement('div');
+      h.className = 'cat'; h.textContent = t.cat;
+      list.appendChild(h);
+      lastCat = t.cat;
+    }
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = t.id;
+
+    const top = document.createElement('div');
+    top.className = 'card-top';
+    const title = document.createElement('div');
+    title.className = 'title'; title.textContent = t.title;
+    top.appendChild(title);
+
+    const body = document.createElement('div');
+    body.className = 'body'; body.textContent = t.body;
+
+    const row = document.createElement('div');
+    row.className = 'row';
+    const copy = document.createElement('button');
+    copy.className = 'copy'; copy.textContent = 'Copy';
+    copy.onclick = (e)=>{ e.stopPropagation(); copyText(t.body, card, copy); };
+    const edit = document.createElement('button');
+    edit.className = 'edit'; edit.textContent = '✎ Edit';
+    edit.onclick = (e)=>{ e.stopPropagation(); startEdit(card, t); };
+    row.appendChild(copy); row.appendChild(edit);
+
+    // Tapping the body text also copies
+    body.onclick = ()=> copyText(t.body, card, copy);
+
+    card.appendChild(top);
+    card.appendChild(body);
+    card.appendChild(row);
+    list.appendChild(card);
+  });
+}
+
+function startEdit(card, t) {
+  card.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'title'; title.textContent = t.title; title.style.marginBottom='6px';
+  const ta = document.createElement('textarea');
+  ta.value = t.body;
+  const row = document.createElement('div'); row.className = 'row';
+  const save = document.createElement('button'); save.className='copy'; save.textContent='Save';
+  save.onclick = ()=>{ saveOverride(t.id, ta.value); toast('Saved'); render(document.getElementById('search').value); };
+  const cancel = document.createElement('button'); cancel.className='edit'; cancel.textContent='Cancel';
+  cancel.onclick = ()=> render(document.getElementById('search').value);
+  row.appendChild(save); row.appendChild(cancel);
+  const reset = document.createElement('button'); reset.className='mini reset'; reset.textContent='Reset to original';
+  reset.onclick = ()=>{ clearOverride(t.id); toast('Reset'); render(document.getElementById('search').value); };
+  card.appendChild(title); card.appendChild(ta); card.appendChild(row); card.appendChild(reset);
+  ta.focus();
+}
+
+document.getElementById('search').addEventListener('input', e => render(e.target.value));
+render('');
+</script>
+</body>
+</html>
