@@ -42,11 +42,9 @@ export async function run(signal, ctx) {
         body = `[ant] EOD ${firstName} — ${completed} done, ${open} open. Wrap the open ones via Talk to Ant when you get a chance. Drive safe.`;
       }
 
-      await xano.sendSms({
-        to: t.phone,
-        body,
-        recipient_role: 'tech',
-        context: { source: 'tech_eod_report', action: 'tech_eod_report', tech_id: t.id, completed, open },
+      await xano.sendSms(t.phone, body, {
+        recipient_role: 'tech', source: 'tech_eod_report', action: 'tech_eod_report',
+        tech_id: t.id, completed, open,
       });
       sent++;
     } catch (e) {

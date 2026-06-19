@@ -54,7 +54,7 @@ async function dispatchSms(phone, body, context = {}) {
     return { success: false, breaker_tripped: true };
   }
   _sendTimes.push(Date.now());
-  return dispatchSms(phone, body, context);
+  return xano.sendSms(phone, body, context);
 }
 
 // All sms helpers now pass company_id in context so the Xano send_sms

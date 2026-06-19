@@ -69,11 +69,9 @@ export async function run(signal, ctx) {
         body = `[ant] morning ${firstName} — ${data.job_count} stops today. Marcones grab-list: ${list}. Saves a midday run. Let's get it.`;
       }
 
-      await xano.sendSms({
-        to: t.phone,
-        body,
-        recipient_role: 'tech',
-        context: { source: 'marcones_first_brief', tech_id: t.id, job_count: data.job_count, hint_count: hints.length },
+      await xano.sendSms(t.phone, body, {
+        recipient_role: 'tech', source: 'marcones_first_brief',
+        tech_id: t.id, job_count: data.job_count, hint_count: hints.length,
       });
       sent++;
     } catch (e) {
