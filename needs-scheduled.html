@@ -455,9 +455,36 @@
       const flexBadge = flex > 0
         ? `<span class="badge" style="background:${flexBg};color:${flexColor};border-color:${flexColor};font-weight:600">⚡ flex ${flex}</span>`
         : '';
-      const prefBadge = j.customer_preference_text
-        ? `<span class="badge" style="background:rgba(138,150,168,0.12);color:#4a5568">💬 "${escapeHtml(j.customer_preference_text).slice(0, 80)}${j.customer_preference_text.length > 80 ? '…' : ''}"</span>`
-        : '';
+      // Scheduling constraints — FRONT AND CENTER. The customer's time window is
+      // the #1 scheduling variable, so show it prominently (not a tiny badge).
+      // Splits the AVAIL/UNAVAIL markers, renders the grid, and flags vendor-locked
+      // (SquareTrade/ServicePower) jobs as pre-scheduled. Empty state surfaces the
+      // gap so we know which jobs still need their constraints gathered at intake.
+      const constraintsPanel = (() => {
+        const pref = (j.customer_preference_text || '').trim();
+        const isLocked = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
+        const rows = [];
+        if (pref) {
+          const a = pref.match(/AVAIL:\s*([^\n]*)/i);
+          const u = pref.match(/UNAVAIL:\s*([^\n]*)/i);
+          if (a && a[1].trim()) rows.push(`<div style="color:#1d7a44">✅ <b>Available:</b> ${escapeHtml(a[1].trim())}</div>`);
+          if (u && u[1].trim()) rows.push(`<div style="color:#c0392b">⛔ <b>Can't do:</b> ${escapeHtml(u[1].trim())}</div>`);
+          if (!a && !u) rows.push(`<div>${escapeHtml(pref)}</div>`);
+        }
+        try {
+          if (j.customer_availability_grid) {
+            const g = JSON.parse(j.customer_availability_grid);
+            if (Array.isArray(g) && g.length) {
+              const parts = g.map(e => `${escapeHtml(e.day || e.date || '')}${Array.isArray(e.blocks) && e.blocks.length ? ' (' + escapeHtml(e.blocks.join(', ')) + ')' : ''}`).filter(Boolean);
+              if (parts.length) rows.push(`<div>📅 <b>Windows:</b> ${parts.join(' · ')}</div>`);
+            }
+          }
+        } catch (_) {}
+        const base = 'margin:8px 0;padding:9px 11px;border-radius:9px;font-size:13px;line-height:1.55';
+        if (isLocked) return `<div style="${base};background:rgba(91,155,213,0.13);border:1px solid rgba(91,155,213,0.5);color:#2c5777">📌 <b>${escapeHtml(j.warranty_company)}</b> — vendor pre-scheduled slot (locked). ${rows.length ? rows.join('') : 'No availability needed.'}</div>`;
+        if (rows.length) return `<div style="${base};background:rgba(255,180,84,0.14);border:1px solid rgba(255,180,84,0.55);color:#7a5212">🕒 <b>Scheduling constraints</b>${rows.join('')}</div>`;
+        return `<div style="${base};background:rgba(138,150,168,0.08);border:1px dashed rgba(138,150,168,0.4);color:#8a96a8">🕒 No time constraints captured yet — gather at intake</div>`;
+      })();
       const reviewFlag = (j.friendly_status && j.friendly_status.indexOf('REVIEW') !== -1)
         ? `<div style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;font-weight:800">${escapeHtml(j.friendly_status)} — Schedule if real, 🗑 Delete if junk</div>`
         : '';
@@ -469,6 +496,7 @@
         </div>
         <div class="what">${escapeHtml(what)}</div>
         <div class="addr">${escapeHtml(addr)}</div>
+        ${constraintsPanel}
         <div class="meta">
           ${j.intake_source ? `<span class="badge source">${escapeHtml(j.intake_source)}</span>` : ''}
           ${j.warranty_company ? `<span class="badge warranty">${escapeHtml(j.warranty_company)}</span>` : ''}

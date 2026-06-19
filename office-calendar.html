@@ -1083,9 +1083,39 @@ function __initCalendar() {
       const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
       const pb = partsBadge(j);
       const meta = pb || '<span class="ready">✓ ready to schedule</span>';
+      // What the customer needs — front and center, right under the name. The
+      // time window is the #1 scheduling variable. Splits AVAIL/UNAVAIL markers,
+      // flags vendor-locked (SquareTrade/ServicePower) jobs as pre-scheduled, and
+      // shows a muted "gather at intake" prompt when we have nothing yet.
+      const constraintLine = (() => {
+        const pref = (j.customer_preference_text || '').trim();
+        const isLocked = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
+        const base = 'font-size:12px;font-weight:700;margin-top:3px;padding:4px 7px;border-radius:6px;line-height:1.4';
+        if (isLocked) return `<div style="${base};background:rgba(91,155,213,0.16);color:#9db8e0">📌 vendor pre-scheduled — locked slot</div>`;
+        const bits = [];
+        if (pref) {
+          const a = pref.match(/AVAIL:\s*([^\n]*)/i);
+          const u = pref.match(/UNAVAIL:\s*([^\n]*)/i);
+          if (a && a[1].trim()) bits.push(`✅ ${escapeHtml(a[1].trim())}`);
+          if (u && u[1].trim()) bits.push(`⛔ ${escapeHtml(u[1].trim())}`);
+          if (!a && !u) bits.push(escapeHtml(pref));
+        }
+        try {
+          if (j.customer_availability_grid) {
+            const g = JSON.parse(j.customer_availability_grid);
+            if (Array.isArray(g) && g.length) {
+              const parts = g.map(e => `${escapeHtml(e.day || e.date || '')}${Array.isArray(e.blocks) && e.blocks.length ? ' (' + escapeHtml(e.blocks.join(', ')) + ')' : ''}`).filter(Boolean);
+              if (parts.length) bits.push('📅 ' + parts.join(' · '));
+            }
+          }
+        } catch (_) {}
+        if (bits.length) return `<div style="${base};background:rgba(255,180,84,0.18);color:#ffce8a">🕒 ${bits.join(' · ')}</div>`;
+        return `<div style="${base};background:rgba(138,150,168,0.1);color:#8a96a8;font-weight:600">🕒 no time info — gather at intake</div>`;
+      })();
       return `
         <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule this job">
           <div class="cust">${escapeHtml(cust)} ${tag}</div>
+          ${constraintLine}
           <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
           <div class="meta">${meta}</div>
         </div>

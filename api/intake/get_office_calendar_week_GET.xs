@@ -259,6 +259,8 @@ query get_office_calendar_week verb=GET {
             customer_first_name: $u_first
             customer_last_name : $u_last
             customer_phone     : $u_phone
+            customer_preference_text  : ($u.customer_preference_text ?? "")
+            customer_availability_grid: ($u.customer_availability_grid ?? "")
           }
         }
 
