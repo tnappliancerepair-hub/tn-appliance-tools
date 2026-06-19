@@ -144,6 +144,22 @@ export async function run(signal, ctx) {
       await xano.recordEvent(`availability_requested_${jobId}`, {
         job_id: jobId, customer_phone: phone, source: 'greeting', at_ms: Date.now(),
       });
+      // Escalation cascade — if no availability comes back, nudge by SMS at +2h,
+      // then a Vapi call at +5h. Sleeps in the local queue (process_after) until
+      // due; each step no-ops if availability_captured_<job_id> exists by then.
+      await xano.emitSignal({
+        signal_type: 'AVAILABILITY_NUDGE_DUE',
+        signal_strength: 40,
+        payload: {
+          job_id: jobId,
+          customer_phone: phone,
+          customer_id: payload.customer_id || null,
+          first_name: payload.customer_first_name || '',
+          appliance_type: payload.appliance_type || '',
+          service_state: payload.service_state || '',
+          process_after_ms: Date.now() + 2 * 60 * 60 * 1000,
+        },
+      });
     } catch (_) {}
   }
 
