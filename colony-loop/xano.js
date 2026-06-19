@@ -12,28 +12,96 @@ import * as supa from './supabase.js';
 // p99) while keeping the worst-case tick at 90s (3 attempts × 30s).
 const FETCH_TIMEOUT_MS = 30 * 1000;
 
-async function fetchWithRetry(url, opts = {}) {
-  const delays = [0, 250, 750];
-  let lastErr;
-  for (let i = 0; i < delays.length; i++) {
-    if (delays[i] > 0) {
-      await new Promise((r) => setTimeout(r, delays[i]));
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    try {
-      return await fetch(url, { ...opts, signal: controller.signal });
-    } catch (err) {
-      // Treat aborts (DOMException AbortError) as retryable timeouts —
-      // same class of fault as a half-dead TCP connection.
-      const isAbort = err && (err.name === 'AbortError' || err.code === 'ABORT_ERR');
-      if (!isAbort && !(err instanceof TypeError)) throw err;
-      lastErr = err;
-    } finally {
-      clearTimeout(timer);
-    }
+// ── Xano circuit breaker + concurrency cap ─────────────────────────
+// Xano is the whole business — if the loop melts it, the business is down.
+// This makes that physically impossible:
+//   1. Concurrency cap — the loop can never have more than N Xano requests
+//      in flight at once (a signal storm queues instead of flooding).
+//   2. Circuit breaker — when Xano starts failing (5xx) or timing out, the
+//      breaker OPENS: all Xano calls short-circuit instantly for a cooldown
+//      so Xano gets breathing room to recover, then a single probe re-closes
+//      it. No more retry-storm-into-an-already-melting-Xano death spiral.
+// Tunable via env; defaults are conservative. Set XANO_GUARD=off to disable.
+const GUARD_ON = String(config.xanoGuard ?? process.env.XANO_GUARD ?? 'on') !== 'off';
+const MAX_CONCURRENT = Number(process.env.XANO_MAX_CONCURRENT || 5);
+const BREAKER_FAILS = Number(process.env.XANO_BREAKER_FAILS || 6);   // failures within window to trip
+const BREAKER_WINDOW_MS = Number(process.env.XANO_BREAKER_WINDOW_MS || 12 * 1000);
+const BREAKER_COOLDOWN_MS = Number(process.env.XANO_BREAKER_COOLDOWN_MS || 30 * 1000);
+const BREAKER_COOLDOWN_MAX_MS = Number(process.env.XANO_BREAKER_COOLDOWN_MAX_MS || 5 * 60 * 1000);
+
+const _breaker = { fails: 0, windowStart: 0, openUntil: 0, cooldown: BREAKER_COOLDOWN_MS, lastState: 'closed' };
+let _inFlight = 0;
+const _waitQ = [];
+
+function _acquire() {
+  if (_inFlight < MAX_CONCURRENT) { _inFlight++; return Promise.resolve(); }
+  return new Promise((resolve) => _waitQ.push(resolve));
+}
+function _release() {
+  _inFlight = Math.max(0, _inFlight - 1);
+  const next = _waitQ.shift();
+  if (next) { _inFlight++; next(); }
+}
+function _recordFailure() {
+  const now = Date.now();
+  if (now - _breaker.windowStart > BREAKER_WINDOW_MS) { _breaker.windowStart = now; _breaker.fails = 0; }
+  _breaker.fails++;
+  if (_breaker.fails >= BREAKER_FAILS && now >= _breaker.openUntil) {
+    _breaker.openUntil = now + _breaker.cooldown;
+    _breaker.lastState = 'open';
+    console.log(JSON.stringify({ t: new Date().toISOString(), action: 'xano_breaker_open',
+      cooldown_ms: _breaker.cooldown, fails: _breaker.fails }));
+    _breaker.cooldown = Math.min(_breaker.cooldown * 2, BREAKER_COOLDOWN_MAX_MS);
   }
-  throw lastErr;
+}
+function _recordSuccess() {
+  if (_breaker.lastState !== 'closed') {
+    console.log(JSON.stringify({ t: new Date().toISOString(), action: 'xano_breaker_closed' }));
+  }
+  _breaker.fails = 0;
+  _breaker.openUntil = 0;
+  _breaker.cooldown = BREAKER_COOLDOWN_MS;
+  _breaker.lastState = 'closed';
+}
+
+async function fetchWithRetry(url, opts = {}) {
+  // Breaker open → fail fast, do NOT touch Xano. Lets it recover. Callers
+  // that fail-closed (dedup checks) already handle this as "treat as fired".
+  if (GUARD_ON && Date.now() < _breaker.openUntil) {
+    const e = new Error('xano_circuit_open'); e.status = 503; e.circuitOpen = true;
+    throw e;
+  }
+  if (GUARD_ON) await _acquire();
+  try {
+    const delays = [0, 250, 750];
+    let lastErr;
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i] > 0) {
+        await new Promise((r) => setTimeout(r, delays[i]));
+      }
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { ...opts, signal: controller.signal });
+        // A 5xx is Xano under stress — count it toward the breaker (but still
+        // return the response so callers throw/handle exactly as before).
+        if (res.status >= 500) _recordFailure(); else _recordSuccess();
+        return res;
+      } catch (err) {
+        // Treat aborts (DOMException AbortError) as retryable timeouts —
+        // same class of fault as a half-dead TCP connection.
+        const isAbort = err && (err.name === 'AbortError' || err.code === 'ABORT_ERR');
+        if (!isAbort && !(err instanceof TypeError)) throw err;
+        lastErr = err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    _recordFailure(); // all attempts timed out / network-failed
+    throw lastErr;
+  } finally {
+    if (GUARD_ON) _release();
+  }
 }
 
 async function postJSON(url, body) {
