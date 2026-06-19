@@ -16,6 +16,7 @@
 //   6. green-light → enqueue propose w/ priority=1 + SMS Teddy w/ city
 import { toOwner } from '../sms.js';
 import { config } from '../config.js';
+import { parseAvailability } from '../availability.js';
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator',
@@ -234,6 +235,44 @@ export async function run(signal, ctx) {
   //                            On any failure, fall through to propose.
   //   default                 → enqueue propose (Teddy picks from 3).
 
+  // Self-scheduling autopilot (PRIMARY path when enabled). Compute a
+  // route-smart, customer-availability-honoring pick and emit TECH_JOB_OFFER —
+  // the offer agent makes the tech a one-tap offer (shadow→Teddy or live→tech
+  // per TECH_OFFER_LIVE). The tech is the decision-maker; the owner is only
+  // pulled in if no one takes it. Falls through to the legacy paths only when
+  // an offer can't be computed (no zip/tech/open day). Retires the 3-options
+  // model when on. Gated by TECH_OFFER_ENABLED (default off → no change).
+  if (config.techOfferEnabled) {
+    const offer = await computeOffer({ jobId, job, customer, job_address, ctx });
+    if (offer.success) {
+      await xano.emitSignal({
+        signal_type: 'TECH_JOB_OFFER',
+        signal_strength: 60,
+        payload: {
+          job_id: jobId,
+          technician_id: offer.technician_id,
+          scheduled_start_ms: offer.scheduled_start_ms,
+          label: [custName, appliance, city].filter(Boolean).join(' '),
+          why: offer.why,
+          customer_first: custName,
+          appliance,
+          city,
+          source_signal_id: signal.id,
+        },
+      });
+      const meta = {
+        job_id: jobId, outcome: 'tech_offer_emitted',
+        technician_id: offer.technician_id, scheduled_start_ms: offer.scheduled_start_ms,
+        availability: offer.availability,
+      };
+      await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+      log('try_auto_schedule_handled', meta);
+      return { success: true, action: 'tech_offer_emitted', job_id: jobId, technician_id: offer.technician_id };
+    }
+    log('try_auto_schedule_offer_falling_back', { job_id: jobId, reason: offer.reason, detail: offer.detail });
+    // fall through to legacy auto-book / propose
+  }
+
   if (config.autoBookEnabled) {
     const autoBookResult = await tryAutoBook({ jobId, job, customer, job_address, ctx });
     if (autoBookResult.success) {
@@ -322,6 +361,80 @@ const DEFAULT_JOB_DURATION_MS = 2 * 60 * 60 * 1000;
 // every time. Phase 3 (resequencer) will replace this with route-aware
 // slot picking.
 const SLOT_OFFSET_FROM_START_MS = 60 * 60 * 1000;
+
+// Compute a route-smart, AVAILABILITY-HONORING offer WITHOUT booking — the
+// self-scheduling autopilot's brain. Mirrors tryAutoBook's tech-resolution +
+// day-walk, but (a) filters days by the CUSTOMER's stated availability and
+// (b) returns the pick instead of booking it (the tech accepts → grab.html
+// books). Returns {success, technician_id, scheduled_start_ms, why} or
+// {success:false, reason}. Reuses the same module helpers as tryAutoBook.
+async function computeOffer({ jobId, job, customer, job_address, ctx }) {
+  const { xano } = ctx;
+  const zip = (job_address?.service_zip || customer?.zip || '').trim();
+  if (!zip) return { success: false, reason: 'no_zip' };
+
+  let routing;
+  try { routing = await xano.getTechForZip(zip, true); }
+  catch (err) { return { success: false, reason: 'tech_routing_failed', detail: String(err.message || err) }; }
+  const result = routing?.response?.result || routing?.result || routing;
+  if (!result || result.status !== 'assigned' || !result.technician_id) {
+    return { success: false, reason: 'no_tech_for_zip', detail: result?.status || 'unknown' };
+  }
+  const techId = Number(result.technician_id);
+  if (techId === 1) return { success: false, reason: 'fallback_to_owner' };
+
+  // Customer availability — the constraint the old auto-booker ignored.
+  // getAutoScheduleContext doesn't return the pref text, so fetch the full job.
+  let prefText = job.customer_preference_text || '';
+  let availGrid = job.customer_availability_grid || null;
+  if (!prefText) {
+    try {
+      const full = await xano.getJobForDashboard(jobId);
+      const fj = (full && full.job) || {};
+      prefText = fj.customer_preference_text || '';
+      availGrid = fj.customer_availability_grid || availGrid;
+    } catch (_) {}
+  }
+  const avail = parseAvailability(prefText, availGrid);
+
+  // Base date: after the part arrives if known (parts ETA constraint), else tomorrow.
+  const partsEtaDate = job.parts_eta_date ? new Date(job.parts_eta_date) : null;
+  const baseDate = partsEtaDate && !isNaN(partsEtaDate) && partsEtaDate.getTime() > Date.now()
+    ? new Date(partsEtaDate.getTime() + 24 * 3600 * 1000)
+    : new Date(Date.now() + 24 * 3600 * 1000);
+
+  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    const candidate = new Date(baseDate.getTime() + dayOffset * 24 * 3600 * 1000);
+    const dowName = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' });
+    if (dowName === 'Sat' || dowName === 'Sun') continue;   // weekend default off
+    if (!avail.dayOk(candidate)) continue;                  // ← CUSTOMER availability
+
+    const ymd = candidate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    const dayStartMs = chicagoMidnightMs(ymd);
+    const dayEndMs = dayStartMs + 24 * 3600 * 1000;
+    const dowLower = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).toLowerCase();
+
+    let constraints;
+    try {
+      constraints = await xano.getTechConstraintsForDate({
+        technician_id: techId, date_ymd: ymd, day_start_ms: dayStartMs, day_end_ms: dayEndMs, day_of_week_lower: dowLower,
+      });
+    } catch (_) { continue; }
+    if (!constraints || !constraints.success) continue;
+    if (constraints.full_day_off) continue;
+    const maxJobs = constraints.max_jobs_per_day || SYSTEM_MAX_JOBS_PER_DAY;
+    if (constraints.existing_job_count >= maxJobs) continue;
+
+    const wStart = parseHHMM(constraints.working_start || '08:00');
+    if (wStart == null) continue;
+    const slotMin = wStart + (SLOT_OFFSET_FROM_START_MS / 60000);
+    const startMs = dayStartMs + slotMin * 60 * 1000;
+
+    const why = avail.hasConstraints ? 'fits his day + your availability' : 'fits his day';
+    return { success: true, technician_id: techId, scheduled_start_ms: startMs, why, availability: avail.describe() };
+  }
+  return { success: false, reason: 'no_open_day' };
+}
 
 // Try to deterministically auto-book the job. Returns
 //   {success: true, technician_id, scheduled_start_ms, appointment_signal_id}

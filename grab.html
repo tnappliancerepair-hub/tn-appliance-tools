@@ -77,8 +77,11 @@ async function grab(){
       if(j.scheduled_start||otherTech){ taken(stage); return; }
     }
   }catch(_){ /* if the check fails, fall through and let the booking decide */ }
-  // He is ahead right now -> slot it ~30 min out today, no promised window.
-  const startMs=Date.now()+30*60*1000;
+  // Self-schedule offer carries a computed day (start_ms) -> book THAT day.
+  // Route-fill offer (tech ahead right now) has none -> ~30 min out today.
+  // Either way no promised clock window (day + area model).
+  const offeredMs=Number(qp('start_ms'))||0;
+  const startMs=offeredMs>Date.now()?offeredMs:(Date.now()+30*60*1000);
   try{
     const r=await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({job_id:JOB,technician_id:TECH,scheduled_start_ms:startMs,service_eta_window:''})});

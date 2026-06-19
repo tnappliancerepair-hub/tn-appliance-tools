@@ -29,6 +29,8 @@ export const AGENT_REGISTRY = {
   'SMS_RESPONSE_AVAILABILITY': './sms_response_availability.js',
   'AVAILABILITY_NUDGE_DUE': './availability_nudge_due.js',
   'AVAILABILITY_CALL_DUE': './availability_call_due.js',
+  // Self-scheduling autopilot — the tech one-tap offer (v1).
+  'TECH_JOB_OFFER': './tech_job_offer.js',
   'MODEL_INTEL_REQUEST': './model_intel_request.js',
   'APPOINTMENT_NO_SHOW_PREDICTOR': './appointment_no_show_predictor.js',
   'APPOINTMENT_REMINDER_DUE': './appointment_reminder_due.js',
