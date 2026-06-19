@@ -44,13 +44,13 @@ async function dispatchSms(phone, body, context = {}) {
         );
       } catch (_) {}
     }
-    try {
-      await xano.recordEventLog('sms_breaker_blocked', {
-        to: phone,
-        action: (context && (context.action || context.outcome)) || '',
-        body_preview: String(body || '').slice(0, 120),
-      });
-    } catch (_) {}
+    // Local-only (NOT Xano): a tripped breaker means we're already under load;
+    // writing the block to Xano event_log is the exact write-flood we're avoiding.
+    xano.logLocal('sms_breaker_blocked', {
+      to: phone,
+      action: (context && (context.action || context.outcome)) || '',
+      body_preview: String(body || '').slice(0, 120),
+    });
     return { success: false, breaker_tripped: true };
   }
   _sendTimes.push(Date.now());
@@ -115,14 +115,13 @@ function isQuietedForOwner(action) {
 export async function toOwner(body, context = {}) {
   const action = context.action || context.outcome || '';
   if (!context.force_send && isQuietedForOwner(action)) {
-    // Log it so the dashboard can surface what was suppressed.
-    try {
-      await xano.recordEventLog('owner_sms_quieted', {
-        action,
-        body_preview: String(body || '').slice(0, 240),
-        recipient_role: 'owner',
-      });
-    } catch (_) {}
+    // Local-only log (NOT Xano) — these suppression rows were a per-text
+    // write-flood into the unindexed event_log. Kept in the loop log instead.
+    xano.logLocal('owner_sms_quieted', {
+      action,
+      body_preview: String(body || '').slice(0, 240),
+      recipient_role: 'owner',
+    });
     return { success: false, quieted: true, action };
   }
   return dispatchSms(config.ownerPhone, body, {
@@ -195,39 +194,33 @@ export async function toTech(phone, body, context = {}) {
   // Weekend hard-mute (field techs only). No force_send escape — Teddy asked
   // for ALL texts silenced Sat/Sun.
   if (isWeekendCT() && !isOwnerAsTech) {
-    try {
-      await xano.recordEventLog('tech_sms_quieted_weekend', {
-        action,
-        body_preview: String(body || '').slice(0, 240),
-        tech_id: context.tech_id || null,
-      });
-    } catch (_) {}
+    xano.logLocal('tech_sms_quieted_weekend', {
+      action,
+      body_preview: String(body || '').slice(0, 240),
+      tech_id: context.tech_id || null,
+    });
     return { success: false, quieted: true, weekend: true, action };
   }
 
   // Owner-as-tech inherits the broader owner denylist (everything in
   // OWNER_SMS_QUIET_PATTERNS plus the tech-specific list below).
   if (!context.force_send && isOwnerAsTech && isQuietedForOwner(action)) {
-    try {
-      await xano.recordEventLog('owner_sms_quieted', {
-        action,
-        body_preview: String(body || '').slice(0, 240),
-        recipient_role: 'tech_owner',
-      });
-    } catch (_) {}
+    xano.logLocal('owner_sms_quieted', {
+      action,
+      body_preview: String(body || '').slice(0, 240),
+      recipient_role: 'tech_owner',
+    });
     return { success: false, quieted: true, action };
   }
 
   // Everyone else: tech-specific denylist (digests + reminders go to
   // dashboard, not phone).
   if (!context.force_send && isQuietedForTech(action)) {
-    try {
-      await xano.recordEventLog('tech_sms_quieted', {
-        action,
-        body_preview: String(body || '').slice(0, 240),
-        tech_id: context.tech_id || null,
-      });
-    } catch (_) {}
+    xano.logLocal('tech_sms_quieted', {
+      action,
+      body_preview: String(body || '').slice(0, 240),
+      tech_id: context.tech_id || null,
+    });
     return { success: false, quieted: true, action };
   }
   return dispatchSms(e164, body, {
