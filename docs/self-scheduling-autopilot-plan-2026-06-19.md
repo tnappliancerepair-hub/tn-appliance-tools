@@ -66,5 +66,21 @@ The "earliest day we can offer the tech" = **the LATEST of:**
 
 ## Status
 - Availability collection: built + hardened (2026-06-19).
-- **Availability parser (`colony-loop/availability.js`) — BUILT + tested 12/12 (2026-06-19). The keystone.**
-- This doc = the build target. Component inventory + exact gap mapping done 2026-06-19 (see session log).
+
+## ⏸️ AUTOPILOT OFFER — BUILT BUT NOT DEPLOYED (Teddy's call, 2026-06-19)
+The tech-offer engine (v1) is BUILT + merged to main + unit-tested, sitting DARK behind two flags. **Teddy is NOT turning it on yet** — first we get the customer-availability cascade flowing so the autopilot has data to schedule with. **Turn the offer engine on later, in this order:**
+
+1. **Shadow first:** on the Mac — `cd ~/tn-appliance-tools && git pull origin main`, then `echo 'TECH_OFFER_ENABLED=true' >> colony-loop/.env` (leave `TECH_OFFER_LIVE` off), then `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`. → Ant computes real offers on real jobs and previews them to Teddy ("would offer Jimmy, Thursday, fits his day + availability"). No tech pinged.
+2. **Build the wait-then-escalate sweep FIRST (v1.1, NOT built yet)** before going live: offer rank-1 tech → no answer in a window → re-offer next-ranked tech → only then flag the owner. Without it, a live offer a tech ignores just sits. (Reuse the `broadcast_attempt` expiry pattern; new sweep agent on the `tech_pace_watcher` cadence.)
+3. **Go live:** flip `TECH_OFFER_LIVE=true` once shadow picks look good AND the escalate sweep exists.
+
+Files already built: `colony-loop/availability.js` (parser, 12/12), `colony-loop/agents/tech_job_offer.js` (4/4), `computeOffer()` + green-light branch in `job_intake_complete.js`, `grab.html` `&start_ms=`, registry `TECH_JOB_OFFER`. Flags: `TECH_OFFER_ENABLED` (path on), `TECH_OFFER_LIVE` (tech vs shadow).
+
+## 🚦 CURRENT FOCUS (2026-06-19) — CUSTOMER AVAILABILITY CASCADE FIRST
+Before the autopilot, get the customer to give us their availability (fills the Teddy Tool + enables auto-scheduling). The exact ladder Teddy wants:
+1. Job needs scheduling → **text the customer a PORTAL link** ("tell us your availability") + they can **text back** in plain words.
+2. No response → **follow-up text**.
+3. Still nothing → **Vapi call**.
+4. Still nothing on ANY channel → **flag the job in the office "Needs Scheduled" view** for Teddy + Danielle to handle by hand.
+Result: availability captured → Teddy Tool filled → auto-scheduling becomes possible.
+Steps 1-3 ≈ the existing availability cascade (job_created greeting → availability_nudge_due +2h → availability_call_due +5h). The NEW piece = step 4 (visible flag in needs-scheduled when unreachable), plus confirm step 1 carries the PORTAL link.

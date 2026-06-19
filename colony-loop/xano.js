@@ -458,10 +458,43 @@ export async function getOfficeEodSummaryFiredToday(sinceTsMs) {
   return getJSON(`${INTAKE()}/get_office_eod_summary_fired_today?since_ts_ms=${sinceTsMs}`);
 }
 
+// ── Customer SMS mute list (minimal-but-informed launch policy) ──────────────
+// When customer messaging goes live, suppress the marketing / daily-sweep /
+// low-value-repeat texts so a customer gets ~5-6 informative texts per job
+// instead of 15+. KEEPERS are NOT here (greeting, availability nudge,
+// confirmation, reminder text, on-the-way/arrived, feedback, AND the reactive
+// reply path customer_sms_reply — customers texting back always get answered).
+// Matches customer-direction sends only, by action/context_tag substring.
+// Reversible per-launch: set CUSTOMER_SMS_MUTE_OFF=true to let everything send.
+// Robocalls are NOT here (they bypass send_sms — gate them via their env flags).
+const CUSTOMER_SMS_MUTE = [
+  'resume_nudge', 'stuck_intake', 'availability_request',
+  'upsell', 'service_agreement', 'diagnostic_prepay',
+  'maintenance_reminder', 'proactive_failure',
+  're_engagement', 'reactivation', 'self_warranty',
+  'parts_arrival_followup',   // daily parts sweep; keeps event-driven parts_arrived
+  'cancel_followup',
+];
+function _customerSmsMuted(context) {
+  if (String(process.env.CUSTOMER_SMS_MUTE_OFF || '') === 'true') return null;
+  const role = String((context && context.recipient_role) || '').toLowerCase();
+  if (role !== 'customer') return null;
+  const tag = String((context && (context.action || context.outcome || context.context_tag)) || '').toLowerCase();
+  if (!tag) return null;
+  return CUSTOMER_SMS_MUTE.find((p) => tag.includes(p)) || null;
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
     return { success: true, dry_run: true };
+  }
+  // Launch spam-control: drop muted customer-direction texts (local-log only).
+  const _muted = _customerSmsMuted(context);
+  if (_muted) {
+    logLocal('customer_sms_muted', { matched: _muted, to_last4: String(to || '').slice(-4),
+      tag: (context.action || context.context_tag || '') });
+    return { success: false, muted: true, matched: _muted };
   }
   const primary = postJSON(`${INTAKE()}/send_sms`, { to, message, context });
   // Vacation backup: if backup phone is set AND this SMS is going to the
