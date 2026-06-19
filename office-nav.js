@@ -15,6 +15,7 @@
   // payouts/leaderboard/feedback/loop-health from inside All Jobs, etc.).
   const NAV = [
     { id: 'today',     label: '🐜 Today',    href: '/office-today.html',     color: '#b48cff' },
+    { id: 'messages',  label: '💬 Messages', href: '/office-messages.html',  color: '#5aa9ff' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
