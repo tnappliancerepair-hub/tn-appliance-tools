@@ -168,6 +168,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/ant-constraints.js"></script>
 <script src="/ant-addons.js"></script>
 <script src="/ant-video-upload.js"></script>
 <script src="/ant-brain.js"></script>
@@ -343,6 +344,7 @@ function render(){
         </div>
         <div class="big">${esc(name)}</div>
         <div class="meta">${esc(appl)}${problem?(' — '+esc(problem)):''}</div>
+        ${window.AntConstraints?AntConstraints.render(job,{dark:true}):''}
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
       </div>
 
