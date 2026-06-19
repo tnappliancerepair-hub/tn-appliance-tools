@@ -627,6 +627,7 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/ant-constraints.js"></script>
 <script>
 (function() {
   'use strict';
@@ -1133,6 +1134,7 @@
         </div>
         <div class="customer-line">${escapeHtml(custName)}</div>
         <div class="appliance-line">${applianceLine}</div>
+        ${window.AntConstraints ? AntConstraints.render(j, {dark:true}) : ''}
         <div class="address-line">
           <div class="icon">📍</div>
           <div class="text">${escapeHtml(addressText)}</div>
