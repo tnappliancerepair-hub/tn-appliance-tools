@@ -23,6 +23,9 @@ export const AGENT_REGISTRY = {
   'MARCONES_FIRST_BRIEF': './marcones_first_brief.js',
   'QUICK_CHECK_SUBMITTED': './quick_check_submitted.js',
   'PARTS_LOOKUP_REQUEST': './parts_lookup_request.js',
+  // Manually added 2026-06-19 — customer availability collection (test-first).
+  'AVAILABILITY_REQUEST': './availability_request.js',
+  'SMS_RESPONSE_AVAILABILITY': './sms_response_availability.js',
   'MODEL_INTEL_REQUEST': './model_intel_request.js',
   'APPOINTMENT_NO_SHOW_PREDICTOR': './appointment_no_show_predictor.js',
   'APPOINTMENT_REMINDER_DUE': './appointment_reminder_due.js',
