@@ -972,8 +972,24 @@ async function submitReschedule() {
   if (!hasTech) { errEl.textContent = '⚠ Assign a tech first (use Reassign), then set the day.'; return; }
   btn.disabled = true;
   btn.textContent = 'Saving...';
+  const jobIdNum = parseInt(JOB_ID, 10);
+  const doReschedule = () => fetchProxy('reschedule_job', { job_id: jobIdNum, new_start_ms: ms });
   try {
-    await fetchProxy('reschedule_job', { job_id: parseInt(JOB_ID, 10), new_start_ms: ms });
+    try {
+      await doReschedule();
+    } catch (e1) {
+      // Canceled/terminal jobs bounce with "terminal_locked" (the state machine
+      // locks terminal states). Auto-recover the documented way: lift the lock
+      // via the status override, then retry — so Danielle never gets bounced to
+      // the board to do it manually.
+      if (/terminal/i.test(String((e1 && e1.message) || ''))) {
+        btn.textContent = 'Reopening…';
+        try { await fetchProxy('office_set_job_status', { job_id: jobIdNum, scheduling_status: 'scheduled', actor: 'Danielle' }); } catch (_) {}
+        await doReschedule();
+      } else {
+        throw e1;
+      }
+    }
     closeModal('reschedule');
     loadJob();
   } catch (e) {
@@ -1137,6 +1153,7 @@ function buildWarrantySection(job) {
 }
 
 function buildApplianceSection(appl) {
+  const job = (jobData && jobData.job) || {};
   return `
     <div class="section">
       <div class="section-title">Appliance</div>
