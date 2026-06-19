@@ -28,6 +28,22 @@ A long night. The loop kept melting Xano (full 503 across the function API) ever
 ### ⏭️ DURABLE NEXT LEVER (not urgent — loop is stable)
 Even with the local queue, `recordEvent`/`recordEventLog`/`checkEventLogFiredToday` still write to Xano **by design** (the `record_event_log` floor). Moving those to local SQLite/Supabase is the next structural reduction. The `_DUE` agents (e.g. `maintenance_reminder_due` re-emits for 180 days) are fine now that local `process_after` sleeps them — but would churn hard if ever reverted to the Xano store.
 
+### 🚨 THE 2AM RE-MELT — it was BULK SCHEDULING, not the idle loop (key finding)
+After the clean restart (SMS fixed, lean, local) the loop held **flat for 4 minutes, then melted Xano again** (8/8 fail, 502/503). The loop log showed the cause clearly — it was **NOT** the idle loop:
+- **Danielle was bulk-scheduling the ~356-job backlog.** Each job (esp. canceled ones reopened by the new `terminal_locked` fix) fires a `JOB_CANCELED` + `APPOINTMENT_SCHEDULED` pair.
+- Each of those spawns **heavy reactive agents** — `get_tech_assignment_context`, `get_appointment_confirmation_sent`, and **`PRE_JOB_INTELLIGENCE_PRESTAGER` (staged 13 jobs in one fire)** — every one hammering Xano.
+- Smoking gun: **`loop_tick tick_ms:224849`** (a single tick took **224 seconds**) with repeated `tick_skipped_overlap`. The loop was hopelessly backed up amplifying her scheduling storm → Xano buckled.
+- **LEAN_LOOP did NOT catch this** because lean only gates *scheduled* (clock-driven) emits in `maybeEmitTimeSignals`. These are **reactive** signals from office activity — lean has no effect on them.
+
+**RULE: keep the loop OFF during any BULK office operation (mass scheduling / backlog cleanup / dupe-merge).** Why it's correct, not a failure:
+- The office's scheduling **works without the loop** — `danielle_schedule_parallel_job` writes via the healthy function API; the job lands on the board instantly. The loop only adds the *automation* (confirmation texts, reminders, pre-stage).
+- You do **not** want the loop running during a bulk cleanup — it tries to fire a confirmation text per job (356 of them, mostly `no_phone` backlog) and the reactive cascade melts Xano.
+
+**Tomorrow's restart plan (after the backlog is cleared + Xano has headroom):**
+1. **Drain the queued storm first** so the loop doesn't re-process it on startup: `node colony-loop/scripts/clear-pending-signals.js --report` then drain, + clear the local queue (db.js gc) — do this with the loop STOPPED.
+2. Restart for **steady-state** only (a handful of real-time schedules/day — that volume held flat tonight).
+3. **Build "bulk mode"** — a flag so office bulk ops schedule WITHOUT firing the per-job reactive cascade (`PRE_JOB_INTELLIGENCE_PRESTAGER` + the full confirmation chain). This is the real structural fix so a backlog cleanup can never melt Xano again. Until it exists, loop OFF during bulk work.
+
 ## ⚡ 2026-06-18 — XANO LOAD STRUCTURALLY FIXED + day's wins (READ FIRST)
 
 - **📞 DROPPED-CALL SILENCE FIXED (LIVE, the night's #1).** 66% of inbound calls (74% today) were dying in `silence-timeout` — every one froze at the exact moment Ant said *"let me pull up your appointment / search for your account."* Cause: `vapi-tool.js` (the proxy behind every voice tool) hit Xano with **no timeout**, so a slow/502'ing Xano = dead air until the call dropped. Real customers lost (Jerry, George, Jeffrey, confirmed in transcripts). **Fix shipped both halves to `main`:** (1) every lookup caps at **8s** → on hang returns a `SLOW_FALLBACK` that tells Ant to apologize, keep talking, and take a callback via `capture_callback` (never go silent); (2) the *real* killer — the handler also **awaited 3 metadata-API writes** (`logProxy` every call, `captureCallerPhone` up to 4 sequential calls, `alertNewJob`) AFTER a good lookup — now bounded by `Promise.race` at **2.5s** + `AbortSignal` on the per-call log write. **The call path is now immune to Xano regardless of its mood.** Verify = one inbound call that triggers a lookup; Ant keeps talking even if Xano lags.
