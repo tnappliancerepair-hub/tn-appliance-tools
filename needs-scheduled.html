@@ -175,6 +175,7 @@
   .toast.ok { background: var(--green); }
 </style>
   <script src="/office-ask.js?v=20260603-1"></script>
+  <script src="/ant-constraints.js"></script>
 </head>
 <body>
 
@@ -496,7 +497,7 @@
         </div>
         <div class="what">${escapeHtml(what)}</div>
         <div class="addr">${escapeHtml(addr)}</div>
-        ${constraintsPanel}
+        <div onclick="event.stopPropagation();if(window.AntConstraints)AntConstraints.edit(${j.id})" style="cursor:pointer" title="Tap to add or edit the customer's availability">${constraintsPanel}</div>
         <div class="meta">
           ${j.intake_source ? `<span class="badge source">${escapeHtml(j.intake_source)}</span>` : ''}
           ${j.warranty_company ? `<span class="badge warranty">${escapeHtml(j.warranty_company)}</span>` : ''}

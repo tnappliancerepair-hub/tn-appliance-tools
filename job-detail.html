@@ -1148,7 +1148,7 @@ function buildApplianceSection(appl) {
         <div class="k">Problem</div> <div class="v">${escapeHtml(appl.problem_summary || appl.problem_description || '—')}</div>
       </div>
     </div>
-    ${window.AntConstraints ? `<div class="section"><div class="section-title">Customer availability</div>${AntConstraints.render(job, {dark:true, style:'panel'})}</div>` : ''}
+    ${window.AntConstraints ? `<div class="section"><div class="section-title">Customer availability</div>${AntConstraints.render(job, {dark:true, style:'panel', edit:true, jobId:job.id})}</div>` : ''}
   `;
 }
 
