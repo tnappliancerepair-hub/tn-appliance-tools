@@ -113,16 +113,24 @@ function isQuietedForOwner(action) {
 }
 
 export async function toOwner(body, context = {}) {
-  const action = context.action || context.outcome || '';
-  if (!context.force_send && isQuietedForOwner(action)) {
-    // Local-only log (NOT Xano) — these suppression rows were a per-text
-    // write-flood into the unindexed event_log. Kept in the loop log instead.
-    xano.logLocal('owner_sms_quieted', {
-      action,
-      body_preview: String(body || '').slice(0, 240),
-      recipient_role: 'owner',
-    });
-    return { success: false, quieted: true, action };
+  const action = context.action || context.outcome || context.call_site || '';
+  // 2026-06-19 — Per Teddy: owner SMS is CANCELED. Reports/notifications are
+  // SAVED to the owner portal (event_log 'owner_report') instead of texting his
+  // phone. Only force_send (genuine emergencies, e.g. the SMS breaker alert)
+  // still texts. Customer-reply forwards are a SEPARATE path (the inbound
+  // webhook) and are unaffected — Teddy still sees those.
+  if (!context.force_send) {
+    try {
+      await xano.recordEventLog('owner_report', {
+        source: action || 'owner',
+        body: String(body || '').slice(0, 4000),
+        recipient_role: 'owner',
+        at_ms: Date.now(),
+      });
+    } catch (_) {
+      xano.logLocal('owner_report_save_failed', { action, body_preview: String(body || '').slice(0, 200) });
+    }
+    return { success: false, canceled: true, saved_to_portal: true, action };
   }
   return dispatchSms(config.ownerPhone, body, {
     ...context, recipient_role: 'owner', company_id: config.companyId,
