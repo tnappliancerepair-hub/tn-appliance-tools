@@ -36,6 +36,17 @@ Jobs schedule themselves. **The TECHNICIAN is the decision-maker.** Teddy (owner
 - The customer's availability can't be satisfied by any tech's route within reason.
 - A genuine error/conflict/exception.
 
+## 🧭 THE TEDDY TOOL IS THE COCKPIT (Teddy's unifying idea, 2026-06-19)
+The tech offer isn't just an SMS off in the ether — it gets a **home and a face inside the Teddy Tool** (`teddy-tdr-tool.html`), tying the whole pipeline together in one view.
+
+- As the customer's intake lands in the Teddy Tool (machine info + video + model + pre-diagnosis), **the computed tech offer is surfaced right there**: "Ant recommends **Jimmy · Thursday · slot 5** — fits his cluster + the customer's availability. Offer sent ✓ / Accepted ✓."
+- **The offer rides on top of the pre-diagnosis.** The tech receives a *pre-diagnosed* job — video, model, likely part attached — not just "a job." That's the *best possible offer*: he knows what he's walking into before he says yes.
+- **It is a WINDOW into the autopilot, not a required step.** The offer still **auto-fires to the tech by default** (owner stays out of the routine per the north star). The Teddy Tool panel just *shows* what Ant did (who was offered, accepted/declined, booked) and gives a **one-tap override lever** if Teddy wants to step in. He's watching it work, not pressing send.
+- **The Teddy Tool becomes the single cockpit** for a job's whole life: intake → diagnose → offer → accept → booked — the unified-workspace vision made real. Ties directly into `docs/self-checkout-vision.md` (the self-checkout intake feeds this cockpit).
+
+**Build impact:** piece #3 (Tech one-tap offer) gains a visual surface — a "Scheduling" card in `teddy-tdr-tool.html` that reads the same `TECH_JOB_OFFER` / offer-record state: shows Ant's recommended tech + day + slot + the *why* (cluster fit + customer availability), live offer status, and an override. Read-only mirror of the autopilot; never a gate on it.
+
 ## Status
 - Availability collection: built + hardened (2026-06-19).
-- This doc = the build target. Component inventory + exact gap mapping in progress 2026-06-19.
+- **Availability parser (`colony-loop/availability.js`) — BUILT + tested 12/12 (2026-06-19). The keystone.**
+- This doc = the build target. Component inventory + exact gap mapping done 2026-06-19 (see session log).
