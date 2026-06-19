@@ -1,5 +1,49 @@
 # Appliance Ant
 
+## 🌙 2026-06-19 — THE LOOP MELTDOWN, ROOT-CAUSED + FIXED (READ FIRST)
+
+A long night. The loop kept melting Xano (full 503 across the function API) every time it ran. We dug to the actual bottom. **Outcome: loop is back ON, running lean + local, Xano flat (0.08–0.58s, zero dips over 4+ min). All fixes merged to `main`.**
+
+- **🔴 THE REAL XANO-MELTER = a SMS recursion bug (FIXED, `colony-loop/sms.js`).** `dispatchSms()` called **itself** (`return dispatchSms(...)`) instead of `xano.sendSms(...)`. So every outbound text recursed ~50× until the SMS circuit breaker tripped, and **each tripped send wrote an `sms_breaker_blocked` row to Xano**. A full-cadence loop restart fires hundreds of sends at once → flood of Xano writes → 503. It was ALSO a total outbound-SMS outage (the loop literally could not text anyone). Fix = `return xano.sendSms(phone, body, context)`.
+- **🟠 Two agents crashed on send (FIXED).** `agents/tech_eod_report.js` + `agents/marcones_first_brief.js` called `xano.sendSms({to,body,…})` but the signature is `sendSms(to, message, context)` → Xano `send_sms` got `to:{object}` → `ERROR_CODE_INPUT_ERROR "param: to"` (the live `unhandled_rejection`). Fix = positional args.
+- **✅ CORRECTION TO THE RECORD — `LOOP_STORE=local` WORKS; the "missing `--experimental-sqlite`" theory was WRONG.** The Mac runs **Node 26**, where `node:sqlite` loads with **no flag**. Confirmed live: `db.js` imports fine AND `store.js` `_usingLocal = true`. **DO NOT add `--experimental-sqlite` to the plist** (unnecessary on Node 26; could break startup). The dashboard's queue-endpoint hits (`mark_signal_processed`/`emit_colony_signal`/etc.) were **external producers + drainInbox + the now-fixed breaker-block spam**, NOT the loop's queue (which is genuinely local).
+- **🟢 LEAN_LOOP=true (NEW, in `colony-loop/.env`).** `tick.js`'s `maybeEmitTimeSignals` now routes every scheduled emit through `emitScheduled()`, which fires only **~15 load-bearing daily-ops signals** (tech/office/owner morning briefings, DAILY_JOB_PREP, PARTS_ARRIVAL_CHECK, TECH_RUNNING_LATE_SCAN/TECH_LATE_CHECK, TDR_REMINDER, RESUME_NUDGE, the stuck/orphan/intake safety nets, OFFICE_EOD/DAILY_REVENUE) and **mutes the other 43** (BI/analytics/aggregators + the agent-building architect + chatty watchdogs MARKETING_SITE_WATCH/5min, XANO_API_WATCH/15min, COLONY_LOOP_SELF_WATCH/10min). Kills the restart burst. **Reactive agents are untouched** (new job → greeting, finished TDR → auto-route, appt → reminder, inbound SMS → reply). Reversible: drop the `LEAN_LOOP` line.
+- **🗓️ terminal_locked auto-recovery (FIXED, front-end, all 4 schedule surfaces).** Danielle's "⚠ terminal_locked" when scheduling a **canceled** job now auto-recovers: on that error it lifts the lock via `office_set_job_status {scheduling_status:'scheduled'}` and retries the schedule. In `office-board.html`, `needs-scheduled.html` (both paths), `office-do-next.html`, `office-ready.html`. Pure function-API, no loop.
+- **📞 Dropped-call silence FIXED (earlier same night).** `vapi-tool.js`: 8s lookup timeout → `SLOW_FALLBACK` (Ant keeps talking, takes a callback) + post-lookup metadata writes (`logProxy`/`captureCallerPhone`/`alertNewJob`) bounded by `Promise.race` at 2.5s. Calls never go silent on a slow Xano.
+- **🗂️ Auto-route finished reports (Danielle's ask, LIVE).** `tdr_submitted.js` `routeFinishedReport()` → part needed = Waiting Parts (`awaiting_parts` + `office_stage`), second visit = Follow Up. Parts routing live now; Follow Up needs the pending `create_tdr` push.
+
+### 🔁 CLEAN LOOP RESTART RECIPE (use this, not kickstart-on-stale-code)
+1. `cd ~/tn-appliance-tools && git pull origin main`
+2. `launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.tnappliance.colony-loop.plist` (use `bootstrap` after a `bootout`; `kickstart -k` only if already loaded)
+3. `pgrep -fl colony-loop` → exactly **one** PID
+4. Confirm lean: `grep -F '[lean]' ~/Library/Logs/colony-loop.out.log | tail -1`
+5. Confirm local queue: `cd colony-loop && node -e 'import("./store.js").then(m=>console.log("usingLocal=",m.default._usingLocal))'`
+
+### ⚠️ FOOTGUNS LEARNED TONIGHT
+- **To STOP the loop definitively:** `launchctl bootout gui/$UID/com.tnappliance.colony-loop; pkill -f 'colony-loop/index.js'` — a plain `bootout` can leave the node process alive (it kept hammering Xano as PID 85400 until `pkill`).
+- **When the loop "melts Xano," don't assume it's the queue.** Check, in order: (a) `_usingLocal` true? (b) is `sms.js` sending or recursing/breaker-tripping? (c) Xano **Performance Insights** dashboard top endpoints — `record_event_log` + `sms_breaker_blocked` spam = the SMS path, not the queue.
+- **I was overconfident twice** (claimed "metadata API recovered" and "LOOP_STORE not set" — both wrong). Verify with a runtime test before acting; the audit subagent + the `node -v`/`store.js` tests are what actually found truth.
+- **Phones/board/scheduling do NOT need the loop.** Doors stay open with the loop off — only automation (briefings/greetings/auto-route/parts-chase) pauses.
+
+### ⏭️ DURABLE NEXT LEVER (not urgent — loop is stable)
+Even with the local queue, `recordEvent`/`recordEventLog`/`checkEventLogFiredToday` still write to Xano **by design** (the `record_event_log` floor). Moving those to local SQLite/Supabase is the next structural reduction. The `_DUE` agents (e.g. `maintenance_reminder_due` re-emits for 180 days) are fine now that local `process_after` sleeps them — but would churn hard if ever reverted to the Xano store.
+
+### 🚨 THE 2AM RE-MELT — it was BULK SCHEDULING, not the idle loop (key finding)
+After the clean restart (SMS fixed, lean, local) the loop held **flat for 4 minutes, then melted Xano again** (8/8 fail, 502/503). The loop log showed the cause clearly — it was **NOT** the idle loop:
+- **Danielle was bulk-scheduling the ~356-job backlog.** Each job (esp. canceled ones reopened by the new `terminal_locked` fix) fires a `JOB_CANCELED` + `APPOINTMENT_SCHEDULED` pair.
+- Each of those spawns **heavy reactive agents** — `get_tech_assignment_context`, `get_appointment_confirmation_sent`, and **`PRE_JOB_INTELLIGENCE_PRESTAGER` (staged 13 jobs in one fire)** — every one hammering Xano.
+- Smoking gun: **`loop_tick tick_ms:224849`** (a single tick took **224 seconds**) with repeated `tick_skipped_overlap`. The loop was hopelessly backed up amplifying her scheduling storm → Xano buckled.
+- **LEAN_LOOP did NOT catch this** because lean only gates *scheduled* (clock-driven) emits in `maybeEmitTimeSignals`. These are **reactive** signals from office activity — lean has no effect on them.
+
+**RULE: keep the loop OFF during any BULK office operation (mass scheduling / backlog cleanup / dupe-merge).** Why it's correct, not a failure:
+- The office's scheduling **works without the loop** — `danielle_schedule_parallel_job` writes via the healthy function API; the job lands on the board instantly. The loop only adds the *automation* (confirmation texts, reminders, pre-stage).
+- You do **not** want the loop running during a bulk cleanup — it tries to fire a confirmation text per job (356 of them, mostly `no_phone` backlog) and the reactive cascade melts Xano.
+
+**Tomorrow's restart plan (after the backlog is cleared + Xano has headroom):**
+1. **Drain the queued storm first** so the loop doesn't re-process it on startup: `node colony-loop/scripts/clear-pending-signals.js --report` then drain, + clear the local queue (db.js gc) — do this with the loop STOPPED.
+2. Restart for **steady-state** only (a handful of real-time schedules/day — that volume held flat tonight).
+3. **Build "bulk mode"** — a flag so office bulk ops schedule WITHOUT firing the per-job reactive cascade (`PRE_JOB_INTELLIGENCE_PRESTAGER` + the full confirmation chain). This is the real structural fix so a backlog cleanup can never melt Xano again. Until it exists, loop OFF during bulk work.
+
 ## ⚡ 2026-06-18 — XANO LOAD STRUCTURALLY FIXED + day's wins (READ FIRST)
 
 - **📞 DROPPED-CALL SILENCE FIXED (LIVE, the night's #1).** 66% of inbound calls (74% today) were dying in `silence-timeout` — every one froze at the exact moment Ant said *"let me pull up your appointment / search for your account."* Cause: `vapi-tool.js` (the proxy behind every voice tool) hit Xano with **no timeout**, so a slow/502'ing Xano = dead air until the call dropped. Real customers lost (Jerry, George, Jeffrey, confirmed in transcripts). **Fix shipped both halves to `main`:** (1) every lookup caps at **8s** → on hang returns a `SLOW_FALLBACK` that tells Ant to apologize, keep talking, and take a callback via `capture_callback` (never go silent); (2) the *real* killer — the handler also **awaited 3 metadata-API writes** (`logProxy` every call, `captureCallerPhone` up to 4 sequential calls, `alertNewJob`) AFTER a good lookup — now bounded by `Promise.race` at **2.5s** + `AbortSignal` on the per-call log write. **The call path is now immune to Xano regardless of its mood.** Verify = one inbound call that triggers a lookup; Ant keeps talking even if Xano lags.
