@@ -10,15 +10,14 @@
 //   GET ?place_id=<ChIJ…>   (optional — skips resolution, fastest)
 //       ?q=<text query>     (optional — default the business name)
 //
-// REQUIRES: "Places API (New)" enabled on GOOGLE_MAPS_API_KEY in Google Cloud
-// Console. If it isn't, Google returns 403 PERMISSION_DENIED — surfaced plainly
-// in `debug` so we know to enable it (vs. a vague "place_not_found").
+// KEY RESOLUTION: the new Places key lives in the **runtime vault** (Xano
+// app_config) because Netlify is at the 4KB Lambda env cap. getSecret() is
+// env-first then vault, so it also works if it's ever in env. Falls back to the
+// shared maps key (env) if Places API (New) is enabled on that one instead.
 'use strict';
 
-// Prefer a dedicated Places key (so enabling Places API (New) can't affect the
-// Distance Matrix/Geocoding key used by get-drive-time.js). Falls back to the
-// shared maps key if Places is enabled there instead.
-const KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+const { getSecret } = require('./_lib/secrets');
+
 const DEFAULT_Q = 'TN Appliance Exchange appliance repair Antioch TN';
 const BASE = 'https://places.googleapis.com/v1';
 
@@ -31,7 +30,7 @@ function json(code, body) {
 }
 
 // Text Search (New) → first matching place id.
-async function searchText(q) {
+async function searchText(q, KEY) {
   const r = await fetch(`${BASE}/places:searchText`, {
     method: 'POST',
     headers: {
@@ -47,7 +46,7 @@ async function searchText(q) {
 }
 
 // Place Details (New) → rating, count, reviews, maps uri.
-async function details(placeId) {
+async function details(placeId, KEY) {
   const r = await fetch(`${BASE}/places/${encodeURIComponent(placeId)}`, {
     headers: {
       'X-Goog-Api-Key': KEY,
@@ -59,14 +58,17 @@ async function details(placeId) {
 }
 
 exports.handler = async (event) => {
-  if (!KEY) return json(500, { ok: false, error: 'no_maps_key' });
+  let KEY = '';
+  try { KEY = await getSecret('GOOGLE_PLACES_API_KEY'); } catch (_) {}
+  if (!KEY) KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+  if (!KEY) return json(500, { ok: false, error: 'no_maps_key', hint: 'Store GOOGLE_PLACES_API_KEY in the vault via admin-secrets.html' });
   const q = event.queryStringParameters || {};
   const debug = {};
   try {
     let placeId = q.place_id || null;
 
     if (!placeId) {
-      const s = await searchText(q.q || DEFAULT_Q);
+      const s = await searchText(q.q || DEFAULT_Q, KEY);
       debug.search_http = s.http;
       if (s.error) debug.search_error = s.error;
       placeId = s.id;
@@ -83,7 +85,7 @@ exports.handler = async (event) => {
       });
     }
 
-    const { d, http } = await details(placeId);
+    const { d, http } = await details(placeId, KEY);
     debug.details_http = http;
     if (d.error || !d.rating) {
       return json(200, { ok: false, error: 'details_failed', place_id: placeId, google_error: d.error || null, debug });
