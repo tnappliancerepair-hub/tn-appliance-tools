@@ -14,6 +14,26 @@
 import { config } from '../config.js';
 import { placeOutboundCall, ASSISTANT_IDS } from '../vapi-out.js';
 
+// Real outbound calls to customers are OFF unless explicitly enabled. Until
+// AVAILABILITY_CALL_LIVE=true, the cascade ends by texting the owner to call
+// (data still gets collected, just by a human) — so flipping the SMS ask live
+// can NEVER accidentally cold-call a customer.
+const CALL_LIVE = String(process.env.AVAILABILITY_CALL_LIVE || '') === 'true';
+
+// CT hour (0-23). Used to keep calls inside daytime hours.
+function ctHour(d = new Date()) {
+  const h = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(d);
+  return Number(h) % 24;
+}
+// Next 9am CT, in unix ms (approx, hour-resolution) — for holding a night call to morning.
+function nextMorning9CtMs() {
+  const h = ctHour();
+  const hoursUntil = h < 9 ? (9 - h) : (24 - h + 9);
+  return Date.now() + hoursUntil * 60 * 60 * 1000;
+}
+const CALL_START_HOUR = 8;   // 8am CT
+const CALL_END_HOUR = 19;    // 7pm CT
+
 export async function run(signal, ctx) {
   const { xano, log } = ctx;
   const p = signal.payload || {};
@@ -46,8 +66,25 @@ export async function run(signal, ctx) {
   const region = /LA|NOLA|LOUISIANA/i.test(String(p.service_state || '')) ? 'LA' : 'TN';
   const assistantId = String(process.env.AVAILABILITY_CALL_ASSISTANT_ID || ASSISTANT_IDS.availability_collect || '').trim();
 
+  // A real customer call only happens when explicitly enabled, with a phone +
+  // assistant, AND inside daytime hours. Outside hours → hold to morning so we
+  // never cold-call at night. Not enabled → fall through to the owner-call text.
+  const wantLiveCall = CALL_LIVE && phone && assistantId;
+  if (wantLiveCall) {
+    const hour = ctHour();
+    if (hour < CALL_START_HOUR || hour >= CALL_END_HOUR) {
+      await xano.emitSignal({
+        signal_type: 'AVAILABILITY_CALL_DUE', signal_strength: 45,
+        payload: { ...p, process_after_ms: nextMorning9CtMs() },
+      });
+      await xano.markSignalProcessed(signal.id, 'availability_call_held_quiet_hours', { job_id: jobId, ct_hour: hour });
+      log('availability_call_held_quiet_hours', { job_id: jobId, ct_hour: hour });
+      return { success: true, action: 'held_quiet_hours', job_id: jobId };
+    }
+  }
+
   let outcome = '';
-  if (phone && assistantId) {
+  if (wantLiveCall) {
     const r = await placeOutboundCall({
       assistantId,
       toPhone: phone,
