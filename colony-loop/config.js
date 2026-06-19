@@ -87,6 +87,12 @@ export const config = Object.freeze({
   // SHADOW), it texts Teddy what it WOULD offer so we validate the picks
   // before techs are pinged. See docs/self-scheduling-autopilot-plan-2026-06-19.md.
   techOfferLive: process.env.TECH_OFFER_LIVE === 'true',
+  // Whether the autopilot's OFFER path runs at all on new jobs (computes a
+  // route-smart, availability-honoring pick → emits TECH_JOB_OFFER). Default
+  // off → job_intake_complete keeps its current behavior. Turn ON (with
+  // TECH_OFFER_LIVE still off) to SHADOW: Ant computes real offers + previews
+  // them to Teddy, no tech pinged. Then flip TECH_OFFER_LIVE to go live.
+  techOfferEnabled: process.env.TECH_OFFER_ENABLED === 'true',
   // Claude call audit endpoint — fire-and-forget logged from claude.js
   // on every API call (success, error, timeout, dry-run). Empty disables
   // logging (back-compat). Set automatically from xanoIntakeBase below.
