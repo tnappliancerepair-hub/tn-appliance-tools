@@ -46,6 +46,24 @@ The tech offer isn't just an SMS off in the ether — it gets a **home and a fac
 
 **Build impact:** piece #3 (Tech one-tap offer) gains a visual surface — a "Scheduling" card in `teddy-tdr-tool.html` that reads the same `TECH_JOB_OFFER` / offer-record state: shows Ant's recommended tech + day + slot + the *why* (cluster fit + customer availability), live offer status, and an override. Read-only mirror of the autopilot; never a gate on it.
 
+## 🧱 THE THREE SCHEDULING CONSTRAINTS (build the skeleton around these)
+The "earliest day we can offer the tech" = **the LATEST of:**
+1. **Parts ETA** — when the part will be delivered (Marcone API → `parts_eta_date`). Never offer a day before the part arrives. *(North Star — wire when Marcone ETA is live; `parts_eta_date` already exists on parts jobs.)*
+2. **Customer availability** — the days/times they said work (the `availability.js` parser — BUILT). *(v1)*
+3. **Tech route + capacity** — a day the tech has room + cluster density (`check_service_zone`, `get_tech_route_days`, `getTechConstraintsForDate`). *(v1)*
+
+**Design rule:** the slot-picker takes a **LIST of constraints**, not a hardcoded one — so adding parts-ETA later is "add a constraint," not a rewrite. Don't paint into a corner.
+
+## 🚦 PHASED ROLLOUT (Teddy's call, 2026-06-19 — keep it simple, prove it first)
+**v1 — THIS WEEK (prove the loop):**
+- Plain **SMS offer to the tech** → accept → auto-book → customer confirmed.
+- Honors **customer availability** + tech/cluster routing.
+- **NO Teddy Tool surface, NO parts-ETA gating yet.** Just prove the core mechanic works end to end. Shadow (`TECH_OFFER_LIVE=off`, texts owner what it would do) → then live.
+
+**North Star — AFTER v1 is proven:**
+- Offer surfaces **in the Teddy Tool cockpit**, riding on the pre-diagnosis.
+- Timing becomes **parts-ETA-aware** (Marcone) — offer day is after the part lands at the customer.
+
 ## Status
 - Availability collection: built + hardened (2026-06-19).
 - **Availability parser (`colony-loop/availability.js`) — BUILT + tested 12/12 (2026-06-19). The keystone.**
