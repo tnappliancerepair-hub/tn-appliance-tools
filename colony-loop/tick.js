@@ -48,6 +48,33 @@ let lastHeartbeat = 0;
 const HEARTBEAT_MS = 5 * 60 * 1000;
 const LOOP_STARTED_AT = Date.now();
 
+// ── Phone control channel (pause/resume from anywhere) ─────────────
+// Routed through Netlify + Supabase, NOT Xano — so it works even when Xano
+// is melting (which is exactly when you'd reach for it). The phone page hits
+// the same loop-control function. Fail-OPEN: a control-channel blip must
+// never silently halt the business automation.
+const CONTROL_URL = process.env.LOOP_CONTROL_URL || 'https://tnapplianceexchange.net/.netlify/functions/loop-control';
+const CONTROL_SECRET = process.env.LOOP_CONTROL_SECRET || 'tn-loop-ctl-7b2f9';
+
+async function checkPaused() {
+  try {
+    const r = await fetch(`${CONTROL_URL}?action=status`, { signal: AbortSignal.timeout(8000) });
+    const d = await r.json();
+    return !!(d && d.paused);
+  } catch (_) {
+    return false; // fail-open: never halt the loop because the switch is unreachable
+  }
+}
+
+async function postHeartbeat(status) {
+  try {
+    await fetch(`${CONTROL_URL}?action=heartbeat&key=${encodeURIComponent(CONTROL_SECRET)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(status || {}), signal: AbortSignal.timeout(8000),
+    });
+  } catch (_) {}
+}
+
 export async function tick() {
   if (running) {
     xano.logLocal('tick_skipped_overlap');
@@ -59,6 +86,15 @@ export async function tick() {
   let errors = 0;
 
   try {
+    // Phone pause switch — if paused, idle this tick (no Xano/queue work) but
+    // still report a heartbeat so the phone shows "paused, alive".
+    if (await checkPaused()) {
+      xano.logLocal('loop_paused', { via: 'phone_switch' });
+      await postHeartbeat({ state: 'paused', paused: true, last_tick_ct: fmtCT(Date.now()),
+        uptime_min: Math.round((Date.now() - LOOP_STARTED_AT) / 60000) });
+      return; // finally{} resets running
+    }
+
     // When LOOP_STORE=local: pull any external (Netlify/XS) signals from Xano
     // into the local queue first, so the loop processes everything from local
     // and a storm can't pile up on Xano. No-op on Xano.
@@ -100,6 +136,14 @@ export async function tick() {
         });
       }
     }
+
+    // Report status to the phone control panel (best-effort, ~1 call/tick).
+    await postHeartbeat({
+      state: 'running', paused: false,
+      last_tick_ct: fmtCT(Date.now()),
+      processed, errors, pending: signals.length,
+      uptime_min: Math.round((Date.now() - LOOP_STARTED_AT) / 60000),
+    });
 
     const now = Date.now();
     if (processed > 0 || errors > 0 || now - lastHeartbeat > HEARTBEAT_MS) {

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ant Loop">
+<title>Ant Loop Control</title>
+<style>
+  :root{ --bg:#0c0f15; --card:#161c26; --line:#27303f; --fg:#eef2f8; --mut:#93a0b4; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg); color:var(--fg); padding:18px 16px calc(28px + env(safe-area-inset-bottom)); max-width:560px; margin:0 auto; }
+  h1{ font-size:20px; margin:4px 0 2px; }
+  .sub{ color:var(--mut); font-size:13px; margin:0 0 16px; }
+  .status{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:18px; }
+  .big{ font-size:26px; font-weight:900; display:flex; align-items:center; gap:10px; }
+  .dot{ width:14px; height:14px; border-radius:50%; flex:0 0 14px; }
+  .running .dot{ background:#3ad17e; box-shadow:0 0 12px #3ad17e88; }
+  .paused .dot{ background:#f5a623; box-shadow:0 0 12px #f5a62388; }
+  .down .dot{ background:#ff5d5d; box-shadow:0 0 12px #ff5d5d88; }
+  .meta{ color:var(--mut); font-size:13px; margin-top:10px; line-height:1.6; }
+  .meta b{ color:var(--fg); font-weight:700; }
+  .btns{ display:grid; gap:12px; }
+  button{ font-family:inherit; border:none; border-radius:16px; font-size:20px; font-weight:900;
+    padding:22px; cursor:pointer; transition:transform .05s, opacity .15s; color:#fff; }
+  button:active{ transform:scale(0.98); }
+  button:disabled{ opacity:.45; }
+  .pause{ background:#d9483b; }
+  .resume{ background:#1f9d5b; }
+  .hint{ color:var(--mut); font-size:12px; text-align:center; margin-top:14px; line-height:1.5; }
+  .toast{ position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px);
+    background:#222c3a; color:#fff; font-weight:700; font-size:14px; padding:13px 22px; border-radius:30px;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; border:1px solid var(--line); }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .refresh{ color:var(--mut); font-size:11px; text-align:center; margin-top:8px; }
+</style>
+</head>
+<body>
+  <h1>🐜 Ant Loop Control</h1>
+  <p class="sub">Pause or resume the automation loop from anywhere. Works even if Xano is down.</p>
+
+  <div class="status" id="status">
+    <div class="big" id="state"><span class="dot"></span><span id="state-text">checking…</span></div>
+    <div class="meta" id="meta">Reading status…</div>
+  </div>
+
+  <div class="btns">
+    <button class="pause"  id="btn-pause"  onclick="setPause(true)">⏸  PAUSE the loop</button>
+    <button class="resume" id="btn-resume" onclick="setPause(false)">▶️  RESUME the loop</button>
+  </div>
+
+  <div class="hint">
+    Pausing stops the automation (greetings, reminders, availability texts, auto-route).<br>
+    Your phones, board, and tech logins keep working either way.
+  </div>
+  <div class="refresh" id="refresh">—</div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+// Same secret the loop uses (env LOOP_CONTROL_SECRET on Netlify overrides the
+// fallback in loop-control.js — keep these two in sync if you rotate it).
+const SECRET = 'tn-loop-ctl-7b2f9';
+const FN = '/.netlify/functions/loop-control';
+let busy = false;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._x); t._x = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function ago(min){
+  if (min == null) return 'no signal yet';
+  if (min < 1) return 'just now';
+  if (min === 1) return '1 min ago';
+  if (min < 60) return min + ' min ago';
+  const h = Math.floor(min/60); return h + 'h ' + (min%60) + 'm ago';
+}
+
+async function refresh(){
+  try{
+    const r = await fetch(FN + '?action=status', { cache:'no-store' });
+    const d = await r.json();
+    render(d);
+  }catch(e){
+    document.getElementById('state-text').textContent = 'status unavailable';
+    document.getElementById('meta').textContent = 'Could not reach the control channel. Try again.';
+  }
+  document.getElementById('refresh').textContent = 'updated ' + new Date().toLocaleTimeString();
+}
+
+function render(d){
+  const box = document.getElementById('status');
+  const txt = document.getElementById('state-text');
+  const meta = document.getElementById('meta');
+  box.className = 'status';
+
+  if (d.paused){
+    box.classList.add('paused');
+    txt.textContent = 'PAUSED';
+  } else if (d.loop_alive){
+    box.classList.add('running');
+    txt.textContent = 'RUNNING';
+  } else {
+    box.classList.add('down');
+    txt.textContent = 'NOT RESPONDING';
+  }
+
+  const L = d.loop || {};
+  const lines = [];
+  lines.push('Loop last checked in: <b>' + ago(d.loop_seen_min_ago) + '</b>');
+  if (!d.paused && d.loop_alive && L.processed != null) {
+    lines.push('Last cycle: <b>' + L.processed + '</b> handled' + (L.errors ? (', ' + L.errors + ' errors') : '') +
+               (L.pending != null ? (' · <b>' + L.pending + '</b> waiting') : ''));
+  }
+  if (d.paused && d.paused_since){
+    lines.push('Paused since <b>' + new Date(d.paused_since).toLocaleTimeString() + '</b>');
+  }
+  if (!d.loop_alive && !d.paused){
+    lines.push('⚠️ No heartbeat in ' + ago(d.loop_seen_min_ago) + ' — the loop may be stopped on the Mac.');
+  }
+  meta.innerHTML = lines.join('<br>');
+
+  document.getElementById('btn-pause').disabled  = busy || !!d.paused;
+  document.getElementById('btn-resume').disabled = busy || !d.paused;
+}
+
+async function setPause(paused){
+  if (busy) return;
+  busy = true;
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-resume').disabled = true;
+  toast(paused ? 'Pausing…' : 'Resuming…');
+  try{
+    const action = paused ? 'pause' : 'resume';
+    const r = await fetch(FN + '?action=' + action + '&key=' + encodeURIComponent(SECRET) + '&by=phone', { method:'POST' });
+    const d = await r.json();
+    if (d.ok){
+      toast(paused ? '⏸ Paused — the loop will idle within ~2 min' : '▶️ Resumed — automation back on within ~2 min');
+    } else {
+      toast('Failed: ' + (d.error || 'unknown'));
+    }
+  }catch(e){
+    toast('Network error — try again');
+  }finally{
+    busy = false;
+    await refresh();
+  }
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>
