@@ -371,7 +371,11 @@ query get_job_for_dashboard verb=POST {
           tech_en_route_at: $job.tech_en_route_at,
           job_started_at: $job.job_started_at,
           job_completed_at: $job.job_completed_at,
-          time_on_site_minutes: $job.time_on_site_minutes
+          time_on_site_minutes: $job.time_on_site_minutes,
+          warranty_company: ($job.warranty_company ?? ""),
+          customer_preference_text: ($job.customer_preference_text ?? ""),
+          customer_availability_grid: ($job.customer_availability_grid ?? ""),
+          access_notes: ($job.access_notes ?? "")
         }
         appliance        : {
           type: $job.appliance_type,

@@ -274,6 +274,8 @@ query find_extra_work_for_tech verb=GET {
                                 in_tech_cluster : $in_tech_cluster
                                 warranty_company: (($job.warranty_company ?? "")|trim)
                                 customer_type   : (($job.customer_type ?? "")|trim)
+                                customer_preference_text  : ($job.customer_preference_text ?? "")
+                                customer_availability_grid: ($job.customer_availability_grid ?? "")
                               }
                             }
                           

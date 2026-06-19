@@ -424,6 +424,7 @@
     font-size: 13px;
   }
 </style>
+  <script src="/ant-constraints.js"></script>
   <script src="/ant-spine.js" defer></script>
   <script src="/email-intake-modal.js" defer></script>
   <script src="/office-nav.js?v=20260604-pills-readable"></script>
@@ -1147,6 +1148,7 @@ function buildApplianceSection(appl) {
         <div class="k">Problem</div> <div class="v">${escapeHtml(appl.problem_summary || appl.problem_description || '—')}</div>
       </div>
     </div>
+    ${window.AntConstraints ? `<div class="section"><div class="section-title">Customer availability</div>${AntConstraints.render(job, {dark:true, style:'panel'})}</div>` : ''}
   `;
 }
 
