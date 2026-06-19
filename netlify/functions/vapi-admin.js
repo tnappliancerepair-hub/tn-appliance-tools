@@ -119,6 +119,7 @@ exports.handler = async function (event) {
     };
     if (inb.voice) body.voice = inb.voice;
     if (inb.transcriber) body.transcriber = inb.transcriber;
+    body.backgroundSound = inb.backgroundSound || 'off'; // no call-center ambiance
     const res = q.update_id
       ? await vapi('PATCH', `/assistant/${q.update_id}`, key, body)
       : await vapi('POST', '/assistant', key, body);
@@ -129,6 +130,16 @@ exports.handler = async function (event) {
       copied_voice: !!inb.voice, copied_transcriber: !!inb.transcriber,
       error: res.ok ? null : res.json,
     }, null, 2) };
+  }
+
+  // Patch an assistant's backgroundSound (kill the call-center ambiance).
+  // ?action=setbg&id=<assistantId>&value=off  (value defaults to 'off')
+  if (action === 'setbg') {
+    const id = String(q.id || '').trim();
+    if (!id) return { statusCode: 400, body: JSON.stringify({ ok: false, error: '?id=<assistantId> required' }) };
+    const val = String(q.value || 'off').trim();
+    const res = await vapi('PATCH', `/assistant/${id}`, key, { backgroundSound: val });
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, id, backgroundSound: val, error: res.ok ? null : res.json }, null, 2) };
   }
 
   // Place one outbound test call with a given assistant. Used to hear the new
