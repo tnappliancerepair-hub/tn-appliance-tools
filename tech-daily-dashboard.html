@@ -672,6 +672,10 @@
   let dashboardData = null;
 
   // ── PIN auth ───────────────────────────────────────────────────
+  // Tri-state: true = verified, false = clean rejection (wrong pin),
+  // 'unreachable' = server down / network error (5xx, blank, or throw).
+  // The distinction matters: a Xano outage must NOT be treated like a
+  // wrong pin (which would lock a tech out + wipe their good cached pin).
   async function verifyPin(pin) {
     try {
       const res = await fetch('/.netlify/functions/verify-pin-proxy', {
@@ -679,11 +683,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
       });
+      // proxy returns 500 when Xano 503s (it can't parse the HTML error body)
+      if (!res.status || res.status >= 500) return 'unreachable';
       const data = await res.json();
-      return data && data.success === true;
+      return (data && data.success === true) ? true : false;
     } catch (err) {
       console.error('verify-pin error', err);
-      return false;
+      return 'unreachable';
     }
   }
 
@@ -698,17 +704,23 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw })
       });
+      if (!res.status || res.status >= 500) return 'unreachable';
       const data = await res.json();
-      return data && data.success === true;
+      return (data && data.success === true) ? true : false;
     } catch (err) {
-      return false;
+      return 'unreachable';
     }
   }
 
   // Unlock if EITHER the tech's PIN OR the office password matches.
+  // Tri-state: true = matched, false = both cleanly rejected,
+  // 'unreachable' = at least one check couldn't reach the server.
   async function verifyAccess(secret) {
-    if (await verifyPin(secret)) return true;
-    if (await verifyOfficePassword(secret)) return true;
+    const a = await verifyPin(secret);
+    if (a === true) return true;
+    const b = await verifyOfficePassword(secret);
+    if (b === true) return true;
+    if (a === 'unreachable' || b === 'unreachable') return 'unreachable';
     return false;
   }
 
@@ -716,7 +728,11 @@
     const cached = localStorage.getItem(PIN_STORAGE_KEY);
     if (cached) {
       const ok = await verifyAccess(cached);
-      if (ok) { unlock(); return; }
+      if (ok === true) { unlock(); return; }
+      // Server unreachable but this device already authenticated today —
+      // trust the cached pin (degraded) instead of wiping it + locking out.
+      if (ok === 'unreachable') { unlock(true); return; }
+      // Only a CLEAN rejection wipes the stored pin.
       localStorage.removeItem(PIN_STORAGE_KEY);
     }
     loading.style.display = 'none';
@@ -734,7 +750,12 @@
     pinErr.textContent = '';
     const ok = await verifyAccess(pin);
     pinSubmit.disabled = false;
-    if (!ok) {
+    if (ok === 'unreachable') {
+      // Don't blame the tech and don't wipe their input — it's our server.
+      pinErr.textContent = 'Our server is having a moment — wait a few seconds and tap unlock again.';
+      return;
+    }
+    if (ok !== true) {
       pinErr.textContent = 'wrong pin or office password. try again.';
       pinInput.value = '';
       pinInput.focus();
@@ -744,10 +765,23 @@
     unlock();
   }
 
-  function unlock() {
+  function unlock(degraded) {
     pinOverlay.classList.remove('show');
     app.style.display = 'block';
     loading.style.display = 'block';
+    if (degraded) {
+      // Got in on a cached pin while the server is unreachable. Jobs may be
+      // slow/empty until it's back — say so plainly instead of a blank screen.
+      let b = document.getElementById('degraded-banner');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'degraded-banner';
+        b.className = 'err-banner';
+        b.style.cssText = 'background:#3a2a10;border:1px solid #7a5a1a;color:#ffce85;margin:8px 12px;padding:9px 12px;border-radius:9px;font-size:13px;';
+        b.textContent = '⚠️ Reconnecting to the server — your jobs will load as soon as it’s back. Pull to refresh in a minute.';
+        app.insertBefore(b, app.firstChild);
+      }
+    }
     // Wire sub-nav links to the same tech_id this dashboard is loading
     // Wire ALL #navScheduler elements (there are two — featured top pill + small nav pill)
     document.querySelectorAll('#navScheduler').forEach(el => {
