@@ -47,8 +47,8 @@ export async function run(signal, ctx) {
   // Dedup per job
   const dedupAction = `new_customer_welcome_sent_${jobId}`;
   try {
-    const fired = await xano.checkEventLogFiredToday({ action: dedupAction, since_ts_ms: 0 }).catch(() => ({ fired_today: false }));
-    if (fired && fired.fired_today) {
+    const prior = await xano.getEventLogByAction(dedupAction).catch(() => null);
+    if (prior && prior.exists) {
       await xano.markSignalProcessed(signal.id, 'new_customer_welcome_skipped', { reason: 'already_sent' });
       return { success: true, action: 'duplicate' };
     }
