@@ -10,6 +10,39 @@ import * as sms from './sms.js';
 import * as claude from './claude.js';
 import { escalate } from './escalate.js';
 
+// ── LEAN LOOP ──────────────────────────────────────────────────────────────
+// With LEAN_LOOP=true (colony-loop/.env), only the load-bearing daily-ops
+// signals fire on a schedule. Everything else — BI / analytics / aggregators /
+// self-improvement / dormant watchdogs — is dropped at the source: it never
+// enters the queue, never writes a Xano dedup/audit row, and never adds to the
+// startup burst that tipped Xano over. REACTIVE agents are untouched (new job,
+// finished TDR, appointment booked, inbound SMS, etc. still run on real events).
+// Flip LEAN_LOOP off to restore the full cadence — fully reversible, no code change.
+const LEAN_LOOP = String(process.env.LEAN_LOOP || '').toLowerCase() === 'true';
+const LEAN_KEEP = new Set([
+  // morning ops the techs + office feel
+  'DAILY_TECH_BRIEFING', 'OFFICE_MORNING_BRIEFING', 'DAILY_BRIEFING', 'DAILY_JOB_PREP',
+  // parts + on-the-day visit ops
+  'PARTS_ARRIVAL_CHECK', 'TECH_RUNNING_LATE_SCAN', 'TECH_LATE_CHECK',
+  'TDR_REMINDER', 'RESUME_NUDGE',
+  // safety nets — keep the system from silently dropping work
+  'STUCK_JOB_DETECTOR', 'STUCK_INTAKE_PROGRESS', 'ORPHAN_RECONCILER', 'PARALLEL_INTAKE_WATCH',
+  // once-a-day office wrap Danielle + Teddy rely on
+  'OFFICE_EOD_SUMMARY', 'DAILY_REVENUE_SUMMARY',
+]);
+// Every scheduled (clock-driven) emit routes through here. In lean mode a
+// non-kept signal is dropped before it touches the queue. Calls store.emitSignal
+// directly (not the `xano.` alias) so the call-site rename can't recurse here.
+async function emitScheduled(sig) {
+  if (LEAN_LOOP && !LEAN_KEEP.has(String((sig && sig.signal_type) || ''))) {
+    return { skipped_lean: true, signal_type: (sig && sig.signal_type) || '' };
+  }
+  return store.emitSignal(sig);
+}
+if (LEAN_LOOP) {
+  console.log(`[lean] LEAN_LOOP active — only ${LEAN_KEEP.size} load-bearing scheduled signals fire; BI/analytics/dormant muted. Reactive agents unaffected.`);
+}
+
 let running = false;
 let lastHeartbeat = 0;
 const HEARTBEAT_MS = 5 * 60 * 1000;
@@ -131,7 +164,7 @@ async function maybeEmitTimeSignals() {
     }
     if (archFired && !archFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'COLONY_ARCHITECT',
           signal_strength: 70,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 999 },
@@ -156,7 +189,7 @@ async function maybeEmitTimeSignals() {
     }
     if (jobPrepFired && !jobPrepFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'DAILY_JOB_PREP',
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), days_ahead: 3 },
@@ -177,7 +210,7 @@ async function maybeEmitTimeSignals() {
     try { firedAlready = await xano.checkEventLogFiredToday('cluster_route_morning_check_emitted', dateCt); } catch (_) {}
     if (!firedAlready) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'CLUSTER_ROUTE_MORNING_CHECK',
           signal_strength: 45,
           payload: { day: dateCt, emitted_ct: fmtCT(nowTs) },
@@ -203,7 +236,7 @@ async function maybeEmitTimeSignals() {
       try { firedAlready = await xano.checkEventLogFiredToday('scheduler_behind_check_emitted', dayKey); } catch (_) {}
       if (!firedAlready) {
         try {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'SCHEDULER_BEHIND_CHECK',
             signal_strength: 50,
             payload: { slot, emitted_ct: fmtCT(nowTs) },
@@ -235,7 +268,7 @@ async function maybeEmitTimeSignals() {
       } catch (_) {}
       if (!fired) {
         try {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'SCHEDULER_PERIODIC_CHECKIN',
             signal_strength: 40,
             payload: { window: windowSlot, day: dateCt, emitted_ct: fmtCT(nowTs) },
@@ -254,7 +287,7 @@ async function maybeEmitTimeSignals() {
   // check_event_log_fired_today so multiple grace-window ticks are safe.
   if (hour >= 5 && hour < 7) {
     try {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'WARRANTY_LEARNING_AGGREGATOR',
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -275,7 +308,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'CUSTOMER_INTEL_REFRESH',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -299,7 +332,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'PRE_JOB_INTELLIGENCE_PRESTAGER',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -321,7 +354,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'CAPABILITY_GAP_TO_BLUEPRINT',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -344,7 +377,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'WARRANTY_FINGERPRINT_AGGREGATOR',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -362,7 +395,7 @@ async function maybeEmitTimeSignals() {
     const dayShortGap = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
     if (dayShortGap === 'Sun' && hour >= 17 && hour < 19) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'BRAIN_CAPABILITY_GAP_DIGEST',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -382,7 +415,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'SPEND_ANOMALY_DETECTOR',
           signal_strength: 40,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -402,7 +435,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'WARRANTY_DENIAL_PATTERN_DETECTOR',
           signal_strength: 45,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -422,7 +455,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'APPOINTMENT_NO_SHOW_PREDICTOR',
           signal_strength: 45,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -445,7 +478,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!fired || !fired.fired_today) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'TECH_PERFORMANCE_ALERT',
             signal_strength: 45,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -469,7 +502,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!fired || !fired.fired_today) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'CUSTOMER_RE_ENGAGEMENT',
             signal_strength: 35,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -493,7 +526,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!fired || !fired.fired_today) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'WEEKLY_DANIELLE_RECEIPT',
             signal_strength: 40,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -515,7 +548,7 @@ async function maybeEmitTimeSignals() {
         since_ts_ms: sinceMs,
       }).catch(() => ({ fired_today: false }));
       if (!fired || !fired.fired_today) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'STUCK_JOB_DETECTOR',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -539,7 +572,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!fired || !fired.fired_today) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'PROMPT_EVOLUTION_PROPOSER',
             signal_strength: 45,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -564,7 +597,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!fired || !fired.fired_today) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'CLAUDE_OUTCOME_DIGEST',
             signal_strength: 45,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -584,7 +617,7 @@ async function maybeEmitTimeSignals() {
     const dayShort = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
     if (dayShort === 'Sun' && hour >= 16 && hour < 18) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'WARRANTY_CONSOLIDATION_REVIEW',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -625,7 +658,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (fired && fired.fired_today) continue;
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: e.signal,
           signal_strength: e.strength,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -644,7 +677,7 @@ async function maybeEmitTimeSignals() {
           since_ts_ms: sinceMs,
         }).catch(() => ({ fired_today: false }));
         if (!(fired && fired.fired_today)) {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'ZONE_PROFITABILITY_ANALYZER',
             signal_strength: 50,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -669,7 +702,7 @@ async function maybeEmitTimeSignals() {
     }
     if (techFired && !techFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'DAILY_TECH_BRIEFING',
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -695,7 +728,7 @@ async function maybeEmitTimeSignals() {
     }
     if (!marconesFired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'MARCONES_FIRST_BRIEF',
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -715,7 +748,7 @@ async function maybeEmitTimeSignals() {
     const ctMinute = ctParts(nowTs).minute;
     if (hour >= 9 && hour <= 17 && (ctMinute === 0 || ctMinute === 30)) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_PACE_WATCHER',
           signal_strength: 60,
           payload: { emitted_ct: fmtCT(nowTs), hour, minute: ctMinute },
@@ -739,7 +772,7 @@ async function maybeEmitTimeSignals() {
     } catch (_e) { techEodFired = false; }
     if (!techEodFired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_EOD_REPORT',
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -759,7 +792,7 @@ async function maybeEmitTimeSignals() {
     }
     if (revFired && !revFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'DAILY_REVENUE_SUMMARY',
           signal_strength: 65,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -782,7 +815,7 @@ async function maybeEmitTimeSignals() {
     }
     if (emailFired && !emailFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'DAILY_EMAIL_INTAKE_DIGEST',
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -807,7 +840,7 @@ async function maybeEmitTimeSignals() {
     }
     if (hcpFired && !hcpFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'DAILY_HCP_COVERAGE_CHECK',
           signal_strength: 75,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -831,7 +864,7 @@ async function maybeEmitTimeSignals() {
     }
     if (capFired && !capFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'CAPACITY_CHECK',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -856,7 +889,7 @@ async function maybeEmitTimeSignals() {
     }
     if (lateFired && !lateFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_LATE_CHECK',
           signal_strength: 65,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -881,7 +914,7 @@ async function maybeEmitTimeSignals() {
     }
     if (resumeFired && !resumeFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'RESUME_NUDGE',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -907,7 +940,7 @@ async function maybeEmitTimeSignals() {
     }
     if (stuckFired && !stuckFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'STUCK_INTAKE_PROGRESS',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -927,7 +960,7 @@ async function maybeEmitTimeSignals() {
   const minuteCt = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: '2-digit', hour12: false }).format(new Date(nowTs)), 10);
   if (minuteCt >= 5 && minuteCt < 6) {
     try {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'ORPHAN_RECONCILER',
         signal_strength: 25,
         payload: { fired_at_ms: Date.now(), emitted_ct: fmtCT(nowTs) },
@@ -950,7 +983,7 @@ async function maybeEmitTimeSignals() {
     }
     if (unpaidFired && !unpaidFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'UNPAID_SELF_PAY_DIGEST',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -975,7 +1008,7 @@ async function maybeEmitTimeSignals() {
     }
     if (tdrFired && !tdrFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TDR_REMINDER',
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1001,7 +1034,7 @@ async function maybeEmitTimeSignals() {
     }
     if (partsFired && !partsFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'PARTS_ARRIVAL_CHECK',
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1026,7 +1059,7 @@ async function maybeEmitTimeSignals() {
     }
     if (gapFired && !gapFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'SCHEDULE_GAP_CHECK',
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1047,7 +1080,7 @@ async function maybeEmitTimeSignals() {
       try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
       if (!prior || !prior.exists) {
         try {
-          await xano.emitSignal({ signal_type: 'MONTHLY_TECH_WINNER', signal_strength: 40, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
+          await emitScheduled({ signal_type: 'MONTHLY_TECH_WINNER', signal_strength: 40, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
           await xano.recordEventLog(dedupKey, { since_ts_ms: sinceMs });
         } catch (err) { xano.logLocal('monthly_tech_winner_emit_failed', { error: err.message }); }
       }
@@ -1064,7 +1097,7 @@ async function maybeEmitTimeSignals() {
       try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
       if (!prior || !prior.exists) {
         try {
-          await xano.emitSignal({ signal_type: 'GHOST_INTAKE_SWEEP', signal_strength: 35, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
+          await emitScheduled({ signal_type: 'GHOST_INTAKE_SWEEP', signal_strength: 35, payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) } });
           await xano.recordEventLog(dedupKey, { since_ts_ms: sinceMs });
         } catch (err) { xano.logLocal('ghost_intake_sweep_emit_failed', { error: err.message }); }
       }
@@ -1082,7 +1115,7 @@ async function maybeEmitTimeSignals() {
       try { prior = await xano.getEventLogByAction(dedupKey); } catch (e) { prior = null; }
       if (!prior || !prior.exists) {
         try {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'REACTIVATION_CAMPAIGN',
             signal_strength: 30,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1108,7 +1141,7 @@ async function maybeEmitTimeSignals() {
       // weekly performance emit pattern). The agent dedups per tech, so
       // even if the tick fires multiple times in the 6-8pm window the
       // recap goes out at most once per tech.
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'TECH_WEEKLY_RECAP',
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1137,7 +1170,7 @@ async function maybeEmitTimeSignals() {
       }
       if (weeklyFired && !weeklyFired.fired) {
         try {
-          await xano.emitSignal({
+          await emitScheduled({
             signal_type: 'WEEKLY_PERFORMANCE_SUMMARY',
             signal_strength: 70,
             payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1170,7 +1203,7 @@ async function maybeEmitTimeSignals() {
         // try/catch, so a silent write failure would let the next tick
         // re-emit and Danielle would get a duplicate SMS.
         await xano.recordEventLog('office_morning_briefing_emitted', { since_ts_ms: sinceMs });
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'OFFICE_MORNING_BRIEFING',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1193,7 +1226,7 @@ async function maybeEmitTimeSignals() {
     }
     if (eodFired && !eodFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'OFFICE_EOD_SUMMARY',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1218,7 +1251,7 @@ async function maybeEmitTimeSignals() {
     }
     if (tcrFired && !tcrFired.fired) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TDR_COMPLETENESS_REPORT',
           signal_strength: 50,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1244,7 +1277,7 @@ async function maybeEmitTimeSignals() {
     }
     const firedToday = opsBriefingFired && opsBriefingFired.items && opsBriefingFired.items.some((r) => (r.created_at || 0) >= sinceMs);
     if (!firedToday) {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'OPERATOR_STATUS_BRIEFING',
         signal_strength: 80,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1266,7 +1299,7 @@ async function maybeEmitTimeSignals() {
       xano.logLocal('daily_briefing_check_failed', { error: err.message });
     }
     if (dailyBriefingFired === null || !(dailyBriefingFired && dailyBriefingFired.fired)) {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'DAILY_BRIEFING',
         signal_strength: 80,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1285,7 +1318,7 @@ async function maybeEmitTimeSignals() {
       xano.logLocal('daily_claude_spend_check_failed', { error: err.message });
     }
     if (claudeSpendFired === null || !(claudeSpendFired && claudeSpendFired.fired)) {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'DAILY_CLAUDE_SPEND_CHECK',
         signal_strength: 70,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1305,7 +1338,7 @@ async function maybeEmitTimeSignals() {
       xano.logLocal('daily_vapi_call_review_check_failed', { error: err.message });
     }
     if (vapiReviewFired === null || !(vapiReviewFired && vapiReviewFired.fired)) {
-      await xano.emitSignal({
+      await emitScheduled({
         signal_type: 'VAPI_CALL_REVIEW',
         signal_strength: 60,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
@@ -1323,7 +1356,7 @@ async function maybeEmitTimeSignals() {
     const minuteCT = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCT) && (minuteCT % 5) === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_ASSIST_LOOP_WATCH',
           signal_strength: 60,
           payload: { now_ms: nowTs },
@@ -1344,7 +1377,7 @@ async function maybeEmitTimeSignals() {
     const minuteCTrl = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCTrl) && (minuteCTrl % 30) === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_RUNNING_LATE_SCAN',
           signal_strength: 55,
           payload: { now_ms: nowTs, emitted_ct: fmtCT(nowTs) },
@@ -1365,7 +1398,7 @@ async function maybeEmitTimeSignals() {
     const minuteCTm = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCTm) && (minuteCTm % 5) === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'MARKETING_SITE_WATCH',
           signal_strength: 70,
           payload: { now_ms: nowTs },
@@ -1384,7 +1417,7 @@ async function maybeEmitTimeSignals() {
     const minuteCTs = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCTs) && (minuteCTs % 10) === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'COLONY_LOOP_SELF_WATCH',
           signal_strength: 80,
           payload: { now_ms: nowTs },
@@ -1402,7 +1435,7 @@ async function maybeEmitTimeSignals() {
     const minuteCTx = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCTx) && (minuteCTx % 15) === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'XANO_API_WATCH',
           signal_strength: 90,
           payload: { now_ms: nowTs },
@@ -1420,7 +1453,7 @@ async function maybeEmitTimeSignals() {
     const minuteCTp = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', minute: 'numeric' }).format(new Date(nowTs)), 10);
     if (Number.isFinite(minuteCTp) && minuteCTp === 0) {
       try {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'PARALLEL_INTAKE_WATCH',
           signal_strength: 75,
           payload: { now_ms: nowTs },
@@ -1444,7 +1477,7 @@ async function maybeEmitTimeSignals() {
       const todayStartMs = nowTs - (12 * 3600 * 1000);
       const firedToday = items.some(r => Number(r.created_at) > todayStartMs);
       if (!firedToday) {
-        await xano.emitSignal({
+        await emitScheduled({
           signal_type: 'TECH_ASSIST_EOD_REPORT',
           signal_strength: 70,
           payload: { now_ms: nowTs },
