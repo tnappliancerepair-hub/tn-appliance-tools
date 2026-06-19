@@ -70,6 +70,67 @@ exports.handler = async function (event) {
     }) };
   }
 
+  // Create (or &update_id=<id> to update) the outbound "Ant Availability Collector"
+  // assistant — step 3 of the availability cascade. Copies voice/transcriber/model
+  // from the inbound assistant so it sounds identical, and attaches the
+  // save_availability tool (routes through this same vapi-tool proxy →
+  // set-job-availability). Returns the new assistant_id to wire into the cascade.
+  if (action === 'setup_availability') {
+    const INBOUND_ID = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const inb = (await vapi('GET', `/assistant/${INBOUND_ID}`, key)).json || {};
+    const PROMPT = [
+      "You are Ant, the friendly scheduling assistant for TN Appliance Exchange. You are calling a customer to find out when they are available so we can schedule their appliance repair quickly. The job id is {{job_id}} and the appliance is {{appliance_type}}.",
+      "",
+      "Do this, briefly and warmly:",
+      "1. Greet them and say you're calling from TN Appliance Exchange about their repair.",
+      "2. Ask what days and times work best for them, and whether there are any days or times they absolutely cannot do.",
+      "3. Repeat back what you heard to confirm.",
+      "4. Call the save_availability tool with job_id {{job_id}}, available (their open days/times), and unavailable (the days/times they can't do; empty string if none).",
+      "5. Thank them, tell them we'll text to confirm their day, and end the call.",
+      "",
+      "Rules: keep it short and natural — this is a quick call. The more open they are, the faster we can come; mention that if they're very restricted. NEVER discuss diagnosis, parts, or pricing — you are only here to capture scheduling availability. If they can't talk now, politely offer to text them instead and end the call. Always include job_id {{job_id}} when saving.",
+    ].join('\n');
+    const tool = {
+      type: 'function',
+      function: {
+        name: 'save_availability',
+        description: "Save the customer's available and unavailable days/times so the office can schedule them. Call this once you have their availability.",
+        parameters: {
+          type: 'object',
+          properties: {
+            job_id: { type: 'string', description: 'The job id (provided in the call variables as job_id).' },
+            available: { type: 'string', description: 'Days/times the customer CAN do (e.g. "weekday mornings, Tue or Thu after 2").' },
+            unavailable: { type: 'string', description: 'Days/times they CANNOT do (e.g. "not Fridays, no mornings"). Empty string if none.' },
+          },
+          required: ['job_id', 'available'],
+        },
+      },
+      server: { url: PROXY },
+    };
+    const body = {
+      name: 'Ant Availability Collector',
+      firstMessage: "Hi, this is Ant calling from T-N Appliance Exchange about your repair — do you have a quick second so we can get you scheduled?",
+      model: {
+        provider: (inb.model && inb.model.provider) || 'anthropic',
+        model: (inb.model && inb.model.model) || 'claude-sonnet-4-5-20250929',
+        messages: [{ role: 'system', content: PROMPT }],
+        tools: [tool],
+      },
+    };
+    if (inb.voice) body.voice = inb.voice;
+    if (inb.transcriber) body.transcriber = inb.transcriber;
+    const res = q.update_id
+      ? await vapi('PATCH', `/assistant/${q.update_id}`, key, body)
+      : await vapi('POST', '/assistant', key, body);
+    return { statusCode: 200, body: JSON.stringify({
+      ok: res.ok, status: res.status,
+      assistant_id: res.json && res.json.id,
+      name: res.json && res.json.name,
+      copied_voice: !!inb.voice, copied_transcriber: !!inb.transcriber,
+      error: res.ok ? null : res.json,
+    }, null, 2) };
+  }
+
   // Scoreboard of recent calls — each call's endedReason, caller, direction,
   // duration. Read-only. ?action=calls&limit=30 (also &reason=<substr> to filter
   // by endedReason, e.g. silence/transfer/error). For "how did we do today."
