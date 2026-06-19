@@ -34,6 +34,7 @@ export const ASSISTANT_IDS = Object.freeze({
   ahs_authorization_update: '63030edb-fb77-4106-b048-e84aba6da358',
   parts_follow_up:          'b71260b4-c284-4657-99a4-03c9bb1a0624',
   after_hours:              'f2bb153d-71f3-4c8a-8b1f-09b01ed7ef36',
+  availability_collect:     'f24701a2-3b6b-4102-b028-3d43ed36e303', // outbound — asks the customer's available/unavailable times, saves via the save_availability tool
 });
 
 // Vapi phoneNumberIds for outbound dialing.
