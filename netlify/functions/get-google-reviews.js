@@ -15,7 +15,10 @@
 // in `debug` so we know to enable it (vs. a vague "place_not_found").
 'use strict';
 
-const KEY = process.env.GOOGLE_MAPS_API_KEY;
+// Prefer a dedicated Places key (so enabling Places API (New) can't affect the
+// Distance Matrix/Geocoding key used by get-drive-time.js). Falls back to the
+// shared maps key if Places is enabled there instead.
+const KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 const DEFAULT_Q = 'TN Appliance Exchange appliance repair Antioch TN';
 const BASE = 'https://places.googleapis.com/v1';
 
