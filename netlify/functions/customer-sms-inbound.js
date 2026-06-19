@@ -123,6 +123,22 @@ exports.handler = async function (event) {
     }
   }
 
+  // Forward a copy of every customer reply straight to Teddy's phone so he can
+  // jump in personally (owner number bypasses the customer gate). Fire-and-
+  // forget — never block the webhook ack. Reversible: delete this block.
+  try {
+    const note = '📨 Customer reply from ' + parsed.from + ': ' + String(parsed.body).slice(0, 320)
+      + '\n(also in office Messages)';
+    const tc = new AbortController();
+    const tt = setTimeout(() => tc.abort(), 4000);
+    await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: '+16154855795', body: note, message: note, context_tag: 'customer_reply_to_owner' }),
+      signal: tc.signal,
+    });
+    clearTimeout(tt);
+  } catch (_) {}
+
   return providerAck(provider);
 };
 
