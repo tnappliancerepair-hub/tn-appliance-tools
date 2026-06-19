@@ -70,6 +70,13 @@
 [functions."parts-vendor-gmail-poller"]
   schedule = "*/30 * * * *"
 
+# Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
+# warranty-email intake outages are caught SAME-DAY (not when the office runs
+# short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or
+# colony-loop dependency (works even when those are down). 8am + 6pm CT.
+[functions."gmail-token-watch"]
+  schedule = "0 13,23 * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
