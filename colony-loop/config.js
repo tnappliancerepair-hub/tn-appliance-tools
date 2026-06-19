@@ -81,6 +81,12 @@ export const config = Object.freeze({
   // signal + candidate quality before techs are pinged. Flip on after the
   // core cutover, once Danielle + techs live in Ant daily.
   routeFillLive: process.env.ROUTE_FILL_LIVE === 'true',
+  // Self-scheduling autopilot — tech job offer. When true, the computed
+  // route-smart, availability-honoring offer is texted DIRECTLY to the tech
+  // (one-tap accept → auto-books → customer confirmed). When false (default,
+  // SHADOW), it texts Teddy what it WOULD offer so we validate the picks
+  // before techs are pinged. See docs/self-scheduling-autopilot-plan-2026-06-19.md.
+  techOfferLive: process.env.TECH_OFFER_LIVE === 'true',
   // Claude call audit endpoint — fire-and-forget logged from claude.js
   // on every API call (success, error, timeout, dry-run). Empty disables
   // logging (back-compat). Set automatically from xanoIntakeBase below.
