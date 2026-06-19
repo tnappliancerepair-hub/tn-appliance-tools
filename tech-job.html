@@ -172,7 +172,13 @@
 <script src="/ant-addons.js"></script>
 <script src="/ant-video-upload.js"></script>
 <script src="/ant-brain.js"></script>
+<script src="/ant-spine.js" defer></script>
 <script>
+// ant-spine.js: pin the role to tech (the page's URL doesn't match its
+// role-detector) and opt OUT of its auto top-strip + polling, which would
+// overlap the tech topbar. We mount only the customer conversation, manually.
+window.ANT_ROLE = 'tech';
+window.ANT_SPINE_AUTO = false;
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
 const JOB_ID = parseInt(params.get('job_id'), 10);
@@ -361,6 +367,11 @@ function render(){
 
       ${teddyTdr?`<div class="card"><h3>🧠 Teddy's pre-diagnosis</h3><div class="briefing">${teddyTdr.diagnosis?('<b>'+esc(teddyTdr.diagnosis)+'</b><br>'):''}${teddyTdr.failed_component?('Likely part: '+esc(teddyTdr.failed_component)):''}</div></div>`:''}
 
+      <div class="card" id="convo-card">
+        <h3>💬 Customer conversation <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">what Ant &amp; the customer have texted</span></h3>
+        <div id="ant-sms-thread" style="margin-top:8px;border:1px solid #2a3040;border-radius:10px;background:#131720;min-height:48px;overflow:hidden"></div>
+      </div>
+
       <div class="card">
         <h3>🚦 Status</h3>
         <div class="acts">
@@ -449,7 +460,25 @@ function wireActions(){
   document.getElementById('in-video').onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
+  mountConvo();
   if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:(appliance.problem_summary||appliance.problem_description||''), job_id:job.id||0, role:'tech' }); }
+}
+
+// Read-only customer conversation (Ant ↔ customer texts), tech lens —
+// hides owner/internal chatter. Mounted via ant-spine.js into the dark
+// sub-panel. Card hides itself if the thread comes back empty so it
+// doesn't clutter jobs with no customer texting yet.
+function mountConvo(){
+  const card=document.getElementById('convo-card');
+  const el=document.getElementById('ant-sms-thread');
+  if(!card||!el) return;
+  if(!(window.Ant&&Ant.mountSmsThread&&JOB_ID)){ card.style.display='none'; return; }
+  try{
+    Ant.mountSmsThread(JOB_ID,'ant-sms-thread',{filterFor:'tech'});
+    // ant-spine renders "No SMS in this thread yet." when empty — hide the
+    // whole card in that case (check shortly after the async mount paints).
+    setTimeout(()=>{ if(/No SMS in this thread yet/i.test(el.textContent||'')) card.style.display='none'; }, 1200);
+  }catch(_){ card.style.display='none'; }
 }
 
 // ── Add-ons at the stop (install now or ship it) ───────────────
