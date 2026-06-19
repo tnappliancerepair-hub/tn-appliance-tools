@@ -21,9 +21,17 @@ query mark_signal_processed verb=POST {
     conditional {
       if ($action_clean != "") {
         var $raw_json {
-          value = ($input.result_json ?? "{}")
+          value = (($input.result_json ?? "{}")|trim)
         }
-      
+
+        conditional {
+          if ($raw_json == "") {
+            var.update $raw_json {
+              value = "{}"
+            }
+          }
+        }
+
         var $result_obj {
           value = $raw_json|json_decode
         }

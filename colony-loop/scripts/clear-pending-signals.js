@@ -41,7 +41,7 @@ async function leanMark(id) {
       const res = await fetch(MARK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signal_id: id, result_action: 'cleared_stale_backlog', result_json: '' }),
+        body: JSON.stringify({ signal_id: id, result_action: 'cleared_stale_backlog', result_json: '{}' }),
       });
       if (res.ok) return true;
       if (res.status >= 500) { await sleep(500 * (a + 1)); continue; } // back off on 503/5xx

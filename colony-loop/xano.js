@@ -103,7 +103,7 @@ export async function markSignalProcessed(signalId, resultAction, resultObj, opt
   const primary = postJSON(`${INTAKE()}/mark_signal_processed`, {
     signal_id: signalId,
     result_action: resultAction || '',
-    result_json: merged ? JSON.stringify(merged) : '',
+    result_json: merged ? JSON.stringify(merged) : '{}',
   });
 
   // Sibling categorized row for fast analytics. Action name is one of
