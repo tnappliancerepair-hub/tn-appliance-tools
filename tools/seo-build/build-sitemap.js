@@ -45,6 +45,7 @@ sections.push(`  <url>
 sections.push(entry("how-it-works", "0.95"));
 sections.push(entry("appliance-ant", "0.95"));
 sections.push(entry("should-i-repair-or-replace", "0.9"));
+sections.push(entry("repairs-directory.html", "0.7", "weekly"));
 sections.push(entry("privacy", "0.3"));
 sections.push(entry("terms", "0.3"));
 
@@ -91,6 +92,16 @@ CITY_SLUGS.forEach(slug => {
   const pri = cityPriority[slug] || "0.7";
   sections.push(entry(slug, pri));
 });
+
+// Long-tail city × brand × appliance pages — the deep inventory. Read from the
+// filesystem so the sitemap always matches what's actually published. Uses the
+// real .html filename (matches each page's canonical). Admin/tool pages are
+// never globbed here — only the -repair- long-tail set.
+sections.push(`\n  <!-- City x brand x appliance pages -->`);
+fs.readdirSync(REPO)
+  .filter(f => /-repair-[a-z-]+\.html$/.test(f) && !/^should-i/.test(f))
+  .sort()
+  .forEach(f => sections.push(entry(f, "0.7")));
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
