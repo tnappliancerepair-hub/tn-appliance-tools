@@ -37,7 +37,7 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   const link = job_id
     ? `${baseLink}/customer-portal.html?job_id=${job_id}&last4=`
     : baseLink;
-  let body = `Hi ${name}, this is TN Appliance Exchange — we want to get you back to normal as soon as possible. Tap here to start ${applianceClause}: ${link}\n\nWhen you open it, send us a photo of the model number tag + a 10-second video of the issue + any notes. The more time windows you mark, the faster we can come. Tight on time? We'll still do everything we can.\n\nQuestions any time — just reply and Ant can answer from our database.`;
+  let body = `Hi ${name}, this is TN Appliance Exchange — we want to get you back to normal as soon as possible. Tap here to start ${applianceClause}: ${link}\n\nWhen you open it, send us a photo of the model number tag + a 10-second video of the issue + any notes.\n\nAlso — what days/times work best for you, and are there any you absolutely can't do? Just reply right here, or mark your windows in the link. The more open you are, the faster we can get a tech out.\n\nQuestions any time — just reply and Ant can answer from our database.`;
   if (shouldIncludeWarrantyNote({ source, customer_type })) {
     body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
   }
@@ -130,6 +130,22 @@ export async function run(signal, ctx) {
     source: payload.source,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
   });
+
+  // Mark the job awaiting-availability so the customer's REPLY to this greeting
+  // routes to the availability parser (sms_response_availability), which splits
+  // it into AVAIL/UNAVAIL on the job. Skip synthetic test jobs + SquareTrade/
+  // ServicePower (vendor pre-scheduled — no availability needed).
+  const _avPh = String(payload.customer_phone || '').replace(/\D/g, '');
+  const _avTest = String(payload.claim_number || '').toUpperCase().startsWith('TEST')
+    || _avPh.startsWith('15555550') || _avPh.startsWith('5555550');
+  const _avLocked = /squaretrade|servicepower|service power/i.test(String(payload.warranty_company || ''));
+  if (!_avTest && !_avLocked) {
+    try {
+      await xano.recordEvent(`availability_requested_${jobId}`, {
+        job_id: jobId, customer_phone: phone, source: 'greeting', at_ms: Date.now(),
+      });
+    } catch (_) {}
+  }
 
   // ── Pre-diagnosis-request SMS to Teddy + (optional) assigned tech ──
   // Goal: parts ordered before the first visit, eliminating -2/-3/-4/-5
