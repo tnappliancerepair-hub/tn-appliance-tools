@@ -815,7 +815,15 @@ async function scheduleFromDrawer(id){
   const startMs=new Date(day+'T'+(tm||'08:00')+':00').getTime();
   toast('Scheduling…');
   try{
-    const d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+    // Canceled/terminal jobs bounce with "terminal_locked" (the state machine
+    // locks terminal states). Auto-recover the documented way: lift the lock via
+    // the status override, then retry the schedule. No more dead-end for Danielle.
+    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){
+      toast('Reopening canceled job…');
+      try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});}catch(_){}
+      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+    }
     if(d&&d.success){
       try{localStorage.setItem('tn_stage_'+id,'scheduled');}catch(_){}
       persistStage(id,'scheduled');
