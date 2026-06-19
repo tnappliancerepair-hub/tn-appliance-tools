@@ -1,24 +1,23 @@
 // get-google-reviews — pulls TN Appliance Exchange's live Google rating +
-// review count + top reviews via the Places API, for baking onto the SEO pages
-// (social proof + the AggregateRating that earns ⭐ rich snippets).
+// review count + top reviews via the **Places API (New)**, for baking onto the
+// SEO pages (social proof + the AggregateRating that earns ⭐ rich snippets).
 //
-// Places "Place Details" returns the overall rating + user_ratings_total (the
-// full 1,000+ count) and up to 5 reviews. Resolves the Place ID once via Find
-// Place From Text, then caches it in the response so the build can reuse it.
+// Uses the new endpoints (places.googleapis.com/v1) because the legacy Places
+// API is being retired and was REQUEST_DENIED on our key:
+//   - Text Search:   POST  /v1/places:searchText        (resolve the place)
+//   - Place Details: GET   /v1/places/{PLACE_ID}         (rating + reviews)
 //
 //   GET ?place_id=<ChIJ…>   (optional — skips resolution, fastest)
-//       ?cid=<numeric cid>  (optional — resolves a Place ID from a maps CID)
 //       ?q=<text query>     (optional — default the business name)
-//       ?debug=1            (always include raw Google statuses)
 //
-// NOTE: this needs the **Places API** enabled on GOOGLE_MAPS_API_KEY. The key
-// today is scoped for Distance Matrix + Geocoding (get-drive-time.js). If Places
-// isn't enabled, Google returns status=REQUEST_DENIED — which we now surface
-// plainly instead of a vague "place_not_found".
+// REQUIRES: "Places API (New)" enabled on GOOGLE_MAPS_API_KEY in Google Cloud
+// Console. If it isn't, Google returns 403 PERMISSION_DENIED — surfaced plainly
+// in `debug` so we know to enable it (vs. a vague "place_not_found").
 'use strict';
 
 const KEY = process.env.GOOGLE_MAPS_API_KEY;
 const DEFAULT_Q = 'TN Appliance Exchange appliance repair Antioch TN';
+const BASE = 'https://places.googleapis.com/v1';
 
 function json(code, body) {
   return {
@@ -28,29 +27,32 @@ function json(code, body) {
   };
 }
 
-// Find Place From Text → returns {place_id, status, error_message}.
-async function findPlaceId(q) {
-  const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(q)}&inputtype=textquery&fields=place_id,name,rating,user_ratings_total&key=${KEY}`;
-  const r = await fetch(url);
+// Text Search (New) → first matching place id.
+async function searchText(q) {
+  const r = await fetch(`${BASE}/places:searchText`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': KEY,
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.rating,places.userRatingCount',
+    },
+    body: JSON.stringify({ textQuery: q }),
+  });
   const d = await r.json();
-  const c = (d.candidates && d.candidates[0]) || null;
-  return { place_id: c ? c.place_id : null, status: d.status, error_message: d.error_message };
+  const place = (d.places && d.places[0]) || null;
+  return { id: place ? place.id : null, http: r.status, error: d.error ? (d.error.status || d.error.message) : null };
 }
 
-// Resolve a Place ID from a numeric CID via the Geocoding API (which IS enabled
-// on the key). The maps CID URL geocodes to a result whose place_id is the ChIJ.
-async function placeIdFromCid(cid) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=0,0&result_type=premise&key=${KEY}`;
-  // Geocoding doesn't take a CID directly; the supported path is Place Details,
-  // but Place Details requires a place_id. So CID resolution still needs Places.
-  // Kept as a stub returning null so the caller falls through cleanly.
-  return { place_id: null, status: 'CID_UNSUPPORTED' };
-}
-
+// Place Details (New) → rating, count, reviews, maps uri.
 async function details(placeId) {
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,url,reviews&reviews_sort=most_relevant&key=${KEY}`;
-  const r = await fetch(url);
-  return r.json();
+  const r = await fetch(`${BASE}/places/${encodeURIComponent(placeId)}`, {
+    headers: {
+      'X-Goog-Api-Key': KEY,
+      'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,googleMapsUri,reviews',
+    },
+  });
+  const d = await r.json();
+  return { d, http: r.status };
 }
 
 exports.handler = async (event) => {
@@ -60,50 +62,45 @@ exports.handler = async (event) => {
   try {
     let placeId = q.place_id || null;
 
-    if (!placeId && q.cid) {
-      const c = await placeIdFromCid(q.cid);
-      debug.cid_status = c.status;
-      placeId = c.place_id;
-    }
-
     if (!placeId) {
-      const fp = await findPlaceId(q.q || DEFAULT_Q);
-      debug.findplace_status = fp.status;
-      if (fp.error_message) debug.findplace_error = fp.error_message;
-      placeId = fp.place_id;
+      const s = await searchText(q.q || DEFAULT_Q);
+      debug.search_http = s.http;
+      if (s.error) debug.search_error = s.error;
+      placeId = s.id;
     }
 
     if (!placeId) {
       return json(200, {
         ok: false,
         error: 'place_not_found',
-        hint: debug.findplace_status === 'REQUEST_DENIED'
-          ? 'Enable the Places API on GOOGLE_MAPS_API_KEY in Google Cloud Console, or pass ?place_id=…'
-          : 'Pass ?place_id=… directly.',
+        hint: debug.search_http === 403
+          ? 'Enable "Places API (New)" on GOOGLE_MAPS_API_KEY in Google Cloud Console, then retry.'
+          : 'Pass ?place_id=… directly, or check the query.',
         debug,
       });
     }
 
-    const d = await details(placeId);
-    debug.details_status = d.status;
-    if (d.status !== 'OK') {
-      return json(200, { ok: false, error: 'details_failed', status: d.status, message: d.error_message, place_id: placeId, debug });
+    const { d, http } = await details(placeId);
+    debug.details_http = http;
+    if (d.error || !d.rating) {
+      return json(200, { ok: false, error: 'details_failed', place_id: placeId, google_error: d.error || null, debug });
     }
-    const res = d.result || {};
-    const reviews = (res.reviews || []).map((rv) => ({
-      author: rv.author_name,
+
+    const reviews = (d.reviews || []).map((rv) => ({
+      author: rv.authorAttribution && rv.authorAttribution.displayName,
       rating: rv.rating,
-      text: String(rv.text || '').slice(0, 500),
-      relative_time: rv.relative_time_description,
-      time: rv.time,
+      text: String((rv.text && rv.text.text) || (rv.originalText && rv.originalText.text) || '').slice(0, 600),
+      relative_time: rv.relativePublishTimeDescription,
+      time: rv.publishTime,
     }));
+
     return json(200, {
       ok: true,
       place_id: placeId,
-      name: res.name,
-      rating: res.rating,
-      review_count: res.user_ratings_total,
-      maps_url: res.url,
+      name: d.displayName && d.displayName.text,
+      rating: d.rating,
+      review_count: d.userRatingCount,
+      maps_url: d.googleMapsUri,
       reviews,
       debug,
     });
