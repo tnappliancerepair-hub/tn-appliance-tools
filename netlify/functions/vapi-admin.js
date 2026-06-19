@@ -131,6 +131,31 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Place one outbound test call with a given assistant. Used to hear the new
+  // availability collector. ?action=testcall&to=+16154855795 (optional
+  // &assistant_id=, &from_id=, &name=, &appliance=, &job_id=). Defaults to the
+  // availability assistant + the confirmed-working Twilio TN dial-from.
+  if (action === 'testcall') {
+    const to = String(q.to || '').trim();
+    if (!to) return { statusCode: 400, body: JSON.stringify({ ok: false, error: '?to=<E.164 number> required' }) };
+    const assistantId = String(q.assistant_id || 'f24701a2-3b6b-4102-b028-3d43ed36e303').trim();
+    const fromId = String(q.from_id || 'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31').trim();
+    const callBody = {
+      assistantId,
+      phoneNumberId: fromId,
+      customer: { number: to },
+      assistantOverrides: {
+        variableValues: {
+          customer_first_name: q.name || 'there',
+          appliance_type: q.appliance || 'appliance',
+          job_id: String(q.job_id || '0'),
+        },
+      },
+    };
+    const res = await vapi('POST', '/call', key, callBody);
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, call_id: res.json && res.json.id, to, assistant_id: assistantId, error: res.ok ? null : res.json }, null, 2) };
+  }
+
   // Scoreboard of recent calls — each call's endedReason, caller, direction,
   // duration. Read-only. ?action=calls&limit=30 (also &reason=<substr> to filter
   // by endedReason, e.g. silence/transfer/error). For "how did we do today."
