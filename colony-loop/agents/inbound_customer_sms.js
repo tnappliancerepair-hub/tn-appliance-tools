@@ -65,6 +65,24 @@ export async function run(signal, ctx) {
 
   let route = classify(body);
 
+  // Availability collection override — if we recently ASKED this customer for
+  // their available/unavailable times and they haven't answered yet, treat this
+  // reply as that answer and route it to the parser, regardless of keywords.
+  // Explicit cancel/reschedule still win (classify already matched those).
+  const availJobId = Number(payload.job_id || 0);
+  if (availJobId && route.type !== 'SMS_RESPONSE_CANCEL_REQUEST'
+      && route.type !== 'SMS_RESPONSE_RESCHEDULE_REQUEST') {
+    try {
+      const asked = await xano.getEventLogByAction(`availability_requested_${availJobId}`).catch(() => null);
+      if (asked && asked.exists) {
+        const captured = await xano.getEventLogByAction(`availability_captured_${availJobId}`).catch(() => null);
+        if (!(captured && captured.exists)) {
+          route = { type: 'SMS_RESPONSE_AVAILABILITY', matched: 'pending_availability_request' };
+        }
+      }
+    } catch (_) {}
+  }
+
   // NEW LEAD override — when the inbound SMS comes from a phone that
   // ISN'T on file as an existing customer (customer_id=0/null) AND no
   // specific keyword matched, this is almost certainly a new lead

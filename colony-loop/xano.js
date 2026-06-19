@@ -299,6 +299,14 @@ export async function getEventLogByAction(action) {
   return getJSON(`${INTAKE()}/get_event_log_by_action?action=${encodeURIComponent(action)}`);
 }
 
+// Write customer availability (+ access notes) onto a job via the SAME endpoint
+// the portal/resume-chat uses — it packs available + unavailable into
+// customer_preference_text as AVAIL:/UNAVAIL: markers. Used by the availability
+// SMS parser so SMS + portal write identically. phone_last4 is the soft-auth.
+export async function updateJobFromChat(payload) {
+  return postJSON(`${INTAKE()}/update_job_from_chat`, payload);
+}
+
 export async function getWaiverStatus(jobId) {
   return getJSON(`${INTAKE()}/get_waiver_status?job_id=${jobId}`);
 }
