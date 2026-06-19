@@ -37,10 +37,14 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   const link = job_id
     ? `${baseLink}/customer-portal.html?job_id=${job_id}&last4=`
     : baseLink;
-  let body = `Hi ${name}, this is TN Appliance Exchange — we want to get you back to normal as soon as possible. Tap here to start ${applianceClause}: ${link}\n\nWhen you open it, send us a photo of the model number tag + a 10-second video of the issue + any notes.\n\nAlso — what days/times work best for you, and are there any you absolutely can't do? Just reply right here, or mark your windows in the link. The more open you are, the faster we can get a tech out.\n\nQuestions any time — just reply and Ant can answer from our database.`;
+  const applianceWord = appliance || 'appliance';
+  // Consolidated, warm, reply-first greeting. Leads with the ONE thing we need
+  // (availability), invites a reply, keeps the portal link as a soft add-on.
+  let body = `Hi ${name}, this is TN Appliance Exchange 🐜 — let's get your ${applianceWord} fixed up fast. What days work best for you, and are there any you can't do? Just reply right here.`;
   if (shouldIncludeWarrantyNote({ source, customer_type })) {
-    body += `\n\nYour repair is covered under your home warranty - no payment needed. Just mention warranty if asked.`;
+    body += `\n\nCovered by your home warranty — no payment needed.`;
   }
+  body += `\n\nYou can add photos + your model # to speed things up: ${link}`;
   return body;
 }
 
