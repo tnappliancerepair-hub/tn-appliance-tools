@@ -561,7 +561,12 @@
     const startMs = new Date(date + 'T08:00:00').getTime();
     btn.disabled = true; btn.textContent = 'Scheduling…';
     try {
-      const d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      let d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
+      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      }
       if (d && d.success) { logFeedback(id, 'accepted', tech, date); load(); }
       else { alert('Could not schedule: ' + ((d && d.error) || 'failed')); btn.disabled = false; btn.textContent = '✓ Use this'; }
     } catch (_) { btn.disabled = false; btn.textContent = '✓ Use this'; }
@@ -634,17 +639,22 @@
     } catch (_) {}
     $('schedSubmitBtn').disabled = true;
     try {
-      const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          job_id: currentJob.id,
-          technician_id: techId,
-          scheduled_start_ms: startMs,
-          service_eta_window: window
-        })
+      const schedBody = JSON.stringify({
+        job_id: currentJob.id,
+        technician_id: techId,
+        scheduled_start_ms: startMs,
+        service_eta_window: window
       });
-      const d = await r.json();
+      const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody
+      });
+      let d = await r.json();
+      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
+      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+        showToast('Reopening canceled job…', 'ok');
+        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: currentJob.id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody })).json();
+      }
       if (d.success) {
         showToast('Scheduled ✓', 'ok');
         schedModal.classList.remove('show');
