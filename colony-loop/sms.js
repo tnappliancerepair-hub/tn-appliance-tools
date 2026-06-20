@@ -203,6 +203,17 @@ async function mirrorToInbox(context, body) {
   } catch (e) {
     xano.logLocal('tech_inbox_mirror_failed', { tech_id: techId, err: String(e.message || e) });
   }
+  // Native push (free, can't-ignore). Best-effort; gated until app+keys exist.
+  if (config.pushEnabled) {
+    try {
+      await fetch(`${config.netlifyFunctionsBase}/send-push`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tech_id: techId, title: 'Ant 🐜', body: String(body || '').slice(0, 280) }),
+      });
+    } catch (e) {
+      xano.logLocal('tech_push_failed', { tech_id: techId, err: String(e.message || e) });
+    }
+  }
 }
 
 export async function toTech(phone, body, context = {}) {

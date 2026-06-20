@@ -147,7 +147,10 @@ async function loadTechMsgs(){
   let msgs=[];
   try{ const r=await fetch('/.netlify/functions/tech-message?office_inbox=1',{cache:'no-store'}); const d=await r.json(); msgs=(d&&d.messages)||[]; }catch(_){ return; }
   const host=document.getElementById('techMsgs');
-  const head=`<div style="font-size:13px;font-weight:800;color:#74e3c4;margin:4px 0 8px">🧑‍🔧 From the techs · <span style="font-weight:600;color:#8a93aa">in-app, no texts</span></div>`;
+  const head=`<div style="display:flex;align-items:center;gap:8px;margin:4px 0 8px">
+    <div style="font-size:13px;font-weight:800;color:#74e3c4">🧑‍🔧 From the techs · <span style="font-weight:600;color:#8a93aa">in-app, no texts</span></div>
+    <button onclick="broadcastTechs()" style="margin-left:auto;background:#1f6df0;color:#fff;border:0;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer">📣 Message all techs</button>
+  </div>`;
   if(!msgs.length){ host.innerHTML=head+'<div style="background:#161c26;border:1px solid #2a3040;border-radius:12px;padding:12px 14px;color:#8a93aa;font-size:13px;margin-bottom:14px">No tech messages yet. Reply to a tech with the button on their card, or they\'ll message you from the app.</div>'; return; }
   host.innerHTML = head + msgs.slice(0,12).map(m=>{
     const when=rel(m.at_ms); const job=m.related_job_id?(' · Job #'+m.related_job_id):'';
@@ -166,6 +169,18 @@ async function replyTech(techId,name){
     const r=await fetch(XANO+'/send_office_to_tech_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tech_id:techId,office_password:pw,body:body.trim(),sender_name:'Office'})});
     const d=await r.json();
     if(d&&d.success){ alert('✅ Sent to '+name+' — shows in their app inbox.'); }
+    else alert('⚠ '+((d&&d.error)||'could not send'));
+  }catch(_){ alert('⚠ Connection error'); }
+}
+async function broadcastTechs(){
+  const pw=localStorage.getItem('tn_office_auth')||prompt('Office password:');
+  if(!pw)return;
+  const body=prompt('📣 Message to send to ALL active techs (lands in every tech app):');
+  if(!body||!body.trim())return;
+  try{
+    const r=await fetch('/.netlify/functions/broadcast-tech-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({office_password:pw,body:body.trim(),sender_name:'Office'})});
+    const d=await r.json();
+    if(d&&d.ok) alert('✅ Sent to '+(d.sent||0)+' techs: '+((d.techs||[]).join(', ')||'—'));
     else alert('⚠ '+((d&&d.error)||'could not send'));
   }catch(_){ alert('⚠ Connection error'); }
 }

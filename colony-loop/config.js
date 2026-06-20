@@ -78,6 +78,11 @@ export const config = Object.freeze({
   // that previously just vanished. Set TECH_INBOX_ENABLED=false to disable. This
   // is the move that fills the in-app inbox so SMS can retire.
   techInboxEnabled: String(process.env.TECH_INBOX_ENABLED || 'true') !== 'false',
+  // Fire a native push for tech notifications (send-push Netlify fn). OFF until
+  // the native app ships + APNs/FCM keys are in the vault. Flip PUSH_ENABLED=true
+  // then. send-push itself no-ops gracefully if keys are missing, so this is a
+  // belt-and-suspenders gate to avoid wasted calls.
+  pushEnabled: String(process.env.PUSH_ENABLED || 'false') === 'true',
   // Auto-booking kill-switch. When 'true', try_auto_schedule's
   // green-light path will actually book the job (tech + slot derived
   // from zip + parts_eta_date) instead of just sending Teddy three
