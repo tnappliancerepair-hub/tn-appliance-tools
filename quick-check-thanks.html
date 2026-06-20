@@ -60,7 +60,7 @@ async function verifyOnce(){
   return await r.json();
 }
 async function go(){
-  if(!sid){ head.textContent='Hmm —'; msg.textContent='We couldn\'t find your payment session. If you were charged, text us at 615-280-2949 and we\'ll sort it instantly.'; return; }
+  if(!sid){ head.textContent='Hmm —'; msg.textContent='We couldn\'t find your payment session. If you were charged, text us at 866-268-0111 and we\'ll sort it instantly.'; return; }
   let d=null, lastStatus='';
   for(let i=0;i<5;i++){            // Stripe payment_status can lag a beat on redirect — poll briefly
     try{ d=await verifyOnce(); }catch(_){ d=null; }
@@ -75,7 +75,7 @@ async function go(){
     msg.innerHTML='Our tech is reviewing your video right now. You\'ll have your <b>honest assessment and your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Keep an eye on your phone. 🐜';
   } else {
     head.textContent='Almost —';
-    msg.innerHTML='We didn\'t see the payment complete yet'+(lastStatus?(' (status: '+lastStatus+')'):'')+'. If you were charged, text <b>615-280-2949</b> and we\'ll take care of you right away.';
+    msg.innerHTML='We didn\'t see the payment complete yet'+(lastStatus?(' (status: '+lastStatus+')'):'')+'. If you were charged, text <b>866-268-0111</b> and we\'ll take care of you right away.';
   }
 }
 go();

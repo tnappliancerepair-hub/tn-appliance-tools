@@ -126,7 +126,7 @@
 <div id="error" class="error" hidden>
   <h2>Link unavailable</h2>
   <p class="error-msg"></p>
-  <p style="margin-top:14px;">Questions? Call us at <a href="tel:+16152802949">615-280-2949</a>.</p>
+  <p style="margin-top:14px;">Questions? Call us at <a href="tel:+18662680111">866-268-0111</a>.</p>
 </div>
 
 <main id="content" class="container" hidden>
@@ -165,8 +165,8 @@
   <div class="summary" id="summary"></div>
 
   <footer>
-    <!-- TODO: When 615-280-2949 ports from RingCentral to Vapi, change copy back to "Call or text us at 615-280-2949" -->
-    <p>Questions? Call us at <a href="tel:+16152802949">615-280-2949</a></p>
+    <!-- TODO: When 866-268-0111 ports from RingCentral to Vapi, change copy back to "Call or text us at 866-268-0111" -->
+    <p>Questions? Call us at <a href="tel:+18662680111">866-268-0111</a></p>
     <p style="font-family:var(--mono); font-size:10px; margin-top:8px;">TN Appliance Exchange</p>
   </footer>
 </main>
@@ -382,7 +382,7 @@ function renderSummary() {
     const tdrId = parseTokenTdrId(urlToken);
     if (!tdrId || !urlToken) {
       console.error('CONFIRM AND PAY: missing tdrId or token', { tdrId, hasToken: !!urlToken });
-      showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+      showError("We couldn't process your payment right now. Please call us at 866-268-0111 and we'll take care of you.");
       return;
     }
 
@@ -404,7 +404,7 @@ function renderSummary() {
       const persistData = await persistRes.json().catch(() => null);
       if (!persistRes.ok || !persistData || persistData.ok !== true) {
         console.error('CONFIRM AND PAY: persist selections failed', { status: persistRes.status, persistData });
-        showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+        showError("We couldn't process your payment right now. Please call us at 866-268-0111 and we'll take care of you.");
         return;
       }
 
@@ -417,7 +417,7 @@ function renderSummary() {
       const checkoutData = await checkoutRes.json().catch(() => null);
       if (!checkoutRes.ok || !checkoutData || checkoutData.success !== true || !checkoutData.checkout_url) {
         console.error('CONFIRM AND PAY: checkout session creation failed', { status: checkoutRes.status, checkoutData });
-        showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+        showError("We couldn't process your payment right now. Please call us at 866-268-0111 and we'll take care of you.");
         return;
       }
       window.location.href = checkoutData.checkout_url;
@@ -425,7 +425,7 @@ function renderSummary() {
       console.error('CONFIRM AND PAY: network error', e);
       btn.disabled = false;
       btn.textContent = originalText;
-      showError("We couldn't process your payment right now. Please call us at 615-280-2949 and we'll take care of you.");
+      showError("We couldn't process your payment right now. Please call us at 866-268-0111 and we'll take care of you.");
     }
   });
 
