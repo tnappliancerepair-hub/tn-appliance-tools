@@ -17,10 +17,10 @@ cross-checks these; mismatches (615 vs 866, "TN Appliance" vs "TN Appliance
 Exchange LLC") split your authority. Copy-paste these verbatim every time:
 
 ```
-Business name:  TN Appliance Exchange
-Phone:          (866) 268-0111
+Business name:  TN Appliance Exchange LLC
+Phone:          (615) 280-2949   ← the 10-year canonical number
 Website:        https://tnapplianceexchange.net
-City/Region:    Antioch, TN 37013  (service-area business)
+Address:        SERVICE-AREA business — NO public street address (mobile repair)
 Service areas:  Middle Tennessee (Nashville, Murfreesboro, Clarksville,
                 Brentwood, Franklin, Hendersonville, Lebanon, Mt. Juliet…)
                 + Southeast Louisiana (Baton Rouge, Hammond, New Orleans,
@@ -40,11 +40,33 @@ Other categories:  Refrigerator Repair Service, Washer & Dryer Repair Service,
 > our AI assistant Ant what's wrong, and a real Pro Tech reviews your symptoms
 > before anyone rolls a truck — so we show up with the right parts and fix it on
 > the first visit. Warranty and self-pay welcome. $50 Quick Check, credited
-> toward your repair. Rated 4.5★ by 1,000+ customers. Call (866) 268-0111.
+> toward your repair. Rated 4.5★ by 1,000+ customers. Call (615) 280-2949.
 
-> ⚠️ **Phone consistency:** the website now uses **866-268-0111** everywhere.
-> Confirm your Google Business Profile shows the **same** number (not the old
-> 615-280-2949). Whatever GBP shows is the anchor — make every directory match it.
+> ⚠️ **NAP locked 2026-06-20:** name = **TN Appliance Exchange LLC**, phone =
+> **615-280-2949** (the 10-year number — 866/800 numbers are multi-state lines,
+> NOT the canonical), **service-area** (never list the home address: 3137 Skinner
+> Dr is private; 5403 Murfreesboro Rd is the OLD address — remove it everywhere).
+> The website now matches (615 sitewide). Make every listing match this exactly.
+
+---
+
+## 🧹 STEP 0 — FIX the broken existing listings FIRST (before adding any new ones)
+
+The audit found your current listings disagree with each other — that actively
+hurts ranking. Clean these up before submitting anything new:
+
+- [ ] **Merge/remove the duplicate Google listing** — there's a "TN Appliance
+      Exchange **Inc**" *and* "**LLC**". Two listings split your reviews +
+      authority. In GBP, find the duplicate and request a merge/removal so all
+      1,079 reviews sit on ONE profile.
+- [ ] **Set GBP to a service-area business** — remove the street address from the
+      public profile, set your service-area cities. (You verify privately; the
+      public sees only the areas.)
+- [ ] **Confirm GBP phone = 615-280-2949** and name = **TN Appliance Exchange LLC**.
+- [ ] **Fix Yelp** — it shows the OLD **5403 Murfreesboro Rd, La Vergne** address.
+      Update to service-area + confirm 615.
+- [ ] **Fix Yahoo/Facebook/any other listing** showing the old address or wrong
+      name to match the locked NAP.
 
 ---
 
