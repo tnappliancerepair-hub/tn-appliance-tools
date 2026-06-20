@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ant Field</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d10;color:#e8edf5;font:16px/1.5 -apple-system,system-ui,Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .ant{font-size:64px}
+  a{color:#27e08a;font-weight:700}
+</style>
+</head>
+<body>
+  <!-- Capacitor loads server.url (the live tech app) when online. This is the
+       offline/first-paint fallback only. -->
+  <div class="ant">🐜</div>
+  <h1>Ant Field</h1>
+  <p id="msg">Loading your day…</p>
+  <p><a href="https://tnapplianceexchange.net/tech.html">Open Ant Field</a></p>
+  <script>
+    setTimeout(function(){
+      try { location.href = 'https://tnapplianceexchange.net/tech.html'; } catch(e){}
+      document.getElementById('msg').textContent = 'No connection — reconnect and reopen the app.';
+    }, 1500);
+  </script>
+</body>
+</html>
