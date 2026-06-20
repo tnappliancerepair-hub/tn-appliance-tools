@@ -462,6 +462,77 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: true, has_system: !!sys, system_prompt: (sys && sys.content) || '' }) };
   }
 
+  // Multilingual control. Read-only by default (dumps transcriber + voice +
+  // whether the language block is installed). &apply=multi turns it on; &apply=
+  // english reverts. Reversible + idempotent. The block + transcriber edits touch
+  // ONLY language handling — every existing tool/prompt/destination is preserved.
+  if (action === 'lang') {
+    const f = full.json || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+    const sysIdx = msgs.findIndex((m) => m.role === 'system');
+    const sysContent = sysIdx >= 0 ? String(msgs[sysIdx].content || '') : '';
+    const ML_START = '<!-- ML-START -->';
+    const ML_END = '<!-- ML-END -->';
+    const ML_BLOCK = ML_START + '\n' +
+      '## Language — answer the caller in THEIR language\n' +
+      'Detect the caller\'s language from their first words. If they speak Spanish, Vietnamese, ' +
+      'Arabic, Hindi, or French, conduct the ENTIRE rest of the call in that language — every ' +
+      'question, every confirmation, everything — fluently and naturally. If they speak English, ' +
+      'or you are unsure, use English. If they switch languages mid-call, switch with them. Never ' +
+      'announce that you are translating or switching; just speak their language. Your spoken ' +
+      'opening line stays in English (you can\'t know their language until they speak).\n' + ML_END;
+    const hasBlock = sysContent.includes(ML_START);
+    const apply = String(q.apply || '').toLowerCase();
+
+    if (!apply) {
+      return { statusCode: 200, body: JSON.stringify({
+        ok: true, mode: 'read_only',
+        transcriber: f.transcriber || null,
+        voice: f.voice || null,
+        language_block_installed: hasBlock,
+        hint: 'Add &apply=multi to enable, &apply=english to revert.',
+      }, null, 2) };
+    }
+
+    // Build the new system prompt (add/remove the block idempotently).
+    let newSys = sysContent;
+    if (apply === 'multi' && !hasBlock) {
+      newSys = sysContent.trimEnd() + '\n\n' + ML_BLOCK + '\n';
+    } else if (apply === 'english' && hasBlock) {
+      newSys = sysContent.replace(new RegExp('\\n*' + ML_START + '[\\s\\S]*?' + ML_END + '\\n*', 'g'), '\n').trimEnd() + '\n';
+    }
+    if (sysIdx >= 0) msgs[sysIdx] = Object.assign({}, msgs[sysIdx], { content: newSys });
+    else msgs.unshift({ role: 'system', content: newSys });
+
+    // Transcriber: multi = Deepgram nova-2 multilingual code-switching (strong on
+    // English + Spanish); english = lock back to English. Voice (Cartesia) is
+    // sonic-2 multilingual already, so it can SPEAK the other languages — we leave
+    // the voiceId untouched and only ensure the multilingual model on 'multi'.
+    let newTranscriber = f.transcriber || { provider: 'deepgram', model: 'nova-2' };
+    let newVoice = f.voice || null;
+    if (apply === 'multi') {
+      newTranscriber = Object.assign({}, newTranscriber, { provider: 'deepgram', model: 'nova-2', language: 'multi' });
+      if (newVoice && /cartesia/i.test(newVoice.provider || '') && newVoice.model && !/sonic-2|multilingual/i.test(newVoice.model)) {
+        newVoice = Object.assign({}, newVoice, { model: 'sonic-2' });
+      }
+    } else if (apply === 'english') {
+      newTranscriber = Object.assign({}, newTranscriber, { provider: 'deepgram', model: 'nova-2', language: 'en' });
+    }
+
+    const patchBody = { model: Object.assign({}, model, { messages: msgs }), transcriber: newTranscriber };
+    if (newVoice) patchBody.voice = newVoice;
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, patchBody);
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vf = verify.json || {};
+    const vSys = ((vf.model && vf.model.messages) || []).find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status, applied: apply,
+      transcriber: vf.transcriber || null,
+      voice: vf.voice || null,
+      language_block_installed: !!(vSys && String(vSys.content || '').includes(ML_START)),
+    }, null, 2) };
+  }
+
   // Replace the system prompt. POST {prompt:"..."} in the body.
   if (action === 'setprompt') {
     let parsed = {}; try { parsed = JSON.parse(event.body || '{}'); } catch (_) {}
