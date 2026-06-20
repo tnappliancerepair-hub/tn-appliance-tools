@@ -152,6 +152,21 @@ export async function toCustomer(phone, body, context = {}) {
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
   }
+  // FORWARD-ONLY safety net: the backlog never gets ANY automated customer text.
+  // Every customer-direction SMS for a job created before the cutoff is dropped —
+  // greeting, availability, confirmation, reminder, all of it. New jobs from today
+  // forward flow normally. Only applies when a job_id is in context.
+  if (config.customerOutreachSinceMs > 0 && context && context.job_id) {
+    try {
+      const jd = await xano.getJobForDashboard(Number(context.job_id));
+      const c = jd && jd.job && jd.job.created_at;
+      const createdMs = (typeof c === 'number') ? c : (Date.parse(c) || Number(c) || 0);
+      if (createdMs && createdMs < config.customerOutreachSinceMs) {
+        xano.logLocal('customer_sms_skipped_backlog', { job_id: context.job_id, action: context.action || context.outcome || '' });
+        return { success: false, skipped_backlog: true, job_id: context.job_id };
+      }
+    } catch (_) { /* lookup failed → fall through and send (greeting dedup still guards the main path) */ }
+  }
   return dispatchSms(e164, body, {
     ...context, recipient_role: 'customer', company_id: config.companyId,
   });
