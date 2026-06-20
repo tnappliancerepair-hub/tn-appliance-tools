@@ -650,7 +650,13 @@
 
   // ── URL params + config ────────────────────────────────────────
   const params = new URLSearchParams(window.location.search);
-  const TECH_ID = params.get('tech_id');
+  // Resolve who this is: URL first, else the device's saved tech id (set by
+  // tech.html). This is why home-screen / PWA opens work even without ?tech_id.
+  let TECH_ID = params.get('tech_id');
+  try {
+    if (TECH_ID) { localStorage.setItem('tn_tech_id', String(TECH_ID)); }
+    else { TECH_ID = localStorage.getItem('tn_tech_id') || null; }
+  } catch (_) {}
   const URL_DATE = params.get('date');
   const NETLIFY_BASE = '';  // same-origin
   const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -658,8 +664,9 @@
   const GEO_PREFIX = 'tn_geo_v1:';
   const GEO_TTL_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days
 
+  // No id anywhere → send them to the picker instead of dead-ending.
   if (!TECH_ID) {
-    document.getElementById('loading').innerHTML = '<div class="err-banner">Missing tech_id in URL. Use the link Ant sent you.</div>';
+    location.replace('/tech.html');
     return;
   }
 
