@@ -62,3 +62,10 @@ API). Confirmed real + viable:
 - **Browser-bot is the BRIDGE only** (works now, fragile/ToS-gray) — the API is
   the real destination.
 
+
+## STATUS 2026-06-20: Amazon Business Ordering API request SUBMITTED
+Teddy submitted the Amazon Business "Contact Us" request for Ordering API / Order
+Placement role access (reply expected by email to tnappliancerepair@gmail.com,
+~few business days). NEXT: when credentials arrive -> vault -> flip
+amazon-business-order.js live. Fallbacks if denied: browser-bot (amazon-order.js)
+or distributor drop-ship API (Marcone/Encompass).
