@@ -49,6 +49,10 @@ sections.push(entry("repairs-directory.html", "0.7", "weekly"));
 sections.push(entry("privacy", "0.3"));
 sections.push(entry("terms", "0.3"));
 
+// Language homepages (multilingual front doors).
+sections.push(`\n  <!-- Language homepages -->`);
+["es", "vi", "ar", "hi", "fr"].forEach((l) => sections.push(entry(l + "/", "0.8", "weekly")));
+
 // Hub pages — high priority category landings.
 sections.push(`\n  <!-- Category hub pages -->`);
 ["dryer-repair","washer-repair","refrigerator-repair"].forEach(s => {
