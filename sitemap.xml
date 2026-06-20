@@ -81,6 +81,16 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/dishwasher-repair</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/oven-repair</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
 
   <!-- Symptom pages -->
   <url>
