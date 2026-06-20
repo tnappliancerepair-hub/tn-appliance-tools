@@ -51,6 +51,7 @@
   <h1>💬 Messages</h1>
   <div class="sub">Every customer text in one place — newest first. 🔴 = they wrote last and need a reply.</div>
   <div class="summary" id="summary">Loading…</div>
+  <div id="techMsgs"></div>
   <div id="list"></div>
   <div class="refresh" id="refresh">—</div>
 
@@ -141,8 +142,35 @@ async function replyTo(phone){
     else alert('⚠ Could not send'+(d&&d.error?': '+d.error:' — check customer texting is on'));
   }catch(_){ alert('⚠ Connection error — try again'); }
 }
-load();
-setInterval(load,30000);
+// ── Techs ⇄ Office (in-app, not SMS) ──────────────────────────────
+async function loadTechMsgs(){
+  let msgs=[];
+  try{ const r=await fetch('/.netlify/functions/tech-message?office_inbox=1',{cache:'no-store'}); const d=await r.json(); msgs=(d&&d.messages)||[]; }catch(_){ return; }
+  const host=document.getElementById('techMsgs');
+  const head=`<div style="font-size:13px;font-weight:800;color:#74e3c4;margin:4px 0 8px">🧑‍🔧 From the techs · <span style="font-weight:600;color:#8a93aa">in-app, no texts</span></div>`;
+  if(!msgs.length){ host.innerHTML=head+'<div style="background:#161c26;border:1px solid #2a3040;border-radius:12px;padding:12px 14px;color:#8a93aa;font-size:13px;margin-bottom:14px">No tech messages yet. Reply to a tech with the button on their card, or they\'ll message you from the app.</div>'; return; }
+  host.innerHTML = head + msgs.slice(0,12).map(m=>{
+    const when=rel(m.at_ms); const job=m.related_job_id?(' · Job #'+m.related_job_id):'';
+    return `<div style="background:#15201b;border:1px solid #2a6a4a;border-radius:12px;padding:12px 14px;margin-bottom:9px">
+      <div class="crow"><div class="who">${esc(m.tech_name)}${esc(job)}</div><div class="when">${when}</div></div>
+      <div class="snippet"><span class="dir out">Tech:</span> ${esc(m.body)}</div>
+      <div class="actions"><button onclick="replyTech(${m.technician_id},'${esc(m.tech_name).replace(/'/g,'')}')" style="background:#0a7d33;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">✍️ Reply to ${esc(m.tech_name)}</button></div>
+    </div>`;
+  }).join('') + '<div style="height:8px"></div>';
+}
+async function replyTech(techId,name){
+  const pw=localStorage.getItem('tn_office_auth')||prompt('Office password:');
+  if(!pw)return;
+  const body=prompt('Message to '+name+':'); if(!body||!body.trim())return;
+  try{
+    const r=await fetch(XANO+'/send_office_to_tech_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tech_id:techId,office_password:pw,body:body.trim(),sender_name:'Office'})});
+    const d=await r.json();
+    if(d&&d.success){ alert('✅ Sent to '+name+' — shows in their app inbox.'); }
+    else alert('⚠ '+((d&&d.error)||'could not send'));
+  }catch(_){ alert('⚠ Connection error'); }
+}
+load(); loadTechMsgs();
+setInterval(()=>{load();loadTechMsgs();},30000);
 </script>
 </body>
 </html>
