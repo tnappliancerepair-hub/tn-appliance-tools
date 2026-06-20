@@ -115,15 +115,31 @@ async function load(){
       const snip = c.last.body ? esc(c.last.body.slice(0,140)) : (c.last.blocked?'(message held by gate)':'(no text)');
       const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1">Open conversation →</a>` : '';
       const textLink = c.phone ? `<a class="a-text" href="sms:+1${c.phone}">📱 Text now</a>` : '';
+      if(c.phone) LAST_TEXT[c.phone] = (c.last.dir==='in' ? (c.last.body||'') : '');
+      const replyBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();replyTo('${c.phone}')" style="background:#0a7d33;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">✍️ Reply (auto-translate)</button>` : '';
       const href = c.jobId ? `job-detail.html?job_id=${c.jobId}&office=1` : 'javascript:void(0)';
       return `<a class="conv ${c.last.dir==='in'?'waiting':''}" href="${href}">
         <div class="crow"><div class="who">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)}</div></div>
         <div class="snippet">${dirLbl}${snip}</div>
-        <div class="actions" onclick="event.stopPropagation()">${openLink}${textLink}</div>
+        <div class="actions" onclick="event.stopPropagation()">${replyBtn}${openLink}${textLink}</div>
       </a>`;
     }).join('');
   }
   document.getElementById('refresh').textContent='auto-refresh 30s · '+new Date().toLocaleTimeString();
+}
+// Translation bridge (outbound): office types English → Ant sends it in the
+// customer's language (detected from their last message). Customer texting must
+// be ON for the send to land.
+let LAST_TEXT={};
+async function replyTo(phone){
+  const eng=prompt("Reply in English — Ant translates it to the customer's language and sends it:");
+  if(!eng||!eng.trim())return;
+  try{
+    const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:eng.trim(),customer_text:LAST_TEXT[phone]||''})});
+    const d=await r.json();
+    if(d&&d.ok){ alert('✅ Sent in '+(d.language||'their language')+':\n\n'+(d.translated||'')); load(); }
+    else alert('⚠ Could not send'+(d&&d.error?': '+d.error:' — check customer texting is on'));
+  }catch(_){ alert('⚠ Connection error — try again'); }
 }
 load();
 setInterval(load,30000);
