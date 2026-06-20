@@ -20,7 +20,14 @@ exports.handler = async function (event) {
   try {
     const h = mh();
     if (event.httpMethod === 'GET') {
-      const techId = parseInt((event.queryStringParameters || {}).technician_id, 10);
+      const q = event.queryStringParameters || {};
+      // Office view: recent tech→office replies (the in-app tech messages).
+      if (q.office_inbox) {
+        const rows = await crud.searchPage(EVENT_LOG, { action: 'tech_reply_to_office' }, { created_at: 'desc' }, 60);
+        const out = rows.map((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; return { id: r.id, technician_id: Number(m.technician_id) || 0, tech_name: m.tech_name || 'Tech', body: m.body || '', related_job_id: m.related_job_id || null, at_ms: m.at_ms || r.created_at || 0 }; });
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, messages: out }) };
+      }
+      const techId = parseInt(q.technician_id, 10);
       if (!techId) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'technician_id required' }) };
       const [msgs, reads] = await Promise.all([
         crud.searchPage(EVENT_LOG, { action: 'tech_message' }, { created_at: 'desc' }, 200),
@@ -44,6 +51,18 @@ exports.handler = async function (event) {
     if (b.action === 'read') {
       await crud.logEvent('tech_message_read', { message_id: b.message_id, at_ms: Date.now() });
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, read: b.message_id }) };
+    }
+
+    // Tech replies to the office from inside the app (in-app, NOT SMS). Lands in
+    // event_log; the office Messages view reads action='tech_reply_to_office'.
+    if (b.action === 'tech_reply') {
+      const techId = parseInt(b.technician_id, 10) || 0;
+      const body = String(b.body || '').trim();
+      if (!techId || !body) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'technician_id + body required' }) };
+      let techName = 'Tech';
+      if (h) { try { const t = await crud.searchPage(TECH_TABLE, { id: techId }, null, 1); if (t && t[0] && t[0].first_name) techName = t[0].first_name; } catch (_) {} }
+      await crud.logEvent('tech_reply_to_office', { technician_id: techId, tech_name: techName, body, related_job_id: b.related_job_id || null, at_ms: Date.now() });
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, technician_id: techId, tech_name: techName }) };
     }
 
     const message = String(b.message || '').trim();
