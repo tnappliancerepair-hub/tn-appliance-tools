@@ -87,7 +87,7 @@
 
 <script>
 const params=new URLSearchParams(location.search);
-const TECH_ID=parseInt(params.get('tech_id'),10)||0;
+const TECH_ID=parseInt(params.get('tech_id')||localStorage.getItem('tn_tech_id'),10)||0;try{if(TECH_ID)localStorage.setItem('tn_tech_id',String(TECH_ID));}catch(_){}
 const AUTH_KEY='tn_tech_auth_'+TECH_ID;
 
 function authValid(){try{const c=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');return c.ok&&(Date.now()-c.t<12*3600*1000);}catch(_){return false;}}

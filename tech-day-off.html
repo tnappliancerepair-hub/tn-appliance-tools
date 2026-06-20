@@ -97,7 +97,7 @@
 (function() {
   'use strict';
   const params = new URLSearchParams(window.location.search);
-  const TECH_ID = params.get('tech_id');
+  let TECH_ID = params.get('tech_id'); try { if (TECH_ID) { localStorage.setItem('tn_tech_id', String(TECH_ID)); } else { TECH_ID = localStorage.getItem('tn_tech_id') || null; } } catch (_) {}
   const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   const PIN_KEY = `tn_tech_pin_v1_${TECH_ID}`;
   const $ = (id) => document.getElementById(id);
