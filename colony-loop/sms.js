@@ -130,6 +130,8 @@ export async function toOwner(body, context = {}) {
     } catch (_) {
       xano.logLocal('owner_report_save_failed', { action, body_preview: String(body || '').slice(0, 200) });
     }
+    // Owner gets it as a free desktop/web-push notification (shares the office channel).
+    await fireWebPush('office', 0, body);
     return { success: false, canceled: true, saved_to_portal: true, action };
   }
   return dispatchSms(config.ownerPhone, body, {
@@ -138,6 +140,8 @@ export async function toOwner(body, context = {}) {
 }
 
 export async function toDanielle(body, context = {}) {
+  // Web push to the office (Danielle/owner desktop) alongside the SMS.
+  await fireWebPush('office', 0, body);
   return dispatchSms(config.daniellePhone, body, {
     ...context, recipient_role: 'warranty_handler', company_id: config.companyId,
   });
@@ -203,7 +207,7 @@ async function mirrorToInbox(context, body) {
   } catch (e) {
     xano.logLocal('tech_inbox_mirror_failed', { tech_id: techId, err: String(e.message || e) });
   }
-  // Native push (free, can't-ignore). Best-effort; gated until app+keys exist.
+  // Native app push (FCM/APNs) — gated until the native app + keys exist.
   if (config.pushEnabled) {
     try {
       await fetch(`${config.netlifyFunctionsBase}/send-push`, {
@@ -213,6 +217,21 @@ async function mirrorToInbox(context, body) {
     } catch (e) {
       xano.logLocal('tech_push_failed', { tech_id: techId, err: String(e.message || e) });
     }
+  }
+  // Web push — the no-app path that works on Android/desktop/iOS-PWA today.
+  await fireWebPush('tech', techId, body);
+}
+
+// Web push to a subscribed device (best-effort; no-ops if no subscription/keys).
+// Works across Android, desktop, and iOS home-screen PWAs — the universal path.
+export async function fireWebPush(role, uid, body) {
+  try {
+    await fetch(`${config.netlifyFunctionsBase}/web-push-send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role, uid: Number(uid) || 0, title: 'Ant 🐜', body: String(body || '').slice(0, 280) }),
+    });
+  } catch (e) {
+    xano.logLocal('web_push_failed', { role, uid, err: String(e.message || e) });
   }
 }
 

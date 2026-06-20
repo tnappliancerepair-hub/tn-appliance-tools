@@ -8,7 +8,7 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v3-2026-06-17';
+const CACHE_VERSION = 'ant-field-v4-2026-06-20-push';
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
@@ -84,4 +84,28 @@ self.addEventListener('fetch', (event) => {
 
   // Everything else (data / API GETs): network-first, cache only as a fallback.
   event.respondWith(fetch(req).catch(() => caches.match(req)));
+});
+
+// ── Web Push ───────────────────────────────────────────────────────
+// Show the notification Ant sent, and open the right page when tapped.
+self.addEventListener('push', (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch (_) { d = { body: event.data ? event.data.text() : '' }; }
+  const title = d.title || 'Ant 🐜';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: '/icons/ant-512.svg',
+    badge: '/icons/ant-512.svg',
+    tag: d.tag || undefined,
+    data: { url: d.url || '/tech.html' },
+  }));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/tech.html';
+  event.waitUntil((async () => {
+    const all = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) { if (c.url.includes(url) && 'focus' in c) return c.focus(); }
+    return clients.openWindow(url);
+  })());
 });
