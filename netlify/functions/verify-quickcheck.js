@@ -100,20 +100,23 @@ exports.handler = async function (event) {
   }
 
   // create_job_from_chat only takes zip — set the full service address on the job row
-  if (jobId && (m.address || m.city || m.availability)) {
+  const lang = String(m.language || 'en').toLowerCase();
+  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
+  if (jobId && (m.address || m.city || m.availability || LANGNAME[lang])) {
+    const pref = [m.availability || '', LANGNAME[lang] ? ('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).') : ''].filter(Boolean).join(' · ');
     try {
       await crud.update(crud.TABLES.jobs, jobId, {
         service_address: m.address || '',
         service_city: m.city || '',
         service_state: stateFromZip(m.zip),
-        customer_preference_text: m.availability || '',
+        customer_preference_text: pref,
       });
     } catch (_) {}
   }
 
   // record the payment + the idempotency marker
   const amount = Number(m.amount_cents || 5000) / 100;
-  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, at_ms: Date.now() });
+  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
   await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'quick_check', session_id: sessionId, source: 'quick_check', at_ms: Date.now() });
 
   // 💵 CASH siren → Teddy + Danielle

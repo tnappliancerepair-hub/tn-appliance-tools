@@ -67,6 +67,7 @@ exports.handler = async function (event) {
         payer: s(b.payer, 20) || 'cash',
         sms_consent: b.sms_consent ? 'yes' : 'no',
         availability: s(b.availability, 300),
+        language: s(b.language, 8) || 'en',
         town: s(b.town, 80),
         conv_id: s(b.conv_id, 40),
         has_video: b.has_video ? 'yes' : 'no',

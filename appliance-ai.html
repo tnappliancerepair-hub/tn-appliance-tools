@@ -252,12 +252,34 @@ function youMsg(t){ const c=document.createElement('div'); c.className='convo'; 
 function choices(items, cb, cls){ const d=document.createElement('div'); d.className='choices '+(cls||''); items.forEach(it=>{ const b=document.createElement('div'); b.className='choice'+(it.wide?' wide':''); b.innerHTML=(it.emo?('<span class="emo">'+it.emo+'</span>'):'')+'<span>'+esc(it.label)+'</span>'; b.onclick=()=>cb(it); d.appendChild(b); }); FLOW.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'center'}); return d; }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
+// ── MULTILINGUAL (from /es/ /vi/ /ar/ /hi/ /fr/ via ?lang=) ──────────────────
+// Translates the tap labels, the warranty/cash step, headers, and buttons. The
+// customer can also just type in their own language — Ant + the tech read it.
+// English (default) passes straight through, so the English flow is untouched.
+const LANG=(new URLSearchParams(location.search).get('lang')||'en').toLowerCase();
+const TR_LANGS={es:1,vi:1,ar:1,hi:1,fr:1};
+const TR={
+ es:{"Refrigerator":"Refrigerador","Washer":"Lavadora","Dryer":"Secadora","Dishwasher":"Lavavajillas","Oven / Stove":"Horno / Estufa","Microwave":"Microondas","Freezer":"Congelador","Something else":"Otra cosa","Not cooling":"No enfría","Leaking water":"Gotea agua","Making noise":"Hace ruido","Ice maker out":"Sin hielo","Won't run":"No funciona","Won't start":"No enciende","Won't drain":"No drena","Won't spin":"No centrifuga","Leaking":"Gotea","Loud / shaking":"Ruidosa / vibra","No heat":"No calienta","Takes forever":"Tarda demasiado","Noisy":"Ruidosa","Not cleaning":"No limpia","Won't turn on":"No enciende","Not working right":"No funciona bien","I have a warranty":"Tengo garantía","I'm paying myself":"Pago de mi bolsillo","…or just type or talk to me":"…o solo escríbeme o háblame","Start my Quick Check":"Empezar mi Revisión Rápida"},
+ vi:{"Refrigerator":"Tủ lạnh","Washer":"Máy giặt","Dryer":"Máy sấy","Dishwasher":"Máy rửa chén","Oven / Stove":"Lò / Bếp","Microwave":"Lò vi sóng","Freezer":"Tủ đông","Something else":"Thứ khác","Not cooling":"Không lạnh","Leaking water":"Rò rỉ nước","Making noise":"Có tiếng ồn","Ice maker out":"Hết đá","Won't run":"Không chạy","Won't start":"Không khởi động","Won't drain":"Không thoát nước","Won't spin":"Không vắt","Leaking":"Rò rỉ","Loud / shaking":"Ồn / rung","No heat":"Không nóng","Takes forever":"Quá lâu","Noisy":"Ồn ào","Not cleaning":"Không sạch","Won't turn on":"Không bật","Not working right":"Hoạt động không đúng","I have a warranty":"Tôi có bảo hành","I'm paying myself":"Tôi tự trả","…or just type or talk to me":"…hoặc cứ nhắn hay nói với tôi","Start my Quick Check":"Bắt đầu Kiểm Tra Nhanh"},
+ ar:{"Refrigerator":"ثلاجة","Washer":"غسالة","Dryer":"مجفف","Dishwasher":"غسالة صحون","Oven / Stove":"فرن / موقد","Microwave":"ميكروويف","Freezer":"مجمّد","Something else":"شيء آخر","Not cooling":"لا تبرّد","Leaking water":"تسرّب ماء","Making noise":"تصدر ضجيجاً","Ice maker out":"لا تصنع ثلجاً","Won't run":"لا تعمل","Won't start":"لا تبدأ","Won't drain":"لا تصرّف الماء","Won't spin":"لا تعصر","Leaking":"تسرّب","Loud / shaking":"ضجيج / اهتزاز","No heat":"لا تسخّن","Takes forever":"تستغرق وقتاً طويلاً","Noisy":"مزعجة","Not cleaning":"لا تنظّف","Won't turn on":"لا تشتغل","Not working right":"لا تعمل جيداً","I have a warranty":"لديّ ضمان","I'm paying myself":"أدفع بنفسي","…or just type or talk to me":"…أو فقط اكتب أو تحدّث إليّ","Start my Quick Check":"ابدأ فحصي السريع"},
+ hi:{"Refrigerator":"रेफ्रिजरेटर","Washer":"वॉशर","Dryer":"ड्रायर","Dishwasher":"डिशवॉशर","Oven / Stove":"ओवन / स्टोव","Microwave":"माइक्रोवेव","Freezer":"फ्रीज़र","Something else":"कुछ और","Not cooling":"ठंडा नहीं हो रहा","Leaking water":"पानी रिस रहा","Making noise":"आवाज़ कर रहा","Ice maker out":"बर्फ़ नहीं बन रही","Won't run":"नहीं चल रहा","Won't start":"चालू नहीं हो रहा","Won't drain":"पानी नहीं निकल रहा","Won't spin":"स्पिन नहीं कर रहा","Leaking":"रिसाव","Loud / shaking":"शोर / कंपन","No heat":"गरम नहीं हो रहा","Takes forever":"बहुत समय ले रहा","Noisy":"शोरगुल","Not cleaning":"साफ़ नहीं कर रहा","Won't turn on":"चालू नहीं हो रहा","Not working right":"ठीक से काम नहीं कर रहा","I have a warranty":"मेरे पास वारंटी है","I'm paying myself":"मैं खुद भुगतान कर रहा/रही","…or just type or talk to me":"…या बस मुझे लिखें या बोलें","Start my Quick Check":"मेरी क्विक चेक शुरू करें"},
+ fr:{"Refrigerator":"Réfrigérateur","Washer":"Laveuse","Dryer":"Sécheuse","Dishwasher":"Lave-vaisselle","Oven / Stove":"Four / Cuisinière","Microwave":"Micro-ondes","Freezer":"Congélateur","Something else":"Autre chose","Not cooling":"Ne refroidit pas","Leaking water":"Fuit de l'eau","Making noise":"Fait du bruit","Ice maker out":"Plus de glace","Won't run":"Ne fonctionne pas","Won't start":"Ne démarre pas","Won't drain":"Ne vidange pas","Won't spin":"N'essore pas","Leaking":"Fuite","Loud / shaking":"Bruyant / vibre","No heat":"Ne chauffe pas","Takes forever":"Prend trop de temps","Noisy":"Bruyant","Not cleaning":"Ne nettoie pas","Won't turn on":"Ne s'allume pas","Not working right":"Fonctionne mal","I have a warranty":"J'ai une garantie","I'm paying myself":"Je paie moi-même","…or just type or talk to me":"…ou écrivez ou parlez-moi","Start my Quick Check":"Commencer mon Diagnostic Rapide"},
+};
+const WELCOME={es:"👋 ¡Hola! Puedes hacer todo esto en español — toca abajo o solo escríbeme lo que pasa.",vi:"👋 Xin chào! Bạn có thể làm tất cả bằng tiếng Việt — chạm bên dưới hoặc cứ nhắn cho tôi.",ar:"👋 مرحباً! يمكنك إتمام كل هذا بالعربية — اضغط بالأسفل أو فقط اكتب لي ما المشكلة.",hi:"👋 नमस्ते! आप यह सब हिन्दी में कर सकते हैं — नीचे टैप करें या बस मुझे लिखें।",fr:"👋 Bonjour ! Vous pouvez tout faire en français — touchez ci-dessous ou écrivez-moi simplement."};
+function tr(s){ if(!TR_LANGS[LANG]||s==null) return s; const m=TR[LANG]; return (m&&m[s]!=null)?m[s]:s; }
+if(LANG==='ar') document.documentElement.dir='rtl';
+// Wrap the renderers so labels/headers/messages translate (English untouched).
+const _setHead=setHead,_antMsg=antMsg,_choices=choices;
+setHead=function(h,s){ _setHead(tr(h), tr(s)); };
+antMsg=function(html){ _antMsg(tr(html)); };
+choices=function(items,cb,cls){ return _choices(items.map(it=>Object.assign({},it,{label:tr(it.label)})), cb, cls); };
+
 // ── STEP 1: appliance ──
 function start(){
   clearFlow();
   choices(APPLIANCES.map(a=>({emo:a[0],label:a[1]})), pickAppliance, 'grid2');
   const bar=document.createElement('div'); bar.className='askbar';
-  bar.innerHTML='<input id="ask" placeholder="…or just type or talk to me" autocomplete="off"><button id="mic" title="Talk">🎤</button><button class="send" id="snd" title="Send">➤</button>';
+  bar.innerHTML='<input id="ask" placeholder="'+esc(tr('…or just type or talk to me'))+'" autocomplete="off"><button id="mic" title="Talk">🎤</button><button class="send" id="snd" title="Send">➤</button>';
   FLOW.appendChild(bar);
   document.getElementById('snd').onclick=()=>{ const v=document.getElementById('ask').value.trim(); if(v){ youMsg(v); state.appliance='(typed) '+v; think(700,askProblemTyped); } };
   document.getElementById('ask').addEventListener('keypress',e=>{if(e.key==='Enter')document.getElementById('snd').click();});
@@ -427,7 +449,7 @@ function submitFree(){
       const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, sms_consent:state.smsConsent, town:state.town,
-        conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||''
+        conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
@@ -467,7 +489,7 @@ function payStep(){
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
-        availability:state.availability||'', qc_test:QC_TEST
+        availability:state.availability||'', qc_test:QC_TEST, language:LANG
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
@@ -530,6 +552,8 @@ function startContext(ctx){
   FLOW.appendChild(chg);
 }
 const CTX = getCtx();
+// In-language welcome banner (English passes through with no banner).
+if(TR_LANGS[LANG] && WELCOME[LANG]){ _antMsg(WELCOME[LANG]); }
 if(CTX.appliance){ startContext(CTX); } else { start(); }
 </script>
 </body>
