@@ -1,5 +1,38 @@
 # Appliance Ant
 
+## 🚀 2026-06-20 (EVENING) — CUSTOMER SMS WENT LIVE + WEB PUSH + IN-APP MESSAGING + PARTS-API IN MOTION (READ FIRST)
+
+Marathon day. Morning = multilingual + SEO + spam fixes (section below). Afternoon/evening shipped the in-app comms stack, universal notifications, the customer-SMS go-live, and locked the parts drop-ship plan. ~25 PRs merged. **Operational state changed materially — read this before touching SMS, the loop, or parts.**
+
+### 🟢 CUSTOMER-FACING SMS IS NOW ON (the big go-live)
+- Flipped `customer_facing_enabled = true` via `toggle_customer_sms_gate` (was OFF for months). **Ant now texts new customers + auto-replies to inbound.** Teddy did this nervously but deliberately.
+- **FORWARD-ONLY guards protect the backlog (absolute):** new-job outreach (greeting/availability/pre-diag) only fires for jobs created ≥ `config.customerOutreachSinceMs` (default **2026-06-20 00:00 CT**, env `CUSTOMER_OUTREACH_SINCE_MS`). Two layers: `job_created.js` skips backlog (fetches `created_at`), AND `sms.toCustomer` drops backlog outreach actions (`new_job_greeting`/`availability_*`/`resume_nudge`). **Reminders + confirmations are EXEMPT** (Teddy: "reminders are fine") — they flow for everyone.
+- The availability cascade (job_created greeting → +2h nudge → +5h call → `sms_response_availability` parses AVAIL/UNAVAIL → `customer_preference_text`) + the inbound auto-reply pipeline (`customer-sms-inbound` → classify → Claude reply → send, translated) are LIVE. This is the strategy: new jobs auto-collect availability+pre-diag to feed the (still-dark) self-scheduling autopilot. **Kill switch: `toggle_customer_sms_gate {enabled:false}` or the Office Today gate pill.**
+
+### 💬 IN-APP COMMS + 🔔 UNIVERSAL NOTIFICATIONS (the "techs ignore texts" fix)
+- **2-way Messages** tech⇄office: tech dashboard inbox is always-visible + reply box; `office-messages.html` shows tech replies + "📣 Message all techs" broadcast + one-tap reply.
+- **Ant posts into the inbox** now (`sms.toTech` → `xano.postTechInbox` via `send_office_to_tech_message`, no SMS) — incl. the weekend/digest-muted messages that used to vanish. Gated `TECH_INBOX_ENABLED` (default on).
+- **Read receipts** — office sees ✓ Read/Unread per tech (`tech_read_receipt` event); **Clear-read + auto-tidy** (read msgs >3d hidden) so it's not an endless scroll.
+- **🌐 WEB PUSH IS LIVE (the universal win):** covers ALL devices (3 iPhone + 3 Android + Teddy's Mac + Danielle's Windows) — no native app, no app store, $0. Auto-generates+vaults its own VAPID keys (`web-push-keys`/`web-push-register`/`web-push-send` + `ant-webpush.js` + `sw-tech.js` push handlers). "🔔 Turn on notifications" button on tech dashboard + office-messages. Loop fires web push from `toTech`/`toDanielle`/`toOwner`. **Tested working on Teddy's Mac + iPhone.** iPhones must Add-to-Home-Screen first (Apple rule). Each person taps the button once.
+- **Native app**: Capacitor wrapper scaffolded (`mobile/`) + `register-push-token`/`send-push` (FCM v1 + APNs) ready-but-dark — only needed if Teddy ever wants store presence; **web push made the native app non-urgent.** `docs/native-app-setup.md`.
+- Fixed: the **"Missing tech_id" dead-end** (all tech pages now fall back to saved `tn_tech_id`) + the **install-trap** (detect in-app browser, tell them to open in Safari/Chrome; Android 1-tap install).
+
+### 📦 PARTS DROP-SHIP — model LOCKED + Amazon API request submitted
+- **Spec doc `docs/parts-dropship-model-2026-06-20.md` is canonical.** All 4 cash-TDR options (diy/install × oem/amazon) **drop-ship to the customer**: customer pays US (marked-up + $15 ship), supplier (Marcone/Amazon) ships to their door, we keep the spread, never touch the part. Pipeline is ~90% built (pick → pay → `parts_orders` row, supplier-tagged, ship-to-customer addr, status `to_order` → To-Order board). **GAP = auto-placing the order.**
+- **END GOAL = full API automation** (Teddy's call). **Amazon Business Ordering API** is real + does ship-to-customer; scaffold `amazon-business-order.js` ready. **Teddy SUBMITTED the Amazon Business Ordering-API access request 2026-06-20** (reply by email ~few days). When credentials arrive → vault → flip live. Fallbacks: browser-bot (`amazon-order.js`) or distributor API. NOT affiliate.
+
+### 🌐 SEO maxed (organic free-leads push)
+- **IndexNow live** (auto-VAPID-style: all 1,272 sitemap URLs pushed to Bing/Yandex/Copilot; key file at root). **All broken internal links fixed** (the GSC 404s — `/areas`, `/services`, 8 never-built category hubs). **2 new hub pages** (`dishwasher-repair`, `oven-repair` = "Oven & Range") for high-volume terms. **De-orphaned** 12 pages. Titles/descriptions/canonicals/noindex clean. **Language strip** on homepage → /es/ /vi/ /ar/ /hi/ /fr/.
+- Teddy's GSC is dialed in: one clean `sitemap.xml` (1,272), Request-Indexing done. `og-image.jpg` still the one missing asset (clean unwatermarked logo).
+
+### ⏭️ PENDING / NEXT (for the next session)
+- **Watch the go-live**: pull overnight customer messages, review Ant's auto-replies, tune wording. Confirm forward-only guard held (no backlog texts).
+- **Get the crew subscribed to web push** (each taps 🔔 once; iPhones add-to-home-screen first).
+- **Amazon Ordering API**: when the email lands → credentials to vault → flip `amazon-business-order.js` live (then Marcone auto-place same pattern). This is the top parts build.
+- **Self-scheduling autopilot is BUILT but DARK** — do NOT turn on `TECH_OFFER_ENABLED` yet; collect availability first (this week), then shadow, then live. The escalate-sweep (v1.1) is NOT built (and may be moot until there are multiple techs/cluster).
+- **`tnappliancerepair.com`** = HCP's free Duda site, domain registered via **Amazon Registrar (expires 2026-10-18)** — Teddy to ask HCP to take down the site + transfer/redirect the domain to `tnapplianceexchange.net` (don't let it lapse; great keyword domain).
+- **Owner lens deeper** (cockpit joins job threads), parts Marcone auto-place — when ready.
+
 ## 🌐 2026-06-20 — MULTILINGUAL PHONE + INTAKE LIVE, owner-spam fixed, Privacy.html dedup (READ FIRST)
 
 - **📞 MULTILINGUAL PHONE IS LIVE on Ant Inbound** (assistant `7cc98b0c-54a7-4d19-bd48-6dfac606e55d`). Transcriber upgraded Deepgram `nova-2-phonecall`/`en-US` → **`nova-3`/`language: multi`** (auto-detect code-switching; AssemblyAI-en fallback preserved; nova-3 uses `keyterm` not `keywords` so the warranty-keywords array is dropped on `multi`). Voice already Cartesia **`sonic-2`** (multilingual, untouched). A **"answer the caller in THEIR language"** prompt block added (idempotent, wrapped in `<!-- ML-START -->…<!-- ML-END -->`). **Phone fully supports EN · ES · FR · HI** (nova-3 multilingual set also covers DE/IT/JA/NL/RU/PT as a free safety-net — do NOT advertise those). **Vietnamese + Arabic are NOT in ANY real-time code-switch STT** → those communities are served by the in-language web intake (`/vi/`, `/ar/`) + the SMS translation bridge, NOT the auto-detect phone line (a dedicated VI/AR locked-language number is the only phone path, if ever wanted). **One-command control via `vapi-admin` `lang` action:** read-only dump = `…/vapi-admin?secret=tn-vapi-admin-9f83b1c4e7a206d5&action=lang`; enable = `&apply=multi` (nova-3 multi); **instant revert** = `&apply=english` (restores the EXACT original `nova-2-phonecall`/`en-US` incl. keywords; removes the block; nothing else touched). **NEXT: pull the first real non-English call transcript via `&action=lastcall` to verify Deepgram heard it + Ant replied in-language; if pronunciation is rough, the fix is a voice tweak (drop `voice.language:en` or lean on the 11labs `eleven_multilingual_v2` fallback).**
