@@ -122,6 +122,25 @@ async function postJSON(url, body) {
   return data;
 }
 
+// Drop a message into a tech's in-app Messages inbox (the tech_messages table
+// the dashboard reads via get_tech_inbox). Reuses the deployed
+// send_office_to_tech_message endpoint — it only writes the row, it does NOT
+// send an SMS, so this never adds a text. sender_name carries "Ant 🐜" so the
+// tech sees who it's from.
+export async function postTechInbox(techId, body, opts = {}) {
+  const id = Number(techId) || 0;
+  const text = String(body || '').trim();
+  if (!id || !text) return { success: false, error: 'tech_id_and_body_required' };
+  return postJSON(`${config.xanoIntakeBase}/send_office_to_tech_message`, {
+    tech_id: id,
+    office_password: config.officePassword,
+    body: text,
+    sender_name: opts.senderName || 'Ant 🐜',
+    subject: opts.subject || '',
+    related_job_id: Number(opts.jobId) || 0,
+  });
+}
+
 async function getJSON(url) {
   const res = await fetchWithRetry(url, { method: 'GET' });
   const txt = await res.text();

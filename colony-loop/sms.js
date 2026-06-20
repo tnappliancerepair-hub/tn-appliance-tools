@@ -191,6 +191,20 @@ function isWeekendCT(d = new Date()) {
   return wd === 'Sat' || wd === 'Sun';
 }
 
+// Drop a tech notification into the in-app Messages inbox. Best-effort + never
+// throws — an inbox hiccup must never block the SMS path. Needs a tech_id in
+// context (most agents pass it); skips owner-as-tech (he has the cockpit).
+async function mirrorToInbox(context, body) {
+  if (!config.techInboxEnabled) return;
+  const techId = Number(context && context.tech_id) || 0;
+  if (!techId || techId === 1) return;
+  try {
+    await xano.postTechInbox(techId, body, { senderName: 'Ant 🐜', jobId: Number(context && context.job_id) || 0 });
+  } catch (e) {
+    xano.logLocal('tech_inbox_mirror_failed', { tech_id: techId, err: String(e.message || e) });
+  }
+}
+
 export async function toTech(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
@@ -200,14 +214,16 @@ export async function toTech(phone, body, context = {}) {
   const isOwnerAsTech = (e164 === config.ownerPhone) || (Number(context.tech_id) === 1);
 
   // Weekend hard-mute (field techs only). No force_send escape — Teddy asked
-  // for ALL texts silenced Sat/Sun.
+  // for ALL texts silenced Sat/Sun. BUT it still lands in the in-app inbox, so
+  // the tech sees it without a weekend text (previously it just vanished).
   if (isWeekendCT() && !isOwnerAsTech) {
+    await mirrorToInbox(context, body);
     xano.logLocal('tech_sms_quieted_weekend', {
       action,
       body_preview: String(body || '').slice(0, 240),
       tech_id: context.tech_id || null,
     });
-    return { success: false, quieted: true, weekend: true, action };
+    return { success: false, quieted: true, weekend: true, action, in_app: true };
   }
 
   // Owner-as-tech inherits the broader owner denylist (everything in
@@ -221,16 +237,20 @@ export async function toTech(phone, body, context = {}) {
     return { success: false, quieted: true, action };
   }
 
-  // Everyone else: tech-specific denylist (digests + reminders go to
-  // dashboard, not phone).
+  // Everyone else: tech-specific denylist (digests + reminders). These now go to
+  // the in-app inbox instead of vanishing — the tech sees them, no text.
   if (!context.force_send && isQuietedForTech(action)) {
+    await mirrorToInbox(context, body);
     xano.logLocal('tech_sms_quieted', {
       action,
       body_preview: String(body || '').slice(0, 240),
       tech_id: context.tech_id || null,
     });
-    return { success: false, quieted: true, action };
+    return { success: false, quieted: true, action, in_app: true };
   }
+  // Sent by SMS AND mirrored into the in-app inbox (so the app has everything;
+  // when techs live in the app, flip TECH_INAPP_ONLY-style suppression later).
+  await mirrorToInbox(context, body);
   return dispatchSms(e164, body, {
     ...context, recipient_role: 'tech', company_id: config.companyId,
   });
