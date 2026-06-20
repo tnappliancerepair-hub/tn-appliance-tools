@@ -93,8 +93,8 @@
 <div class="auth" id="auth">
   <div class="auth-card">
     <h2>🐜 Money</h2>
-    <div class="sub">enter office password</div>
-    <input id="pw" type="password" autocomplete="current-password">
+    <div class="sub">Owner only · enter your PIN</div>
+    <input id="pw" type="tel" inputmode="numeric" maxlength="6" autocomplete="off">
     <button onclick="submitAuth()">Open</button>
     <div class="err" id="auth-err"></div>
   </div>
@@ -141,27 +141,35 @@
 
 <script>
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const OFFICE_AUTH_KEY='tn_office_auth_v1';
+const OWNER_TECH_ID=1; // Money is owner-only (Teddy's tech PIN), not the office password
 const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 let cur=null; // {year,month,half}
 let lastData=null,lastPr=null,activeTab='payroll';
 const TECH_REGION={1:'TN',2:'TN',4:'TN',3:'LA',5:'LA',6:'LA'};
 
-function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1';}
-function initAuth(){
-  if(authValid()){document.getElementById('auth').classList.add('hidden');startPeriod();load();return;}
-  document.getElementById('pw').focus();
-}
-async function submitAuth(){
-  const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
-  if(!v){err.textContent='Enter password';return;}
+// Owner-only PIN gate (Teddy's tech PIN, technician_id 1) — NOT the office
+// password, so Danielle/office can't open the books. PIN held in sessionStorage
+// (clears when the browser closes).
+async function verifyPin(pin,silent){
+  const err=document.getElementById('auth-err');
+  pin=String(pin||'').replace(/\D/g,'');
+  if(pin.length<4){ if(!silent)err.textContent='Enter your PIN'; return; }
+  if(!silent)err.textContent='Verifying…';
   try{
-    const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+    const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:OWNER_TECH_ID,pin:pin})});
     const d=await r.json();
-    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');document.getElementById('auth').classList.add('hidden');startPeriod();load();}
-    else{err.textContent='Wrong password.';}
+    if(d&&d.success===true&&Number(d.technician_id)===OWNER_TECH_ID){
+      sessionStorage.setItem('tn_owner_pin',pin);
+      document.getElementById('auth').classList.add('hidden');startPeriod();load();
+    }else{ sessionStorage.removeItem('tn_owner_pin'); err.textContent='Wrong PIN.'; document.getElementById('pw').value=''; }
   }catch(_){err.textContent='Connection error.';}
 }
+function initAuth(){
+  const saved=sessionStorage.getItem('tn_owner_pin');
+  if(saved){ verifyPin(saved,true); return; }
+  document.getElementById('pw').focus();
+}
+function submitAuth(){ verifyPin(document.getElementById('pw').value,false); }
 document.getElementById('pw').addEventListener('keypress',e=>{if(e.key==='Enter')submitAuth();});
 
 // Semi-monthly periods: half 0 = 1st-15th (paid the 18th), half 1 = 16th-end (paid the 3rd next month)
