@@ -67,6 +67,15 @@ hurts ranking. Clean these up before submitting anything new:
       Update to service-area + confirm 615.
 - [ ] **Fix Yahoo/Facebook/any other listing** showing the old address or wrong
       name to match the locked NAP.
+- [x] **Disconnect HCP "Book Online" from Google** ✅ DONE 2026-06-20. The Google
+      "Book Online" button was provider-supplied by Housecall Pro via *Reserve
+      with Google* — Google's own "Remove" just bounced back to HCP. Real fix was
+      on the HCP side: **HCP → gear → Settings → Booking → Reserve with Google →
+      toggle OFF "Show 'Book Online'"**. Takes up to 24h to drop from Search/Maps.
+      - [ ] **FOLLOW-UP (check ~2026-06-21):** once the HCP button clears, add OUR
+            own booking link in **GBP → Edit profile → Bookings**:
+            `https://tnapplianceexchange.net/appliance-ai.html` — routes customers
+            into Ant to self-intake + get set up, instead of HCP.
 
 ---
 
