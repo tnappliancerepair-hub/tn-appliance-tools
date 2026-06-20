@@ -514,5 +514,62 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Add the send_quickcheck_link tool + a price-shopper deflection block to the
+  // prompt. Idempotent + additive: preserves every existing tool and the entire
+  // existing prompt; only appends what's missing. Reversible (remove the marked
+  // section + the tool). (2026-06-20)
+  if (action === 'addquickcheck') {
+    const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+
+    // 1) tool
+    let addedTool = false;
+    if (!tools.some((t) => tname(t) === 'send_quickcheck_link')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'send_quickcheck_link',
+          description: "Text the caller the $50 Quick Check link. Use ONLY when the caller is paying OUT OF POCKET (not warranty/AHS/ServicePower) and is asking for a price, quote, ballpark, or how much a repair costs. Get their cell number first, then call this. After it runs, tell them what it says back.",
+          parameters: { type: 'object', properties: { phone: { type: 'string', description: "the caller's cell number" }, name: { type: 'string', description: "caller's first name (optional)" } }, required: ['phone'] },
+        },
+        server: { url: PROXY },
+      });
+      addedTool = true;
+    }
+
+    // 2) prompt deflection block (idempotent via marker)
+    const MARK = '## Out-of-pocket price-shoppers — route to the $50 Quick Check';
+    const BLOCK = '\n\n' + MARK + '\n' + [
+      'If a caller is paying OUT OF POCKET (not a warranty / AHS / ServicePower customer) and asks for a price, a quote, a "ballpark," or "how much" a repair costs, do NOT quote a number — we cannot price a repair sight-unseen, and a phone guess just burns the customer.',
+      'Instead, route them to our $50 Quick Check: they send a quick video of the problem and a photo of the model sticker, a real tech gives them an honest diagnosis and their exact options within about two business hours, and the $50 is credited to their repair (most shops charge $125 just to show up).',
+      'Ask for their cell number, then call the send_quickcheck_link tool with their phone (and first name if you have it) to TEXT them the link, and tell them what the tool says back.',
+      'If they keep pushing for a number, gently repeat that the Quick Check is exactly how they get an accurate one. If they will not commit, stay friendly, mention they can start it at tnapplianceexchange.net, and do not drag the call out.',
+      'NEVER send a warranty / AHS / ServicePower caller to the Quick Check — handle those normally.',
+    ].join(' ');
+    let addedPrompt = false;
+    const i = msgs.findIndex((m) => m.role === 'system');
+    if (i >= 0 && !String(msgs[i].content || '').includes(MARK)) {
+      msgs[i] = Object.assign({}, msgs[i], { content: String(msgs[i].content || '') + BLOCK });
+      addedPrompt = true;
+    }
+
+    if (q.dryrun === '1') {
+      return { statusCode: 200, body: JSON.stringify({ ok: true, dryrun: true, would_add_tool: addedTool, would_add_prompt: addedPrompt, current_tool_count: (model.tools || []).length }, null, 2) };
+    }
+
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vModel = (verify.json && verify.json.model) || {};
+    const vTools = (vModel.tools || []).map((t) => tname(t) || t.type);
+    const vSys = (vModel.messages || []).find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status,
+      addedTool, addedPrompt,
+      tool_present: vTools.includes('send_quickcheck_link'),
+      prompt_has_block: /Out-of-pocket price-shoppers/.test((vSys && vSys.content) || ''),
+      tool_count: vTools.length, now_tools: vTools,
+    }, null, 2) };
+  }
+
   return { statusCode: 400, body: 'unknown action' };
 };
