@@ -152,20 +152,22 @@ export async function toCustomer(phone, body, context = {}) {
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
   }
-  // FORWARD-ONLY safety net: the backlog never gets ANY automated customer text.
-  // Every customer-direction SMS for a job created before the cutoff is dropped —
-  // greeting, availability, confirmation, reminder, all of it. New jobs from today
-  // forward flow normally. Only applies when a job_id is in context.
-  if (config.customerOutreachSinceMs > 0 && context && context.job_id) {
+  // FORWARD-ONLY for the NEW-JOB OUTREACH only (greeting/availability/pre-diag).
+  // The backlog never gets those. Reminders + confirmations are exempt — they
+  // flow for everyone (Teddy: "reminders are fine"). The job_created agent also
+  // guards this, so this is belt-and-suspenders for the outreach path only.
+  const OUTREACH_ACTIONS = ['new_job_greeting', 'availability_nudge', 'availability_request', 'resume_nudge'];
+  const _act = String((context && (context.action || context.outcome)) || '');
+  if (config.customerOutreachSinceMs > 0 && context && context.job_id && OUTREACH_ACTIONS.includes(_act)) {
     try {
       const jd = await xano.getJobForDashboard(Number(context.job_id));
       const c = jd && jd.job && jd.job.created_at;
       const createdMs = (typeof c === 'number') ? c : (Date.parse(c) || Number(c) || 0);
       if (createdMs && createdMs < config.customerOutreachSinceMs) {
-        xano.logLocal('customer_sms_skipped_backlog', { job_id: context.job_id, action: context.action || context.outcome || '' });
+        xano.logLocal('customer_outreach_skipped_backlog', { job_id: context.job_id, action: _act });
         return { success: false, skipped_backlog: true, job_id: context.job_id };
       }
-    } catch (_) { /* lookup failed → fall through and send (greeting dedup still guards the main path) */ }
+    } catch (_) { /* lookup failed → fall through (greeting dedup + job_created guard still protect) */ }
   }
   return dispatchSms(e164, body, {
     ...context, recipient_role: 'customer', company_id: config.companyId,
