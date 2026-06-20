@@ -53,6 +53,7 @@
   <div class="sub">Every customer text in one place — newest first. 🔴 = they wrote last and need a reply.</div>
   <div class="summary" id="summary">Loading…</div>
   <div id="techMsgs"></div>
+  <div id="sentToTechs"></div>
   <div id="list"></div>
   <div class="refresh" id="refresh">—</div>
 
@@ -199,8 +200,23 @@ if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw-tech.js'
     };
   });
 })();
-load(); loadTechMsgs();
-setInterval(()=>{load();loadTechMsgs();},30000);
+// Read receipts: messages sent to techs + ✓ Read / ⏳ Unread
+const TECH_NAMES={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+async function loadSentToTechs(){
+  let msgs=[];
+  try{ const r=await fetch('/.netlify/functions/tech-message?sent_to_techs=1',{cache:'no-store'}); const d=await r.json(); msgs=(d&&d.messages)||[]; }catch(_){ return; }
+  const host=document.getElementById('sentToTechs'); if(!host) return;
+  if(!msgs.length){ host.innerHTML=''; return; }
+  host.innerHTML='<div style="font-size:13px;font-weight:800;color:#9db4d6;margin:10px 0 8px">📨 Sent to techs · read receipts</div>'+
+    msgs.slice(0,15).map(function(m){
+      var who=TECH_NAMES[m.tech_id]||('Tech '+m.tech_id);
+      var status=m.read?('<span style="color:#5fe0a0;font-weight:700">✓ Read '+rel(m.read_at)+'</span>'):'<span style="color:#ff8c61;font-weight:700">⏳ Unread</span>';
+      var snip=m.body?(' — '+esc(String(m.body).slice(0,80))):'';
+      return '<div style="background:#161c26;border:1px solid #2a3040;border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:13px"><b>'+esc(who)+'</b> · '+status+'<div style="color:#8a93aa;margin-top:3px">from '+esc(m.sender_name||'Office')+esc(snip)+'</div></div>';
+    }).join('');
+}
+load(); loadTechMsgs(); loadSentToTechs();
+setInterval(()=>{load();loadTechMsgs();loadSentToTechs();},30000);
 </script>
 </body>
 </html>

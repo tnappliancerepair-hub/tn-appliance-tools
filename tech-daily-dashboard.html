@@ -838,6 +838,16 @@
     const host = document.getElementById('inboxHost');
     if (!host) return;
     const msgs = d.messages || [];
+    // Housekeeping: hide messages the tech cleared, + auto-tidy read ones >3 days old.
+    const DISMISS_KEY = `tn_inbox_dismissed_${TECH_ID}`;
+    let dismissed; try { dismissed = new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]')); } catch (_) { dismissed = new Set(); }
+    const THREE_DAYS = 3 * 24 * 3600 * 1000;
+    const visible = msgs.filter(m => {
+      if (dismissed.has(String(m.id))) return false;
+      if (m.read_at && m.created_at && (Date.now() - new Date(m.created_at).getTime()) > THREE_DAYS) return false;
+      return true;
+    });
+    const anyRead = visible.some(m => m.read_at);
     // Always visible (never hide) — the whole point is techs stop ignoring it.
     host.style.display = 'block';
     const unreadCount = d.unread_count || 0;
@@ -850,6 +860,7 @@
           <span style="font-size:14px">💬</span>
           <span style="font-weight:700">MESSAGES</span>
           ${unreadBadge}
+          ${anyRead ? '<button id="clearReadBtn" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:7px;padding:3px 9px;font-size:10px;cursor:pointer">Clear read</button>' : ''}
         </div>
         <div id="inboxList"></div>
         <button id="notifBtn" style="display:none;width:100%;margin-top:10px;background:rgba(255,107,53,0.14);color:#ff8c61;border:1px solid rgba(255,107,53,0.4);border-radius:8px;padding:11px;font-weight:800;font-size:14px;cursor:pointer">🔔 Turn on notifications</button>
@@ -861,10 +872,10 @@
       </div>
     `;
     const list = document.getElementById('inboxList');
-    if (!msgs.length) {
+    if (!visible.length) {
       list.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:6px 2px">No messages yet — anything the office or Ant sends you shows up here. You can message the office below.</div>`;
     } else
-    list.innerHTML = msgs.map(m => {
+    list.innerHTML = visible.map(m => {
       const isUnread = !m.read_at;
       const senderRole = m.sender_role || 'office';
       const senderIcon = senderRole === 'system' ? '🐜' : senderRole === 'customer' ? '👤' : '🏢';
@@ -897,6 +908,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tech_id: parseInt(TECH_ID, 10), pin, message_id: msgId })
           });
+          // Read receipt → the office sees ✓ Read.
+          fetch('/.netlify/functions/tech-message', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'read_receipt', tech_id: parseInt(TECH_ID, 10), message_id: msgId }) }).catch(() => {});
           card.dataset.read = 'true';
           card.style.background = 'rgba(255,255,255,0.03)';
           card.style.borderColor = 'rgba(255,255,255,0.08)';
@@ -935,6 +949,16 @@
     }
     if (rsend) rsend.addEventListener('click', sendReply);
     if (rbox) rbox.addEventListener('keypress', e => { if (e.key === 'Enter') sendReply(); });
+    // Clear read: dismiss all currently-read messages from this device.
+    const clr = document.getElementById('clearReadBtn');
+    if (clr) clr.onclick = () => {
+      try {
+        const set = new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]'));
+        visible.forEach(m => { if (m.read_at) set.add(String(m.id)); });
+        localStorage.setItem(DISMISS_KEY, JSON.stringify([...set]));
+      } catch (_) {}
+      loadInbox();
+    };
     // Notifications: show the button unless already on.
     const nbtn = document.getElementById('notifBtn');
     if (nbtn && window.AntPush) {
