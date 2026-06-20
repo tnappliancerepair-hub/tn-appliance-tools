@@ -1,0 +1,23 @@
+{
+  "appId": "com.tnappliance.antfield",
+  "appName": "Ant Field",
+  "webDir": "www",
+  "server": {
+    "url": "https://tnapplianceexchange.net/tech.html",
+    "cleartext": false,
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0b0d10"
+  },
+  "android": {
+    "backgroundColor": "#0b0d10"
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}
