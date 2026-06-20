@@ -27,6 +27,17 @@ exports.handler = async function (event) {
         const out = rows.map((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; return { id: r.id, technician_id: Number(m.technician_id) || 0, tech_name: m.tech_name || 'Tech', body: m.body || '', related_job_id: m.related_job_id || null, at_ms: m.at_ms || r.created_at || 0 }; });
         return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, messages: out }) };
       }
+      // Office view: messages sent TO techs + read receipts (✓ Read / Unread).
+      if (q.sent_to_techs) {
+        const [sent, receipts] = await Promise.all([
+          crud.searchPage(EVENT_LOG, { action: 'office_to_tech_message_sent' }, { created_at: 'desc' }, 80),
+          crud.searchPage(EVENT_LOG, { action: 'tech_read_receipt' }, { created_at: 'desc' }, 300),
+        ]);
+        const readAt = {};
+        for (const r of receipts) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } if (m && m.message_id != null && !readAt[m.message_id]) readAt[m.message_id] = m.at_ms || r.created_at || 0; }
+        const out = sent.map((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; const mid = m.message_id; return { message_id: mid, tech_id: Number(m.tech_id) || 0, sender_name: m.sender_name || 'Office', body: m.body || m.body_preview || '', at_ms: m.at_ms || r.created_at || 0, read: !!readAt[mid], read_at: readAt[mid] || 0 }; });
+        return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, messages: out }) };
+      }
       const techId = parseInt(q.technician_id, 10);
       if (!techId) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'technician_id required' }) };
       const [msgs, reads] = await Promise.all([
@@ -51,6 +62,13 @@ exports.handler = async function (event) {
     if (b.action === 'read') {
       await crud.logEvent('tech_message_read', { message_id: b.message_id, at_ms: Date.now() });
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, read: b.message_id }) };
+    }
+
+    // Read receipt — a tech opened an office/Ant message. Surfaced to the office
+    // (?sent_to_techs) as ✓ Read / Unread so you can see who's reading.
+    if (b.action === 'read_receipt') {
+      await crud.logEvent('tech_read_receipt', { message_id: b.message_id, tech_id: parseInt(b.tech_id, 10) || 0, at_ms: Date.now() });
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
     }
 
     // Tech replies to the office from inside the app (in-app, NOT SMS). Lands in
