@@ -504,19 +504,33 @@ exports.handler = async function (event) {
     if (sysIdx >= 0) msgs[sysIdx] = Object.assign({}, msgs[sysIdx], { content: newSys });
     else msgs.unshift({ role: 'system', content: newSys });
 
-    // Transcriber: multi = Deepgram nova-2 multilingual code-switching (strong on
-    // English + Spanish); english = lock back to English. Voice (Cartesia) is
-    // sonic-2 multilingual already, so it can SPEAK the other languages — we leave
-    // the voiceId untouched and only ensure the multilingual model on 'multi'.
-    let newTranscriber = f.transcriber || { provider: 'deepgram', model: 'nova-2' };
+    // Transcriber:
+    //   multi    = Deepgram NOVA-3 multilingual code-switching — auto-detects
+    //              English, Spanish, French, Hindi (+ DE/IT/JA/NL/RU/PT). Lower WER
+    //              than nova-2 on English+Spanish too. (Vietnamese + Arabic are NOT
+    //              in any code-switch model — those communities use the in-language
+    //              web intake + SMS translation bridge, not the auto-detect line.)
+    //              nova-3 uses 'keyterm' not 'keywords', so we drop the keywords
+    //              array to avoid a param mismatch.
+    //   english  = restore the EXACT original phone-tuned English transcriber.
+    // Voice (Cartesia sonic-2) is already multilingual — left untouched.
+    const ORIGINAL_EN = {
+      provider: 'deepgram', model: 'nova-2-phonecall', language: 'en-US', smartFormat: true,
+      keywords: ['AHS:2','ServicePower:2','Frontdoor:2','SquareTrade:2','Allstate:2','claim:2','dispatch:2','warranty:2','homeowner','Antioch','Nashville:2','Hammond','Walker','Whirlpool','Kenmore','fridge:2','dryer:2','washer:2','dishwasher:2','Vapi'],
+      fallbackPlan: { transcribers: [{ language: 'en', provider: 'assembly-ai', formatTurns: true, disablePartialTranscripts: false }] },
+    };
+    let newTranscriber = f.transcriber || ORIGINAL_EN;
     let newVoice = f.voice || null;
     if (apply === 'multi') {
-      newTranscriber = Object.assign({}, newTranscriber, { provider: 'deepgram', model: 'nova-2', language: 'multi' });
+      newTranscriber = {
+        provider: 'deepgram', model: 'nova-3', language: 'multi', smartFormat: true,
+        fallbackPlan: { transcribers: [{ language: 'en', provider: 'assembly-ai', formatTurns: true, disablePartialTranscripts: false }] },
+      };
       if (newVoice && /cartesia/i.test(newVoice.provider || '') && newVoice.model && !/sonic-2|multilingual/i.test(newVoice.model)) {
         newVoice = Object.assign({}, newVoice, { model: 'sonic-2' });
       }
     } else if (apply === 'english') {
-      newTranscriber = Object.assign({}, newTranscriber, { provider: 'deepgram', model: 'nova-2', language: 'en' });
+      newTranscriber = ORIGINAL_EN;
     }
 
     const patchBody = { model: Object.assign({}, model, { messages: msgs }), transcriber: newTranscriber };
