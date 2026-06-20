@@ -70,6 +70,14 @@ export const config = Object.freeze({
   // would set COMPANY_ID env. Most agents read this when querying
   // company-scoped data.
   companyId: Number(process.env.COMPANY_ID) || 1,
+  // Office password the loop uses to write a tech's in-app inbox
+  // (send_office_to_tech_message). Matches the XS default.
+  officePassword: process.env.OFFICE_PASSWORD || 'antlives',
+  // When true (default), every tech notification is ALSO dropped into the tech's
+  // in-app Messages inbox — including the ones muted from SMS (weekend + digests)
+  // that previously just vanished. Set TECH_INBOX_ENABLED=false to disable. This
+  // is the move that fills the in-app inbox so SMS can retire.
+  techInboxEnabled: String(process.env.TECH_INBOX_ENABLED || 'true') !== 'false',
   // Auto-booking kill-switch. When 'true', try_auto_schedule's
   // green-light path will actually book the job (tech + slot derived
   // from zip + parts_eta_date) instead of just sending Teddy three
