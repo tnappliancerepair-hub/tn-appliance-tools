@@ -852,6 +852,7 @@
           ${unreadBadge}
         </div>
         <div id="inboxList"></div>
+        <button id="notifBtn" style="display:none;width:100%;margin-top:10px;background:rgba(255,107,53,0.14);color:#ff8c61;border:1px solid rgba(255,107,53,0.4);border-radius:8px;padding:11px;font-weight:800;font-size:14px;cursor:pointer">🔔 Turn on notifications</button>
         <div style="display:flex;gap:8px;margin-top:10px">
           <input id="replyBox" placeholder="Message the office…" autocomplete="off"
             style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px">
@@ -934,6 +935,21 @@
     }
     if (rsend) rsend.addEventListener('click', sendReply);
     if (rbox) rbox.addEventListener('keypress', e => { if (e.key === 'Enter') sendReply(); });
+    // Notifications: show the button unless already on.
+    const nbtn = document.getElementById('notifBtn');
+    if (nbtn && window.AntPush) {
+      AntPush.status().then(st => {
+        if (st === 'on' || st === 'unsupported') { nbtn.style.display = 'none'; return; }
+        nbtn.style.display = 'block';
+        if (st === 'blocked') { nbtn.textContent = '🔔 Notifications are blocked — tap to fix'; }
+        nbtn.onclick = async () => {
+          nbtn.disabled = true; nbtn.textContent = '…';
+          const ok = await AntPush.enable('tech', parseInt(TECH_ID, 10));
+          if (ok) { nbtn.textContent = '✅ Notifications on'; setTimeout(() => { nbtn.style.display = 'none'; }, 1500); }
+          else { nbtn.disabled = false; nbtn.textContent = '🔔 Turn on notifications'; }
+        };
+      });
+    }
   }
 
   // ── Data load ──────────────────────────────────────────────────
@@ -1452,5 +1468,6 @@
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/ant-shell.js?v=20260612-1" defer></script>
 <script src="/ant-push.js" defer></script>
+<script src="/ant-webpush.js"></script>
 </body>
 </html>
