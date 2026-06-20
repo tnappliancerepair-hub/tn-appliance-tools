@@ -60,6 +60,17 @@ export async function run(signal, ctx) {
     return { success: true, action: 'already_captured' };
   }
 
+  // 2026-06-20 — per-job dedup. This agent was firing the owner-fallback on EVERY
+  // re-emit (hold-and-re-emit + duplicate signals) → Teddy got "the same 4 texts
+  // 4 times each." A one-time marker per job makes any re-fire a no-op.
+  const already = await xano.getEventLogByAction(`availability_chase_done_${jobId}`).catch(() => null);
+  if (already && already.exists) {
+    const meta = { job_id: jobId, outcome: 'already_chased' };
+    await xano.markSignalProcessed(signal.id, 'availability_call_due_handled', meta);
+    log('availability_call_due_handled', meta);
+    return { success: true, action: 'already_chased' };
+  }
+
   const phone = String(p.customer_phone || '').trim();
   const first = (String(p.first_name || '').trim().split(/\s+/)[0]) || 'there';
   const appliance = String(p.appliance_type || 'appliance').toLowerCase();
@@ -98,18 +109,26 @@ export async function run(signal, ctx) {
     }).catch((e) => ({ ok: false, error: String(e.message || e) }));
     outcome = (r && r.ok) ? 'vapi_call_placed' : 'vapi_call_failed';
   } else {
-    // Fallback: no assistant configured (or no phone) — ask the owner to call.
+    // Fallback: no assistant configured (or no phone). Per PR #125 owner SMS is
+    // CANCELED — save this to the owner portal (event_log 'owner_report') instead
+    // of texting Teddy's cell. He sees it on the dashboard; no phone spam.
     if (phone) {
-      await xano.sendSms(config.ownerPhone,
-        `[ant] need availability for job #${jobId} — ${first} (${appliance}) hasn't answered the text or portal. ` +
-        `Give ${phone} a quick call to get their open days/times so we can schedule.`,
-        { recipient_role: 'owner', action: 'availability_call_owner_fallback', job_id: jobId, company_id: config.companyId },
-      ).catch(() => {});
-      outcome = 'owner_alerted_to_call';
+      await xano.recordEventLog('owner_report', {
+        source: 'availability_call_owner_fallback',
+        body: `Need availability for job #${jobId} — ${first} (${appliance}) hasn't answered the text or portal. ` +
+              `Give ${phone} a quick call to get their open days/times so we can schedule.`,
+        recipient_role: 'owner',
+        job_id: jobId,
+        at_ms: Date.now(),
+      }).catch(() => {});
+      outcome = 'owner_report_saved';
     } else {
       outcome = 'no_phone';
     }
   }
+
+  // One-time per-job marker so any re-emit / duplicate signal no-ops (see dedup above).
+  await xano.recordEventLog(`availability_chase_done_${jobId}`, { job_id: jobId, outcome, at_ms: Date.now() }).catch(() => {});
 
   const meta = { job_id: jobId, outcome, region };
   await xano.markSignalProcessed(signal.id, 'availability_call_due_handled', meta);
