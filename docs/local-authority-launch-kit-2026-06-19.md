@@ -50,6 +50,20 @@ Other categories:  Refrigerator Repair Service, Washer & Dryer Repair Service,
 
 ---
 
+## ✅ TECHNICAL SEO STATUS (2026-06-20 — done on our side)
+
+The on-site technical work is complete; what moves rankings now is OFF-site (your actions below).
+
+- **Done (live):** 6-language pages wired into the homepage + directory; 12 orphan pages de-orphaned (7 tier-3 cities incl. Mt. Juliet/Nolensville + amana/electrolux brands + service-area/reviews/help); titles + meta descriptions polished; schema already strong (LocalBusiness/FAQPage/Breadcrumb sitewide); robots.txt + 1,272-URL sitemap healthy.
+- **IndexNow LIVE** — key file at site root (`<32hex>.txt`); all 1,272 URLs pushed to Bing/Yandex/DuckDuckGo/Copilot. Re-push new/changed URLs anytime via `POST https://api.indexnow.org/indexnow` with the key.
+- **⚑ YOUR highest-leverage off-site moves (in order):**
+  1. **Google Search Console** — URL-Inspect → Request Indexing for the 5 language pages (`/es/ /vi/ /ar/ /hi/ /fr/`); confirm `sitemap.xml` is submitted. *(Google ignores IndexNow — Search Console is the only Google nudge.)*
+  2. **Bing Webmaster Tools** — add the site + submit the sitemap (compounds the IndexNow pushes).
+  3. **GBP** — confirm French is checked (not the bonus languages); add the Ant booking link once HCP's button clears.
+  4. **Citations** (Tier 1–3 below) + **reviews flywheel** — the real ranking drivers.
+
+---
+
 ## 🧹 STEP 0 — FIX the broken existing listings FIRST (before adding any new ones)
 
 The audit found your current listings disagree with each other — that actively
