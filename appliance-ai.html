@@ -131,7 +131,7 @@
 <body>
   <div class="top">
     <div class="brand">TN APPLIANCE<span class="x">.</span></div>
-    <a class="ph" href="tel:+18662680111">📞 866-268-0111</a>
+    <a class="ph" href="tel:+16152802949">📞 615-280-2949</a>
   </div>
 
   <div class="stage">
@@ -408,8 +408,8 @@ function submitFree(){
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
-      else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 866-268-0111.')); }
-    }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 866-268-0111.'); }
+      else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
 }
 function payStep(){
@@ -448,8 +448,8 @@ function payStep(){
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
-      else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 866-268-0111.')); }
-    }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 866-268-0111.'); }
+      else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 615-280-2949.')); }
+    }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 615-280-2949.'); }
   };
 }
 function done(){

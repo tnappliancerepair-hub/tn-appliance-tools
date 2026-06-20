@@ -64,14 +64,14 @@
     <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to photograph the model sticker</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile"></label>
     <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
   </div>
-  <div class="footer">TN Appliance Exchange · <a href="tel:+18662680111">866-268-0111</a></div>
+  <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
 <script src="/ant-video-upload.js"></script>
 <script>
 if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.replace('://www.', '://')); }
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const jobId=parseInt(new URLSearchParams(location.search).get('job_id')||'0',10)||0;
-if(!jobId){ document.getElementById('head').textContent='Hmm —'; document.getElementById('msg').textContent='That link looks off. Text us at 866-268-0111 and we\'ll grab your video right away.'; document.getElementById('cap').classList.add('hidden'); }
+if(!jobId){ document.getElementById('head').textContent='Hmm —'; document.getElementById('msg').textContent='That link looks off. Text us at 615-280-2949 and we\'ll grab your video right away.'; document.getElementById('cap').classList.add('hidden'); }
 
 function fetchJSON(url, body, tries){ tries=tries||3; return (async()=>{ let last; for(let i=0;i<tries;i++){ try{ const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),25000); const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}); clearTimeout(to); return await r.json(); }catch(e){ last=e; await new Promise(s=>setTimeout(s,Math.min(1500*(i+1),5000))); } } throw last||new Error('network'); })(); }
 function putWithProgress(url, file, mime, onPct){ return new Promise((resolve,reject)=>{ const x=new XMLHttpRequest(); x.open('PUT',url,true); x.setRequestHeader('Content-Type',mime); x.timeout=180000; if(x.upload)x.upload.onprogress=e=>{ if(e.lengthComputable&&onPct)onPct(e.loaded/e.total); }; x.onload=()=>(x.status>=200&&x.status<300)?resolve(true):reject(new Error('s3 '+x.status)); x.onerror=()=>reject(new Error('network')); x.ontimeout=()=>reject(new Error('timeout')); try{x.send(file);}catch(e){reject(e);} }); }
@@ -91,7 +91,7 @@ async function uploadMedia(file, fileType, onStatus){
   }
   if(onStatus)onStatus('failed',maxTries,0); return {ok:false,error:lastErr};
 }
-function statusFn(bar,txt){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Uploaded — got it!';} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 866-268-0111.';} }; }
+function statusFn(bar,txt){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Uploaded — got it!';} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 615-280-2949.';} }; }
 function wire(fileId, btnId, progId, barId, statId, kind, label){
   const fi=document.getElementById(fileId);
   fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;

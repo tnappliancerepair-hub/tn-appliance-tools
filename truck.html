@@ -98,7 +98,7 @@
     <h3>You're on the list!</h3>
     <p>We just got your request — we'll text or call you shortly to lock in your day for the $50 quick check.</p>
     <div class="ctas">
-      <a class="call" href="tel:+18662680111">📞 Or call us now — (866) 268-0111</a>
+      <a class="call" href="tel:+16152802949">📞 Or call us now — (615) 280-2949</a>
       <a class="alt" id="textBtn" href="#">💬 Text us</a>
       <a class="alt" href="/book.html">📅 Pick a day</a>
     </div>
@@ -114,7 +114,7 @@
   document.getElementById('textBtn').addEventListener('click',function(){
     var appl=document.getElementById('appliance').value||'appliance';
     var prob=document.getElementById('problem').value||'';
-    this.href='sms:+18662680111?&body='+encodeURIComponent('Hi — I\'d like the $50 quick check. My '+appl+' '+prob);
+    this.href='sms:+16152802949?&body='+encodeURIComponent('Hi — I\'d like the $50 quick check. My '+appl+' '+prob);
   });
 
   document.getElementById('go').onclick=async function(){
@@ -134,8 +134,8 @@
         document.getElementById('formCard').style.display='none';
         document.getElementById('result').style.display='block';
         window.scrollTo({top:0,behavior:'smooth'});
-      } else { btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Hmm — give us a call at (866) 268-0111 and we\'ll get you booked.'); }
-    }catch(_){ btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Connection hiccup — try again or call (866) 268-0111.'); }
+      } else { btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Hmm — give us a call at (615) 280-2949 and we\'ll get you booked.'); }
+    }catch(_){ btn.disabled=false; btn.textContent='Book my $50 quick check'; alert('Connection hiccup — try again or call (615) 280-2949.'); }
   };
 })();
 </script>
