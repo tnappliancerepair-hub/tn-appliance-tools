@@ -38,6 +38,33 @@
     <priority>0.3</priority>
   </url>
 
+  <!-- Language homepages -->
+  <url>
+    <loc>https://tnapplianceexchange.net/es/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/vi/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/ar/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/hi/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/fr/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
   <!-- Category hub pages -->
   <url>
     <loc>https://tnapplianceexchange.net/dryer-repair</loc>
