@@ -22,6 +22,18 @@ const OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || '+16154855795';
 const BACKOFF_STAGES_MIN = [30, 60, 120, 240, 480, 1440];
 
 exports.handler = async () => {
+  // 0. Respect an INTENTIONAL pause. If the loop was paused on purpose via the
+  // phone switch (loop-control), don't cry "down" — that's not an outage.
+  try {
+    const pr = await fetch('https://tnapplianceexchange.net/.netlify/functions/loop-control?action=status', {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (pr.ok) {
+      const ps = await pr.json();
+      if (ps && ps.paused) return ok({ status: 'skipped_paused', paused_by: ps.paused_by || null });
+    }
+  } catch (_) {}
+
   // 1. Most recent loop_tick
   let lastTick;
   try {
