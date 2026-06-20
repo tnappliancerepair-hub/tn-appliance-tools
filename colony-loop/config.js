@@ -83,6 +83,13 @@ export const config = Object.freeze({
   // then. send-push itself no-ops gracefully if keys are missing, so this is a
   // belt-and-suspenders gate to avoid wasted calls.
   pushEnabled: String(process.env.PUSH_ENABLED || 'false') === 'true',
+  // FORWARD-ONLY customer outreach. A job created BEFORE this cutoff (the
+  // backlog) NEVER gets an availability/pre-diagnosis text — only new jobs from
+  // here forward do. Default = 2026-06-20 00:00 CT (today). Override with
+  // CUSTOMER_OUTREACH_SINCE_MS. Set to 0 to disable the cutoff.
+  customerOutreachSinceMs: (process.env.CUSTOMER_OUTREACH_SINCE_MS != null)
+    ? Number(process.env.CUSTOMER_OUTREACH_SINCE_MS)
+    : Date.parse('2026-06-20T05:00:00Z'),
   // Auto-booking kill-switch. When 'true', try_auto_schedule's
   // green-light path will actually book the job (tech + slot derived
   // from zip + parts_eta_date) instead of just sending Teddy three

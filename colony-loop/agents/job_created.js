@@ -92,6 +92,23 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_duplicate', job_id: jobId, last_sent_at: greetingCheck.last_sent_at };
   }
 
+  // FORWARD-ONLY: never reach out about a job created before the cutoff (the
+  // backlog). Bulletproof guarantee on top of the greeting dedup — only new
+  // jobs from today forward get the availability / pre-diagnosis text.
+  if (config.customerOutreachSinceMs > 0) {
+    let createdMs = 0;
+    try {
+      const jd = await xano.getJobForDashboard(jobId);
+      const c = jd && jd.job && jd.job.created_at;
+      createdMs = (typeof c === 'number') ? c : (Date.parse(c) || Number(c) || 0);
+    } catch (_) {}
+    if (createdMs && createdMs < config.customerOutreachSinceMs) {
+      await xano.markSignalProcessed(signal.id, 'new_job_greeting_skipped_backlog', { job_id: jobId, created_ms: createdMs });
+      log('greeting_skipped_backlog', { job_id: jobId, created_ms: createdMs });
+      return { success: true, action: 'skipped_backlog', job_id: jobId };
+    }
+  }
+
   if (isQuietHourCT(Date.now(), config.quietStartHourCT, config.quietEndHourCT)) {
     const wakeAt = next8amCTMs();
     await xano.emitSignal({
