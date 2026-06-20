@@ -382,6 +382,29 @@ function collectContact(){
     state.zip=document.getElementById('f-zip').value.trim();
     if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.address||!state.zip){ alert('Please add your name, a valid phone, the street address, and ZIP.'); return; }
     if(!FREE_MODE && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
+    clearFlow(); think(400, askAvailability);
+  };
+}
+// AVAILABILITY — the customer tells Ant when they're around; the system routes
+// the tech (customers don't pick slots — they don't know the tech's route).
+// Stored as customer_preference_text so the scheduling/routing layer reads it.
+function askAvailability(){
+  setHead('When works <span class="accent">for you?</span>','We match a tech to your schedule — you don\'t pick a time.');
+  antMsg('Last thing — what days/times generally work for you, and are there any you <b>can\'t</b> do? We\'ll route a tech to you on a day that fits.');
+  const f=document.createElement('div'); f.className='field';
+  f.innerHTML='<textarea id="f-avail" rows="3" placeholder="e.g. Off Tue & Thu, mornings are best, can\'t do weekends" style="width:100%;font-size:16px;padding:12px;border-radius:11px;border:1px solid var(--bord2);background:var(--surface);color:var(--white);font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>'
+    +'<div id="av-quick" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div>'
+    +'<button class="go" id="av-go">Continue →</button>';
+  FLOW.appendChild(f);
+  const ta=f.querySelector('#f-avail');
+  ['Any day is fine','Mornings best','Afternoons best','Weekdays only','No weekends'].forEach(t=>{
+    const b=document.createElement('button'); b.type='button'; b.textContent=t;
+    b.style.cssText='background:var(--surface);border:1px solid var(--bord2);color:var(--gray);border-radius:18px;padding:7px 13px;font-size:13px;font-family:var(--mono);cursor:pointer';
+    b.onclick=()=>{ ta.value=(ta.value.trim()?ta.value.trim()+', ':'')+t; ta.focus(); };
+    f.querySelector('#av-quick').appendChild(b);
+  });
+  f.querySelector('#av-go').onclick=()=>{
+    state.availability=ta.value.trim();
     clearFlow(); think(500, FREE_MODE ? submitFree : payStep);
   };
 }
@@ -404,7 +427,7 @@ function submitFree(){
       const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, sms_consent:state.smsConsent, town:state.town,
-        conv_id:state.convId, has_video:state.video, has_model:state.model
+        conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
@@ -444,7 +467,7 @@ function payStep(){
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
-        qc_test:QC_TEST
+        availability:state.availability||'', qc_test:QC_TEST
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
