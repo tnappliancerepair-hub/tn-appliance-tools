@@ -98,16 +98,62 @@
     showInstall();
   }
 
-  // Add-to-home-screen guidance (so it lives as an app icon, no more hunting texts).
+  // Android can offer a real one-tap install. Capture the event when it fires.
+  var deferredInstall = null;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault(); deferredInstall = e;
+    var el = document.getElementById('install'); if (el && el.style.display === 'block') showInstall();
+  });
+
+  // Add-to-home-screen guidance. Handles the #1 failure: people open the link
+  // from a TEXT (in-app browser) where install is impossible — detect it and
+  // tell them to open in Safari/Chrome first.
   function showInstall(){
     var el = document.getElementById('install');
     var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     if (isStandalone) return; // already installed
     var ua = navigator.userAgent || '';
     var iOS = /iPhone|iPad|iPod/.test(ua);
+    var android = /Android/.test(ua);
+    // In-app browsers (where Add to Home Screen won't work): iMessage/Safari View,
+    // Facebook, Instagram, Gmail, etc. On iOS, "real" Safari has Version/ + Safari/.
+    var inApp = /FBAN|FBAV|Instagram|Line|MicroMessenger|WhatsApp|GSA\//.test(ua)
+      || (iOS && !/Safari/.test(ua))
+      || (iOS && /CriOS|FxiOS|EdgiOS/.test(ua)); // Chrome/Firefox/Edge on iOS can't install
+
+    if (inApp) {
+      el.innerHTML = '⚠️ <b>Open this in your real browser first.</b><br>'
+        + (iOS
+            ? 'Tap the <b>•••</b> or <b>Share</b> at the top, choose <b>Open in Safari</b> — then add to home screen there.'
+            : 'Tap the <b>⋮ menu</b> → <b>Open in Chrome</b> — then install there.')
+        + '<br><br>Or copy this and paste it in your browser:'
+        + '<div style="margin-top:8px;display:flex;gap:8px;align-items:center">'
+        + '<code style="flex:1;background:#06141c;padding:8px 10px;border-radius:8px;font-size:13px;color:#eafaff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">tnapplianceexchange.net/tech</code>'
+        + '<button id="cpy" style="background:#1fae64;color:#04210f;border:0;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px">Copy</button></div>';
+      el.style.display = 'block';
+      var cpy = document.getElementById('cpy');
+      if (cpy) cpy.onclick = function(){
+        try { navigator.clipboard.writeText('https://tnapplianceexchange.net/tech'); cpy.textContent = 'Copied ✓'; }
+        catch(_){ cpy.textContent = 'Select & copy'; }
+      };
+      return;
+    }
+
+    if (android && deferredInstall) {
+      el.innerHTML = '📲 <b>Install the Ant app — one tap:</b><br>'
+        + '<button id="installBtn" style="margin-top:10px;background:#1fae64;color:#04210f;border:0;border-radius:10px;padding:12px 18px;font-weight:800;font-size:15px;width:100%">📲 Add Ant to my phone</button>';
+      el.style.display = 'block';
+      var btn = document.getElementById('installBtn');
+      if (btn) btn.onclick = function(){
+        deferredInstall.prompt();
+        deferredInstall.userChoice.then(function(){ deferredInstall = null; el.innerHTML = '✅ <b>Installed!</b> Tap the Ant icon on your home screen from now on.'; });
+      };
+      return;
+    }
+
     el.innerHTML = iOS
-      ? '📲 <b>Make it an app:</b> tap the <b>Share</b> button below, then <b>Add to Home Screen</b>. Then just tap the Ant icon — straight to your day, every time.'
-      : '📲 <b>Make it an app:</b> tap the <b>⋮ menu</b> (top right) → <b>Add to Home screen</b> / <b>Install app</b>. Then tap the Ant icon — straight to your day, every time.';
+      ? '📲 <b>Make it an app (10 seconds):</b><br>1️⃣ Tap the <b>Share</b> button (the □ with ↑ at the bottom of Safari)<br>2️⃣ Scroll down, tap <b>Add to Home Screen</b><br>3️⃣ Tap <b>Add</b> — then just tap the 🐜 Ant icon, every time.'
+      : '📲 <b>Make it an app:</b> tap the <b>⋮ menu</b> (top right) → <b>Add to Home screen</b> / <b>Install app</b>. Then tap the 🐜 Ant icon — straight to your day.';
     el.style.display = 'block';
   }
 </script>
