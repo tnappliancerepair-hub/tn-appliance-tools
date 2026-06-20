@@ -100,12 +100,13 @@ exports.handler = async function (event) {
   }
 
   // create_job_from_chat only takes zip — set the full service address on the job row
-  if (jobId && (m.address || m.city)) {
+  if (jobId && (m.address || m.city || m.availability)) {
     try {
       await crud.update(crud.TABLES.jobs, jobId, {
         service_address: m.address || '',
         service_city: m.city || '',
         service_state: stateFromZip(m.zip),
+        customer_preference_text: m.availability || '',
       });
     } catch (_) {}
   }

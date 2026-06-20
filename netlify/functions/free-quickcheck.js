@@ -82,8 +82,8 @@ exports.handler = async function (event) {
     } catch (_) {}
   }
 
-  if (jobId && (m.address || m.city)) {
-    try { await crud.update(crud.TABLES.jobs, jobId, { service_address: m.address || '', service_city: m.city || '', service_state: stateFromZip(m.zip) }); } catch (_) {}
+  if (jobId && (m.address || m.city || m.availability)) {
+    try { await crud.update(crud.TABLES.jobs, jobId, { service_address: m.address || '', service_city: m.city || '', service_state: stateFromZip(m.zip), customer_preference_text: m.availability || '' }); } catch (_) {}
   }
 
   await crud.logEvent('free_quick_check_created', { conv_id: convId ? String(convId) : '', job_id: jobId, name: m.name, phone: phone, email: m.email || '', machine: [m.brand, m.appliance].filter(Boolean).join(' '), town: m.town, problem: m.problem, sms_consent: m.sms_consent, linked_attachments: linkedAttachments, at_ms: Date.now() });
