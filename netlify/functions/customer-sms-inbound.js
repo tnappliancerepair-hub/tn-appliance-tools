@@ -29,6 +29,33 @@ const XANO_EXTRA_YES = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/process_
 const EXTRA_TIMEOUT_MS = 6000;
 const XANO_TIMEOUT_MS = 9000;
 
+// Translate an inbound customer message to English (so the office can read every
+// text regardless of language). Returns {is_english, lang_name, english} or null.
+// Best-effort with a short timeout — never blocks the webhook ack.
+async function translateToEnglish(text) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !text) return null;
+  try {
+    const ctl = new AbortController();
+    const tm = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system: 'You are a translation engine for an appliance-repair business. Given ONE customer text message, detect its language and translate it to natural English. Reply with ONLY compact JSON, no prose: {"is_english":boolean,"lang_name":"English|Spanish|Vietnamese|Arabic|Hindi|...","english":"the English translation (the original text if it is already English)"}.',
+        messages: [{ role: 'user', content: String(text).slice(0, 1000) }],
+      }),
+      signal: ctl.signal,
+    });
+    clearTimeout(tm);
+    const d = await r.json();
+    const raw = (d && d.content && d.content[0] && d.content[0].text) || '';
+    return JSON.parse(raw.replace(/```json|```/g, '').trim());
+  } catch (_) { return null; }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -127,7 +154,15 @@ exports.handler = async function (event) {
   // jump in personally (owner number bypasses the customer gate). Fire-and-
   // forget — never block the webhook ack. Reversible: delete this block.
   try {
-    const note = '📨 Customer reply from ' + parsed.from + ': ' + String(parsed.body).slice(0, 320)
+    // Translation bridge: if the customer wrote in another language, show Teddy
+    // the ENGLISH (with the original underneath) so he can read every text.
+    let display = String(parsed.body).slice(0, 320);
+    const tx = await translateToEnglish(parsed.body);
+    if (tx && tx.is_english === false && tx.english) {
+      display = '🌐 [' + (tx.lang_name || 'translated') + ' → English] ' + String(tx.english).slice(0, 320)
+        + '\n↳ they wrote: ' + String(parsed.body).slice(0, 200);
+    }
+    const note = '📨 Customer reply from ' + parsed.from + ': ' + display
       + '\n(also in office Messages)';
     const tc = new AbortController();
     const tt = setTimeout(() => tc.abort(), 4000);
