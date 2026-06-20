@@ -772,6 +772,14 @@ footer a:hover {
 }
 footer span { display:none; }
 
+/* Language strip — links the homepage to its in-language versions (/es/ etc.)
+   so they're discoverable by visitors AND crawlers (reciprocal to each page's
+   hreflang + the link back to English). */
+.langbar-home{display:flex;justify-content:center;align-items:center;gap:7px;flex-wrap:wrap;padding:12px 16px 2px;width:100%;}
+.langbar-home .lbl{font-size:11px;color:#888;letter-spacing:.05em;}
+.langbar-home a{font-size:11px;color:var(--green);text-decoration:none;border:1px solid rgba(57,255,20,.3);border-radius:20px;padding:4px 11px;background:rgba(57,255,20,.04);white-space:nowrap;transition:all .2s;}
+.langbar-home a:hover{background:rgba(57,255,20,.12);border-color:var(--green);color:#fff;}
+
 /* Recovery link: after the customer has picked a channel on the homepage
    strip, the strip hides itself. This button gives them a way back. Hidden
    by default; revealed by JS only when localStorage.consentPreSelect exists. */
@@ -1669,6 +1677,14 @@ footer span { display:none; }
 <!-- INPUT -->
 <div class="input-zone">
   <div class="input-inner">
+    <nav class="langbar-home" aria-label="Choose your language">
+      <span class="lbl">🌐 In your language:</span>
+      <a href="/es/" lang="es" hreflang="es">Español</a>
+      <a href="/vi/" lang="vi" hreflang="vi">Tiếng Việt</a>
+      <a href="/ar/" lang="ar" hreflang="ar">العربية</a>
+      <a href="/hi/" lang="hi" hreflang="hi">हिन्दी</a>
+      <a href="/fr/" lang="fr" hreflang="fr">Français</a>
+    </nav>
     <footer>
       <a href="#coverage">Coverage areas</a>
       <a href="/repairs-directory.html">Service Areas &amp; Repairs</a>
