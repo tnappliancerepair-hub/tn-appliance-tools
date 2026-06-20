@@ -59,8 +59,8 @@ Push needs a bit more wiring; do it after the basic app installs cleanly:
    `PUSH_ENABLED=true` in `colony-loop/.env`.
 
 ### Push keys → the vault (admin-secrets.html), then flip it on
-- **Android (FCM):** `FCM_SERVER_KEY` (Firebase → Project settings → Cloud
-  Messaging → Server key).
+- **Android (FCM v1):** `FCM_SERVICE_ACCOUNT` = the full service-account JSON
+  (Firebase → Project settings → Service accounts → Generate new private key).
 - **iOS (APNs):** `APNS_KEY_P8` (full `.p8` contents), `APNS_KEY_ID`,
   `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (defaults `com.tnappliance.antfield`).
 - Then on the Mac: `echo 'PUSH_ENABLED=true' >> colony-loop/.env` + loop

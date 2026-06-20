@@ -28,11 +28,35 @@ async function tokenForTech(techId) {
   return null;
 }
 
-async function sendFCM(serverKey, token, title, body, data) {
-  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+// FCM HTTP v1 (current API). Auth = a short-lived OAuth token minted from the
+// service-account key (RS256 JWT → token exchange). Token cached per warm container.
+let _fcmTok = null, _fcmExp = 0;
+async function fcmAccessToken(sa) {
+  if (_fcmTok && Date.now() < _fcmExp - 60000) return _fcmTok;
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const claims = Buffer.from(JSON.stringify({
+    iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600,
+  })).toString('base64url');
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(header + '.' + claims);
+  const jwt = header + '.' + claims + '.' + signer.sign(sa.private_key).toString('base64url');
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=' + jwt,
+  });
+  const d = await res.json();
+  if (!d.access_token) throw new Error('fcm_token_exchange_failed: ' + JSON.stringify(d).slice(0, 200));
+  _fcmTok = d.access_token; _fcmExp = Date.now() + (d.expires_in || 3600) * 1000;
+  return _fcmTok;
+}
+async function sendFCM(sa, token, title, body, data) {
+  const accessToken = await fcmAccessToken(sa);
+  const res = await fetch('https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send', {
     method: 'POST',
-    headers: { Authorization: 'key=' + serverKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ to: token, priority: 'high', notification: { title, body, sound: 'default' }, data: data || {} }),
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: { token, notification: { title, body }, android: { priority: 'high' }, data: data || {} } }),
   });
   const txt = await res.text();
   return { ok: res.ok, status: res.status, body: txt.slice(0, 300) };
@@ -93,9 +117,10 @@ exports.handler = async function (event) {
       const r = await sendAPNs(p8, keyId, teamId, bundleId || 'com.tnappliance.antfield', token, title, body, b.data);
       return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: r.ok, sent: r.ok, channel: 'apns', status: r.status }) };
     }
-    const serverKey = await getSecret('FCM_SERVER_KEY');
-    if (!serverKey) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, configured: false, channel: 'fcm' }) };
-    const r = await sendFCM(serverKey, token, title, body, b.data);
+    const saRaw = await getSecret('FCM_SERVICE_ACCOUNT');
+    if (!saRaw) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, configured: false, channel: 'fcm' }) };
+    let sa; try { sa = typeof saRaw === 'string' ? JSON.parse(saRaw) : saRaw; } catch (_) { return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, error: 'FCM_SERVICE_ACCOUNT is not valid JSON' }) }; }
+    const r = await sendFCM(sa, token, title, body, b.data);
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: r.ok, sent: r.ok, channel: 'fcm', status: r.status }) };
   } catch (e) {
     return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
