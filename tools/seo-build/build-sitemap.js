@@ -55,7 +55,7 @@ sections.push(`\n  <!-- Language homepages -->`);
 
 // Hub pages — high priority category landings.
 sections.push(`\n  <!-- Category hub pages -->`);
-["dryer-repair","washer-repair","refrigerator-repair"].forEach(s => {
+["dryer-repair","washer-repair","refrigerator-repair","dishwasher-repair","oven-repair"].forEach(s => {
   sections.push(entry(s, "0.95", "weekly"));
 });
 
