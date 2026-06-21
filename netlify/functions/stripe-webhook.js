@@ -28,6 +28,7 @@
 // initialization (we only verify signatures here, never call Stripe API).
 // Avoids module-load crash when STRIPE_SECRET_KEY is unset in this context.
 const Stripe = require('stripe');
+const { getSecret } = require('./_lib/secrets');
 
 const XANO_URL = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:VGkW9mcV/stripe_checkout_session_completed';
 
@@ -47,10 +48,14 @@ exports.handler = async function (event) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  const sharedSecret = process.env.XANO_WEBHOOK_SHARED_SECRET;
+  // Vault-first (then env): the 4KB Netlify env cap forced these out of the
+  // Functions runtime on 2026-06-13, which 500'd this webhook. Reading from the
+  // vault sidesteps the cap permanently — works whether the value is in the vault
+  // OR re-scoped to env.
+  const webhookSecret = await getSecret('STRIPE_WEBHOOK_SECRET');
+  const sharedSecret = await getSecret('XANO_WEBHOOK_SHARED_SECRET');
   if (!webhookSecret || !sharedSecret) {
-    console.error('[stripe-webhook] env vars not configured');
+    console.error('[stripe-webhook] secrets not configured (vault or env)');
     return { statusCode: 500, body: JSON.stringify({ error: 'server misconfigured' }) };
   }
 
