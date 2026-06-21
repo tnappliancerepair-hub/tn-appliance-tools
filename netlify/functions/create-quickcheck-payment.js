@@ -11,7 +11,7 @@
 const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 
-const PRICE_CENTS = 100; // TEMP $1 for testing (was 5000 / $50) — FLIP BACK TO 5000 after the test
+const PRICE_CENTS = 5000; // LIVE $50 Quick Check (was $1 during testing). ?qc=<token> still charges $1 for test runs.
 // Test override: a link carrying ?qc=<this token> charges $1 so we can run the
 // full flow end-to-end without flipping the live price (real customers stay $50).
 const QC_TEST_TOKEN = 'tn-qc-test-2026';
