@@ -361,6 +361,22 @@ ${END}`;
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, patch_status: resp.status, callerid_block_present: present, prompt_len: content.length, patch_error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Set the inbound greeting (first line the caller hears). Default is a clean,
+  // recognizable "Hello! This is Tennessee Appliance." — spelled out so the TTS
+  // can't garble "Ant's" -> "Anne's" or "TN" -> "Tian". Override with ?greeting=.
+  if (action === 'setgreeting') {
+    const oldMsg = (full.json && full.json.firstMessage) || '';
+    const greeting = q.greeting || 'Hello! This is Tennessee Appliance. How can I help you today?';
+    const resp = await vapi('PATCH', `/assistant/${inbound.id}`, key, { firstMessage: greeting });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const now = (verify.json && verify.json.firstMessage) || '';
+    return { statusCode: 200, body: JSON.stringify({
+      ok: resp.ok, patch_status: resp.status,
+      old_greeting: oldMsg, new_greeting: now, matches: now === greeting,
+      patch_error: resp.ok ? null : resp.json,
+    }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
