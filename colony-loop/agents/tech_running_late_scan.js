@@ -49,8 +49,12 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_outside_business_hours' };
   }
 
-  // Voice-enabled kill switch
-  const voiceEnabled = String(process.env.TECH_RUNNING_LATE_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+  // Voice-enabled kill switch — DEFAULT OFF (Teddy, 2026-06-22). "Late" here means
+  // scheduled_start passed AND Ant hasn't seen the job start — but techs start jobs
+  // in HCP, not Ant, so Ant falsely thinks they're 30/60/90 min late all day and
+  // cold-calls customers who are actually being served. Stays off until Ant has a
+  // trustworthy job-start signal; re-enable with TECH_RUNNING_LATE_VOICE_ENABLED=true.
+  const voiceEnabled = String(process.env.TECH_RUNNING_LATE_VOICE_ENABLED || 'false').toLowerCase() === 'true';
   if (!voiceEnabled) {
     await xano.markSignalProcessed(signal.id, 'tech_running_late_scan_handled', {
       outcome: 'skipped_disabled_by_env',
