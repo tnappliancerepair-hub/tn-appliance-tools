@@ -34,37 +34,39 @@ exports.handler = async () => {
     }
   } catch (_) {}
 
-  // 1. Most recent loop_tick
-  let lastTick;
+  // 1. Check the CANONICAL loop-health signal (get_loop_health). The loop writes
+  // a colony_loop_heartbeat to Xano even in LOCAL-store mode; the old check
+  // queried loop_tick, which is local-only under LOOP_STORE=local — so it
+  // false-alarmed "no loop_tick ever" every run while the loop was actually fine.
+  let health;
   try {
-    const r = await fetch(`${XANO_BASE}/list_recent_event_log?action=loop_tick&days_back=1&limit=1`, {
-      signal: AbortSignal.timeout(8000),
-    });
+    const r = await fetch(`${XANO_BASE}/get_loop_health`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) {
-      return ok({ status: 'check_failed', reason: 'list_recent_event_log non-2xx', code: r.status });
+      return ok({ status: 'check_failed', reason: 'get_loop_health non-2xx', code: r.status });
     }
-    const data = await r.json();
-    lastTick = (data.items || [])[0];
+    health = await r.json();
   } catch (e) {
-    return ok({ status: 'check_failed', reason: 'list query error', error: e.message });
+    return ok({ status: 'check_failed', reason: 'get_loop_health error', error: e.message });
   }
 
-  if (!lastTick) {
+  const ageSec = Number(health && health.last_heartbeat_age_secs);
+  const ageMin = isFinite(ageSec) ? ageSec / 60 : Infinity;
+  const color = (health && health.status_color) || '';
+
+  // Healthy when green OR heartbeat is within threshold. No alert.
+  if (color === 'green' || (isFinite(ageMin) && ageMin <= ALERT_THRESHOLD_MINUTES)) {
+    return ok({ status: 'healthy', color, last_heartbeat_age_min: Math.round(ageMin) });
+  }
+
+  if (!isFinite(ageMin) || !(health && health.last_heartbeat_at)) {
     return await maybeAlert('no_heartbeat_ever', {
-      reason: 'No loop_tick events ever — has the loop been started?',
+      reason: 'No loop heartbeat in Xano — has the loop been started?',
       severity: 'high',
     });
   }
 
-  const lastTickMs = Number(lastTick.created_at || lastTick.created_at_ms || 0);
-  const ageMin = (Date.now() - lastTickMs) / 60_000;
-
-  if (ageMin <= ALERT_THRESHOLD_MINUTES) {
-    return ok({ status: 'healthy', last_tick_age_min: Math.round(ageMin) });
-  }
-
   return await maybeAlert('heartbeat_stale', {
-    reason: `Last loop_tick was ${Math.round(ageMin)} minutes ago (threshold ${ALERT_THRESHOLD_MINUTES} min)`,
+    reason: `Last loop heartbeat was ${Math.round(ageMin)} minutes ago (threshold ${ALERT_THRESHOLD_MINUTES} min)`,
     age_min: Math.round(ageMin),
     severity: ageMin > 60 ? 'critical' : 'high',
   });
