@@ -71,6 +71,7 @@
     </div>
   </header>
   <div class="wrap">
+    <div id="moneybar" style="display:none;margin-bottom:12px"></div>
     <div id="list"><div class="empty">Loading…</div></div>
   </div>
 </div>
@@ -106,7 +107,26 @@ async function load(){
     JOBS = (d && d.jobs) || [];
   }catch(_){ JOBS=[]; }
   ['invoice','autho','parts'].forEach(s=>{ document.getElementById('n-'+s).textContent = JOBS.filter(j=>bucket(j)===s).length; });
+  renderMoney();
   render();
+}
+// 💰 Money pipeline (#9) — where the warranty money sits: ready to bill, submitted,
+// paid, denied. The dollars are thin until TDRs carry them (voice scribe fixes that),
+// so this tracks the COUNT pipeline so nothing falls through to unpaid.
+function renderMoney(){
+  const inv = JOBS.filter(j=>j.stage==='invoice');
+  const ready = inv.filter(j=>!j.invoiced && (!j.missing||j.missing.length===0)).length;
+  const needsInfo = inv.filter(j=>!j.invoiced && j.missing&&j.missing.length).length;
+  const submitted = JOBS.filter(j=>j.invoiced && !/paid|denied/i.test(j.invoice_status||'')).length;
+  const paid = JOBS.filter(j=>/paid/i.test(j.invoice_status||'')).length;
+  const denied = JOBS.filter(j=>/denied/i.test(j.invoice_status||'')).length;
+  const cell=(n,label,color)=>`<div style="flex:1;min-width:74px;text-align:center;background:${color}14;border:1px solid ${color}44;border-radius:10px;padding:8px 6px"><div style="font-size:20px;font-weight:800;color:${color}">${n}</div><div style="font-size:10.5px;color:var(--mut);font-weight:700;letter-spacing:.02em">${label}</div></div>`;
+  const mb=document.getElementById('moneybar');
+  mb.innerHTML='<div style="font-size:11px;font-weight:800;letter-spacing:.05em;color:var(--mut);text-transform:uppercase;margin-bottom:6px">💰 Money pipeline</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +cell(ready,'READY TO BILL','#4ad991')+cell(needsInfo,'NEEDS INFO','#ffb454')
+    +cell(submitted,'SUBMITTED','#4ca7ff')+cell(paid,'PAID','#4ad991')+cell(denied,'DENIED','#ff6b6b')+'</div>';
+  mb.style.display='block';
 }
 function bucket(j){ if(j.has_parts_to_return) return j.stage==='invoice'?j.stage:'parts'; return j.stage; }
 
