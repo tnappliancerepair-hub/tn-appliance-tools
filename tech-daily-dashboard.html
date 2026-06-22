@@ -541,6 +541,15 @@
   }
   .quick-btn:active { background: var(--panel-2); }
 
+  /* ── Inline one-tap lifecycle (On my way / Start / Finish) — drives the
+        schedule's truth: techs mark progress without opening each job. ── */
+  .lc-row { display:flex; gap:8px; margin-top:10px; }
+  .lc-btn { flex:1; text-align:center; padding:13px 10px; border-radius:9px; font-family:var(--mono); font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; border:1px solid var(--border); background:var(--bg); color:var(--text); cursor:pointer; text-decoration:none; }
+  .lc-otw { border-color:rgba(116,160,255,0.5); color:#8ab4ff; }
+  .lc-start, .lc-finish { background:var(--green); color:#082018; border-color:var(--green); }
+  .lc-ok { background:rgba(0,214,143,0.15); color:var(--green); border-color:rgba(0,214,143,0.4); }
+  .lc-done { flex:1; text-align:center; padding:13px; color:var(--muted); font-size:13px; font-weight:700; font-family:var(--mono); }
+
   /* ── Empty / loading / error ──────────────────────────────────── */
   .empty {
     padding: 48px 24px;
@@ -1171,6 +1180,30 @@
     hydrateAttachmentThumbs(jobs);
   }
 
+  // One-tap lifecycle from the day view — posts {job_id, technician_id} to the
+  // gateless on-the-way / start endpoints, flips the button + row optimistically.
+  // Self-contained (reads tech id from storage) so the inline onclick can reach it.
+  window.tlc = async function (btn, jobId, action) {
+    const tid = parseInt(localStorage.getItem('tn_tech_id') || '0', 10);
+    if (!tid) { alert('Missing tech id — reopen from your Ant link.'); return; }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/' + action, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, technician_id: tid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.success) {
+        if (action === 'tech_job_started') {
+          const row = btn.closest('.lc-row');
+          if (row) row.innerHTML = '<a href="tech-job.html?job_id=' + jobId + '&tech_id=' + tid + '" class="lc-btn lc-finish" onclick="event.stopPropagation()">✓ Finish &amp; report →</a>';
+        } else {
+          btn.textContent = '✓ On the way'; btn.classList.add('lc-ok');
+        }
+      } else { btn.textContent = '⚠ tap to retry'; btn.disabled = false; }
+    } catch (_) { btn.textContent = '⚠ tap to retry'; btn.disabled = false; }
+  };
+
   function renderCard(item, index) {
     const j = item.job || {};
     const c = item.customer || {};
@@ -1273,6 +1306,20 @@
     const phone = (c.phone || '').replace(/[^\d+]/g, '');
     const telHref = phone ? `tel:${phone.startsWith('+') ? phone : '+1' + phone.replace(/^1/, '')}` : null;
 
+    // Inline lifecycle row — one-tap On my way / Start (gateless), or Finish (opens
+    // the job to file the report). This is what makes the schedule TRUE: Ant finally
+    // sees when a tech is en route / on-site / done, instead of guessing.
+    const jid = j.id;
+    let lcRow = '';
+    if (status === 'completed') {
+      lcRow = `<div class="lc-done">✓ Completed</div>`;
+    } else if (status === 'in_progress') {
+      lcRow = `<a href="tech-job.html?job_id=${jid}&tech_id=${TECH_ID}" class="lc-btn lc-finish" onclick="event.stopPropagation()">✓ Finish &amp; report →</a>`;
+    } else {
+      lcRow = `<button class="lc-btn lc-otw" onclick="event.stopPropagation();tlc(this,${jid},'tech_on_the_way')">🚗 On my way</button>
+               <button class="lc-btn lc-start" onclick="event.stopPropagation();tlc(this,${jid},'tech_job_started')">▶ Start</button>`;
+    }
+
     return `
       <div class="card" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
         <div class="card-top">
@@ -1296,6 +1343,7 @@
         ${teddyHtml}
         ${latestTdrHtml}
         ${attHtml}
+        <div class="lc-row">${lcRow}</div>
         <div class="card-cta">
           <div class="open-btn">Open Tech Ant →</div>
           <div class="quick-actions">
