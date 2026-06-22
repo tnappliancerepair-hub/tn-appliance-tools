@@ -153,6 +153,13 @@ export async function placeOutboundCall(opts) {
     return { ok: false, error: 'invalid toPhone' };
   }
 
+  // DRY_RUN must mute phone calls too (it already mutes SMS + Claude). Without
+  // this a dry-run loop — e.g. a Railway standby brought up for testing — would
+  // place REAL calls to customers. Never dial in dry-run.
+  if (config.dryRun) {
+    return { ok: true, dry_run: true, skipped: 'dry_run', to, assistantId: opts.assistantId };
+  }
+
   // Anti-spam cap — refuse if we've already called this number recently. Skip
   // only when the caller explicitly opts out (e.g. a human-initiated dispatch
   // from the office UI that has its own confirmation).
