@@ -150,9 +150,12 @@ exports.handler = async function (event) {
     }
   }
 
-  // Forward a copy of every customer reply straight to Teddy's phone so he can
-  // jump in personally (owner number bypasses the customer gate). Fire-and-
-  // forget — never block the webhook ack. Reversible: delete this block.
+  // Forward a copy of every customer reply to Teddy's phone — PAUSED 2026-06-21
+  // per Teddy: "Teddy Tool is the only text I need, others can be paused." These
+  // replies still land in office Messages + get parsed onto the job, so nothing
+  // is lost — they just stop cluttering his personal texts. Flip
+  // FORWARD_CUSTOMER_REPLIES_TO_OWNER=true (env) to restore.
+  if (String(process.env.FORWARD_CUSTOMER_REPLIES_TO_OWNER || '') === 'true') {
   try {
     // Translation bridge: if the customer wrote in another language, show Teddy
     // the ENGLISH (with the original underneath) so he can read every text.
@@ -173,6 +176,7 @@ exports.handler = async function (event) {
     });
     clearTimeout(tt);
   } catch (_) {}
+  }
 
   return providerAck(provider);
 };
