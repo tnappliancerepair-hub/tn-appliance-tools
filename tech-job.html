@@ -349,6 +349,8 @@ function render(){
   const sched=job.scheduled_start?fmtDay(job.scheduled_start):'Not scheduled';
   const win=job.service_eta_window?(' · '+job.service_eta_window):'';
   const problem=appliance.problem_summary||appliance.problem_description||'';
+  const avail=(job.customer_preference_text||'').trim();
+  const access=(job.access_notes||'').trim();
   const teddyTdr=(allTdrs||[]).find(t=>Number(t.technician_id)===1 && (t.diagnosis||t.failed_component));
   const myNote=(allTdrs||[]).filter(t=>Number(t.technician_id)===TECH_ID).map(t=>t.technician_notes).filter(Boolean).pop() || tdr.technician_notes || '';
 
@@ -369,6 +371,12 @@ function render(){
         ${window.AntConstraints?AntConstraints.render(job,{dark:true}):''}
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
       </div>
+
+      ${(avail||access)?`<div class="card" style="border:1px solid rgba(116,227,196,0.3);background:rgba(116,227,196,0.06)">
+        <h3>🗓 Customer availability</h3>
+        ${avail?`<div class="briefing">${esc(avail)}</div>`:'<div class="briefing" style="opacity:.6">No availability collected yet.</div>'}
+        ${access?`<div class="briefing" style="margin-top:6px">🔑 Access: ${esc(access)}</div>`:''}
+      </div>`:''}
 
       <div class="card">
         <h3>🧰 Appliance &amp; model <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">a fix here flows everywhere</span></h3>
