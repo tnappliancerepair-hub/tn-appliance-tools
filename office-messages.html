@@ -147,6 +147,7 @@ async function load(){
       if(c.phone) LAST_TEXT[c.phone] = (c.last.dir==='in' ? (c.last.body||'') : '');
       const replyBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();replyTo('${c.phone}')" style="background:#0a7d33;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">✍️ Reply (auto-translate)</button>` : '';
       const statusBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();sendStatus('${c.phone}')" style="background:#1f6df0;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">📍 Send status</button>` : '';
+      const reviewBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();askReview('${c.phone}')" style="background:#e8a317;color:#1a1205;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">⭐ Ask for review</button>` : '';
       // Full thread — chronological bubbles, hidden until the row is tapped.
       const msgs=(c.msgs||[]).slice().sort((a,b)=>a.ts-b.ts);
       const bubbles=msgs.map(m=>{
@@ -160,7 +161,7 @@ async function load(){
             <div style="font-size:14px;color:#e7edf5;line-height:1.4;white-space:pre-wrap">${txt}</div>
           </div></div>`;
       }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
-      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px">${statusBtn}${replyBtn}${openLink}${textLink}</div></div>`;
+      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${openLink}${textLink}</div></div>`;
       return `<div class="conv ${c.last.dir==='in'?'waiting':''}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
         <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
         <div class="snippet">${dirLbl}${snip}</div>
@@ -272,6 +273,21 @@ async function sendStatus(phone){
     const res=await r.json();
     if(res&&(res.ok||res.success||res.sent)){ alert('✅ Status sent'); load(); }
     else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
+  }catch(e){ alert('⚠ Send failed: '+e.message); }
+}
+// ⭐ Ask for review — one tap sends a happy customer the Google review link. The
+// cheapest way to get jobs (reviews drive the Google map-pack), works the moment
+// Danielle knows a customer's pleased — no waiting on an auto-trigger.
+const REVIEW_URL='https://g.page/r/CWY8wW48EgvuEAI/review';
+async function askReview(phone){
+  let first='', appl='';
+  try{ const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(phone))).json(); if(d&&d.found){ first=(d.customer||'').trim().split(/\s+/)[0]||''; appl=d.appliance||''; } }catch(_){}
+  const msg='Hi'+(first?(' '+first):'')+'! It was a pleasure helping you'+(appl?(' with your '+appl):'')+'. If we did right by you, a quick Google review means the world to a small local shop 🙏 '+REVIEW_URL+'  — thank you! — TN Appliance Exchange';
+  if(!confirm('Send this review request?\n\n'+msg)) return;
+  try{
+    const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
+    const res=await r.json();
+    if(res&&(res.ok||res.success||res.sent)){ alert('✅ Review request sent'); } else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
 }
 // ── Techs ⇄ Office (in-app, not SMS) ──────────────────────────────
