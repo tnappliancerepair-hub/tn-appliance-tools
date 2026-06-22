@@ -203,6 +203,7 @@
     <button onclick="addAppliance()" style="flex:1;background:#fff3df;border:1px solid #e8c98a;color:#7a5410;border-radius:9px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer">➕ Add appliance</button>
     <button onclick="chasePart()" style="flex:1;background:#eef6ff;border:1px solid #bcd6f5;color:#1f5a99;border-radius:9px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer">📦 Where's my part?</button>
   </div>
+  <div id="d-sendopt-row" style="display:none;margin:0 16px 6px"><button onclick="sendOptions()" style="width:100%;background:#0a7d33;color:#fff;border:0;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">📋 Send customer their honest answer + repair options</button></div>
   <div class="dwrap" id="d-body"></div>
 </div>
 
@@ -566,6 +567,17 @@ async function openDrawer(id){
   }
 }
 function closeDrawer(){document.getElementById('scrim').classList.remove('open');document.getElementById('drawer').classList.remove('open');}
+// 📋 Self-checkout (#10) — text the self-pay customer their honest answer + the 4
+// repair options (mints the tokenized cash-TDR link via send_cash_tdr_to_customer).
+async function sendOptions(){
+  const j=window.__drawerJob||{}; if(!j.id) return;
+  if(!confirm('Text this customer their honest answer + repair options now?')) return;
+  toast('Sending options…');
+  try{
+    const d=await postJSON('send_cash_tdr_to_customer',{job_id:parseInt(j.id,10)});
+    toast((d&&d.success)?'✓ Options sent to the customer':('⚠ '+((d&&d.error)||'needs a diagnosis first')));
+  }catch(_){ toast('⚠ connection error'); }
+}
 // 📦 Where's my part? — drafts a ready-to-send vendor chase email (part #, model,
 // claim) so the office stops writing each one from scratch. Add the vendor + send.
 function chasePart(){
@@ -626,6 +638,9 @@ function renderDrawer(d){
   const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
   window.__drawerTech=(j.technician_id||(t&&t.id)||0);
   window.__drawerJob=j; window.__drawerCust=c;
+  // Self-checkout (#10): for self-pay jobs, show the one-tap "send their options".
+  (function(){ const ct=(j.customer_type||'').toLowerCase(); const cash=ct==='self_pay'||ct==='cash'||ct==='customer_pay';
+    const so=document.getElementById('d-sendopt-row'); if(so) so.style.display=cash?'block':'none'; })();
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
