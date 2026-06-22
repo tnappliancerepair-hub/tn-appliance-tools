@@ -28,7 +28,15 @@ const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '61585788
 // we cap every lookup at TOOL_TIMEOUT_MS and, on any timeout/error, return a
 // result that tells Ant to KEEP TALKING and take the caller's details — never
 // freeze. (When Xano is healthy this never triggers; lookups return in ~0.1s.)
-const TOOL_TIMEOUT_MS = 8000;
+// 2026-06-22: cut from 8000 → 4500. 8s of dead air during a lookup was long
+// enough that callers (and the assistant's own silence window) rolled into
+// "silence-timed-out" — real customers + a warranty dispatch were lost that way.
+// Xano lookups return in ~0.1s when healthy, so 4.5s still clears every real
+// lookup; it only makes the keep-talking fallback fire sooner when Xano hangs.
+// (The COMPLETE fix is a "one moment, let me pull that up" filler on the Vapi
+// tools so Ant never goes silent during a lookup — that's a live-assistant
+// change, applied separately.)
+const TOOL_TIMEOUT_MS = 4500;
 // Post-lookup audit/capture/alert writes hit the (flaky) metadata API. Cap how
 // long they may block the tool response so they can never re-introduce silence.
 const BOOKKEEPING_CAP_MS = 2500;
