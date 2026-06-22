@@ -583,7 +583,7 @@
     document.querySelectorAll('.ant-ghost[data-zip]').forEach(async (el) => {
       const zip = el.dataset.zip; if (!zip) { el.innerHTML = ''; return; }
       try {
-        const d = await (await fetch('/.netlify/functions/suggest-schedule?service_zip=' + encodeURIComponent(zip) + '&brand=' + encodeURIComponent(el.dataset.brand || '') + '&appliance_type=' + encodeURIComponent(el.dataset.appl || ''))).json();
+        const d = await (await fetch('/.netlify/functions/suggest-schedule?service_zip=' + encodeURIComponent(zip) + '&brand=' + encodeURIComponent(el.dataset.brand || '') + '&appliance_type=' + encodeURIComponent(el.dataset.appl || '') + '&job_id=' + encodeURIComponent(el.dataset.id || ''))).json();
         const s = d && d.suggestion;
         if (!s || !s.suggested_date) {
           el.innerHTML = (d && d.reason) ? `<div style="font-size:12px;color:#8a96a8;margin-top:6px">🐜 ${escapeHtml(d.reason)}</div>` : '';
