@@ -71,11 +71,44 @@ async function auth(){
 }
 function unlock(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';load();}
 
+const TECHS={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+function techOptions(sel){ return Object.keys(TECHS).map(id=>`<option value="${id}"${Number(sel)===Number(id)?' selected':''}>${TECHS[id]}</option>`).join(''); }
+function todayCT(){ const t=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Chicago'})); return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0'); }
+const FX_IN='background:#0e1320;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:7px 9px;font-size:13px';
 function jobCard(j,tagClass,tagText){
-  return `<a class="card" href="job-detail.html?job_id=${j.job_id}&office=1">
+  return `<div class="card" data-job="${j.job_id}">
     <div class="ctop"><div class="who">${esc(j.customer)}<span class="tag ${tagClass}">${esc(tagText)}</span></div><div class="when">${esc(j.when)}</div></div>
     <div class="meta">${esc(j.appliance)}${j.city?' · '+esc(j.city):''} · ${esc(j.tech)}${j.vendor?' · '+esc(j.vendor):''}</div>
-  </a>`;
+    <div class="fixrow" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px">
+      <input type="date" id="day-${j.job_id}" value="${todayCT()}" style="${FX_IN}">
+      <select id="tech-${j.job_id}" style="${FX_IN}"><option value="">— tech —</option>${techOptions(j.tech_id)}</select>
+      <button onclick="fixSchedule(${j.job_id},this)" style="background:var(--ok);color:#03130b;border:none;border-radius:8px;padding:8px 13px;font-weight:800;font-size:13px;cursor:pointer">✓ Schedule</button>
+      <a href="job-detail.html?job_id=${j.job_id}&office=1" style="color:var(--mut);font-size:12px;text-decoration:none;margin-left:auto">open ↗</a>
+    </div>
+  </div>`;
+}
+async function postSched(jobId,tech,startMs){
+  const r=await fetch(`${XANO}/danielle_schedule_parallel_job`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,technician_id:parseInt(tech,10),scheduled_start_ms:startMs,service_eta_window:''})});
+  return await r.json();
+}
+async function fixSchedule(jobId,btn){
+  const day=(document.getElementById('day-'+jobId)||{}).value;
+  const tech=(document.getElementById('tech-'+jobId)||{}).value;
+  if(!day){alert('Pick a day first.');return;}
+  if(!tech){alert('Pick a tech first.');return;}
+  const startMs=Date.parse(day+'T09:00:00-05:00')||Date.parse(day)||Date.now();
+  btn.disabled=true;btn.textContent='Scheduling…';
+  try{
+    let d=await postSched(jobId,tech,startMs);
+    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){   // reopen a canceled job, then retry
+      await fetch(`${XANO}/office_set_job_status`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,scheduling_status:'scheduled',actor:'Danielle'})});
+      d=await postSched(jobId,tech,startMs);
+    }
+    if(d&&d.success){
+      const card=document.querySelector('[data-job="'+jobId+'"]');
+      if(card){ card.style.opacity=.55; const fr=card.querySelector('.fixrow'); if(fr) fr.innerHTML='<span style="color:var(--ok);font-weight:700;font-size:13px">✓ Scheduled '+TECHS[tech]+' for '+day+' — now on the calendar</span>'; }
+    } else { alert('Could not schedule: '+((d&&d.error)||'failed')); btn.disabled=false;btn.textContent='✓ Schedule'; }
+  }catch(e){ alert('Error: '+e.message); btn.disabled=false;btn.textContent='✓ Schedule'; }
 }
 function section(emoji,title,count,color,doText,html){
   if(!count)return '';
