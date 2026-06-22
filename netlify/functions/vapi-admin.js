@@ -333,6 +333,34 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, patch_status: resp.status, total_tools_before: existing.length, total_tools_after: vt.length, lookups_present: present, all_tool_names: vt.map((t) => tname(t)), patch_error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Caller-ID auto-recognition: at the start of EVERY call, Ant silently looks
+  // up the caller's number and greets them by name if it matches — instead of
+  // asking who they are (the ask-and-stall step that was killing calls). Now
+  // possible because RingCentral is gone and Telnyx passes the real caller ID.
+  // Idempotent — wrapped in markers, re-running replaces the same block.
+  if (action === 'callerid') {
+    const START = '<!-- CALLERID-START -->', END = '<!-- CALLERID-END -->';
+    const BLOCK = `${START}
+## CALLER ID — recognize them automatically (DO THIS FIRST, before your opening line)
+This caller is calling from {{customer.number}}. Before you do anything else, SILENTLY call lookup_customer_by_phone with that number.
+- If it returns a match AND caller_id_masked is false: greet them BY NAME and reference their job — e.g. "Hi {first name}! I've got your {appliance} here — calling about that?" You already know who they are; do NOT ask them to identify themselves.
+- If there is no match, OR caller_id_masked is true (their number didn't resolve to an account): just give your normal opening and then ask for their name, claim/dispatch number, or a phone number to look up.
+Never make a caller repeat information you can already see from their caller ID.
+${END}`;
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+    const sysIdx = msgs.findIndex((m) => m.role === 'system');
+    if (sysIdx < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message on assistant' }) };
+    let content = String(msgs[sysIdx].content || '');
+    content = content.replace(new RegExp(START + '[\\s\\S]*?' + END, 'g'), '').replace(/\n{3,}/g, '\n\n').trim();
+    content = content + '\n\n' + BLOCK + '\n';
+    msgs[sysIdx] = Object.assign({}, msgs[sysIdx], { content });
+    const resp = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vm = (verify.json && verify.json.model && verify.json.model.messages) || [];
+    const present = vm.some((m) => /CALLERID-START/.test(String(m.content || '')));
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, patch_status: resp.status, callerid_block_present: present, prompt_len: content.length, patch_error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
