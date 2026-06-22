@@ -85,6 +85,14 @@
 [functions."job-safety-watch"]
   schedule = "*/30 * * * *"
 
+# Intake collector — the foundation for cluster ghost-scheduling. Hourly during
+# reasonable hours (9am-6pm CT = 14:00-23:00 UTC) it texts non-vendor needs-
+# scheduled jobs (that have a phone + no availability yet) the intake request:
+# availability + model # + a quick video. Rate-limited + dedup'd; vendor-locked
+# jobs skipped. A runtime CT-hour guard inside the function backs up the cron.
+[functions."intake-collector"]
+  schedule = "0 14-23 * * *"
+
 # Payout-ready notifier — when warranty EFTs land (jobs flip to paid), texts
 # Teddy a per-tech breakdown of what's ready to release, linking to Money →
 # Payroll for one-tap approval. Hourly ~8am-6pm CT; dedupes on the ready-set.
