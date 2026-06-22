@@ -338,5 +338,6 @@
   let toastTimer=null;
   function toast(msg,err,ok){const t=$("toast");t.textContent=msg;t.className="toast show"+(err?" err":ok?" ok":"");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.className="toast",4000);}
 </script>
+<script defer src="/ant-valuebar.js"></script>
 </body>
 </html>

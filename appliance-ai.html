@@ -313,22 +313,43 @@ function askPayer(){
   }, 'grid2');
 }
 
-// ── CASH: $50 quick check pitch ──
+// ── CASH: the pitch — sell the $50 phone Quick Check vs the industry $100–150
+// truck-roll, and offer BOTH (phone QC, or a traditional in-home diagnostic). ──
 function pitchQuickCheck(){
   if(!state.convId) state.convId = Date.now();  // stable id so video+photo+job all tie together
-  setHead('Let\'s do your <span class="accent">'+(FREE_MODE?'free ':'$'+QC_PRICE+' ')+'Quick Check</span>.','Honest answer in hours.'+(FREE_MODE?'':' Credited to your repair.'));
-  antMsg(FREE_MODE
-    ? 'Here\'s how I\'ll get you a real, honest answer fast — <b>free</b>:'
-    : 'Here\'s how I\'ll get you a real answer fast — for <b>$'+QC_PRICE+'</b> (and it comes right off your repair if you go ahead):');
+  if(FREE_MODE){
+    setHead('Let\'s do your <span class="accent">free Quick Check</span>.','Honest answer in hours.');
+    antMsg('Here\'s how I\'ll get you a real, honest answer fast — <b>free</b>:');
+    const vf=document.createElement('div'); vf.className='value';
+    vf.innerHTML='<div><b>Honest answer in hours</b> — not days of waiting.</div>'
+      +'<div><b>Completely free</b> — most shops charge $100–150 just to show up.</div>'
+      +'<div><b>We\'ll tell you the truth</b> — even "don\'t fix it."</div>';
+    FLOW.appendChild(vf);
+    choices([{emo:'📹',label:'Start my free Quick Check',wide:true}], ()=>{ state.serviceType='phone_qc'; clearFlow(); think(500, capVideo); });
+    return;
+  }
+  setHead('Two ways to get your <span class="accent">honest answer.</span>','Most shops charge $100–150 just to look. We do better.');
+  antMsg('Before you wait around all day for a truck — here\'s a better deal than you\'ll get anywhere else:');
   const v=document.createElement('div'); v.className='value';
-  v.innerHTML='<div><b>Honest answer in hours</b> — not days of waiting.</div>'
-    +(FREE_MODE
-       ? '<div><b>Completely free</b> — most shops charge $125+ just to show up.</div>'
-       : '<div><b>$'+QC_PRICE+', not $125+</b> — most shops charge that just to show up.</div>'
-         +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>')
-    +'<div><b>We\'ll tell you the truth</b> — even "don\'t fix it."</div>';
+  v.innerHTML='<div><b>Everyone else: $100–150</b> just to send a tech out to look at it.</div>'
+    +'<div><b>Us: $'+QC_PRICE+', over the phone</b> — often within the hour, no waiting around all day for a truck.</div>'
+    +'<div><b>Credited to your repair</b> — basically free if you fix it.</div>'
+    +'<div><b>The honest truth</b> — even "don\'t fix it, it\'s not worth it."</div>';
   FLOW.appendChild(v);
-  choices([{emo:'📹',label:'Start my Quick Check',wide:true}], ()=>{ clearFlow(); think(500, capVideo); });
+  antMsg('How do you want to do it?');
+  choices([
+    {emo:'⚡',label:'$'+QC_PRICE+' — Quick Check by phone (fastest)',wide:true},
+    {emo:'🏠',label:'$100 — Have a tech come out',wide:true},
+  ], (it)=>{
+    if(it.label.indexOf('phone')>-1){ state.serviceType='phone_qc'; youMsg('Quick Check by phone'); clearFlow(); think(500, capVideo); }
+    else { state.serviceType='in_home'; youMsg('Tech comes out'); clearFlow(); think(500, pitchInHome); }
+  });
+}
+// In-home ($100) path — skip the phone-diagnosis media, go straight to booking.
+function pitchInHome(){
+  setHead('We\'ll <span class="accent">come to you.</span>','$100 in-home diagnostic — credited to your repair.');
+  antMsg('You got it — we\'ll send a tech to your home to diagnose it in person. The <b>$100 diagnostic comes right off your repair</b>, and you only pay it at the visit. Let me grab a few details and get you on the schedule.');
+  think(700, consentGate);
 }
 // Drives the visible status line under a capture button as the upload runs.
 function captureStatus(barEl, txtEl){
@@ -440,8 +461,8 @@ function askAvailability(){
     // signal for Google Ads (the paid $50 Quick Check fires 'purchase' on the
     // thank-you page). Lets the campaign optimize toward people who actually
     // finish the flow, not just clicks.
-    try{ gtag('event','generate_lead',{ currency:'USD', value: FREE_MODE?0:50, appliance: state.appliance||'', payer: state.payer||'' }); }catch(_){}
-    clearFlow(); think(500, FREE_MODE ? submitFree : payStep);
+    try{ gtag('event','generate_lead',{ currency:'USD', value: state.serviceType==='in_home'?100:(FREE_MODE?0:50), appliance: state.appliance||'', payer: state.payer||'' }); }catch(_){}
+    clearFlow(); think(500, state.serviceType==='in_home' ? submitInHome : (FREE_MODE ? submitFree : payStep));
   };
 }
 // FREE submit — no payment, and we DO NOT block on the media upload (that's what
@@ -516,6 +537,34 @@ function done(){
   setHead('You\'re <span class="accent">all set.</span> 🎉','');
   antMsg('Got everything, '+esc(state.name.split(' ')[0]||'')+'. Our tech is reviewing your video right now. You\'ll have your <b>honest assessment + your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Hang tight. 🐜');
 }
+// In-home ($100) booking — creates the job (pay-at-visit, credited) via the same
+// free-quickcheck path so it lands in Needs-Scheduled, marked as in-home.
+function submitInHome(){
+  setHead('One tap and <span class="accent">you\'re on the schedule.</span>','We\'ll text you a day. $100 diagnostic, paid at the visit, credited to your repair.');
+  const p=document.createElement('div'); p.className='pay';
+  p.innerHTML='<div class="amt" style="font-size:26px">In-home diagnostic</div><div class="amtsub">$100, paid at the visit · credited to your repair</div>'
+    +'<button class="go" id="ih-go">Get me on the schedule →</button>';
+  FLOW.appendChild(p);
+  document.getElementById('ih-go').onclick=async()=>{
+    const btn=document.getElementById('ih-go'); btn.disabled=true; btn.textContent='Booking…';
+    try{
+      const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
+        appliance:state.appliance, brand:state.brand,
+        problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair) — '+(state.problem||''),
+        sms_consent:state.smsConsent, town:state.town, conv_id:state.convId,
+        has_video:false, has_model:false, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic'
+      })});
+      const d=await r.json().catch(()=>({}));
+      if(d&&d.ok){ clearFlow(); doneInHome(); }
+      else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
+  };
+}
+function doneInHome(){
+  setHead('You\'re <span class="accent">on the schedule.</span> 🎉','');
+  antMsg('Got it, '+esc(state.name.split(' ')[0]||'')+'. We\'ll text you to confirm the day a tech comes out. The <b>$100 diagnostic is credited to your repair</b> — so if you fix it with us, it basically pays for itself. 🐜');
+}
 
 // ── WARRANTY path ──
 function warrantyPath(){
@@ -571,5 +620,6 @@ const CTX = getCtx();
 if(TR_LANGS[LANG] && WELCOME[LANG]){ _antMsg(WELCOME[LANG]); }
 if(CTX.appliance){ startContext(CTX); } else { start(); }
 </script>
+<script defer src="/ant-valuebar.js"></script>
 </body>
 </html>
