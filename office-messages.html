@@ -51,6 +51,13 @@
 <body>
   <h1>💬 Messages <button id="notifBtn" style="display:none;float:right;background:#1f6df0;color:#fff;border:0;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;cursor:pointer">🔔 Turn on notifications</button></h1>
   <div class="sub">Every customer text in one place — newest first. 🔴 = they wrote last and need a reply.</div>
+  <button onclick="toggleCompose()" style="width:100%;background:#0a7d33;color:#fff;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:800;cursor:pointer;margin:4px 0 6px">✏️ New message — look up a customer</button>
+  <div id="compose" style="display:none;background:#141b27;border:1px solid #2a3650;border-radius:12px;padding:12px;margin-bottom:10px">
+    <input id="custSearch" type="text" placeholder="Search by name or phone…" autocomplete="off"
+      style="width:100%;box-sizing:border-box;background:#0c1118;border:1px solid #2a3040;border-radius:9px;color:#e7edf5;padding:11px;font-size:16px"
+      oninput="onSearchInput()">
+    <div id="custResults" style="margin-top:8px"></div>
+  </div>
   <div class="summary" id="summary">Loading…</div>
   <div id="techMsgs"></div>
   <div id="sentToTechs"></div>
@@ -154,13 +161,85 @@ async function load(){
       }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
       const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px">${replyBtn}${openLink}${textLink}</div></div>`;
       return `<div class="conv ${c.last.dir==='in'?'waiting':''}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
-        <div class="crow"><div class="who">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
+        <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
         <div class="snippet">${dirLbl}${snip}</div>
         ${thread}
       </div>`;
     }).join('');
   }
   document.getElementById('refresh').textContent='auto-refresh 30s · '+new Date().toLocaleTimeString();
+  resolveNames();
+}
+
+// Danielle's ask #1: show the customer NAME, not the number. Many SMS rows don't
+// carry customer_name, so for any conversation header still showing a phone we
+// look the number up and patch the name in. Cached so it's one lookup per number.
+const NAME_CACHE={};
+async function resolveNames(){
+  const spans=document.querySelectorAll('.who[data-phone]');
+  for(const span of spans){
+    const ph=span.getAttribute('data-phone'); if(!ph)continue;
+    span.removeAttribute('data-phone'); // don't re-resolve
+    if(NAME_CACHE[ph]===undefined){
+      try{
+        const r=await fetch(XANO+'/lookup_customer_by_phone?phone='+ph,{cache:'no-store'});
+        const d=await r.json();
+        const c=d&&d.customer;
+        NAME_CACHE[ph]=c?((c.preferred_name||((c.first_name||'')+' '+(c.last_name||''))).trim()):'';
+      }catch(_){ NAME_CACHE[ph]=''; }
+    }
+    const nm=NAME_CACHE[ph];
+    if(nm){ const badge=span.querySelector('.badge'); span.textContent=nm; if(badge)span.appendChild(badge); }
+  }
+}
+
+// Danielle's ask #2: look up a customer to START a message (not just reply).
+function toggleCompose(){
+  const el=document.getElementById('compose');
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(open)setTimeout(()=>document.getElementById('custSearch').focus(),50);
+}
+let SEARCH_T=null;
+function onSearchInput(){
+  clearTimeout(SEARCH_T);
+  const q=document.getElementById('custSearch').value.trim();
+  const box=document.getElementById('custResults');
+  if(q.length<2){ box.innerHTML=''; return; }
+  box.innerHTML='<div style="color:#8a93aa;font-size:13px;padding:6px">Searching…</div>';
+  SEARCH_T=setTimeout(()=>runCustomerSearch(q),320);
+}
+async function runCustomerSearch(q){
+  const box=document.getElementById('custResults');
+  let results=[];
+  try{
+    const r=await fetch('/.netlify/functions/search-customers?q='+encodeURIComponent(q),{cache:'no-store'});
+    const d=await r.json();
+    results=(d&&d.results)||[];
+  }catch(_){ box.innerHTML='<div style="color:#ff6b6b;font-size:13px;padding:6px">Search failed — try again.</div>'; return; }
+  if(!results.length){ box.innerHTML='<div style="color:#8a93aa;font-size:13px;padding:6px">No customer found. Check spelling or try the phone number.</div>'; return; }
+  box.innerHTML=results.slice(0,8).map(res=>{
+    const c=res.customer||{};
+    const nm=((c.first_name||'')+' '+(c.last_name||'')).trim()||'(no name)';
+    const ph=digits(c.phone);
+    const loc=[c.city,c.state].filter(Boolean).join(', ');
+    const jb=res.latest_job&&res.latest_job.id?(' · Job #'+res.latest_job.id):'';
+    const dis=!ph?'opacity:.5':'';
+    return `<div onclick="${ph?`startNew('${ph}','${esc(nm).replace(/'/g,'')}')`:''}" style="background:#0c1118;border:1px solid #2a3040;border-radius:9px;padding:10px 12px;margin-bottom:6px;cursor:${ph?'pointer':'default'};${dis}">
+      <div style="font-weight:700;color:#e7edf5">${esc(nm)}</div>
+      <div style="color:#8a93aa;font-size:12px;margin-top:2px">${ph?fmtPhone(ph):'⚠ no phone on file'}${loc?(' · '+esc(loc)):''}${jb}</div>
+    </div>`;
+  }).join('');
+}
+async function startNew(phone,name){
+  const eng=prompt('Message to '+name+' — type in English, Ant sends it to the customer:');
+  if(!eng||!eng.trim())return;
+  try{
+    const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:eng.trim(),customer_text:''})});
+    const d=await r.json();
+    if(d&&(d.success||d.sent)){ alert('✅ Sent to '+name); toggleCompose(); document.getElementById('custSearch').value=''; document.getElementById('custResults').innerHTML=''; load(); }
+    else alert('⚠ Could not send'+(d&&d.error?': '+d.error:' — check customer texting is on'));
+  }catch(e){ alert('⚠ Send failed: '+e.message); }
 }
 // Translation bridge (outbound): office types English → Ant sends it in the
 // customer's language (detected from their last message). Customer texting must
