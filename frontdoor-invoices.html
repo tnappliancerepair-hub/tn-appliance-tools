@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Frontdoor Queue · Ant</title>
+<style>
+  :root { --bg:#0b0e14; --card:#141925; --line:#222b3b; --txt:#e8edf5; --mut:#8a93aa; --ok:#4ad991; --warn:#ffb454; --info:#4ca7ff; --bad:#ff6b6b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:rgba(11,14,20,.95); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:14px 16px; }
+  h1 { margin:0; font-size:18px; letter-spacing:.02em; } h1 .sub { color:var(--mut); font-weight:400; font-size:12px; display:block; margin-top:2px; }
+  .wrap { max-width:780px; margin:0 auto; padding:14px 16px 80px; }
+  .tabs { display:flex; gap:8px; margin:12px 0 4px; }
+  .tab { flex:1; text-align:center; padding:9px 6px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--mut); font-weight:700; font-size:13px; cursor:pointer; }
+  .tab.active { color:var(--txt); border-color:var(--info); background:rgba(76,167,255,.12); }
+  .tab .n { display:inline-block; min-width:20px; }
+  .gate { max-width:340px; margin:18vh auto; text-align:center; padding:0 20px; }
+  .gate input { width:100%; padding:12px; font-size:16px; background:var(--card); border:1px solid var(--line); border-radius:10px; color:var(--txt); margin:12px 0; }
+  .gate button, .btn { background:var(--info); color:#04101f; border:none; border-radius:10px; padding:11px 16px; font-size:15px; font-weight:700; cursor:pointer; }
+  .btn.sec { background:var(--card); color:var(--txt); border:1px solid var(--line); }
+  .btn.ok { background:var(--ok); color:#03130b; }
+  .muted { color:var(--mut); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin:12px 0; }
+  .card.ready { border-color:rgba(74,217,145,.4); }
+  .card.invoiced { opacity:.62; }
+  .chead { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .cust { font-weight:700; font-size:16px; } .appl { color:var(--mut); font-size:13px; margin-top:1px; }
+  .badge { font-size:11px; font-weight:800; letter-spacing:.04em; padding:3px 8px; border-radius:999px; white-space:nowrap; }
+  .b-disp { background:rgba(76,167,255,.16); color:var(--info); }
+  .b-ok { background:rgba(74,217,145,.16); color:var(--ok); }
+  .b-warn { background:rgba(255,180,84,.16); color:var(--warn); }
+  .b-paid { background:rgba(74,217,145,.22); color:var(--ok); }
+  .miss { margin:10px 0 4px; font-size:12px; color:var(--warn); font-weight:700; }
+  .miss button { margin-left:8px; font-size:11px; padding:3px 8px; border-radius:8px; background:rgba(255,180,84,.15); color:var(--warn); border:1px solid rgba(255,180,84,.4); cursor:pointer; }
+  .wp { margin:10px 0; padding:10px 12px; background:#0e1320; border:1px solid var(--line); border-radius:10px; font-size:13.5px; }
+  .wp .lab { font-size:11px; font-weight:800; letter-spacing:.05em; color:var(--mut); text-transform:uppercase; margin-bottom:4px; }
+  .frow { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid rgba(255,255,255,.05); }
+  .frow .lab { flex:0 0 116px; color:var(--mut); font-size:12px; }
+  .frow .val { flex:1; font-size:13.5px; word-break:break-word; }
+  .frow .val.empty { color:#5a6478; font-style:italic; }
+  .cp { flex:0 0 auto; background:none; border:1px solid var(--line); color:var(--mut); border-radius:8px; padding:3px 8px; font-size:13px; cursor:pointer; }
+  .cp.done { color:var(--ok); border-color:var(--ok); }
+  .ret { margin:10px 0; padding:9px 12px; background:rgba(255,180,84,.08); border:1px solid rgba(255,180,84,.3); border-radius:10px; font-size:12.5px; color:var(--warn); }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .actions a, .actions button { font-size:13px; padding:9px 12px; border-radius:10px; text-decoration:none; }
+  .empty { text-align:center; color:var(--mut); padding:40px 0; }
+  .pf { display:none; margin-top:8px; }
+  .pf.open { display:block; }
+</style>
+</head>
+<body>
+<div id="gate" class="gate">
+  <h1>🐜 Frontdoor Queue</h1>
+  <div class="muted">Office password</div>
+  <input id="pw" type="password" placeholder="Office password" autocomplete="off">
+  <button onclick="auth()">Unlock</button>
+  <div id="gerr" class="muted" style="color:var(--bad);margin-top:8px"></div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>🐜 Frontdoor Queue <span class="sub">contractor.frontdoorhome.com · paste-ready invoices, autho &amp; parts</span></h1>
+    <div class="wrap" style="padding:0;max-width:780px">
+      <div class="tabs">
+        <div class="tab active" data-stage="invoice" onclick="setTab(this)">🧾 Invoice <span class="n" id="n-invoice">·</span></div>
+        <div class="tab" data-stage="autho" onclick="setTab(this)">📋 Authorize <span class="n" id="n-autho">·</span></div>
+        <div class="tab" data-stage="parts" onclick="setTab(this)">📦 Parts/Returns <span class="n" id="n-parts">·</span></div>
+      </div>
+    </div>
+  </header>
+  <div class="wrap">
+    <div id="list"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN = '/.netlify/functions';
+const FD_KEY = 'tn-frontdoor-2026';
+const PORTAL = 'https://contractor.frontdoorhome.com';
+const AUTH_KEY = 'tn_office_auth_v1';
+let JOBS = [], TAB = 'invoice';
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function attr(s){ return String(s==null?'':s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+async function auth(){
+  const pw = document.getElementById('pw').value.trim();
+  if(!pw) return;
+  try{
+    const r = await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d = await r.json();
+    if(d && (d.valid || d.success || d.ok)){ localStorage.setItem(AUTH_KEY,'1'); unlock(); }
+    else document.getElementById('gerr').textContent='Wrong password';
+  }catch(_){ document.getElementById('gerr').textContent='Network error — try again'; }
+}
+function unlock(){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; load(); }
+
+async function load(){
+  document.getElementById('list').innerHTML='<div class="empty">Loading Frontdoor jobs…</div>';
+  try{
+    const r = await fetch(`${FN}/frontdoor-queue?key=${FD_KEY}&days=60`);
+    const d = await r.json();
+    JOBS = (d && d.jobs) || [];
+  }catch(_){ JOBS=[]; }
+  ['invoice','autho','parts'].forEach(s=>{ document.getElementById('n-'+s).textContent = JOBS.filter(j=>bucket(j)===s).length; });
+  render();
+}
+function bucket(j){ if(j.has_parts_to_return) return j.stage==='invoice'?j.stage:'parts'; return j.stage; }
+
+function setTab(el){ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); TAB=el.dataset.stage; render(); }
+
+function render(){
+  const rows = JOBS.filter(j => TAB==='parts' ? (j.has_parts_to_return || j.stage==='parts') : bucket(j)===TAB);
+  const host = document.getElementById('list');
+  if(rows.length===0){ host.innerHTML='<div class="empty">Nothing in this bucket right now. 🎉</div>'; return; }
+  host.innerHTML = rows.map(card).join('');
+}
+
+function frow(lab, val, copyable){
+  const empty = !val && val!==0;
+  const v = empty ? '(missing — fill in portal)' : val;
+  return `<div class="frow"><div class="lab">${esc(lab)}</div><div class="val ${empty?'empty':''}">${esc(v)}</div>`
+    + (!empty && copyable!==false ? `<button class="cp" data-copy="${attr(val)}">📋</button>` : '') + `</div>`;
+}
+
+function card(j){
+  const f = j.fd || {};
+  const ready = j.missing.length===0 && !j.invoiced;
+  const statusBadge = j.invoiced
+    ? `<span class="badge b-paid">${esc(j.invoice_status||'invoiced')}${j.invoice_conf?' · '+esc(j.invoice_conf):''}</span>`
+    : (ready ? `<span class="badge b-ok">READY</span>` : `<span class="badge b-warn">NEEDS INFO</span>`);
+  const missHtml = j.missing.length
+    ? `<div class="miss">⚠️ Missing to bill: ${esc(j.missing.join(', '))}${j.tech_name?`<button data-chase="${j.job_id}" data-tech="${attr(j.tech_name)}">Nudge ${esc(j.tech_name.split(' ')[0])} →</button>`:''}</div>` : '';
+  const retHtml = (f.parts_to_return && f.parts_to_return.length)
+    ? `<div class="ret">📦 <b>Part return owed</b> — submit the AHS Part Return Form within 5 days or it's deducted:<br>${esc(f.parts_to_return.join(', '))}<br><span style="opacity:.8">Email photos + model/serial → AHS_Purchasing_Part_Returns@ahs.com</span></div>` : '';
+
+  // Frontdoor fields in portal order (invoice-centric; autho/parts reuse same data)
+  const fields = [
+    ['Dispatch ID', f.dispatch_id, true],
+    ['Invoice ID', f.invoice_id, true],
+    ['Contact date', f.contact_date, true],
+    ['Serviced date', f.serviced_date, true],
+    ['Completed by', f.complete_by, true],
+    ['Item', f.item, true],
+    ['Model #', f.model_number, true],
+    ['Serial #', f.serial_number, true],
+    ['Failed component', f.failed_component, true],
+    ['Failure reason', f.failure_reason, true],
+    ['Part #', f.part_number, true],
+    ['Part description', f.part_description, true],
+    ['Labor (hrs)', f.labor_hours, true],
+  ];
+
+  return `<div class="card ${ready?'ready':''} ${j.invoiced?'invoiced':''}">
+    <div class="chead">
+      <div><div class="cust">${esc(j.customer_name)}</div>
+        <div class="appl">${esc(f.item||'')}${j.tech_name?' · '+esc(j.tech_name):''}${j.address?'<br>'+esc(j.address):''}</div></div>
+      <div style="text-align:right">${statusBadge}<div class="badge b-disp" style="margin-top:6px">#${esc(f.dispatch_id||('J'+j.job_id))}</div></div>
+    </div>
+    ${missHtml}${retHtml}
+    <div class="wp"><div class="lab">🧾 Work Performed — paste into AHS</div>${esc(f.work_performed||'')}
+      <div style="margin-top:8px"><button class="btn sec" data-copy="${attr(f.work_performed||'')}" style="font-size:12px;padding:6px 10px">📋 Copy Work Performed</button></div>
+    </div>
+    <div class="pf open">${fields.map(x=>frow(x[0],x[1],x[2])).join('')}</div>
+    <div class="actions">
+      <a class="btn" href="${PORTAL}" target="_blank" rel="noopener">🔗 Open Frontdoor portal</a>
+      ${j.invoiced ? '' : `<button class="btn ok" data-mark="${j.job_id}" data-vendor="${attr(j.warranty_company||'AHS')}" data-disp="${attr(f.dispatch_id||'')}">✓ Mark invoiced</button>`}
+    </div>
+  </div>`;
+}
+
+// copy buttons (event delegation)
+document.addEventListener('click', async (e)=>{
+  const cp = e.target.closest('[data-copy]');
+  if(cp){ try{ await navigator.clipboard.writeText(cp.dataset.copy||''); const o=cp.textContent; cp.textContent='✓'; cp.classList.add('done'); setTimeout(()=>{cp.textContent=o;cp.classList.remove('done');},1100);}catch(_){ alert('Copy failed'); } return; }
+  const mk = e.target.closest('[data-mark]');
+  if(mk){ markInvoiced(mk); return; }
+  const ch = e.target.closest('[data-chase]');
+  if(ch){ chaseTech(ch); return; }
+});
+
+async function markInvoiced(btn){
+  const jid = Number(btn.dataset.mark);
+  const conf = prompt('Frontdoor Invoice ID / confirmation # (optional):','');
+  if(conf===null) return;
+  btn.disabled=true; btn.textContent='Saving…';
+  try{
+    const r = await fetch(`${XANO}/record_warranty_submission`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:jid, confirmation_id:(conf||'').trim(), vendor:btn.dataset.vendor||'AHS', status:'submitted', submission_method:'frontdoor_queue_ui', submitted_by:'office', notes:'Dispatch '+(btn.dataset.disp||'') })});
+    const d = await r.json();
+    if(!(d && d.success)) throw new Error(d.error||'failed');
+    const j = JOBS.find(x=>x.job_id===jid); if(j){ j.invoiced=true; j.invoice_status='submitted'; j.invoice_conf=(conf||'').trim(); }
+    render();
+  }catch(err){ alert('Save failed: '+err.message); btn.disabled=false; btn.textContent='✓ Mark invoiced'; }
+}
+
+async function chaseTech(btn){
+  const jid = Number(btn.dataset.chase);
+  btn.disabled=true; btn.textContent='Texting…';
+  try{
+    const r = await fetch(`${FN}/tdr-chase?key=${FD_KEY}&job_id=${jid}`);
+    const d = await r.json();
+    btn.textContent = (d && d.sent) ? '✓ Nudged' : (d && d.reason ? d.reason : 'No phone');
+  }catch(_){ btn.textContent='Failed'; btn.disabled=false; }
+}
+
+if(localStorage.getItem(AUTH_KEY)==='1') unlock();
+</script>
+</body>
+</html>
