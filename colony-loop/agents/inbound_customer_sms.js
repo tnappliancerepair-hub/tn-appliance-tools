@@ -65,6 +65,9 @@ const KEYWORD_ROUTES = [
   { type: 'SMS_RESPONSE_PAYMENT_INQUIRY',    re: /\b(invoice|bill|charge|pay|payment|how much|cost|price)\b/i },
   { type: 'SMS_RESPONSE_TECH_INQUIRY',       re: /\b(technician|tech|on the way|eta|arriving|how far)\b/i },
   { type: 'SMS_RESPONSE_COMPLAINT',          re: /\b(unhappy|complain|frustrat|terrible|awful|worst|refund|sue|lawyer)\b/i },
+  // "where's my repair / any update / what's the status" → auto-reply with the live
+  // status. Checked AFTER the specific intents so they win; this catches the rest.
+  { type: 'SMS_RESPONSE_STATUS_INQUIRY',     re: /\b(where(?:'?s| is) my|what(?:'?s| is) (?:the )?status|status of|any update|update on (?:my|the)|what(?:'?s| is) going on|how(?:'?s| is) (?:it|my)|still (?:coming|on)|when (?:are|will) you)\b/i },
 ];
 
 const FALLBACK_TYPE = 'SMS_RESPONSE_SMS_INTENT_GAP_AGENT';

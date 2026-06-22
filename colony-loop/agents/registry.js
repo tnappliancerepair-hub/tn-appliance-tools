@@ -431,6 +431,7 @@ export const AGENT_REGISTRY = {
   'SMS_RESPONSE_MULTI_CUSTOMER_BROADCAST_AGENT': './sms_response_multi_customer_broadcast_agent.js',
   'SMS_RESPONSE_NEGATIVE_REVIEW_FOLLOWUP': './sms_response_negative_review_followup.js',
   'SMS_RESPONSE_NEW_LEAD': './sms_response_new_lead.js',
+  'SMS_RESPONSE_STATUS_INQUIRY': './sms_response_status_inquiry.js',
   'SMS_RESPONSE_OFFICE_INBOX_HYGIENE_SCORER': './sms_response_office_inbox_hygiene_scorer.js',
   'SMS_RESPONSE_OPT_OUT': './sms_response_opt_out.js',
   'SMS_RESPONSE_PARTS_ARRIVAL_ETA': './sms_response_parts_arrival_eta.js',
