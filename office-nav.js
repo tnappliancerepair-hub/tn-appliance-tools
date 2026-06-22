@@ -16,6 +16,8 @@
   const NAV = [
     { id: 'today',     label: '🐜 Today',    href: '/office-today.html',     color: '#b48cff' },
     { id: 'messages',  label: '💬 Messages', href: '/office-messages.html',  color: '#5aa9ff' },
+    { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
+    { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
