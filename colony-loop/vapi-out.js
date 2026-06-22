@@ -19,8 +19,44 @@
 //   });
 
 import { config } from './config.js';
+import { recordEventLog } from './xano.js';
 
 const VAPI_BASE = 'https://api.vapi.ai';
+
+// ── Anti-spam frequency cap (Teddy, 2026-06-22: "we can't call and spam people") ──
+// EVERY outbound voice call routes through placeOutboundCall, so one guard here
+// protects against ALL triggers (callback, retry, reminder, availability, etc.)
+// double-dialing the same person — the bug that called Kent Daniels 6× in 30 min.
+// Rule: at most ONE call to a given number per 3 hours, and at most 2 per 24h.
+const CALL_CAP_SHORT_MS = 3 * 60 * 60 * 1000; // 3h window — never more than 1 call
+const CALL_CAP_DAILY = 2;                      // hard ceiling per number per 24h
+const CALL_LOG_ACTION = 'outbound_call_log';
+
+// Returns {blocked, recent_3h, in_24h}. Fails OPEN (allows the call) on any read
+// error — a transient Xano hiccup must not silence legitimate reminders; the
+// per-agent dedup is the first line, this is the backstop.
+async function checkCallCap(toE164) {
+  try {
+    const u = `${config.xanoIntakeBase}/list_recent_event_log?action=${CALL_LOG_ACTION}&days_back=1&limit=150`;
+    const r = await fetch(u);
+    const d = await r.json();
+    const items = (d && d.items) || [];
+    const now = Date.now();
+    let recent3h = 0, day = 0;
+    for (const it of items) {
+      let m = it.metadata;
+      if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      if (!m || normalizeE164(m.phone) !== toE164) continue;
+      const ts = Number(m.at_ms || it.created_at || 0);
+      if (now - ts > 24 * 60 * 60 * 1000) continue;
+      day++;
+      if (now - ts < CALL_CAP_SHORT_MS) recent3h++;
+    }
+    return { blocked: recent3h >= 1 || day >= CALL_CAP_DAILY, recent_3h: recent3h, in_24h: day };
+  } catch (_) {
+    return { blocked: false, recent_3h: 0, in_24h: 0, cap_read_failed: true };
+  }
+}
 
 // Assistant IDs in the production tnappliance@gmail.com Vapi org.
 // Source-of-truth: Vapi dashboard; mirrored here for compile-time safety.
@@ -116,6 +152,21 @@ export async function placeOutboundCall(opts) {
   if (!to) {
     return { ok: false, error: 'invalid toPhone' };
   }
+
+  // Anti-spam cap — refuse if we've already called this number recently. Skip
+  // only when the caller explicitly opts out (e.g. a human-initiated dispatch
+  // from the office UI that has its own confirmation).
+  if (!opts.bypassFrequencyCap) {
+    const cap = await checkCallCap(to);
+    if (cap.blocked) {
+      await recordEventLog('outbound_call_capped', {
+        phone: to, assistant_id: opts.assistantId, job_id: opts.metadata && opts.metadata.job_id,
+        recent_3h: cap.recent_3h, in_24h: cap.in_24h, reason: 'frequency_cap', at_ms: Date.now(),
+      }).catch(() => {});
+      return { ok: false, error: 'frequency_capped', capped: true, recent_3h: cap.recent_3h, in_24h: cap.in_24h };
+    }
+  }
+
   const fromNumberId = opts.fromNumberId || pickFromNumber(opts.fromRegion);
 
   const body = {
@@ -144,6 +195,11 @@ export async function placeOutboundCall(opts) {
       return { ok: false, status: r.status, error: text.slice(0, 400) };
     }
     const parsed = JSON.parse(text);
+    // Log the placed call so the frequency cap can see it on the next attempt.
+    await recordEventLog(CALL_LOG_ACTION, {
+      phone: to, assistant_id: opts.assistantId, call_id: parsed.id,
+      job_id: opts.metadata && opts.metadata.job_id, at_ms: Date.now(),
+    }).catch(() => {});
     return { ok: true, call_id: parsed.id, raw: parsed };
   } catch (e) {
     return { ok: false, error: e.message };
