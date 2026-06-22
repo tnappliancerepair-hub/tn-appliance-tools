@@ -22,6 +22,33 @@
 // responder so the caller doesn't go dark. The agent prompt handles
 // missing context gracefully.
 
+import { config } from '../config.js';
+
+function digits10(p) { return String(p || '').replace(/\D/g, '').slice(-10); }
+
+// 🛑 Human takeover — has the office (Danielle) texted this customer in the last
+// 12h? If so a PERSON is handling the conversation and Ant must NOT auto-reply
+// over them (Danielle, 2026-06-22: "having a conversation and the system keeps
+// sending the same text"). Checks event_log for an office/manual reply to this
+// number. Fails OPEN (auto-reply still works) on any read error.
+async function officeHandling(phone) {
+  const p10 = digits10(phone);
+  if (!p10) return false;
+  const since = Date.now() - 12 * 60 * 60 * 1000;
+  try {
+    const r = await fetch(`${config.xanoIntakeBase}/list_recent_event_log?action=sms_sent&days_back=1&limit=250`);
+    const d = await r.json();
+    const items = (d && d.items) || [];
+    return items.some((it) => {
+      if (Number(it.created_at || 0) < since) return false;
+      let m = it.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      const mp = digits10((m && (m.recipient || m.phone || m.to)) || '');
+      const tag = String((m && (m.context_tag || m.source || m.tag)) || '').toLowerCase();
+      return mp === p10 && /translated_reply|office|manual|danielle|warranty_handler/.test(tag);
+    });
+  } catch (_) { return false; }
+}
+
 const KEYWORD_ROUTES = [
   // Bare M / A / MORNING / AFTERNOON / ANYTIME — reply to the stuck-intake
   // progress nudge. Exact-letter match avoids false positives on
@@ -61,6 +88,16 @@ export async function run(signal, ctx) {
     await xano.markSignalProcessed(signal.id, 'inbound_customer_sms_handled', meta);
     log('inbound_customer_sms_handled', meta);
     return { success: true, action: 'skipped_empty_body' };
+  }
+
+  // If the office is already replying to this customer, stay quiet — don't route
+  // to ANY auto-responder. A human owns the conversation now.
+  const inboundPhone = payload.customer_phone || payload.phone || '';
+  if (await officeHandling(inboundPhone)) {
+    const meta = { outcome: 'skipped_office_handling', phone: inboundPhone };
+    await xano.markSignalProcessed(signal.id, 'inbound_customer_sms_handled', meta);
+    log('inbound_customer_sms_handled', meta);
+    return { success: true, action: 'skipped_office_handling' };
   }
 
   let route = classify(body);

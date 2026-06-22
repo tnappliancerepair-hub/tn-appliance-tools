@@ -46,19 +46,19 @@ export async function run(signal, ctx) {
     return { success: false, action: 'missing_phone' };
   }
 
-  // Dedup — only send the new-lead push reply ONCE per 24h per phone.
-  // If they keep texting we let the regular intent-gap fallback handle
-  // them. (Set high enough that a single conversation doesn't fire it
-  // twice; low enough that a returning new lead the next day gets a
-  // fresh push.)
-  const dedupKey = `new_lead_replied_${phone}`;
-  let recent = null;
+  // Dedup — send the new-lead push reply ONCE per 24h per phone. The old
+  // findRecentEventLog path was a no-op (it never found the marker), so this
+  // re-fired on EVERY reply and spammed the customer the same text (Danielle,
+  // 2026-06-22). Now we read event_log directly + reliably.
+  const phoneKey = String(phone).replace(/\D/g, '');
+  const dedupKey = `new_lead_replied_${phoneKey}`;
+  let alreadyPushed = false;
   try {
-    recent = xano.findRecentEventLog
-      ? await xano.findRecentEventLog(dedupKey, Date.now() - 24 * 60 * 60 * 1000)
-      : null;
-  } catch (_) { recent = null; }
-  if (recent && recent.found) {
+    const r = await fetch(`${config.xanoIntakeBase}/list_recent_event_log?action=${encodeURIComponent(dedupKey)}&days_back=1&limit=5`);
+    const d = await r.json();
+    alreadyPushed = !!(d && (d.count > 0 || (Array.isArray(d.items) && d.items.length > 0)));
+  } catch (_) { alreadyPushed = false; }
+  if (alreadyPushed) {
     await xano.markSignalProcessed(signal.id, 'sms_response_new_lead_handled', { outcome: 'skipped_recent_push' });
     return { success: true, action: 'skipped_recent_push' };
   }
