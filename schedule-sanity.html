@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Schedule Check · Ant</title>
+<style>
+  :root{--bg:#0b0e14;--card:#141925;--line:#222b3b;--txt:#e8edf5;--mut:#8a93aa;--ok:#4ad991;--warn:#ffb454;--info:#4ca7ff;--bad:#ff6b6b;--purp:#b08bff;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;}
+  header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 16px;}
+  h1{margin:0;font-size:18px;} h1 .sub{display:block;color:var(--mut);font-weight:400;font-size:12px;margin-top:2px;}
+  .wrap{max-width:760px;margin:0 auto;padding:14px 16px 80px;}
+  .gate{max-width:340px;margin:18vh auto;text-align:center;padding:0 20px;}
+  .gate input{width:100%;padding:12px;font-size:16px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--txt);margin:12px 0;}
+  button,.btn{background:var(--info);color:#04101f;border:none;border-radius:10px;padding:11px 16px;font-size:15px;font-weight:700;cursor:pointer;}
+  .muted{color:var(--mut);font-size:13px;}
+  .allgood{text-align:center;padding:50px 16px;color:var(--ok);font-size:17px;font-weight:700;}
+  .sec{margin:18px 0 6px;}
+  .sec h2{font-size:15px;margin:0 0 2px;display:flex;align-items:center;gap:8px;}
+  .pill{font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;}
+  .sec .do{font-size:12.5px;color:var(--mut);margin:0 0 8px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin:8px 0;display:block;text-decoration:none;color:inherit;}
+  .card:active{border-color:var(--info);}
+  .ctop{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
+  .who{font-weight:700;font-size:15px;} .when{font-size:12.5px;color:var(--warn);font-weight:700;white-space:nowrap;}
+  .meta{color:var(--mut);font-size:12.5px;margin-top:2px;}
+  .db{border-left:3px solid var(--bad);}
+  .db .sub2{font-size:12px;color:var(--mut);margin:6px 0 2px;}
+  .tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;margin-left:6px;}
+  .t-past{background:rgba(255,107,107,.15);color:var(--bad);}
+  .t-db{background:rgba(255,107,107,.15);color:var(--bad);}
+  .t-notech{background:rgba(176,139,255,.15);color:var(--purp);}
+  .t-ph{background:rgba(255,180,84,.15);color:var(--warn);}
+  .refresh{color:var(--mut);font-size:11px;text-align:center;margin-top:16px;}
+</style>
+</head>
+<body>
+<div id="gate" class="gate">
+  <h1>🗓️ Schedule Check</h1>
+  <div class="muted">Office password</div>
+  <input id="pw" type="password" placeholder="Office password" autocomplete="off" onkeydown="if(event.key==='Enter')auth()">
+  <button onclick="auth()">Unlock</button>
+  <div id="gerr" class="muted" style="color:var(--bad);margin-top:8px"></div>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>🗓️ Schedule Check <span class="sub">jobs whose time or tech looks wrong — fix before Ant texts/calls customers</span></h1>
+  </header>
+  <div class="wrap"><div id="body"><div class="muted" style="padding:30px 0;text-align:center">Loading…</div></div>
+    <div class="refresh" id="refresh"></div>
+  </div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SKEY='tn-schedule-2026';
+const AUTH_KEY='tn_office_auth_v1';
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function auth(){
+  const pw=document.getElementById('pw').value.trim(); if(!pw)return;
+  try{
+    const r=await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const d=await r.json();
+    if(d&&(d.valid||d.success||d.ok)){localStorage.setItem(AUTH_KEY,'1');unlock();}
+    else document.getElementById('gerr').textContent='Wrong password';
+  }catch(_){document.getElementById('gerr').textContent='Network error';}
+}
+function unlock(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';load();}
+
+function jobCard(j,tagClass,tagText){
+  return `<a class="card" href="job-detail.html?job_id=${j.job_id}&office=1">
+    <div class="ctop"><div class="who">${esc(j.customer)}<span class="tag ${tagClass}">${esc(tagText)}</span></div><div class="when">${esc(j.when)}</div></div>
+    <div class="meta">${esc(j.appliance)}${j.city?' · '+esc(j.city):''} · ${esc(j.tech)}${j.vendor?' · '+esc(j.vendor):''}</div>
+  </a>`;
+}
+function section(emoji,title,count,color,doText,html){
+  if(!count)return '';
+  return `<div class="sec"><h2>${emoji} ${title} <span class="pill" style="background:${color}22;color:${color}">${count}</span></h2><div class="do">${doText}</div>${html}</div>`;
+}
+
+async function load(){
+  document.getElementById('body').innerHTML='<div class="muted" style="padding:30px 0;text-align:center">Checking the schedule…</div>';
+  let d;
+  try{ d=await (await fetch(`/.netlify/functions/schedule-sanity?key=${SKEY}`)).json(); }
+  catch(_){ document.getElementById('body').innerHTML='<div class="allgood" style="color:var(--bad)">⚠️ Could not load — try again.</div>'; return; }
+  if(!d.ok){ document.getElementById('body').innerHTML='<div class="allgood" style="color:var(--bad)">⚠️ '+esc(d.error||'error')+'</div>'; return; }
+  const b=d.buckets;
+  if(d.total===0){ document.getElementById('body').innerHTML='<div class="allgood">✅ Schedule looks clean — every job has a real time and a tech.</div>'; document.getElementById('refresh').textContent='checked '+new Date().toLocaleTimeString(); return; }
+
+  let html='';
+  // 1) Past & not done
+  html+=section('⏰','Past — not marked done',b.past_open.length,'#ff6b6b',
+    'These were scheduled for today or earlier and aren\'t completed. Reschedule, or close them out.',
+    b.past_open.map(j=>jobCard(j,'t-past',j.overdue_days>0?(j.overdue_days+'d late'):'today, passed')).join(''));
+  // 2) Double-booked
+  html+=section('👥','Double-booked',b.double_book.length,'#ff6b6b',
+    'Same tech, same time, two+ jobs. Spread them out so the day is real.',
+    b.double_book.map(g=>`<div class="card db"><div class="ctop"><div class="who">${esc(g.tech)}</div><div class="when">${esc(g.slot)} · ${g.count} jobs</div></div>
+      <div class="sub2">tap each to re-time:</div>${g.jobs.map(j=>`<a class="card" style="margin:5px 0" href="job-detail.html?job_id=${j.job_id}&office=1"><div class="ctop"><div class="who" style="font-size:14px">${esc(j.customer)}</div><div class="meta">${esc(j.appliance)}${j.city?' · '+esc(j.city):''}</div></div></a>`).join('')}</div>`).join(''));
+  // 3) No tech assigned
+  html+=section('👤','No tech assigned',b.no_tech.length,'#b08bff',
+    'On the calendar with a time but nobody\'s on it. Assign a tech.',
+    b.no_tech.map(j=>jobCard(j,'t-notech','assign tech')).join(''));
+  // 4) Placeholder time
+  html+=section('🕗','Placeholder time (8/9 AM default)',b.placeholder.length,'#ffb454',
+    'These got the auto 8/9 AM time, not a real day/window. Set the day the tech is actually going.',
+    b.placeholder.map(j=>jobCard(j,'t-ph','fake time')).join(''));
+  // 5) No time at all
+  html+=section('❓','No time set',b.no_time.length,'#8a93aa',
+    'Scheduled but missing a time entirely.',
+    b.no_time.map(j=>jobCard(j,'t-ph','no time')).join(''));
+
+  document.getElementById('body').innerHTML=`<div class="muted" style="margin-bottom:4px"><b style="color:var(--txt)">${d.total}</b> jobs need a look · this week</div>`+html;
+  document.getElementById('refresh').textContent='checked '+new Date().toLocaleTimeString()+' · tap a job to fix it';
+}
+
+if(localStorage.getItem(AUTH_KEY)==='1')unlock();
+</script>
+</body>
+</html>
