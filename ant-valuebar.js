@@ -26,11 +26,16 @@
 
     var bar = document.createElement('div');
     bar.id = 'ant-valuebar';
+    // Localize for city landing pages — title is "Appliance Repair {City} TN | …".
+    // Falls back to the generic bar on any non-city page (no regression).
+    var cityM = (document.title || '').match(/Appliance Repair\s+(.+?)\s+TN\b/i);
+    var city = (cityM && cityM[1] && cityM[1].length < 28) ? cityM[1].trim().replace(/[<>&]/g, '') : '';
+    var inCity = city ? (' in <b>' + city + '</b>') : '';
     bar.innerHTML =
       '<div class="vb-txt">'
-      + '<span class="vb-full">⚡ Don\'t pay <b>$100–150</b> just to get looked at. <b>$50 phone diagnosis</b> — '
+      + '<span class="vb-full">⚡ Don\'t pay <b>$100–150</b> just to get looked at. <b>$50 phone diagnosis</b>' + inCity + ' — '
       + 'snap a video + model pic from your phone, <b>anytime 24/7</b>. Honest answer (even &ldquo;don\'t fix it&rdquo;) in <b>2 business hours</b>.</span>'
-      + '<span class="vb-short">⚡ <b>$50 phone diagnosis</b> — half the price, honest answer in <b>2 hrs</b>. 24/7.</span>'
+      + '<span class="vb-short">⚡ <b>$50 phone diagnosis</b>' + inCity + ' — half the price, answer in <b>2 hrs</b>. 24/7.</span>'
       + '</div><a class="vb-cta" href="/appliance-ai.html">Start now →</a>';
 
     function mount() { if (document.body && !document.getElementById('ant-valuebar')) document.body.insertBefore(bar, document.body.firstChild); }
