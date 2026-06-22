@@ -377,6 +377,37 @@ ${END}`;
     }, null, 2) };
   }
 
+  // Sweep ALL assistants and normalize the spoken brand in their greeting to
+  // "Tennessee Appliance" — kills "Ant's assistant" -> "Anne's" and "TN/T-N
+  // Appliance Exchange" -> "Tian" across every call a customer hears. Touches
+  // ONLY firstMessage (the spoken opener), never the system prompt / logic.
+  if (action === 'unifygreeting') {
+    const list = listFrom(await vapi('GET', '/assistant', key));
+    const reps = [
+      [/Ant[''’]s assistant from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance'],
+      [/it[''’]?s Ant\b/gi, "it's Tennessee Appliance"],
+      [/this is Ant[''’]s assistant/gi, 'this is Tennessee Appliance'],
+      [/Ant[''’]s assistant/gi, 'Tennessee Appliance'],
+      [/Ant calling from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance'],
+      [/T[\s-]?N Appliance Exchange/gi, 'Tennessee Appliance'],
+      [/T[\s-]?N Appliance/gi, 'Tennessee Appliance'],
+      [/Tennessee Appliance Exchange/gi, 'Tennessee Appliance'],
+    ];
+    const fix = (s) => { let o = String(s || ''); for (const [re, to] of reps) o = o.replace(re, to); return o; };
+    const results = [];
+    for (const a of list) {
+      const fm = a.firstMessage || '';
+      const newFm = fix(fm);
+      if (fm && newFm !== fm && newFm.trim()) {
+        const resp = await vapi('PATCH', `/assistant/${a.id}`, key, { firstMessage: newFm });
+        results.push({ name: a.name, id: a.id, changed: true, ok: resp.ok, old: fm, 'new': newFm });
+      } else {
+        results.push({ name: a.name, id: a.id, changed: false, firstMessage: fm ? fm.slice(0, 80) : '(none/dynamic)' });
+      }
+    }
+    return { statusCode: 200, body: JSON.stringify({ ok: true, count: list.length, changed: results.filter((r) => r.changed).length, results }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
