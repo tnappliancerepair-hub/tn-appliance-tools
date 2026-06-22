@@ -384,14 +384,19 @@ ${END}`;
   if (action === 'unifygreeting') {
     const list = listFrom(await vapi('GET', '/assistant', key));
     const reps = [
+      [/Ant[''’]s assistant calling from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance calling'],
       [/Ant[''’]s assistant from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance'],
       [/it[''’]?s Ant\b/gi, "it's Tennessee Appliance"],
       [/this is Ant[''’]s assistant/gi, 'this is Tennessee Appliance'],
       [/Ant[''’]s assistant/gi, 'Tennessee Appliance'],
-      [/Ant calling from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance'],
+      [/Ant calling from (?:the\s+)?T[\s-]?N Appliance(?: Exchange)?/gi, 'Tennessee Appliance calling'],
       [/T[\s-]?N Appliance Exchange/gi, 'Tennessee Appliance'],
       [/T[\s-]?N Appliance/gi, 'Tennessee Appliance'],
       [/Tennessee Appliance Exchange/gi, 'Tennessee Appliance'],
+      // de-dupe any redundancy the above can produce, e.g. "Tennessee Appliance
+      // calling from Tennessee Appliance" -> "Tennessee Appliance calling".
+      [/Tennessee Appliance calling from Tennessee Appliance/gi, 'Tennessee Appliance calling'],
+      [/Tennessee Appliance from Tennessee Appliance/gi, 'Tennessee Appliance'],
     ];
     const fix = (s) => { let o = String(s || ''); for (const [re, to] of reps) o = o.replace(re, to); return o; };
     const results = [];
