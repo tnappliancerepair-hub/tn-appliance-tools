@@ -410,7 +410,8 @@ function render(){
 
       <div class="card">
         <h3>📝 Notes / Report</h3>
-        <textarea class="notes" id="notes" placeholder="Type your report here — what you found, what you did, parts needed… (saved to this job)">${esc(myNote)}</textarea>
+        <button id="voice-btn" onclick="voiceReport()" style="width:100%;background:#0a7d33;color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px">🎤 Speak your report — Ant writes it up</button>
+        <textarea class="notes" id="notes" placeholder="Or type it — what you found, what you did, labor time, parts… (saved to this job)">${esc(myNote)}</textarea>
         <input id="tdr-part" inputmode="text" placeholder="Part # used (if any)" style="width:100%;margin-top:8px;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px" title="Recording the part you used makes Ant smarter for the next job on this model">
         <div class="save-row">
           <button class="btn primary" id="save-notes">Save report</button>
@@ -605,6 +606,58 @@ async function saveBasics(){
   }catch(_){ toast('⚠ connection error'); }
 }
 
+// 🎤 Voice scribe — tech talks, Ant writes the structured report. Records audio →
+// whisper-transcribe → tech-assist-brain extracts {diagnosis, part, labor, repair} →
+// saves a STRUCTURED create_tdr (so invoices/SmartAutho/status all get real fields).
+let mediaRec=null, audioChunks=[];
+async function voiceReport(){
+  const btn=document.getElementById('voice-btn');
+  if(mediaRec && mediaRec.state==='recording'){ mediaRec.stop(); return; }
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(_){ toast('Mic blocked — allow microphone, or just type'); return; }
+  audioChunks=[]; try{ mediaRec=new MediaRecorder(stream); }catch(_){ toast('Recording not supported on this browser — type it'); stream.getTracks().forEach(t=>t.stop()); return; }
+  mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) audioChunks.push(e.data); };
+  mediaRec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    btn.textContent='🎤 Speak your report — Ant writes it up'; btn.style.background='#0a7d33';
+    const blob=new Blob(audioChunks,{type:'audio/webm'});
+    const note=document.getElementById('save-note'); note.className='save-note'; note.textContent='Transcribing…';
+    if(blob.size<800){ note.className='save-note err'; note.textContent='Didn\'t catch that — try again'; return; }
+    let text='';
+    try{
+      const fd=new FormData(); fd.append('audio',blob,'report.webm');
+      const r=await fetch('/.netlify/functions/whisper-transcribe',{method:'POST',body:fd});
+      const d=await r.json(); text=((d&&d.text)||'').trim();
+    }catch(_){}
+    if(!text){ note.className='save-note err'; note.textContent='Could not transcribe — type it instead'; return; }
+    const nEl=document.getElementById('notes'); nEl.value=(nEl.value?nEl.value.trim()+' ':'')+text;
+    note.textContent='Writing your report…';
+    let cap={};
+    try{
+      const r=await fetch('/.netlify/functions/tech-assist-brain',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        tech_id:TECH_ID, job_id:JOB_ID, brand:(job.brand||''), appliance:(job.appliance_type||job.appliance||''),
+        problem:(job.problem_summary||''), existing_captured:{}, message:text
+      })});
+      const d=await r.json(); cap=(d&&d.captured)||{};
+    }catch(_){}
+    const partEl=document.getElementById('tdr-part'); if(partEl && cap.verified_part_number && !partEl.value) partEl.value=cap.verified_part_number;
+    const body={ job_id:JOB_ID, technician_id:TECH_ID, technician_notes:nEl.value.trim() };
+    if(cap.diagnosis) body.diagnosis=cap.diagnosis;
+    if(cap.failed_component) body.failed_component=cap.failed_component;
+    if(cap.verified_part_number) body.verified_part_number=cap.verified_part_number;
+    if(cap.repair_completed) body.repair_completed=cap.repair_completed;
+    if(cap.labor_hours){ const lh=parseFloat(cap.labor_hours); if(lh>0) body.labor_time_hours=lh; }
+    try{
+      const d=await xanoPost('create_tdr',body);
+      if(d.success){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
+      else { note.className='save-note err'; note.textContent=d.error||'save failed'; }
+    }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
+  };
+  mediaRec.start();
+  btn.textContent='⏹ Stop & save report'; btn.style.background='#d94545';
+  toast('Recording — say what you found, what you fixed, and your labor time');
+}
 async function saveNotes(){
   const txt=document.getElementById('notes').value.trim();
   const partEl=document.getElementById('tdr-part');
