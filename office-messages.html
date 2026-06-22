@@ -72,7 +72,9 @@ function shape(r){
   const dir = a==='inbound_customer_sms_received' ? 'in' : 'out';
   const blocked = a==='dropped_customer_sms' || a==='sms_gated';
   const jobId = Number(md.job_id||md.jobId||(md.context&&md.context.job_id)||0)||0;
-  const phone = digits(md.customer_phone||md.from||md.from_number||md.to||md.recipient||'');
+  // Inbound customer texts store the customer number in md.phone; outbound stores
+  // it in md.recipient. md.to is the OFFICE number — only a last-resort fallback.
+  const phone = digits(md.customer_phone||md.phone||md.recipient||md.from||md.from_number||md.to||'');
   const name = (md.customer_name||((md.customer_first||md.first_name||'')+' '+(md.customer_last||'')).trim()||'').trim();
   const body = String(md.body_preview||md.body||md.message||md.reply||md.reply_text||'').trim();
   const key = jobId ? ('j'+jobId) : (phone ? ('p'+phone) : null);
@@ -90,6 +92,15 @@ async function load(){
     document.getElementById('list').innerHTML='<div class="empty">⚠️ could not load messages — '+esc(e.message)+'</div>';
     return;
   }
+  // Keep CUSTOMER-facing rows only. Internal sms_sent (owner alerts like "loop
+  // appears down" + tech-direction texts) were flooding the feed and drowning
+  // real customer texts. Inbound + gated-customer + feedback always stay.
+  rows=rows.filter(raw=>{
+    const a=raw.action||'';
+    if(a==='inbound_customer_sms_received'||a==='dropped_customer_sms'||a==='feedback_sms_sent'||a==='customer_sms_reply')return true;
+    if(a==='sms_sent'){ const md=parseMeta(raw.metadata); return (md.recipient_class||'')!=='internal'; }
+    return false;
+  });
   // Group into conversations (latest row wins for the header).
   const conv={};
   for(const raw of rows){
