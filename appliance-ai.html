@@ -275,7 +275,16 @@ antMsg=function(html){ _antMsg(tr(html)); };
 choices=function(items,cb,cls){ return _choices(items.map(it=>Object.assign({},it,{label:tr(it.label)})), cb, cls); };
 
 // ── STEP 1: appliance ──
+// ── Web conversion-funnel tracking (our own, GA-independent) ──
+let _funnelOpen=false;
+function track(step){
+  try{
+    if(!state.convId) state.convId=Date.now();
+    fetch(FN+'/funnel-track',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({step,conv_id:state.convId,appliance:state.appliance||'',payer:state.payer||''})});
+  }catch(_){}
+}
 function start(){
+  if(!_funnelOpen){ _funnelOpen=true; track('open'); }
   clearFlow();
   choices(APPLIANCES.map(a=>({emo:a[0],label:a[1]})), pickAppliance, 'grid2');
   const bar=document.createElement('div'); bar.className='askbar';
@@ -285,7 +294,7 @@ function start(){
   document.getElementById('ask').addEventListener('keypress',e=>{if(e.key==='Enter')document.getElementById('snd').click();});
   document.getElementById('mic').onclick=voice;
 }
-function pickAppliance(it){ state.appliance=it.label; clearFlow(); setHead('Got it — your <span class="accent">'+esc(it.label.toLowerCase())+'</span>.','Now, what\'s it doing?'); youMsg(it.label); think(650, askProblem); }
+function pickAppliance(it){ state.appliance=it.label; track('started'); clearFlow(); setHead('Got it — your <span class="accent">'+esc(it.label.toLowerCase())+'</span>.','Now, what\'s it doing?'); youMsg(it.label); think(650, askProblem); }
 function askProblem(){
   antMsg('What\'s it doing? Tap the closest one.');
   const list=(PROBLEMS[state.appliance]||PROBLEMS.default).map(p=>({label:p}));
@@ -483,6 +492,7 @@ function payStep(){
     }
     state.mediaPending = (state.video && !state.videoUploaded) || (state.model && !state.modelUploaded);
     btn.textContent='Taking you to secure checkout…';
+    track('reached_pay');
     try{
       // absolute canonical origin so it never hits the www 301 redirect
       const r=await fetch(FN+'/create-quickcheck-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({

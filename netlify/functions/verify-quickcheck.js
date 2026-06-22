@@ -118,6 +118,8 @@ exports.handler = async function (event) {
   const amount = Number(m.amount_cents || 5000) / 100;
   await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
   await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'quick_check', session_id: sessionId, source: 'quick_check', at_ms: Date.now() });
+  // Web funnel: the 'paid' step — ties to the same conv_id as open/started/reached_pay.
+  try { await crud.logEvent('web_funnel', { step: 'paid', conv_id: m.conv_id || '', appliance: m.appliance || m.machine || '', at_ms: Date.now() }); } catch (_) {}
 
   // 💵 CASH siren → Teddy + Danielle
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
