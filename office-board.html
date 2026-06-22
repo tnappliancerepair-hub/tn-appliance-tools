@@ -511,9 +511,30 @@ async function onDrop(colId,techId,colEl){
   }
 
   if(techId){
-    toast('Assigning '+TECH_NAME[techId]+'…');
-    try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Assigned '+TECH_NAME[techId]+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
-    catch(_){toast('⚠ connection error');}
+    // Assigning to a tech must ALSO put them on a DAY. The calendar + the tech's
+    // schedule both filter by scheduled_start, so a tech-only assignment (the old
+    // reassign_job) never showed up on the actual schedule (Danielle, 2026-06-22).
+    // Ask the day (day-of routing — no time needed). Cancel = old assign-only.
+    const _t=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Chicago'}));
+    const _def=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-'+String(_t.getDate()).padStart(2,'0');
+    const _ans=prompt('What DAY is '+TECH_NAME[techId]+' going? (YYYY-MM-DD)\nThis puts the job on the schedule. No time needed — we run day-of routing.',_def);
+    if(_ans===null){
+      toast('Assigning '+TECH_NAME[techId]+'…');
+      try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Assigned '+TECH_NAME[techId]+' — ⚠ no day set, won\'t show on schedule'):('⚠ '+((d&&d.error)||'failed')));}
+      catch(_){toast('⚠ connection error');}
+    } else {
+      const _day=(String(_ans).trim()||_def);
+      const _startMs=Date.parse(_day+'T09:00:00-05:00')||Date.parse(_day)||Date.now();
+      toast('Scheduling '+TECH_NAME[techId]+'…');
+      try{
+        let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10),scheduled_start_ms:_startMs,service_eta_window:''});
+        if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){            // reopen a canceled job, then retry
+          await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});
+          d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10),scheduled_start_ms:_startMs,service_eta_window:''});
+        }
+        toast((d&&d.success)?('Scheduled '+TECH_NAME[techId]+' ✓ — now on the schedule'):('⚠ '+((d&&d.error)||'failed')));
+      }catch(_){toast('⚠ connection error');}
+    }
   } else if(STATUS_MAP[colId]){
     const label={parts:'Waiting Parts',done:'Completion',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
     toast('Moving to '+label+'…');

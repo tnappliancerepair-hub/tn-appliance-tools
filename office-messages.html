@@ -167,7 +167,7 @@ async function load(){
       </div>`;
     }).join('');
   }
-  document.getElementById('refresh').textContent='auto-refresh 30s · '+new Date().toLocaleTimeString();
+  document.getElementById('refresh').textContent='updated '+new Date().toLocaleTimeString()+' · pauses while you read/reply · tap to refresh now';
   resolveNames();
 }
 
@@ -327,7 +327,26 @@ async function loadSentToTechs(){
     }).join('');
 }
 load(); loadTechMsgs(); loadSentToTechs();
-setInterval(()=>{load();loadTechMsgs();loadSentToTechs();},30000);
+
+// Danielle's ask: the 30s auto-refresh was wiping the page while she read/replied.
+// Now it NEVER refreshes while she's busy — a thread open, the compose panel open,
+// typing, or active in the last 60s. It only refreshes when she's idle. Plus the
+// footer line is a manual "tap to refresh now".
+let LAST_ACTIVITY = Date.now();
+['click','keydown','touchstart','input'].forEach(ev=>document.addEventListener(ev,()=>{LAST_ACTIVITY=Date.now();},{passive:true}));
+function userBusy(){
+  const comp=document.getElementById('compose');
+  if(comp && comp.style.display!=='none') return true;                       // looking up a customer
+  const threads=document.querySelectorAll('[id^="thr-"]');
+  for(const t of threads){ if(t.style.display==='block') return true; }       // reading a thread
+  const a=document.activeElement;
+  if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA')) return true;          // typing
+  if(Date.now()-LAST_ACTIVITY < 60000) return true;                           // active in last 60s
+  return false;
+}
+setInterval(()=>{ if(userBusy())return; load();loadTechMsgs();loadSentToTechs(); },30000);
+// manual refresh — tap the footer line anytime
+(function(){ const r=document.getElementById('refresh'); if(r){ r.style.cursor='pointer'; r.title='Tap to refresh now'; r.addEventListener('click',()=>{load();loadTechMsgs();loadSentToTechs();}); } })();
 </script>
 </body>
 </html>
