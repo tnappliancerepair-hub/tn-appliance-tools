@@ -211,6 +211,19 @@ exports.handler = async (event) => {
           body_excerpt: body.slice(0, 500),
           received_at_ms: receivedAtMs,
         };
+        // Multi-item capture — when a dispatch lists 2+ appliances (Item/Product
+        // labels), log the raw body so we can wire the auto-split (one claim → one
+        // job per appliance) against the REAL format. Danielle, 2026-06-22: a 2nd
+        // appliance on one claim was being dropped. Fires only on multi-item; truncated.
+        try {
+          const itemHits = (body.match(/^\s*(Item|Product)\s*[:\-]/gim) || []).length;
+          if (itemHits >= 2) {
+            await fetch(`${XANO_BASE}/record_event_log`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'dispatch_raw_capture', metadata_json: JSON.stringify({ subject, item_hits: itemHits, parsed_dispatches: (parsed.dispatches || []).length, body: body.slice(0, 4000) }) }),
+            });
+          }
+        } catch (_) {}
       }
     } catch (e) {
       console.error(`[servicepower-gmail-poller] message ${id} parser threw (class=${subjectClass}):`, e.message);
