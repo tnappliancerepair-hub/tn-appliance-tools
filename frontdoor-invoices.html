@@ -140,6 +140,41 @@ function card(j){
   // Field set + prose depend on the tab: Authorize = SmartAutho estimate fields;
   // Invoice/Parts = the invoice field set + Work Performed.
   const isAutho = TAB==='autho';
+  const isParts = TAB==='parts';
+  // Part-return prep — a paste/send-ready email to AHS Returns + the 5-day warning
+  // + photo checklist, for jobs with uninstalled/defective parts. Miss the window
+  // and AHS deducts the part cost, so this is money protection.
+  let returnPrepHtml = '';
+  if (isParts && f.parts_to_return && f.parts_to_return.length) {
+    const parts = f.parts_to_return.join(', ');
+    const subject = `Part Return — Claim ${f.dispatch_id||('Job '+j.job_id)} — ${j.customer_name}`;
+    const ebody = [
+      'Requesting an appliance part return:', '',
+      'Claim / Dispatch #: ' + (f.dispatch_id || ''),
+      'Vendor ID: 839828',
+      'Customer: ' + j.customer_name,
+      'Appliance: ' + (f.item || ''),
+      'Model #: ' + (f.model_number || '(see photo)'),
+      'Serial #: ' + (f.serial_number || '(see photo)'),
+      'Part(s) to return: ' + parts,
+      'Reason: uninstalled — appliance being replaced  /  OR defective / damaged / mis-picked (circle one)', '',
+      'Photos attached: the part, the part box with label, and the damage (if any).', '',
+      '— TN Appliance Exchange'
+    ].join('\n');
+    const mailto = 'mailto:AHS_Purchasing_Part_Returns@ahs.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(ebody);
+    returnPrepHtml = `<div class="ret" style="margin-top:10px">
+      <div style="font-weight:800;margin-bottom:4px">📦 Part return — submit within 5 days or AHS deducts the cost</div>
+      <div style="font-size:12.5px;margin-bottom:8px">Return: <b>${esc(parts)}</b></div>
+      <div class="wp" style="background:#1a1305;border-color:rgba(255,180,84,.3)"><div class="lab">📧 Return email → AHS_Purchasing_Part_Returns@ahs.com</div><div style="white-space:pre-wrap;font-size:12.5px;color:#e8edf5">${esc(ebody)}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn" href="${mailto}">📧 Email AHS Returns</a>
+          <button class="btn sec" data-copy="${attr(ebody)}" style="font-size:12px;padding:8px 12px">📋 Copy email</button>
+          <a class="btn sec" href="${PORTAL}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">Return form (portal) ↗</a>
+        </div>
+      </div>
+      <div style="font-size:11.5px;opacity:.85;margin-top:6px">📸 Attach 3 photos: the part · the box + label · the damage (if any). Damaged parts must be reported within 5 days of delivery.</div>
+    </div>`;
+  }
   const fields = isAutho ? [
     ['Dispatch ID', f.dispatch_id, true],
     ['Item', f.item, true],
@@ -168,7 +203,7 @@ function card(j){
     ['Labor (hrs)', f.labor_hours, true],
   ];
 
-  const proseHtml = isAutho
+  const proseHtml = isParts ? '' : isAutho
     ? `<div class="wp"><div class="lab">📋 Diagnosis — "What's the problem?" → paste into SmartAutho</div>${esc(f.diagnosis||'(fill from the report)')}
         <div style="margin-top:6px"><button class="btn sec" data-copy="${attr(f.diagnosis||'')}" style="font-size:12px;padding:6px 10px">📋 Copy diagnosis</button></div>
         <div class="lab" style="margin-top:12px">🔧 What needs to be done to fix it</div>${esc(f.fix_action||'(fill from the report)')}
@@ -189,7 +224,7 @@ function card(j){
         <div class="appl">${esc(f.item||'')}${j.tech_name?' · '+esc(j.tech_name):''}${j.address?'<br>'+esc(j.address):''}</div></div>
       <div style="text-align:right">${statusBadge}<div class="badge b-disp" style="margin-top:6px">#${esc(f.dispatch_id||('J'+j.job_id))}</div></div>
     </div>
-    ${missHtml}${retHtml}
+    ${missHtml}${isParts?returnPrepHtml:retHtml}
     ${proseHtml}
     <div class="pf open">${fields.map(x=>frow(x[0],x[1],x[2])).join('')}</div>
     <div class="actions">${actionsHtml}</div>
