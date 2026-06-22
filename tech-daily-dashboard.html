@@ -650,6 +650,20 @@
     <a id="navDayOff" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(255,107,107,0.10);border:1px solid rgba(255,107,107,0.25);color:#ff6b6b;border-radius:8px;text-decoration:none">🛑 Day Off</a>
   </div>
 
+  <!-- Field search — look up ANY customer/job by name, phone, or address
+       from the road (Teddy's ask 2026-06-22: "no search there for me to look
+       it up"). Hits the forgiving search-customers fn; tap a result → job. -->
+  <div style="padding:10px 12px 0">
+    <div style="display:flex;gap:6px">
+      <input id="fldSearch" type="search" inputmode="search" enterkeyhint="search"
+        placeholder="🔍 Find anyone — name, phone, address…"
+        autocomplete="off" autocorrect="off" autocapitalize="words"
+        style="flex:1;min-width:0;padding:12px 14px;background:#0e1320;border:1px solid #2a3344;border-radius:10px;color:#e8eefc;font-size:16px;outline:none">
+      <button id="fldSearchBtn" style="flex:0 0 auto;padding:0 16px;background:rgba(74,245,255,0.14);border:1px solid rgba(74,245,255,0.4);color:#4af5ff;border-radius:10px;font-weight:800;font-size:15px">Go</button>
+    </div>
+    <div id="fldSearchResults" style="margin-top:8px"></div>
+  </div>
+
   <!-- Tech Inbox — populated by loadInbox() in JS after PIN gate clears.
        Auto-polls every 45s. Tap a message to expand + mark read. -->
   <div id="inboxHost" style="padding:10px 12px 0;display:none"></div>
@@ -844,6 +858,63 @@
     loadDashboard();
     loadInbox();
     setInterval(loadInbox, 45000);
+    wireFieldSearch();
+  }
+
+  // ── Field search ───────────────────────────────────────────────
+  // Look up ANY customer/job from the road. Forgiving (name/phone/address,
+  // partial + any case). Taps through to the mobile job view.
+  function wireFieldSearch() {
+    const inp = document.getElementById('fldSearch');
+    const btn = document.getElementById('fldSearchBtn');
+    const out = document.getElementById('fldSearchResults');
+    if (!inp || !btn || !out) return;
+    let lastQ = '';
+    async function run() {
+      const q = (inp.value || '').trim();
+      if (q.length < 2) { out.innerHTML = ''; return; }
+      lastQ = q;
+      out.innerHTML = '<div style="padding:10px;color:#7c8aa5;font-size:13px">searching…</div>';
+      try {
+        const r = await fetch('/.netlify/functions/search-customers?q=' + encodeURIComponent(q));
+        const d = await r.json().catch(() => ({}));
+        if (q !== lastQ) return; // a newer search superseded this one
+        const rows = (d && d.results) || [];
+        if (!rows.length) {
+          out.innerHTML = '<div style="padding:10px;color:#7c8aa5;font-size:13px">no matches for “' + q.replace(/</g,'&lt;') + '”</div>';
+          return;
+        }
+        out.innerHTML = rows.slice(0, 12).map(function (row) {
+          const c = row.customer || {};
+          const j = row.latest_job || {};
+          const name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Unknown';
+          const phone = c.phone ? String(c.phone).replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') : '';
+          const loc = [c.city, c.state, c.zip].filter(Boolean).join(', ');
+          const appl = [j.brand, j.appliance_type].filter(Boolean).join(' ') || (j.problem_summary || '');
+          const cash = (j.customer_type === 'self_pay');
+          const tag = cash
+            ? '<span style="background:rgba(255,179,84,0.16);border:1px solid rgba(255,179,84,0.4);color:#ffb454;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">CASH</span>'
+            : (j.warranty_company ? '<span style="background:rgba(90,169,255,0.14);border:1px solid rgba(90,169,255,0.4);color:#5aa9ff;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">' + String(j.warranty_company).toUpperCase() + '</span>' : '');
+          const status = j.friendly_status || j.current_status || '';
+          const jid = j.id;
+          const href = jid ? ('tech-job.html?job_id=' + jid + '&tech_id=' + encodeURIComponent(TECH_ID) + '&v=' + Date.now()) : '#';
+          return '<a href="' + href + '" style="display:block;text-decoration:none;background:#0e1320;border:1px solid #2a3344;border-radius:10px;padding:11px 13px;margin-bottom:7px">'
+            + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+            + '<span style="color:#e8eefc;font-weight:800;font-size:15px">' + name.replace(/</g,'&lt;') + '</span>' + tag
+            + (jid ? '<span style="color:#5c6a85;font-size:12px;margin-left:auto">#' + jid + '</span>' : '')
+            + '</div>'
+            + (appl ? '<div style="color:#aab6cf;font-size:13px;margin-top:3px">' + String(appl).replace(/</g,'&lt;') + '</div>' : '')
+            + '<div style="color:#7c8aa5;font-size:12px;margin-top:3px">' + [phone, loc, status].filter(Boolean).join(' · ').replace(/</g,'&lt;') + '</div>'
+            + '</a>';
+        }).join('');
+      } catch (e) {
+        out.innerHTML = '<div style="padding:10px;color:#ff8c8c;font-size:13px">search failed — check signal and try again</div>';
+      }
+    }
+    let t;
+    inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(run, 320); });
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(t); run(); } });
+    btn.addEventListener('click', function () { clearTimeout(t); run(); });
   }
 
   // ── Tech Inbox (Tech Inbox Block B) ────────────────────────────
