@@ -276,6 +276,37 @@ exports.handler = async function (event) {
   const allTools = listFrom(await vapi('GET', '/tool?limit=200', key));
   const byId = {}; allTools.forEach((t) => { byId[t.id] = { name: tname(t), url: (t.server && t.server.url) || '' }; });
 
+  // Add a "one moment" request-start filler to every inline function tool so Ant
+  // never goes dead-silent during a lookup — the dropped-call dead-air fix. Vapi
+  // speaks the request-start message the instant a tool is invoked, so there's no
+  // silence while the backend responds. Single PATCH, preserves every tool (just
+  // adds a messages[] to each). Idempotent — re-running overwrites with the same
+  // single request-start. Override text with &text=...
+  if (action === 'filler') {
+    const FILLER = q.text || 'One moment — let me pull that up for you.';
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    if (!tools.length) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no inline model.tools to patch' }) };
+    let patched = 0;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'function') return t;
+      patched++;
+      return Object.assign({}, t, { messages: [{ type: 'request-start', content: FILLER }] });
+    });
+    const resp = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vt = (verify.json && verify.json.model && verify.json.model.tools) || [];
+    const withFiller = vt.filter((t) => Array.isArray(t.messages) && t.messages.some((m) => m.type === 'request-start')).length;
+    return { statusCode: 200, body: JSON.stringify({
+      ok: resp.ok,
+      patch_status: resp.status,
+      tools_patched: patched,
+      verify_total_tools: vt.length,
+      verify_with_filler: withFiller,
+      filler_text: FILLER,
+      patch_error: resp.ok ? null : resp.json,
+    }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
