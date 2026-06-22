@@ -199,6 +199,7 @@
     <div class="dt"><div class="n" id="d-name">Job</div><div class="s" id="d-sub"></div></div>
   </div>
   <div id="d-status" style="display:none;margin:0 16px;background:#f0f6ff;border:1px solid #cfe0f5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:#26405e"><b>📍 Where it stands: </b><span id="d-status-text"></span></div>
+  <div style="margin:6px 16px"><button onclick="addAppliance()" style="width:100%;background:#fff3df;border:1px solid #e8c98a;color:#7a5410;border-radius:9px;padding:9px;font-size:13px;font-weight:700;cursor:pointer">➕ Add another appliance on this claim</button></div>
   <div class="dwrap" id="d-body"></div>
 </div>
 
@@ -562,6 +563,33 @@ async function openDrawer(id){
   }
 }
 function closeDrawer(){document.getElementById('scrim').classList.remove('open');document.getElementById('drawer').classList.remove('open');}
+// ➕ Add another appliance on this claim — for multi-item warranty dispatches where
+// intake only captured one appliance. Creates a linked sibling job (same customer +
+// claim + address) so the 2nd appliance gets scheduled + billed on its own.
+async function addAppliance(){
+  const j=window.__drawerJob||{}, c=window.__drawerCust||{};
+  const appliance=prompt('Add another appliance on this claim.\n\nAppliance type? (dishwasher, washer, dryer, refrigerator, oven/range, microwave…)');
+  if(!appliance||!appliance.trim())return;
+  const brand=(prompt('Brand? (Samsung, Frigidaire, LG…) — optional','')||'').trim();
+  const problem=(prompt("What's wrong with it?")||'').trim();
+  const fullName=(c.name||((c.first_name||'')+' '+(c.last_name||''))).trim();
+  const np=fullName.split(/\s+/);
+  toast('Adding '+appliance.trim()+'…');
+  try{
+    const r=await fetch('/.netlify/functions/add-appliance-job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      source_job_id:j.id, phone:c.phone||'',
+      first_name:c.first_name||np[0]||'Customer', last_name:c.last_name||np.slice(1).join(' ')||'',
+      zip:c.zip||j.service_zip||'', address:c.address||j.service_address||'', city:c.city||j.service_city||'', state:c.state||j.service_state||'',
+      appliance_type:appliance.trim(), brand, problem,
+      warranty_company:j.warranty_company||'', claim_number:j.claim_number||''
+    })});
+    const d=await r.json();
+    if(d&&d.ok&&d.new_job_id){
+      if(confirm('✓ Added '+appliance.trim()+' as job #'+d.new_job_id+' (same claim '+(j.claim_number||'')+'). Open it to schedule now?')){ closeDrawer(); openDrawer(d.new_job_id); }
+      else { toast('Added job #'+d.new_job_id); loadBoard(); }
+    } else { toast('⚠ '+((d&&d.error)||'could not add')); }
+  }catch(e){ toast('⚠ '+e.message); }
+}
 async function reqTechReport(jobId){
   const m=document.getElementById('reqrep-msg'); if(m)m.textContent='Texting the tech…';
   try{
@@ -576,6 +604,7 @@ async function reqTechReport(jobId){
 function renderDrawer(d){
   const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
   window.__drawerTech=(j.technician_id||(t&&t.id)||0);
+  window.__drawerJob=j; window.__drawerCust=c;
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
