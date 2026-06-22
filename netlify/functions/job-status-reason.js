@@ -81,8 +81,12 @@ exports.handler = async function (event) {
 
   if (!job) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, found: false, reason: "I don't see that one in our system yet — it may be a brand-new dispatch we haven't received. I can take the details and have someone confirm." }) };
 
+<<<<<<< HEAD
   const youVoice = String(q.voice || '').toLowerCase() === 'customer';
   const { headline, reason } = compose(job, tech, cust, youVoice);
+=======
+  const { headline, reason } = compose(job, tech, cust);
+>>>>>>> origin/main
   return { statusCode: 200, headers: CORS, body: JSON.stringify({
     ok: true, found: true,
     headline, reason,
