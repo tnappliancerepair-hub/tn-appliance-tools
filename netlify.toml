@@ -99,6 +99,13 @@
 [functions."payout-ready-notify"]
   schedule = "0 13-23 * * *"
 
+# TDR chase — keeps the Frontdoor invoice queue full. Texts the assigned tech
+# when a completed warranty job's report is missing the billable fields (labor
+# hrs / what they fixed) so Danielle can actually invoice it. Twice/day; a CT
+# business-hours guard inside the function backs up the cron; dedup 1/day/job.
+[functions."tdr-chase"]
+  schedule = "0 16,21 * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
