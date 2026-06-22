@@ -198,6 +198,7 @@
     <button class="x" onclick="closeDrawer()">✕</button>
     <div class="dt"><div class="n" id="d-name">Job</div><div class="s" id="d-sub"></div></div>
   </div>
+  <div id="d-status" style="display:none;margin:0 16px;background:#f0f6ff;border:1px solid #cfe0f5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:#26405e"><b>📍 Where it stands: </b><span id="d-status-text"></span></div>
   <div class="dwrap" id="d-body"></div>
 </div>
 
@@ -578,6 +579,14 @@ function renderDrawer(d){
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
+  // Same honest status engine the phone relays to AHS + the customer sees — so
+  // Danielle answers callers with the exact same line. Office (3rd-person) voice.
+  (function(){
+    const sEl=document.getElementById('d-status'), sTx=document.getElementById('d-status-text');
+    if(!sEl||!j.id) return; sEl.style.display='none';
+    fetch('/.netlify/functions/job-status-reason?job_id='+encodeURIComponent(j.id))
+      .then(r=>r.json()).then(d2=>{ if(d2&&d2.found&&d2.reason){ sTx.textContent=d2.reason; sEl.style.display='block'; } }).catch(()=>{});
+  })();
   const techNote=(tdrs.filter(x=>x.technician_notes).map(x=>x.technician_notes).pop())||tdr.technician_notes||'';
   const addr=[c.address,c.city,c.state,c.zip].filter(Boolean).join(', ');
 
