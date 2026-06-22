@@ -481,6 +481,7 @@ export const AGENT_REGISTRY = {
   'TECH_ON_WAY': './tech_on_way.js',
   'TECH_ONBOARDED': './tech_onboarded.js',
   'TECH_PACE_WATCHER': './tech_pace_watcher.js',
+  'TECH_SMS_QUERY': './tech_sms_query.js',
   'TECH_PERFORMANCE_ALERT': './tech_performance_alert.js',
   'TECH_RUNNING_AHEAD': './tech_running_ahead.js',
   'TECH_RUNNING_BEHIND': './tech_running_behind.js',

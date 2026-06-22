@@ -66,6 +66,40 @@ const SEND_SMS_TIMEOUT_MS = 7000;
 
 const FALLBACK_REPLY = "yo, my brain glitched for a sec. try that again in a min and i should be back. if it's urgent, text teddy at 615-485-5795.";
 
+// Tech SMS query lifeline: short lookups a tech can text on bad signal. Routed
+// to the colony loop (reliable path) as a TECH_SMS_QUERY signal.
+const XANO_EMIT_SIGNAL = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/emit_colony_signal';
+
+// Narrow on purpose: only short, clearly-a-question messages. A TDR dictation
+// ("replaced the lid lock, part W10..., 1.5 hrs") is long and won't match.
+function isTechQuery(body) {
+  const t = String(body || '').trim().toLowerCase();
+  if (!t || t.length > 60) return false;
+  return (
+    /\bnext\s+(job|stop|appointment|appt)\b/.test(t) ||
+    /^\s*next\??\s*$/.test(t) ||
+    /\bmy\s+(day|jobs|stops|schedule)\b/.test(t) ||
+    /what'?s\s+next/.test(t) ||
+    /^\s*(today|schedule)\??\s*$/.test(t)
+  );
+}
+
+async function emitTechQuery(parsed) {
+  const payload = JSON.stringify({ phone: parsed.from, body: parsed.body, to: parsed.to || '' });
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 6000);
+  try {
+    await fetch(XANO_EMIT_SIGNAL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signal_type: 'TECH_SMS_QUERY', signal_strength: 70, payload }),
+      signal: ctl.signal,
+    });
+  } finally {
+    clearTimeout(tm);
+  }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -135,6 +169,23 @@ exports.handler = async function (event) {
     }
   } catch (e) {
     console.error('[tech-sms-inbound] office dispatch failed:', e.message);
+  }
+
+  // ─── Tech SMS query — the bad-signal lifeline (v1) ──────────────────
+  // When a tech is on weak signal and the app won't load, they can TEXT a
+  // short question ("next job", "my day") and get a DB-grounded answer back.
+  // Routed through the colony loop (the reliable path) via a TECH_SMS_QUERY
+  // signal — tech_sms_query.js resolves the tech by phone, pulls their
+  // schedule, and texts back. We ack immediately; the loop sends the answer.
+  // Kept narrow (short messages only) so it never swallows a TDR dictation.
+  if (isTechQuery(parsed.body)) {
+    try {
+      await emitTechQuery(parsed);
+      console.log('[tech-sms-inbound] routed to TECH_SMS_QUERY (loop)');
+    } catch (e) {
+      console.error('[tech-sms-inbound] tech query emit failed:', e.message);
+    }
+    return providerAck(provider, '');
   }
 
   // 3. Forward to brain (v2) or legacy Xano endpoint (v1).
