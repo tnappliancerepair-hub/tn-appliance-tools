@@ -16,7 +16,7 @@ exports.handler = async () => {
   const hour = ctHour();
   if (hour < 5 || hour > 10) return jsonResp(200, { ok: true, skipped: 'outside_morning', hour });
 
-  let toSchedule = 0, parts = 0, held = 0, callbacks = 0, stale = 0;
+  let toSchedule = 0, parts = 0, held = 0, callbacks = 0, stale = 0, schedFix = 0;
   try {
     const r = await fetch(`${XANO}/list_needs_scheduled_parallel?limit=1000`, { cache: 'no-store' });
     const d = await r.json().catch(() => ({}));
@@ -28,6 +28,13 @@ exports.handler = async () => {
     const c = (d && d.counts) || {};
     parts = c.parts_arrived || 0; held = c.held || 0; callbacks = c.callbacks || 0; stale = c.stale_intake || 0;
   } catch (_) {}
+  // Schedule Health — jobs whose time/tech is wrong (placeholder, no day, double-book,
+  // past-not-done). Keeping this clean is what makes the day's automations trustworthy.
+  try {
+    const r = await fetch('https://tnapplianceexchange.net/.netlify/functions/schedule-sanity?key=tn-schedule-2026', { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    schedFix = (d && d.total) || 0;
+  } catch (_) {}
 
   const bits = [];
   if (toSchedule) bits.push(toSchedule + ' to schedule');
@@ -37,8 +44,11 @@ exports.handler = async () => {
   if (stale) bits.push(stale + ' stuck at intake');
 
   const summary = bits.length ? ('here\'s your day: ' + bits.join(', ') + '.') : 'you\'re all caught up — nothing urgent waiting. 🎉';
+  const schedLine = schedFix
+    ? ' 🗓️ Schedule Check: ' + schedFix + ' job' + (schedFix === 1 ? '' : 's') + ' need a real day/tech before they\'ll show on the schedule → tnapplianceexchange.net/schedule-sanity.html'
+    : '';
   const body =
-    'morning Danielle 🐜 — ' + summary +
+    'morning Danielle 🐜 — ' + summary + schedLine +
     ' Start here: tnapplianceexchange.net/needs-scheduled.html' +
     ' — and remember, you can just text or talk to me anytime to schedule a job, mark parts in, or ask a question. 💛';
 
