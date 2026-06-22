@@ -307,6 +307,32 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Add the 3 caller-identification tools the live assistant is MISSING
+  // (lookup_customer_by_phone / lookup_by_claim_number / search_customers).
+  // Without them, when a caller gives their name/phone/claim Ant has no way to
+  // look them up -> it goes dead-silent -> silence-timed-out. The proxy
+  // (vapi-tool.js) already fully supports these three. Single inline-tools PATCH
+  // that PRESERVES every existing tool; each new tool gets the request-start
+  // filler so Ant talks during the lookup. Idempotent.
+  if (action === 'addlookups') {
+    const FILLER = q.text || 'One moment — let me pull that up for you.';
+    const LOOKUPS = [
+      { name: 'lookup_customer_by_phone', description: "Look up a caller by their phone number to find their account + open jobs. Use this first whenever you have the caller's number.", params: { phone: { type: 'string', description: 'Caller phone number.' } }, required: ['phone'] },
+      { name: 'lookup_by_claim_number', description: 'Look up a job by the claim, dispatch, or work-order number the caller or warranty company gives. Returns status, scheduled day, and tech.', params: { claim_or_dispatch_number: { type: 'string', description: 'The claim / dispatch / work-order number.' } }, required: ['claim_or_dispatch_number'] },
+      { name: 'search_customers', description: 'Find a caller by name (or name + city) when you do not have a matching phone or claim number.', params: { query: { type: 'string', description: 'Full name, optionally with city.' } }, required: ['query'] },
+    ];
+    const mk = (d) => ({ type: 'function', function: { name: d.name, description: d.description, parameters: { type: 'object', properties: d.params, required: d.required } }, server: { url: PROXY }, messages: [{ type: 'request-start', content: FILLER }] });
+    const existing = Array.isArray(model.tools) ? model.tools : [];
+    const names = new Set(LOOKUPS.map((d) => d.name));
+    const kept = existing.filter((t) => !names.has(tname(t)));
+    const newTools = kept.concat(LOOKUPS.map(mk));
+    const resp = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vt = (verify.json && verify.json.model && verify.json.model.tools) || [];
+    const present = LOOKUPS.map((d) => d.name).filter((n) => vt.some((t) => tname(t) === n));
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, patch_status: resp.status, total_tools_before: existing.length, total_tools_after: vt.length, lookups_present: present, all_tool_names: vt.map((t) => tname(t)), patch_error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
