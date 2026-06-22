@@ -164,6 +164,7 @@ async function load(){
       const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${openLink}${textLink}</div></div>`;
       return `<div class="conv ${c.last.dir==='in'?'waiting':''}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
         <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
+        <div class="ctx" id="ctx-${c.key}" data-ph="${c.phone||''}" style="display:none;font-size:11.5px;color:#8a96a8;margin-top:3px"></div>
         <div class="snippet">${dirLbl}${snip}</div>
         ${thread}
       </div>`;
@@ -171,6 +172,29 @@ async function load(){
   }
   document.getElementById('refresh').textContent='updated '+new Date().toLocaleTimeString()+' · pauses while you read/reply · tap to refresh now';
   resolveNames();
+  enrichStatus();
+}
+
+// Danielle's ask #4: show the job context (appliance · tech · status) right in each
+// conversation header, so she answers without opening anything. Same status engine.
+const CTX_CACHE={};
+async function enrichStatus(){
+  const els=document.querySelectorAll('.ctx[data-ph]');
+  for(const el of els){
+    const ph=el.getAttribute('data-ph'); if(!ph)continue;
+    el.removeAttribute('data-ph');
+    if(CTX_CACHE[ph]===undefined){
+      try{
+        const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(ph))).json();
+        CTX_CACHE[ph]=(d&&d.found)?{appliance:d.appliance||'',tech:d.tech||'',headline:d.headline||''}:null;
+      }catch(_){ CTX_CACHE[ph]=null; }
+    }
+    const x=CTX_CACHE[ph];
+    if(x){
+      const bits=['🛠 '+(x.appliance||'job'), x.tech?('👤 '+x.tech):'', x.headline?('· '+x.headline):''].filter(Boolean);
+      el.textContent=bits.join(' '); el.style.display='block';
+    }
+  }
 }
 
 // Danielle's ask #1: show the customer NAME, not the number. Many SMS rows don't
