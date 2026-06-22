@@ -295,6 +295,11 @@
     <div class="detail" id="heroDetail"></div>
   </div>
 
+  <!-- Honest "where it stands" line — same status engine the phone + office use. -->
+  <div id="statusReason" style="display:none;background:#f3f7fc;border:1px solid #dbe6f3;border-radius:12px;padding:12px 14px;margin:0 0 4px;font-size:14px;line-height:1.5;color:#28405e">
+    <span style="font-weight:700">📍 Where it stands: </span><span id="statusReasonText"></span>
+  </div>
+
   <div id="payDueCard" style="display:none"></div>
 
   <div id="tipCard" style="display:none"></div>
@@ -875,6 +880,13 @@
     $('heroBadge').textContent = badgeText;
     $('heroHeadline').textContent = headline;
     $('heroDetail').textContent = detail;
+
+    // Honest "where it stands" line from the shared status engine (same wording the
+    // phone relays to AHS + the office sees), in the customer's own voice.
+    fetch('/.netlify/functions/job-status-reason?job_id=' + encodeURIComponent(JOB_ID) + '&voice=customer')
+      .then(r => r.json()).then(d => {
+        if (d && d.found && d.reason) { $('statusReasonText').textContent = d.reason; $('statusReason').style.display = 'block'; }
+      }).catch(() => {});
 
     // Info rows
     const rows = [];

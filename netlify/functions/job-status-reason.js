@@ -24,32 +24,41 @@ function dayCT(v) {
 }
 async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
 
-// Build the spoken reason from the job fields.
-function compose(j, tech, cust) {
+// Build the status reason. you=true → 2nd-person ("your dishwasher… you'll get a
+// day") for the customer's own portal; you=false → 3rd-person for relaying to a
+// warranty-company rep or the office.
+function compose(j, tech, cust, you) {
   const status = String(j.current_status || j.scheduling_status || '').toLowerCase();
-  const appliance = [j.brand, j.appliance_type].filter(Boolean).join(' ') || 'appliance';
+  const appl = [j.brand, j.appliance_type].filter(Boolean).join(' ') || 'appliance';
   const first = (cust && cust.first_name) ? cust.first_name : 'the customer';
   const techName = (tech && tech.first_name) ? tech.first_name : (TECHS[j.technician_id] || '');
   const partEta = dayCT(j.part_eta || j.parts_eta_date);
   const day = dayCT(j.scheduled_start);
-  const partName = (j.failed_component || j.verified_part_number || 'the part').toString();
+  const ap = you ? ('your ' + appl) : ('the ' + appl);              // appliance phrase
+  const tech1 = techName || (you ? 'your tech' : 'a tech');
 
-  if (/complete|done/.test(status)) return { headline: 'Completed', reason: `That repair is complete${j.repair_completed ? ' — ' + j.repair_completed : '.'}` };
-  if (/cancel/.test(status)) return { headline: 'Canceled', reason: `That job was canceled.` };
+  if (/complete|done/.test(status)) return { headline: 'Completed', reason: you ? `Your repair is complete — thank you!` : `That repair is complete${j.repair_completed ? ' — ' + j.repair_completed : '.'}` };
+  if (/cancel/.test(status)) return { headline: 'Canceled', reason: you ? `This job has been canceled — reply if you'd like to reschedule.` : `That job was canceled.` };
   if (/await|part|order/.test(status)) {
     return { headline: 'Waiting on a part', reason: partEta
-      ? `We've diagnosed the ${appliance} and we're waiting on the part — expected ${partEta}. The moment it's in, we schedule the install and ${first} gets a day.`
-      : `We've diagnosed the ${appliance} and the part is on order. As soon as it arrives we schedule the install.` };
+      ? (you
+          ? `We've diagnosed ${ap} and we're waiting on the part — expected ${partEta}. The moment it's in, we'll schedule the install and text you a day.`
+          : `We've diagnosed ${ap} and we're waiting on the part — expected ${partEta}. The moment it's in, we schedule the install and ${first} gets a day.`)
+      : `We've diagnosed ${ap} and the part is on order. As soon as it arrives we schedule the install${you ? ' and text you a day' : ''}.` };
   }
-  if (/in_progress|started/.test(status)) return { headline: 'In progress', reason: `${techName || 'Our tech'} is on the ${appliance} right now.` };
+  if (/in_progress|started/.test(status)) return { headline: 'In progress', reason: you ? `${tech1} is working on ${ap} right now.` : `${tech1} is on ${ap} right now.` };
   if (/scheduled/.test(status) || day) {
     return { headline: 'Scheduled', reason: day
-      ? `${first} is scheduled with ${techName || 'a tech'} for ${day}. We run day-of routing, so ${first} gets a live arrival window that morning.`
-      : `Scheduled with ${techName || 'a tech'} — ${first} gets a live window the morning of.` };
+      ? (you
+          ? `You're scheduled with ${tech1} for ${day}. We run day-of routing, so you'll get a live arrival window that morning.`
+          : `${first} is scheduled with ${tech1} for ${day}. We run day-of routing, so ${first} gets a live arrival window that morning.`)
+      : (you ? `You're scheduled with ${tech1} — you'll get a live window the morning of.` : `Scheduled with ${tech1} — ${first} gets a live window the morning of.`) };
   }
-  if (/not_ready|needs|broadcast|intake|new/.test(status)) return { headline: 'In scheduling', reason: `We've received the ${appliance} job and it's in our scheduling queue — a day gets set shortly and ${first} is texted to confirm.` };
+  if (/not_ready|needs|broadcast|intake|new/.test(status)) return { headline: 'In scheduling', reason: you
+    ? `We've got ${ap} and it's in our scheduling queue — we'll set a day shortly and text you to confirm.`
+    : `We've received ${ap} job and it's in our scheduling queue — a day gets set shortly and ${first} is texted to confirm.` };
   const fs = (j.friendly_status || '').trim();
-  return { headline: fs || 'In progress', reason: fs ? `Current status: ${fs}.` : `The ${appliance} job is in progress — let me get a tech to confirm the next step.` };
+  return { headline: fs || 'In progress', reason: fs ? `Current status: ${fs}.` : (you ? `Your ${appl} job is in progress — we'll update you on the next step.` : `The ${appl} job is in progress.`) };
 }
 
 exports.handler = async function (event) {
@@ -72,7 +81,8 @@ exports.handler = async function (event) {
 
   if (!job) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, found: false, reason: "I don't see that one in our system yet — it may be a brand-new dispatch we haven't received. I can take the details and have someone confirm." }) };
 
-  const { headline, reason } = compose(job, tech, cust);
+  const youVoice = String(q.voice || '').toLowerCase() === 'customer';
+  const { headline, reason } = compose(job, tech, cust, youVoice);
   return { statusCode: 200, headers: CORS, body: JSON.stringify({
     ok: true, found: true,
     headline, reason,
