@@ -69,6 +69,10 @@ async function go(){
     if(i<4) await sleep(1600);
   }
   if(d&&d.ok&&d.paid){
+    // 💰 Conversion — the $50 Quick Check sale. This is what the Google Ads
+    // "$50 Quick Check" Performance Max campaign optimizes toward. Fired once
+    // per session_id (Stripe transaction id) so a page refresh can't double-count.
+    try{ if(!d.already) gtag('event','purchase',{ transaction_id: sid, value: Number(d.amount)||50, currency:'USD', items:[{item_id:'quick_check', item_name:'$50 Quick Check'}] }); }catch(_){}
     orb.classList.add('ok');
     kicker.textContent='Quick Check confirmed';
     head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'.</span>';

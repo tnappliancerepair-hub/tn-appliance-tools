@@ -436,6 +436,11 @@ function askAvailability(){
   });
   f.querySelector('#av-go').onclick=()=>{
     state.availability=ta.value.trim();
+    // 📈 Lead conversion — customer completed intake and is submitting. Secondary
+    // signal for Google Ads (the paid $50 Quick Check fires 'purchase' on the
+    // thank-you page). Lets the campaign optimize toward people who actually
+    // finish the flow, not just clicks.
+    try{ gtag('event','generate_lead',{ currency:'USD', value: FREE_MODE?0:50, appliance: state.appliance||'', payer: state.payer||'' }); }catch(_){}
     clearFlow(); think(500, FREE_MODE ? submitFree : payStep);
   };
 }
