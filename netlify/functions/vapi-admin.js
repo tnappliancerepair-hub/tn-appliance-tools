@@ -413,6 +413,37 @@ ${END}`;
     return { statusCode: 200, body: JSON.stringify({ ok: true, count: list.length, changed: results.filter((r) => r.changed).length, results }, null, 2) };
   }
 
+  // Warranty-company self-serve relay — when Ant recognizes the caller is the
+  // warranty company (AHS/HSA/Frontdoor/CSC/dispatcher), it asks for the claim #
+  // + what they need and PULLS it, instead of taking a message (Teddy, 2026-06-22).
+  // Idempotent (marker-wrapped); re-running replaces the same block.
+  if (action === 'warrantyrelay') {
+    const START = '<!-- WARRANTYRELAY-START -->', END = '<!-- WARRANTYRELAY-END -->';
+    const BLOCK = `${START}
+## WARRANTY-COMPANY CALLER — be their instant self-serve database (don't take a message)
+If the caller is from the warranty company — they mention AHS, American Home Shield, HSA, Frontdoor, ServicePower, "dispatcher", "CSC", a claim or dispatch number, or that they're calling ON BEHALF of a member/customer — switch into fast lookup mode. You have all of it in the database; pull it for them.
+Open with, warmly: "Sure — what's the claim or dispatch number you're looking for, and what do you need to know? I can pull it right up."
+Then call lookup_by_claim_number with that number and answer their SPECIFIC question, confidently and concretely:
+- Why it's waiting: "We've diagnosed it — we're waiting on the part, expected {part ETA}. The moment it's in we schedule the install."
+- Scheduled?: "She's scheduled with {tech} for {day} — she gets a live arrival window that morning." (We schedule by DAY, not a clock time.)
+- Have we been out yet / is it scheduled: use been_out / is_scheduled.
+- Read back tech, appliance, parts ETA, status — whatever they ask.
+If the claim isn't found, say it may be a brand-new dispatch you haven't received and offer to take the details. NEVER just take a message when you can pull the answer.
+${END}`;
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+    const sysIdx = msgs.findIndex((m) => m.role === 'system');
+    if (sysIdx < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message on assistant' }) };
+    let content = String(msgs[sysIdx].content || '');
+    content = content.replace(new RegExp(START + '[\\s\\S]*?' + END, 'g'), '').replace(/\n{3,}/g, '\n\n').trim();
+    content = content + '\n\n' + BLOCK + '\n';
+    msgs[sysIdx] = Object.assign({}, msgs[sysIdx], { content });
+    const resp = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vm = (verify.json && verify.json.model && verify.json.model.messages) || [];
+    const present = vm.some((m) => /WARRANTYRELAY-START/.test(String(m.content || '')));
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, patch_status: resp.status, warrantyrelay_block_present: present, prompt_len: content.length, patch_error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'inspect') {
     const inlineTools = Array.isArray(model.tools) ? model.tools : [];
     return { statusCode: 200, body: JSON.stringify({
