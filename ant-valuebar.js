@@ -28,8 +28,8 @@
     bar.id = 'ant-valuebar';
     // Localize for city landing pages — title is "Appliance Repair {City} TN | …".
     // Falls back to the generic bar on any non-city page (no regression).
-    var cityM = (document.title || '').match(/Appliance Repair\s+(.+?)\s+TN\b/i);
-    var city = (cityM && cityM[1] && cityM[1].length < 28) ? cityM[1].trim().replace(/[<>&]/g, '') : '';
+    var cityM = (document.title || '').match(/Appliance Repair\s+([A-Za-z][A-Za-z .'-]{1,26})\s+TN\b/);
+    var city = cityM ? cityM[1].trim() : '';
     var inCity = city ? (' in <b>' + city + '</b>') : '';
     bar.innerHTML =
       '<div class="vb-txt">'
