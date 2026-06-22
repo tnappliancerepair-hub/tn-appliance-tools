@@ -134,23 +134,41 @@ query record_inbound_customer_sms verb=POST {
     } as $audit
   
     // 5. Emit signal for the inbound_customer_sms agent.
+    // Pre-bind every value (ternaries / ?? are not safe inside an object
+    // literal), then build the payload as a REAL object and json_encode it —
+    // exactly like the working JOB_CREATED emit. The previous version used a
+    // backtick STRING here, which json_encode double-encoded into a JSON string,
+    // so the loop read payload.body as empty -> skipped_empty_body -> NO REPLY.
+    var $ics_cust_name {
+      value = ($customer != null) ? (($customer.first_name ?? "") ~ " " ~ ($customer.last_name ?? "")) : ""
+    }
+    var $ics_first {
+      value = ($customer != null) ? ($customer.first_name ?? "") : ""
+    }
+    var $ics_body {
+      value = ($input.body ?? "")
+    }
+    var $ics_sid {
+      value = ($input.sid ?? "")
+    }
+    var $ics_to {
+      value = ($input.to ?? "")
+    }
     var $ics_payload_obj {
-      value = ```
-        {
-          phone          : $clean_phone
-          customer_id    : $customer_id_val
-          customer_phone : $clean_phone
-          customer_name  : ($customer != null) ? (($customer.first_name ?? "") ~ " " ~ ($customer.last_name ?? "")) : ""
-          first_name     : ($customer != null) ? ($customer.first_name ?? "") : ""
-          job_id         : $job_id_val
-          appliance_type : $job_appliance
-          scheduling_status: $job_status
-          body           : $input.body
-          message        : $input.body
-          provider_sid   : ($input.sid ?? "")
-          to             : ($input.to ?? "")
-        }
-        ```
+      value = {
+        phone            : $clean_phone
+        customer_id      : $customer_id_val
+        customer_phone   : $clean_phone
+        customer_name    : $ics_cust_name
+        first_name       : $ics_first
+        job_id           : $job_id_val
+        appliance_type   : $job_appliance
+        scheduling_status: $job_status
+        body             : $ics_body
+        message          : $ics_body
+        provider_sid     : $ics_sid
+        to               : $ics_to
+      }
     }
   
     var $ics_payload_str {
