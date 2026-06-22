@@ -137,8 +137,22 @@ function card(j){
   const retHtml = (f.parts_to_return && f.parts_to_return.length)
     ? `<div class="ret">📦 <b>Part return owed</b> — submit the AHS Part Return Form within 5 days or it's deducted:<br>${esc(f.parts_to_return.join(', '))}<br><span style="opacity:.8">Email photos + model/serial → AHS_Purchasing_Part_Returns@ahs.com</span></div>` : '';
 
-  // Frontdoor fields in portal order (invoice-centric; autho/parts reuse same data)
-  const fields = [
+  // Field set + prose depend on the tab: Authorize = SmartAutho estimate fields;
+  // Invoice/Parts = the invoice field set + Work Performed.
+  const isAutho = TAB==='autho';
+  const fields = isAutho ? [
+    ['Dispatch ID', f.dispatch_id, true],
+    ['Item', f.item, true],
+    ['Job type', f.job_type, true],
+    ['Failed component', f.failed_component, true],
+    ['Failure reason', f.failure_reason, true],
+    ['Part #', f.part_number, true],
+    ['Part description', f.part_description, true],
+    ['Qty', f.part_qty, true],
+    ['Labor (hrs)', f.labor_hours, true],
+    ['Model #', f.model_number, true],
+    ['Serial #', f.serial_number, true],
+  ] : [
     ['Dispatch ID', f.dispatch_id, true],
     ['Invoice ID', f.invoice_id, true],
     ['Contact date', f.contact_date, true],
@@ -154,6 +168,21 @@ function card(j){
     ['Labor (hrs)', f.labor_hours, true],
   ];
 
+  const proseHtml = isAutho
+    ? `<div class="wp"><div class="lab">📋 Diagnosis — "What's the problem?" → paste into SmartAutho</div>${esc(f.diagnosis||'(fill from the report)')}
+        <div style="margin-top:6px"><button class="btn sec" data-copy="${attr(f.diagnosis||'')}" style="font-size:12px;padding:6px 10px">📋 Copy diagnosis</button></div>
+        <div class="lab" style="margin-top:12px">🔧 What needs to be done to fix it</div>${esc(f.fix_action||'(fill from the report)')}
+        <div style="margin-top:6px"><button class="btn sec" data-copy="${attr(f.fix_action||'')}" style="font-size:12px;padding:6px 10px">📋 Copy fix</button></div>
+      </div>`
+    : `<div class="wp"><div class="lab">🧾 Work Performed — paste into AHS</div>${esc(f.work_performed||'')}
+        <div style="margin-top:8px"><button class="btn sec" data-copy="${attr(f.work_performed||'')}" style="font-size:12px;padding:6px 10px">📋 Copy Work Performed</button></div>
+      </div>`;
+
+  const actionsHtml = isAutho
+    ? `<a class="btn" href="${PORTAL}" target="_blank" rel="noopener">🔗 Open Frontdoor portal</a>`
+    : `<a class="btn" href="${PORTAL}" target="_blank" rel="noopener">🔗 Open Frontdoor portal</a>
+       ${j.invoiced ? '' : `<button class="btn ok" data-mark="${j.job_id}" data-vendor="${attr(j.warranty_company||'AHS')}" data-disp="${attr(f.dispatch_id||'')}">✓ Mark invoiced</button>`}`;
+
   return `<div class="card ${ready?'ready':''} ${j.invoiced?'invoiced':''}">
     <div class="chead">
       <div><div class="cust">${esc(j.customer_name)}</div>
@@ -161,14 +190,9 @@ function card(j){
       <div style="text-align:right">${statusBadge}<div class="badge b-disp" style="margin-top:6px">#${esc(f.dispatch_id||('J'+j.job_id))}</div></div>
     </div>
     ${missHtml}${retHtml}
-    <div class="wp"><div class="lab">🧾 Work Performed — paste into AHS</div>${esc(f.work_performed||'')}
-      <div style="margin-top:8px"><button class="btn sec" data-copy="${attr(f.work_performed||'')}" style="font-size:12px;padding:6px 10px">📋 Copy Work Performed</button></div>
-    </div>
+    ${proseHtml}
     <div class="pf open">${fields.map(x=>frow(x[0],x[1],x[2])).join('')}</div>
-    <div class="actions">
-      <a class="btn" href="${PORTAL}" target="_blank" rel="noopener">🔗 Open Frontdoor portal</a>
-      ${j.invoiced ? '' : `<button class="btn ok" data-mark="${j.job_id}" data-vendor="${attr(j.warranty_company||'AHS')}" data-disp="${attr(f.dispatch_id||'')}">✓ Mark invoiced</button>`}
-    </div>
+    <div class="actions">${actionsHtml}</div>
   </div>`;
 }
 

@@ -124,6 +124,11 @@ exports.handler = async function (event) {
       work_performed: workPerformed(b),
       tax_rate: TAX_RATE[state] || '',
       parts_to_return: toReturn,
+      // ── SmartAutho (authorization estimate) fields ──
+      diagnosis: clean(t.diagnosis || b.problem_summary || m.tdr_diagnosis),
+      job_type: (clean(t.verified_part_number) || clean(t.failed_component || m.tdr_failed_component)) ? 'Replace Part' : 'Labor-Only',
+      fix_action: repair || (clean(t.failed_component || m.tdr_failed_component) ? ('Replace ' + clean(t.failed_component || m.tdr_failed_component) + (clean(t.verified_part_number) ? ' (part ' + clean(t.verified_part_number) + ')' : '')) : ''),
+      part_qty: '1',
     };
 
     return {
