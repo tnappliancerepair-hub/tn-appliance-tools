@@ -559,18 +559,35 @@ function completeFlow(){
   const out=document.getElementById('lc-stamp');
   out.innerHTML='How did it end?<div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
+    // Gate: a "Repair complete" must carry a report (what you found + fixed + labor),
+    // or the office can't bill or authorize it. Block clearly BEFORE submitting.
+    if(b.dataset.ct==='repair_complete'){
+      const nEl=document.getElementById('notes');
+      const note=(nEl?nEl.value:'').trim();
+      const ex=(typeof pickTdr==='function' && typeof allTdrs!=='undefined') ? (pickTdr(allTdrs)||{}) : {};
+      const hasReport = note.length>=12 || (ex.repair_completed||'').trim() || (ex.diagnosis||'').trim();
+      if(!hasReport){
+        toast('✍️ Add your report first');
+        if(nEl){ nEl.scrollIntoView({behavior:'smooth',block:'center'}); nEl.focus(); }
+        alert('Before you mark this complete, the office needs your report to bill it:\n\n• what you found\n• what you fixed\n• your labor time\n\nType it in the report box, tap "Save report", then Complete.');
+        return;
+      }
+    }
     toast('Completing…');
     try{
-      // Auto-Start guard: the backend state machine won't let a job go
-      // straight scheduled -> completed (it must pass through in_progress).
-      // Techs do the work and tap Complete without ever tapping Start, so the
-      // completion was silently rejected. If this job was never started, fire
-      // Start first so Complete actually lands.
+      // Auto-Start guard: the state machine won't go scheduled -> completed directly
+      // (must pass through in_progress). Techs Complete without ever tapping Start, so
+      // fire Start first if needed, or the completion silently rejects.
       if(!job.job_started_at){
         try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){}
       }
       const d=await xanoPost('tech_job_complete',{job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct});
-      if(d.success){ toast('Job completed ✓'); loadJob(); } else { toast('⚠ '+(d.error||'blocked')); }
+      if(d.success){ toast('Job completed ✓'); loadJob(); }
+      else if(/tdr|incomplete|labor|repair|required|diagnos/i.test(String(d.error||''))){
+        const nEl=document.getElementById('notes'); if(nEl) nEl.scrollIntoView({behavior:'smooth',block:'center'});
+        alert('The office needs a complete report to bill this job:\n\n'+(d.error||'')+'\n\nFill in your report (what you found + fixed + labor), save it, then tap Complete.');
+      }
+      else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
   });
 }
