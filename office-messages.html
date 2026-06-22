@@ -81,6 +81,13 @@ function shape(r){
   return {key,jobId,name,phone,body,dir,blocked,ts:Number(r.created_at)||0};
 }
 
+// Expand/collapse a conversation's full thread inline.
+function toggleThread(key){
+  const el=document.getElementById('thr-'+key);
+  if(!el)return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
 async function load(){
   document.getElementById('refresh').textContent='refreshing…';
   let rows=[];
@@ -105,8 +112,9 @@ async function load(){
   const conv={};
   for(const raw of rows){
     const s=shape(raw); if(!s.key)continue;
-    const c=conv[s.key]||(conv[s.key]={key:s.key,jobId:s.jobId,name:'',phone:'',last:null,count:0});
+    const c=conv[s.key]||(conv[s.key]={key:s.key,jobId:s.jobId,name:'',phone:'',last:null,count:0,msgs:[]});
     c.count++;
+    c.msgs.push(s);
     if(!c.jobId&&s.jobId)c.jobId=s.jobId;
     if(!c.name&&s.name)c.name=s.name;
     if(!c.phone&&s.phone)c.phone=s.phone;
@@ -127,16 +135,29 @@ async function load(){
       const waitB = c.last.dir==='in' ? '<span class="badge">REPLY</span>' : '';
       const dirLbl = c.last.dir==='in' ? '<span class="dir in">They wrote:</span> ' : '<span class="dir out">'+(c.last.blocked?'(held) ':'')+'You:</span> ';
       const snip = c.last.body ? esc(c.last.body.slice(0,140)) : (c.last.blocked?'(message held by gate)':'(no text)');
-      const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1">Open conversation →</a>` : '';
-      const textLink = c.phone ? `<a class="a-text" href="sms:+1${c.phone}">📱 Text now</a>` : '';
+      const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1" onclick="event.stopPropagation()">Open job →</a>` : '';
+      const textLink = c.phone ? `<a class="a-text" href="sms:+1${c.phone}" onclick="event.stopPropagation()">📱 Text now</a>` : '';
       if(c.phone) LAST_TEXT[c.phone] = (c.last.dir==='in' ? (c.last.body||'') : '');
       const replyBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();replyTo('${c.phone}')" style="background:#0a7d33;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">✍️ Reply (auto-translate)</button>` : '';
-      const href = c.jobId ? `job-detail.html?job_id=${c.jobId}&office=1` : 'javascript:void(0)';
-      return `<a class="conv ${c.last.dir==='in'?'waiting':''}" href="${href}">
-        <div class="crow"><div class="who">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)}</div></div>
+      // Full thread — chronological bubbles, hidden until the row is tapped.
+      const msgs=(c.msgs||[]).slice().sort((a,b)=>a.ts-b.ts);
+      const bubbles=msgs.map(m=>{
+        const inb=m.dir==='in';
+        const txt=m.body?esc(m.body):(m.blocked?'(held by the customer-SMS gate)':'(no text)');
+        const bg=inb?'#1b2330':(m.blocked?'#3a2a14':'#0a5d2a');
+        const lbl=inb?'Customer':(m.blocked?'Ant (held)':'Us / Ant');
+        return `<div style="display:flex;justify-content:${inb?'flex-start':'flex-end'};margin:5px 0">
+          <div style="max-width:80%;background:${bg};border-radius:13px;padding:8px 12px">
+            <div style="font-size:11px;color:#8a96a8;margin-bottom:3px">${lbl} · ${rel(m.ts)}</div>
+            <div style="font-size:14px;color:#e7edf5;line-height:1.4;white-space:pre-wrap">${txt}</div>
+          </div></div>`;
+      }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
+      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px">${replyBtn}${openLink}${textLink}</div></div>`;
+      return `<div class="conv ${c.last.dir==='in'?'waiting':''}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
+        <div class="crow"><div class="who">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
         <div class="snippet">${dirLbl}${snip}</div>
-        <div class="actions" onclick="event.stopPropagation()">${replyBtn}${openLink}${textLink}</div>
-      </a>`;
+        ${thread}
+      </div>`;
     }).join('');
   }
   document.getElementById('refresh').textContent='auto-refresh 30s · '+new Date().toLocaleTimeString();
