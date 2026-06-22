@@ -20,6 +20,11 @@
 // this function's dual-format detection (copied from the tech path) will
 // handle it automatically.
 
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const crud = require('./_lib/xano/metadata-crud');
+
+const JOB_ATTACHMENTS = 22;
+
 const XANO_RECORD_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/record_inbound_customer_sms';
 // Phase 2d EXTRA/BLAST: try the extra-work YES/NO handler BEFORE
 // the generic inbound recorder. If matched=true, the handler has
@@ -56,6 +61,112 @@ async function translateToEnglish(text) {
   } catch (_) { return null; }
 }
 
+// ─── MMS media capture ──────────────────────────────────────────────
+// When a customer TEXTS a photo/video (their broken appliance, the model
+// sticker, a leak), it used to vanish — the webhook dropped it. Now we
+// pull each Telnyx/Twilio media URL, store it to S3 server-side, and
+// record a job_attachments row so it shows up everywhere the intake media
+// does (office board 📎, tech-job, Teddy Tool). Best-effort + bounded so a
+// slow media host never delays the webhook ack (Telnyx must not retry).
+const MEDIA_FETCH_TIMEOUT_MS = 6000;
+
+function extFor(ct) {
+  const m = String(ct || '').toLowerCase();
+  if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if (m.includes('png')) return 'png';
+  if (m.includes('gif')) return 'gif';
+  if (m.includes('webp')) return 'webp';
+  if (m.includes('heic')) return 'heic';
+  if (m.includes('mp4')) return 'mp4';
+  if (m.includes('quicktime') || m.includes('mov')) return 'mov';
+  if (m.includes('3gpp')) return '3gp';
+  return 'bin';
+}
+
+function fileTypeFor(ct) {
+  const m = String(ct || '').toLowerCase();
+  if (m.startsWith('image/')) return 'photo';
+  if (m.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+async function captureOneMedia({ url, contentType, jobId, convId, fromPhone, idx }) {
+  // Fetch the media bytes (Telnyx/Twilio media URLs are temporary — re-host now).
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), MEDIA_FETCH_TIMEOUT_MS);
+  let buf, mime = contentType;
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    clearTimeout(tm);
+    if (!r.ok) { console.warn('[customer-sms-inbound] media fetch non-2xx', r.status, url.slice(0, 80)); return null; }
+    mime = mime || r.headers.get('content-type') || 'application/octet-stream';
+    const ab = await r.arrayBuffer();
+    buf = Buffer.from(ab);
+  } catch (e) {
+    clearTimeout(tm);
+    console.warn('[customer-sms-inbound] media fetch error', String((e && e.message) || e));
+    return null;
+  }
+  if (!buf || !buf.length || buf.length > 25 * 1024 * 1024) return null;
+
+  const ext = extFor(mime);
+  const ftype = fileTypeFor(mime);
+  const ts = Date.now();
+  const folder = jobId ? ('jobs/' + jobId) : ('sms/' + String(fromPhone || 'anon').replace(/\D/g, ''));
+  const s3Key = folder + '/sms/' + ts + '_' + idx + '.' + ext;
+
+  try {
+    const s3 = new S3Client({
+      region: process.env.TN_AWS_S3_REGION,
+      credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY },
+    });
+    await s3.send(new PutObjectCommand({ Bucket: process.env.TN_AWS_S3_BUCKET, Key: s3Key, Body: buf, ContentType: mime }));
+  } catch (e) {
+    console.warn('[customer-sms-inbound] media s3 store failed', String((e && e.message) || e));
+    return null;
+  }
+
+  let attachmentId = null;
+  try {
+    const row = await crud.insert(JOB_ATTACHMENTS, {
+      job_id: jobId || null,
+      conversation_id: convId || null,
+      attachment_type: 'intake',
+      file_type: ftype,
+      s3_key: s3Key,
+      original_filename: 'sms_' + ftype + '.' + ext,
+      mime_type: mime,
+      uploaded_by: 'customer',
+      uploaded_by_user_id: 0,
+      upload_complete_at: ts,
+      file_size_bytes: buf.length,
+    });
+    attachmentId = (row && (row.id || row.attachment_id)) || null;
+  } catch (e) {
+    console.warn('[customer-sms-inbound] media attachment insert failed', String((e && e.message) || e));
+  }
+  return { attachmentId, s3Key, file_type: ftype, bytes: buf.length };
+}
+
+async function captureInboundMedia({ media, jobId, convId, fromPhone }) {
+  if (!Array.isArray(media) || !media.length) return [];
+  const out = [];
+  // Sequential (matches photo-upload's serial intake) — typically 1-2 items.
+  for (let i = 0; i < media.length && i < 5; i++) {
+    const m = media[i] || {};
+    if (!m.url) continue;
+    const res = await captureOneMedia({ url: m.url, contentType: m.content_type, jobId, convId, fromPhone, idx: i });
+    if (res) out.push(res);
+  }
+  try {
+    await crud.logEvent('customer_sms_media_captured', {
+      job_id: jobId || null, from: fromPhone, count: out.length,
+      keys: out.map((o) => o.s3Key), at_ms: Date.now(),
+    });
+  } catch (_) {}
+  return out;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -73,12 +184,16 @@ exports.handler = async function (event) {
   }
 
   if (!parsed) return providerAck(provider);
-  if (!parsed.from || !parsed.body) {
+  const hasMedia = Array.isArray(parsed.media) && parsed.media.length > 0;
+  if (!parsed.from || (!parsed.body && !hasMedia)) {
     console.warn('[customer-sms-inbound] missing from/body:', {
-      provider, from_present: !!parsed.from, body_len: (parsed.body || '').length,
+      provider, from_present: !!parsed.from, body_len: (parsed.body || '').length, has_media: hasMedia,
     });
     return providerAck(provider);
   }
+  // A photo/video with no caption still needs a non-empty body for the recorder
+  // + downstream classifier. Give it a placeholder so the job thread reads right.
+  if (!parsed.body && hasMedia) parsed.body = '[photo/video]';
 
   console.log('[customer-sms-inbound] normalized:', {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
@@ -114,6 +229,7 @@ exports.handler = async function (event) {
 
   // Forward to Xano. Fire-and-await so we can log the signal_id, but ack
   // 200 regardless (Telnyx must not retry inbound).
+  let recordData = {};
   const controller = new AbortController();
   const timeoutHandle = setTimeout(() => controller.abort(), XANO_TIMEOUT_MS);
   try {
@@ -133,12 +249,12 @@ exports.handler = async function (event) {
       const errText = await res.text().catch(() => '');
       console.error('[customer-sms-inbound] Xano non-2xx:', res.status, errText.slice(0, 300));
     } else {
-      const data = await res.json().catch(() => ({}));
+      recordData = await res.json().catch(() => ({}));
       console.log('[customer-sms-inbound] xano ack:', {
-        signal_id: data.signal_id || null,
-        customer_id: data.customer_id || 0,
-        job_id: data.job_id || 0,
-        customer_known: !!data.customer_known,
+        signal_id: recordData.signal_id || null,
+        customer_id: recordData.customer_id || 0,
+        job_id: recordData.job_id || 0,
+        customer_known: !!recordData.customer_known,
       });
     }
   } catch (err) {
@@ -147,6 +263,22 @@ exports.handler = async function (event) {
       console.error('[customer-sms-inbound] Xano timed out');
     } else {
       console.error('[customer-sms-inbound] Xano fetch error:', err.message);
+    }
+  }
+
+  // Capture any texted photos/videos onto the resolved job (or by phone if the
+  // recorder didn't match a job). Bounded; never blocks the ack on failure.
+  if (hasMedia) {
+    try {
+      const saved = await captureInboundMedia({
+        media: parsed.media,
+        jobId: Number(recordData.job_id) || 0,
+        convId: Number(recordData.conversation_id) || 0,
+        fromPhone: parsed.from,
+      });
+      console.log('[customer-sms-inbound] media captured:', { count: saved.length, job_id: recordData.job_id || 0 });
+    } catch (e) {
+      console.error('[customer-sms-inbound] media capture error:', String((e && e.message) || e));
     }
   }
 
@@ -193,11 +325,18 @@ function detectProvider(event) {
 
 function parseTwilio(event) {
   const params = new URLSearchParams(event.body || '');
+  const numMedia = parseInt(params.get('NumMedia') || '0', 10) || 0;
+  const media = [];
+  for (let i = 0; i < numMedia; i++) {
+    const url = params.get('MediaUrl' + i);
+    if (url) media.push({ url, content_type: params.get('MediaContentType' + i) || '' });
+  }
   return {
     from: params.get('From') || '',
     body: params.get('Body') || '',
     sid:  params.get('MessageSid') || '',
     to:   params.get('To') || '',
+    media,
   };
 }
 
@@ -218,11 +357,16 @@ function parseTelnyx(event) {
   const fromPhone = (payload.from && payload.from.phone_number) || '';
   const toArr = Array.isArray(payload.to) ? payload.to : [];
   const toPhone = (toArr[0] && toArr[0].phone_number) || '';
+  // Telnyx MMS: payload.media = [{ url, content_type, size, hash_sha256 }]
+  const media = (Array.isArray(payload.media) ? payload.media : [])
+    .filter((m) => m && m.url)
+    .map((m) => ({ url: m.url, content_type: m.content_type || '' }));
   return {
     from: fromPhone,
     body: payload.text || '',
     sid:  payload.id || data.id || '',
     to:   toPhone,
+    media,
   };
 }
 
