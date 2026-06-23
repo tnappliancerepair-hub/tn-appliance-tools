@@ -524,6 +524,11 @@ ${END}`;
   //   disable: ...&action=wireoffice&apply=off
   if (action === 'wireoffice') {
     const OFFICE_SIP_URI = q.sip || 'sip:userteddy74923@sip.telnyx.com';
+    // Preferred: a real DID assigned to the office-phone credential connection.
+    // Vapi transferring to a NUMBER (warm) is reliable; transferring to a SIP URI
+    // is a blind REFER Vapi's carrier can't deliver to a browser (rings then
+    // silent). Pass &number=+1XXXXXXXXXX, or store vault secret TELNYX_OFFICE_DID.
+    const OFFICE_NUMBER = q.number || (await getSecret('TELNYX_OFFICE_DID')) || '';
     const OFF = String(q.apply || '').toLowerCase() === 'off';
     const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
 
@@ -534,23 +539,15 @@ ${END}`;
       newTools.push(toolBody(TOOLS.find((t) => t.name === 'capture_callback')));
     }
     if (!OFF) {
-      newTools.push({
-        type: 'transferCall',
-        destinations: [{
-          type: 'sip',
-          sipUri: OFFICE_SIP_URI,
-          // Tell the caller we're connecting them.
-          message: 'One second — let me connect you with our office.',
-          // WARM transfer: Vapi dials the office phone, waits for it to answer,
-          // speaks a short note, THEN bridges the caller — Vapi stays in the
-          // media path so audio reliably flows (a blind/REFER transfer to a
-          // WebRTC endpoint was ringing then going silent).
-          transferPlan: {
-            mode: 'warm-transfer-say-message',
-            message: 'Connecting you with a caller on the office line now.',
-          },
-        }],
-      });
+      // WARM transfer: Vapi dials the office phone, waits for it to answer, says a
+      // short note, THEN bridges the caller — Vapi stays in the media path so audio
+      // reliably flows. Prefer a NUMBER destination (a DID on the office-phone
+      // connection); fall back to the SIP URI only if no number is configured.
+      const warm = { mode: 'warm-transfer-say-message', message: 'Connecting you with a caller on the office line now.' };
+      const dest = OFFICE_NUMBER
+        ? { type: 'number', number: OFFICE_NUMBER, message: 'One second — let me connect you with our office.', transferPlan: warm }
+        : { type: 'sip', sipUri: OFFICE_SIP_URI, message: 'One second — let me connect you with our office.', transferPlan: warm };
+      newTools.push({ type: 'transferCall', destinations: [dest] });
     }
 
     // 2) prompt: add/remove a marked block telling Ant when to transfer.
