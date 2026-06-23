@@ -16,7 +16,7 @@
 const { getSecret, setSecret } = require('./_lib/secrets');
 const TELNYX = 'https://api.telnyx.com/v2';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
-const CONNECTION_ID_DEFAULT = '29882725547678841'; // "Ant office phone" credential connection
+const CONNECTION_ID_DEFAULT = '2988827155447678681'; // "Ant office phone" credential connection
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
