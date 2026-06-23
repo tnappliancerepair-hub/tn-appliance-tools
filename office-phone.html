@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Office Phone · Ant</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="canonical" href="https://tnapplianceexchange.net/office-phone.html">
+<style>
+  :root{
+    --bg:#0b0d10; --card:#161a1f; --line:#2a2f37; --text:#e6e8eb; --muted:#8b919c;
+    --green:#4ad991; --blue:#5aa9ff; --warn:#f0b450; --danger:#ef6a6a; --gold:#ffce4d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;min-height:100vh;}
+  .wrap{max-width:520px;margin:0 auto;padding:18px 16px 90px;}
+  h1{font-size:20px;margin:0 0 2px;}
+  .tag{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .gate{max-width:340px;margin:90px auto;text-align:center;}
+  .gate input{width:100%;padding:13px 14px;border-radius:11px;background:#0d1014;border:1px solid var(--line);color:var(--text);font-size:16px;margin:14px 0;}
+  .gate button{width:100%;padding:13px;border-radius:11px;border:none;background:var(--green);color:#08110b;font-weight:800;font-size:16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  /* presence toggle */
+  .presence{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .who{display:flex;gap:8px;}
+  .who button{padding:8px 14px;border-radius:20px;border:1px solid var(--line);background:#0d1014;color:var(--muted);font-weight:700;font-size:14px;cursor:pointer;}
+  .who button.on{background:var(--blue);border-color:var(--blue);color:#06121f;}
+  .switch{display:flex;align-items:center;gap:10px;}
+  .toggle{position:relative;width:60px;height:32px;border-radius:20px;background:#33383f;border:none;cursor:pointer;transition:background .15s;flex:0 0 auto;}
+  .toggle.on{background:var(--green);}
+  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;transition:left .15s;}
+  .toggle.on::after{left:31px;}
+  .pstate{font-weight:800;font-size:15px;}
+  .pstate.on{color:var(--green);} .pstate.off{color:var(--muted);}
+  .reg{font-size:12px;color:var(--muted);margin-top:8px;}
+  .reg b{color:var(--text);}
+  /* dialer */
+  .dialbox{display:flex;gap:8px;margin-bottom:12px;}
+  .dialbox input{flex:1;padding:13px 14px;border-radius:11px;background:#0d1014;border:1px solid var(--line);color:var(--text);font-size:20px;letter-spacing:1px;text-align:center;}
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+  .keys button{padding:16px 0;border-radius:12px;border:1px solid var(--line);background:#0d1014;color:var(--text);font-size:22px;font-weight:600;cursor:pointer;}
+  .keys button:active{background:#1b2027;}
+  .callbtn{width:100%;padding:15px;border-radius:13px;border:none;background:var(--green);color:#08110b;font-weight:800;font-size:17px;cursor:pointer;}
+  .callbtn:disabled{opacity:.45;}
+  /* screen pop */
+  .pop{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:14px;}
+  .pop .ph{padding:14px 16px;background:linear-gradient(90deg,#16324a,#10202e);}
+  .pop.ring .ph{background:linear-gradient(90deg,#2a5a3a,#16302040);animation:pulse 1.1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+  .pop .ph .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#9fd0ff;}
+  .pop .ph .nm{font-size:20px;font-weight:800;margin-top:2px;}
+  .pop .ph .ph2{font-size:13px;color:#cfe6ff;}
+  .pop .bd{padding:14px 16px;font-size:14px;}
+  .pop .bd .line{display:flex;gap:8px;margin-bottom:6px;}
+  .pop .bd .k{color:var(--muted);min-width:74px;}
+  .pop .bd .v{color:var(--text);font-weight:600;}
+  .pop .jobs{margin-top:8px;}
+  .pop .job{padding:8px 10px;background:#0d1014;border:1px solid var(--line);border-radius:9px;margin-top:6px;font-size:13px;}
+  .pop .last{margin-top:8px;padding:8px 10px;background:rgba(90,169,255,.08);border:1px solid rgba(90,169,255,.25);border-radius:9px;font-size:13px;color:#cfe0f5;}
+  .pop a.open{display:inline-block;margin-top:10px;color:var(--green);font-size:13px;text-decoration:none;font-weight:700;}
+  /* in-call / incoming controls */
+  .acts{display:flex;gap:10px;padding:0 16px 16px;}
+  .acts button{flex:1;padding:14px;border-radius:12px;border:none;font-weight:800;font-size:15px;cursor:pointer;}
+  .b-ans{background:var(--green);color:#08110b;}
+  .b-dec{background:var(--danger);color:#fff;}
+  .b-mute{background:#20242b;color:var(--text);}
+  .b-mute.on{background:var(--warn);color:#1a1305;}
+  .b-end{background:var(--danger);color:#fff;}
+  .nustate{font-size:12px;color:var(--muted);margin-top:4px;text-align:center;}
+  .hint{font-size:13px;color:var(--muted);line-height:1.5;}
+  .warnbox{background:rgba(240,180,80,.1);border:1px solid rgba(240,180,80,.35);border-radius:11px;padding:13px 15px;font-size:13px;color:#f5d79a;margin-bottom:14px;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+
+<!-- gate -->
+<div id="gate" class="gate">
+  <h1>📲 Office Phone</h1>
+  <input id="pw" type="password" placeholder="Office password" />
+  <button onclick="unlock()">Unlock</button>
+  <div id="gerr" style="color:#ff6b6b;font-size:12px;margin-top:8px;"></div>
+</div>
+
+<!-- app -->
+<div id="app" class="wrap hidden">
+  <h1>📲 Office Phone</h1>
+  <p class="tag">Your business line, in your pocket. Calls show <b>TN Appliance</b>, not your cell. Flip yourself off anytime.</p>
+
+  <div id="setupwarn" class="warnbox hidden"></div>
+
+  <!-- presence -->
+  <div class="card">
+    <div class="presence">
+      <div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">This is</div>
+        <div class="who">
+          <button id="who-teddy" onclick="setWho('Teddy')">Teddy</button>
+          <button id="who-danielle" onclick="setWho('Danielle')">Danielle</button>
+        </div>
+      </div>
+      <div class="switch">
+        <span id="pstate" class="pstate off">Off</span>
+        <button id="toggle" class="toggle" onclick="togglePresence()"></button>
+      </div>
+    </div>
+    <div id="reg" class="reg">Turn yourself <b>On</b> to take calls. <b>Off</b> = calls ring Ant (the AI) and your phone stays quiet.</div>
+  </div>
+
+  <!-- screen pop (hidden until a call) -->
+  <div id="pop" class="pop hidden">
+    <div class="ph" id="pop-ph">
+      <div class="lbl" id="pop-lbl">On the line</div>
+      <div class="nm" id="pop-nm">—</div>
+      <div class="ph2" id="pop-num"></div>
+    </div>
+    <div class="bd" id="pop-bd"></div>
+    <div class="acts" id="pop-acts"></div>
+    <div class="nustate" id="pop-state"></div>
+  </div>
+
+  <!-- dialer -->
+  <div class="card" id="dialer">
+    <div class="dialbox">
+      <input id="num" inputmode="tel" placeholder="Type a number" oninput="onNumInput()" />
+    </div>
+    <div class="keys">
+      <button onclick="key('1')">1</button><button onclick="key('2')">2</button><button onclick="key('3')">3</button>
+      <button onclick="key('4')">4</button><button onclick="key('5')">5</button><button onclick="key('6')">6</button>
+      <button onclick="key('7')">7</button><button onclick="key('8')">8</button><button onclick="key('9')">9</button>
+      <button onclick="key('*')">*</button><button onclick="key('0')">0</button><button onclick="key('#')">#</button>
+    </div>
+    <button class="callbtn" id="callbtn" onclick="placeCall()" disabled>📞 Call</button>
+    <div class="reg" style="margin-top:10px;">Tip: paste a number or type, then Call. We'll pull up who they are first.</div>
+  </div>
+
+  <details>
+    <summary class="tag">How this works</summary>
+    <div class="hint" style="margin-top:8px;">
+      • When you're <b>On</b>, this app rings for office calls and shows you who's calling + their job before you answer.<br>
+      • When you're <b>Off</b>, calls go to Ant (the AI) — your phone stays quiet.<br>
+      • Outbound calls show the business number, so customers never get your personal cell.<br>
+      • Add this page to your home screen so it opens like an app.
+    </div>
+  </details>
+</div>
+
+<!-- audio sinks for WebRTC -->
+<audio id="remoteAudio" autoplay></audio>
+<audio id="ringtone" loop preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="></audio>
+
+<script src="/office-nav.js?v=20260623-1"></script>
+<script src="https://unpkg.com/@telnyx/webrtc@2/lib/bundle.js"></script>
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN = '/.netlify/functions';
+
+let PW = '';
+let client = null;       // TelnyxRTC instance
+let activeCall = null;   // current call object
+let callerNumber = '';   // our outbound caller ID (from token endpoint)
+let muted = false;
+let who = localStorage.getItem('ant_office_phone_who') || 'Teddy';
+
+/* ---------- gate ---------- */
+function unlock(){
+  const pw = document.getElementById('pw').value.trim();
+  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+    .then(r=>r.json()).then(d=>{
+      if(d && (d.valid||d.success||d.ok)){ PW=pw; localStorage.setItem('ant_office_pw',pw); showApp(); }
+      else document.getElementById('gerr').textContent='Wrong password';
+    }).catch(()=>document.getElementById('gerr').textContent='Connection error');
+}
+function showApp(){
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  setWho(who, true);
+}
+// auto-unlock if we already have a cached password that still verifies
+(function tryCached(){
+  const cached = localStorage.getItem('ant_office_pw');
+  if(!cached) return;
+  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:cached})})
+    .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=cached; showApp(); } }).catch(()=>{});
+})();
+
+/* ---------- identity ---------- */
+function setWho(name, silent){
+  who = name; localStorage.setItem('ant_office_phone_who', name);
+  document.getElementById('who-teddy').classList.toggle('on', name==='Teddy');
+  document.getElementById('who-danielle').classList.toggle('on', name==='Danielle');
+}
+
+/* ---------- presence on/off ---------- */
+function isOn(){ return document.getElementById('toggle').classList.contains('on'); }
+function setReg(html){ document.getElementById('reg').innerHTML = html; }
+
+async function togglePresence(){
+  if(isOn()){ goOff(); return; }
+  // turn ON
+  const tog = document.getElementById('toggle');
+  setReg('Connecting your line…');
+  let tok;
+  try {
+    const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW})});
+    tok = await r.json();
+  } catch(e){ setReg('Could not reach the line server. Try again.'); return; }
+
+  if(!tok || !tok.ok){
+    if(tok && tok.reason==='not_configured'){
+      document.getElementById('setupwarn').classList.remove('hidden');
+      document.getElementById('setupwarn').innerHTML =
+        '⚙️ <b>One-time setup still needed.</b> The Telnyx line for this app isn\'t connected yet. '+
+        'Teddy: finish the Telnyx steps (create the Credential Connection + on-demand credential, set '+
+        '<code>TELNYX_API_KEY</code>, <code>TELNYX_WEBRTC_CREDENTIAL_ID</code>, and '+
+        '<code>TELNYX_OFFICE_CALLER_NUMBER</code> in Netlify). Then this turns On.';
+      setReg('Not connected yet — see the note above.');
+    } else {
+      setReg('Line server said: '+((tok&&tok.reason)||'error')+'. Try again in a moment.');
+    }
+    return;
+  }
+
+  callerNumber = tok.caller_number || '';
+  try { await connectClient(tok.token); }
+  catch(e){ setReg('Connect failed: '+(e.message||e)); return; }
+  tog.classList.add('on');
+  document.getElementById('pstate').textContent='On';
+  document.getElementById('pstate').className='pstate on';
+}
+
+function goOff(){
+  try { if(activeCall){ activeCall.hangup(); activeCall=null; } } catch(_){}
+  try { if(client){ client.disconnect(); } } catch(_){}
+  client=null;
+  document.getElementById('toggle').classList.remove('on');
+  document.getElementById('pstate').textContent='Off';
+  document.getElementById('pstate').className='pstate off';
+  setReg('You\'re <b>Off</b> — calls ring Ant (the AI) and your phone stays quiet.');
+  hidePop();
+  document.getElementById('callbtn').disabled = true;
+}
+
+function connectClient(token){
+  return new Promise((resolve,reject)=>{
+    const lib = window.TelnyxWebRTC;
+    if(!lib || !lib.TelnyxRTC){ reject(new Error('phone library not loaded')); return; }
+    const { TelnyxRTC } = lib;
+    client = new TelnyxRTC({ login_token: token });
+    client.remoteElement = 'remoteAudio';
+    client.enableMicrophone = true;
+
+    client.on('telnyx.ready', ()=>{
+      setReg('✅ <b>'+who+'</b> is On. You\'ll see who\'s calling before you answer.');
+      document.getElementById('callbtn').disabled = !document.getElementById('num').value.trim();
+      resolve();
+    });
+    client.on('telnyx.error', (e)=>{ setReg('Line error: '+((e&&e.error)||(e&&e.message)||'unknown')); });
+    client.on('telnyx.socket.close', ()=>{ if(isOn()) setReg('Line dropped — flip Off then On to reconnect.'); });
+    client.on('telnyx.notification', onNotification);
+
+    try { client.connect(); } catch(e){ reject(e); }
+    // safety timeout
+    setTimeout(()=>{ if(isOn()) resolve(); }, 6000);
+  });
+}
+
+/* ---------- call events ---------- */
+function onNotification(n){
+  if(!n) return;
+  if(n.type !== 'callUpdate' || !n.call) return;
+  const call = n.call;
+  const st = call.state;
+
+  if(st === 'ringing' && call.direction === 'inbound'){
+    activeCall = call; muted=false;
+    const num = call.options && (call.options.remoteCallerNumber || call.options.callerNumber || call.options.remoteCallerIdNumber) || '';
+    incomingUI(num);
+    screenPop(num, 'Incoming call');
+    return;
+  }
+  if(st === 'active'){
+    activeCall = call;
+    inCallUI();
+    return;
+  }
+  if(st === 'hangup' || st === 'destroy' || st === 'purge'){
+    if(activeCall && call.id === activeCall.id){ activeCall=null; muted=false; }
+    endedUI();
+    return;
+  }
+  if(st === 'trying' || st === 'requesting' || st === 'early' || st === 'answering'){
+    document.getElementById('pop-state').textContent = 'Connecting…';
+  }
+}
+
+/* ---------- dialer ---------- */
+function key(k){ const el=document.getElementById('num'); el.value+=k; onNumInput(); }
+function onNumInput(){
+  const v = document.getElementById('num').value.trim();
+  document.getElementById('callbtn').disabled = !(isOn() && client && v.length>=3);
+}
+function normalize(v){
+  let d = String(v||'').replace(/[^\d+]/g,'');
+  if(d.startsWith('+')) return d;
+  d = d.replace(/\D/g,'');
+  if(d.length===10) return '+1'+d;
+  if(d.length===11 && d[0]==='1') return '+'+d;
+  return d ? ('+'+d) : '';
+}
+async function placeCall(){
+  if(!client || !isOn()) return;
+  const dest = normalize(document.getElementById('num').value);
+  if(!dest){ return; }
+  screenPop(dest, 'Calling…');
+  try{
+    activeCall = client.newCall({
+      destinationNumber: dest,
+      callerNumber: callerNumber || undefined,
+      audio: true, video: false,
+    });
+    document.getElementById('pop-state').textContent = 'Dialing '+dest+'…';
+    inCallUI();
+  }catch(e){
+    document.getElementById('pop-state').textContent = 'Call failed: '+(e.message||e);
+  }
+}
+
+/* ---------- call UIs ---------- */
+function incomingUI(num){
+  const acts = document.getElementById('pop-acts');
+  acts.innerHTML =
+    '<button class="b-ans" onclick="answer()">✓ Answer</button>'+
+    '<button class="b-dec" onclick="decline()">✕ Decline</button>';
+  document.getElementById('pop-state').textContent = 'Ringing — '+(num||'unknown number');
+  document.getElementById('pop').classList.add('ring');
+}
+function inCallUI(){
+  const acts = document.getElementById('pop-acts');
+  acts.innerHTML =
+    '<button class="b-mute" id="muteBtn" onclick="toggleMute()">🔇 Mute</button>'+
+    '<button class="b-end" onclick="hangup()">⌧ End</button>';
+  document.getElementById('pop-state').textContent = 'On the call';
+  document.getElementById('pop').classList.remove('ring');
+}
+function endedUI(){
+  document.getElementById('pop-state').textContent = 'Call ended';
+  document.getElementById('pop').classList.remove('ring');
+  setTimeout(()=>{ if(!activeCall) hidePop(); }, 2500);
+}
+function answer(){ try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(_){} }
+function decline(){ try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
+function hangup(){ try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
+function toggleMute(){
+  if(!activeCall) return;
+  try{
+    if(muted){ activeCall.unmuteAudio(); muted=false; }
+    else { activeCall.muteAudio(); muted=true; }
+    const b=document.getElementById('muteBtn');
+    if(b){ b.classList.toggle('on',muted); b.textContent = muted?'🔊 Unmute':'🔇 Mute'; }
+  }catch(_){}
+}
+
+/* ---------- screen pop (who is this?) ---------- */
+function hidePop(){ document.getElementById('pop').classList.add('hidden'); }
+function fmtPhone(p){ const d=String(p||'').replace(/\D/g,'').slice(-10); return d.length===10?d.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3'):(p||''); }
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function screenPop(num, label){
+  const pop = document.getElementById('pop');
+  pop.classList.remove('hidden');
+  document.getElementById('pop-lbl').textContent = label || 'On the line';
+  document.getElementById('pop-nm').textContent = 'Looking up…';
+  document.getElementById('pop-num').textContent = fmtPhone(num);
+  document.getElementById('pop-bd').innerHTML = '';
+  try{
+    const r = await fetch(XANO+'/lookup_customer_by_phone?phone='+encodeURIComponent(num));
+    const d = await r.json();
+    renderPop(d, num);
+  }catch(_){
+    document.getElementById('pop-nm').textContent = fmtPhone(num) || 'Unknown';
+  }
+}
+function renderPop(d, num){
+  const nmEl = document.getElementById('pop-nm');
+  const bd = document.getElementById('pop-bd');
+  if(d && d.is_internal && d.technician){
+    const t = d.technician;
+    nmEl.textContent = (t.first_name||'')+' '+(t.last_name||'')+' · '+(d.internal_role==='owner'?'Owner':'Tech');
+    bd.innerHTML = '<div class="line"><span class="k">Staff</span><span class="v">Internal team member</span></div>';
+    return;
+  }
+  if(!d || !d.found || !d.customer){
+    nmEl.textContent = fmtPhone(num) || 'Unknown caller';
+    bd.innerHTML = '<div class="hint">No customer on file for this number. Ask their name + claim/WO #.</div>';
+    return;
+  }
+  const c = d.customer;
+  nmEl.textContent = ((c.first_name||'')+' '+(c.last_name||'')).trim() || 'Customer';
+  const jobs = d.open_jobs || [];
+  let html = '';
+  html += '<div class="line"><span class="k">Phone</span><span class="v">'+esc(fmtPhone(c.phone||num))+'</span></div>';
+  if(c.address) html += '<div class="line"><span class="k">Address</span><span class="v">'+esc(c.address)+(c.city?(', '+esc(c.city)):'')+'</span></div>';
+  if(jobs.length){
+    html += '<div class="jobs"><div style="font-size:12px;color:var(--muted);margin-bottom:2px;">Open jobs</div>';
+    jobs.slice(0,3).forEach(j=>{
+      const bits = [j.brand, j.appliance_type].filter(Boolean).join(' ');
+      const sched = j.scheduled_start_ct ? (' · '+j.scheduled_start_ct) : '';
+      const tech = j.tech_first_name ? (' · '+j.tech_first_name) : '';
+      const parts = (j.parts_status && j.parts_status!=='') ? (' · parts: '+j.parts_status+(j.parts_eta_date?(' (ETA '+j.parts_eta_date+')'):'')) : '';
+      html += '<div class="job"><b>#'+j.id+'</b> '+esc(bits||'job')+' — '+esc(j.scheduling_status||'')+esc(sched+tech)+esc(parts)+
+              (j.problem_summary?('<br><span style="color:var(--muted)">"'+esc(j.problem_summary).slice(0,90)+'"</span>'):'')+'</div>';
+    });
+    html += '</div>';
+    html += '<a class="open" href="/job-detail.html?job_id='+jobs[0].id+'" target="_blank">Open job #'+jobs[0].id+' →</a>';
+  } else {
+    html += '<div class="hint" style="margin-top:6px;">No open jobs on file.</div>';
+  }
+  if(d.last_call_summary){
+    html += '<div class="last"><b>Last call:</b> '+esc(d.last_call_summary).slice(0,160)+'</div>';
+  }
+  bd.innerHTML = html;
+}
+
+// keep call button state in sync when presence changes
+setInterval(onNumInput, 1200);
+</script>
+</body>
+</html>

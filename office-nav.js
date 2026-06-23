@@ -22,6 +22,7 @@
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
+    { id: 'phone',     label: '📲 Phone',   href: '/office-phone.html',     color: '#39d98a' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
     { id: 'templates', label: '💬 Texts',    href: '/office-templates.html',  color: '#ffb86b' },
     { id: 'calls',     label: '📞 Calls',    href: '/recent-calls.html',     color: '#4ca7ff' },
