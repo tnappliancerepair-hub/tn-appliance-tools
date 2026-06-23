@@ -25,6 +25,7 @@
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TELNYX = 'https://api.telnyx.com/v2';
+const { getSecret } = require('./_lib/secrets');
 
 function json(code, body) {
   return { statusCode: code, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
@@ -51,18 +52,20 @@ exports.handler = async function (event) {
   const okPw = await verifyOffice(body.password);
   if (!okPw) return json(401, { ok: false, reason: 'unauthorized' });
 
-  const caller = process.env.TELNYX_OFFICE_CALLER_NUMBER || '';
+  // Read from env-first, then the runtime vault (app_config) — Netlify's 4KB
+  // env cap is full, so these live in the vault via admin-secrets.html.
+  const caller = (await getSecret('TELNYX_OFFICE_CALLER_NUMBER')) || '';
 
   // --- CREDENTIAL mode (default) ---
-  const user = process.env.TELNYX_SIP_USERNAME;
-  const pass = process.env.TELNYX_SIP_PASSWORD;
+  const user = await getSecret('TELNYX_SIP_USERNAME');
+  const pass = await getSecret('TELNYX_SIP_PASSWORD');
   if (user && pass) {
     return json(200, { ok: true, mode: 'credential', login: user, password: pass, caller_number: caller });
   }
 
   // --- TOKEN mode (optional upgrade) ---
-  const KEY = process.env.TELNYX_API_KEY;
-  const CRED = process.env.TELNYX_WEBRTC_CREDENTIAL_ID;
+  const KEY = await getSecret('TELNYX_API_KEY');
+  const CRED = await getSecret('TELNYX_WEBRTC_CREDENTIAL_ID');
   if (KEY && CRED) {
     try {
       const r = await fetch(`${TELNYX}/telephony_credentials/${CRED}/token`, {
