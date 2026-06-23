@@ -422,8 +422,10 @@ function render(){
       <div class="card">
         <h3>📷 Photos &amp; Video <a class="r" id="refresh-media" href="javascript:void(0)">↻ refresh</a></h3>
         <div class="media-actions">
-          <label>📷 Add photo<input type="file" accept="image/*" multiple id="in-photo"></label>
-          <label>🎥 Add video<input type="file" accept="video/*" id="in-video"></label>
+          <label>📷 Take photo<input type="file" accept="image/*" capture="environment" id="in-photo-cam"></label>
+          <label>🖼️ Photo library<input type="file" accept="image/*" multiple id="in-photo"></label>
+          <label>🎥 Record video<input type="file" accept="video/*" capture="environment" id="in-video-cam"></label>
+          <label>🎞️ Video library<input type="file" accept="video/*" id="in-video"></label>
         </div>
         <div class="gallery" id="gallery"><div class="empty">Loading media…</div></div>
       </div>
@@ -481,7 +483,9 @@ function wireActions(){
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
   document.getElementById('refresh-media').onclick=loadAttachments;
+  const _photoCam=document.getElementById('in-photo-cam'); if(_photoCam) _photoCam.onchange=async e=>{ const fs=Array.from(e.target.files||[]); for(const f of fs){ await uploadFile(f,'photo'); } e.target.value=''; };
   document.getElementById('in-photo').onchange=async e=>{ const fs=Array.from(e.target.files||[]); for(const f of fs){ await uploadFile(f,'photo'); } e.target.value=''; };
+  const _vidCam=document.getElementById('in-video-cam'); if(_vidCam) _vidCam.onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('in-video').onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
