@@ -15,6 +15,29 @@ const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-haiku-4-5-20251001';
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const msupply = require('./_lib/msupply');
+
+// Enrich a list of {part_number,...} items with live Marcone cost + stock. Looks
+// up each distinct part number against Marcone (account net price) in parallel and
+// attaches a `marcone` field. Best-effort: failures just leave marcone null.
+async function enrichMarcone(items) {
+  const arr = Array.isArray(items) ? items : [];
+  const nums = [...new Set(arr.map((i) => String(i.part_number || '').trim()).filter(Boolean))].slice(0, 8);
+  if (!nums.length) return arr;
+  const byNum = {};
+  await Promise.all(nums.map(async (pn) => {
+    try {
+      const r = await msupply.lookupPart(pn, null, {});
+      if (r && r.ok) byNum[pn.toLowerCase()] = { found: true, cost: r.cost, list: r.list, in_stock: r.in_stock, total_qty: r.total_qty, eta_days: r.eta_days, description: r.description, make: r.make };
+      else byNum[pn.toLowerCase()] = { found: false };
+    } catch (_) { byNum[pn.toLowerCase()] = { found: false }; }
+  }));
+  for (const it of arr) {
+    const k = String(it.part_number || '').trim().toLowerCase();
+    if (k && byNum[k]) it.marcone = byNum[k];
+  }
+  return arr;
+}
 
 // Tier 1 (highest trust): part numbers WE'VE actually used before on this
 // appliance/brand/model, pulled from our own verified TDR corpus. "You used
@@ -131,6 +154,8 @@ exports.handler = async function (event) {
       historyMatches({ model, brand: body.brand, appliance_type: body.appliance_type }),
       aiCandidates({ model, brand: body.brand, appliance_type: body.appliance_type, symptom: body.symptom }),
     ]);
+    // Enrich both lists with live Marcone cost + stock (best-effort, parallel).
+    await Promise.all([enrichMarcone(from_history), enrichMarcone(ai.candidates)]);
     return {
       statusCode: 200,
       body: JSON.stringify({

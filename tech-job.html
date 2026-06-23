@@ -810,11 +810,11 @@ async function findParts(){
     let html='';
     if(d.from_history&&d.from_history.length){
       html+='<div style="font-size:12px;font-weight:800;color:#127a4a;margin-bottom:6px">✅ WE\'VE USED THESE BEFORE — highest trust</div>';
-      html+=d.from_history.map(h=>`<div class="cand" style="border-left:3px solid #2ecc71;background:#f1faf4"><span class="pn">${esc(h.part_number)}</span><span class="conf high" style="background:#d6f5e3;color:#127a4a">${esc(h.match)}</span><div class="cn">${esc(h.failed_component||'')}</div></div>`).join('');
+      html+=d.from_history.map(h=>`<div class="cand" style="border-left:3px solid #2ecc71;background:#f1faf4"><span class="pn">${esc(h.part_number)}</span><span class="conf high" style="background:#d6f5e3;color:#127a4a">${esc(h.match)}</span><div class="cn">${esc(h.failed_component||'')}</div>${mcBadge(h.marcone)}</div>`).join('');
     }
     if(d.candidates&&d.candidates.length){
       html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">AI SUGGESTIONS — verify on the diagram</div>';
-      html+=d.candidates.map(c=>`<div class="cand"><span class="pn">${esc(c.part_number||'?')}</span><span class="conf ${esc((c.confidence||'low'))}">${esc(c.confidence||'low')}</span><div class="cn">${esc(c.name||'')}${c.note?(' — '+esc(c.note)):''}</div></div>`).join('');
+      html+=d.candidates.map(c=>`<div class="cand"><span class="pn">${esc(c.part_number||'?')}</span><span class="conf ${esc((c.confidence||'low'))}">${esc(c.confidence||'low')}</span><div class="cn">${esc(c.name||'')}${c.note?(' — '+esc(c.note)):''}</div>${mcBadge(c.marcone)}</div>`).join('');
     }
     if(d.ai_note) html+='<div class="ai-note">'+esc(d.ai_note)+'</div>';
     html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">OPEN THE DIAGRAM (source of truth)</div>';
@@ -823,6 +823,19 @@ async function findParts(){
     out.innerHTML=html;
   }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
   finally{ btn.disabled=false; btn.textContent='Find the part'; }
+}
+
+// Live Marcone cost + stock badge under a candidate (internal only — never shown
+// to the customer). Green = in stock, orange = out, gray = not in Marcone.
+function mcBadge(m){
+  if(!m) return '';
+  if(!m.found) return '<div style="font-size:11px;color:#9aa3af;margin-top:4px">⚪ not in Marcone</div>';
+  const cost = (m.cost!=null) ? ('$'+Number(m.cost).toFixed(2)) : '—';
+  const inStock = m.in_stock && m.total_qty>0;
+  const col = inStock ? '#127a4a' : '#c2691c';
+  const bg = inStock ? '#e9f9f0' : '#fdf1e3';
+  const stk = inStock ? (m.total_qty+' in stock'+((m.eta_days!=null&&m.eta_days<=1)?' · ships now':'')) : 'out of stock';
+  return `<div style="display:inline-block;margin-top:5px;font-size:11.5px;font-weight:700;color:${col};background:${bg};border-radius:6px;padding:2px 8px">🔧 Marcone ${esc(cost)} · ${esc(stk)}</div>`;
 }
 
 // ── utils ───────────────────────────────────────────────────────
