@@ -359,8 +359,25 @@ function render(){
   const addr=[cust.address,cust.city,cust.state,cust.zip].filter(Boolean).join(', ');
   const navUrl=addr?('https://maps.google.com/?q='+encodeURIComponent(addr)):'';
 
+  // First-time guide so techs aren't lost (John, 2026-06-23: "too complicated").
+  // Everything lives on THIS page — there is no separate "Teddy Tool" for techs.
+  const guideDismissed=(()=>{try{return localStorage.getItem('tn_techjob_guide_dismissed')==='1';}catch(_){return false;}})();
+  const howto = guideDismissed ? '' : `<div class="card" id="howto-card" style="background:#f1f6fe;border:1px solid #bcd5fb">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <h3 style="margin:0">📋 How to finish this job</h3>
+      <button onclick="try{localStorage.setItem('tn_techjob_guide_dismissed','1');}catch(_){}; var e=document.getElementById('howto-card'); if(e) e.remove();" style="border:0;background:none;color:#5a6a85;font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0">Got it ✓</button>
+    </div>
+    <div style="font-size:14px;line-height:1.85;color:#33415c;margin-top:6px">
+      <b>①</b> Tap <b>Start job</b> when you arrive, <b>Complete</b> when done.<br>
+      <b>②</b> Tap <b>📷 Take photo</b> for pictures.<br>
+      <b>③</b> Tap the green <b>🎤 Speak your report</b> and just talk — Ant writes it up. Then <b>Save report</b>.
+    </div>
+    <div style="font-size:13px;color:#5a6a85;margin-top:8px;border-top:1px solid #d7e3f7;padding-top:8px"><b>Everything is on this one page</b> — you never leave it, and there's no separate "Teddy Tool" to find. Tap <b>←</b> (top-left) anytime to go back to your jobs.</div>
+  </div>`;
+
   document.getElementById('content').innerHTML=`
     <div class="wrap">
+      ${howto}
       <div class="card hero">
         <div class="row">
           <span class="jid">Job #${esc(String(job.id||'?'))}</span>
