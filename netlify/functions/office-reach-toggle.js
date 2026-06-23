@@ -30,9 +30,9 @@ exports.handler = async function (event) {
   if (!(await verifyOffice(body.password))) return json(401, { ok: false, reason: 'unauthorized' });
 
   const adminSec = (await getSecret('VAPI_ADMIN_SECRET')) || ADMIN_FALLBACK;
-  // Default to the office-phone DID (615-588-9591) so On rings the app (both
-  // Teddy + Danielle), Off takes a message. Override via vault OFFICE_TRANSFER_NUMBER.
-  const cell = (await getSecret('OFFICE_TRANSFER_NUMBER')) || '+16155889591';
+  // On rings the office cell(s); Off takes a message. Override via vault
+  // OFFICE_TRANSFER_NUMBER (set this to the ring-both number once that's set up).
+  const cell = (await getSecret('OFFICE_TRANSFER_NUMBER')) || '+16154850713';
   const action = String(body.action || 'status');
 
   let url;
