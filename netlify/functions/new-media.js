@@ -107,6 +107,11 @@ exports.handler = async function (event) {
     rows.forEach((c) => { if (c && c.id != null) custMap.set(c.id, c); });
   }
 
+  const isTestName = (name) => {
+    const n = String(name || '').toLowerCase().trim();
+    return !!n && (/\bzztest|partsloop|chatcheck\b/.test(n) || /^zztest/.test(n) || n === 'james test');
+  };
+
   const items = withMedia.map((j) => {
     const c = custMap.get(j.customer_id) || {};
     const name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Unknown';
@@ -121,7 +126,7 @@ exports.handler = async function (event) {
       status: j.friendly_status || j.current_status || '',
       created_ms: j.created_at ? new Date(j.created_at).getTime() : 0,
     };
-  }).sort((a, b) => b.created_ms - a.created_ms);
+  }).filter((it) => !isTestName(it.name)).sort((a, b) => b.created_ms - a.created_ms);
 
   return jsonResp(200, { ok: true, count: items.length, items });
 };

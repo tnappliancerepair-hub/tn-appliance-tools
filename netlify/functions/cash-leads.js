@@ -71,6 +71,17 @@ async function searchPage(tableId, search, sort, perPage) {
 
 const TERMINAL = new Set(['completed', 'canceled', 'cancelled', 'no_fix_possible']);
 
+// Test/QA rows that pollute the worklist (ZZTEST*, *PartsLoop, *ChatCheck,
+// "James Test"). Keep this tight so real customers are never dropped.
+function isTestName(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (!n) return false;
+  if (/\bzztest|partsloop|chatcheck\b/.test(n)) return true;
+  if (/^zztest/.test(n)) return true;
+  if (n === 'james test') return true;
+  return false;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return jsonResp(200, { ok: true });
   let ids;
@@ -127,7 +138,7 @@ exports.handler = async function (event) {
       created_ms: j.created_at ? new Date(j.created_at).getTime() : 0,
       needs,
     };
-  }).sort((a, b) => b.created_ms - a.created_ms);
+  }).filter((l) => !isTestName(l.name)).sort((a, b) => b.created_ms - a.created_ms);
 
   return jsonResp(200, { ok: true, window_days: days, count: leads.length, leads });
 };
