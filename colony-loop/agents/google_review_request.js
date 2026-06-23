@@ -12,7 +12,7 @@
 import { config } from '../config.js';
 import { normalizeE164, toCustomer } from '../sms.js';
 
-const GOOGLE_REVIEW_URL = 'https://g.page/r/CWY8wW48EgvuEAI/review'; // tn appliance google reviews link
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review'; // tn appliance google reviews link
 
 export async function run(signal, ctx) {
   const { xano, log } = ctx;

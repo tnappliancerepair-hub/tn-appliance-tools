@@ -302,7 +302,7 @@ async function sendStatus(phone){
 // ⭐ Ask for review — one tap sends a happy customer the Google review link. The
 // cheapest way to get jobs (reviews drive the Google map-pack), works the moment
 // Danielle knows a customer's pleased — no waiting on an auto-trigger.
-const REVIEW_URL='https://g.page/r/CWY8wW48EgvuEAI/review';
+const REVIEW_URL='https://g.page/r/CRt-vo--eAJ3EBM/review';
 async function askReview(phone){
   let first='', appl='';
   try{ const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(phone))).json(); if(d&&d.found){ first=(d.customer||'').trim().split(/\s+/)[0]||''; appl=d.appliance||''; } }catch(_){}
