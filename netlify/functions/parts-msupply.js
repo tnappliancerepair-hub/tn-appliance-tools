@@ -17,15 +17,23 @@ exports.handler = async function (event) {
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };
 
-  // &env=prod points lookups at the real catalog (read-only/safe). Overrides
-  // MSUPPLY_BASE_URL for THIS invocation only; cleared in finally so it never
-  // bleeds into a warm container's later (integration) calls.
+  // Env overrides for THIS invocation only (cleared in finally so a warm container
+  // isn't poisoned):
+  //   &env=prod    -> base + token both Production
+  //   &env=prodapi -> Production API base, but token from the Integration auth URL
+  //                   (theory: one shared auth server, token valid across envs)
   const hadBase = process.env.MSUPPLY_BASE_URL;
+  const hadTok = process.env.MSUPPLY_TOKEN_URL;
   if (q.env === 'prod') process.env.MSUPPLY_BASE_URL = 'https://api.msupply.com';
+  if (q.env === 'prodapi') {
+    process.env.MSUPPLY_BASE_URL = 'https://api.msupply.com';
+    process.env.MSUPPLY_TOKEN_URL = 'https://int-api.msupply.com/AccessToken';
+  }
+  const overrode = (q.env === 'prod' || q.env === 'prodapi');
 
   const action = q.action || 'token';
   try {
-    if (q.env === 'prod') { try { await msupply.getToken(true); } catch (_) {} }
+    if (overrode) { try { await msupply.getToken(true); } catch (_) {} }
     if (action === 'token') {
       const t = await msupply.getToken(true);
       const base = await msupply.baseUrl();
@@ -41,6 +49,10 @@ exports.handler = async function (event) {
     return json(200, { ok: false, error: String((e && e.message) || e) });
   } finally {
     // restore so a warm container's later integration calls aren't poisoned
-    if (q.env === 'prod') { if (hadBase) process.env.MSUPPLY_BASE_URL = hadBase; else delete process.env.MSUPPLY_BASE_URL; await msupply.getToken(true).catch(() => {}); }
+    if (overrode) {
+      if (hadBase) process.env.MSUPPLY_BASE_URL = hadBase; else delete process.env.MSUPPLY_BASE_URL;
+      if (hadTok) process.env.MSUPPLY_TOKEN_URL = hadTok; else delete process.env.MSUPPLY_TOKEN_URL;
+      await msupply.getToken(true).catch(() => {});
+    }
   }
 };
