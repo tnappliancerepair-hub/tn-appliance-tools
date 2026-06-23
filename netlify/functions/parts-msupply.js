@@ -17,8 +17,13 @@ exports.handler = async function (event) {
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };
 
+  // &env=prod points lookups at the real catalog (read-only/safe). getSecret is
+  // env-first, so this overrides MSUPPLY_BASE_URL for this invocation.
+  if (q.env === 'prod') process.env.MSUPPLY_BASE_URL = 'https://api.msupply.com';
+
   const action = q.action || 'token';
   try {
+    if (q.env === 'prod') { try { await msupply.getToken(true); } catch (_) {} }
     if (action === 'token') {
       const t = await msupply.getToken(true);
       const base = await msupply.baseUrl();
