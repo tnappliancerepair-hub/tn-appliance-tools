@@ -72,6 +72,35 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: OFFICE_DID, did_now_points_to: 'Ant Office Ring Group', note: 'Dialing the office DID now rings both cells.' });
     }
 
+    // Inspect a number's Telnyx wiring + the connection's outbound profile, to
+    // see why Vapi transfers fail. &num=+16152802949
+    if (action === 'numinfo') {
+      const want = encodeURIComponent(q.num || '+16152802949');
+      const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${want}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pn.json().catch(() => ({}));
+      const rec = pd.data && pd.data[0];
+      if (!rec) return json(200, { ok: false, error: 'number not found on Telnyx' });
+      const connId = rec.connection_id;
+      // voice settings for the number (has the outbound profile + tech prefix etc.)
+      let voice = null;
+      try { const vr = await fetch(`${TELNYX}/phone_numbers/${rec.id}/voice`, { headers: H, signal: AbortSignal.timeout(10000) }); voice = (await vr.json().catch(() => ({}))).data; } catch (_) {}
+      // try to resolve the connection across the common types
+      let conn = null;
+      for (const path of ['credential_connections', 'texml_applications', 'call_control_applications', 'ip_connections', 'fqdn_connections']) {
+        try {
+          const cr = await fetch(`${TELNYX}/${path}/${connId}`, { headers: H, signal: AbortSignal.timeout(8000) });
+          if (cr.ok) { const cd = await cr.json(); conn = { type: path, data: cd.data }; break; }
+        } catch (_) {}
+      }
+      return json(200, {
+        ok: true, number: rec.phone_number, connection_id: connId,
+        connection_type: conn && conn.type,
+        connection_name: conn && conn.data && (conn.data.connection_name || conn.data.friendly_name),
+        outbound_voice_profile_id: (conn && conn.data && conn.data.outbound && conn.data.outbound.outbound_voice_profile_id) || (conn && conn.data && conn.data.outbound_voice_profile_id) || null,
+        number_voice: voice,
+      });
+    }
+
     if (action === 'connections') {
       // Find the office-phone credential connection's real id + name.
       const r = await fetch(`${TELNYX}/credential_connections?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
