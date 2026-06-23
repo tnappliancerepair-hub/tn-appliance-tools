@@ -32,6 +32,14 @@ exports.handler = async function (event) {
   const H = { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' };
 
   try {
+    if (action === 'connections') {
+      // Find the office-phone credential connection's real id + name.
+      const r = await fetch(`${TELNYX}/credential_connections?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      const conns = (d.data || []).map((c) => ({ id: c.id, name: c.connection_name || c.name }));
+      return json(200, { ok: r.ok, connections: conns });
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
