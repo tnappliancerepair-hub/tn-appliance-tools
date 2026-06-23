@@ -40,7 +40,11 @@ exports.handler = async function () {
 
   // Candidates: non-vendor, has a phone, no availability captured yet.
   const cands = items.filter((j) => {
-    if (isVendor(j.warranty_company)) return false;
+    // SquareTrade/ServicePower jobs are scheduled BY the vendor — never text them
+    // about scheduling (Danielle, 2026-06-23: "it all gets done from ST"). Check
+    // every vendor signal, not just warranty_company.
+    if (isVendor(j.warranty_company) || isVendor(j.intake_source) || isVendor(j.source_type) || isVendor(j.dispatch_source) || isVendor(j.dispatch_source_id)) return false;
+    if (j.vendor_locked === true || j.vendor_locked === 1 || String(j.vendor_locked).toLowerCase() === 'true') return false;
     const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     if (ph.length < 10) return false;
     const hasAvail = !!((j.customer_preference_text || '').trim() || (j.customer_availability_grid || '').trim());
