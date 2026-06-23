@@ -56,6 +56,18 @@ exports.handler = async function (event) {
       }
       if (!appId) return json(200, { ok: false, error: 'no TeXML app id' });
 
+      // 1b) attach an outbound voice profile so the TeXML <Dial> can call the cells
+      // (same gap that broke the Vapi app — without it the dial leg fails -> silent).
+      let outboundProfileId = q.profile;
+      if (!outboundProfileId) {
+        try { const op = await fetch(`${TELNYX}/outbound_voice_profiles?page[size]=10`, { headers: H, signal: AbortSignal.timeout(10000) }); outboundProfileId = (((await op.json().catch(() => ({}))).data || [])[0] || {}).id; } catch (_) {}
+      }
+      if (outboundProfileId) {
+        await fetch(`${TELNYX}/texml_applications/${appId}`, {
+          method: 'PATCH', headers: H, body: JSON.stringify({ outbound: { outbound_voice_profile_id: outboundProfileId } }), signal: AbortSignal.timeout(12000),
+        }).catch(() => {});
+      }
+
       // 2) find the office DID's phone-number id
       const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(OFFICE_DID)}`, { headers: H, signal: AbortSignal.timeout(12000) });
       const pd = await pn.json().catch(() => ({}));
