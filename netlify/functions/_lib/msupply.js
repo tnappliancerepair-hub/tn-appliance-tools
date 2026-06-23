@@ -1,17 +1,19 @@
 // msupply.js — connector for the mSupply parts API (real OEM cost + live stock +
 // drop-ship ordering), replacing the browser-scraping daemon for this supplier.
 //
-// Config (all vault-first via getSecret, so nothing hits Netlify's 4KB env cap):
-//   MSUPPLY_BASE_URL   - default 'https://int-api.msupply.com' (Integration). Flip
-//                        to 'https://api.msupply.com' (Production) when verified.
-//   MSUPPLY_API_USER   - account name from the one-time secret
-//   MSUPPLY_API_KEY    - account number from the one-time secret
-//   MSUPPLY_CUST_NO    - (optional) default customer/account number for lookups
-//   MSUPPLY_AUTH_JSON  - (optional) exact JSON body for /AccessToken if the field
-//                        names differ from the AccountName/AccountNumber default
-//                        (their Postman doc has the exact contract).
+// Auth: OAuth 2.0 Client Credentials (per mSupply's "Generate Access Token" doc).
+// POST {tokenUrl} grant_type=client_credentials with client_id + client_secret ->
+// Bearer token. Token cached per warm container.
 //
-// Auth: POST {base}/AccessToken -> bearer token. Token cached per warm container.
+// Config (all vault-first via getSecret, so nothing hits Netlify's 4KB env cap):
+//   MSUPPLY_BASE_URL      - default 'https://int-api.msupply.com' (Integration).
+//                           Flip to 'https://api.msupply.com' (Production) when verified.
+//   MSUPPLY_CLIENT_ID     - client_id from the one-time secret
+//   MSUPPLY_CLIENT_SECRET - client_secret from the one-time secret
+//   MSUPPLY_SCOPE         - (optional) OAuth scope if their token endpoint requires one
+//   MSUPPLY_TOKEN_URL     - (optional) override; defaults to {base}/AccessToken
+//   MSUPPLY_CUST_NO       - (optional) default customer/account number for lookups
+//
 // Docs: https://api.msupply.com/swagger/index.html
 'use strict';
 
@@ -24,37 +26,42 @@ async function baseUrl() {
   return b.replace(/\/+$/, '');
 }
 
-// Build the /AccessToken request body. Their one-time secret is an "account name
-// and number"; the documented default field names are AccountName/AccountNumber.
-// If their Postman contract differs, set MSUPPLY_AUTH_JSON to the exact body.
-async function authBody() {
-  const override = await getSecret('MSUPPLY_AUTH_JSON');
-  if (override) { try { return JSON.parse(override); } catch (_) {} }
-  const user = await getSecret('MSUPPLY_API_USER');
-  const key = await getSecret('MSUPPLY_API_KEY');
-  return { AccountName: user, AccountNumber: key };
-}
-
 async function getToken(force) {
   if (!force && _tok && Date.now() < _tokExp - 30000) return _tok;
   const base = await baseUrl();
-  const body = await authBody();
-  if (!body || (!body.AccountName && !body.username && !body.clientId)) {
-    throw new Error('mSupply credentials not in vault (MSUPPLY_API_USER / MSUPPLY_API_KEY)');
-  }
-  const r = await fetch(`${base}/AccessToken`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body), signal: AbortSignal.timeout(12000),
+  const tokenUrl = (await getSecret('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
+  const clientId = await getSecret('MSUPPLY_CLIENT_ID');
+  const clientSecret = await getSecret('MSUPPLY_CLIENT_SECRET');
+  const scope = await getSecret('MSUPPLY_SCOPE');
+  if (!clientId || !clientSecret) throw new Error('mSupply client_id/secret not in vault (MSUPPLY_CLIENT_ID / MSUPPLY_CLIENT_SECRET)');
+
+  const form = new URLSearchParams();
+  form.set('grant_type', 'client_credentials');
+  if (scope) form.set('scope', scope);
+
+  // Standard OAuth2: try client auth as a Basic header first (Postman's default),
+  // then fall back to sending client_id/secret in the body.
+  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  let r = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basic}`, Accept: 'application/json' },
+    body: form.toString(), signal: AbortSignal.timeout(12000),
   });
+  if (!r.ok && (r.status === 400 || r.status === 401)) {
+    const form2 = new URLSearchParams(form);
+    form2.set('client_id', clientId); form2.set('client_secret', clientSecret);
+    r = await fetch(tokenUrl, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: form2.toString(), signal: AbortSignal.timeout(12000),
+    });
+  }
   const text = await r.text();
   let j = {}; try { j = JSON.parse(text); } catch (_) {}
-  if (!r.ok) throw new Error(`AccessToken ${r.status}: ${text.slice(0, 200)}`);
-  // Accept the common token field names.
-  const token = j.accessToken || j.access_token || j.token || j.Token || (typeof j === 'string' ? j : '') || (text && !text.startsWith('{') ? text.trim() : '');
-  if (!token) throw new Error(`AccessToken: no token field in response: ${text.slice(0, 200)}`);
+  if (!r.ok) throw new Error(`AccessToken ${r.status}: ${text.slice(0, 220)}`);
+  const token = j.access_token || j.accessToken || j.token || j.Token;
+  if (!token) throw new Error(`AccessToken: no access_token in response: ${text.slice(0, 200)}`);
   _tok = token;
-  // expiresIn (sec) if provided, else assume 30 min.
-  const ttl = (j.expiresIn || j.expires_in || 1800) * 1000;
+  const ttl = (j.expires_in || j.expiresIn || 1800) * 1000;
   _tokExp = Date.now() + ttl;
   return token;
 }
