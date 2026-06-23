@@ -455,7 +455,7 @@ function render(){
         </div>
         <button class="btn primary" id="pf-go" style="width:100%">Find the part</button>
         <div id="pf-out" style="margin-top:11px"></div>
-        <button class="btn" id="mi-go" style="width:100%;margin-top:9px">📋 Recalls + tech sheets (MSA)</button>
+        <button class="btn" id="mi-go" style="width:100%;margin-top:9px">📋 Recalls + tech sheets</button>
         <div id="mi-out" style="margin-top:11px"></div>
       </div>
 
@@ -828,50 +828,61 @@ async function findParts(){
   finally{ btn.disabled=false; btn.textContent='Find the part'; }
 }
 
-// ── MSA World model intel: recalls + service bulletins + tech sheets ──
-// Tries the cache first; if empty, asks the Mac daemon (logged into MSA via
-// Marcone) to pull it, then polls. Internal reference only.
+// ── Recalls + tech sheets: CPSC (official, always-on) + MSA World (tech sheets) ──
+// CPSC recalls load immediately (free API, no daemon). MSA adds tech sheets +
+// bulletins when the Mac daemon is up. Internal reference only.
 async function modelIntel(){
   const model=document.getElementById('pf-model').value.trim();
   const out=document.getElementById('mi-out'); const btn=document.getElementById('mi-go');
   if(!model){ out.innerHTML='<div class="empty">Enter the model number first.</div>'; return; }
   const brand=appliance.brand||''; const appl=appliance.type||'';
-  btn.disabled=true; btn.textContent='Checking MSA…';
-  out.innerHTML='<div class="loading"><div class="spinner"></div>Checking MSA World…</div>';
-  try{
-    let r=await fetch('/.netlify/functions/get-model-intel?brand='+encodeURIComponent(brand)+'&model='+encodeURIComponent(model)).then(x=>x.json());
-    if(r&&r.found){ renderIntel(r.result,out); return; }
-    const rq=await fetch('/.netlify/functions/request-model-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,model,appliance:appl})}).then(x=>x.json());
-    const rid=rq&&rq.request_id;
-    if(!rid){ out.innerHTML='<div class="empty">Could not reach MSA right now.</div>'; return; }
-    for(let i=0;i<16;i++){
-      await new Promise(s=>setTimeout(s,3500));
-      r=await fetch('/.netlify/functions/get-model-intel?request_id='+encodeURIComponent(rid)).then(x=>x.json()).catch(()=>({}));
-      if(r&&r.found){ renderIntel(r.result,out); return; }
-      out.innerHTML='<div class="loading"><div class="spinner"></div>Pulling from MSA World… ('+(((i+1)*3.5)|0)+'s)</div>';
-    }
-    out.innerHTML='<div class="empty">MSA didn\'t answer in time — the MSA daemon may be offline. Try again, or check the model on MSA World directly.</div>';
-  }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
-  finally{ btn.disabled=false; btn.textContent='📋 Recalls + tech sheets (MSA)'; }
+  btn.disabled=true; btn.textContent='Checking…';
+  out.innerHTML='<div class="loading"><div class="spinner"></div>Checking recalls + tech sheets…</div>';
+  // 1) CPSC official recalls — always-on, fast
+  let cpsc=[];
+  try{ const c=await fetch('/.netlify/functions/cpsc-recalls',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,appliance:appl,model})}).then(r=>r.json()); cpsc=(c&&c.recalls)||[]; }catch(_){}
+  // 2) MSA cache (tech sheets/bulletins)
+  let msa=null;
+  try{ const r=await fetch('/.netlify/functions/get-model-intel?brand='+encodeURIComponent(brand)+'&model='+encodeURIComponent(model)).then(x=>x.json()); if(r&&r.found) msa=r.result; }catch(_){}
+  renderIntel(msa,cpsc,out,!msa,false);
+  if(!msa){
+    try{
+      const rq=await fetch('/.netlify/functions/request-model-intel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand,model,appliance:appl})}).then(x=>x.json());
+      const rid=rq&&rq.request_id;
+      if(rid){ for(let i=0;i<14;i++){ await new Promise(s=>setTimeout(s,3500)); const r=await fetch('/.netlify/functions/get-model-intel?request_id='+encodeURIComponent(rid)).then(x=>x.json()).catch(()=>({})); if(r&&r.found){ renderIntel(r.result,cpsc,out,false,false); btn.disabled=false; btn.textContent='📋 Recalls + tech sheets'; return; } } }
+    }catch(_){}
+    renderIntel(null,cpsc,out,false,true);
+  }
+  btn.disabled=false; btn.textContent='📋 Recalls + tech sheets';
 }
-function renderIntel(res,out){
-  res=res||{};
+function renderIntel(res,cpsc,out,msaPending,msaTimedOut){
+  res=res||{}; cpsc=cpsc||[];
   const recalls=res.recalls||[], bulletins=res.bulletins||[], sheets=res.tech_sheets||[];
   let html='';
+  if(cpsc.length){
+    html+='<div style="font-size:12px;font-weight:800;color:#c0392b;margin:2px 0 6px">⚠️ OFFICIAL RECALLS (CPSC)</div>';
+    html+=cpsc.map(r=>{
+      const mm=r.matched_model?'<span style="background:#e74c3c;color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800;margin-left:6px">MATCHES THIS MODEL</span>':'';
+      const link=r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:#c0392b;font-weight:700">${esc(r.title||'recall')} ↗</a>`:`<b>${esc(r.title||'recall')}</b>`;
+      return `<div class="cand" style="border-left:3px solid #e74c3c;background:#fdf0ee"><div class="cn">${link}${mm}</div><div style="font-size:11px;color:#7a3b34;margin-top:3px">${esc(r.date||'')}${r.hazard?(' · '+esc(r.hazard)):''}${r.remedy?('<br>Remedy: '+esc(r.remedy)):''}</div></div>`;
+    }).join('');
+  }
   if(recalls.length){
-    html+='<div style="font-size:12px;font-weight:800;color:#c0392b;margin:2px 0 6px">⚠️ RECALLS / SAFETY</div>';
+    html+='<div style="font-size:12px;font-weight:700;color:#c0392b;margin:12px 0 6px">⚠️ MSA RECALLS / SAFETY</div>';
     html+=recalls.map(x=>`<div class="cand" style="border-left:3px solid #e74c3c;background:#fdf0ee"><div class="cn">${esc(x.text||x)}</div></div>`).join('');
   }
   if(bulletins.length){
-    html+='<div style="font-size:12px;font-weight:700;color:#c2691c;margin:12px 0 6px">📋 SERVICE BULLETINS</div>';
+    html+='<div style="font-size:12px;font-weight:700;color:#c2691c;margin:12px 0 6px">📋 SERVICE BULLETINS (MSA)</div>';
     html+=bulletins.map(x=>`<div class="cand" style="border-left:3px solid #e6a23c;background:#fdf7ec"><div class="cn">${esc(x.text||x)}</div></div>`).join('');
   }
   if(sheets.length){
-    html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">📄 TECH SHEETS / MANUALS</div>';
+    html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">📄 TECH SHEETS / MANUALS (MSA)</div>';
     html+=sheets.map(x=>{const url=x.url||x.href||x.link||'';const title=x.title||x.text||x.name||url||'tech sheet';return url?`<a class="cat" href="${esc(url)}" target="_blank" rel="noopener">${esc(title)} ↗</a>`:`<div class="cand"><div class="cn">${esc(title)}</div></div>`;}).join('');
   }
-  if(!html) html='<div class="empty">No recalls, bulletins, or tech sheets found for this model on MSA.</div>';
-  else html+='<div class="warnbox">From MSA World — internal reference only. Don\'t read recall/part details to the customer.</div>';
+  if(msaPending) html+='<div style="font-size:11px;color:var(--dim);margin-top:10px"><span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;vertical-align:middle"></span> Pulling tech sheets from MSA World…</div>';
+  else if(msaTimedOut) html+='<div style="font-size:11px;color:var(--dim);margin-top:10px">MSA tech sheets unavailable right now (daemon offline) — recalls above are from CPSC.</div>';
+  if(!cpsc.length && !recalls.length && !bulletins.length && !sheets.length && !msaPending) html='<div class="empty">No recalls or tech sheets found for this model.</div>';
+  if(cpsc.length||recalls.length||bulletins.length||sheets.length) html+='<div class="warnbox">Internal reference — don\'t read recall/part details to the customer.</div>';
   out.innerHTML=html;
 }
 
