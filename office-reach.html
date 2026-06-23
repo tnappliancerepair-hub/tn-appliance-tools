@@ -76,7 +76,9 @@ function render(on, rings){
   document.getElementById('state').textContent = on?'ON':'OFF';
   document.getElementById('state').className = 'state '+(on?'on':'off');
   document.getElementById('toggle').className = 'toggle'+(on?' on':'');
-  document.getElementById('rings').textContent = on ? ('Ringing '+fmt(rings)) : 'Taking messages';
+  const d10 = String(rings||'').replace(/\D/g,'').slice(-10);
+  const label = (d10==='6155889591') ? 'Ringing you + Danielle' : ('Ringing '+fmt(rings));
+  document.getElementById('rings').textContent = on ? label : 'Taking messages';
 }
 let busy=false;
 async function call(action){
