@@ -92,13 +92,35 @@ exports.handler = async function (event) {
           if (cr.ok) { const cd = await cr.json(); conn = { type: path, data: cd.data }; break; }
         } catch (_) {}
       }
+      // also list outbound voice profiles we could attach
+      let profiles = [];
+      try { const op = await fetch(`${TELNYX}/outbound_voice_profiles?page[size]=50`, { headers: H, signal: AbortSignal.timeout(10000) }); profiles = ((await op.json().catch(() => ({}))).data || []).map((p) => ({ id: p.id, name: p.name })); } catch (_) {}
       return json(200, {
         ok: true, number: rec.phone_number, connection_id: connId,
         connection_type: conn && conn.type,
         connection_name: conn && conn.data && (conn.data.connection_name || conn.data.friendly_name),
         outbound_voice_profile_id: (conn && conn.data && conn.data.outbound && conn.data.outbound.outbound_voice_profile_id) || (conn && conn.data && conn.data.outbound_voice_profile_id) || null,
-        number_voice: voice,
+        connection_outbound: conn && conn.data && conn.data.outbound,
+        outbound_profiles_available: profiles,
       });
+    }
+
+    // Attach an outbound voice profile to the call-control app behind a number, so
+    // Vapi's transfer can dial the outbound leg. &num=...&profile=<id>
+    if (action === 'fixoutbound') {
+      const want = encodeURIComponent(q.num || '+16152802949');
+      const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${want}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const rec = ((await pn.json().catch(() => ({}))).data || [])[0];
+      if (!rec) return json(200, { ok: false, error: 'number not found' });
+      const connId = rec.connection_id;
+      const profile = q.profile;
+      if (!profile) return json(400, { ok: false, error: 'pass &profile=<outbound_voice_profile_id>' });
+      const r = await fetch(`${TELNYX}/call_control_applications/${connId}`, {
+        method: 'PATCH', headers: H, body: JSON.stringify({ outbound: { outbound_voice_profile_id: profile } }), signal: AbortSignal.timeout(12000),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return json(200, { ok: false, status: r.status, error: JSON.stringify(d.errors || d).slice(0, 300) });
+      return json(200, { ok: true, connection_id: connId, outbound_now: d.data && d.data.outbound });
     }
 
     if (action === 'connections') {
