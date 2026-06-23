@@ -282,7 +282,7 @@ async function togglePresence(){
 
   let tok;
   try {
-    const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW})});
+    const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW, who:who})});
     tok = await r.json();
   } catch(e){ setReg('Could not reach the line server. Try again.'); return; }
 
