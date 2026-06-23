@@ -365,7 +365,7 @@ function capVideo(){
   setHead('Show me what’s <span class="accent">going on.</span>','A video tells me more than anything else.');
   antMsg('Take a video of your '+esc(state.appliance.toLowerCase())+' and <b>talk me through it</b> — tell me what it <b>is and isn’t doing</b>, what you’re seeing or hearing, and what you need help with. The more detail the better. <b>Take as long as you need</b> — walk me through exactly what you’re going through.');
   const w=document.createElement('div'); w.className='capture';
-  w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record / upload a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile"></label>'
+  w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>'
     +'<div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>';
   FLOW.appendChild(w);
   document.getElementById('vfile').onchange=e=>{
@@ -385,7 +385,7 @@ function capModel(){
   setHead('Now the <span class="accent">model number.</span>','Usually on a sticker inside the door or on the back.');
   antMsg('Snap a photo of the model sticker — that\'s how I get you the exact part and the real price.');
   const w=document.createElement('div'); w.className='capture';
-  w.innerHTML='<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to photograph the model sticker</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile"></label>'
+  w.innerHTML='<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>'
     +'<div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>';
   FLOW.appendChild(w);
   document.getElementById('mfile').onchange=e=>{
