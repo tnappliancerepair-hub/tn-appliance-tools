@@ -34,6 +34,22 @@ exports.handler = async function (event) {
   const action = q.action || 'token';
   try {
     if (overrode) { try { await msupply.getToken(true); } catch (_) {} }
+    if (action === 'config') {
+      const { getSecretFresh } = require('./_lib/secrets');
+      const base = await msupply.baseUrl();
+      const cid = (await getSecretFresh('MSUPPLY_CLIENT_ID')) || '';
+      const csec = (await getSecretFresh('MSUPPLY_CLIENT_SECRET')) || '';
+      const tok = (await getSecretFresh('MSUPPLY_TOKEN_URL')) || '';
+      const scope = (await getSecretFresh('MSUPPLY_SCOPE')) || '';
+      const cust = (await getSecretFresh('MSUPPLY_CUST_NO')) || '';
+      return json(200, {
+        ok: true, base,
+        token_url_used: tok || (base + '/AccessToken'),
+        client_id_preview: cid ? (cid.slice(0, 6) + '…' + cid.slice(-3) + ' (len ' + cid.length + ')') : 'MISSING',
+        client_secret_len: csec.length, scope: scope || '(none)', cust_no: cust || '(none)',
+      });
+    }
+
     if (action === 'token') {
       const t = await msupply.getToken(true);
       const base = await msupply.baseUrl();
