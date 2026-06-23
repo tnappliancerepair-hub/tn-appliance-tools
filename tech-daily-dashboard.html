@@ -978,18 +978,20 @@
       const senderName = m.sender_name || 'Office';
       const body = (m.body || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
       const time = m.created_at ? new Date(m.created_at).toLocaleString('en-US', { month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
-      const bg = isUnread ? 'rgba(255,107,53,0.10)' : 'rgba(255,255,255,0.03)';
-      const border = isUnread ? 'rgba(255,107,53,0.30)' : 'rgba(255,255,255,0.08)';
+      // Light message bubbles with DARK letters so they read on every screen
+      // (John couldn't read the old light-on-dark text, Teddy 2026-06-23).
+      const bg = isUnread ? '#fff1e8' : '#eef1f7';
+      const border = isUnread ? '#ffc4a3' : '#d4dae6';
       return `
         <div data-msg-id="${m.id}" data-read="${isUnread ? 'false' : 'true'}"
              style="background:${bg};border:1px solid ${border};border-radius:8px;padding:10px 12px;margin-top:6px;cursor:pointer;transition:0.15s">
-          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#5b6577;margin-bottom:4px">
             <span>${senderIcon}</span>
-            <span style="font-weight:600;color:var(--text)">${senderName}</span>
-            ${isUnread ? '<span style="color:#ff8c61;font-weight:700;font-size:10px">●UNREAD</span>' : ''}
+            <span style="font-weight:700;color:#1f2736">${senderName}</span>
+            ${isUnread ? '<span style="color:#d9531e;font-weight:800;font-size:10px">●UNREAD</span>' : ''}
             <span style="margin-left:auto;font-family:var(--mono)">${time}</span>
           </div>
-          <div style="font-size:14px;color:var(--text);line-height:1.4">${body}</div>
+          <div style="font-size:14px;color:#161c28;line-height:1.45;font-weight:500">${body}</div>
         </div>
       `;
     }).join('');
