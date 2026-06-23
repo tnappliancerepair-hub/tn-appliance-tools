@@ -17,8 +17,10 @@ exports.handler = async function (event) {
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };
 
-  // &env=prod points lookups at the real catalog (read-only/safe). getSecret is
-  // env-first, so this overrides MSUPPLY_BASE_URL for this invocation.
+  // &env=prod points lookups at the real catalog (read-only/safe). Overrides
+  // MSUPPLY_BASE_URL for THIS invocation only; cleared in finally so it never
+  // bleeds into a warm container's later (integration) calls.
+  const hadBase = process.env.MSUPPLY_BASE_URL;
   if (q.env === 'prod') process.env.MSUPPLY_BASE_URL = 'https://api.msupply.com';
 
   const action = q.action || 'token';
@@ -37,5 +39,8 @@ exports.handler = async function (event) {
     return json(400, { ok: false, error: 'unknown action; use token|lookup' });
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e) });
+  } finally {
+    // restore so a warm container's later integration calls aren't poisoned
+    if (q.env === 'prod') { if (hadBase) process.env.MSUPPLY_BASE_URL = hadBase; else delete process.env.MSUPPLY_BASE_URL; await msupply.getToken(true).catch(() => {}); }
   }
 };
