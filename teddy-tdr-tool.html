@@ -840,6 +840,7 @@ function renderReview() {
   return renderHeader() +
     '<a class="back-link" href="dashboard.html">← Back to dashboard</a>' +
     renderCockpitHeader() +
+    '<div class="section-card" id="recall-section" style="display:none;border:1px solid rgba(231,76,60,0.45)"><div id="cpsc-recall-box"></div></div>' +
     renderAntsGuessPanel() +
     renderPreviousAttempts() +
 
@@ -1421,6 +1422,31 @@ async function loadAntsGuess() {
   } catch (_) {}
 }
 
+// Auto-check CPSC recalls for the job's appliance and show a banner if any are
+// found (model matches highlighted). Free, always-on. Internal reference only.
+async function checkRecalls() {
+  const box = document.getElementById('cpsc-recall-box'); const sec = document.getElementById('recall-section');
+  if (!box || !sec) return;
+  const ap = (state.cockpit && state.cockpit.appliance) || state.appliance || {};
+  const brand = ap.brand || ''; const model = ap.model_number || ap.model || ''; const appl = ap.appliance_type || ap.appliance || '';
+  if (!brand && !appl) return;
+  try {
+    const d = await fetch('/.netlify/functions/cpsc-recalls', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brand, appliance: appl, model }) }).then(r => r.json());
+    const recalls = (d && d.recalls) || [];
+    if (!recalls.length) return;
+    const matched = recalls.filter(r => r.matched_model);
+    const show = matched.length ? matched : recalls.slice(0, 4);
+    let html = '<div style="font-size:13px;font-weight:800;color:#e74c3c;margin-bottom:8px">⚠️ CPSC RECALLS' + (matched.length ? (' — ' + matched.length + ' MATCH THIS MODEL') : '') + '</div>';
+    html += show.map(r => {
+      const mm = r.matched_model ? '<span style="background:#e74c3c;color:#fff;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800;margin-left:6px">MATCHES MODEL</span>' : '';
+      const link = r.url ? ('<a href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:#ff8a7a;font-weight:700">' + escapeHtml(r.title || 'recall') + ' ↗</a>') : ('<b>' + escapeHtml(r.title || 'recall') + '</b>');
+      return '<div style="border-left:3px solid #e74c3c;background:rgba(231,76,60,0.08);border-radius:6px;padding:8px 10px;margin-bottom:6px"><div>' + link + mm + '</div><div style="font-size:11px;color:var(--muted);margin-top:3px">' + escapeHtml(r.date || '') + (r.hazard ? (' · ' + escapeHtml(r.hazard)) : '') + (r.remedy ? ('<br>Remedy: ' + escapeHtml(r.remedy)) : '') + '</div></div>';
+    }).join('');
+    html += '<div style="font-size:11px;color:var(--muted);margin-top:4px">Official CPSC data — internal reference. Don\'t read recall details to the customer.</div>';
+    box.innerHTML = html; sec.style.display = 'block';
+  } catch (_) {}
+}
+
 function render() {
   const app = document.getElementById("app");
   let html = "";
@@ -1447,6 +1473,11 @@ function wireCockpitInteractions() {
   if (findBtn && !findBtn._wired) {
     findBtn._wired = true;
     findBtn.addEventListener('click', launchPartsSearch);
+  }
+  // Auto-check CPSC recalls for this appliance (once per render).
+  if (state.step === 'review') {
+    const rb = document.getElementById('cpsc-recall-box');
+    if (rb && !rb._checked) { rb._checked = true; checkRecalls(); }
   }
   // Grounded troubleshooting widget (fault codes + this shop's past jobs)
   if (state.step === 'review' && window.AntBrain) {
