@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Reach Me · Ant</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+  :root{--bg:#0b0d10;--card:#161a1f;--line:#2a2f37;--text:#e6e8eb;--muted:#8b919c;--green:#4ad991;--danger:#ef6a6a;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;min-height:100vh;}
+  .wrap{max-width:460px;margin:0 auto;padding:20px 16px 80px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  .tag{color:var(--muted);font-size:13px;margin:0 0 20px;}
+  .gate{max-width:340px;margin:80px auto;text-align:center;}
+  .gate input{width:100%;padding:13px 14px;border-radius:11px;background:#0d1014;border:1px solid var(--line);color:var(--text);font-size:16px;margin:14px 0;}
+  .gate button,.bigbtn{width:100%;padding:14px;border-radius:12px;border:none;font-weight:800;font-size:16px;cursor:pointer;}
+  .gate button{background:var(--green);color:#08110b;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:16px;text-align:center;}
+  .state{font-size:30px;font-weight:900;margin:6px 0;}
+  .state.on{color:var(--green);} .state.off{color:var(--muted);}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px;}
+  .toggle{position:relative;width:96px;height:52px;border-radius:30px;background:#33383f;border:none;cursor:pointer;transition:background .15s;margin:0 auto;display:block;}
+  .toggle.on{background:var(--green);}
+  .toggle::after{content:"";position:absolute;top:4px;left:4px;width:44px;height:44px;border-radius:50%;background:#fff;transition:left .15s;}
+  .toggle.on::after{left:48px;}
+  .hint{font-size:13px;color:var(--muted);line-height:1.6;}
+  .hidden{display:none!important;}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="gate" class="gate">
+  <h1>📲 Reach Me</h1>
+  <input id="pw" type="password" placeholder="Office password" />
+  <button onclick="unlock()">Unlock</button>
+  <div id="gerr" class="err"></div>
+</div>
+
+<div id="app" class="wrap hidden">
+  <h1>📲 Reach Me</h1>
+  <p class="tag">When a caller asks Ant for a person, should it ring your phone — or just take a message?</p>
+
+  <div class="card">
+    <div class="sub">Live calls to a human are</div>
+    <div id="state" class="state off">…</div>
+    <button id="toggle" class="toggle" onclick="flip()"></button>
+    <div class="sub" id="rings" style="margin-top:14px;"></div>
+    <div id="err" class="err"></div>
+  </div>
+
+  <div class="hint">
+    • <b>On</b> — Ant transfers callers who ask for a person to your cell. They stay on the business line, so your number stays private.<br>
+    • <b>Off</b> — Ant takes a message instead (your phone stays quiet). Flip this off when you're on vacation.<br>
+    • Either way, Ant still answers + handles everything else.
+  </div>
+</div>
+
+<script src="/office-nav.js?v=20260623-2"></script>
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN='/.netlify/functions';
+let PW='';
+function unlock(){
+  const pw=document.getElementById('pw').value.trim();
+  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+    .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=pw; localStorage.setItem('ant_office_pw',pw); show(); } else document.getElementById('gerr').textContent='Wrong password'; })
+    .catch(()=>document.getElementById('gerr').textContent='Connection error');
+}
+(function cached(){ const c=localStorage.getItem('ant_office_pw'); if(!c) return;
+  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:c})})
+    .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=c; show(); } }).catch(()=>{}); })();
+function show(){ document.getElementById('gate').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); call('status'); }
+function fmt(n){ const d=String(n||'').replace(/\D/g,'').slice(-10); return d.length===10?d.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3'):(n||''); }
+function render(on, rings){
+  document.getElementById('state').textContent = on?'ON':'OFF';
+  document.getElementById('state').className = 'state '+(on?'on':'off');
+  document.getElementById('toggle').className = 'toggle'+(on?' on':'');
+  document.getElementById('rings').textContent = on ? ('Ringing '+fmt(rings)) : 'Taking messages';
+}
+let busy=false;
+async function call(action){
+  if(busy) return; busy=true; document.getElementById('err').textContent='';
+  try{
+    const d=await fetch(FN+'/office-reach-toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,action})}).then(r=>r.json());
+    if(d&&d.ok){ render(d.on, d.rings); } else { document.getElementById('err').textContent='Could not update ('+((d&&d.reason)||'error')+')'; }
+  }catch(_){ document.getElementById('err').textContent='Connection error'; }
+  busy=false;
+}
+function flip(){ const on=document.getElementById('toggle').classList.contains('on'); call(on?'off':'on'); }
+</script>
+</body>
+</html>
