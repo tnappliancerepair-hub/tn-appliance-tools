@@ -52,11 +52,21 @@ exports.handler = async function () {
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
     const id = j.id || j.job_id;
-    // Dedup — already asked (by this collector OR by job_created)?
+    // Dedup — already asked? FAIL CLOSED: if we can't verify, skip (never risk a
+    // duplicate text). (Old code fail-OPENed on timeout -> Patricia got 5 texts.)
+    let alreadyAsked = true;
     try {
-      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=21&limit=1`, 7000);
-      if ((dd.items || []).length) { skipped_dupe++; continue; }
-    } catch (_) {}
+      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=30&limit=1`, 7000);
+      alreadyAsked = (dd.items || []).length > 0;
+    } catch (_) { alreadyAsked = true; }
+    if (alreadyAsked) { skipped_dupe++; continue; }
+
+    // Claim the job BEFORE sending (optimistic lock) so parallel invocations and
+    // the next run see the marker immediately and won't re-text. If the claim
+    // write fails, skip — better to miss one than spam.
+    let claimed = false;
+    try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
+    if (!claimed) { skipped_dupe++; continue; }
 
     const phone = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     const cust = first(j.customer_first);
@@ -66,10 +76,7 @@ exports.handler = async function () {
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
-    if (okSend) {
-      sent++; done.push(id);
-      try { await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', at_ms: Date.now() }) }); } catch (_) {}
-    } else failed++;
+    if (okSend) { sent++; done.push(id); } else failed++;
   }
 
   return ok({ status: 'ran', ct_hour: h, candidates: cands.length, sent, skipped_dupe, failed, job_ids: done });
