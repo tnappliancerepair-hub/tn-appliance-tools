@@ -135,6 +135,30 @@ exports.handler = async function (event) {
       return json(200, { ok: true, connection_id: connId, outbound_now: d.data && d.data.outbound });
     }
 
+    // Inspect an outbound voice profile (allowed destinations, etc.) + optionally
+    // open it up to US calling. &action=profileinfo  (&fix=1 to whitelist US/CA)
+    if (action === 'profileinfo') {
+      const pid = q.id || '2959911839888049315';
+      const r = await fetch(`${TELNYX}/outbound_voice_profiles/${pid}`, { headers: H, signal: AbortSignal.timeout(10000) });
+      const d = await r.json().catch(() => ({}));
+      const p = d.data || {};
+      if (q.fix === '1') {
+        const up = await fetch(`${TELNYX}/outbound_voice_profiles/${pid}`, {
+          method: 'PATCH', headers: H,
+          body: JSON.stringify({ enabled: true, traffic_type: 'conversational', service_plan: 'global', whitelisted_destinations: ['US', 'CA'] }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const ud = await up.json().catch(() => ({}));
+        return json(200, { ok: up.ok, fixed: true, whitelisted_destinations: ud.data && ud.data.whitelisted_destinations, enabled: ud.data && ud.data.enabled });
+      }
+      return json(200, {
+        ok: r.ok, id: pid, name: p.name, enabled: p.enabled,
+        whitelisted_destinations: p.whitelisted_destinations, traffic_type: p.traffic_type,
+        service_plan: p.service_plan, usage_payment_method: p.usage_payment_method,
+        max_destination_rate: p.max_destination_rate,
+      });
+    }
+
     if (action === 'connections') {
       // Find the office-phone credential connection's real id + name.
       const r = await fetch(`${TELNYX}/credential_connections?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
