@@ -32,8 +32,9 @@ async function getToken(force) {
   if (!force && _tok && Date.now() < _tokExp - 30000) return _tok;
   const base = await baseUrl();
   const tokenUrl = (await getSecretFresh('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
-  const clientId = await getSecretFresh('MSUPPLY_CLIENT_ID');
-  const clientSecret = await getSecretFresh('MSUPPLY_CLIENT_SECRET');
+  // Trim stray whitespace/newlines that sneak in on paste (a common invalid_client cause).
+  const clientId = String(await getSecretFresh('MSUPPLY_CLIENT_ID') || '').trim();
+  const clientSecret = String(await getSecretFresh('MSUPPLY_CLIENT_SECRET') || '').trim();
   const scope = await getSecretFresh('MSUPPLY_SCOPE');
   if (!clientId || !clientSecret) throw new Error('mSupply client_id/secret not in vault (MSUPPLY_CLIENT_ID / MSUPPLY_CLIENT_SECRET)');
 

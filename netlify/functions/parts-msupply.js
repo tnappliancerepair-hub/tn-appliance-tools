@@ -34,6 +34,22 @@ exports.handler = async function (event) {
   const action = q.action || 'token';
   try {
     if (overrode) { try { await msupply.getToken(true); } catch (_) {} }
+    if (action === 'authcheck') {
+      const { getSecretFresh } = require('./_lib/secrets');
+      const cid = (await getSecretFresh('MSUPPLY_CLIENT_ID')) || '';
+      const csec = (await getSecretFresh('MSUPPLY_CLIENT_SECRET')) || '';
+      const basic = Buffer.from(`${cid}:${csec}`).toString('base64');
+      const out = {};
+      for (const [label, url] of [['integration', 'https://int-api.msupply.com/AccessToken'], ['production', 'https://api.msupply.com/AccessToken']]) {
+        try {
+          const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: `Basic ${basic}`, Accept: 'application/json' }, body: 'grant_type=client_credentials', signal: AbortSignal.timeout(15000) });
+          const t = await r.text();
+          out[label] = { status: r.status, ok: r.ok, body: t.slice(0, 90) };
+        } catch (e) { out[label] = { error: String((e && e.message) || e) }; }
+      }
+      return json(200, { ok: true, client_id_preview: cid.slice(0, 6) + '…', results: out });
+    }
+
     if (action === 'config') {
       const { getSecretFresh } = require('./_lib/secrets');
       const base = await msupply.baseUrl();
