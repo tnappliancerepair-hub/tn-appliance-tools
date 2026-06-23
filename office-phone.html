@@ -170,7 +170,19 @@ let activeCall = null;   // current call object
 let callerNumber = '';   // our outbound caller ID (from token endpoint)
 let muted = false;
 let who = localStorage.getItem('ant_office_phone_who') || 'Teddy';
-let autoAnswer = (localStorage.getItem('ant_office_phone_autoans') || '1') === '1';
+let autoAnswer = (localStorage.getItem('ant_office_phone_autoans') || '0') === '1';
+
+/* ---------- make the incoming audio actually play (iOS needs an explicit play) ---------- */
+function playRemote(call){
+  try{
+    const ra = document.getElementById('remoteAudio');
+    const ms = call && (call.remoteStream || (call.options && call.options.remoteStream));
+    if(ms){ ra.srcObject = ms; }
+    ra.muted = false;
+    const pr = ra.play();
+    if(pr && pr.then) pr.then(()=>dbg('remote audio playing')).catch(e=>dbg('remote play BLOCKED: '+(e.name||e)));
+  }catch(e){ dbg('playRemote err '+(e.message||e)); }
+}
 let autoAnsTimer = null;
 let _ac = null, _ringTimer = null;
 
@@ -257,6 +269,9 @@ async function togglePresence(){
     const s = await navigator.mediaDevices.getUserMedia({ audio: true });
     s.getTracks().forEach(t => t.stop());
     dbg('mic granted');
+    // Unlock audio playback within this tap so incoming-call audio can play later.
+    try { const ra=document.getElementById('remoteAudio'); ra.muted=false; const p=ra.play(); if(p&&p.catch) p.catch(()=>{}); } catch(_){}
+    try { if(_ac && _ac.state==='suspended') _ac.resume(); } catch(_){}
   } catch(e){
     dbg('mic blocked: '+(e.name||e.message||e));
     setReg('🎤 Microphone is blocked. Allow it for this site, then flip On again.<br>'+
@@ -358,6 +373,7 @@ function onNotification(n){
   }
   if(st === 'active'){
     activeCall = call;
+    playRemote(call);
     inCallUI();
     return;
   }
@@ -426,7 +442,18 @@ function endedUI(){
   document.getElementById('pop').classList.remove('ring');
   setTimeout(()=>{ if(!activeCall) hidePop(); }, 2500);
 }
-function answer(){ clearIncoming(); dbg('answer() called'); try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(e){ dbg('answer threw '+(e.message||e)); } }
+function answer(){
+  clearIncoming(); dbg('answer() called');
+  try{
+    if(activeCall){
+      activeCall.answer();
+      // The tap that triggered answer() is a user gesture — use it to unlock +
+      // start the incoming audio right now (iOS blocks audio without a gesture).
+      playRemote(activeCall);
+      inCallUI();
+    }
+  }catch(e){ dbg('answer threw '+(e.message||e)); }
+}
 function decline(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
 function hangup(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
 function toggleMute(){
