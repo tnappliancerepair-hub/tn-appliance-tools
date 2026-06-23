@@ -159,6 +159,21 @@ exports.handler = async function (event) {
       });
     }
 
+    // Recent Telnyx voice call records (from/to/hangup cause) to see why the
+    // transfer leg fails. &action=cdr
+    if (action === 'cdr') {
+      const r = await fetch(`${TELNYX}/detail_records?filter[record_type]=voice&page[size]=15&sort=-created_at`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      const recs = (d.data || []).map((x) => ({
+        from: x.from || x.from_, to: x.to,
+        cause: x.hangup_cause || x.cause || x.failed_message,
+        source: x.hangup_source, dir: x.direction || x.call_type,
+        status: x.status, dur: x.call_sec || x.duration_seconds || x.billed_sec,
+        started: x.started_at || x.created_at,
+      }));
+      return json(200, { ok: r.ok, status: r.status, records: recs, sample_keys: d.data && d.data[0] ? Object.keys(d.data[0]) : [] });
+    }
+
     if (action === 'connections') {
       // Find the office-phone credential connection's real id + name.
       const r = await fetch(`${TELNYX}/credential_connections?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
