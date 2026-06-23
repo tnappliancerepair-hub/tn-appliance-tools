@@ -463,12 +463,6 @@ function render(){
         <div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5">Install now = you do it on this visit, your cut hits your pay. Ship it = office mails it to the customer (you still earn a finder cut).</div>
       </div>
 
-      <div class="card">
-        <a class="ask-btn" href="tech-ant-chat.html?job_id=${job.id}&tech_id=${TECH_ID}">💬 Ask Ant about this job</a>
-        <a class="ask-btn" style="margin-top:8px;background:#fff;color:var(--brand,#1f6fed);border:1px solid var(--line,#e3e8ef)" href="tech-vent-quote.html?job_id=${job.id}&tech_id=${TECH_ID}">🌀 Dryer vent cleaning quote</a>
-      </div>
-
-      <div class="card"><div id="ant-brain"></div></div>
 
       <div class="card">
         <h3>👤 Customer</h3>
@@ -507,7 +501,7 @@ function wireActions(){
   document.getElementById('pf-go').onclick=findParts;
   renderTechAddons();
   mountConvo();
-  if(window.AntBrain){ AntBrain.mount(document.getElementById('ant-brain'), { brand:appliance.brand||'', model:appliance.model_number||'', appliance:appliance.type||appliance.appliance||'', symptom:(appliance.problem_summary||appliance.problem_description||''), job_id:job.id||0, role:'tech' }); }
+  // Ant Diagnose card removed for simplicity (Teddy 2026-06-23: "we don't need three talk-to-Ant buttons").
 }
 
 // Read-only customer conversation (Ant ↔ customer texts), tech lens —
