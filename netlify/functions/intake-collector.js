@@ -18,6 +18,7 @@
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = 15;
+const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with no reply
 
 function ctHour() {
   return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
@@ -56,27 +57,32 @@ exports.handler = async function () {
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
     const id = j.id || j.job_id;
-    // Dedup — already asked? FAIL CLOSED: if we can't verify, skip (never risk a
-    // duplicate text). (Old code fail-OPENed on timeout -> Patricia got 5 texts.)
-    let alreadyAsked = true;
+    // ONE intake text, then at most ONE resend ~4h later if still no reply, then
+    // never again (Teddy 2026-06-23: "send it once, maybe twice if no answer").
+    // The candidate filter already drops jobs that have availability, so a reply
+    // stops the resend. FAIL CLOSED: if we can't verify history, skip.
+    let asks = [];
     try {
-      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=30&limit=1`, 7000);
-      alreadyAsked = (dd.items || []).length > 0;
-    } catch (_) { alreadyAsked = true; }
-    if (alreadyAsked) { skipped_dupe++; continue; }
+      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=30&limit=5`, 7000);
+      asks = dd.items || [];
+    } catch (_) { skipped_dupe++; continue; }
+    if (asks.length >= 2) { skipped_dupe++; continue; }            // already sent the max (2)
+    if (asks.length === 1) {
+      const lastMs = Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0));
+      if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; } // too soon to resend
+    }
 
-    // Claim the job BEFORE sending (optimistic lock) so parallel invocations and
-    // the next run see the marker immediately and won't re-text. If the claim
-    // write fails, skip — better to miss one than spam.
+    // Claim BEFORE sending (optimistic lock) so parallel invocations + the next
+    // run see the marker immediately and never double-text.
     let claimed = false;
-    try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
+    try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', send_no: asks.length + 1, at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
     if (!claimed) { skipped_dupe++; continue; }
 
     const phone = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
     const portal = `${SITE}/customer-portal.html?job_id=${id}&last4=`;
-    const msg = `Hi ${cust} — this is TN Appliance Exchange 🐜. To get your ${appl} scheduled fast: what days work best for you, and any days you can't do? Just reply right here. It also speeds things up a lot to add your model # + a quick video of the problem here: ${portal}`;
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Two quick things to get your ${appl} fixed fast:\n\n1) Tap here to send a short video of the problem + a photo of the model sticker: ${portal}\n\n2) Reply with the days that work for you, and any days you can't do.\n\nThat's all we need — thanks!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
