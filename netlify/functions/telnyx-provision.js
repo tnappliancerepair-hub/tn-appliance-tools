@@ -159,11 +159,21 @@ exports.handler = async function (event) {
       });
     }
 
+    // Dump the ring-group TeXML app config (voice_url + outbound profile).
+    if (action === 'texmlinfo') {
+      const id = q.id || '2988900469658617248';
+      const r = await fetch(`${TELNYX}/texml_applications/${id}`, { headers: H, signal: AbortSignal.timeout(10000) });
+      const d = await r.json().catch(() => ({}));
+      const a = d.data || {};
+      return json(200, { ok: r.ok, status: r.status, friendly_name: a.friendly_name, active: a.active, voice_url: a.voice_url, voice_method: a.voice_method, voice_fallback_url: a.voice_fallback_url, outbound: a.outbound, anchorsite_override: a.anchorsite_override });
+    }
+
     // Recent Telnyx voice call records (from/to/hangup cause) to see why the
     // transfer leg fails. &action=cdr
     if (action === 'cdr') {
-      const r = await fetch(`${TELNYX}/detail_records?filter[record_type]=voice&page[size]=15&sort=-created_at`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const r = await fetch(`${TELNYX}/detail_records?filter[record_type]=voice&page[size]=15`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
+      if (!r.ok) return json(200, { ok: false, status: r.status, error: JSON.stringify(d.errors || d).slice(0, 400) });
       const recs = (d.data || []).map((x) => ({
         from: x.from || x.from_, to: x.to,
         cause: x.hangup_cause || x.cause || x.failed_message,
