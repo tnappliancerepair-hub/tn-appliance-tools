@@ -515,6 +515,73 @@ ${END}`;
     return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, found, destinations: (vt && vt.destinations) || null }, null, 2) };
   }
 
+  // Wire Ant's live-transfer to the Office Phone app (office-phone.html via the
+  // Telnyx "Ant office phone" Credential Connection). When Teddy/Danielle are
+  // flipped On, Ant can hand a live caller to their app — screen-pop and all.
+  // When they're Off (no SIP registration) the transfer fails fast and Ant is
+  // told to take a message instead. Idempotent. &apply=off removes it again.
+  //   enable:  ...&action=wireoffice            (optional &sip=sip:user@sip.telnyx.com)
+  //   disable: ...&action=wireoffice&apply=off
+  if (action === 'wireoffice') {
+    const OFFICE_SIP_URI = q.sip || 'sip:userteddy74923@sip.telnyx.com';
+    const OFF = String(q.apply || '').toLowerCase() === 'off';
+    const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+
+    // 1) tools: drop any existing transferCall, re-add (unless disabling).
+    let newTools = tools.filter((t) => t.type !== 'transferCall');
+    // ensure capture_callback fallback is present
+    if (!newTools.some((t) => tname(t) === 'capture_callback')) {
+      newTools.push(toolBody(TOOLS.find((t) => t.name === 'capture_callback')));
+    }
+    if (!OFF) {
+      newTools.push({
+        type: 'transferCall',
+        destinations: [{
+          type: 'sip',
+          sipUri: OFFICE_SIP_URI,
+          message: 'One second — let me connect you with our office.',
+        }],
+      });
+    }
+
+    // 2) prompt: add/remove a marked block telling Ant when to transfer.
+    const msgs = Array.isArray(model.messages) ? model.messages.slice() : [];
+    const sysIdx = msgs.findIndex((m) => m.role === 'system');
+    const sysContent = sysIdx >= 0 ? String(msgs[sysIdx].content || '') : '';
+    const OX_START = '<!-- OX-START -->';
+    const OX_END = '<!-- OX-END -->';
+    const OX_BLOCK = OX_START + '\n' +
+      '## Reaching a live person (the office phone)\n' +
+      'If the caller truly needs a real person — they ask for one, they are upset, or it is ' +
+      'something you genuinely cannot resolve — you CAN connect them. Use the transferCall ' +
+      'function; it rings the office phone app Teddy and Danielle carry.\n' +
+      '- Set expectations first: "Let me try to connect you with our office now — one moment," then transfer.\n' +
+      '- If no one picks up (they may be away from the app), do NOT leave the caller hanging. Apologize, ' +
+      'then use capture_callback to take their name, number, and a one-line summary so the office calls ' +
+      'them right back, usually within a few business hours.\n' +
+      '- Never promise a specific person or an immediate callback if the transfer does not connect. Be ' +
+      'honest: "I could not reach someone live just now, but I have your message and the office will call you back."\n' +
+      '- For routine status or scheduling you can already handle, just handle it — do not transfer unnecessarily.\n' + OX_END;
+    const hasBlock = sysContent.includes(OX_START);
+    let newSys = sysContent;
+    if (!OFF && !hasBlock) newSys = sysContent.trimEnd() + '\n\n' + OX_BLOCK + '\n';
+    else if (OFF && hasBlock) newSys = sysContent.replace(new RegExp('\\n*' + OX_START + '[\\s\\S]*?' + OX_END + '\\n*', 'g'), '\n').trimEnd() + '\n';
+    if (sysIdx >= 0) msgs[sysIdx] = Object.assign({}, msgs[sysIdx], { content: newSys });
+    else if (newSys) msgs.unshift({ role: 'system', content: newSys });
+
+    const patch = await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { tools: newTools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${inbound.id}`, key);
+    const vm = (verify.json && verify.json.model) || {};
+    const vt = (vm.tools || []).find((t) => t.type === 'transferCall');
+    const vSys = (vm.messages || []).find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status, disabled: OFF,
+      transfer_destinations: (vt && vt.destinations) || null,
+      transfer_block_installed: !!(vSys && String(vSys.content || '').includes(OX_START)),
+      has_capture_callback: (vm.tools || []).some((t) => tname(t) === 'capture_callback'),
+    }, null, 2) };
+  }
+
   // Surgical fallback fix (2026-06-16): ADD capture_callback (so Ant can take a
   // message) and REMOVE transferCall (which fails ~35% and drops callers — no
   // live agent to hand off to right now). Leaves the other inline tools UNTOUCHED.
