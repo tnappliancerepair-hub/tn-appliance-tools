@@ -172,6 +172,21 @@ export async function run(signal, ctx) {
     let scheduledDayHuman = scheduledDayName;
     if (scheduledDayName === nowCT) scheduledDayHuman = 'today';
     else if (scheduledDayName === tomorrowCT) scheduledDayHuman = 'tomorrow';
+
+    // CALL GATE (Teddy + John, 2026-06-23): only place the reminder CALL during
+    // the day (9am-7pm CT) and only for a genuinely upcoming appointment. Skip
+    // if it's 'today' or the tech is already en route / on-site — that's what
+    // made Ant ring John's customer while he was standing there, and what dialed
+    // customers at 9-10pm. The SMS reminder already went out above regardless.
+    const callHourCT = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
+    const inCallWindow = Number.isFinite(callHourCT) && callHourCT >= 9 && callHourCT < 19;
+    const techMoving = !!(job.tech_en_route_at || job.job_started_at);
+    const callSkip = !inCallWindow ? 'after_hours'
+      : (scheduledDayHuman === 'today' ? 'today_or_in_progress'
+      : (techMoving ? 'tech_en_route' : ''));
+    if (callSkip) {
+      voiceRes = { ok: false, error: 'skipped_' + callSkip };
+    } else {
     try {
       const vars = {
         customer_first_name: firstName,
@@ -198,6 +213,7 @@ export async function run(signal, ctx) {
       });
     } catch (err) {
       voiceRes = { ok: false, error: String(err.message || err) };
+    }
     }
   }
 
