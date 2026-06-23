@@ -159,6 +159,24 @@ exports.handler = async function (event) {
       });
     }
 
+    // Force-attach the outbound profile to the ring-group TeXML app (full PATCH
+    // with required fields, since a partial patch was being dropped).
+    if (action === 'fixtexml') {
+      const id = q.id || '2988900469658617248';
+      const profile = q.profile || '2959911839888049315';
+      const body = {
+        friendly_name: 'Ant Office Ring Group',
+        voice_url: `${SITE}/.netlify/functions/office-texml`,
+        voice_method: 'post',
+        active: true,
+        outbound: { outbound_voice_profile_id: profile },
+      };
+      const r = await fetch(`${TELNYX}/texml_applications/${id}`, { method: 'PATCH', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return json(200, { ok: false, status: r.status, error: JSON.stringify(d.errors || d).slice(0, 400) });
+      return json(200, { ok: true, outbound_now: d.data && d.data.outbound });
+    }
+
     // Dump the ring-group TeXML app config (voice_url + outbound profile).
     if (action === 'texmlinfo') {
       const id = q.id || '2988900469658617248';
