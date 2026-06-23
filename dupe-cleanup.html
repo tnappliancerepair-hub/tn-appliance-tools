@@ -76,6 +76,7 @@
     <button id="combineAll" onclick="combineAll()" style="display:none;margin-top:9px;width:100%;padding:11px;border:0;border-radius:9px;background:var(--ok);color:#fff;font-weight:800;font-size:14px;cursor:pointer">✓ Combine ALL duplicates</button>
   </header>
   <div class="wrap"><div id="list"></div></div>
+  <div class="wrap"><div id="reviewWrap" style="display:none"><h2 style="font-size:15px;margin:18px 0 4px">👀 Possible duplicates — review</h2><div class="sub" id="reviewSummary" style="margin-bottom:8px">same customer with more than one open job (could be two real appliances — you decide)</div><div id="reviewList"></div></div></div>
 </div>
 
 <script>
@@ -91,8 +92,44 @@
       if(!d.ok){ if(d.error==='wrong_password'||d.error==='password_required'){showGate('Wrong password.');return;} $('list').innerHTML='<div class="empty">'+esc(d.error||'error')+'</div>'; return; }
       $('gate').style.display='none'; $('app').style.display='block';
       render(d.groups||[]);
+      renderReview(d.review_groups||[]);
     }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
   }
+
+  var TECHNAMES={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+  function renderReview(groups){
+    var wrap=$('reviewWrap'); if(!wrap) return;
+    if(!groups.length){ wrap.style.display='none'; return; }
+    wrap.style.display='block';
+    $('reviewSummary').textContent=groups.length+' customer'+(groups.length===1?'':'s')+' with more than one open job — review (could be two real appliances; you decide)';
+    $('reviewList').innerHTML=groups.map(function(g){
+      var jobs=g.jobs.map(function(j){
+        var tech=j.technician_id&&TECHNAMES[j.technician_id]?(' · '+TECHNAMES[j.technician_id]):'';
+        var where=j.stage?(' · '+esc(j.stage)):'';
+        return '<div class="job" data-jid="'+j.id+'" id="rev-'+j.id+'">'+
+          '<span class="jid">#'+j.id+'</span>'+
+          '<span class="st">'+esc(j.appliance||'—')+' · '+esc(j.status||'')+where+esc(tech)+'</span>'+
+          '<a href="/teddy-tdr-tool.html?job_id='+j.id+'" target="_blank" style="text-decoration:none;color:#4a9eff;font-size:12px;margin-right:8px">open</a>'+
+          '<button class="keepbtn" onclick="cancelOne('+j.id+')">🗑 cancel</button>'+
+          '</div>';
+      }).join('');
+      return '<div class="group">'+
+        '<h3>'+esc(g.name||'(no name)')+'</h3>'+
+        '<div class="meta">'+esc(g.city||'')+(g.zip?(' '+esc(g.zip)):'')+(g.phone?(' · '+esc(g.phone)):'')+' · '+g.jobs.length+' open jobs</div>'+
+        jobs+'</div>';
+    }).join('');
+  }
+
+  window.cancelOne=async function(jid){
+    if(!confirm('Cancel job #'+jid+'? (the OTHER job stays; no customer is texted)')) return;
+    var row=$('rev-'+jid); var btn=row&&row.querySelector('.keepbtn'); if(btn){btn.disabled=true;btn.textContent='canceling…';}
+    try{
+      const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/office_remove_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,action:'delete',actor:'dupe-review'})});
+      const d=await r.json();
+      if(d&&d.success){ if(row){row.style.opacity='.4';} if(btn)btn.textContent='✓ canceled'; }
+      else { if(btn){btn.disabled=false;btn.textContent='🗑 cancel';} alert('Could not cancel: '+((d&&d.error)||'error')); }
+    }catch(_){ if(btn){btn.disabled=false;btn.textContent='🗑 cancel';} alert('Network error'); }
+  };
 
   function render(groups){
     $('summary').textContent=groups.length+' duplicate'+(groups.length===1?'':'s')+' found';
