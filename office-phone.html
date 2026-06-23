@@ -200,6 +200,20 @@ async function togglePresence(){
   // turn ON
   const tog = document.getElementById('toggle');
   setReg('Connecting your line…');
+
+  // Prime the mic permission INSIDE the user-gesture (tap), before any await.
+  // Safari drops the gesture context after an async fetch, so the SDK's own
+  // getUserMedia fails ("Failed to access microphone") unless we ask first here.
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach(t => t.stop());
+  } catch(e){
+    setReg('🎤 Microphone is blocked. Allow it for this site, then flip On again.<br>'+
+           '<span style="color:var(--muted)">Safari ▸ Settings ▸ Websites ▸ Microphone ▸ set tnapplianceexchange.net to <b>Allow</b>. '+
+           'Also check macOS ▸ System Settings ▸ Privacy & Security ▸ Microphone ▸ <b>Safari</b> is on.</span>');
+    return;
+  }
+
   let tok;
   try {
     const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW})});
