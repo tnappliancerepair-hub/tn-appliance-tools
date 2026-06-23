@@ -131,7 +131,42 @@ exports.handler = async function (event) {
       });
     }
     out.sort((a, c) => c.jobs.length - a.jobs.length);
-    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out }) };
+
+    // SAME-CUSTOMER REVIEW (Danielle, 2026-06-23): the claim-only rule above
+    // misses self-pay dupes with no claim # (e.g. Matthew Peck — two open jobs,
+    // one in Scheduled + one in a tech's Report). Surface any customer with 2+
+    // LIVE jobs for REVIEW (could be two legit appliances) — never auto-combined.
+    const byCust = {};
+    for (const j of jobsRaw) {
+      if (DONE.test(j.scheduling_status || '')) continue;
+      if (String(j.test_run_id || '').trim()) continue;
+      if (!j.customer_id) continue;
+      (byCust[j.customer_id] = byCust[j.customer_id] || []).push(j);
+    }
+    const review = [];
+    for (const cid of Object.keys(byCust)) {
+      const jobs = byCust[cid];
+      if (jobs.length < 2) continue;
+      // skip if all share ONE claim # — those are already in the combine list.
+      const claims = jobs.map((j) => norm(j.claim_number)).filter(Boolean);
+      if (claims.length === jobs.length && new Set(claims).size === 1) continue;
+      const c = custById[cid] || {};
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+      if (/\bzztest|partsloop|chatcheck\b/i.test(name) || /^zztest/i.test(name) || name.toLowerCase() === 'james test') continue;
+      review.push({
+        customer_id: Number(cid), name, phone: c.phone || '', zip: c.zip || '', city: c.city || '',
+        jobs: jobs.sort((a, d) => (Number(a.created_at) || 0) - (Number(d.created_at) || 0)).map((j) => ({
+          id: j.id,
+          appliance: [j.brand, j.appliance_type].filter(Boolean).join(' ') || j.appliance_type || '',
+          status: j.scheduling_status || '', stage: j.office_stage || '',
+          technician_id: j.technician_id || 0, customer_type: j.customer_type || '',
+          claim_number: j.claim_number || '', created_at: j.created_at || 0,
+        })),
+      });
+    }
+    review.sort((a, c) => c.jobs.length - a.jobs.length);
+
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out, review_count: review.length, review_groups: review }) };
   } catch (e) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: String(e.message || e) }) };
   }

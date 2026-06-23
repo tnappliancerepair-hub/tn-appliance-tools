@@ -371,7 +371,7 @@ function renderBoard(){
   cols.push({id:'done',label:'Completion',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
   cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
-  cols.push({id:'paid',label:'Paid · Closed',cls:'done'});
+  cols.push({id:'paid',label:'💰 Paid · Closed (archive)',cls:'done'});
 
   const items=allItems.filter(j=>jobRegion(j)===region);
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
@@ -383,7 +383,22 @@ function renderBoard(){
     const list=byCol[c.id]||[];
     const stale=list.filter(j=>{const cc=Number(j.created_at||0);return cc&&j.scheduling_status!=='completed'&&(Date.now()-cc)>7*86400000;}).length;
     const staleBadge=stale>0?`<span class="ct" style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7" title="${stale} job${stale===1?'':'s'} waiting 7+ days">⏳ ${stale}</span>`:'';
-    const cards=list.length?list.map(cardHtml).join(''):'<div class="empty-col">—</div>';
+    // Paid · Closed = the archive drawer (Danielle, 2026-06-23): "completed and
+    // archived once it's been paid." Newest closes on top; older ones tuck away
+    // behind a tap so the column never grows into a wall. Record is kept.
+    let cards;
+    if(c.id==='paid' && list.length){
+      const sorted=list.slice().sort((a,b)=>(Number(b.created_at)||0)-(Number(a.created_at)||0));
+      const SHOWN=10;
+      const head=sorted.slice(0,SHOWN).map(cardHtml).join('');
+      const restArr=sorted.slice(SHOWN);
+      if(restArr.length){
+        const rest=restArr.map(cardHtml).join('');
+        cards=head+`<div class="paid-more" onclick="var r=document.getElementById('paid-rest');var o=(r.style.display==='none');r.style.display=o?'block':'none';this.textContent=(o?'▲ hide older paid':'▾ + '+${restArr.length}+' older paid — show');" style="cursor:pointer;text-align:center;padding:9px;margin:6px 0;background:#eef6f0;border:1px dashed #b7d8c4;border-radius:8px;color:#2e7d5b;font-size:12px;font-weight:600">▾ + ${restArr.length} older paid — show</div><div id="paid-rest" style="display:none">${rest}</div>`;
+      } else { cards=head; }
+    } else {
+      cards=list.length?list.map(cardHtml).join(''):'<div class="empty-col">—</div>';
+    }
     return `<div class="col ${c.cls}" data-col="${c.id}" data-tech="${c.tech||''}">
       <div class="col-h">${esc(c.label)}<span class="ct">${list.length}</span>${staleBadge}</div>
       <div class="col-body">${cards}</div></div>`;
