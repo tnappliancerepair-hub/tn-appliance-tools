@@ -18,6 +18,7 @@
     { id: 'messages',  label: '💬 Messages', href: '/office-messages.html',  color: '#5aa9ff' },
     { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
     { id: 'cashleads', label: '💵 Cash Leads', href: '/cash-leads.html', color: '#39d98a' },
+    { id: 'media',     label: '📸 Media',     href: '/media-board.html', color: '#4ca7ff' },
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
