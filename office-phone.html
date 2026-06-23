@@ -146,6 +146,12 @@
       • Add this page to your home screen so it opens like an app.
     </div>
   </details>
+
+  <details open style="margin-top:14px;">
+    <summary class="tag">🔧 Debug log (for setup)</summary>
+    <pre id="dbglog" style="margin-top:8px;background:#0d1014;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:11px;line-height:1.4;color:#9fd0ff;white-space:pre-wrap;word-break:break-word;max-height:240px;overflow:auto;"></pre>
+    <button class="callbtn secondary" style="margin-top:8px;background:#20242b;color:var(--text);" onclick="document.getElementById('dbglog').textContent='';">Clear log</button>
+  </details>
 </div>
 
 <!-- audio sinks for WebRTC -->
@@ -194,6 +200,15 @@ function stopRing(){
 }
 function clearIncoming(){ stopRing(); if(autoAnsTimer){ clearTimeout(autoAnsTimer); autoAnsTimer=null; } }
 
+/* ---------- on-screen debug log (so setup issues are visible without a console) ---------- */
+function dbg(m){
+  try{
+    const el = document.getElementById('dbglog'); if(!el) return;
+    const t = new Date().toLocaleTimeString();
+    el.textContent = (t + '  ' + m + '\n' + el.textContent).slice(0, 5000);
+  }catch(_){}
+}
+
 /* ---------- gate ---------- */
 function unlock(){
   const pw = document.getElementById('pw').value.trim();
@@ -241,7 +256,9 @@ async function togglePresence(){
   try {
     const s = await navigator.mediaDevices.getUserMedia({ audio: true });
     s.getTracks().forEach(t => t.stop());
+    dbg('mic granted');
   } catch(e){
+    dbg('mic blocked: '+(e.name||e.message||e));
     setReg('🎤 Microphone is blocked. Allow it for this site, then flip On again.<br>'+
            '<span style="color:var(--muted)">Safari ▸ Settings ▸ Websites ▸ Microphone ▸ set tnapplianceexchange.net to <b>Allow</b>. '+
            'Also check macOS ▸ System Settings ▸ Privacy & Security ▸ Microphone ▸ <b>Safari</b> is on.</span>');
@@ -302,16 +319,19 @@ function connectClient(tok){
     client.remoteElement = 'remoteAudio';
     client.enableMicrophone = true;
 
+    dbg('connecting as '+(tok.login||tok.mode||'?'));
     client.on('telnyx.ready', ()=>{
+      dbg('telnyx.ready — registered, On');
       setReg('✅ <b>'+who+'</b> is On. You\'ll see who\'s calling before you answer.');
       document.getElementById('callbtn').disabled = !document.getElementById('num').value.trim();
       resolve();
     });
-    client.on('telnyx.error', (e)=>{ setReg('Line error: '+((e&&e.error)||(e&&e.message)||'unknown')); });
-    client.on('telnyx.socket.close', ()=>{ if(isOn()) setReg('Line dropped — flip Off then On to reconnect.'); });
+    client.on('telnyx.error', (e)=>{ dbg('telnyx.error '+JSON.stringify(e&&(e.error||e.message)||e).slice(0,160)); setReg('Line error: '+((e&&e.error)||(e&&e.message)||'unknown')); });
+    client.on('telnyx.socket.open', ()=>dbg('socket open'));
+    client.on('telnyx.socket.close', ()=>{ dbg('socket close'); if(isOn()) setReg('Line dropped — flip Off then On to reconnect.'); });
     client.on('telnyx.notification', onNotification);
 
-    try { client.connect(); } catch(e){ reject(e); }
+    try { client.connect(); } catch(e){ dbg('connect threw '+(e.message||e)); reject(e); }
     // safety timeout
     setTimeout(()=>{ if(isOn()) resolve(); }, 6000);
   });
@@ -320,19 +340,20 @@ function connectClient(tok){
 /* ---------- call events ---------- */
 function onNotification(n){
   if(!n) return;
-  if(n.type !== 'callUpdate' || !n.call) return;
+  if(n.type !== 'callUpdate' || !n.call){ dbg('notif '+(n.type||'?')); return; }
   const call = n.call;
   const st = call.state;
+  dbg('call '+st+' dir='+(call.direction||'?')+(call.cause?(' cause='+call.cause):'')+(call.causeCode?('/'+call.causeCode):''));
 
   if(st === 'ringing' && call.direction === 'inbound'){
     activeCall = call; muted=false;
     const num = call.options && (call.options.remoteCallerNumber || call.options.callerNumber || call.options.remoteCallerIdNumber) || '';
     incomingUI(num);
     screenPop(num, 'Incoming call');
-    startRing();
+    startRing(); dbg('INCOMING from '+(num||'?'));
     // Auto-answer (default on) so a transfer connects without a perfectly-timed
     // tap — the office phone is a dedicated line; being On means ready to talk.
-    if(autoAnswer){ autoAnsTimer = setTimeout(()=>{ if(activeCall && activeCall.id === call.id) answer(); }, 1800); }
+    if(autoAnswer){ autoAnsTimer = setTimeout(()=>{ if(activeCall && activeCall.id === call.id){ dbg('auto-answering'); answer(); } }, 1800); }
     return;
   }
   if(st === 'active'){
@@ -405,7 +426,7 @@ function endedUI(){
   document.getElementById('pop').classList.remove('ring');
   setTimeout(()=>{ if(!activeCall) hidePop(); }, 2500);
 }
-function answer(){ clearIncoming(); try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(_){} }
+function answer(){ clearIncoming(); dbg('answer() called'); try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(e){ dbg('answer threw '+(e.message||e)); } }
 function decline(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
 function hangup(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
 function toggleMute(){
