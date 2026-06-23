@@ -8,7 +8,7 @@
   try {
     var p = (location.pathname || '').toLowerCase();
     // skip internal tools + the intake/thank-you pages (the bar's own destination)
-    if (/office|tech-|tech\.|admin|teddy|warranty|money|payroll|dispatch|operator|needs-|dupe|cluster|frontdoor|schedule-sanity|callback|financial|call-performance|customer-search|job-detail|health-check|operator-status|agent-proposals|cash-pipeline|appliance-ai|quick-check|pay-thanks|finish-upload|cash-tdr|signup|company-admin|melissa/.test(p)) return;
+    if (/office|tech-|tech\.|admin|teddy|warranty|money|payroll|dispatch|operator|needs-|dupe|cluster|frontdoor|schedule-sanity|callback|financial|call-performance|customer-search|job-detail|health-check|operator-status|agent-proposals|cash-pipeline|appliance-ai|quick-check|pay-thanks|finish-upload|cash-tdr|signup|company-admin|melissa|recent-calls|media-board|cash-leads|vacation|parts-ledger|parts-orders|parts-finder|view-job|dashboard|leaderboard|payout|tech-day|tech-scheduler|crew|loop-control/.test(p)) return;
     if (document.getElementById('ant-valuebar')) return;
 
     var css = ''
