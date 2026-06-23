@@ -1,16 +1,21 @@
-// office-reach-toggle — the on/off switch for "talk to a human" call forwarding.
-// office-password gated. ON points Ant's transfer at the office cell(s); OFF
-// removes the transfer so Ant just takes a message (vacation mode). It drives the
-// existing vapi-admin `wireoffice` action server-side so the Vapi admin secret
-// never touches the browser.
+// office-reach-toggle — per-person on/off for "talk to a human." Teddy and
+// Danielle each have their own switch (different vacation times). Flipping a
+// switch sets that person's availability flag; the office-texml ring group then
+// dials only the people who are ON. If BOTH are off, Ant's transfer is removed
+// entirely so it just takes a message (no dead transfer). Office-password gated.
+//
+//   POST { password, who:'teddy'|'danielle', action:'on'|'off' }  -> set + recompute
+//   POST { password, action:'status' }                            -> read both
 'use strict';
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
-const { getSecret } = require('./_lib/secrets');
+const { getSecretFresh, setSecret } = require('./_lib/secrets');
 const ADMIN_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
+const RING_GROUP_DID = '+16155889591';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
+function isOff(v) { return String(v || '').trim().toLowerCase() === 'off'; }
 
 async function verifyOffice(password) {
   if (!password) return false;
@@ -24,38 +29,36 @@ async function verifyOffice(password) {
   } catch (_) { return false; }
 }
 
+async function readState() {
+  const teddyOn = !isOff(await getSecretFresh('OFFICE_REACH_TEDDY'));
+  const danielleOn = !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE'));
+  return { teddyOn, danielleOn };
+}
+
+// Keep Ant's transfer in sync: any one available -> transfer ON (to ring group);
+// both off -> transfer OFF (Ant takes a message).
+async function syncTransfer(anyOn) {
+  const adminSec = (await getSecretFresh('VAPI_ADMIN_SECRET')) || ADMIN_FALLBACK;
+  const url = anyOn
+    ? `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&number=${encodeURIComponent(RING_GROUP_DID)}`
+    : `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&apply=off`;
+  try { await fetch(url, { signal: AbortSignal.timeout(12000) }); } catch (_) {}
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return json(405, { ok: false, reason: 'method' });
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
   if (!(await verifyOffice(body.password))) return json(401, { ok: false, reason: 'unauthorized' });
 
-  const adminSec = (await getSecret('VAPI_ADMIN_SECRET')) || ADMIN_FALLBACK;
-  // On rings the office ring-group DID (615-588-9591 -> both Teddy + Danielle's
-  // cells via TeXML); Off takes a message. Override via vault OFFICE_TRANSFER_NUMBER.
-  const cell = (await getSecret('OFFICE_TRANSFER_NUMBER')) || '+16155889591';
   const action = String(body.action || 'status');
 
-  let url;
-  if (action === 'on') url = `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&number=${encodeURIComponent(cell)}`;
-  else if (action === 'off') url = `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&apply=off`;
-  else url = `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=voice`;
-
-  try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(12000) });
-    const d = await r.json().catch(() => ({}));
-    // Derive on/off from whatever the admin call returned.
-    let on = false, dest = null;
-    if (action === 'status') {
-      const t = d && d.transferCall;
-      on = !!(t && t !== 'NONE' && t.destinations && t.destinations.length);
-      dest = t && t.destinations ? t.destinations : null;
-    } else {
-      on = !d.disabled && !!(d.transfer_destinations && d.transfer_destinations.length);
-      dest = d.transfer_destinations || null;
-    }
-    const num = dest && dest[0] && (dest[0].number || dest[0].sipUri) || cell;
-    return json(200, { ok: true, on, rings: num });
-  } catch (e) {
-    return json(200, { ok: false, reason: 'admin_call_failed', detail: String((e && e.message) || e) });
+  if (action === 'on' || action === 'off') {
+    const who = String(body.who || '').toLowerCase();
+    if (who !== 'teddy' && who !== 'danielle') return json(400, { ok: false, reason: 'who must be teddy or danielle' });
+    await setSecret('OFFICE_REACH_' + who.toUpperCase(), action === 'on' ? 'on' : 'off');
   }
+
+  const { teddyOn, danielleOn } = await readState();
+  await syncTransfer(teddyOn || danielleOn);
+  return json(200, { ok: true, teddyOn, danielleOn, transfer_on: teddyOn || danielleOn });
 };

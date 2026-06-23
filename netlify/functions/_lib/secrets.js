@@ -113,4 +113,11 @@ async function setSecret(name, value) {
   return true;
 }
 
-module.exports = { getSecret, getSecretPreferVault, setSecret, configTableId, CONFIG_TABLE_NAME };
+// Always-fresh read (no cache) — for values that change at runtime, like the
+// per-person Reach Me availability flags. Falls back to env on error.
+async function getSecretFresh(name) {
+  try { const v = await fetchFromXano(name); _secretCache[name] = v; return v; }
+  catch (err) { return process.env[name] || ''; }
+}
+
+module.exports = { getSecret, getSecretFresh, getSecretPreferVault, setSecret, configTableId, CONFIG_TABLE_NAME };
