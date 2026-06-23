@@ -688,19 +688,35 @@ async function loadAttachments(){
     const urlMap={}; ((sd&&sd.signed_urls)||[]).forEach(s=>urlMap[s.s3_key]=s.view_url);
     g.innerHTML=atts.map(a=>{
       const sk=a.s3_key||'';
+      let inner;
       if(sk.indexOf('cfstream:')===0){ const uid=sk.slice(9);
-        return `<a style="position:relative;display:block;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden"><iframe src="https://iframe.cloudflarestream.com/${esc(uid)}?preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe><span class="vbadge">▶ video</span></a>`;
+        inner=`<a style="position:relative;display:block;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden"><iframe src="https://iframe.cloudflarestream.com/${esc(uid)}?preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe><span class="vbadge">▶ video</span></a>`;
+      } else if(sk.indexOf('cfimg:')===0){ const iu=sk.slice(6);
+        inner=`<a href="${esc(iu)}" target="_blank" rel="noopener"><img src="${esc(iu)}" loading="lazy" alt=""></a>`;
+      } else {
+        const u=urlMap[a.s3_key]||''; const isVid=(a.file_type==='video')||/\.(mp4|mov)$/i.test(a.s3_key);
+        if(!u) inner='<a><div class="up">…</div></a>';
+        else inner = isVid
+          ? `<a href="${esc(u)}" target="_blank" rel="noopener"><video src="${esc(u)}" muted playsinline preload="metadata"></video><span class="vbadge">▶ video</span></a>`
+          : `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy" alt=""></a>`;
       }
-      if(sk.indexOf('cfimg:')===0){ const iu=sk.slice(6);
-        return `<a href="${esc(iu)}" target="_blank" rel="noopener"><img src="${esc(iu)}" loading="lazy" alt=""></a>`;
-      }
-      const u=urlMap[a.s3_key]||''; const isVid=(a.file_type==='video')||/\.(mp4|mov)$/i.test(a.s3_key);
-      if(!u) return '<a><div class="up">…</div></a>';
-      return isVid
-        ? `<a href="${esc(u)}" target="_blank" rel="noopener"><video src="${esc(u)}" muted playsinline preload="metadata"></video><span class="vbadge">▶ video</span></a>`
-        : `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy" alt=""></a>`;
+      // 🗑 delete button so a wrong photo can be removed (Lee, 2026-06-23).
+      return `<div style="position:relative">${inner}<button onclick="delAtt(event,${a.id})" aria-label="Delete" title="Delete this photo/video" style="position:absolute;top:5px;right:5px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(190,25,25,0.92);color:#fff;font-size:14px;line-height:30px;text-align:center;padding:0;cursor:pointer;z-index:5;box-shadow:0 1px 5px rgba(0,0,0,0.45)">🗑</button></div>`;
     }).join('');
   }catch(_){ g.innerHTML='<div class="empty">media unavailable</div>'; }
+}
+
+// Delete a wrong photo/video off the job (Lee couldn't un-attach mistakes).
+async function delAtt(ev, attId){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  if(!confirm('Delete this photo/video from the job? It will be removed for everyone.')) return;
+  try{
+    const r=await fetch('/.netlify/functions/delete-attachment',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({attachment_id:attId, job_id:JOB_ID, actor:'tech_'+(TECH_ID||'')})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok){ toast('Deleted ✓'); loadAttachments(); }
+    else toast('⚠ could not delete'+(d&&d.error?': '+d.error:''));
+  }catch(e){ toast('⚠ delete failed — check signal'); }
 }
 
 async function uploadFile(file,kind){
