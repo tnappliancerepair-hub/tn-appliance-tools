@@ -98,8 +98,12 @@
 # scheduled jobs (that have a phone + no availability yet) the intake request:
 # availability + model # + a quick video. Rate-limited + dedup'd; vendor-locked
 # jobs skipped. A runtime CT-hour guard inside the function backs up the cron.
+# DISABLED 2026-06-23 — was spamming customers the availability text repeatedly
+# (Patricia got 5; dedup was failing open). Dedup hardened in the function
+# (fail-closed + claim-before-send); re-enable by uncommenting the schedule once
+# verified that it texts each job ONCE.
 [functions."intake-collector"]
-  schedule = "0 14-23 * * *"
+  # schedule = "0 14-23 * * *"
 
 # Payout-ready notifier — when warranty EFTs land (jobs flip to paid), texts
 # Teddy a per-tech breakdown of what's ready to release, linking to Money →
