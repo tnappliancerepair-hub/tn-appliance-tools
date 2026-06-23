@@ -515,6 +515,27 @@ ${END}`;
     return { statusCode: 200, body: JSON.stringify({ ok: patch.ok, found, destinations: (vt && vt.destinations) || null }, null, 2) };
   }
 
+  // Ring the office phone for a no-second-phone test. Places an outbound Vapi
+  // call to the office DID (default 615-588-9591) so the app rings; answer it to
+  // check incoming audio + mic. ...&action=ringtest  (optional &to=+1XXXXXXXXXX)
+  if (action === 'ringtest') {
+    const to = q.to || '+16155889591';
+    const phones = listFrom(await vapi('GET', '/phone-number?limit=100', key));
+    const fromP = phones.find((p) => p.id && p.number !== to) || phones.find((p) => p.id);
+    if (!fromP) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no usable from-number in Vapi' }) };
+    const callResp = await vapi('POST', '/call', key, {
+      phoneNumberId: fromP.id,
+      assistantId: inbound.id,
+      customer: { number: to },
+    });
+    return { statusCode: 200, body: JSON.stringify({
+      ok: callResp.ok, status: callResp.status,
+      from: fromP.number, to,
+      call_id: (callResp.json && callResp.json.id) || null,
+      detail: callResp.json && (callResp.json.message || callResp.json.error) || null,
+    }, null, 2) };
+  }
+
   // Wire Ant's live-transfer to the Office Phone app (office-phone.html via the
   // Telnyx "Ant office phone" Credential Connection). When Teddy/Danielle are
   // flipped On, Ant can hand a live caller to their app — screen-pop and all.
