@@ -560,14 +560,12 @@ ${END}`;
       newTools.push(toolBody(TOOLS.find((t) => t.name === 'capture_callback')));
     }
     if (!OFF) {
-      // WARM transfer: Vapi dials the office phone, waits for it to answer, says a
-      // short note, THEN bridges the caller — Vapi stays in the media path so audio
-      // reliably flows. Prefer a NUMBER destination (a DID on the office-phone
-      // connection); fall back to the SIP URI only if no number is configured.
-      const warm = { mode: 'warm-transfer-say-message', message: 'Connecting you with a caller on the office line now.' };
+      // PLAIN transfer to a real number — Vapi's default blind hand-off (no warm
+      // transferPlan, which was throwing error-transfer-failed). Vapi REFERs the
+      // call to the office number; for the ring-group DID that rings both cells.
       const dest = OFFICE_NUMBER
-        ? { type: 'number', number: OFFICE_NUMBER, message: 'One second — let me connect you with our office.', transferPlan: warm }
-        : { type: 'sip', sipUri: OFFICE_SIP_URI, message: 'One second — let me connect you with our office.', transferPlan: warm };
+        ? { type: 'number', number: OFFICE_NUMBER, message: 'One second — let me connect you with our office.' }
+        : { type: 'sip', sipUri: OFFICE_SIP_URI, message: 'One second — let me connect you with our office.' };
       newTools.push({ type: 'transferCall', destinations: [dest] });
     }
 
