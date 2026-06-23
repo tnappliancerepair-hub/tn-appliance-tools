@@ -85,6 +85,14 @@
 [functions."job-safety-watch"]
   schedule = "*/30 * * * *"
 
+# Callback watcher — Danielle stepped back from the phones (2026-06-23), so
+# inbound callbacks pile up unworked and risk turning into bad reviews. Every
+# 30 min (8am-8pm CT guard inside) it SMSes Teddy a digest of OPEN callbacks,
+# flagging at-risk callers (repeat callers, "tech came out but...", complaints)
+# at the top. Dedups on the open-set signature so it can't spam.
+[functions."callback-watch"]
+  schedule = "*/30 * * * *"
+
 # Intake collector — the foundation for cluster ghost-scheduling. Hourly during
 # reasonable hours (9am-6pm CT = 14:00-23:00 UTC) it texts non-vendor needs-
 # scheduled jobs (that have a phone + no availability yet) the intake request:
