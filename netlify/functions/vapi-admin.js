@@ -250,6 +250,17 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Full config of one phone number (provider, credential, fallback) — to debug
+  // why transfers fail. &num=+16152802949 (default the main line).
+  if (action === 'phonefull') {
+    const want = (q.num || '+16152802949').replace(/[^\d+]/g, '');
+    const phones = listFrom(await vapi('GET', '/phone-number?limit=100', key));
+    const p = phones.find((x) => (x.number || '').replace(/[^\d+]/g, '') === want);
+    if (!p) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'number not found', have: phones.map((x) => x.number) }) };
+    const full = await vapi('GET', `/phone-number/${p.id}`, key);
+    return { statusCode: 200, body: JSON.stringify({ ok: true, phone: full.json }, null, 2) };
+  }
+
   // Phone-number routing: does the dialed number use an assistantId or a
   // server/assistant-request URL? This decides where the fix goes.
   if (action === 'phones') {
