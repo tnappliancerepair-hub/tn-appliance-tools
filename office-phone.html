@@ -105,6 +105,9 @@
       </div>
     </div>
     <div id="reg" class="reg">Turn yourself <b>On</b> to take calls. <b>Off</b> = calls ring Ant (the AI) and your phone stays quiet.</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--muted);cursor:pointer;">
+      <input type="checkbox" id="autoans" onchange="setAutoAns(this.checked)" style="width:18px;height:18px;"> Auto-answer transfers (connect without tapping)
+    </label>
   </div>
 
   <!-- screen pop (hidden until a call) -->
@@ -161,6 +164,35 @@ let activeCall = null;   // current call object
 let callerNumber = '';   // our outbound caller ID (from token endpoint)
 let muted = false;
 let who = localStorage.getItem('ant_office_phone_who') || 'Teddy';
+let autoAnswer = (localStorage.getItem('ant_office_phone_autoans') || '1') === '1';
+let autoAnsTimer = null;
+let _ac = null, _ringTimer = null;
+
+/* ---------- audible ring + vibrate (WebAudio, so it always makes sound) ---------- */
+function startRing(){
+  try{
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    if(_ac.state === 'suspended') _ac.resume();
+    if(_ringTimer) clearInterval(_ringTimer);
+    const beep = ()=>{
+      try{
+        const g = _ac.createGain(); g.connect(_ac.destination);
+        const t = _ac.currentTime;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.3, t+0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t+0.9);
+        [440,480].forEach(f=>{ const o=_ac.createOscillator(); o.type='sine'; o.frequency.value=f; o.connect(g); o.start(t); o.stop(t+0.95); });
+      }catch(_){}
+    };
+    beep(); _ringTimer = setInterval(beep, 2000);
+    if(navigator.vibrate) navigator.vibrate([500,300,500,300,500]);
+  }catch(_){}
+}
+function stopRing(){
+  if(_ringTimer){ clearInterval(_ringTimer); _ringTimer=null; }
+  if(navigator.vibrate) try{ navigator.vibrate(0); }catch(_){}
+}
+function clearIncoming(){ stopRing(); if(autoAnsTimer){ clearTimeout(autoAnsTimer); autoAnsTimer=null; } }
 
 /* ---------- gate ---------- */
 function unlock(){
@@ -175,7 +207,9 @@ function showApp(){
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   setWho(who, true);
+  const a = document.getElementById('autoans'); if(a) a.checked = autoAnswer;
 }
+function setAutoAns(on){ autoAnswer = !!on; localStorage.setItem('ant_office_phone_autoans', on ? '1' : '0'); }
 // auto-unlock if we already have a cached password that still verifies
 (function tryCached(){
   const cached = localStorage.getItem('ant_office_pw');
@@ -295,6 +329,10 @@ function onNotification(n){
     const num = call.options && (call.options.remoteCallerNumber || call.options.callerNumber || call.options.remoteCallerIdNumber) || '';
     incomingUI(num);
     screenPop(num, 'Incoming call');
+    startRing();
+    // Auto-answer (default on) so a transfer connects without a perfectly-timed
+    // tap — the office phone is a dedicated line; being On means ready to talk.
+    if(autoAnswer){ autoAnsTimer = setTimeout(()=>{ if(activeCall && activeCall.id === call.id) answer(); }, 1800); }
     return;
   }
   if(st === 'active'){
@@ -362,13 +400,14 @@ function inCallUI(){
   document.getElementById('pop').classList.remove('ring');
 }
 function endedUI(){
+  clearIncoming();
   document.getElementById('pop-state').textContent = 'Call ended';
   document.getElementById('pop').classList.remove('ring');
   setTimeout(()=>{ if(!activeCall) hidePop(); }, 2500);
 }
-function answer(){ try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(_){} }
-function decline(){ try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
-function hangup(){ try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
+function answer(){ clearIncoming(); try{ if(activeCall){ activeCall.answer(); inCallUI(); } }catch(_){} }
+function decline(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
+function hangup(){ clearIncoming(); try{ if(activeCall){ activeCall.hangup(); } }catch(_){} activeCall=null; endedUI(); }
 function toggleMute(){
   if(!activeCall) return;
   try{

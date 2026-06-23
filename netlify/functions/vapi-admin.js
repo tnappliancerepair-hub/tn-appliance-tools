@@ -539,7 +539,16 @@ ${END}`;
         destinations: [{
           type: 'sip',
           sipUri: OFFICE_SIP_URI,
+          // Tell the caller we're connecting them.
           message: 'One second — let me connect you with our office.',
+          // WARM transfer: Vapi dials the office phone, waits for it to answer,
+          // speaks a short note, THEN bridges the caller — Vapi stays in the
+          // media path so audio reliably flows (a blind/REFER transfer to a
+          // WebRTC endpoint was ringing then going silent).
+          transferPlan: {
+            mode: 'warm-transfer-say-message',
+            message: 'Connecting you with a caller on the office line now.',
+          },
         }],
       });
     }
