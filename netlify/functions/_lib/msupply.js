@@ -110,24 +110,26 @@ async function lookupPart(partNumber, make, opts) {
   return { ok: true, ...normalizePart(resp.data) };
 }
 
-// Normalize the lookup response (the API may return a single part or a list).
+// Normalize the lookup response. mSupply wraps matches in `partResults` (and the
+// `make` is a Marcone brand code, e.g. WPL = Whirlpool).
 function normalizePart(d) {
-  const part = Array.isArray(d) ? d[0] : (d && d.parts ? d.parts[0] : (d && d.part ? d.part : d)) || {};
+  const list = (d && (d.partResults || d.parts)) || (Array.isArray(d) ? d : null) || [];
+  const part = (Array.isArray(list) && list[0]) || (d && d.part) || d || {};
   const inv = part.inventory || part.availability || [];
   const stock = (Array.isArray(inv) ? inv : []).map((w) => ({
     warehouse: w.warehouseName || w.warehouseNumber,
     qty: w.quantityAvailable != null ? w.quantityAvailable : w.qty,
     transit_days: w.timeInTransitDays != null ? w.timeInTransitDays : w.transitDays,
-  }));
+  })).filter((w) => Number(w.qty) > 0);
   const totalQty = stock.reduce((s, w) => s + (Number(w.qty) || 0), 0);
-  const soonest = stock.filter((w) => Number(w.qty) > 0).map((w) => Number(w.transit_days) || 0).sort((a, b) => a - b)[0];
+  const soonest = stock.map((w) => Number(w.transit_days) || 0).sort((a, b) => a - b)[0];
   return {
     make: part.make, part_number: part.partNumber, description: part.description,
-    cost: part.dealer != null ? part.dealer : part.price,   // our cost
-    price: part.price, retail: part.retail, list: part.list, core_cost: part.coreCost,
+    cost: part.price != null ? part.price : part.dealer,   // your account net price
+    price: part.price, dealer: part.dealer, retail: part.retail, list: part.list, core_cost: part.coreCost,
     in_stock: totalQty > 0, total_qty: totalQty, eta_days: soonest != null ? soonest : null,
     discontinued: !!part.isDiscontinued, drop_ship_only: !!part.isDropShipOnly, hazmat: !!part.isHazMat,
-    stock, raw: part,
+    in_stock_at: stock, results_count: Array.isArray(list) ? list.length : 1, raw: part,
   };
 }
 
