@@ -15,8 +15,10 @@
 
 const { getSecret, setSecret } = require('./_lib/secrets');
 const TELNYX = 'https://api.telnyx.com/v2';
+const SITE = 'https://tnapplianceexchange.net';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const CONNECTION_ID_DEFAULT = '2988827155447678681'; // "Ant office phone" credential connection
+const OFFICE_DID = '+16155889591';                    // the office-phone number Ant transfers to
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -32,6 +34,44 @@ exports.handler = async function (event) {
   const H = { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' };
 
   try {
+    // Set up "ring both cells": create a TeXML app pointing at office-texml and
+    // re-point the office DID to it, so dialing the DID rings Teddy + Danielle.
+    if (action === 'ringgroup') {
+      const voiceUrl = `${SITE}/.netlify/functions/office-texml`;
+      // 1) find or create the TeXML application
+      let appId = null;
+      const la = await fetch(`${TELNYX}/texml_applications?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const ld = await la.json().catch(() => ({}));
+      const existing = (ld.data || []).find((a) => (a.friendly_name === 'Ant Office Ring Group') || (a.voice_url === voiceUrl));
+      if (existing) appId = existing.id;
+      if (!appId) {
+        const ca = await fetch(`${TELNYX}/texml_applications`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ friendly_name: 'Ant Office Ring Group', voice_url: voiceUrl, voice_method: 'POST', active: true }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const cd = await ca.json().catch(() => ({}));
+        if (!ca.ok) return json(200, { ok: false, step: 'create_texml_app', status: ca.status, error: JSON.stringify(cd.errors || cd).slice(0, 300) });
+        appId = cd.data && cd.data.id;
+      }
+      if (!appId) return json(200, { ok: false, error: 'no TeXML app id' });
+
+      // 2) find the office DID's phone-number id
+      const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(OFFICE_DID)}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pn.json().catch(() => ({}));
+      const numId = pd.data && pd.data[0] && pd.data[0].id;
+      if (!numId) return json(200, { ok: false, step: 'find_did', error: `${OFFICE_DID} not found on account` });
+
+      // 3) re-point the DID at the TeXML app
+      const up = await fetch(`${TELNYX}/phone_numbers/${numId}`, {
+        method: 'PATCH', headers: H, body: JSON.stringify({ connection_id: appId }), signal: AbortSignal.timeout(12000),
+      });
+      const ud = await up.json().catch(() => ({}));
+      if (!up.ok) return json(200, { ok: false, step: 'repoint_did', status: up.status, error: JSON.stringify(ud.errors || ud).slice(0, 300) });
+
+      return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: OFFICE_DID, did_now_points_to: 'Ant Office Ring Group', note: 'Dialing the office DID now rings both cells.' });
+    }
+
     if (action === 'connections') {
       // Find the office-phone credential connection's real id + name.
       const r = await fetch(`${TELNYX}/credential_connections?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
