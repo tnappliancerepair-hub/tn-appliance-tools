@@ -17,22 +17,24 @@
 // Docs: https://api.msupply.com/swagger/index.html
 'use strict';
 
-const { getSecret } = require('./secrets');
+// Use getSecretFresh for config so vault edits (env switch, credential swap) take
+// effect immediately instead of being pinned by a warm container's cache.
+const { getSecret, getSecretFresh } = require('./secrets');
 
 let _tok = null, _tokExp = 0;
 
 async function baseUrl() {
-  const b = (await getSecret('MSUPPLY_BASE_URL')) || 'https://int-api.msupply.com';
+  const b = (await getSecretFresh('MSUPPLY_BASE_URL')) || 'https://int-api.msupply.com';
   return b.replace(/\/+$/, '');
 }
 
 async function getToken(force) {
   if (!force && _tok && Date.now() < _tokExp - 30000) return _tok;
   const base = await baseUrl();
-  const tokenUrl = (await getSecret('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
-  const clientId = await getSecret('MSUPPLY_CLIENT_ID');
-  const clientSecret = await getSecret('MSUPPLY_CLIENT_SECRET');
-  const scope = await getSecret('MSUPPLY_SCOPE');
+  const tokenUrl = (await getSecretFresh('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
+  const clientId = await getSecretFresh('MSUPPLY_CLIENT_ID');
+  const clientSecret = await getSecretFresh('MSUPPLY_CLIENT_SECRET');
+  const scope = await getSecretFresh('MSUPPLY_SCOPE');
   if (!clientId || !clientSecret) throw new Error('mSupply client_id/secret not in vault (MSUPPLY_CLIENT_ID / MSUPPLY_CLIENT_SECRET)');
 
   const form = new URLSearchParams();
