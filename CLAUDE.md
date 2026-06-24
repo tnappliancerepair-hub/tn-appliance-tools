@@ -60,7 +60,7 @@ Standing tracker. Each gated API = a superpower we rent. Request access EARLY (c
 | Key | Unlocks | Gate / status | Vault names |
 |---|---|---|---|
 | **Google Business Profile API** | Ant READS + REPLIES to Google reviews | Access-request form @ developers.google.com/my-business (days-wks). Teddy starting 6/25. | `GBP_CLIENT_ID` `GBP_CLIENT_SECRET` (+ refresh token minted) |
-| **Google Ads API** | Ant automates/adjusts/strategizes ad campaigns (for when we run ads) | Manager acct (MCC) → **API Center** → dev token → apply **Basic Access** (1-few days). Teddy starting 6/25. NOTE: token starts TEST-only until Basic approved. | `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_MANAGER_ID` |
+| **Google Ads API** | Ant automates/adjusts/strategizes ad campaigns (for when we run ads) | **6/24 PROGRESS:** Manager acct **"ANT-Manager"** created (MCC id **160-509-9162**) → API Center dev token **ACQUIRED + in vault**. ⏳ STILL NEEDED: (a) confirm **Basic Access** form submitted (token is TEST-only until approved, 1-few days); (b) OAuth Client ID/Secret from a Google Cloud project → vault; (c) Claude mints refresh token. | ✅ `GOOGLE_ADS_DEVELOPER_TOKEN` ✅ `GOOGLE_ADS_MANAGER_ID`(160-509-9162) · ⏳ `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` |
 | **Amazon Business Ordering API** | Auto-ship aftermarket (Amazon-tier) parts to customer | Submitted 6/20; `amazon-api-watch` Gmail watcher armed (texts Teddy when the approval email lands). 0 matches as of 6/24. | `AMAZON_*` (when it lands) |
 | *(LIVE already)* **Marcone / mSupply** | OEM parts cost/stock + drop-ship ordering | ✅ in vault (`MSUPPLY_*`), proven (order #74992380) | — |
 
