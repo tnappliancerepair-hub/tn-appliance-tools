@@ -211,3 +211,11 @@
 # an API-specific phrase so it does NOT match routine AHS/ServicePower dispatch emails.
 [functions."vendor-api-watch"]
   schedule = "*/30 * * * *"
+
+# ServicePower claims auto-reconcile — twice daily (8a + 4p CT = 13:00 + 21:00 UTC).
+# Pulls our completed/claimed SQUARE TRADE dispatches → retrieves each claim by its
+# dispatch number → tracks status + payment (paid/approved/rejected). Texts Teddy on
+# transitions (newly PAID with EFT#, or REJECTED to chase). Terminal claims are
+# remembered + skipped, so steady-state runs are fast. Replaces manual portal checks.
+[functions."servicepower-claims-sync"]
+  schedule = "0 13,21 * * *"
