@@ -132,7 +132,8 @@ exports.handler = async function (event) {
       const p = await msupply.placeOrder({ custNo, shipTo, items, shippingMethod: chosen.shippingMethodName, poNumber: b.po_number, notes: b.notes });
       if (!p.ok) return json(200, { ok: false, error: 'order failed', status: p.status, detail: (p.data && (p.data.reason || p.data.errorCode || p.data.message)) || (p.raw || '').slice(0, 200) });
       const d = p.data || {};
-      return json(200, { ok: !!d.success, order_numbers: d.orderNumbers || [], status: d.status, reason: d.reason, error_code: d.errorCode, substitutions: d.substitutions || [], ship_to: shipTo });
+      const placed = !!(d.success || (Array.isArray(d.orderNumbers) && d.orderNumbers.length));
+      return json(200, { ok: placed, order_numbers: d.orderNumbers || [], status: d.status, reason: d.reason, error_code: d.errorCode, substitutions: d.substitutions || [], ship_to: shipTo });
     }
 
     return json(400, { ok: false, error: 'unknown action; use quote|place' });
