@@ -146,4 +146,52 @@ function parseCalls(raw) {
   return out;
 }
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, CALL_STATUS, NS };
+// ─── CAPACITY (the "get more work" lever) ─────────────────────────────────
+// getTechInfo: READ our techs + their TechKey (Key) + current weekly BasicCapacity
+// {Capacity, Day, TimeBand}. Answers "are we still capped at N/day?" and yields the
+// TechKeys needed to RAISE capacity. READ-ONLY — safe.
+async function getTechInfo({ key } = {}) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
+  const inner = `<impl:getTechInfo>${ui}${f('Key', key)}</impl:getTechInfo>`;
+  const r = await soapCall(inner, '');
+  r.techs = parseTechs(r.raw || '');
+  return r;
+}
+
+function parseTechs(raw) {
+  const out = [];
+  const re = /<(?:\w+:)?TechInfo\b[^>]*>([\s\S]*?)<\/(?:\w+:)?TechInfo>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) {
+    const b = m[1];
+    const caps = [];
+    const cre = /<(?:\w+:)?BasicCapacity\b[^>]*>([\s\S]*?)<\/(?:\w+:)?BasicCapacity>/gi;
+    let c;
+    while ((c = cre.exec(b))) caps.push({ capacity: _tag(c[1], 'Capacity'), day: _tag(c[1], 'Day'), time_band: _tag(c[1], 'TimeBand') });
+    out.push({ key: _tag(b, 'Key'), name: _tag(b, 'Name'), group_key: _tag(b, 'GroupKey'), cell: _tag(b, 'CellPhone'), basic_capacity: caps });
+  }
+  return out.filter((t) => t.key || t.name || t.basic_capacity.length);
+}
+
+// updateTechInfo: set a tech's RECURRING weekly BasicCapacity (per day × time band).
+// caps = [{capacity, day:'MON'..'SUN', timeBand:'8-17'|'8-12'|'12-17'|'17-21'|'6-8'}]
+async function updateTechInfo({ key, name, groupKey, cellPhone, caps }) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
+  const capXml = (caps || []).map((c) => `<BasicCapacity>${f('Capacity', String(c.capacity))}${f('Day', c.day)}${f('TimeBand', c.timeBand || c.time_band)}</BasicCapacity>`).join('');
+  const inner = `<impl:updateTechInfo>${ui}${f('Name', name)}${f('Key', key)}${f('GroupKey', groupKey)}${f('CellPhone', cellPhone)}${capXml}</impl:updateTechInfo>`;
+  return soapCall(inner, '');
+}
+
+// updateTechCapacity: one-shot capacity override for a TechKey on a SPECIFIC date+band.
+async function updateTechCapacity({ key, capacity, date, timeBand }) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
+  const inner = `<impl:updateTechCapacity>${ui}${f('TechKey', key)}${f('Capacity', String(capacity))}${f('Datetime', date)}${f('Timeband', timeBand)}</impl:updateTechCapacity>`;
+  return soapCall(inner, '');
+}
+
+const TIME_BANDS = { '8-12': 'MORNING', '12-17': 'AFTERNOON', '8-17': 'ALL DAY', '17-21': 'EVENING', '6-8': 'EARLY MORNING' };
+
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
