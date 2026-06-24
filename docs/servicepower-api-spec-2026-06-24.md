@@ -30,6 +30,13 @@ Every operation takes a **`UserInfo`** complex type: **`UserID`**, **`Password`*
 4. **Create Request for Authorization Web Service v2.5**
 5. **Retrieve Request for Authorization Web Service v2.10**
 
+## Exact SOAP structure (from the live WSDL)
+- targetNamespace **`urn:SPDServicerService`** (prefix `impl`), document/literal SOAP 1.1, **SOAPAction empty (`""`)**.
+- **getTestService**: string in → string out (connectivity check).
+- **updateCallInfoObj** (the status push) fields:
+  `UserInfo{UserID,Password,SvcrAcct}` · `CallNumber` · `MfgId` · `FSSCallId` · `ScheduleDate` · `ScheduleTimePeriod` · `ProbelmDesc` *(their typo — keep)* · `CallStatus` · **`SPCallStatusID`** · `CallSubStatus` · `SPCallSubStatusID` · `Remarks{NotesDate,Notes,AddedBy}` · `ETA` · `ETF` · `CompletedDate`.
+  Response: `ResponseInfo{erroroccurred, ackmessage, updatedate, ...}`.
+
 ## Status / next
-- Connector scaffolded (dark): `netlify/functions/_lib/servicepower.js` — UserInfo auth + SOAP envelope + `getTestService`/`getCallInfo`/`updateCallInfo`. The exact `updateCallInfo` field/status-code mapping is TODO pending the **Dispatch Web Service Interface v2.8** guide.
-- TO GO LIVE: (1) get the v2.8 guide → fill the updateCallInfo body + status codes; (2) confirm + vault `SERVICEPOWER_*` creds; (3) test `getTestService` against dev (fssstag), then a real call status update.
+- Connector BUILT (dark): `netlify/functions/_lib/servicepower.js` (`getTestService` + `updateCallInfo` + SOAP envelope, UserInfo auth) + `servicepower-test.js` (owner-gated connectivity check).
+- **TWO things to go live:** (1) **the `SPCallStatusID` status-code values** from the **Dispatch Web Service Interface v2.8** guide (PDF in the HUB) → map our lifecycle (en route / arrived / in progress / parts ordered / complete) to those IDs; (2) **vault `SERVICEPOWER_*` creds** (UserID, Password, SvcrAcct=TNA00001, ENV). Then `servicepower-test` for connectivity → a `getCallInfo` read to confirm auth → first real `updateCallInfo`.
