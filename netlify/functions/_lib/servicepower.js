@@ -151,10 +151,10 @@ function parseCalls(raw) {
 // getTechInfo: READ our techs + their TechKey (Key) + current weekly BasicCapacity
 // {Capacity, Day, TimeBand}. Answers "are we still capped at N/day?" and yields the
 // TechKeys needed to RAISE capacity. READ-ONLY — safe.
-async function getTechInfo({ key } = {}) {
+async function getTechInfo({ key, groupKey } = {}) {
   const ui = await userInfoXml();
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
-  const inner = `<impl:getTechInfo>${ui}${f('Key', key)}</impl:getTechInfo>`;
+  const inner = `<impl:getTechInfo>${ui}${f('Key', key)}${f('GroupKey', groupKey)}</impl:getTechInfo>`;
   const r = await soapCall(inner, '');
   r.techs = parseTechs(r.raw || '');
   return r;

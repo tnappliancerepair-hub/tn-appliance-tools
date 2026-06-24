@@ -39,16 +39,24 @@ exports.handler = async function (event) {
       }
     } catch (_) {}
   }
-  const keyList = q.key ? [q.key] : [...keys.keys()];
-
-  // 2) read each tech's current capacity
+  // 2) read techs — by TechKey if we found any, else BY GROUP (our jobs are group-tagged)
   const techs = [];
-  for (const k of keyList.slice(0, 12)) {
-    let r; try { r = await sp.getTechInfo({ key: k }); } catch (_) { r = {}; }
-    const t = (r.techs || [])[0];
-    const byDay = {};
-    for (const c of ((t && t.basic_capacity) || [])) { byDay[c.day || '?'] = byDay[c.day || '?'] || {}; byDay[c.day || '?'][c.time_band || '?'] = Number(c.capacity || 0); }
-    techs.push({ tech_key: k, name: (t && t.name) || null, group_key: (t && t.group_key) || (keys.get(k) || {}).group_key || null, jobs_seen: (keys.get(k) || {}).jobs || null, read_ok: !!(r && r.ok), read_err: r && r.err_code, capacity_by_day: byDay });
+  const seenKeys = new Set();
+  async function readBy(opts, label) {
+    let r; try { r = await sp.getTechInfo(opts); } catch (_) { r = {}; }
+    for (const t of (r.techs || [])) {
+      if (t.key && seenKeys.has(t.key)) continue; if (t.key) seenKeys.add(t.key);
+      const byDay = {};
+      for (const c of (t.basic_capacity || [])) { byDay[c.day || '?'] = byDay[c.day || '?'] || {}; byDay[c.day || '?'][c.time_band || '?'] = Number(c.capacity || 0); }
+      techs.push({ via: label, tech_key: t.key, name: t.name, group_key: t.group_key, capacity_by_day: byDay });
+    }
+    return r;
+  }
+  let probe;
+  if (q.key) { probe = await readBy({ key: q.key }, 'key'); }
+  else {
+    for (const k of [...keys.keys()].slice(0, 12)) await readBy({ key: k }, 'jobkey');
+    if (!techs.length) { for (const g of [...groups].slice(0, 10)) await readBy({ groupKey: g }, 'group:' + g); }
   }
 
   return json(200, {
@@ -56,7 +64,9 @@ exports.handler = async function (event) {
     discovered_tech_keys: [...keys.entries()].map(([k, v]) => ({ tech_key: k, group_key: v.group_key, jobs: v.jobs })),
     group_keys: [...groups],
     time_bands: sp.TIME_BANDS,
+    tech_count: techs.length,
     techs,
-    note: 'TechKeys discovered from our jobs (CallInfo). capacity_by_day = current weekly BasicCapacity per tech. To RAISE: updateTechInfo (recurring) / updateTechCapacity (one date). If read_ok=false, getTechInfo needs a different request shape — keys are still valid for writes.',
+    last_err: probe && !techs.length ? { code: probe.err_code, desc: probe.err_desc, raw: (probe.raw || '').slice(0, 400) } : undefined,
+    note: 'capacity_by_day = current weekly BasicCapacity. If techs is empty, capacity is set in the portal at a level the read API does not expose — grab it from the portal. To RAISE once we have a TechKey: updateTechCapacity (one date) / updateTechInfo (recurring).',
   });
 };
