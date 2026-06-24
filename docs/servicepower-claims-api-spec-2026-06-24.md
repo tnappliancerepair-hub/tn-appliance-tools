@@ -79,12 +79,33 @@ Pass **only one** primary key: claimIdentifier, OR claimNumber, OR callNumber, O
 - `"No records found."` → **valid AND contracted to us** — just no claim matching the passed key. **Only `NSA` and `SERVICEPOWER` returned this** → those are our two contracted manufacturer names in ServiceClaims.
 - `"One of claimIdentifier or claimNumber or claimBatchNumber/claimSequenceNumber or callNumber must be entered."` → you MUST pass a primary key; can't list-all.
 
-**REMAINING UNKNOWN (the only blocker):** all 145 of our dispatches are MfgId **`I565`** / warranty **`SC`**.
-Retrieving 10 different CLAIMED calls by `callNumber` under both NSA and SERVICEPOWER → "No records found".
-So the claim is keyed by a **claimNumber / claimIdentifier**, or by a **callNumber in a different format** than the dispatch call number (dispatch call e.g. `098149274130`; FSS id `49826309` also returned nothing). 
-**→ Need ONE real claim from the ServicePower claims portal: its `manufacturerName` + `claimNumber` (or the exact `callNumber` shown on the claim).** Then retrieval returns the full status + payment breakdown and we wire the sync.
+## 🟢🟢🟢 FULLY SOLVED 2026-06-24 — claims READ proven, every number matches the portal
+**`manufacturerName` = `SQUARE TRADE` (with the space)** — our single warranty client. The earlier
+failures were (a) the missing space, and (b) querying under NSA/SERVICEPOWER (valid contracted names
+but NOT our client). **The retrieval key = the `callNumber` = the DISPATCH NUMBER we already have on
+every job** (e.g. dispatch `069469374138` → its Paid claim). Tested 6 dispatch-board call numbers →
+6/6 HIT, all Paid ($105/$150).
+
+**Live-validated against Danielle's screen (MONAHAN, dispatch 069469374138):** status `P`/Paid,
+EFT# `1157090212`, payment_date `2026-06-20`, period_ending `2026-06-16`, paid_total `$150`,
+brand GE / DRYER — **every field matched exactly.**
+
+**The Claim Number on the portal is a two-part value: `<callNumber> - <claimIdentifier>`** (e.g.
+`069469374138 - 400222084845`). `claimIdentifier` = `claimBatchNumber`(400222) + `claimSequenceNumber`(84845).
+You do NOT need it — `callNumber` alone retrieves the claim.
+
+**Claim statuses (from the portal Status dropdown):** `D`-Dtr Review · `F`-Forwarded · `I`-Incomplete
+(not yet submitted → NOT retrievable) · `K`-FSS Review · `M`-Mfg Review · `P`-Paid · `R`-Rejected ·
+`S`-Approved · `W`-Mfg Reject. **The API only returns claims once submitted (past Incomplete).**
+
+Connector default `manufacturerName` is now `SQUARE TRADE` (override via vault `SERVICEPOWER_MFG_NAME`),
+so callers just pass the dispatch/call number.
 
 ## Next
-- Get one real claim's manufacturerName + claimNumber from the portal → confirm retrieval returns claim+payment data.
-- Wire `servicepower-claims-sync` poller: for each completed SP job, pull claim status + paidTotal → reconcile warranty payments (replaces Danielle checking the portal).
-- **Claims SUBMISSION** (v1.10 guide, separate endpoint) — shadow-first, only after retrieval is fully proven. Do NOT submit a live claim without Teddy's confirm on a real job.
+- ⭐ **Wire `servicepower-claims-sync` poller** (Netlify scheduled): for each completed SP job, retrieve
+  claim by its dispatch number → write back status + paid_total + EFT date/# → Ant reconciles warranty
+  payments automatically (replaces Danielle checking the portal claim-by-claim). Also surfaces
+  REJECTED/Mfg-Reject claims so nothing falls through.
+- **Claims SUBMISSION** (v1.10 guide, separate endpoint) — the bigger win: auto-FILE the claim the
+  moment a job completes (so claims don't sit at "Incomplete"). Shadow-first; do NOT submit a live claim
+  without Teddy's confirm on a real job.

@@ -57,8 +57,13 @@ async function retrieveClaims(q = {}) {
   const svcAcct = q.serviceCenterNumber != null
     ? String(q.serviceCenterNumber)
     : String(await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
+  // All our ServicePower work dispatches from ONE client: "SQUARE TRADE". Default to it
+  // (overridable via vault SERVICEPOWER_MFG_NAME) so callers only pass the call/dispatch number.
+  const mfgName = (q.manufacturerName != null && q.manufacturerName !== '')
+    ? String(q.manufacturerName)
+    : ((await getSecretFresh('SERVICEPOWER_MFG_NAME')) || 'SQUARE TRADE');
   const payload = {
-    manufacturerName: String(q.manufacturerName || ''),
+    manufacturerName: String(mfgName || ''),
     serviceCenterNumber: svcAcct,
     claimIdentifier: String(q.claimIdentifier || ''),
     claimBatchNumber: Number(q.claimBatchNumber || 0),
