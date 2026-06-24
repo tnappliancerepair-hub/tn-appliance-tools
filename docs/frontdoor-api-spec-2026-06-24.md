@@ -22,6 +22,17 @@ Generating an API key is only step 1. To get a key that actually WORKS you must 
 ```
 status is camelCase (e.g. `JobComplete`) — full vocab TBD via config/sandbox. This is likely OUR path (simple dispatchNumber + status), vs the heavier `/dispatch-connector/v1/webhook`. Connector supports both (`caseLifecycleStatusUpdate` + `dispatchStatusUpdate`).
 
+## Portal FAQ / operational notes (captured 6/24)
+- **Production access has ONE path: your Frontdoor Business Development representative.** The FAQ routes EVERY access question to the BD rep — production, OfficeId/data access, and Helpdesk access all say "connect with your Frontdoor business development representative." → **Find out who TN Appliance's AHS/Frontdoor BD rep is** (ProConnect onboarding paperwork / contractor portal contacts / or ask `partnerapiadmin@frontdoorhome.com` to route).
+- **Partner Helpdesk** = "only for Business Partners" — access requested via BD rep / sales solutions.
+- **The public docs + FAQ are RE + DTC heavy** (offices, agents, contracts, plan orders). ZERO contractor-dispatch-status content in the FAQ. The Case-Lifecycle dispatch-status API exists, but **whether it's provisioned for ProConnect *contractors* (vs RE/DTC partners) is the open make-or-break question → the BD rep confirms it.**
+- 401/403 = token missing/invalid/expired (regen token). 400 = bad body/schema.
+- Password reset: Login page → Forgot Password (logged out) or User Account → Change Password (logged in).
+- (RE only) v1→v2: camelCase fields, `tenantId` not `brand`, hyphenated endpoint names, base `sandbox.api.frontdoorhome.com` / `api.frontdoorhome.com`.
+- **Logs & Metrics page (Kibana) in the portal** — once live, our API logs/metrics are viewable in the Developer Portal (filter by env/key/API/user). Useful for debugging the integration.
+- **1:N org feature** — multiple users from the same org can join the portal + invite others (so Danielle/others can get portal access under TN Appliance).
+- **Changelog (2021-2022) is entirely Real Estate + DTC/Address** — reinforces that the maintained/documented portal surface is RE/DTC; contractor dispatch-status is the un-advertised piece to confirm with the BD rep.
+
 ## Auth — OAuth2 password grant (FusionAuth), JWT Bearer, 1-hour expiry
 1. In the developer portal → **"Your API key" page → "Add API Key"**. Modal returns
    **Password, Username, ClientId**. **ClientId is environment-specific** (sandbox ≠ prod).
