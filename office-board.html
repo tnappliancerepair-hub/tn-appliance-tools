@@ -52,6 +52,11 @@
     background:#f3f6fb;color:var(--ink);border:1px solid var(--line);border-radius:999px;
     padding:7px 13px;font-size:13px;font-weight:700;white-space:nowrap;}
   .hop a:active{background:#e7edf6;}
+  #more-toggle{background:#eef2f8;color:var(--muted,#667);border-style:dashed;}
+  #more-toggle.open{background:#dfe7f4;color:var(--ink);}
+  .more-row{display:none;margin-top:6px;}
+  .more-row.show{display:flex;}
+  .more-row a{background:#fbfcfe;border-style:dashed;font-weight:600;}
   .sresults{margin-top:7px;}
   .sresults a{display:block;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:5px;text-decoration:none;color:var(--ink);font-size:13px;background:#fff;}
   .sresults .sn{font-weight:600;} .sresults .ss{font-size:12px;color:var(--ink2);}
@@ -172,17 +177,25 @@
     <a href="office-calendar.html">📅 Calendar</a>
     <a href="office-messages.html">💬 Messages</a>
     <a href="customer-search.html">👥 Customers</a>
-    <a href="dupe-cleanup.html">🧹 Duplicates</a>
-    <a href="needs-scheduled.html">📥 To Schedule</a>
-    <a href="warranty-review.html">📦 Warranty</a>
-    <a href="office-templates.html">💬 Text Templates</a>
-    <a href="callbacks.html">📲 Callbacks</a>
-    <a href="money.html">💰 Money</a>
     <a href="parts-ledger.html">🧾 Parts $</a>
+    <a href="warranty-review.html">📦 Warranty</a>
+    <a href="#" id="more-toggle" onclick="event.preventDefault();document.getElementById('more-row').classList.toggle('show');this.classList.toggle('open');try{localStorage.setItem('board_more_open',document.getElementById('more-row').classList.contains('show')?'1':'0')}catch(e){}">⋯ More</a>
+  </nav>
+  <nav class="hop more-row" id="more-row" aria-label="More tools">
     <a href="parts-orders.html">📦 To Order</a>
+    <a href="dupe-cleanup.html">🧹 Duplicates</a>
+    <a href="office-templates.html">💬 Text Templates</a>
+    <a href="schedule-sanity.html">🗓️ Schedule Check</a>
+    <a href="office-ready.html">📞 Phone-Ready</a>
+    <a href="office-reach.html">📲 Reach Me</a>
     <a href="cash-pipeline.html">💵 Cash Pipeline</a>
   </nav>
 </div>
+
+<script>
+  // Restore the ⋯ More open/closed state from last visit.
+  try{ if(localStorage.getItem('board_more_open')==='1'){ var mr=document.getElementById('more-row'); var mt=document.getElementById('more-toggle'); if(mr)mr.classList.add('show'); if(mt)mt.classList.add('open'); } }catch(e){}
+</script>
 
 <div id="msg-banner" style="padding:0 12px"></div>
 <div id="addons-banner"></div>
