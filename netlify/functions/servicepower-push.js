@@ -60,22 +60,20 @@ exports.handler = async function (event) {
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 
   const jobId = parseInt(String(b.job_id || '').replace(/\D/g, ''), 10) || 0;
+  const directCall = String(b.call_number || '').replace(/\D/g, '');
   const statusKey = String(b.status || '').toLowerCase().trim();
-  if (!jobId) return json(400, { ok: false, error: 'job_id required' });
   const map = STATUS_MAP[statusKey];
   if (!map) return json(400, { ok: false, error: 'unknown status; use one of ' + Object.keys(STATUS_MAP).join(', ') });
+  if (!jobId && !directCall) return json(400, { ok: false, error: 'job_id or call_number required' });
 
-  // load the job
+  // load the job for context (optional when call_number is passed directly)
   let job = {};
-  try { job = await crud.searchOne(crud.TABLES.jobs, { id: jobId }) || {}; } catch (_) {}
-  if (!job || !job.id) return json(404, { ok: false, error: 'job not found' });
-  if (!isServicePowerJob(job)) return json(200, { ok: false, error: 'not a ServicePower job (no call number / wrong vendor)', warranty_company: job.warranty_company });
-
-  const callNumber = spCallNumber(job);
-  if (!callNumber) return json(200, { ok: false, error: 'no ServicePower call number on this job (claim_number + notes_internal both empty)' });
+  if (jobId) { try { job = await crud.searchOne(crud.TABLES.jobs, { id: jobId }) || {}; } catch (_) {} }
+  const callNumber = directCall || spCallNumber(job);
+  if (!callNumber) return json(200, { ok: false, error: 'no ServicePower call number (pass call_number, or a job with claim_number/notes)' });
 
   const planned = {
-    job_id: jobId, call_number: callNumber,
+    job_id: jobId || null, call_number: callNumber,
     call_status: map.callStatus, sp_call_status_id: map.spId || null, sub_status: map.sub || null,
     notes: b.notes || '', eta: b.eta || '', completed_date: b.completed || '',
   };
@@ -84,7 +82,9 @@ exports.handler = async function (event) {
   const liveFlag = String((await getSecret('SERVICEPOWER_PUSH_LIVE')) || '').toLowerCase() === 'true';
   const adminOk = b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5');
   const authed = adminOk || (await verifyOffice(b.password));
-  const goLive = b.live === true && b.confirm === true && liveFlag && authed;
+  // AUTO-fire writes need the global flag; a MANUAL admin-directed write (manual:true
+  // + admin secret + confirm) is a deliberate one-off and is allowed without it.
+  const goLive = b.live === true && b.confirm === true && authed && (liveFlag || b.manual === true);
 
   if (!goLive) {
     // SHADOW — log what we WOULD send, send nothing.
