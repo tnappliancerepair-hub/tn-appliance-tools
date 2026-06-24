@@ -219,3 +219,11 @@
 # remembered + skipped, so steady-state runs are fast. Replaces manual portal checks.
 [functions."servicepower-claims-sync"]
   schedule = "0 13,21 * * *"
+
+# SquareTrade/Allstate parts-return tracker — the CHARGEBACK-KILLER. Every 30 min it
+# scans the inbox for prepaid-return-label emails (from rma_request@squaretrade.com),
+# parses each part's RMA# + FedEx tracking# + distributor + part# + claim#, records a
+# return-to-do (matched to the job), and texts Teddy a digest of new labels so no part
+# slips unreturned (unreturned = no pay + a core charge). ?dryrun=1 to inspect.
+[functions."squaretrade-rma-watch"]
+  schedule = "*/30 * * * *"
