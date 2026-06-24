@@ -92,10 +92,12 @@ exports.handler = async function (event) {
   })).filter((p) => p.number || p.description);
 
   const laborHours = Number(tdr.labor_time_hours || 0);
-  // SquareTrade labor rate: $150 first/only trip, $105 each additional (return) trip.
-  // tripNum from ?trip= override, else a job trip/visit field, else 1.
-  const tripNum = Number(q.trip || job.trip_count || job.visit_number || job.trip_number || 1) || 1;
-  const laborAmount = tripNum > 1 ? 105 : 150;
+  // SquareTrade labor: $150 for the trip that COMPLETES the repair (one-and-done, OR the
+  // return trip that fixes it). $105 ONLY for a first trip that couldn't fix it and needs a
+  // 2nd stop (diagnosed + ordered parts). Driver = "did we fix it on THIS trip?"
+  const partsNeeded = /await|parts|order|second|return|backorder/i.test(String(job.parts_status || '')) || job.scheduling_status === 'awaiting_parts';
+  const fixedThisTrip = (q.fixed != null) ? (q.fixed === '1' || q.fixed === 'true') : !partsNeeded;
+  const laborAmount = fixedThisTrip ? 150 : 105;
 
   const claim = {
     manufacturerName: 'SQUARE TRADE',
@@ -114,8 +116,8 @@ exports.handler = async function (event) {
     dateStarted: ymdNum(job.job_started_at || job.scheduled_start), timeStarted: hmNum(job.job_started_at),
     dateCompleted: ymdNum(job.job_completed_at), timeCompleted: hmNum(job.job_completed_at),
     totalRepairMinutes: Math.round(laborHours * 60), serviceHours: laborHours,
-    tripCount: tripNum,
-    laborAmount,   // $150 first/only trip, $105 each additional
+    fixed_this_trip: fixedThisTrip,
+    laborAmount,   // $150 if fixed this trip; $105 if 1st-trip-diagnose-and-return
     partsAmount: parts.reduce((a, p) => a + Number(p.priceRequested || 0), 0),
     authorizationNumber: job.authorization_number || '',
     serviceContractNumber: job.service_contract_number || '',
