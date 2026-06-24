@@ -4,6 +4,24 @@ Full public API reference captured while chasing dev-portal access. **We can bui
 whole integration from this — the ONLY blocker is generating API Keys, which requires
 developer-portal login (Teddy doesn't have it yet; that provisioning is the open ask).**
 
+## ⚠️ REALITY (6/24, from the portal's Getting Started page): being in the portal ≠ usable API
+Generating an API key is only step 1. To get a key that actually WORKS you must also:
+1. **Generate the key** (Sandbox or Production) on the Keys page.
+2. **Open a CONFIG TICKET** to link the key to your account/profile/OfficeIds:
+   `https://ftdr-developer.atlassian.net/servicedesk/customer/portal/3/group/11/create/53`
+   Provide: portal-account email · Organisation name · API Key **username + clientID** · environment (Sandbox/Production).
+3. **PRODUCTION access** (the real goal — pushing status on live AHS jobs) requires a human:
+   your **Frontdoor business-development rep** or **`partnerapiadmin@frontdoorhome.com`** (THE correct API contact — better than the legal `salessolutionscontracts@`).
+- **Open question:** the portal/Partner-API program is heavily Real-Estate + DTC oriented. Whether a ProConnect *contractor* account gets the dispatch/case-lifecycle status API (vs it being for dispatch platforms / RE partners) is exactly what the config ticket + partnerapiadmin convo will confirm. Don't overclaim until confirmed.
+- **URL has a routing-id segment:** `https://api.frontdoorhome.com/<routing-id>/v1/...` (routing-id provided at config time → vault `FRONTDOOR_ROUTING_ID`).
+
+## ⭐ Simpler contractor endpoint found (Getting Started → "Case-Lifecycle")
+`POST /<routing-id>/v1/case-lifecycle/dispatch_status_update`
+```json
+{ "dispatchNumber": 444924742, "status": "JobComplete" }
+```
+status is camelCase (e.g. `JobComplete`) — full vocab TBD via config/sandbox. This is likely OUR path (simple dispatchNumber + status), vs the heavier `/dispatch-connector/v1/webhook`. Connector supports both (`caseLifecycleStatusUpdate` + `dispatchStatusUpdate`).
+
 ## Auth — OAuth2 password grant (FusionAuth), JWT Bearer, 1-hour expiry
 1. In the developer portal → **"Your API key" page → "Add API Key"**. Modal returns
    **Password, Username, ClientId**. **ClientId is environment-specific** (sandbox ≠ prod).

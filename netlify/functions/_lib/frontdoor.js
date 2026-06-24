@@ -129,4 +129,14 @@ const STATUS = {
   ON_HOLD: { code: 150, description: 'On Hold' },
 };
 
-module.exports = { isConfigured, getToken, api, dispatchStatusUpdate, STATUS, env, apiBase };
+// Case-Lifecycle status update — the SIMPLER contractor endpoint from the Getting
+// Started docs. POST /<routing-id>/v1/case-lifecycle/dispatch_status_update
+//   body: { dispatchNumber, status }   (status is camelCase, e.g. "JobComplete")
+// routingId + the exact status vocabulary come from the API-key CONFIG TICKET / sandbox.
+async function caseLifecycleStatusUpdate({ dispatchNumber, status, routingId }) {
+  const rid = routingId || (await getSecret('FRONTDOOR_ROUTING_ID')) || '';
+  const path = (rid ? `/${rid}` : '') + '/v1/case-lifecycle/dispatch_status_update';
+  return api('POST', path, { dispatchNumber: Number(dispatchNumber), status: String(status) });
+}
+
+module.exports = { isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase };
