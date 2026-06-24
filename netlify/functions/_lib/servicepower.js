@@ -89,7 +89,9 @@ async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, sche
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
   let remarks = '';
   if (notes) {
-    remarks = `<Remarks>${f('NotesDate', notesDate || new Date().toISOString())}<Notes>${esc(notes)}</Notes>${f('AddedBy', addedBy || 'Ant')}</Remarks>`;
+    const d = new Date();
+    const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;  // ServicePower wants YYYYMMDD
+    remarks = `<Remarks>${f('NotesDate', notesDate || ymd)}<Notes>${esc(notes)}</Notes>${f('AddedBy', addedBy || 'Ant')}</Remarks>`;
   }
   const inner = `<impl:updateCallInfoObj>${ui}`
     + f('CallNumber', callNumber) + f('MfgId', mfgId) + f('FSSCallId', fssCallId)
