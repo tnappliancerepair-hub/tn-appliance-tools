@@ -19,3 +19,4 @@ node_modules/
 !.env.example
 !**/.env.example
 .indexnow-key
+.claude/scheduled_tasks.lock
