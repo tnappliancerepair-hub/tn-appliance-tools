@@ -82,13 +82,19 @@ exports.handler = async function (event) {
   let scheduleDate = b.schedule_date || '';
   let scheduleTime = b.schedule_time || '';
   if (!fssCallId || !mfgId) {
-    try {
-      const now = Date.now(); const DAY = 86400000;
-      const f = (ms) => { const d = new Date(ms); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()} 00:00:00`; };
-      const look = await sp.getCallInfo({ fromDateTime: f(now - 75 * DAY), toDateTime: f(now + DAY), callNo: callNumber });
-      const c = (look.calls || []).find((x) => x.call_number === callNumber) || (look.calls || [])[0];
-      if (c) { fssCallId = fssCallId || c.fss_call_id || ''; mfgId = mfgId || c.mfg_id || ''; scheduleDate = scheduleDate || c.schedule_date || ''; scheduleTime = scheduleTime || c.schedule_time || ''; }
-    } catch (_) {}
+    // ServicePower SP007s on wide windows, so scan in 2-day chunks from now backward and
+    // early-exit on match. Real lifecycle pushes are same-day → resolves on chunk 1.
+    // ?lookback_days overrides for old/test calls.
+    const DAY = 86400000; const now = Date.now();
+    const lookbackDays = Math.min(parseInt(String(b.lookback_days || '12'), 10) || 12, 90);
+    const f = (ms) => { const d = new Date(ms); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()} 00:00:00`; };
+    for (let off = -1; off < lookbackDays; off += 2) {
+      try {
+        const look = await sp.getCallInfo({ fromDateTime: f(now - (off + 2) * DAY), toDateTime: f(now - off * DAY), callNo: callNumber });
+        const c = (look.calls || []).find((x) => x.call_number === callNumber) || (look.calls || [])[0];
+        if (c) { fssCallId = fssCallId || c.fss_call_id || ''; mfgId = mfgId || c.mfg_id || ''; scheduleDate = scheduleDate || c.schedule_date || ''; scheduleTime = scheduleTime || c.schedule_time || ''; break; }
+      } catch (_) {}
+    }
   }
   if (!mfgId) mfgId = 'I565';
 
