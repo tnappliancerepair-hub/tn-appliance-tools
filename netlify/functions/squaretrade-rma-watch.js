@@ -99,6 +99,19 @@ exports.handler = async function (event) {
 
   if (dry) return json(200, { ok: true, count: parsed.length, parsed });
 
+  // BACKFILL mode: record every currently-parsed part as a return-to-do (no SMS, ignores
+  // the seen-set) so the warranty-parts section on each job populates from history. Run once.
+  if ((event.queryStringParameters || {}).backfill === '1') {
+    let n = 0;
+    for (const p of parsed) {
+      try {
+        await crud.logEvent('parts_return_label', { rma: p.rma, claim: p.claim, tracking: p.tracking, distributor: p.distributor, part: p.part, return_desc: p.return_desc, customer: p.customer, job_id: p.job_id || null, status: 'pending', email_id: p.id, backfill: true, at_ms: Date.now() });
+        n++;
+      } catch (_) {}
+    }
+    return json(200, { ok: true, backfilled: n });
+  }
+
   const seen = await seenIds();
   const fresh = parsed.filter((p) => !seen.has(p.key));
 
