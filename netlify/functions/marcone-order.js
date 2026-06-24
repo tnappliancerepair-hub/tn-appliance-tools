@@ -82,6 +82,25 @@ exports.handler = async function (event) {
     const chosen = pickShipping(methods);
     if (!chosen) return json(200, { ok: false, error: 'no shipping methods returned', warehouse: wh, detail: sm && sm.raw && sm.raw.slice(0, 200) });
 
+    if (action === 'debug') {
+      // Full visibility: what we resolved, what shipping methods came back, and the
+      // raw cart response — so we can see the exact failure (or hand it to Marcone).
+      const cartBody = {
+        custNo: custNo ? Number(custNo) : undefined, warehouseNumber: wh ? Number(wh) : undefined,
+        shipTo, shippingMethodId: chosen.shippingMethodId,
+        cartOrderItems: items.map((i) => ({ make: i.make, partNumber: i.partNumber, quantity: i.quantity, warehouseNumber: i.warehouseNumber })),
+      };
+      const q = await msupply.quoteCart({ custNo, shipTo, items, shippingMethodId: chosen.shippingMethodId, warehouseNumber: wh });
+      return json(200, {
+        ok: true, custNo, warehouse: wh, make,
+        shipping_methods: methods,
+        chosen_shipping: chosen,
+        cart_request_body: cartBody,
+        cart_response_status: q.status,
+        cart_response: q.data || q.raw,
+      });
+    }
+
     if (action === 'quote') {
       const q = await msupply.quoteCart({ custNo, shipTo, items, shippingMethodId: chosen.shippingMethodId, warehouseNumber: wh, poNumber: b.po_number });
       if (!q.ok) return json(200, { ok: false, error: 'quote failed', status: q.status, detail: (q.data && (q.data.message || q.data.error)) || (q.raw || '').slice(0, 200) });
