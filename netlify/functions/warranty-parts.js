@@ -38,9 +38,14 @@ exports.handler = async function (event) {
       await crud.logEvent('warranty_part_status', { job_id: jobId, part: String(b.part), status: String(b.status || 'returned'), at_ms: Date.now() });
       return j(200, { ok: true });
     }
-    // add a manually-recorded supplied part
+    // add a manually-recorded supplied part (any vendor — SquareTrade / FrontDoor / NSA)
     if (!b.part) return j(400, { ok: false, error: 'part required' });
-    await crud.logEvent('warranty_part_supplied', { job_id: jobId, claim: String(b.claim || ''), part: String(b.part), distributor: String(b.distributor || ''), status: String(b.status || 'to_return'), at_ms: Date.now() });
+    await crud.logEvent('warranty_part_supplied', {
+      job_id: jobId, claim: String(b.claim || ''), part: String(b.part),
+      distributor: String(b.distributor || ''), vendor: String(b.vendor || ''),
+      status: String(b.status || 'to_return'), rma: String(b.rma || ''), tracking: String(b.tracking || ''),
+      note: String(b.note || ''), at_ms: Date.now(),
+    });
     return j(200, { ok: true });
   }
 
@@ -57,10 +62,10 @@ exports.handler = async function (event) {
   for (const r of statuses) { const m = meta(r); if (mine(m) && m.part && override[m.part] == null) override[m.part] = m.status; }
 
   const byPart = {};
-  // from RMA tracker (auto-captured supplied/return parts)
-  for (const r of labels) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, distributor: m.distributor || '', source: 'rma', rma: m.rma || '', tracking: m.tracking || '', return_desc: m.return_desc || '', status: descStatus(m.return_desc) }; }
-  // manually recorded
-  for (const r of manual) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, distributor: m.distributor || '', source: 'manual', rma: '', tracking: '', return_desc: '', status: m.status || 'to_return' }; }
+  // from RMA tracker (auto-captured supplied/return parts) — these are SquareTrade/Allstate
+  for (const r of labels) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, distributor: m.distributor || '', vendor: m.vendor || 'SquareTrade', source: 'rma', rma: m.rma || '', tracking: m.tracking || '', return_desc: m.return_desc || '', note: '', status: descStatus(m.return_desc) }; }
+  // manually recorded (any vendor)
+  for (const r of manual) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, distributor: m.distributor || '', vendor: m.vendor || '', source: 'manual', rma: m.rma || '', tracking: m.tracking || '', return_desc: '', note: m.note || '', status: m.status || 'to_return' }; }
 
   const parts = Object.values(byPart).map((p) => ({ ...p, status: override[p.part] || p.status }));
   const to_return = parts.filter((p) => p.status === 'to_return').length;
