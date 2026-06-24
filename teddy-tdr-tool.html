@@ -876,6 +876,10 @@ function renderReview() {
           'style="margin-top:8px;padding:8px 12px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);font-size:12.5px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
           '🔧 Live Marcone price + stock</button>' +
         '<div id="marconeOut" style="font-size:12px;margin:5px 0 0;"></div>' +
+        '<button type="button" onclick="orderFromMarcone()" ' +
+          'style="margin-top:8px;width:100%;padding:10px 12px;border:none;border-radius:8px;background:#1f7a3f;color:#fff;font-size:13px;font-weight:700;font-family:var(--sans);cursor:pointer;">' +
+          '📦 Order from Marcone → drop-ship to customer</button>' +
+        '<div id="orderOut" style="font-size:12.5px;margin:6px 0 0;"></div>' +
         '<div id="oemHintWrap">' + oemHint + '</div>' +
       '</div>' +
 
@@ -1058,6 +1062,33 @@ async function marconePrice(){
     const inStock=r.in_stock&&r.total_qty>0;
     out.innerHTML='<span style="color:'+(inStock?'#127a4a':'#c2691c')+';font-weight:700">🔧 Marcone $'+Number(r.cost).toFixed(2)+' · '+(inStock?(r.total_qty+' in stock'+((r.eta_days!=null&&r.eta_days<=1)?' · ships now':'')):'out of stock')+'</span>'+(r.description?(' <span style="color:var(--muted)">— '+escapeHtml(r.description)+'</span>'):'');
   }catch(e){ out.innerHTML='<span style="color:#c2691c">Lookup failed — try again.</span>'; }
+}
+
+// ── One-tap Marcone order → DROP-SHIP TO THE CUSTOMER (never a tech/office).
+async function orderFromMarcone(){
+  const out=document.getElementById('orderOut');
+  const part=(document.getElementById('oemPartInput').value||'').trim();
+  if(!part){ out.innerHTML='<span style="color:#c2691c">Enter the OEM part # first.</span>'; return; }
+  const cust=(state.cockpit&&state.cockpit.customer)||{};
+  const ship={ name:cust.full_name||'', address1:cust.address_line1||'', address2:cust.address_line2||'', city:cust.city||'', state:cust.state||'', zip:cust.zip||'' };
+  const missing=['name','address1','city','state','zip'].filter(k=>!String(ship[k]||'').trim());
+  if(missing.length){ out.innerHTML='<span style="color:#c2691c">Customer address incomplete ('+missing.join(', ')+'). Parts drop-ship to the CUSTOMER — add their address on the job first.</span>'; return; }
+  if(!confirm('Place a REAL Marcone order for '+part+' and DROP-SHIP it to the customer?\n\n'+ship.name+'\n'+ship.address1+(ship.address2?(' '+ship.address2):'')+'\n'+ship.city+', '+ship.state+' '+ship.zip)) return;
+  let pw=localStorage.getItem('ant_office_pw')||'';
+  if(!pw){ pw=prompt('Office password to place the order:')||''; if(!pw) return; }
+  out.innerHTML='Placing order…';
+  const send=async(password)=>fetch('/.netlify/functions/marcone-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'place',password,confirm:true,part_number:part,quantity:1,ship_to:ship,po_number:'JOB-'+(state.jobId||''),notes:'Drop-ship to customer (cash-TDR)'})}).then(r=>r.json());
+  try{
+    let d=await send(pw);
+    if(d&&d.error&&/auth|password/i.test(d.error)){ localStorage.removeItem('ant_office_pw'); const np=prompt('Wrong/expired — re-enter office password:')||''; if(!np){ out.innerHTML='<span style="color:#c2691c">Order canceled.</span>'; return; } d=await send(np); if(d&&d.ok) localStorage.setItem('ant_office_pw',np); }
+    else if(d&&d.ok) localStorage.setItem('ant_office_pw',pw);
+    if(!d||!d.ok){ out.innerHTML='<span style="color:#c0392b">Order failed: '+escapeHtml((d&&(d.error||d.reason))||'unknown')+'</span>'; return; }
+    const on=(d.order_numbers||[])[0]||'';
+    out.innerHTML='<div style="color:#127a4a;font-weight:700">✅ Order placed #'+escapeHtml(on)+'</div>'+
+      '<div style="color:var(--muted);font-size:11.5px;margin-top:3px">'+escapeHtml(d.part_description||'')+' → '+escapeHtml(ship.name)+', '+escapeHtml(ship.city)+' '+escapeHtml(ship.state)+
+      (d.ships_from?(' · ships from '+escapeHtml(d.ships_from)):'')+(d.total!=null?(' · total $'+Number(d.total).toFixed(2)):'')+(d.status?(' · '+escapeHtml(d.status)):'')+'</div>';
+    try{ fetch(XANO_BASE+'/record_event_log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'marcone_order_placed',metadata_json:JSON.stringify({job_id:state.jobId,order_number:on,part_number:part,ship_to:ship,total:d.total,ships_from:d.ships_from})})}); }catch(_){}
+  }catch(e){ out.innerHTML='<span style="color:#c0392b">Order error: '+escapeHtml(e.message)+'</span>'; }
 }
 
 // ── Auto-find parts: cloud → Mac parts daemon (Marcone OEM + Amazon aftermarket).
