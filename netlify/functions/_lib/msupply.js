@@ -118,6 +118,7 @@ function normalizePart(d) {
   const inv = part.inventory || part.availability || [];
   const stock = (Array.isArray(inv) ? inv : []).map((w) => ({
     warehouse: w.warehouseName || w.warehouseNumber,
+    warehouse_number: w.warehouseNumber,
     qty: w.quantityAvailable != null ? w.quantityAvailable : w.qty,
     transit_days: w.timeInTransitDays != null ? w.timeInTransitDays : w.transitDays,
   })).filter((w) => Number(w.qty) > 0);

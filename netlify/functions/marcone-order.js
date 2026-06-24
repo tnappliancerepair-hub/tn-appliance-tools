@@ -71,16 +71,19 @@ exports.handler = async function (event) {
     if (look && look.ok) { part = look; if (!make) make = look.make; }
     if (!part) return json(200, { ok: false, error: 'part not found in Marcone: ' + partNumber });
 
-    const items = [{ make, partNumber, quantity, reference: b.reference || undefined }];
+    // Ship from the part's first in-stock warehouse — shipping methods + cart
+    // appear to be warehouse-specific.
+    const wh = (part.in_stock_at && part.in_stock_at[0] && part.in_stock_at[0].warehouse_number) || undefined;
+    const items = [{ make, partNumber, quantity, warehouseNumber: wh, reference: b.reference || undefined }];
 
-    // shipping method (required by cartorder)
-    const sm = await msupply.shippingMethods(custNo);
+    // shipping method (required by cartorder) — for that warehouse
+    const sm = await msupply.shippingMethods(custNo, wh);
     const methods = (sm && sm.ok && sm.data && (sm.data.shippingMethods || sm.data)) || [];
     const chosen = pickShipping(methods);
-    if (!chosen) return json(200, { ok: false, error: 'no shipping methods returned', detail: sm && sm.raw && sm.raw.slice(0, 200) });
+    if (!chosen) return json(200, { ok: false, error: 'no shipping methods returned', warehouse: wh, detail: sm && sm.raw && sm.raw.slice(0, 200) });
 
     if (action === 'quote') {
-      const q = await msupply.quoteCart({ custNo, shipTo, items, shippingMethodId: chosen.shippingMethodId, poNumber: b.po_number });
+      const q = await msupply.quoteCart({ custNo, shipTo, items, shippingMethodId: chosen.shippingMethodId, warehouseNumber: wh, poNumber: b.po_number });
       if (!q.ok) return json(200, { ok: false, error: 'quote failed', status: q.status, detail: (q.data && (q.data.message || q.data.error)) || (q.raw || '').slice(0, 200) });
       const d = q.data || {};
       return json(200, {
