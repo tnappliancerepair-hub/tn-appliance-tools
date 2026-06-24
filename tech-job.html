@@ -423,6 +423,11 @@ function render(){
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
       </div>
 
+      <div class="card" id="pay-card" style="display:none">
+        <h3>💳 Collect payment</h3>
+        <div id="pay-body"></div>
+      </div>
+
       <div class="card" id="ant-tdr-live" style="display:none"></div>
 
       <div class="card">
@@ -508,6 +513,7 @@ function wireActions(){
   renderTechAddons();
   mountConvo();
   applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
+  loadPayment();             // self-pay jobs: let the tech text the customer a card-pay link from the field
   // Ant Diagnose card removed for simplicity (Teddy 2026-06-23: "we don't need three talk-to-Ant buttons").
 }
 
@@ -598,6 +604,44 @@ function applyLifecycleButtons(){
   if(enroute||started||completed) mark(otw,'On my way');
   if(started||completed) mark(st,'Started');
   if(completed) mark(dn,'Done');
+}
+
+// 💳 Field payment — only for SELF-PAY jobs (get-invoice-status enforces it server-side,
+// so warranty jobs never show this). Tech sets/confirms the amount and texts the customer
+// a secure card-pay link right from the stop — no office step.
+async function loadPayment(){
+  const card=document.getElementById('pay-card'), body=document.getElementById('pay-body');
+  if(!card||!body||!JOB_ID) return;
+  let d={};
+  try{ d=await fetch('/.netlify/functions/get-invoice-status?job_id='+JOB_ID).then(r=>r.json()); }catch(_){ card.style.display='none'; return; }
+  if(!d||!d.self_pay){ card.style.display='none'; return; }   // warranty → never show payment
+  card.style.display='';
+  const full=(cust&&(cust.name||((cust.first_name||'')+' '+(cust.last_name||'')).trim()))||'the customer';
+  const first=full.split(' ')[0]||'them';
+  if(d.paid){
+    body.innerHTML='<div style="color:#127a4a;font-weight:800;font-size:16px">✅ Paid'+(d.amount?(' — $'+Number(d.amount).toFixed(2)):'')+'</div>';
+    return;
+  }
+  const amt=d.amount?Number(d.amount).toFixed(2):'';
+  body.innerHTML=
+    '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">Self-pay job — text '+esc(full)+' a secure link to pay by card.</div>'
+    +'<label style="font-size:12px;color:var(--dim)">Amount due ($)</label>'
+    +'<input id="pay-amt" inputmode="decimal" value="'+amt+'" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 10px">'
+    +'<button class="btn primary" id="pay-send" style="width:100%;background:#127a4a">💳 Text '+esc(first)+' a pay link</button>'
+    +'<div id="pay-note" style="font-size:12.5px;margin-top:8px"></div>';
+  document.getElementById('pay-send').onclick=sendPayLink;
+}
+async function sendPayLink(){
+  const note=document.getElementById('pay-note'), btn=document.getElementById('pay-send'), inp=document.getElementById('pay-amt');
+  const amt=parseFloat(String(inp.value||'').replace(/[^0-9.]/g,''));
+  if(!amt||amt<=0){ note.style.color='#c2691c'; note.textContent='Enter the amount first.'; inp.focus(); return; }
+  btn.disabled=true; btn.textContent='Sending…';
+  try{
+    await xanoPost('record_job_invoice',{job_id:JOB_ID,technician_id:TECH_ID,amount_invoiced:amt.toFixed(2)});
+    const d=await xanoPost('send_customer_portal_link',{job_id:JOB_ID});
+    if(d&&(d.success||d.sms_body)){ note.style.color='#127a4a'; note.innerHTML='✅ Pay link texted — <b>$'+amt.toFixed(2)+'</b>. They can pay by card now; you\'ll see it flip to Paid.'; btn.textContent='✓ Sent'; }
+    else { note.style.color='#c0392b'; note.textContent='Could not send — try again.'; btn.disabled=false; btn.textContent='💳 Text a pay link'; }
+  }catch(_){ note.style.color='#c0392b'; note.textContent='Connection error — try again.'; btn.disabled=false; btn.textContent='💳 Text a pay link'; }
 }
 
 function completeFlow(){
