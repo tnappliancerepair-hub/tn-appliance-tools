@@ -73,16 +73,26 @@ exports.handler = async function (event) {
   try {
     const custNo = (await getSecret('MSUPPLY_CUST_NO')) || undefined;
 
-    // Resolve make + confirm the part exists (Marcone make is a code, e.g. WPL).
+    // Resolve make + confirm the part exists. Pass the customer ZIP so Marcone
+    // returns time-in-transit per warehouse (ByZipCode), letting us ship from the
+    // NEAREST in-stock branch.
     let make = String(b.make || '').trim();
     let part = null;
-    const look = await msupply.lookupPart(partNumber, make || null, {});
+    const look = await msupply.lookupPart(partNumber, make || null, { zip: shipTo.zip, lookupType: shipTo.zip ? 'ByZipCode' : 'Default' });
     if (look && look.ok) { part = look; if (!make) make = look.make; }
     if (!part) return json(200, { ok: false, error: 'part not found in Marcone: ' + partNumber });
 
-    // Ship from the part's first in-stock warehouse — shipping methods + cart
-    // appear to be warehouse-specific.
-    const wh = (part.in_stock_at && part.in_stock_at[0] && part.in_stock_at[0].warehouse_number) || undefined;
+    // Pick the NEAREST in-stock warehouse: lowest transit days, then most stock.
+    const stocked = (part.in_stock_at || []).filter((w) => Number(w.qty) > 0);
+    stocked.sort((a, b2) => {
+      const ta = a.transit_days == null ? 999 : Number(a.transit_days);
+      const tb = b2.transit_days == null ? 999 : Number(b2.transit_days);
+      return (ta - tb) || (Number(b2.qty) - Number(a.qty));
+    });
+    const best = stocked[0] || null;
+    const wh = best ? best.warehouse_number : undefined;
+    const whName = best ? best.warehouse : undefined;
+    const transitDays = best ? best.transit_days : null;
     const items = [{ make, partNumber, quantity, warehouseNumber: wh, reference: b.reference || undefined }];
 
     // shipping method (required by cartorder) — for that warehouse
@@ -133,7 +143,22 @@ exports.handler = async function (event) {
       if (!p.ok) return json(200, { ok: false, error: 'order failed', status: p.status, detail: (p.data && (p.data.reason || p.data.errorCode || p.data.message)) || (p.raw || '').slice(0, 200) });
       const d = p.data || {};
       const placed = !!(d.success || (Array.isArray(d.orderNumbers) && d.orderNumbers.length));
-      return json(200, { ok: placed, order_numbers: d.orderNumbers || [], status: d.status, reason: d.reason, error_code: d.errorCode, substitutions: d.substitutions || [], ship_to: shipTo });
+      const orderNo = (d.orderNumbers || [])[0];
+      // Pull the real confirmed details (actual ship-from warehouse + total + carrier).
+      let real = {};
+      if (placed && orderNo) {
+        try {
+          const st = await msupply.api('POST', '/orders/orderstatus', { custNo: custNo ? Number(custNo) : undefined, orderNumber: String(orderNo) });
+          const o = st.ok && st.data && (st.data.orderResults || [])[0];
+          if (o) real = { status: o.status, ships_from: (o.warehouse && o.warehouse.name) || whName, shipping_method: o.shippingMethod, delivery_charge: o.deliveryCharge, total: o.totalCharge };
+        } catch (_) {}
+      }
+      return json(200, {
+        ok: placed, order_numbers: d.orderNumbers || [], substitutions: d.substitutions || [], ship_to: shipTo,
+        item_cost: part.cost, part_description: part.description, transit_days: transitDays,
+        ships_from: real.ships_from || whName, status: real.status || d.status, shipping_method: real.shipping_method,
+        delivery_charge: real.delivery_charge, total: real.total, reason: d.reason, error_code: d.errorCode,
+      });
     }
 
     return json(400, { ok: false, error: 'unknown action; use quote|place' });
