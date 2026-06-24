@@ -42,7 +42,8 @@ async function userInfoXml() {
   const p = String(await getSecretFresh('SERVICEPOWER_PASSWORD') || '').trim();
   const a = String(await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
   if (!u || !p || !a) throw new Error('ServicePower creds not in vault (SERVICEPOWER_USER_ID / _PASSWORD / _SVCR_ACCT)');
-  return `<impl:UserInfo><impl:UserID>${esc(u)}</impl:UserID><impl:Password>${esc(p)}</impl:Password><impl:SvcrAcct>${esc(a)}</impl:SvcrAcct></impl:UserInfo>`;
+  // elementFormDefault="unqualified" — inner elements are NOT namespace-prefixed.
+  return `<UserInfo><UserID>${esc(u)}</UserID><Password>${esc(p)}</Password><SvcrAcct>${esc(a)}</SvcrAcct></UserInfo>`;
 }
 
 // Generic SOAP call: wraps innerXml in the envelope, POSTs, returns raw + a few parsed fields.
@@ -81,10 +82,10 @@ async function getTestService(msg) {
 // lifecycle to those once we have it. Fields beyond callNumber/status/notes are optional.
 async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, scheduleTimePeriod, problemDesc, callStatus, spCallStatusId, callSubStatus, spCallSubStatusId, notes, notesDate, addedBy, eta, etf, completedDate }) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<impl:${tag}>${esc(v)}</impl:${tag}>`);
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
   let remarks = '';
   if (notes) {
-    remarks = `<impl:Remarks>${f('NotesDate', notesDate || new Date().toISOString())}<impl:Notes>${esc(notes)}</impl:Notes>${f('AddedBy', addedBy || 'Ant')}</impl:Remarks>`;
+    remarks = `<Remarks>${f('NotesDate', notesDate || new Date().toISOString())}<Notes>${esc(notes)}</Notes>${f('AddedBy', addedBy || 'Ant')}</Remarks>`;
   }
   const inner = `<impl:updateCallInfoObj>${ui}`
     + f('CallNumber', callNumber) + f('MfgId', mfgId) + f('FSSCallId', fssCallId)
@@ -102,7 +103,7 @@ async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, sche
 // Dates: "mm/dd/yyyy HH:mm:ss". Response CallInfo includes CallStatus + SPCallStatusID.
 async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<impl:${tag}>${esc(v)}</impl:${tag}>`);
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
   const inner = `<impl:getCallInfoSearch>${ui}`
     + f('FromDateTime', fromDateTime) + f('ToDateTime', toDateTime) + f('Callno', callNo)
     + `</impl:getCallInfoSearch>`;
