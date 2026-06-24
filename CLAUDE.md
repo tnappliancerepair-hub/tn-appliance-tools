@@ -1,5 +1,39 @@
 # Appliance Ant
 
+## 🧭 2026-06-24 (LATE-NIGHT) — DIRECTION: "WE HAVE AMAZING IDEAS LOST IN THE CLUTTER. WE NEED SIMPLE." (READ FIRST)
+
+Teddy brain-dump, late night. Not code — the **operating philosophy + tomorrow's #1 project.** This frames how to build (and un-build) from here on.
+
+### The thesis (Teddy's words, sharpened)
+- **"We have amazing ideas lost in the clutter. We need simple."** The value isn't missing — it's BURIED. The system already does a ton; the problem is too much in front of the humans at once. **The work now is SUBTRACTION, not addition.** Building was the easy part (we've done years of it). Editing it DOWN is the rare skill and the next phase.
+- **Do things ONCE.** Every place a human re-enters a fact is ALSO a place that needed a button/field/page → clutter and double-entry grow together. Kill the duplicate write and the duplicate surface disappears with it. **Decluttering and "single-write" are the same project.**
+- **Test for every field/screen:** *"Is this a true NEW input, or is it DERIVED from something already in the system?"* If derived, nobody types it — it FLOWS. Humans should only ever enter genuinely-new facts, once, at the moment first known.
+- **"...and Ant too" is the unlock, not a footnote.** The same property that makes data findable by a human makes it ACTIONABLE by Ant. Scattered data is dead to Ant; unified data is what it lives in. Keep one clean job record → office reads it, tech reads his slice, customer sees their side, warranty pulls the package, AND Ant can act — without anyone asking.
+- **The job is ONE timeline.** Customer says broken → Ant pre-diagnoses → tech adds what he found → warranty draft self-fills → part ships → invoice closes. Everyone sees the same stream, filtered to their lane. Nobody re-types the prior step; they add the next one. **Where does each fact get BORN, and does it flow — or get re-keyed?** Every spot a fact is born twice = a seam to close.
+- **Three priorities, one idea:** (1) office = organize + communicate around a job, (2) tech tools = make the job easier, (3) move between tools easily. All three are "one job, three seats, seat-change costs nothing."
+- **"Move between tools easily" = two promises:** (a) **context travels** — jump office→tech→warranty and land on the SAME job, already loaded, opened to your lane (job_id rides along, page knows who you are). (b) **"back" returns you exactly where you were** (scroll, filter, spot in list). Tools feel like ONE tool when you never lose your place crossing them. The enemy is the **dead-end** (screen with no next move + no clean way back — e.g. the old "Missing tech_id" trap). One yardstick: **"how many taps + how much re-typing to get from any seat to any other on the SAME job?"** Lower it everywhere → office feels organized, tech's job gets easier, tool-switching disappears — all WITHOUT new features.
+
+### What "simple" means (the rules)
+- **Simple ≠ fewer powers — it's fewer CHOICES at any one moment.** The 300 agents keep humming in back; the human just sees the 3 that need them now.
+- **Every screen answers "what do I do NEXT?" — not "what CAN I do?"** First = a teammate. Second = a control panel. Danielle at 8am wants the short list of what's on fire, not a control panel.
+- **Rule that keeps it simple AFTER the cleanup: ONE IN, ONE OUT.** Nothing gets added to a screen unless something leaves. Otherwise it re-clutters by July.
+- **"Done" for the declutter, one sentence:** *each person opens their screen and instantly sees the few things that need them — everything else is one tap away, not in their face.* Build nothing, bury nothing — surface the right few, quiet the rest.
+
+### 🧹 TOMORROW'S #1 PROJECT — declutter office + tech dashboards (Teddy: "high on my list")
+Current state found tonight: **office-nav.js has 16 flat pills** but its own comment still says *"Caveman simple: 4 pills."* Icon-collisions confuse: **two 💬** (Messages = tech⇄office vs Texts = templates), **three 📞-ish** (Ant Call / Calls / Phone), **three availability-ish** (Reach Me / Status / Phone).
+- **Step 1 — Danielle's 3 questions (Teddy will ask her):** which pills she opens EVERY day · which she NEVER taps · anything she hunts for that ISN'T a pill (missing > cluttered). *(Teddy hadn't asked her yet as of tonight — gate the nav cut on her answers.)*
+- **Step 2 — Nav rebuild (safe, reversible):** office 16 flat pills → **~6 daily row + a `⋯ More` overflow**; collapse icon-collisions (one 💬, one 📞). Same treatment for tech (keep job cards clean; fold Performance/Payouts/Day Off behind `⋯`). Recommended daily-6 (pending Danielle): 🐜 Today · 📊 All Jobs · 💬 Messages · 📅 Calendar · 🔍 Search · 🧾 Frontdoor. Fold the rest: Schedule Check, Cash Leads, Media, Reach Me, Phone, Ant Call, Texts, Calls, Status, Parts $.
+- **Step 3 — dead-page sweep (the real shrink):** find every office/tech page nothing links to anymore → list keep/cut/merge → Teddy red-pens → retire the cuts so the surface actually gets SMALLER, not just reorganized.
+- **Step 4 — tech-job.html diet:** it picked up a lot of buttons 6/24 (Diagnose / Find part / Recalls / add-ons / parts order). A tech in a kitchen should see *finish the job* first, *power tools* second.
+
+### 👻 GHOST SCHEDULING — status as of tonight (Teddy asked "how's it going")
+**Alive in SHADOW MODE, but starved.** On `needs-scheduled.html` each unscheduled job shows a dashed **"🐜 Ant suggests: {day} · {tech}"** card with **✓ Use this / ✗ Not quite** (backed by `suggest-schedule` = zip→cluster→tech + route-densifying day; `suggestion-feedback` logs accept/reject + a running **accuracy %** — that's the training signal). The *suggest + one-tap-accept* half WORKS and is self-training.
+- **Dark piece 1 — `intake-collector`** (auto-texts customers for availability so ghosts have data) = **DISABLED 2026-06-23** in netlify.toml (commented) after it spammed Patricia 5×. Dedup was hardened (fail-closed + claim-before-send) but **never re-enabled.**
+- **Dark piece 2 — `ghost-confirm-slot.js`** (text the customer to confirm the DAY → then lock it) **exists as a function but is called from NO page.** Half-built.
+- **To close the loop (when Teddy wants autonomous, not just suggest):** re-arm `intake-collector` (verify it texts each job ONCE first) + wire `ghost-confirm-slot` into the board's "✓ Use this" path so accepting a ghost texts the customer to confirm the day before it locks. That turns "Ant suggests" into "Ant schedules, customer already confirmed."
+
+---
+
 ## 📞🔧 2026-06-24 — "TALK TO A HUMAN" PHONE FIX + MARCONE PARTS API LIVE (incl. AUTO-ORDERING) + CPSC RECALLS + TECH HELP (READ FIRST)
 
 Huge multi-hour day across phone + parts. Everything below is LIVE on `main` (branch `claude/good-morning-aujwba`, merged to main each commit; Netlify auto-deploys front-end). **Read before touching the phone transfer, the Marcone connector, or the cash-TDR.**
