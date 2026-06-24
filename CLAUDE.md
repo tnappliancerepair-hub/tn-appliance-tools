@@ -88,6 +88,36 @@ Standing tracker. Each gated API = a superpower we rent. Request access EARLY (c
 
 ---
 
+## 📦💰 2026-06-24 (LATE) — SQUARETRADE PARTS-RETURN CHARGEBACK-KILLER + ServicePower capacity/claims findings (READ FIRST)
+
+Big ServicePower session. Everything LIVE on `main` (branch `claude/good-morning-aujwba`).
+
+### 📦 PARTS-RETURN TRACKER = the chargeback-killer (LIVE — `squaretrade-rma-watch.js`)
+SquareTrade/Allstate emails a **prepaid return label PER PART** from **`rma_request@squaretrade.com`** (cc'd to it too). **Chargeback rule (verbatim from the email): "If parts are not returned or returned incorrectly or damaged, you will not be paid for the repair and may be charged for the new part or core."** So an un-returned part = lost pay + a core charge. NEW scheduled fn (every 30 min) scans the inbox, parses EACH part (handles **multi-part emails** + single), extracting **RMA# (dash-form e.g. 10-96089), FedEx tracking#, Distributor (Marcone/Encompass/UED), Part#, Return Description (Unused/Core/DOA), Claim#, Customer**, matches to the job by `claim_number`, records a `parts_return_label` event (status pending), and texts Teddy a digest of NEW labels. **PROVEN LIVE: parsed 32 real return-labels, all matched to jobs.** Baselined the 32-label historical backlog (so only NEW labels alert). `?dryrun=1` to inspect. **NEXT: worklist page (pending returns per job) + FedEx-tracking reconcile (auto-confirm shipped → close the loop, prove no chargeback) + wire used/return into the TDR.**
+
+### 🟦 SQUARETRADE = Allstate; claims completed via a WEB WIZARD (not the EIA-code API)
+SquareTrade jobs complete through a **squaretrade.com wizard** (`squaretrade.com/frontend/schedule-appointment/#/confirmappointment?...token=`, tokenized per job): "Did you fully repair?" → "which part(s) caused it" (SquareTrade pre-selects a diagnosis) → **per-part return status (Unused-return / DOA-return / Used-no-return / Not-Provided)** → "can it be repaired? part numbers + qty." **This wizard IS the SquareTrade TDR.** Teddy: **claims basically NEVER get rejected** → so the defect/repair EIA-code path (claims-build CODE_MAP) is LOW priority; the wizard + parts-return is what matters. To auto-submit the wizard later = browser automation (it's a web form w/ token, not the API). The ServicePower ServiceClaims API is for READING status/payment (proven).
+
+### 💵 SQUARETRADE LABOR RULE (corrected): $150 = the trip that COMPLETES the repair
+- **Fixed on the 1st trip (one-and-done) → $150.**
+- **Needs a 2nd stop (parts):** 1st trip **$105** → return trip that fixes it **$150.**
+`servicepower-claims-build.js` keys laborAmount off "fixed this trip?" (parts_status/awaiting_parts → $105 else $150; `?fixed=1/0` override).
+
+### 🟢 CAPACITY IS NOT THE BOTTLENECK (resolved the year-old per-tech-vs-area question)
+ServicePower capacity is per **AREA-section** (TechKey). Pulled live via `servicepower-capacity.js` (getTechInfo + discover TechKeys from job data — CallInfo carries TechKey/GroupKey). **Our 7 areas are ALL set to 50–100 jobs/day Mon–Fri** (Antioch/Jimmy 100, Mt Juliet/TE 100, Baton Rouge/Billy 100, Brentwood 50-100, Clarksville/Lee 50, NOLA/John 50) — and we get a handful. **We're nowhere near capped → raising capacity adds ZERO jobs.** The real warranty levers are COVERAGE (more zips — `AreaInfo.PostcodeList`) or it's just light volume → self-pay/demand-gen. Connector has `getTechInfo`/`updateTechInfo`/`updateTechCapacity` (governor buildable later, not needed now). TechKeys banked: Jimmy/TE/Lee/NOLA/BROU/Brentwood.
+
+### 🧾 ServicePower CLAIMS read + reconcile + dispatch push (all LIVE this session)
+- `servicepower-claims.js` + `servicepower-claims-test.js`: claims READ proven (manufacturerName=**SQUARE TRADE**, retrieve by **dispatch#**). Validated vs portal (MONAHAN: Paid $150, EFT#1157090212) — every field matched.
+- `servicepower-claims-sync.js`: twice-daily payment reconcile (alerts on newly-Paid/Rejected). LIVE.
+- `servicepower-push.js` wired into `tech-job.html` lifecycle (SHADOW): On-my-way/Start/Complete → status push; auto-resolves FSSCallId+MfgId. **Go live = vault `SERVICEPOWER_PUSH_LIVE=true`.**
+
+### ⏭️ PENDING (Teddy)
+- **Forward done** ✅ (got the RMA email format). **NEXT screenshots not needed.**
+- **Vault NSA + Frontdoor PORTAL logins** via `admin-secrets.html` (`NSA_PORTAL_USER/PASS/URL` @ nationalservicealliance.com, `FRONTDOOR_PORTAL_USER/PASS/URL`) → unlocks NSA (2nd dispatcher) + Frontdoor browser automation (status/claims/returns, same pattern). **DON'T put creds in chat — vault only.**
+- Build: parts-return worklist page + FedEx reconcile + SquareTrade TDR (used/return) + wire NSA/Frontdoor once vaulted.
+
+---
+
 ## 📞🔧 2026-06-24 — "TALK TO A HUMAN" PHONE FIX + MARCONE PARTS API LIVE (incl. AUTO-ORDERING) + CPSC RECALLS + TECH HELP (READ FIRST)
 
 Huge multi-hour day across phone + parts. Everything below is LIVE on `main` (branch `claude/good-morning-aujwba`, merged to main each commit; Netlify auto-deploys front-end). **Read before touching the phone transfer, the Marcone connector, or the cash-TDR.**
