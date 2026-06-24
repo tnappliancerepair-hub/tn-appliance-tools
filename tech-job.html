@@ -507,6 +507,7 @@ function wireActions(){
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
   mountConvo();
+  applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
   // Ant Diagnose card removed for simplicity (Teddy 2026-06-23: "we don't need three talk-to-Ant buttons").
 }
 
@@ -572,8 +573,31 @@ async function lifecycle(ep,okMsg){
   toast('Sending…');
   try{
     const d=await xanoPost(ep,{job_id:JOB_ID,technician_id:TECH_ID});
-    if(d.success){ toast(okMsg); loadJob(); } else { toast('⚠ '+(d.error||'failed')); }
+    if(d.success){ toast(okMsg); loadJob(); }
+    else {
+      const e=String(d.error||'failed');
+      // Don't scare the tech with raw state-machine errors. A repeat/out-of-order
+      // tap (already on-my-way / already started) is harmless — say so plainly.
+      const friendly = /illegal_transition|terminal|already/i.test(e)
+        ? "👍 You're already past that step — the job's moving. Tap Complete when you're done."
+        : ('⚠ '+e);
+      toast(friendly);
+    }
   }catch(_){ toast('⚠ connection error'); }
+}
+
+// Grey out lifecycle buttons that aren't a valid next step, so a tech can't trip
+// an "illegal_transition" by tapping On-my-way / Start again on a running job.
+function applyLifecycleButtons(){
+  const otw=document.getElementById('a-otw'), st=document.getElementById('a-start'), dn=document.getElementById('a-done');
+  if(!otw||!st||!dn) return;
+  const enroute=!!job.tech_en_route_at;
+  const started=!!job.job_started_at || job.scheduling_status==='in_progress';
+  const completed=!!job.job_completed_at || job.scheduling_status==='completed';
+  const mark=(b,label)=>{ b.disabled=true; b.style.opacity='0.4'; b.style.pointerEvents='none'; b.innerHTML='<span class="ic">✓</span>'+label; };
+  if(enroute||started||completed) mark(otw,'On my way');
+  if(started||completed) mark(st,'Started');
+  if(completed) mark(dn,'Done');
 }
 
 function completeFlow(){
