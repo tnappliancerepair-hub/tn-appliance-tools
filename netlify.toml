@@ -190,3 +190,10 @@
   # lands its drafts, so it picks them up on the next fire). colony-watchdog
   # keeps the :00 mark to itself.
   schedule = "4-59/15 * * * *"
+
+# Amazon/AWS API-access email watcher — scans the Gmail inbox every 30 min for the
+# Amazon Business / AWS Ordering-API approval email and texts Teddy the moment it
+# lands, so he doesn't have to babysit his inbox waiting on API access. Dedups on
+# alerted message IDs. Reuses the pollers' Gmail OAuth.
+[functions."amazon-api-watch"]
+  schedule = "*/30 * * * *"
