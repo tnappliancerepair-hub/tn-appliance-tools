@@ -497,8 +497,8 @@ function lifecycleStamp(){
 }
 
 function wireActions(){
-  document.getElementById('a-otw').onclick=()=>lifecycle('tech_on_the_way','On-my-way sent ✓');
-  document.getElementById('a-start').onclick=()=>lifecycle('tech_job_started','Job started ✓');
+  document.getElementById('a-otw').onclick=()=>lifecycle('tech_on_the_way','On-my-way sent ✓','en_route');
+  document.getElementById('a-start').onclick=()=>lifecycle('tech_job_started','Job started ✓','in_progress');
   document.getElementById('a-done').onclick=completeFlow;
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
@@ -575,11 +575,27 @@ async function logTechAddon(b){
   }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
 }
 
-async function lifecycle(ep,okMsg){
+// 🔁 ServicePower dispatch status push — SHADOW by default (servicepower-push.js logs what
+// it WOULD send + writes nothing until SERVICEPOWER_PUSH_LIVE=true). Fires as the tech moves
+// the job so the warranty portal updates itself. No-ops for non-ServicePower jobs server-side.
+function isSPJob(){
+  const wc=String((job&&job.warranty_company)||'').toLowerCase();
+  if(/squaretrade|square trade|servicepower|service power|nsa/.test(wc)) return true;
+  const ni=String((job&&job.notes_internal)||'');
+  return /SERVICEPOWER DISPATCH/i.test(ni) || !!(job&&job.claim_number);
+}
+function pushSP(statusKey,notes){
+  try{
+    if(!JOB_ID || !isSPJob()) return;
+    fetch('/.netlify/functions/servicepower-push',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:JOB_ID,status:statusKey,notes:notes||undefined})}).catch(()=>{});
+  }catch(_){}
+}
+async function lifecycle(ep,okMsg,spStatus){
   toast('Sending…');
   try{
     const d=await xanoPost(ep,{job_id:JOB_ID,technician_id:TECH_ID});
-    if(d.success){ toast(okMsg); loadJob(); }
+    if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); loadJob(); }
     else {
       const e=String(d.error||'failed');
       // Don't scare the tech with raw state-machine errors. A repeat/out-of-order
@@ -672,7 +688,12 @@ function completeFlow(){
         try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){}
       }
       const d=await xanoPost('tech_job_complete',{job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct});
-      if(d.success){ toast('Job completed ✓'); loadJob(); }
+      if(d.success){
+        toast('Job completed ✓');
+        const rpt=(document.getElementById('notes')||{}).value||'';
+        pushSP('completed', rpt ? ('Job completed. '+rpt).slice(0,240) : 'Job completed.');
+        loadJob();
+      }
       else if(/tdr|incomplete|labor|repair|required|diagnos/i.test(String(d.error||''))){
         const nEl=document.getElementById('notes'); if(nEl) nEl.scrollIntoView({behavior:'smooth',block:'center'});
         alert('The office needs a complete report to bill this job:\n\n'+(d.error||'')+'\n\nFill in your report (what you found + fixed + labor), save it, then tap Complete.');

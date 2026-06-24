@@ -74,8 +74,26 @@ exports.handler = async function (event) {
   const callNumber = directCall || spCallNumber(job);
   if (!callNumber) return json(200, { ok: false, error: 'no ServicePower call number (pass call_number, or a job with claim_number/notes)' });
 
+  // The proven write recipe needs CallNumber + FSSCallId + MfgId together. If the caller
+  // didn't pass fss/mfg, resolve them from the dispatch board (getCallInfo) so the live
+  // write is self-sufficient. All our work is MfgId I565, so default mfg to that.
+  let fssCallId = b.fss_call_id || '';
+  let mfgId = b.mfg_id || '';
+  let scheduleDate = b.schedule_date || '';
+  let scheduleTime = b.schedule_time || '';
+  if (!fssCallId || !mfgId) {
+    try {
+      const now = Date.now(); const DAY = 86400000;
+      const f = (ms) => { const d = new Date(ms); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()} 00:00:00`; };
+      const look = await sp.getCallInfo({ fromDateTime: f(now - 75 * DAY), toDateTime: f(now + DAY), callNo: callNumber });
+      const c = (look.calls || []).find((x) => x.call_number === callNumber) || (look.calls || [])[0];
+      if (c) { fssCallId = fssCallId || c.fss_call_id || ''; mfgId = mfgId || c.mfg_id || ''; scheduleDate = scheduleDate || c.schedule_date || ''; scheduleTime = scheduleTime || c.schedule_time || ''; }
+    } catch (_) {}
+  }
+  if (!mfgId) mfgId = 'I565';
+
   const planned = {
-    job_id: jobId || null, call_number: callNumber,
+    job_id: jobId || null, call_number: callNumber, fss_call_id: fssCallId || null, mfg_id: mfgId,
     call_status: map.callStatus, sp_call_status_id: map.spId || null, sub_status: map.sub || null,
     notes: b.notes || '', eta: b.eta || '', completed_date: b.completed || '',
   };
@@ -99,8 +117,8 @@ exports.handler = async function (event) {
   try {
     res = await sp.updateCallInfo({
       callNumber, callStatus: map.callStatus, spCallStatusId: map.spId || undefined,
-      callSubStatus: map.sub || undefined, fssCallId: b.fss_call_id || undefined, mfgId: b.mfg_id || undefined,
-      scheduleDate: b.schedule_date || undefined, scheduleTimePeriod: b.schedule_time || undefined,
+      callSubStatus: map.sub || undefined, fssCallId: fssCallId || undefined, mfgId: mfgId || undefined,
+      scheduleDate: scheduleDate || undefined, scheduleTimePeriod: scheduleTime || undefined,
       notes: b.notes || undefined, completedDate: b.completed || undefined, eta: b.eta || undefined,
     });
   } catch (e) { return json(200, { ok: false, mode: 'live', error: String((e && e.message) || e), planned }); }
