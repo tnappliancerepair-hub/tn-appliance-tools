@@ -68,7 +68,23 @@ Pass **only one** primary key: claimIdentifier, OR claimNumber, OR callNumber, O
 - `netlify/functions/_lib/servicepower-claims.js` — `retrieveClaims({manufacturerName,serviceCenterNumber,claimNumber,callNumber,...})`, normalizes claims (CCYYMMDD→ISO, redacts creds). READ-ONLY.
 - `netlify/functions/servicepower-claims-test.js` — owner-gated (`?secret=`): `?call=` / `?claim=` / `?mfg=` / `?svc=`.
 
+## 🟢 LIVE-TESTED 2026-06-24 — auth + read PROVEN against production
+`servicepower-claims-test` hit `claimworks.servicepower.com:8443` and got real
+`transactionId`s back (e.g. `0061924302TNA00001`) with field-level validation — so the
+**vaulted servicer creds authenticate against the claims service** and READ works end-to-end.
+
+**Three error messages decode the manufacturerName puzzle:**
+- `"Invalid manufacturerName"` → name string not in their manufacturer table (SQUARETRADE, ASURION, I565, SC, MIDEA, ENCOMPASS…).
+- `"Invalid manufacturerName/serviceCenterNumber"` → real manufacturer, but **TNA00001 is NOT contracted under it** (every OEM brand: WHIRLPOOL/GE/LG/SAMSUNG/FRIGIDAIRE/BOSCH/MAYTAG/ALLSTATE/LOWES/HOME DEPOT…).
+- `"No records found."` → **valid AND contracted to us** — just no claim matching the passed key. **Only `NSA` and `SERVICEPOWER` returned this** → those are our two contracted manufacturer names in ServiceClaims.
+- `"One of claimIdentifier or claimNumber or claimBatchNumber/claimSequenceNumber or callNumber must be entered."` → you MUST pass a primary key; can't list-all.
+
+**REMAINING UNKNOWN (the only blocker):** all 145 of our dispatches are MfgId **`I565`** / warranty **`SC`**.
+Retrieving 10 different CLAIMED calls by `callNumber` under both NSA and SERVICEPOWER → "No records found".
+So the claim is keyed by a **claimNumber / claimIdentifier**, or by a **callNumber in a different format** than the dispatch call number (dispatch call e.g. `098149274130`; FSS id `49826309` also returned nothing). 
+**→ Need ONE real claim from the ServicePower claims portal: its `manufacturerName` + `claimNumber` (or the exact `callNumber` shown on the claim).** Then retrieval returns the full status + payment breakdown and we wire the sync.
+
 ## Next
-- Live test: retrieve a real completed ServicePower job's claim by `callNumber` → confirm auth + see status/payment shape.
-- Then wire a `servicepower-claims-sync` poller: for each completed SP job, pull claim status + paidTotal → reconcile our warranty-payment tracking (replaces Danielle checking the portal).
-- **Claims SUBMISSION** (v1.10 guide, separate endpoint `/services/claim/v1/submission` likely) — shadow-first, only after retrieval proves the auth + we've confirmed required fields. Do NOT submit a live claim without Teddy's confirm on a real job.
+- Get one real claim's manufacturerName + claimNumber from the portal → confirm retrieval returns claim+payment data.
+- Wire `servicepower-claims-sync` poller: for each completed SP job, pull claim status + paidTotal → reconcile warranty payments (replaces Danielle checking the portal).
+- **Claims SUBMISSION** (v1.10 guide, separate endpoint) — shadow-first, only after retrieval is fully proven. Do NOT submit a live claim without Teddy's confirm on a real job.
