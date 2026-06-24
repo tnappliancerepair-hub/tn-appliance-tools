@@ -37,6 +37,20 @@ Every operation takes a **`UserInfo`** complex type: **`UserID`**, **`Password`*
   `UserInfo{UserID,Password,SvcrAcct}` · `CallNumber` · `MfgId` · `FSSCallId` · `ScheduleDate` · `ScheduleTimePeriod` · `ProbelmDesc` *(their typo — keep)* · `CallStatus` · **`SPCallStatusID`** · `CallSubStatus` · `SPCallSubStatusID` · `Remarks{NotesDate,Notes,AddedBy}` · `ETA` · `ETF` · `CompletedDate`.
   Response: `ResponseInfo{erroroccurred, ackmessage, updatedate, ...}`.
 
+## Standard job process flow (v2.8 guide §6.2) + regional URLs
+Flow: **poll `getCallInfo`** (list available jobs) → getCallInfo/getCallAddresses/getCallAttributes/getCallNotes/getProductCoverage for detail → **`updateCallInfo`** to (a) ACCEPT or REJECT the job, (b) UPDATE status as work progresses, (c) mark COMPLETE. *"It is recommended getCallInfo runs at regular intervals throughout the day to obtain updated jobs."* → so our wiring = a scheduled poller (getCallInfo) + status pushes (updateCallInfo) on our job-lifecycle events.
+- **Region-split URLs (we're North America):** staging `fssstag.servicepower.com` ✓ (tested), production `fss.servicepower.com` ✓ (connector default). (EU = fss-stg.hostedservicepower.eu / fss.servicepower.eu — N/A for us.)
+- **FASTEST way to get the status-code values:** call **`getCallInfo`** live → returns our real work orders WITH their current SPCallStatusID values (shows the codes in use) AND validates the vaulted creds authenticate. Beats hunting the 95-page image PDF. (Read-only, safe. Needs getCallInfo request schema from the WSDL + production env.)
+
+## 🚨 CREDENTIALS — the vaulted UserID is likely WRONG (v2.8 §7.2)
+The getCallInfo param table: **UserId** (req, **max length 10**, *"Provided in the initial invitation email"*), **Password** (req, **max 10**, *"Initially provided in the invitation email, can be updated in the ServiceDispatch UI"*), **SvrAcct** (req, 10, servicer account #). → **The API UserID is a SHORT (≤10-char) ServiceDispatch ID from the registration/welcome email — NOT the gmail login.** We vaulted `SERVICEPOWER_USER_ID=tnappliancerepair@gmail.com` (27 chars) = almost certainly wrong. **FIX: get the ServiceDispatch User ID + password from the "Welcome to ServicePower / Here is Your Temporary Password" registration emails (guide Figures 1-3) and re-vault.** SvrAcct = TNA00001.
+
+## Status codes (v2.8 §7.4)
+- **Main `CallStatus`:** OPEN · ACCEPTED · COMPLETED · REJECTED · RESCHEDULED · CANCELED · CLAIMED. (`SPCallStatusID` = numeric id for these.)
+- **Sub-status** (`CallSubStatus` / `SPCallSubStatusID`): "as outlined in §13.4", **mapped per servicer/client** → finer granularity (en route/arrived/parts/etc.). Get §13.4 later, or read live values via getCallInfo.
+- **Process flow (§6.2):** poll getCallInfo (jobs OPEN) → updateCallInfo to ACCEPT → updateCallInfo to update status as work progresses → updateCallInfo to mark COMPLETE. (Reject = updateCallInfo REJECTED.)
+- **getCallInfo request:** `getCallInfoSearch{ UserInfo{UserID,Password,SvcrAcct}, FromDateTime, ToDateTime, Callno }`; dates `mm/dd/yyyy HH:mm:ss`. **Response CallInfo** fields incl. CallNumber, FSSCallId, WarrantyType, ServiceType, ScheduleDate, ProblemType, ProbelmDesc, **CallStatus**, **SPCallStatusID**, CallSubStatus, SPCallSubStatusID, ConsumerInfo{name/address/phone}, ProductInfo{brand/model/serial}.
+
 ## Status / next
 - Connector BUILT (dark): `netlify/functions/_lib/servicepower.js` (`getTestService` + `updateCallInfo` + SOAP envelope, UserInfo auth) + `servicepower-test.js` (owner-gated connectivity check).
 - **TWO things to go live:** (1) **the `SPCallStatusID` status-code values** from the **Dispatch Web Service Interface v2.8** guide (PDF in the HUB) → map our lifecycle (en route / arrived / in progress / parts ordered / complete) to those IDs; (2) **vault `SERVICEPOWER_*` creds** (UserID, Password, SvcrAcct=TNA00001, ENV). Then `servicepower-test` for connectivity → a `getCallInfo` read to confirm auth → first real `updateCallInfo`.

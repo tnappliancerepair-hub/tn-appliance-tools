@@ -97,4 +97,26 @@ async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, sche
   return soapCall(inner, '');
 }
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, updateCallInfo, NS };
+// Poll for jobs / read a call's current status (validates creds + reveals live
+// SPCallStatusID values). Request: getCallInfoSearch{ UserInfo, FromDateTime, ToDateTime, Callno }.
+// Dates: "mm/dd/yyyy HH:mm:ss". Response CallInfo includes CallStatus + SPCallStatusID.
+async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<impl:${tag}>${esc(v)}</impl:${tag}>`);
+  const inner = `<impl:getCallInfoSearch>${ui}`
+    + f('FromDateTime', fromDateTime) + f('ToDateTime', toDateTime) + f('Callno', callNo)
+    + `</impl:getCallInfoSearch>`;
+  const r = await soapCall(inner, '');
+  // surface the status fields if present
+  const codes = [];
+  const re = /<[^>]*CallStatus[^>]*>([\s\S]*?)<\/[^>]*CallStatus>/gi;
+  let m; while ((m = re.exec(r.raw || ''))) codes.push(m[1].trim());
+  r.call_statuses_seen = codes.slice(0, 20);
+  return r;
+}
+
+// MAIN CallStatus vocabulary (from v2.8 §7.4): OPEN, ACCEPTED, COMPLETED, REJECTED,
+// RESCHEDULED, CANCELED, CLAIMED. Sub-statuses (SPCallSubStatusID) are per servicer/client (§13.4).
+const CALL_STATUS = ['OPEN', 'ACCEPTED', 'COMPLETED', 'REJECTED', 'RESCHEDULED', 'CANCELED', 'CLAIMED'];
+
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, CALL_STATUS, NS };
