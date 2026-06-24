@@ -108,11 +108,8 @@ async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
     + f('FromDateTime', fromDateTime) + f('ToDateTime', toDateTime) + f('Callno', callNo)
     + `</impl:getCallInfoSearch>`;
   const r = await soapCall(inner, '');
-  // surface the status fields if present
-  const codes = [];
-  const re = /<[^>]*CallStatus[^>]*>([\s\S]*?)<\/[^>]*CallStatus>/gi;
-  let m; while ((m = re.exec(r.raw || ''))) codes.push(m[1].trim());
-  r.call_statuses_seen = codes.slice(0, 20);
+  r.calls = parseCalls(r.raw || '');
+  r.call_statuses_seen = [...new Set(r.calls.map((c) => c.status).filter(Boolean))];
   return r;
 }
 
@@ -120,4 +117,27 @@ async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
 // RESCHEDULED, CANCELED, CLAIMED. Sub-statuses (SPCallSubStatusID) are per servicer/client (§13.4).
 const CALL_STATUS = ['OPEN', 'ACCEPTED', 'COMPLETED', 'REJECTED', 'RESCHEDULED', 'CANCELED', 'CLAIMED'];
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, CALL_STATUS, NS };
+// Parse a getCallInfo SOAP response into a clean list of jobs.
+function _tag(b, n) { const m = b.match(new RegExp(`<${n}(?:\\s[^>]*)?>([\\s\\S]*?)</${n}>`, 'i')); return m ? m[1].trim() : ''; }
+function parseCalls(raw) {
+  const out = [];
+  const re = /<CallInfo\b[^>]*>([\s\S]*?)<\/CallInfo>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) {
+    const b = m[1];
+    out.push({
+      call_number: _tag(b, 'CallNumber'), fss_call_id: _tag(b, 'FSSCallId'),
+      status: _tag(b, 'CallStatus'), sp_status_id: _tag(b, 'SPCallStatusID'),
+      sub_status: _tag(b, 'CallSubStatus'), sp_sub_status_id: _tag(b, 'SPCallSubStatusID'),
+      first_name: _tag(b, 'ConsumerFirstName'), last_name: _tag(b, 'ConsumerLastName'),
+      city: _tag(b, 'PostcodeLevel3'), state: _tag(b, 'PostcodeLevel1'), zip: _tag(b, 'Postcode'),
+      brand: _tag(b, 'SPBrandDesc'), product: _tag(b, 'SPProductDesc'), model: _tag(b, 'MobelNo'),
+      problem: _tag(b, 'ProbelmDesc'), warranty_type: _tag(b, 'WarrantyType'), service_type: _tag(b, 'ServicetType'),
+      schedule_date: _tag(b, 'ScheduleDate'), schedule_time: _tag(b, 'ScheduleTimePeriod'),
+      created_on: _tag(b, 'CallCreatedOn'),
+    });
+  }
+  return out;
+}
+
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, CALL_STATUS, NS };
