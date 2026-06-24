@@ -51,7 +51,7 @@ exports.handler = async function (event) {
     needs_accept: needsAccept.map((j) => ({ call: j.call_number, who: `${j.first_name} ${j.last_name}`.trim(), appliance: `${j.brand} ${j.product}`.trim(), city: j.city, state: j.state })),
     scheduled_in_past_not_done: scheduledPast.map((j) => ({ call: j.call_number, who: `${j.first_name} ${j.last_name}`.trim(), sched: j.schedule_date, status: j.status })),
     jobs: jobs.map((j) => ({
-      call: j.call_number, status: j.status, sub: j.sub_status, sp_id: j.sp_status_id,
+      call: j.call_number, fss: j.fss_call_id, mfg: j.mfg_id, status: j.status, sub: j.sub_status, sp_id: j.sp_status_id,
       who: `${j.first_name} ${j.last_name}`.trim(), city: j.city, state: j.state,
       appliance: `${j.brand} ${j.product}`.trim(), model: j.model,
       sched: j.schedule_date, window: j.schedule_time, warranty: j.warranty_type,
