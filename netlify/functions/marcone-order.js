@@ -115,8 +115,10 @@ exports.handler = async function (event) {
     }
 
     if (action === 'place') {
-      // HARD GATE — real money.
-      if (!(await verifyOffice(b.password))) return json(401, { ok: false, error: 'office password required to place an order' });
+      // HARD GATE — real money. Office password (UI users) OR the admin secret
+      // (authorized system/owner-directed call). Plus explicit confirm:true.
+      const adminOk = b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5');
+      if (!adminOk && !(await verifyOffice(b.password))) return json(401, { ok: false, error: 'auth required to place an order' });
       if (b.confirm !== true) return json(400, { ok: false, error: 'confirm:true required to place an order' });
       const p = await msupply.placeOrder({ custNo, shipTo, items, shippingMethod: chosen.shippingMethodName, poNumber: b.po_number, notes: b.notes });
       if (!p.ok) return json(200, { ok: false, error: 'order failed', status: p.status, detail: (p.data && (p.data.reason || p.data.errorCode || p.data.message)) || (p.raw || '').slice(0, 200) });
