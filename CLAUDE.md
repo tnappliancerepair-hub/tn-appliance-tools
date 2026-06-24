@@ -32,6 +32,27 @@ Current state found tonight: **office-nav.js has 16 flat pills** but its own com
 - **Dark piece 2 — `ghost-confirm-slot.js`** (text the customer to confirm the DAY → then lock it) **exists as a function but is called from NO page.** Half-built.
 - **To close the loop (when Teddy wants autonomous, not just suggest):** re-arm `intake-collector` (verify it texts each job ONCE first) + wire `ghost-confirm-slot` into the board's "✓ Use this" path so accepting a ghost texts the customer to confirm the day before it locks. That turns "Ant suggests" into "Ant schedules, customer already confirmed."
 
+### 🛒 SELF-CHECKOUT — end-to-end audit (done tonight 6/24). Wired 1→6, last hop still MANUAL.
+Teddy asked to "confirm self-checkout is done end to end (Teddy Tool + Marcone API + Stripe)." Traced the real wiring. **Stages 1-6 are wired; stage 7 (the auto-order to Marcone) is NOT closed — the loop still needs a hand.**
+- 1. **$50 Quick Check intake** (video + model pic) — ✅ `appliance-ai.html` → `verify-quickcheck` (proven live).
+- 2. **Teddy Tool diagnose** — ✅ `teddy-tdr-tool.html` writes `oem_part_number`/`amazon_part_number` + both `*_our_cost_cents` onto the `tdr_failure` (L409-412).
+- 3. **Live Marcone price into Teddy Tool** — ✅ `marconePrice()` pulls real cost/stock → fills cost fields → saves to failure (1 tap, not yet zero-touch).
+- 4. **4 options to customer** (OEM/Amz × DIY/install) — ✅ `cash-tdr-customer.html` renders all 4; prices compute from the failure costs.
+- 5. **Customer picks → Stripe checkout** — ✅ `qc_create_checkout_session` → Stripe.
+- 6. **Paid → `parts_orders` row, ship-to-customer** — ✅ `api/cash_tdr/stripe_checkout_session_completed_POST.xs` adds a row per pick (`ship_to:"customer"`, supplier marcone/amazon, service address) at `order_status:"to_order"`.
+- 7. **Row → auto-order on Marcone → ships to door** — ❌ **NOT BUILT.** Row sits at `to_order` and waits for a human. Only working place-path = the manual "📦 Order from Marcone" button in Teddy Tool (proved with order #74992380).
+- **TWO concrete blockers to auto-close:** (a) **no auto-placer** — nothing watches paid + ship-to-customer + marcone + not-yet-placed rows and fires `marcone-order place`; (b) **real bug in the seam** — the parts_orders row writes `part_number: "TBD"` and does NOT copy the `oem_part_number` already resolved on the failure, so even an auto-placer wouldn't know what to order.
+- **DEPLOY CAVEAT (can't verify from here):** the cash_tdr XS endpoints (`qc_create_checkout_session`, `stripe_checkout_session_completed`) only deploy via Mac CLI — repo code is correct but live-on-Xano is unconfirmed. Needs a `xano workspace push -i "api/**/{qc_create_checkout_session,stripe_checkout_session_completed}*" --force` + ONE real test pick to truly call 5-6 confirmed.
+- **HOW TO CLOSE STAGE 7 (I can build this from here — it's a Netlify scheduled fn, no XS deploy):** new auto-placer cron that watches PAID + ship-to-customer + marcone + not-yet-placed `parts_orders`, and for each calls `marcone-order` `action=place` (admin secret + `confirm:true`). **Route AROUND the "TBD" bug**: when `part_number=="TBD"`, read the linked `tdr_failure.oem_part_number` before placing. Idempotent (mark row placed / store order#), only-paid, only-customer-DIY, logs every order, kill switch. The XS `part_number:"TBD"` fix is the proper long-term fix (needs a Mac push) but the auto-placer doesn't have to wait on it.
+
+### ✅ TOMORROW'S PROJECTS (Teddy, 6/24 late night — priority order)
+1. **Declutter office + tech dashboards** (Teddy's #1). Ask Danielle her 3 questions FIRST → nav rebuild (6 daily + `⋯ More`) → dead-page sweep → tech-job.html diet. Philosophy above: SIMPLE = fewer choices, not fewer powers; one-in-one-out; "what do I do next?" not "what can I do?"
+2. **Close the self-checkout loop** — build the Netlify auto-placer (stage 7 above) so a paid customer-DIY order auto-ships from Marcone with NO human. Verify the cash_tdr XS endpoints are live (Mac push + 1 test pick).
+3. **Ghost scheduling — close the loop (when ready)** — re-arm `intake-collector` (verify ONE text/job) + wire `ghost-confirm-slot` into "✓ Use this."
+4. Carry-overs from the 6/24 build log below: cash-TDR 4-options fully auto-compute from Marcone cost (semi-done — Teddy taps the price button today); order button on the office To-Order board; Marcone email to Tim (MarconeAI API access); Reliable connector; wire Amazon when the watcher fires.
+
+> **NORTH STAR reminder (why all of this matters — Teddy, 6/24):** the trade hides info to protect markup (saw a tech in Appliance Pro Talk afraid to even ASK for a model # so the customer couldn't price-shop the part). Ant is the OPPOSITE on purpose — hand the customer the 4 honest options, ship them the part if they want to DIY, don't even check it. **Transparency is the strategy, not a weakness.** The model # isn't the asset — the trust is. That's the moat AND the decent thing, same move.
+
 ---
 
 ## 📞🔧 2026-06-24 — "TALK TO A HUMAN" PHONE FIX + MARCONE PARTS API LIVE (incl. AUTO-ORDERING) + CPSC RECALLS + TECH HELP (READ FIRST)
