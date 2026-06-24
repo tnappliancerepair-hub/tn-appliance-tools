@@ -92,6 +92,10 @@ exports.handler = async function (event) {
   })).filter((p) => p.number || p.description);
 
   const laborHours = Number(tdr.labor_time_hours || 0);
+  // SquareTrade labor rate: $150 first/only trip, $105 each additional (return) trip.
+  // tripNum from ?trip= override, else a job trip/visit field, else 1.
+  const tripNum = Number(q.trip || job.trip_count || job.visit_number || job.trip_number || 1) || 1;
+  const laborAmount = tripNum > 1 ? 105 : 150;
 
   const claim = {
     manufacturerName: 'SQUARE TRADE',
@@ -110,7 +114,8 @@ exports.handler = async function (event) {
     dateStarted: ymdNum(job.job_started_at || job.scheduled_start), timeStarted: hmNum(job.job_started_at),
     dateCompleted: ymdNum(job.job_completed_at), timeCompleted: hmNum(job.job_completed_at),
     totalRepairMinutes: Math.round(laborHours * 60), serviceHours: laborHours,
-    laborAmount: Number(job.labor_amount || tdr.labor_amount || 0),
+    tripCount: tripNum,
+    laborAmount,   // $150 first/only trip, $105 each additional
     partsAmount: parts.reduce((a, p) => a + Number(p.priceRequested || 0), 0),
     authorizationNumber: job.authorization_number || '',
     serviceContractNumber: job.service_contract_number || '',
@@ -126,8 +131,8 @@ exports.handler = async function (event) {
   if (!claim.brandName) needed.push('brand');
   if (!claim.modelNumber) needed.push('model number');
   if (!claim.dateCompleted) needed.push('job_completed_at (mark the job complete first)');
-  if (!claim.laborAmount) needed.push('labor $ amount (SquareTrade warranty rate — where stored?)');
   if (!performed) needed.push('service performed (TDR repair_completed)');
+  needed.push('⭐ PARTS USED-vs-RETURN: each part needs returned Y/N (the SquareTrade biggie) — surface the picked parts in the TDR so the tech marks USED or RETURN');
   needed.push('OFFICIAL CODE LISTS → confirm defect/repair/category + part fault/job codes (currently seeded)');
 
   return json(200, {
