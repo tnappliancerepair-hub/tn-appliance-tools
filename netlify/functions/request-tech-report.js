@@ -33,7 +33,11 @@ exports.handler = async function (event) {
   } catch (_) { return j(200, { ok: false, error: 'lookup_failed' }); }
 
   const job = d.job || {}, appl = d.appliance || {}, tdr = d.tdr || {}, cust = d.customer || {};
-  const techId = Number(job.technician_id || 0);
+  // get_job_for_dashboard returns the assigned tech as a separate d.tech object, and
+  // job.technician_id often comes back null in that response — so fall back to tech.id
+  // (same resolution the board drawer uses). Without this, an assigned job reads as "no tech."
+  const techObj = d.tech || {};
+  const techId = Number(job.technician_id || techObj.id || techObj.technician_id || 0);
   const techPhone = TECH_PHONES[techId];
   if (!techPhone) {
     // Clear, actionable message for the office instead of a cryptic code.
@@ -65,6 +69,9 @@ exports.handler = async function (event) {
     `Tap and Ant will call you to finish it (he'll help find the part # too): ${link} ` +
     `— or call when you can. Sooner it's in, sooner it gets processed.`;
 
+  if (b.dryrun === true || b.dryrun === '1') {
+    return j(200, { ok: true, dryrun: true, technician_id: techId, tech_phone_on_file: !!techPhone, customer, missing });
+  }
   let sent = false;
   try { await sendSms(techPhone, body, 'tech', 'report_nudge'); sent = true; } catch (_) {}
   return j(200, { ok: sent, technician_id: techId, customer, missing });
