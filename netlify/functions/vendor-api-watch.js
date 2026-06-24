@@ -21,7 +21,7 @@ const EVENT_LOG = 3;
 const OWNER = '+16154855795';
 
 const QUERY = 'newer_than:45d '
-  + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request") '
+  + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request" OR "write access" OR "update access" OR "read-only" OR "read only" OR spdservice OR updatecallinfo OR "api enabled" OR "enabled write") '
   + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone) '
   // Exclude the already-handled mSupply/Marcone PARTS-API credential email (vaulted +
   // live, order #74992380). A future MarconeAI email has a different subject, so this
