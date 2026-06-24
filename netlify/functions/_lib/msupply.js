@@ -133,4 +133,39 @@ function normalizePart(d) {
   };
 }
 
-module.exports = { getToken, lookupPart, normalizePart, api, baseUrl };
+// Shipping methods for the account (needed: cartorder requires a shippingMethodId).
+async function shippingMethods(custNo, warehouseNumber) {
+  return api('POST', '/orders/getshippingmethods', {
+    custNo: custNo ? Number(custNo) : undefined,
+    warehouseNumber: warehouseNumber ? String(warehouseNumber) : undefined,
+  });
+}
+
+// QUOTE via cart — returns price + delivery charge + ETA. Does NOT place an order.
+async function quoteCart({ custNo, shipTo, items, shippingMethodId, warehouseNumber, poNumber }) {
+  return api('POST', '/orders/cartorder', {
+    custNo: custNo ? Number(custNo) : undefined,
+    poNumber: poNumber || undefined,
+    warehouseNumber: warehouseNumber ? Number(warehouseNumber) : undefined,
+    shipTo, shippingMethodId: Number(shippingMethodId),
+    cartOrderItems: (items || []).map((i) => ({
+      make: i.make, partNumber: i.partNumber, quantity: Number(i.quantity) || 1,
+      warehouseNumber: i.warehouseNumber ? Number(i.warehouseNumber) : undefined, reference: i.reference,
+    })),
+  });
+}
+
+// PLACE the real purchase order (drop-ship to shipTo). Spends money — caller must gate this.
+async function placeOrder({ custNo, shipTo, items, shippingMethod, poNumber, notes }) {
+  return api('POST', '/orders/purchaseorder', {
+    custNo: custNo ? Number(custNo) : undefined,
+    poNumber: poNumber || undefined,
+    shippingMethod: shippingMethod || undefined,
+    shipTo, eP_InternalNotes: notes || undefined,
+    purchaseOrderItems: (items || []).map((i) => ({
+      make: i.make, partNumber: i.partNumber, quantity: Number(i.quantity) || 1, reference: i.reference,
+    })),
+  });
+}
+
+module.exports = { getToken, lookupPart, normalizePart, api, baseUrl, shippingMethods, quoteCart, placeOrder };
