@@ -22,7 +22,11 @@ const OWNER = '+16154855795';
 
 const QUERY = 'newer_than:45d '
   + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request") '
-  + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone)';
+  + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone) '
+  // Exclude the already-handled mSupply/Marcone PARTS-API credential email (vaulted +
+  // live, order #74992380). A future MarconeAI email has a different subject, so this
+  // won't hide the real one we're still waiting on.
+  + '-subject:"mSupply API Credentials"';
 
 function hdr() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null; }
 
