@@ -33,6 +33,7 @@ const STATUS_MAP = {
   rescheduled:{ callStatus: 'RESCHEDULED', spId: '7' },
   canceled:   { callStatus: 'CANCELLED',   spId: '4' },
   rejected:   { callStatus: 'REJECTED',    spId: '6' },
+  note:       { callStatus: null,          spId: null },
 };
 
 function spCallNumber(job) {
