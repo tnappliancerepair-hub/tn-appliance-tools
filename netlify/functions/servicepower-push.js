@@ -98,6 +98,7 @@ exports.handler = async function (event) {
     res = await sp.updateCallInfo({
       callNumber, callStatus: map.callStatus, spCallStatusId: map.spId || undefined,
       callSubStatus: map.sub || undefined,
+      scheduleDate: b.schedule_date || undefined, scheduleTimePeriod: b.schedule_time || undefined,
       notes: b.notes || undefined, completedDate: b.completed || undefined, eta: b.eta || undefined,
     });
   } catch (e) { return json(200, { ok: false, mode: 'live', error: String((e && e.message) || e), planned }); }
