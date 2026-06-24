@@ -670,7 +670,7 @@ async function reqTechReport(jobId){
 function renderDrawer(d){
   const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
   window.__drawerTech=(j.technician_id||(t&&t.id)||0);
-  window.__drawerJob=j; window.__drawerCust=c;
+  window.__drawerJob=j; window.__drawerCust=c; window.__drawerClaim=(j.claim_number||'');
   // Self-checkout (#10): for self-pay jobs, show the one-tap "send their options".
   (function(){ const ct=(j.customer_type||'').toLowerCase(); const cash=ct==='self_pay'||ct==='cash'||ct==='customer_pay';
     const so=document.getElementById('d-sendopt-row'); if(so) so.style.display=cash?'block':'none'; })();
@@ -821,6 +821,17 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
+      <h4>📦 Warranty parts (supplied by warranty co)</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Parts the <b>warranty company ships</b> for this job — auto-pulled from the return-label emails. Mark each <b>used</b> or <b>returned</b> so no part triggers a chargeback.</div>
+      <div id="warr-parts" style="font-size:12px;color:var(--ink2)">Loading…</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input id="wp-part" placeholder="Part #" style="flex:2;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+        <input id="wp-dist" placeholder="Distributor" style="flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+        <button onclick="addWarrantyPart(${jid})" style="padding:9px 12px;border:0;border-radius:8px;background:var(--blue);color:#fff;font-weight:800;cursor:pointer">+ Add</button>
+      </div>
+    </div>
+
+    <div class="dcard">
       <h4>📝 Tech notes</h4>
       <div class="notes-box ${techNote?'':'muted'}">${techNote?esc(techNote):'No tech notes yet — they flow here automatically once the tech writes them.'}</div>
     </div>
@@ -902,6 +913,34 @@ function renderDrawer(d){
     </div>
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
+  loadWarrantyParts(jid, j.claim_number||'');
+}
+
+// 📦 Warranty parts SUPPLIED by the vendor (SquareTrade/Allstate) — auto-pulled from the
+// return-label emails (squaretrade-rma-watch) + manual add. Mark used/returned so no part
+// slips into a chargeback.
+async function loadWarrantyParts(jid, claim){
+  const el=document.getElementById('warr-parts'); if(!el) return;
+  try{
+    const d=await (await fetch('/.netlify/functions/warranty-parts?job_id='+jid+'&claim='+encodeURIComponent(claim||''))).json();
+    const parts=(d&&d.parts)||[];
+    if(!parts.length){ el.innerHTML='No warranty parts yet — they appear automatically when the vendor emails a return label, or add one below.'; return; }
+    el.innerHTML=parts.map(p=>{
+      const tr=p.status==='to_return', ret=p.status==='returned';
+      const badge=ret?'<span style="color:#0a7d33;font-weight:800">✓ returned</span>':(tr?'<span style="color:#b3690a;font-weight:800">↩ to return</span>':'<span style="color:#555;font-weight:700">used</span>');
+      const info=[p.distributor,p.return_desc,p.tracking?('FedEx '+p.tracking):''].filter(Boolean).join(' · ');
+      const btns=tr?`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','returned')" style="padding:5px 9px;border:0;border-radius:7px;background:#0a7d33;color:#fff;font-size:11px;font-weight:800;cursor:pointer">Mark returned</button>`:(p.status==='used'?'':`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','used')" style="padding:5px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:11px;cursor:pointer">Used</button>`);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div><div style="font-size:11px;color:var(--ink2)">${esc(info)||'—'}</div></div><div>${btns}</div></div>`;
+    }).join('');
+  }catch(_){ el.innerHTML='<span style="color:#b00">Could not load.</span>'; }
+}
+async function addWarrantyPart(jid){
+  const pe=document.getElementById('wp-part'), de=document.getElementById('wp-dist');
+  const part=(pe&&pe.value.trim())||''; if(!part){toast('Enter a part #');return;}
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',job_id:jid,claim:window.__drawerClaim||'',part:part,distributor:(de&&de.value.trim())||'',status:'to_return'})}); if(pe)pe.value='';if(de)de.value=''; toast('Added ✓'); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+}
+async function markWarrantyPart(jid,part,status){
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status})}); toast(status==='returned'?'Marked returned ✓':'Marked used ✓'); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
 }
 
 async function saveJobInfo(id){
