@@ -101,6 +101,14 @@ exports.handler = async function (event) {
 
   const seen = await seenIds();
   const fresh = parsed.filter((p) => !seen.has(p.key));
+
+  // BASELINE mode: mark the current backlog as already-seen WITHOUT recording return-tos
+  // or texting, so only genuinely-new labels alert from here forward. Run once.
+  if ((event.queryStringParameters || {}).baseline === '1') {
+    const ids = [...seen, ...parsed.map((p) => p.key)].slice(-400);
+    try { await crud.logEvent('sp_rma_seen', { ids, baseline: true, at_ms: Date.now() }); } catch (_) {}
+    return json(200, { ok: true, baselined: parsed.length, note: 'current labels marked seen; only NEW ones will alert' });
+  }
   // record each fresh return-to-do durably
   for (const p of fresh) {
     try {
