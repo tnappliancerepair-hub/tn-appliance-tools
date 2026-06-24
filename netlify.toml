@@ -197,3 +197,10 @@
 # alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."amazon-api-watch"]
   schedule = "*/30 * * * *"
+
+# Google API-access email watcher — scans Gmail every 30 min for the Business Profile
+# API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
+# Access decision, and texts Teddy the moment one lands so he doesn't babysit his
+# inbox. Dedups on alerted message IDs. Reuses the pollers' Gmail OAuth.
+[functions."google-api-watch"]
+  schedule = "*/30 * * * *"

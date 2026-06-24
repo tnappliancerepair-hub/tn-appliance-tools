@@ -59,12 +59,16 @@ Standing tracker. Each gated API = a superpower we rent. Request access EARLY (c
 
 | Key | Unlocks | Gate / status | Vault names |
 |---|---|---|---|
-| **Google Business Profile API** | Ant READS + REPLIES to Google reviews | Access-request form @ developers.google.com/my-business (days-wks). Teddy starting 6/25. | `GBP_CLIENT_ID` `GBP_CLIENT_SECRET` (+ refresh token minted) |
+| **Google Business Profile API** | Ant READS + REPLIES to Google reviews | **✅ REQUEST SUBMITTED 6/24** via support.google.com/business/contact/api_default ("Application for Basic API Access"). **Case ID 4-9470000004382**, ETA **7-10 business days**. Shared GCP project **`project-fb170b47-a89e-4176-9d1`** (project # **1340849724014**), signed in as the reviews-managing Google acct. ⏳ AFTER APPROVAL: enable Google My Business API + OAuth Client ID/Secret → vault → Claude mints refresh token. | `GBP_CLIENT_ID` `GBP_CLIENT_SECRET` (+ refresh token minted) |
 | **Google Ads API** | Ant automates/adjusts/strategizes ad campaigns (for when we run ads) | **6/24 PROGRESS:** Manager acct **"ANT-Manager"** created (MCC id **160-509-9162**) → API Center dev token **ACQUIRED + in vault**. ⏳ STILL NEEDED: (a) confirm **Basic Access** form submitted (token is TEST-only until approved, 1-few days); (b) OAuth Client ID/Secret from a Google Cloud project → vault; (c) Claude mints refresh token. | ✅ `GOOGLE_ADS_DEVELOPER_TOKEN` ✅ `GOOGLE_ADS_MANAGER_ID`(160-509-9162) · ⏳ `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` |
 | **Amazon Business Ordering API** | Auto-ship aftermarket (Amazon-tier) parts to customer | Submitted 6/20; `amazon-api-watch` Gmail watcher armed (texts Teddy when the approval email lands). 0 matches as of 6/24. | `AMAZON_*` (when it lands) |
 | *(LIVE already)* **Marcone / mSupply** | OEM parts cost/stock + drop-ship ordering | ✅ in vault (`MSUPPLY_*`), proven (order #74992380) | — |
 
 **Footgun reminder:** Google Ads API (campaign automation) ≠ Google Business Profile API (reviews) — two different products/menus. Don't chase the Ads *API* / developer token for reviews. And Local Services Ads (the "Google Guaranteed" lead engine, growth lever #2) is a dashboard SIGNUP, not an API — no dev token needed for it.
+
+**📬 Inbox watchers armed (so Teddy never babysits his inbox):** `amazon-api-watch` (Amazon Ordering API) + `google-api-watch` (Business Profile API allowlist case 4-9470000004382 AND Google Ads Basic Access) — both scheduled */30 in netlify.toml, reuse the pollers' Gmail OAuth, text Teddy the moment an approval lands, dedup on message IDs. Test with `?dryrun=1`. **When an approval lands → OAuth creds to the vault → Claude mints refresh token + wires it.**
+
+**✅ LOCAL SERVICES ADS (Google Guaranteed) is LIVE + verified (seen 6/24):** billing, insurance, background check, GBP-link, bidding all complete — the "Google Verified" pay-per-lead engine (growth lever #2) is running. LSA leads come in as calls/messages (Ant answers every call = conversion edge), reviews boost LSA ranking (so the review-reply agent feeds it), and bad leads can be DISPUTED in the LSA dashboard for a refund. NOT an API — dashboard product.
 
 ---
 
