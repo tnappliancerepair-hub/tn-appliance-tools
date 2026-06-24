@@ -60,12 +60,16 @@ async function soapCall(innerXml, soapAction) {
   const text = await r.text();
   const pick = (tag) => { const m = text.match(new RegExp(`<[^>]*${tag}[^>]*>([\\s\\S]*?)</[^>]*${tag}>`, 'i')); return m ? m[1].trim() : null; };
   const fault = /<(soap:)?Fault>/i.test(text);
+  const errOccurred = pick('erroroccurred');
   return {
-    ok: r.ok && !fault,
+    ok: r.ok && !fault && String(errOccurred || '').toUpperCase() !== 'Y',
     status: r.status,
     fault,
-    error_occurred: pick('erroroccurred'),
+    error_occurred: errOccurred,
     ack: pick('ackmessage'),
+    err_code: pick('Code'),          // errordata.Code — the REAL reason
+    err_desc: pick('Description'),    // errordata.Description
+    err_cause: pick('Cause'),        // errordata.Cause
     fault_string: pick('faultstring'),
     raw: text,
   };

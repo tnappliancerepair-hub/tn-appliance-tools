@@ -23,15 +23,16 @@ function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringif
 
 // Ant lifecycle → ServicePower CallStatus (+ SPCallStatusID where known from live reads).
 // SPCallStatusID numbers get filled in as we observe them; CallStatus name is the anchor.
+// Main CallStatus IDs confirmed from v2.8 §14.3: OPEN=2 ACCEPTED=3 CANCELLED=4 COMPLETED=5 REJECTED=6 RESCHEDULED=7
 const STATUS_MAP = {
-  accepted:   { callStatus: 'ACCEPTED',    spId: '3' },   // confirmed live (Robert Hill)
+  accepted:   { callStatus: 'ACCEPTED',    spId: '3' },
   scheduled:  { callStatus: 'ACCEPTED',    spId: '3' },
   en_route:   { callStatus: 'ACCEPTED',    spId: '3', sub: 'EN ROUTE' },
-  in_progress:{ callStatus: 'ACCEPTED',    spId: '3', sub: 'IN PROGRESS' },
-  completed:  { callStatus: 'COMPLETED',   spId: '' },     // spId TBD from a completed-job read
-  rescheduled:{ callStatus: 'RESCHEDULED', spId: '' },
-  canceled:   { callStatus: 'CANCELED',    spId: '' },
-  rejected:   { callStatus: 'REJECTED',    spId: '' },
+  in_progress:{ callStatus: 'ACCEPTED',    spId: '3', sub: 'ON SITE' },
+  completed:  { callStatus: 'COMPLETED',   spId: '5' },
+  rescheduled:{ callStatus: 'RESCHEDULED', spId: '7' },
+  canceled:   { callStatus: 'CANCELLED',   spId: '4' },
+  rejected:   { callStatus: 'REJECTED',    spId: '6' },
 };
 
 function spCallNumber(job) {
@@ -102,6 +103,6 @@ exports.handler = async function (event) {
       notes: b.notes || undefined, completedDate: b.completed || undefined, eta: b.eta || undefined,
     });
   } catch (e) { return json(200, { ok: false, mode: 'live', error: String((e && e.message) || e), planned }); }
-  try { await crud.logEvent('servicepower_push_sent', { ...planned, soap_status: res.status, ok: res.ok, ack: res.ack, at_ms: Date.now() }); } catch (_) {}
-  return json(200, { ok: res.ok, mode: 'live', planned, soap_status: res.status, fault_string: res.fault_string, detail: (res.raw || '').slice(0, 400) });
+  try { await crud.logEvent('servicepower_push_sent', { ...planned, soap_status: res.status, ok: res.ok, ack: res.ack, err_code: res.err_code, err_desc: res.err_desc, at_ms: Date.now() }); } catch (_) {}
+  return json(200, { ok: res.ok, mode: 'live', planned, soap_status: res.status, error_occurred: res.error_occurred, ack: res.ack, err_code: res.err_code, err_desc: res.err_desc, err_cause: res.err_cause, fault_string: res.fault_string, detail: (res.raw || '').slice(0, 500) });
 };
