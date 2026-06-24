@@ -30,17 +30,34 @@ function bodyText(payload) {
   return walk(payload) || '';
 }
 
-function parseRma(subject, body) {
+// Returns an ARRAY of return-records — one per part. Handles single-part emails AND
+// multi-part emails (several Parts Information blocks). RMA/tracking can be shared across
+// the email (one shipment) or per-part; we pair by order and fall back to the first.
+function parseReturns(subject, body) {
   const pick = (re, s) => { const m = (s || '').match(re); return m ? m[1].trim() : ''; };
-  return {
-    rma: pick(/RMA Number #\[?([0-9]+)\]?/i, subject) || pick(/RMA #\s*is\s*([0-9]+)/i, body),
-    claim: pick(/Claim #\[?claim_([0-9]+)\]?/i, subject) || pick(/Claim Number:\s*([0-9]+)/i, body),
-    tracking: pick(/tracking #?\s*is\s*([0-9]{8,})/i, body),
-    distributor: pick(/Distributor:\s*([A-Za-z0-9 .,&\/\-]+?)\s*(?:Part Number|$)/i, body),
-    part: pick(/Part Number:\s*([A-Za-z0-9.\/\-]+)/i, body),
-    return_desc: pick(/Return Description:\s*([^\n\r]+)/i, body),
-    customer: pick(/Customer Name:\s*([^\n\r]+)/i, body),
-  };
+  const all = (re, s) => { const out = []; let m; const r = new RegExp(re.source, 'gi'); while ((m = r.exec(s || ''))) out.push(m[1].trim()); return out; };
+
+  const claim = pick(/Claim #\[?claim_([0-9]+)\]?/i, subject) || pick(/Claim Number:\s*([0-9]+)/i, body);
+  const customer = pick(/Customer Name:\s*([^\n\r]+)/i, body);
+
+  // RMA # supports dashes (e.g. 10-96069). Prefer body occurrences (one per part); else subject.
+  let rmas = all(/RMA\s*#?\s*is\s*([A-Za-z0-9\-]+)/i, body);
+  if (!rmas.length) { const sr = pick(/RMA Number #\[?([A-Za-z0-9\-]+)\]?/i, subject); if (sr) rmas = [sr]; }
+  const trackings = all(/tracking\s*#?\s*is\s*([0-9]{8,})/i, body);
+
+  // each part block: Distributor … Part Number … (Return Description …)
+  const blocks = [];
+  const bre = /Distributor:\s*([A-Za-z0-9 .,&\/\-]+?)\s*Part Number:\s*([A-Za-z0-9.\/\-]+)(?:[\s\S]{0,160}?Return Description:\s*([^\n\r]+))?/gi;
+  let bm;
+  while ((bm = bre.exec(body))) blocks.push({ distributor: bm[1].trim(), part: bm[2].trim(), return_desc: (bm[3] || '').trim() });
+
+  if (!blocks.length) return [];
+  return blocks.map((b, i) => ({
+    ...b,
+    rma: rmas[i] || rmas[0] || '',
+    tracking: trackings[i] || trackings[0] || '',
+    claim, customer,
+  }));
 }
 
 async function seenIds() {
@@ -67,8 +84,9 @@ exports.handler = async function (event) {
         const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
         const hs = (full.data.payload && full.data.payload.headers) || [];
         const subject = (hs.find((h) => h.name === 'Subject') || {}).value || '';
-        const rec = parseRma(subject, bodyText(full.data.payload));
-        if (rec.rma || rec.claim) parsed.push({ id: m.id, subject, ...rec });
+        const recs = parseReturns(subject, bodyText(full.data.payload));
+        // one entry per part; key = email id + part (so multi-part emails dedup per part)
+        for (const rec of recs) if (rec.part || rec.rma) parsed.push({ id: m.id, key: `${m.id}:${rec.part || rec.rma}`, subject, ...rec });
       } catch (_) {}
     }
   } catch (e) { return json(200, { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }); }
@@ -82,7 +100,7 @@ exports.handler = async function (event) {
   if (dry) return json(200, { ok: true, count: parsed.length, parsed });
 
   const seen = await seenIds();
-  const fresh = parsed.filter((p) => !seen.has(p.id));
+  const fresh = parsed.filter((p) => !seen.has(p.key));
   // record each fresh return-to-do durably
   for (const p of fresh) {
     try {
@@ -95,7 +113,7 @@ exports.handler = async function (event) {
   }
   // remember the message ids (keep last 200)
   if (fresh.length) {
-    const ids = [...seen, ...fresh.map((p) => p.id)].slice(-200);
+    const ids = [...seen, ...fresh.map((p) => p.key)].slice(-400);
     try { await crud.logEvent('sp_rma_seen', { ids, at_ms: Date.now() }); } catch (_) {}
   }
 
