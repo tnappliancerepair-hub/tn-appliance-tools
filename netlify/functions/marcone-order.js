@@ -57,6 +57,15 @@ exports.handler = async function (event) {
   const quantity = Math.max(1, Number(b.quantity) || 1);
   const shipTo = cleanShipTo(b.ship_to);
 
+  // Order status check (no part/address needed).
+  if (action === 'status') {
+    try {
+      const custNo = (await getSecret('MSUPPLY_CUST_NO')) || undefined;
+      const r = await msupply.api('POST', '/orders/orderstatus', { custNo: custNo ? Number(custNo) : undefined, orderNumber: String(b.order_number || '') });
+      return json(200, { ok: r.ok, status: r.status, data: r.data || r.raw });
+    } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+  }
+
   if (!partNumber) return json(400, { ok: false, error: 'part_number required' });
   const miss = missingAddr(shipTo);
   if (miss.length) return json(400, { ok: false, error: 'ship_to missing: ' + miss.join(', ') });
