@@ -98,7 +98,7 @@ exports.handler = async function (event) {
   try {
     res = await sp.updateCallInfo({
       callNumber, callStatus: map.callStatus, spCallStatusId: map.spId || undefined,
-      callSubStatus: map.sub || undefined,
+      callSubStatus: map.sub || undefined, fssCallId: b.fss_call_id || undefined, mfgId: b.mfg_id || undefined,
       scheduleDate: b.schedule_date || undefined, scheduleTimePeriod: b.schedule_time || undefined,
       notes: b.notes || undefined, completedDate: b.completed || undefined, eta: b.eta || undefined,
     });
