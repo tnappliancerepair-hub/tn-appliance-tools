@@ -14,8 +14,8 @@ exports.handler = async function (event) {
   const adminSecret = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== adminSecret) return json(401, { ok: false, error: 'admin secret required (?secret=)' });
 
-  const days = Math.min(60, parseInt(q.days || '21', 10) || 21);
-  const chunk = Math.max(1, Math.min(7, parseInt(q.chunk || '4', 10) || 4));
+  const days = Math.min(60, parseInt(q.days || '45', 10) || 45);
+  const chunk = Math.max(1, Math.min(7, parseInt(q.chunk || '2', 10) || 2));
   const now = Date.now();
   const byCall = new Map();
   const windows = [];
