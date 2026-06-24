@@ -448,12 +448,14 @@ function render(){
       </div>
 
       <div class="card">
-        <h3>🔧 Parts finder <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
+        <h3>🔧 Tech help <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
         <div class="parts-in">
           <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
-          <input id="pf-symptom" placeholder="Part / symptom (e.g. lower ice maker)" value="${esc(problem)}">
+          <input id="pf-symptom" placeholder="Symptom / error code (e.g. F3, not cooling)" value="${esc(problem)}">
         </div>
-        <button class="btn primary" id="pf-go" style="width:100%">Find the part</button>
+        <button class="btn primary" id="dx-go" style="width:100%">🧠 Diagnose / error code</button>
+        <div id="dx-out" style="margin-top:11px"></div>
+        <button class="btn" id="pf-go" style="width:100%;margin-top:9px">🔩 Find the part</button>
         <div id="pf-out" style="margin-top:11px"></div>
         <button class="btn" id="mi-go" style="width:100%;margin-top:9px">📋 Recalls + tech sheets</button>
         <div id="mi-out" style="margin-top:11px"></div>
@@ -500,6 +502,7 @@ function wireActions(){
   document.getElementById('in-photo').onchange=async e=>{ const fs=Array.from(e.target.files||[]); for(const f of fs){ await uploadFile(f,'photo'); } e.target.value=''; };
   const _vidCam=document.getElementById('in-video-cam'); if(_vidCam) _vidCam.onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('in-video').onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
+  document.getElementById('dx-go').onclick=diagnose;
   document.getElementById('pf-go').onclick=findParts;
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
@@ -826,6 +829,39 @@ async function findParts(){
     out.innerHTML=html;
   }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
   finally{ btn.disabled=false; btn.textContent='Find the part'; }
+}
+
+// ── Diagnose / error code: grounded brief (fault codes + our past fixes + similar jobs) ──
+async function diagnose(){
+  const model=document.getElementById('pf-model').value.trim();
+  const symptom=document.getElementById('pf-symptom').value.trim();
+  const out=document.getElementById('dx-out'); const btn=document.getElementById('dx-go');
+  if(!model && !symptom){ out.innerHTML='<div class="empty">Enter the model # and/or symptom/error code.</div>'; return; }
+  btn.disabled=true; btn.textContent='Thinking…';
+  out.innerHTML='<div class="loading"><div class="spinner"></div>Diagnosing — fault codes, your past fixes, similar jobs…</div>';
+  try{
+    const d=await fetch('/.netlify/functions/ant-troubleshoot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:appliance.brand||'',model,appliance:appliance.type||'',symptom,role:'tech'})}).then(r=>r.json());
+    if(!d||!d.ok){ out.innerHTML='<div class="empty">Couldn\'t diagnose right now — try again.</div>'; return; }
+    let html='';
+    const fc=d.fault_code;
+    if(fc && (fc.code||fc.meaning||fc.description)){
+      html+=`<div class="cand" style="border-left:3px solid #2d7ef7;background:#eef4ff"><span class="pn">${esc(fc.code||'code')}</span><div class="cn">${esc(fc.meaning||fc.description||'')}</div></div>`;
+    }
+    html+='<div style="font-size:13.5px;line-height:1.55;margin-top:8px">'+mdToHtml(d.answer_md||'')+'</div>';
+    if(d.grounded===false) html+='<div style="font-size:11px;color:var(--dim);margin-top:8px">Thin shop history on this one — verify on the diagram / tech sheet before ordering.</div>';
+    out.innerHTML=html||'<div class="empty">No diagnosis available.</div>';
+  }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
+  finally{ btn.disabled=false; btn.textContent='🧠 Diagnose / error code'; }
+}
+// tiny markdown → html (headers, bold, bullets, citations, line breaks)
+function mdToHtml(md){
+  let h=esc(md||'');
+  h=h.replace(/^#{2,3} (.*)$/gm,'<div style="font-weight:800;margin:9px 0 3px">$1</div>');
+  h=h.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>');
+  h=h.replace(/^\s*[-*] (.*)$/gm,'<div style="margin:1px 0 1px 10px">• $1</div>');
+  h=h.replace(/\[([^\]\n]{1,40}?)\]/g,'<span style="color:#2d7ef7;font-size:11px">[$1]</span>');
+  h=h.replace(/\n{2,}/g,'<br><br>').replace(/\n/g,'<br>');
+  return h;
 }
 
 // ── Recalls + tech sheets: CPSC (official, always-on) + MSA World (tech sheets) ──
