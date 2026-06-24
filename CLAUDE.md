@@ -54,6 +54,18 @@ Teddy asked to "confirm self-checkout is done end to end (Teddy Tool + Marcone A
 
 > **NORTH STAR reminder (why all of this matters — Teddy, 6/24):** the trade hides info to protect markup (saw a tech in Appliance Pro Talk afraid to even ASK for a model # so the customer couldn't price-shop the part). Ant is the OPPOSITE on purpose — hand the customer the 4 honest options, ship them the part if they want to DIY, don't even check it. **Transparency is the strategy, not a weakness.** The model # isn't the asset — the trust is. That's the moat AND the decent thing, same move.
 
+### 🔑 API KEYS IN FLIGHT — "collect keys early, the access IS the asset" (Teddy thesis 6/24-25)
+Standing tracker. Each gated API = a superpower we rent. Request access EARLY (clocks run for days-to-weeks) so the key's in the vault before we need it. Use ONE shared Google Cloud project + OAuth pattern for both Google APIs. Drop creds in the VAULT via `admin-secrets.html` (never chat); I mint refresh tokens via one-time OAuth.
+
+| Key | Unlocks | Gate / status | Vault names |
+|---|---|---|---|
+| **Google Business Profile API** | Ant READS + REPLIES to Google reviews | Access-request form @ developers.google.com/my-business (days-wks). Teddy starting 6/25. | `GBP_CLIENT_ID` `GBP_CLIENT_SECRET` (+ refresh token minted) |
+| **Google Ads API** | Ant automates/adjusts/strategizes ad campaigns (for when we run ads) | Manager acct (MCC) → **API Center** → dev token → apply **Basic Access** (1-few days). Teddy starting 6/25. NOTE: token starts TEST-only until Basic approved. | `GOOGLE_ADS_DEVELOPER_TOKEN` `GOOGLE_ADS_CLIENT_ID` `GOOGLE_ADS_CLIENT_SECRET` `GOOGLE_ADS_MANAGER_ID` |
+| **Amazon Business Ordering API** | Auto-ship aftermarket (Amazon-tier) parts to customer | Submitted 6/20; `amazon-api-watch` Gmail watcher armed (texts Teddy when the approval email lands). 0 matches as of 6/24. | `AMAZON_*` (when it lands) |
+| *(LIVE already)* **Marcone / mSupply** | OEM parts cost/stock + drop-ship ordering | ✅ in vault (`MSUPPLY_*`), proven (order #74992380) | — |
+
+**Footgun reminder:** Google Ads API (campaign automation) ≠ Google Business Profile API (reviews) — two different products/menus. Don't chase the Ads *API* / developer token for reviews. And Local Services Ads (the "Google Guaranteed" lead engine, growth lever #2) is a dashboard SIGNUP, not an API — no dev token needed for it.
+
 ---
 
 ## 📞🔧 2026-06-24 — "TALK TO A HUMAN" PHONE FIX + MARCONE PARTS API LIVE (incl. AUTO-ORDERING) + CPSC RECALLS + TECH HELP (READ FIRST)
