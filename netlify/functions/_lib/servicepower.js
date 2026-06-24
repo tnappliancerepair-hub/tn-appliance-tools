@@ -133,6 +133,7 @@ function parseCalls(raw) {
     const b = m[1];
     out.push({
       call_number: _tag(b, 'CallNumber'), fss_call_id: _tag(b, 'FSSCallId'), mfg_id: _tag(b, 'MfgId'),
+      tech_key: _tag(b, 'TechKey'), group_key: _tag(b, 'GroupKey'), servicer_account: _tag(b, 'ServicerAccount'),
       status: _tag(b, 'CallStatus'), sp_status_id: _tag(b, 'SPCallStatusID'),
       sub_status: _tag(b, 'CallSubStatus'), sp_sub_status_id: _tag(b, 'SPCallSubStatusID'),
       first_name: _tag(b, 'ConsumerFirstName'), last_name: _tag(b, 'ConsumerLastName'),
