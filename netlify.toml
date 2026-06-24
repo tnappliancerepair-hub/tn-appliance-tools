@@ -204,3 +204,10 @@
 # inbox. Dedups on alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."google-api-watch"]
   schedule = "*/30 * * * *"
+
+# Vendor (warranty + parts) API-access email watcher — scans Gmail every 30 min for
+# the Frontdoor/AHS Status API, ServicePower API, Reliable Parts (services agreement/
+# credentials), and MarconeAI API emails, and texts Teddy when one lands. Query REQUIRES
+# an API-specific phrase so it does NOT match routine AHS/ServicePower dispatch emails.
+[functions."vendor-api-watch"]
+  schedule = "*/30 * * * *"

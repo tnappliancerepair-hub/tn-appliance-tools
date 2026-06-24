@@ -66,7 +66,20 @@ Standing tracker. Each gated API = a superpower we rent. Request access EARLY (c
 
 **Footgun reminder:** Google Ads API (campaign automation) ≠ Google Business Profile API (reviews) — two different products/menus. Don't chase the Ads *API* / developer token for reviews. And Local Services Ads (the "Google Guaranteed" lead engine, growth lever #2) is a dashboard SIGNUP, not an API — no dev token needed for it.
 
-**📬 Inbox watchers armed (so Teddy never babysits his inbox):** `amazon-api-watch` (Amazon Ordering API) + `google-api-watch` (Business Profile API allowlist case 4-9470000004382 AND Google Ads Basic Access) — both scheduled */30 in netlify.toml, reuse the pollers' Gmail OAuth, text Teddy the moment an approval lands, dedup on message IDs. Test with `?dryrun=1`. **When an approval lands → OAuth creds to the vault → Claude mints refresh token + wires it.**
+**📬 Inbox watchers armed (so Teddy never babysits his inbox) — 3 of them, all */30 in netlify.toml, reuse the pollers' Gmail OAuth, text Teddy on a match, dedup on message IDs, `?dryrun=1` to test:**
+- `amazon-api-watch` — Amazon Business Ordering API approval
+- `google-api-watch` — Business Profile API allowlist (case 4-9470000004382) + Google Ads Basic Access
+- `vendor-api-watch` — Frontdoor/AHS Status API, ServicePower API, Reliable Parts (agreement/creds), MarconeAI API. **Query requires an API-specific phrase so it does NOT trip on routine AHS/SP dispatch emails.**
+
+**When any approval lands → OAuth/creds to the vault → Claude mints refresh token + wires it.**
+
+**🎯 MORE APIs TO PURSUE (Teddy asked 6/24 — warranty vendor ones = biggest Danielle-replacement levers):**
+| API | Unlocks | Action / status |
+|---|---|---|
+| **Frontdoor / AHS Status API** 🥇 | Ant pushes job status + notes straight into the Frontdoor Contractor Portal → **kills Danielle's manual portal updating** | Teddy submitted the AHS Status API Integration Request **weeks ago — STALLED, no response**. REVIVE: (a) self-serve — log into **`developer.frontdoorhome.com`** with contractor creds, mint a token from the API docs if already provisioned → send to Claude; (b) follow up the stalled request with a human contact. |
+| **ServicePower API** 🥈 | Auto status/claim submit for SquareTrade/NSA-dispatched jobs | UNKNOWN if they have one. Check contractor portal for an "API"/"Developers" tab → apply if yes; else Playwright portal automation later. |
+| **Reliable Parts** | 2nd OEM parts source (catches Samsung/superseded #s Marcone misses) | Not an "apply" — **Teddy signs the Services Agreement** → they issue creds (`RELIABLE_*`) → Claude builds connector. |
+| **MarconeAI API** | The distributor's AI troubleshooting tool for techs | **Email Tim Wangelin** for programmatic/API access (NOT the parts API). Need the MarconeAI URL for a tech-tool link too. |
 
 **✅ LOCAL SERVICES ADS (Google Guaranteed) is LIVE + verified (seen 6/24):** billing, insurance, background check, GBP-link, bidding all complete — the "Google Verified" pay-per-lead engine (growth lever #2) is running. LSA leads come in as calls/messages (Ant answers every call = conversion edge), reviews boost LSA ranking (so the review-reply agent feeds it), and bad leads can be DISPUTED in the LSA dashboard for a refund. NOT an API — dashboard product.
 
