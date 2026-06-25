@@ -50,9 +50,12 @@ exports.handler = async function (event) {
   const jobId = Number(job && (job.id || job.job_id)) || 0;
   if (!jobId) return json(200, { ok: false, error: 'Could not submit — please call 615-280-2949.' });
 
-  // 2) SPEED-TO-LEAD — text the customer within seconds (the conversion lever)
+  // 2) SPEED-TO-LEAD — text the customer within seconds (the conversion lever).
+  // Ask for the model-# photo + a short problem video; these upload onto the job
+  // and feed the Teddy Tool so the owner pre-diagnoses from real media, not a blank.
   const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
-  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request. What days work for you to get a tech out? Reply right here and we'll lock it in. (Or call/text 615-280-2949.)";
+  const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
+  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request! Quick favor so we can help you fast: tap here to send a photo of the model-number sticker + a short video of the problem → " + uploadUrl + " . Then we'll text you to set up the visit. (Or call/text 615-280-2949.)";
   try {
     await fetch(XANO + '/send_sms', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
