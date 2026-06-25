@@ -575,6 +575,9 @@
     render(data);
     renderAvailabilityGrid(data);
     maybeShowWaiverBanner(data && data.job);
+    // Release of liability is the FIRST thing the customer sees — sign it up front
+    // and get it out of the way, so the tech never has to chase it at the door.
+    if (data && data.job && !data.job.waiver_signed_at) { try { showWaiverModal('open'); } catch (_) {} }
     recordPortalEvent('portal_viewed').catch(() => {});
   }
 
@@ -706,13 +709,17 @@
     if (goLink) goLink.href = '/waiver.html?job_id=' + encodeURIComponent(JOB_ID);
     const body = document.getElementById('waiverModalBody');
     if (body) {
-      const actionLabels = {
-        schedule: 'set your availability',
-        reschedule: 'reschedule your appointment',
-        action: 'submit that request',
-      };
-      const aw = actionLabels[actionKind] || 'do that';
-      body.textContent = 'Before we can ' + aw + ', we need a quick release of liability signed. Takes about 30 seconds.';
+      if (actionKind === 'open') {
+        body.textContent = "One quick thing before your visit — please sign your service release. It takes about 10 seconds, and then it's out of the way.";
+      } else {
+        const actionLabels = {
+          schedule: 'set your availability',
+          reschedule: 'reschedule your appointment',
+          action: 'submit that request',
+        };
+        const aw = actionLabels[actionKind] || 'do that';
+        body.textContent = 'Before we can ' + aw + ', we need a quick service release signed. Takes about 10 seconds.';
+      }
     }
     modal.style.display = 'flex';
   }
