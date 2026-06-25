@@ -120,17 +120,23 @@ exports.handler = async function (event) {
   // warranty job (AHS/ServicePower/SquareTrade) is almost always a duplicate —
   // an existing warranty customer who happened to use the website — NOT a real
   // cash lead. Build the set of warranty customer_ids so we can drop them.
+  // Best-effort warranty-dup filter with a hard time budget — the durable fix is
+  // the relabel (those jobs become customer_type=warranty and leave this query),
+  // so if the lookups run slow we just skip filtering rather than hang the board.
   const warrantyCust = new Set();
   const keepWarranty = String(qs.keep_warranty || '') === '1';
   if (!keepWarranty && custIds.length) {
-    await Promise.all(custIds.map(async (cid) => {
-      try {
-        const theirJobs = await searchPage(ids.jobs, { customer_id: cid }, { id: 'desc' }, 25);
-        const isWarranty = theirJobs.some((j) => String(j.customer_type || '').toLowerCase() === 'warranty'
-          || String(j.warranty_company || '').trim() || String(j.claim_number || '').trim());
-        if (isWarranty) warrantyCust.add(cid);
-      } catch (_) {}
-    }));
+    const deadline = Date.now() + 6000;
+    for (let i = 0; i < custIds.length && Date.now() < deadline; i += 8) {
+      await Promise.all(custIds.slice(i, i + 8).map(async (cid) => {
+        try {
+          const theirJobs = await searchPage(ids.jobs, { customer_id: cid }, { id: 'desc' }, 20);
+          const isW = theirJobs.some((j) => String(j.customer_type || '').toLowerCase() === 'warranty'
+            || String(j.warranty_company || '').trim() || String(j.claim_number || '').trim());
+          if (isW) warrantyCust.add(cid);
+        } catch (_) {}
+      }));
+    }
   }
 
   const leads = inWindow.map((j) => {
