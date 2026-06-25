@@ -69,7 +69,42 @@ query create_job_from_chat verb=POST {
         }
       }
     }
-  
+
+    var $job_warranty_company {
+      value = ($input.warranty_company ?? "")
+    }
+
+    var $job_claim_number {
+      value = ($input.claim_number ?? "")
+    }
+
+    conditional {
+      if ($existing_customer != null) {
+        db.query jobs {
+          where = $db.jobs.customer_id == $customer.id && $db.jobs.customer_type == "warranty"
+          sort = {jobs.id: "desc"}
+          return = {type: "single"}
+        } as $cust_warranty_job
+
+        conditional {
+          if ($cust_warranty_job != null) {
+            var.update $customer_type {
+              value = "warranty"
+            }
+            var.update $payment_status {
+              value = "warranty_pending"
+            }
+            var.update $job_warranty_company {
+              value = (($cust_warranty_job.warranty_company|to_text) ?? "")
+            }
+            var.update $job_claim_number {
+              value = (($cust_warranty_job.claim_number|to_text) ?? "")
+            }
+          }
+        }
+      }
+    }
+
     db.add jobs {
       data = {
         customer_id             : $customer.id
@@ -85,8 +120,8 @@ query create_job_from_chat verb=POST {
         source_type             : "web_chat"
         source_agent            : "ant"
         customer_type           : $customer_type
-        warranty_company        : $input.warranty_company
-        claim_number            : $input.claim_number
+        warranty_company        : $job_warranty_company
+        claim_number            : $job_claim_number
         dispatch_source_id      : $input.dispatch_source_id
         serial_number           : $input.serial_number
         recommended_service     : $recommended_service
