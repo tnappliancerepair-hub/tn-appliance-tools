@@ -70,6 +70,14 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_no_phone' };
   }
 
+  // Never tell a closed/canceled job their parts are in — a stale parts_status
+  // on a finished job must not trigger a customer "pick a return time" text.
+  const _ss = String(job.scheduling_status || '').toLowerCase();
+  if (['completed', 'canceled', 'cancelled', 'closed', 'no_fix_possible'].includes(_ss)) {
+    await xano.markSignalProcessed(signal.id, 'parts_arrived_customer_notify_skipped', { reason: `status_${_ss}` });
+    return { success: true, action: `skipped_status_${_ss}` };
+  }
+
   const phoneLast4 = String(customer.phone || '').replace(/\D/g, '').slice(-4);
   const firstName = (customer.first_name || 'there').trim();
   const appl = (job.appliance_type || 'appliance').toLowerCase();
