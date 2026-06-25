@@ -433,10 +433,17 @@ exports.handler = async function (event) {
       // extract the structured TDR fields from the FULL transcript with Claude
       // and write them ourselves — the reliable backstop. Same scribe pattern
       // that makes the SMS assist path work.
-      const numericJobId = Number(jobId);
-      const numericTechId = Number(techId);
-      if (numericJobId > 0 && (transcript || summary)) {
-        await extractAndWriteTdrFromCall(numericJobId, numericTechId, transcript, summary, callId);
+      const numericTechId = Number(techId) || 0;
+      let writeJobId = Number(jobId) || 0;
+      // FALLBACK (2026-06-25): a tech's spoken report must never be lost just
+      // because the call lost its job_id (one call's TDR loaded, another's didn't).
+      // If we have the tech but no job, write the report to their CURRENT job.
+      if (writeJobId <= 0 && numericTechId > 0) {
+        writeJobId = await resolveTechActiveJob(numericTechId);
+        if (writeJobId > 0) console.log(`[vapi-webhook] call ${callId} had no job_id — fell back to tech ${numericTechId} active job ${writeJobId}`);
+      }
+      if (writeJobId > 0 && (transcript || summary)) {
+        await extractAndWriteTdrFromCall(writeJobId, numericTechId, transcript, summary, callId);
       }
     }
 
@@ -517,6 +524,23 @@ async function safePost(url, body) {
       signal: AbortSignal.timeout(8000),
     });
   } catch (_) {}
+}
+
+// Find a tech's CURRENT job to attach a call-derived report to when the call
+// itself carried no job_id. Prefers the in-progress job (the one they Started),
+// else the first non-terminal job on their day. Never throws.
+async function resolveTechActiveJob(techId) {
+  if (!techId) return 0;
+  try {
+    const d = await fetch(`${XANO_BASE}/get_tech_daily_dashboard?tech_id=${encodeURIComponent(techId)}`).then((r) => r.json());
+    const rows = (d && d.jobs) || [];
+    const statusOf = (r) => String((r.job && (r.job.scheduling_status || r.job.current_status)) || r.scheduling_status || r.current_status || '').toLowerCase();
+    const idOf = (r) => Number((r.job && r.job.id) || r.id || 0);
+    const inProg = rows.find((r) => /in_progress/.test(statusOf(r)));
+    if (inProg) return idOf(inProg);
+    const active = rows.find((r) => !/completed|canceled|cancelled|no_fix/.test(statusOf(r)));
+    return active ? idOf(active) : 0;
+  } catch (_) { return 0; }
 }
 
 // End-of-call backstop: turn a field-assist voice call into a filled TDR.
