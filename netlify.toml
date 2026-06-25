@@ -248,3 +248,9 @@
 # (GSC-reported 404 monitoring joins this once the Search Console API is wired.)
 [functions."site-health-sweep"]
   schedule = "0 14 * * *"
+
+# Self-checkout auto-placer — every 15 min, auto-ships a paid customer's DIY Marcone part
+# with no human (routes around the TBD-part bug via the job's TDR). SHADOW by default (logs
+# what it'd order); go live = vault SELF_CHECKOUT_AUTOPLACE_LIVE=true. Kill: =false. ?dryrun=1.
+[functions."parts-autoplace"]
+  schedule = "*/15 * * * *"
