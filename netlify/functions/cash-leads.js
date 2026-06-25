@@ -116,6 +116,23 @@ exports.handler = async function (event) {
     rows.forEach((c) => { if (c && c.id != null) custMap.set(c.id, c); });
   }
 
+  // Warranty-duplicate guard: a "self_pay" web job whose customer ALSO has a
+  // warranty job (AHS/ServicePower/SquareTrade) is almost always a duplicate —
+  // an existing warranty customer who happened to use the website — NOT a real
+  // cash lead. Build the set of warranty customer_ids so we can drop them.
+  const warrantyCust = new Set();
+  const keepWarranty = String(qs.keep_warranty || '') === '1';
+  if (!keepWarranty && custIds.length) {
+    await Promise.all(custIds.map(async (cid) => {
+      try {
+        const theirJobs = await searchPage(ids.jobs, { customer_id: cid }, { id: 'desc' }, 25);
+        const isWarranty = theirJobs.some((j) => String(j.customer_type || '').toLowerCase() === 'warranty'
+          || String(j.warranty_company || '').trim() || String(j.claim_number || '').trim());
+        if (isWarranty) warrantyCust.add(cid);
+      } catch (_) {}
+    }));
+  }
+
   const leads = inWindow.map((j) => {
     const c = custMap.get(j.customer_id) || {};
     const name = ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Unknown';
@@ -138,8 +155,20 @@ exports.handler = async function (event) {
       status: j.friendly_status || j.current_status || '',
       created_ms: j.created_at ? new Date(j.created_at).getTime() : 0,
       needs,
+      _cid: j.customer_id,
     };
-  }).filter((l) => !isTestName(l.name)).sort((a, b) => b.created_ms - a.created_ms);
+  });
 
-  return jsonResp(200, { ok: true, window_days: days, count: leads.length, leads });
+  // Filter: drop test names + warranty-customer duplicates (the mislabeled ones).
+  const realLeads = [];
+  let warrantyDups = 0;
+  for (const l of leads) {
+    if (isTestName(l.name)) continue;
+    if (l._cid && warrantyCust.has(l._cid)) { warrantyDups++; if (!keepWarranty) continue; l.warranty_dup = true; }
+    delete l._cid;
+    realLeads.push(l);
+  }
+  realLeads.sort((a, b) => b.created_ms - a.created_ms);
+
+  return jsonResp(200, { ok: true, window_days: days, count: realLeads.length, warranty_dups_excluded: warrantyDups, leads: realLeads });
 };
