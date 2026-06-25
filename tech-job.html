@@ -426,6 +426,7 @@ function render(){
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
         <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
         <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
+        ${job.job_completed_at ? `<a href="sign.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:10px;background:#127a4a;color:#fff;font-size:15px;padding:12px">✍️ Customer sign-off — repair complete</a>` : ''}
       </div>
 
       <div class="card" id="pay-card" style="display:none">
