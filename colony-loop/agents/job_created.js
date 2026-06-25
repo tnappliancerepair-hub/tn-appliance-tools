@@ -35,8 +35,8 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   // a link to mark your availability"). last4 is appended blank because
   // the portal extracts it from the phone match when they tap.
   const link = job_id
-    ? `${baseLink}/customer-portal.html?job_id=${job_id}&last4=`
-    : baseLink;
+    ? `https://${baseLink}/customer-portal.html?job_id=${job_id}&last4=`
+    : `https://${baseLink}`;
   const applianceWord = appliance || 'appliance';
   // Consolidated, warm, reply-first greeting. Leads with the ONE thing we need
   // (availability), invites a reply, keeps the portal link as a soft add-on.

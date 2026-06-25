@@ -134,7 +134,7 @@ export async function run(signal, ctx) {
   const bareDomain = (config.publicSiteBase || '').replace(/^https?:\/\//, '');
   const last4 = String(phone).replace(/\D/g, '').slice(-4);
   const portalClause = (bareDomain && last4)
-    ? ` Notes/reschedule: ${bareDomain}/customer-portal.html?job_id=${jobId}&last4=${last4}`
+    ? ` Manage or reschedule: https://${bareDomain}/customer-portal.html?job_id=${jobId}&last4=${last4}`
     : '';
   const body =
     `Hi ${firstName} - reminder: ${techName} is coming tomorrow ${apptStr} CT for your ${appliance}. ` +

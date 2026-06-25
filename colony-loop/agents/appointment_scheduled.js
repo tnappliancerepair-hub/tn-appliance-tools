@@ -158,7 +158,7 @@ export async function run(signal, ctx) {
   } else {
     const last4 = String(custPhone).replace(/\D/g, '').slice(-4);
     const portalUrl = last4
-      ? `${bareDomain()}/customer-portal.html?job_id=${jobId}&last4=${last4}`
+      ? `https://${bareDomain()}/customer-portal.html?job_id=${jobId}&last4=${last4}`
       : '';
     const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, portalUrl });
     const res = await sms.toCustomer(custPhone, body, {
