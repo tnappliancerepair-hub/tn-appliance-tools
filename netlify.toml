@@ -77,6 +77,11 @@
 [functions."gmail-token-watch"]
   schedule = "0 13,23 * * *"
 
+# Book-a-Repair media chase — if a web lead never sent their model pic + video,
+# text them ONCE (hard one-per-job dedup) to try to get it. Self-gates 9a-7p CT.
+[functions."book-media-chase"]
+  schedule = "0 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
