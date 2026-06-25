@@ -37,6 +37,20 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_vendor_locked' };
   }
 
+  // Never ask a job that's already scheduled, finished, or canceled — Danielle
+  // caught us texting closed/complete customers to "schedule" (2026-06-25).
+  let _job = null;
+  try { const c = await xano.getTechAssignmentContext(jobId, 0); _job = c && c.job; } catch (_) {}
+  if (_job) {
+    const ss = String(_job.scheduling_status || '').toLowerCase();
+    if (['scheduled', 'completed', 'canceled', 'cancelled', 'in_progress', 'no_fix_possible', 'closed', 'booked'].includes(ss)) {
+      const meta = { job_id: jobId, outcome: `skipped_status_${ss}` };
+      await xano.markSignalProcessed(signal.id, 'availability_request_handled', meta);
+      log('availability_request_handled', meta);
+      return { success: true, action: meta.outcome, job_id: jobId };
+    }
+  }
+
   // Ask once per job.
   try {
     const prior = await xano.getEventLogByAction(`availability_requested_${jobId}`).catch(() => null);

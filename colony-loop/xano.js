@@ -503,6 +503,29 @@ function _customerSmsMuted(context) {
   return CUSTOMER_SMS_MUTE.find((p) => tag.includes(p)) || null;
 }
 
+// ── Per-recipient duplicate guard (2026-06-25 incident: 36 identical reminders
+// blasted to one customer). Lives at the LOWEST send point so every path —
+// the dispatchSms wrapper AND direct xano.sendSms callers — is covered. Drops
+// the exact same message to the same number within the window. Bypass with
+// context.force_send. Tunable: SMS_DUP_WINDOW_MIN (default 240 = 4h).
+const _SMS_DUP_WINDOW_MS = Number(process.env.SMS_DUP_WINDOW_MIN || 240) * 60 * 1000;
+const _recentSmsSends = new Map(); // "last10|bodyhash" -> lastSentMs
+function _smsDupKey(to, body) {
+  const p = String(to || '').replace(/\D/g, '').slice(-10);
+  let h = 0; const s = String(body || '');
+  for (let i = 0; i < s.length; i++) { h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0; }
+  return p + '|' + h;
+}
+function _isDuplicateSms(to, body) {
+  const now = Date.now();
+  for (const [k, t] of _recentSmsSends) { if (now - t > _SMS_DUP_WINDOW_MS) _recentSmsSends.delete(k); }
+  const k = _smsDupKey(to, body);
+  const last = _recentSmsSends.get(k);
+  if (last && now - last < _SMS_DUP_WINDOW_MS) return true;
+  _recentSmsSends.set(k, now);
+  return false;
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
@@ -514,6 +537,13 @@ export async function sendSms(to, message, context = {}) {
     logLocal('customer_sms_muted', { matched: _muted, to_last4: String(to || '').slice(-4),
       tag: (context.action || context.context_tag || '') });
     return { success: false, muted: true, matched: _muted };
+  }
+  // Universal anti-spam backstop: never send the exact same text to the same
+  // number twice within the window (any agent, any path).
+  if (!(context && context.force_send) && _isDuplicateSms(to, message)) {
+    logLocal('sms_duplicate_blocked', { to_last4: String(to || '').slice(-4),
+      tag: (context.action || context.context_tag || ''), body_preview: String(message || '').slice(0, 100) });
+    return { success: false, duplicate_blocked: true };
   }
   const primary = postJSON(`${INTAKE()}/send_sms`, { to, message, context });
   // Vacation backup: if backup phone is set AND this SMS is going to the
