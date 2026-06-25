@@ -92,7 +92,7 @@ exports.handler = async function (event) {
       try {
         const look = await sp.getCallInfo({ fromDateTime: f(now - (off + 2) * DAY), toDateTime: f(now - off * DAY), callNo: callNumber });
         const c = (look.calls || []).find((x) => x.call_number === callNumber) || (look.calls || [])[0];
-        if (c) { fssCallId = fssCallId || c.fss_call_id || ''; mfgId = mfgId || c.mfg_id || ''; scheduleDate = scheduleDate || c.schedule_date || ''; scheduleTime = scheduleTime || c.schedule_time || ''; break; }
+        if (c) { fssCallId = fssCallId || c.fss_call_id || ''; mfgId = mfgId || c.mfg_id || ''; break; }
       } catch (_) {}
     }
   }
