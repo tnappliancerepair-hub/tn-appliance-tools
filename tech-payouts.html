@@ -48,6 +48,9 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 14px;}
   .card h3{font-size:12px;font-weight:800;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em;padding:11px 0 7px;}
   .job{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid #f0f3f7;}
+  a.job{text-decoration:none;color:inherit;-webkit-tap-highlight-color:rgba(0,0,0,0.04);}
+  a.job:active{background:#f6f8fb;}
+  .job .chev{color:#c2cad6;font-size:22px;font-weight:700;line-height:1;margin-left:2px;}
   .job:last-child{border-bottom:0;}
   .job .info{flex:1;min-width:0;}
   .job .jid{font-weight:700;font-size:14px;} .job .when{font-size:12px;color:var(--ink2);}
@@ -125,23 +128,26 @@ async function load(){
 function render(d){
   const jobs=d.jobs||[];
   const rows=jobs.length?jobs.map(j=>`
-    <div class="job">
+    <a class="job" href="tech-job.html?job_id=${esc(String(j.job_id))}&tech_id=${TECH_ID}">
       <div class="info"><div class="jid">Job #${esc(String(j.job_id))}</div><div class="when">${j.when?fmt(j.when):''}${j.labor?(' · labor $'+j.labor.toFixed(2)):''}</div></div>
       <div class="pay">$${(j.pay||0).toFixed(2)}</div>
-    </div>`).join(''):'<div class="empty">No jobs billed yet this stretch. Your pay shows here as the office logs each job.</div>';
+      <div class="chev">›</div>
+    </a>`).join(''):'<div class="empty">No jobs billed yet this stretch. Your pay shows here as the office logs each job.</div>';
   const addons=d.addons||[];
   const addonRows=addons.length?addons.map(a=>`
-    <div class="job">
+    <a class="job" href="tech-job.html?job_id=${esc(String(a.job_id))}&tech_id=${TECH_ID}">
       <div class="info"><div class="jid">🛍️ ${esc(String(a.name))}</div><div class="when">Job #${esc(String(a.job_id))}${a.when?(' · '+fmt(a.when)):''}</div></div>
       <div class="pay">$${(a.cut||0).toFixed(2)}</div>
-    </div>`).join(''):'';
+      <div class="chev">›</div>
+    </a>`).join(''):'';
   const addonCard=addons.length?`<div class="card"><h3>Add-on extras · +$${(d.addon_earned||0).toFixed(2)}</h3>${addonRows}</div>`:'';
   const tips=d.tips||[];
   const tipRows=tips.length?tips.map(t=>`
-    <div class="job">
+    <a class="job" href="tech-job.html?job_id=${esc(String(t.job_id))}&tech_id=${TECH_ID}">
       <div class="info"><div class="jid">💚 Tip</div><div class="when">Job #${esc(String(t.job_id))}${t.when?(' · '+fmt(t.when)):''}</div></div>
       <div class="pay">$${(t.amount||0).toFixed(2)}</div>
-    </div>`).join(''):'';
+      <div class="chev">›</div>
+    </a>`).join(''):'';
   const tipCard=tips.length?`<div class="card"><h3>Tips from customers · +$${(d.tip_earned||0).toFixed(2)} <span style="font-size:11px;font-weight:600;color:var(--ok)">100% yours</span></h3>${tipRows}</div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="wrap">
