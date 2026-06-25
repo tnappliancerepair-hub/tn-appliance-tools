@@ -290,7 +290,13 @@ function startAntTdrPoll(){
     if(document.visibilityState!=='visible') return;
     try{
       const d=await xanoPost('get_job_for_dashboard',{job_id:JOB_ID});
-      if(d&&d.success) renderAntTdr(d.tdr||{}, d.all_tdrs||[]);
+      if(d&&d.success){
+        // Keep the in-memory TDRs current so the Complete gate sees a report that
+        // landed AFTER page load (e.g. a phone-call TDR) — not stale data.
+        if(d.all_tdrs) allTdrs=d.all_tdrs;
+        if(d.tdr) tdr=d.tdr;
+        renderAntTdr(d.tdr||{}, d.all_tdrs||[]);
+      }
     }catch(_){}
   }, 20000);
 }
@@ -696,7 +702,9 @@ function completeFlow(){
       const nEl=document.getElementById('notes');
       const note=(nEl?nEl.value:'').trim();
       const ex=(typeof pickTdr==='function' && typeof allTdrs!=='undefined') ? (pickTdr(allTdrs)||{}) : {};
-      const hasReport = note.length>=12 || (ex.repair_completed||'').trim() || (ex.diagnosis||'').trim();
+      // Count the same fields pickTdr does — a TDR with a failed part + labor (e.g.
+      // from a phone-call report) is a real report even if the notes box is empty.
+      const hasReport = note.length>=12 || (ex.repair_completed||'').trim() || (ex.diagnosis||'').trim() || (ex.failed_component||'').trim() || Number(ex.labor_time_hours||0)>0;
       if(!hasReport){
         toast('✍️ Add your report first');
         if(nEl){ nEl.scrollIntoView({behavior:'smooth',block:'center'}); nEl.focus(); }
