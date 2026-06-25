@@ -17,6 +17,8 @@
   .jid{color:var(--muted);font-size:12px;font-family:var(--mono);}
   .appl{color:#cdd7e1;font-size:13px;margin-top:3px;}
   .prob{color:var(--muted);font-size:13px;margin-top:3px;font-style:italic;}
+  .avail{margin-top:7px;font-size:13px;font-weight:700;background:rgba(57,255,20,.08);border:1px solid rgba(57,255,20,.35);color:var(--green);border-radius:8px;padding:6px 9px;}
+  .avail .lbl{font-size:11px;color:#9be88a;font-weight:800;letter-spacing:.3px;}
   .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
   .b{font-size:11px;font-weight:800;border-radius:6px;padding:2px 8px;}
   .b.need{background:rgba(255,107,107,.14);border:1px solid rgba(255,107,107,.5);color:var(--red);}
@@ -89,8 +91,10 @@ function card(L){
     <div class="top"><span class="nm">${esc(L.name)}</span><span class="jid">#${L.job_id} · ${ago(L.created_ms)}</span></div>
     <div class="appl">${esc(L.appliance||'appliance')}${L.zip?(' · '+esc(L.zip)):''}${phone?(' · '+esc(phone)):''}</div>
     ${L.problem?`<div class="prob">"${esc(L.problem)}"</div>`:''}
+    ${L.availability?`<div class="avail"><span class="lbl">🗓 THEY'RE AVAILABLE</span><br>${esc(L.availability)}</div>`:''}
     <div class="badges">
       <span class="b cash">CASH</span>
+      ${L.availability?'<span class="b ok">🗓 avail ✓</span>':'<span class="b need">awaiting reply</span>'}
       ${payBadge}${modelBadge}
       <span class="b" id="ph-${L.job_id}" style="background:rgba(139,152,165,.12);border:1px solid rgba(139,152,165,.4);color:var(--muted)">photos…</span>
       <span class="b info">${esc(L.status||'Pending')}</span>

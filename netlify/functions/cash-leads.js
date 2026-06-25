@@ -133,6 +133,7 @@ exports.handler = async function (event) {
       problem: j.problem_summary || '',
       model_number: j.model_number || '',
       has_model: hasModel,
+      availability: String(j.customer_preference_text || '').trim(),
       paid,
       status: j.friendly_status || j.current_status || '',
       created_ms: j.created_at ? new Date(j.created_at).getTime() : 0,
