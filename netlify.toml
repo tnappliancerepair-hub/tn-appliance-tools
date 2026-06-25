@@ -87,6 +87,12 @@
 [functions."cash-ready-notify"]
   schedule = "20 * * * *"
 
+# Review-reply engine — when a Google review posts (GBP notification email),
+# Ant drafts an on-brand reply + texts Teddy to post it. Negative reviews are
+# flagged URGENT, never auto. Every 2 hours.
+[functions."review-reply-watch"]
+  schedule = "15 */2 * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
