@@ -51,31 +51,35 @@ exports.handler = async function (event) {
   if (!process.env.XANO_METADATA_TOKEN) return json(500, { ok: false, error: 'no metadata token' });
   const confirm = q.confirm === '1';
   const onlyWebChat = String(q.source || '') === 'web_chat';
-  const max = Math.min(parseInt(q.max, 10) || 600, 2000);
+  const max = Math.min(parseInt(q.max, 10) || 120, 200);   // keep it light per call; run repeatedly
   const pw = (await getSecret('OFFICE_PASSWORD')) || 'antlives';
 
   const ids = await resolveIds();
   if (!ids.jobs) return json(200, { ok: false, error: 'could not resolve jobs table' });
 
-  // 1) pull self_pay jobs (paginate)
+  // 1) pull a batch of recent self_pay jobs
   let selfPay = [];
-  for (let page = 1; page <= 10 && selfPay.length < max; page++) {
-    const batch = await search(ids.jobs, { customer_type: 'self_pay' }, { id: 'desc' }, 200, page);
+  for (let page = 1; page <= 2 && selfPay.length < max; page++) {
+    const batch = await search(ids.jobs, { customer_type: 'self_pay' }, { id: 'desc' }, 100, page);
     if (!batch.length) break;
     selfPay = selfPay.concat(batch);
   }
   selfPay = selfPay.slice(0, max);
 
-  // 2) for each unique customer, find their warranty job (company + claim to copy)
+  // 2) warranty lookup per unique customer — chunked concurrency so we don't
+  // fan out hundreds of requests at once (which times the function out).
   const custIds = [...new Set(selfPay.map((j) => j.customer_id).filter(Boolean))];
-  const warrantyOf = new Map(); // cust_id -> {company, claim}
-  await Promise.all(custIds.map(async (cid) => {
-    try {
-      const theirs = await search(ids.jobs, { customer_id: cid }, { id: 'desc' }, 30, 1);
-      const w = theirs.find(isWarranty);
-      if (w) warrantyOf.set(cid, { company: String(w.warranty_company || '').trim(), claim: String(w.claim_number || '').trim(), from_job: w.id });
-    } catch (_) {}
-  }));
+  const warrantyOf = new Map(); // cust_id -> {company, claim, from_job}
+  for (let i = 0; i < custIds.length; i += 8) {
+    const chunk = custIds.slice(i, i + 8);
+    await Promise.all(chunk.map(async (cid) => {
+      try {
+        const theirs = await search(ids.jobs, { customer_id: cid }, { id: 'desc' }, 20, 1);
+        const w = theirs.find(isWarranty);
+        if (w) warrantyOf.set(cid, { company: String(w.warranty_company || '').trim(), claim: String(w.claim_number || '').trim(), from_job: w.id });
+      } catch (_) {}
+    }));
+  }
 
   // 3) candidate self_pay jobs whose customer is a warranty customer
   const candidates = selfPay.filter((j) => j.customer_id && warrantyOf.has(j.customer_id) && !isWarranty(j))
