@@ -454,7 +454,9 @@ function render(){
 
       <div class="card">
         <h3>🔧 Tech help <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
-        <a href="tech-ant-chat.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:11px;background:#0a7d33;font-size:16px;padding:13px">🐜 Ask Ant — talk it through</a>
+        <button id="btn-talk-ant" class="btn primary" style="display:block;width:100%;text-align:center;box-sizing:border-box;margin-bottom:4px;background:#0a7d33;font-size:16px;padding:13px">📞 Talk to Ant — Ant calls your phone</button>
+        <div id="talk-ant-status" style="text-align:center;font-size:12px;color:var(--dim);min-height:14px;margin-bottom:9px"></div>
+        <a id="btn-teddy-tool" href="teddy-tdr-tool.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:11px;font-size:16px;padding:13px">🧰 Teddy Tool</a>
         <div class="parts-in">
           <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
           <input id="pf-symptom" placeholder="Symptom / error code (e.g. F3, not cooling)" value="${esc(problem)}">
@@ -510,6 +512,21 @@ function wireActions(){
   document.getElementById('in-video').onchange=e=>{ if(e.target.files[0]) uploadFile(e.target.files[0],'video'); e.target.value=''; };
   document.getElementById('dx-go').onclick=diagnose;
   document.getElementById('pf-go').onclick=findParts;
+  // 📞 Talk to Ant — rings the tech's phone (Brooke), real conversation. Same
+  // dispatch the retired Ant page used; lives right on the ticket now.
+  const tta=document.getElementById('btn-talk-ant');
+  if(tta) tta.onclick=async()=>{
+    if(!JOB_ID){ alert('No job loaded.'); return; }
+    if(!TECH_ID){ alert('Open this from your dashboard link.'); return; }
+    const s=document.getElementById('talk-ant-status');
+    tta.disabled=true; if(s) s.textContent='calling…';
+    try{
+      const r=await fetch(XANO+'/dispatch_ant_field_assist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID})});
+      const d=await r.json();
+      if(s) s.textContent=(r.ok&&d.success)?'📲 Ringing your phone — pick up and talk':('⚠ '+((d&&d.message)||'dispatch failed'));
+    }catch(e){ if(s) s.textContent='⚠ connection error — try again'; }
+    setTimeout(()=>{ tta.disabled=false; if(s) s.textContent=''; }, 10000);
+  };
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
   mountConvo();
