@@ -44,6 +44,37 @@ function meta(row) {
 }
 function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
 
+const JOBS_TABLE = 7;
+// Fetch a job's status (uses the same metadata token this endpoint already holds).
+async function jobStatus(jobId) {
+  const id = parseInt(jobId, 10);
+  if (!id) return null;
+  try {
+    const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${id}`, { headers: headers() });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (_) { return null; }
+}
+// "The job is finished." Pay is earned ONLY on completed jobs. An invoice can be
+// drafted before the work is done (office pre-enters labor to test authorization),
+// and a canceled job must never pay. So: canceled -> never; completed (scheduling
+// flipped to completed, or a complete-* current_status) -> yes; everything else
+// (scheduled / in_progress / awaiting_parts / not_ready) -> pending, not earned.
+function isCanceled(j) {
+  if (!j) return false;
+  const ss = String(j.scheduling_status || '').toLowerCase();
+  const cs = String(j.current_status || '').toLowerCase();
+  return ss === 'canceled' || ss === 'cancelled' || cs === 'canceled' || cs === 'cancelled';
+}
+function isCompleted(j) {
+  if (!j || isCanceled(j)) return false;
+  const ss = String(j.scheduling_status || '').toLowerCase();
+  const cs = String(j.current_status || '').toLowerCase();
+  if (ss === 'completed') return true;
+  if (/^complete/.test(cs) && ss !== 'awaiting_parts') return true;
+  return false;
+}
+
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
@@ -69,7 +100,19 @@ exports.handler = async function (event) {
         byJob[jid] = { job_id: jid, pay: num(m.tech_pay), labor: num(m.labor), amount: num(m.amount_invoiced), when };
       }
     }
-    const jobs = Object.values(byJob).sort((a, b) => b.when - a.when);
+    const allInvoiced = Object.values(byJob).sort((a, b) => b.when - a.when);
+    // Gate every drafted invoice on the job's ACTUAL completion. Completed jobs
+    // pay (jobs[]); logged-but-not-finished jobs are surfaced separately (pending[])
+    // so they're visible but never inflate "owed"; canceled jobs are dropped.
+    const statuses = await Promise.all(allInvoiced.map((j) => jobStatus(j.job_id)));
+    const jobs = [], pending = [];
+    allInvoiced.forEach((j, i) => {
+      const st = statuses[i] || {};
+      const row = { ...j, scheduling_status: st.scheduling_status || '', current_status: st.current_status || '' };
+      if (isCompleted(st)) jobs.push(row);
+      else if (!isCanceled(st)) pending.push(row);
+    });
+    const pendingPay = pending.reduce((s, j) => s + j.pay, 0);
 
     // Fulfilled add-ons credit the tech their cut (extra money for low-risk
     // work). De-dupe per job+addon (a re-fulfill shouldn't double-pay).
@@ -123,6 +166,9 @@ exports.handler = async function (event) {
         owed: Number((earned - paid).toFixed(2)),
         job_count: jobs.length,
         jobs: jobs.slice(0, 100),
+        pending_pay: Number(pendingPay.toFixed(2)),
+        pending_count: pending.length,
+        pending: pending.slice(0, 100),
         addon_earned: Number(addonEarned.toFixed(2)),
         addon_count: addonList.length,
         addons: addonList.slice(0, 100),
