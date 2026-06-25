@@ -232,6 +232,10 @@
     </div>
   </div>
 
+  <div id="cmd-center" style="margin-bottom:16px">
+    <div class="loading">Loading warranty command center…</div>
+  </div>
+
   <div class="content" id="content">
     <div class="loading">Loading warranty claim packages…</div>
   </div>
@@ -343,8 +347,57 @@
   function unlock() {
     authGate.style.display = 'none';
     app.style.display = 'block';
+    loadCmdCenter();
     load();
   }
+
+  // 🐜 Warranty command center — claims money + parts owed back (the chargeback list).
+  async function loadCmdCenter() {
+    const el = document.getElementById('cmd-center'); if (!el) return;
+    let d;
+    try { d = await (await fetch('/.netlify/functions/warranty-dashboard')).json(); }
+    catch (e) { el.innerHTML = '<div class="err">Could not load command center.</div>'; return; }
+    const cl = (d && d.claims) || {}, ret = (d && d.returns) || { count: 0, parts: [] };
+    const rej = cl.rejected || [];
+    const claimsHtml =
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">'
+      + '<div style="flex:1 1 130px;background:#0f1722;border:1px solid #1e6b3a;border-radius:12px;padding:14px">'
+      + '<div style="font-size:11px;color:#6ee7a0;text-transform:uppercase;letter-spacing:0.06em">Paid (this cycle)</div>'
+      + '<div style="font-size:26px;font-weight:800;color:#4ade80">$' + (Number(cl.paid_total || 0)).toFixed(2) + '</div></div>'
+      + '<div style="flex:1 1 130px;background:#13151d;border:1px solid #2a3040;border-radius:12px;padding:14px">'
+      + '<div style="font-size:11px;color:#8a93aa;text-transform:uppercase;letter-spacing:0.06em">Pending</div>'
+      + '<div style="font-size:26px;font-weight:800;color:#e8edf5">' + (cl.pending_count || 0) + '</div></div>'
+      + '<div style="flex:1 1 130px;background:#1a1113;border:1px solid ' + (rej.length ? '#7a2b2b' : '#2a3040') + ';border-radius:12px;padding:14px">'
+      + '<div style="font-size:11px;color:#f3a0a0;text-transform:uppercase;letter-spacing:0.06em">Rejected — chase</div>'
+      + '<div style="font-size:26px;font-weight:800;color:' + (rej.length ? '#f87171' : '#e8edf5') + '">' + rej.length + '</div>'
+      + (rej.length ? '<div style="font-size:10px;color:#8a93aa;margin-top:3px">' + rej.slice(0, 4).map(r => escapeHtml(r.call)).join(', ') + '</div>' : '')
+      + '</div></div>';
+    const parts = ret.parts || [];
+    let partsHtml =
+      '<div style="font-family:var(--display);font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">📦 Parts owed back '
+      + '<span style="font-family:var(--mono);font-size:12px;color:' + (parts.length ? '#fbbf24' : '#6ee7a0') + '">' + (parts.length ? parts.length : 'all clear ✓') + '</span></div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Ship each back so we get paid + dodge the core charge. Oldest first.</div>';
+    if (parts.length) {
+      partsHtml += parts.map(function (p) {
+        const age = (p.age_days != null) ? (' · ' + p.age_days + 'd old') : '';
+        const info = [p.vendor, p.distributor, p.return_desc, p.tracking ? ('FedEx ' + p.tracking) : ''].filter(Boolean).join(' · ');
+        return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#13151d;border:1px solid #2a3040;border-radius:10px;padding:11px 13px;margin-bottom:7px">'
+          + '<div style="min-width:0">'
+          + '<div style="font-family:var(--mono);font-weight:700;color:#e8edf5;font-size:13px">' + escapeHtml(p.part) + '<span style="color:#fbbf24;font-size:11px">' + age + '</span></div>'
+          + '<div style="font-size:11px;color:#8a93aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml((p.customer || '') + (p.customer ? ' · ' : '') + info) + '</div></div>'
+          + '<button onclick="ccMarkReturned(' + (p.job_id || 0) + ',\'' + escapeHtml(p.part) + '\',this)" style="flex-shrink:0;background:#0a7d33;border:0;color:#fff;font-weight:700;font-size:11px;padding:7px 11px;border-radius:7px;cursor:pointer">Returned ✓</button>'
+          + '</div>';
+      }).join('');
+    } else {
+      partsHtml += '<div style="color:#6ee7a0;font-size:13px;padding:6px">🎉 No parts pending return.</div>';
+    }
+    el.innerHTML = claimsHtml + partsHtml;
+  }
+  window.ccMarkReturned = async function (jobId, part, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try { await fetch('/.netlify/functions/warranty-parts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', job_id: jobId, part: part, status: 'returned' }) }); loadCmdCenter(); }
+    catch (_) { if (btn) { btn.disabled = false; btn.textContent = 'Returned ✓'; } }
+  };
   async function __verifyOfficePassword(pw) {
     if (!pw) return false;
     try {
