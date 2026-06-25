@@ -38,3 +38,24 @@
 /clearwaterflappliancerepairanddryerventcleaning           /   301
 /clearwaterflappliancerepairanddryerventcleaning/          /   301
 /generate_upload_url                                       /   301
+
+# More old-site slugs from the GSC "Crawled - not indexed" report (added 2026-06-25).
+# Old TN slugs → real city pages; FL slugs (no longer our area) + garbage → home.
+/mt-juliet-appliance-repair                                /mt-juliet.html      301
+/mt-juliet-appliance-repair/                               /mt-juliet.html      301
+/murffreesboro-tn-appliance-repair-and-dryer-vent-cleaning   /murfreesboro.html 301
+/murffreesboro-tn-appliance-repair-and-dryer-vent-cleaning/  /murfreesboro.html 301
+/holidayflappliancerepairanddryerventcleaning              /   301
+/holidayflappliancerepairanddryerventcleaning/             /   301
+/hudson-fl-appliance-repair-and-dryer-vent-cleaning        /   301
+/hudson-fl-appliance-repair-and-dryer-vent-cleaning/       /   301
+/tampa-fl-appliance-repair-and-dryer-vent-cleaning-services   /   301
+/tampa-fl-appliance-repair-and-dryer-vent-cleaning-services/  /   301
+/brooksvilleflappliancerepairandventcleaning               /   301
+/brooksvilleflappliancerepairandventcleaning/              /   301
+/spring-hill-fl-appliance-repair-and-vent-cleaning         /   301
+/spring-hill-fl-appliance-repair-and-vent-cleaning/        /   301
+/port-richey-appliance-repair-and-dryer-vent-cleaning      /   301
+/port-richey-appliance-repair-and-dryer-vent-cleaning/     /   301
+/clearwarwashernashville                                   /   301
+/clearwarwashernashville/                                  /   301
