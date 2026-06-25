@@ -100,6 +100,20 @@ APPLIANCES.forEach(function(a){
   c.onclick=function(){ document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('sel');}); c.classList.add('sel'); chosen=a; };
   chipsEl.appendChild(c);
 });
+// Prefill from the local SEO landers (?appliance=dishwasher&city=Nashville) so the
+// customer lands with their appliance already picked + city filled — less friction.
+(function(){
+  try{
+    var p=new URLSearchParams(location.search);
+    var ap=(p.get('appliance')||'').toLowerCase().trim();
+    if(ap){
+      var match=APPLIANCES.find(function(a){ return a.toLowerCase().indexOf(ap.split(/[ /]/)[0])===0; });
+      if(match){ document.querySelectorAll('.chip').forEach(function(x){ if(x.textContent===match){ x.classList.add('sel'); chosen=match; } }); }
+    }
+    var city=(p.get('city')||p.get('town')||'').trim();
+    if(city){ var cf=document.getElementById('city'); if(cf&&!cf.value) cf.value=city; }
+  }catch(_){}
+})();
 function val(id){return (document.getElementById(id).value||'').trim();}
 function showErr(m){var e=document.getElementById('err'); e.textContent=m; e.classList.add('show');}
 document.getElementById('submit').onclick=async function(){
