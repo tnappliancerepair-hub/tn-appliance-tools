@@ -51,7 +51,7 @@ exports.handler = async function (event) {
   if (!process.env.XANO_METADATA_TOKEN) return json(500, { ok: false, error: 'no metadata token' });
   const confirm = q.confirm === '1';
   const onlyWebChat = String(q.source || '') === 'web_chat';
-  const max = Math.min(parseInt(q.max, 10) || 120, 200);   // keep it light per call; run repeatedly
+  const max = Math.min(parseInt(q.max, 10) || (confirm ? 30 : 120), 200);   // confirm writes are slow -> smaller batch; run repeatedly
   const pw = (await getSecret('OFFICE_PASSWORD')) || 'antlives';
 
   const ids = await resolveIds();
@@ -95,18 +95,20 @@ exports.handler = async function (event) {
     return json(200, { ok: true, mode: 'dryrun', scanned_self_pay: selfPay.length, would_relabel: candidates.length, sample: candidates.slice(0, 25), note: 'add &confirm=1 to relabel' });
   }
 
-  // 4) relabel each via update_job_full_info (writes customer_type + warranty fields)
+  // 4) relabel each via update_job_full_info — chunked concurrency so a batch
+  // completes well inside the function timeout.
   let done = 0; const failed = [];
-  for (const c of candidates) {
+  const relabelOne = async (c) => {
     try {
       const r = await fetch(`${XANO}/update_job_full_info`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: c.job_id, office_password: pw, customer_type: 'warranty', warranty_company: c.apply_company || undefined, claim_number: c.apply_claim || undefined }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(9000),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d && d.success !== false) done++; else failed.push({ job_id: c.job_id, err: (d && d.error) || r.status });
     } catch (e) { failed.push({ job_id: c.job_id, err: String(e.message || e) }); }
-  }
+  };
+  for (let i = 0; i < candidates.length; i += 6) { await Promise.all(candidates.slice(i, i + 6).map(relabelOne)); }
   return json(200, { ok: true, mode: 'relabeled', relabeled: done, failed: failed.length, failed_list: failed.slice(0, 10), total_candidates: candidates.length });
 };
