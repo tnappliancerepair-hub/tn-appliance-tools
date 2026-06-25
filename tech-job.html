@@ -199,6 +199,7 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
 const JOB_ID = parseInt(params.get('job_id'), 10);
 const TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+let waiverSigned = false, waiverOverride = false;  // release-of-liability gate state
 const TECH_AUTH_KEY = 'tn_tech_auth_' + TECH_ID;
 let job=null, cust=null, tech=null, tdr=null, appliance=null, allTdrs=[], dayJobs=[];
 
@@ -378,6 +379,7 @@ function render(){
 
   document.getElementById('content').innerHTML=`
     <div class="wrap">
+      <div id="release-banner"></div>
       ${howto}
       <div class="card hero">
         <div class="row">
@@ -505,7 +507,7 @@ function lifecycleStamp(){
 
 function wireActions(){
   document.getElementById('a-otw').onclick=()=>lifecycle('tech_on_the_way','On-my-way sent ✓','en_route');
-  document.getElementById('a-start').onclick=()=>lifecycle('tech_job_started','Job started ✓','in_progress');
+  document.getElementById('a-start').onclick=startJobGated;
   document.getElementById('a-done').onclick=completeFlow;
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
@@ -811,16 +813,54 @@ async function saveNotes(){
 // Release-of-liability status on the ticket. Tech taps the button → waiver.html
 // opens for this job (customer signs on the tech's phone) → waiver_signed_at flips.
 async function loadWaiverStatus(){
-  const el=document.getElementById('release-status'); const btn=document.getElementById('release-btn');
-  if(!el) return;
   try{
     const d=await xanoGet('get_waiver_status','job_id='+JOB_ID);
-    const signed = d && (d.waiver_signed===true || (d.waiver_signed_at && Number(d.waiver_signed_at)>0));
-    if(signed){ el.innerHTML='✅ Release of liability signed'; el.style.color='#127a4a'; if(btn) btn.textContent='✍️ Release signed — tap to re-sign'; }
-    else { el.innerHTML='⚠ Not signed yet — have the customer sign before you leave'; el.style.color='#b06a00'; }
-  }catch(_){ el.textContent=''; }
+    waiverSigned = !!(d && (d.waiver_signed===true || (d.waiver_signed_at && Number(d.waiver_signed_at)>0)));
+  }catch(_){ /* keep prior state */ }
+  const el=document.getElementById('release-status'); const btn=document.getElementById('release-btn');
+  if(el){
+    if(waiverSigned){ el.innerHTML='✅ Release of liability signed'; el.style.color='#127a4a'; if(btn) btn.textContent='✍️ Release signed — tap to re-sign'; }
+    else { el.innerHTML='⚠ Not signed yet — have the customer sign before you start'; el.style.color='#b06a00'; }
+  }
+  renderReleaseBanner();
 }
-// Customer signs in a new tab; refresh the ✓ when the tech returns to the ticket.
+// Big can't-miss top banner whenever the release isn't signed (or overridden).
+function renderReleaseBanner(){
+  const b=document.getElementById('release-banner'); if(!b) return;
+  if(waiverSigned || waiverOverride){ b.style.display='none'; b.innerHTML=''; return; }
+  b.style.display='block';
+  b.innerHTML='<div style="background:#b3170f;color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:0 2px 12px rgba(179,23,15,0.4)">'
+    +'<div style="font-size:16px;font-weight:800;line-height:1.3">🛑 Release of liability NOT signed</div>'
+    +'<div style="font-size:13.5px;opacity:.95;margin:4px 0 11px">Get the customer to sign it <b>before you start work</b>.</div>'
+    +'<a href="waiver.html?job_id='+JOB_ID+'&tech_id='+TECH_ID+'" target="_blank" rel="noopener" style="display:block;text-align:center;background:#fff;color:#b3170f;font-weight:800;text-decoration:none;border-radius:9px;padding:12px;font-size:15px">✍️ Have the customer sign now</a>'
+    +'</div>';
+}
+// Start-job gate: can't start until the release is signed (or a logged override).
+function startJobGated(){
+  if(waiverSigned || waiverOverride){ lifecycle('tech_job_started','Job started ✓','in_progress'); return; }
+  const ov=document.createElement('div'); ov.id='release-gate';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,14,22,0.74);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:24px;text-align:center">'
+    +'<div style="font-size:42px">🛑</div>'
+    +'<div style="font-size:19px;font-weight:800;margin:4px 0 6px">Sign the release first</div>'
+    +'<div style="font-size:14px;color:#46506b;line-height:1.5;margin-bottom:18px">The customer needs to sign the release of liability <b>before you start work</b>.</div>'
+    +'<a href="waiver.html?job_id='+JOB_ID+'&tech_id='+TECH_ID+'" target="_blank" rel="noopener" id="rg-sign" style="display:block;background:#0a7d33;color:#fff;font-weight:800;text-decoration:none;border-radius:11px;padding:14px;font-size:16px;margin-bottom:12px">✍️ Have the customer sign now</a>'
+    +'<button id="rg-override" style="width:100%;background:none;border:0;color:#9aa3b2;font-size:13px;font-weight:700;padding:6px;cursor:pointer;text-decoration:underline;margin-bottom:8px">Customer can\'t sign right now →</button>'
+    +'<button id="rg-close" style="width:100%;background:#f1f4f8;border:0;color:#46506b;font-size:14px;font-weight:700;border-radius:10px;padding:11px;cursor:pointer">Cancel</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  document.getElementById('rg-close').onclick=()=>ov.remove();
+  document.getElementById('rg-sign').onclick=()=>setTimeout(()=>ov.remove(),300);
+  document.getElementById('rg-override').onclick=async ()=>{
+    const reason=prompt('Why can\'t the customer sign? (logged for the office)');
+    if(reason===null) return;
+    const r=(reason||'').trim()||'no reason given';
+    try{ await fetch(XANO+'/record_event_log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'waiver_start_override',metadata_json:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,reason:r,at_ms:Date.now()})})}); }catch(_){}
+    waiverOverride=true; renderReleaseBanner(); ov.remove();
+    lifecycle('tech_job_started','Job started — release skipped (logged) ✓','in_progress');
+  };
+}
+// Customer signs in a new tab; refresh state when the tech returns to the ticket.
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden && document.getElementById('release-btn')) loadWaiverStatus(); });
 
 // ── media ───────────────────────────────────────────────────────
