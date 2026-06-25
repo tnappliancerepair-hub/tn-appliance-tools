@@ -241,3 +241,10 @@
 # upside. Kill switch: vault SERVICEPOWER_AUTO_ACCEPT=false. ?dryrun=1 to inspect.
 [functions."servicepower-auto-accept"]
   schedule = "*/10 * * * *"
+
+# Daily site-health sweep — catches dead pages + broken redirects from our side (where new
+# 404s are born). Walks a rotating window of the sitemap (covers everything over time),
+# verifies key 301s still fire, and texts Teddy only about NEWLY-broken URLs. ?dryrun=1.
+# (GSC-reported 404 monitoring joins this once the Search Console API is wired.)
+[functions."site-health-sweep"]
+  schedule = "0 14 * * *"
