@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Sign-off · TN Appliance Exchange</title>
+<style>
+  :root{ --bg:#0e1118; --panel:#161b25; --line:#2a3242; --ink:#eef2f8; --dim:#8a93a6; --ok:#0a7d33; --accent:#4a9eff; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding:16px;min-height:100vh}
+  .wrap{max-width:560px;margin:0 auto}
+  h1{font-size:20px;margin:6px 0 2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  .ack{font-size:14px;line-height:1.55;color:var(--ink)}
+  .ack b{color:#fff}
+  .padwrap{position:relative;margin-top:6px}
+  canvas{width:100%;height:230px;background:#fff;border-radius:12px;border:2px solid var(--line);touch-action:none;display:block}
+  .padhint{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#b9c0cc;font-size:13px;pointer-events:none}
+  .padline{position:absolute;left:18px;right:18px;bottom:46px;border-top:1px solid #c9cfd8;pointer-events:none}
+  .row{display:flex;gap:10px;margin-top:12px}
+  .btn{flex:1;padding:15px;border-radius:11px;border:0;font-size:16px;font-weight:800;cursor:pointer}
+  .btn.clear{background:#222936;color:var(--dim);border:1px solid var(--line)}
+  .btn.done{background:var(--ok);color:#fff}
+  .btn:disabled{opacity:.5}
+  input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#0e1219;color:var(--ink);font-size:16px;margin-top:8px}
+  .msg{text-align:center;font-size:14px;margin-top:12px;min-height:20px}
+  .ok{color:#5fd38a}.err{color:#ff8a8a}
+  .done-screen{display:none;text-align:center;padding:40px 16px}
+  .done-screen .check{font-size:60px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <h1>✍️ Confirm your repair</h1>
+  <div class="sub" id="ctx">Loading…</div>
+
+  <div class="card">
+    <div class="ack">By signing below, I confirm that <b id="ackName">the technician</b> completed the service on my <b id="ackAppl">appliance</b> today and that the work was done to my satisfaction.</div>
+  </div>
+
+  <div class="card">
+    <div class="padwrap">
+      <canvas id="pad"></canvas>
+      <div class="padline"></div>
+      <div class="padhint" id="hint">Sign here with your finger</div>
+    </div>
+    <input id="custName" placeholder="Type your name" autocomplete="name">
+    <div class="row">
+      <button class="btn clear" id="clear">Clear</button>
+      <button class="btn done" id="done">Done ✓</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<div class="done-screen" id="doneScreen">
+  <div class="check">✅</div>
+  <h1>Thank you!</h1>
+  <div class="sub">Your sign-off is saved. You're all set.</div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const p=new URLSearchParams(location.search);
+const JOB_ID=parseInt(p.get('job_id'),10)||0;
+const TECH_ID=parseInt(p.get('tech_id'),10)||0;
+const canvas=document.getElementById('pad'), ctx=canvas.getContext('2d');
+let drawing=false, dirty=false, last=null;
+
+function sizeCanvas(){
+  const r=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  canvas.width=r.width*dpr; canvas.height=r.height*dpr;
+  ctx.scale(dpr,dpr); ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#10141c';
+}
+function pos(e){ const r=canvas.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+function start(e){ e.preventDefault(); drawing=true; last=pos(e); document.getElementById('hint').style.display='none'; }
+function move(e){ if(!drawing)return; e.preventDefault(); const pt=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(pt.x,pt.y); ctx.stroke(); last=pt; dirty=true; }
+function end(){ drawing=false; }
+['mousedown','touchstart'].forEach(ev=>canvas.addEventListener(ev,start,{passive:false}));
+['mousemove','touchmove'].forEach(ev=>canvas.addEventListener(ev,move,{passive:false}));
+['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>canvas.addEventListener(ev,end));
+window.addEventListener('resize',()=>{ sizeCanvas(); });
+sizeCanvas();
+
+document.getElementById('clear').onclick=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); dirty=false; document.getElementById('hint').style.display='block'; };
+
+// context: who's the tech + appliance + customer
+(async()=>{
+  if(!JOB_ID){ document.getElementById('ctx').textContent='Open this from a job to sign.'; return; }
+  try{
+    const d=await (await fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID})})).json();
+    const c=d.customer||{}, ap=d.appliance||{}, t=d.tech||{}, job=d.job||{};
+    const tname=[t.first_name].filter(Boolean).join(' ')||'your technician';
+    const appl=(ap.appliance_type||job.appliance_type||'appliance').toLowerCase();
+    document.getElementById('ctx').textContent=(c.first_name?('For '+c.first_name+(c.last_name?(' '+c.last_name):'')+' · '):'')+(job.brand?job.brand+' ':'')+appl;
+    document.getElementById('ackName').textContent=tname;
+    document.getElementById('ackAppl').textContent=(job.brand?job.brand+' ':'')+appl;
+    if(c.first_name){ const n=document.getElementById('custName'); n.value=[c.first_name,c.last_name].filter(Boolean).join(' '); }
+  }catch(_){ document.getElementById('ctx').textContent='Sign below to confirm the repair.'; }
+})();
+
+document.getElementById('done').onclick=async function(){
+  const msg=document.getElementById('msg');
+  if(!dirty){ msg.className='msg err'; msg.textContent='Please sign in the box first.'; return; }
+  const name=document.getElementById('custName').value.trim();
+  this.disabled=true; msg.className='msg'; msg.textContent='Saving…';
+  try{
+    const png=canvas.toDataURL('image/png');
+    const r=await fetch('/.netlify/functions/save-signature',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID,customer_name:name,signature_base64:png,acknowledged:true})});
+    const d=await r.json();
+    if(d&&d.ok){ document.getElementById('app').style.display='none'; document.getElementById('doneScreen').style.display='block'; }
+    else { msg.className='msg err'; msg.textContent='⚠ '+((d&&d.error)||'save failed'); this.disabled=false; }
+  }catch(e){ msg.className='msg err'; msg.textContent='⚠ connection error — try again'; this.disabled=false; }
+};
+</script>
+</body>
+</html>
