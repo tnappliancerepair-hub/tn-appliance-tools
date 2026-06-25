@@ -149,6 +149,17 @@ function render(d){
       <div class="chev">›</div>
     </a>`).join(''):'';
   const tipCard=tips.length?`<div class="card"><h3>Tips from customers · +$${(d.tip_earned||0).toFixed(2)} <span style="font-size:11px;font-weight:600;color:var(--ok)">100% yours</span></h3>${tipRows}</div>`:'';
+  // ⏳ Pending — jobs with a logged invoice that aren't finished yet. Shown so nothing
+  // looks like it vanished, but NOT counted as owed (pay is earned on completion).
+  const pending=d.pending||[];
+  const statusLabel=(p)=>{ const ss=String(p.scheduling_status||'').toLowerCase(), cs=String(p.current_status||'').toLowerCase(); if(/await|part/.test(ss+cs))return 'awaiting parts'; if(ss==='in_progress'||cs==='in_progress')return 'in progress'; if(ss==='scheduled'||cs==='scheduled')return 'scheduled'; return ss||cs||'open'; };
+  const pendingRows=pending.length?pending.map(p=>`
+    <a class="job" href="tech-job.html?job_id=${esc(String(p.job_id))}&tech_id=${TECH_ID}">
+      <div class="info"><div class="jid">Job #${esc(String(p.job_id))} <span style="font-size:10px;font-weight:700;color:#b06a00;background:#fff3df;border-radius:10px;padding:1px 7px;text-transform:uppercase">${esc(statusLabel(p))}</span></div><div class="when">${p.labor?('labor $'+p.labor.toFixed(2)+' · '):''}pays when finished</div></div>
+      <div class="pay" style="color:#9aa3b2">$${(p.pay||0).toFixed(2)}</div>
+      <div class="chev">›</div>
+    </a>`).join(''):'';
+  const pendingCard=pending.length?`<div class="card"><h3>⏳ Pending · finish to get paid <span style="font-size:11px;font-weight:600;color:var(--ink2,#8a93a6)">$${(d.pending_pay||0).toFixed(2)} not yet earned</span></h3>${pendingRows}</div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="owed">
@@ -161,7 +172,8 @@ function render(d){
         <div class="stat"><div class="v paid">$${(d.paid||0).toFixed(2)}</div><div class="k">Paid</div></div>
         <div class="stat"><div class="v">${d.job_count||0}</div><div class="k">Jobs</div></div>
       </div>
-      <div class="card"><h3>Per job</h3>${rows}</div>
+      <div class="card"><h3>Per job · paid when complete</h3>${rows}</div>
+      ${pendingCard}
       ${addonCard}
       ${tipCard}
       <div class="note">Pay runs the 3rd &amp; 18th · +$10 per 5-star review · add-ons + tips pay on top (tips are 100% yours)</div>
