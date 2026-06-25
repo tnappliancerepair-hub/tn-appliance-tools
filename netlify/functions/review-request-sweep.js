@@ -1,6 +1,8 @@
-// review-request-sweep — texts a one-tap Google review link to customers whose job just
-// completed. Reliable Netlify path (doesn't depend on the Mac loop). Reviews lift Local
-// Services Ads rank + the map pack = more free leads.
+// review-request-sweep — after a job completes, texts the customer "How'd we do? 👍/👎"
+// and arms the satisfaction gate. Their reply routes itself (customer-sms-inbound ->
+// _lib/satisfaction): 👍 -> Google review link, 👎 -> "what could we have done better?"
+// (private capture + Teddy alert, so an unhappy customer is handled by a human instead
+// of leaving a public 1-star). Reviews lift Local Services Ads rank + the map pack.
 //
 // Forward-only (only completions in the lookback window — historical never fires) + 60-day
 // per-customer dedup, sharing the SAME dedup key as the colony agent so we never double-text.
@@ -11,6 +13,7 @@
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
 const { sendSms } = require('./_lib/sms');
+const satisfaction = require('./_lib/satisfaction');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
@@ -53,19 +56,23 @@ exports.handler = async function (event) {
   // 2) resolve each job's customer, dedup, send
   const sent = [], skipped = [];
   for (const jid of jobIds.slice(0, MAX_PER_RUN)) {
-    let cust = {};
-    try { const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json()); cust = (d && d.customer) || {}; } catch (_) {}
+    let cust = {}, applType = '';
+    try { const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json()); cust = (d && d.customer) || {}; applType = String((d && d.appliance) || (d && d.job && d.job.appliance_type) || '').trim(); } catch (_) {}
     const custId = Number(cust.id || 0);
     const phone = e164(cust.phone);
     if (!custId || !phone) { skipped.push({ job_id: jid, why: 'no customer/phone' }); continue; }
     if (await askedRecently(custId)) { skipped.push({ job_id: jid, customer: custId, why: 'asked < 60d' }); continue; }
     const first = cust.first_name || 'there';
-    const body = `Hi ${first}, thanks for letting TN Appliance Exchange take care of your repair! If you have 30 seconds, a Google review would mean the world to our small team: ${REVIEW_URL}`;
+    const appl = applType.toLowerCase();
+    const body = `Hi ${first}, thanks for letting TN Appliance Exchange take care of your${appl ? (' ' + appl) : ''} repair! Quick question — how'd we do? Reply 👍 if we did great, or 👎 if we missed the mark.`;
     if (dry) { sent.push({ job_id: jid, customer: custId, phone, first }); continue; }
     let ok = false;
-    try { await sendSms(phone, body, 'customer', 'review_request'); ok = true; } catch (_) {}
-    if (ok) { try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {} sent.push({ job_id: jid, customer: custId, first }); }
-    else skipped.push({ job_id: jid, why: 'send failed (gate?)' });
+    try { await sendSms(phone, body, 'customer', 'satisfaction_check'); ok = true; } catch (_) {}
+    if (ok) {
+      try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first }); } catch (_) {}
+      try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {}
+      sent.push({ job_id: jid, customer: custId, first });
+    } else skipped.push({ job_id: jid, why: 'send failed (gate?)' });
   }
 
   return j(200, { ok: true, mode: dry ? 'dryrun' : 'live', lookback_hours: hours, completions_found: jobIds.length, asked: sent.length, skipped: skipped.length, sent, skipped: skipped.slice(0, 10) });

@@ -227,6 +227,19 @@ exports.handler = async function (event) {
     else console.warn('[customer-sms-inbound] extra_yes error:', e.message);
   }
 
+  // ─── "How'd we do?" satisfaction gate ─────────────────────────────
+  // If this customer was just asked 👍/👎 (or their follow-up feedback), the
+  // satisfaction handler replies + alerts itself. Short-circuit on match so the
+  // generic loop doesn't also auto-reply.
+  try {
+    const satisfaction = require('./_lib/satisfaction');
+    const sr = await satisfaction.handleInbound(parsed.from, parsed.body);
+    if (sr && sr.matched) {
+      console.log('[customer-sms-inbound] satisfaction matched:', sr.stage);
+      return providerAck(provider);
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] satisfaction error:', e.message); }
+
   // Forward to Xano. Fire-and-await so we can log the signal_id, but ack
   // 200 regardless (Telnyx must not retry inbound).
   let recordData = {};
