@@ -1,5 +1,39 @@
 # Appliance Ant
 
+## ☀️ 2026-06-25 (EARLY AM, before 6am) — AUTO-ACCEPT LIVE + WARRANTY COMMAND CENTER + AUTO-REVIEWS + FRONTDOOR API MOVING (READ FIRST)
+
+Huge pre-dawn run. All LIVE on `main` (branch `claude/good-morning-aujwba`).
+
+### 🟢🟢 SERVICEPOWER ACCEPT PROVEN + AUTO-ACCEPT LIVE (`servicepower-auto-accept.js`)
+**Ant now accepts SquareTrade dispatches autonomously.** Proved the API accept live (Mary Estopinal call `018962474135` → OPEN→ACCEPTED, "UPDATED SUCCESSFULLY", confirmed on board). **KEY FIX:** accept must be **status-only** — `servicepower-push` was auto-re-sending the existing ScheduleDate/Period → **SP405 "DUPLICATE REQUEST FOR SCHEDULE DATE AND PERIOD"**; removed the schedule auto-fill from the resolver (keeps only fss/mfg). Then built **`servicepower-auto-accept`** (scheduled */10 min): scans board for OPEN calls → accepts each in TN/LA (status-only ACCEPTED, fss+mfg straight off `getCallInfo`) → logs `sp_auto_accepted` → texts Teddy a digest. **Kill switch: vault `SERVICEPOWER_AUTO_ACCEPT=false`.** Capacity wide open (50–100/day) → pure upside, never lose an offer to a slow accept.
+
+### 📦 WARRANTY COMMAND CENTER (`warranty-review.html` + `warranty-dashboard.js`)
+Rebuilt the `📦 Warranty` tab into Danielle's hub. Opens with: **CLAIMS money** (Paid this cycle $ / Pending / Rejected-to-chase, from the `sp_claim_sync_state` reconcile snapshot) + **📦 PARTS OWED BACK** worklist (every to-return part across all jobs, customer name + distributor + FedEx tracking + age, oldest-first, one-tap "Returned ✓"). 38 parts populated (backfilled). `servicepower-claims-sync` got a `?quiet=1` baseline mode (persist snapshot, no SMS). (Old claim-package + pipeline sections still below — trim later if Teddy wants.)
+
+### ⭐ AUTO-REVIEW-REQUESTS (`review-request-sweep.js`)
+Daily 6:30pm CT: texts the Google review link (`https://g.page/r/CRt-vo--eAJ3EBM/review`) to customers whose job completed that day. Forward-only (lookback window) + 60-day per-customer dedup **sharing the colony agent's key** (`google_review_asked_customer_<id>`) so no double-texting. Dryrun proven (found Yvette/Paige/Ryan). Reviews → LSA + map-pack rank → free leads.
+
+### 🧹 OFFICE BOARD DECLUTTER (Danielle's calls)
+`office-board.html` nav: **12 tabs → 5 daily** (Calendar · Messages · Parts $ · Warranty + `⋯ More`) + a collapsible More row (To Order/Duplicates/Text Templates/Schedule Check/Phone-Ready/Reach Me/Cash Pipeline/Customers). **Cut:** To Schedule + Callbacks (already on board); **Money → owner portal** (now a 💰 button on `owner-activity.html`). Reversible (just nav). Remembers More open/closed state.
+
+### 🩹 TWO FIELD BUGS FIXED
+1. **"No tech assigned" false error on Request-report** (`request-tech-report.js`): `get_job_for_dashboard` returns the tech as `d.tech` with `job.technician_id` null → now falls back to `d.tech.id` (matches the board drawer). Was hitting EVERY assigned job. +`dryrun`.
+2. **John's missing "talk to Ant" button** — removed 6/23 in a button-cleanup. Added a prominent green **"🐜 Ask Ant — talk it through"** to the Tech-help card on `tech-job.html` (every job) → `tech-ant-chat.html?job_id=&tech_id=`. (Techs must close+reopen the app once to clear the SW cache.)
+
+### 📦 WARRANTY PARTS (SUPPLIED) write-in on the job drawer (`warranty-parts.js`)
+`office-board.html` drawer now has **"📦 Warranty parts (supplied)"** — auto-fills from the RMA tracker (matched by job/claim) AND a **write-in form** (part# · distributor · **vendor: SquareTrade/FrontDoor/NSA** · to-return/used) since FrontDoor+NSA parts don't come via the SquareTrade email. One-tap mark used/returned. Backfilled 32 historical parts.
+
+### 🚪 FRONTDOOR / AHS API — MOVING (dev portal verified; connector proven to auth)
+Teddy verified the Frontdoor Developer Portal email → sandbox API keys in hand (production = contact BD rep Ben, not self-serve). **Pulled the official API docs** — our `_lib/frontdoor.js` connector matches EXACTLY (Dispatch Status Update `POST /dispatch-connector/v1/webhook`, schema source/tenant/dispatch_id/vendor_id/description/status_code/timestamps/items, full status-code catalog, sandbox base `api.sandbox.frontdoorhome.com`, token URLs). **Fixed env default → sandbox** (was production → invalid_client). `frontdoor-test?push=1` proves plumbing: auth OK + correct endpoint, but **403 Forbidden = sandbox key not yet AUTHORIZED for the dispatch endpoint** (config/permission step on Frontdoor's side). **Teddy emailed `partnerapiadmin@frontdoorhome.com`** (from Gmail web — Mac Mail SMTP was failing) requesting (1) authorize the sandbox key for dispatch-connector, (2) production access. Ben note drafted. **vendor-api-watch armed to catch the reply.** When authorized → test sandbox push → production = env flip + lifecycle wiring.
+
+### ⏭️ OPEN / NEXT
+- **Frontdoor:** await `partnerapiadmin`/Ben → authorize sandbox key (clears 403) → prove push → production access → wire into lifecycle (shadow→live), same as ServicePower.
+- **LeBlanc** job 19796 still UNPAID ($203.04) — sent portal link; direct pay-reminder offered, not yet sent.
+- **Amazon + Google (GBP case 4-9470000004382 + Ads Basic Access):** still waiting, watchers armed, nothing on Teddy.
+- **Vault NSA + Frontdoor PORTAL logins** → unlock those vendors' browser automation.
+- Teddy + Jimmy taking the **tech-field tighten-up**.
+- Carryover: FrontDoor/NSA parts auto-capture (forward a return email each, or portal automation); trim old warranty-review sections; review sweep first live fire tonight 6:30pm CT.
+
 ## 🧭 2026-06-24 (LATE-NIGHT) — DIRECTION: "WE HAVE AMAZING IDEAS LOST IN THE CLUTTER. WE NEED SIMPLE." (READ FIRST)
 
 Teddy brain-dump, late night. Not code — the **operating philosophy + tomorrow's #1 project.** This frames how to build (and un-build) from here on.
