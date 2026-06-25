@@ -23,12 +23,14 @@ exports.handler = async function (event) {
     return json(200, { ok: a.ok, mode: 'auth_check', ...a });
   }
 
-  // sandbox trial order (validates the full ordering payload without buying)
+  // sandbox trial order — uses Amazon's documented example values so the static
+  // sandbox can pattern-match a mocked response (real group/buyer/payment come at prod).
   const live = q.live === '1';
-  const asin = String(q.asin || 'B07FZ8S74R'); // generic sandbox test ASIN
+  const asin = String(q.asin || 'B07FZ8S74R');
   const res = await amzn.placeOrder({
     asin, quantity: 1, externalId: 'ant-test-' + Date.now(),
-    ship: { name: 'Test Customer', line1: '5403 Mount View Rd', city: 'Antioch', state: 'TN', zip: '37013', phone: '6152802949' },
+    group: 'ExampleGroup', buyerEmail: 'user@example.com', poNumber: 'ExamplePO', unitPrice: 10.0,
+    ship: { name: 'Example User', company: 'TN Appliance Exchange', line1: '123 Example St.', city: 'Seattle', state: 'WA', zip: '98109', phone: '1234567890' },
     trial: !live, // trial unless explicitly &live=1
   });
   return json(200, { ok: res.ok, mode: live ? 'live_order' : 'trial_order', ...res });

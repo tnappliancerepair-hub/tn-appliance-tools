@@ -49,36 +49,53 @@ async function accessToken(c) {
   return d.access_token;
 }
 
+// Build the documented Ordering-API order payload (POST /ordering/2022-10-30/orders).
+// Schema per docs.business.amazon.com/docs/placing-an-order — every attribute is a
+// tagged object with an `attributeType` discriminator (the prior shape was guessed
+// and would 400 at production).
+//   opts: { asin, quantity, unitPrice?, ship:{name,line1,line2,city,state,zip,phone,company},
+//           externalId, poNumber?, group?, buyerEmail?, region? }
+function buildOrderPayload(opts, c) {
+  const ship = opts.ship || {};
+  const group = opts.group || c.groupId || '';
+  const buyer = opts.buyerEmail || c.buyerEmail || '';
+  const region = opts.region || c.region || 'US';
+  const ext = String(opts.externalId || ('ant-' + Date.now())).slice(0, 60);
+  const li = {
+    externalId: 'line-1',
+    quantity: opts.quantity || 1,
+    attributes: [
+      { attributeType: 'SelectedProductReference', productReference: { productReferenceType: 'ProductIdentifier', id: String(opts.asin) } },
+    ],
+  };
+  if (opts.unitPrice != null) {
+    li.expectations = [{ expectationType: 'ExpectedUnitPrice', amount: { currencyCode: 'USD', amount: Number(opts.unitPrice) } }];
+  }
+  return {
+    externalId: ext,
+    lineItems: [li],
+    attributes: [
+      { attributeType: 'PurchaseOrderNumber', purchaseOrderNumber: String(opts.poNumber || ext).slice(0, 30) },
+      { attributeType: 'BuyerReference', userReference: { userReferenceType: 'UserEmail', emailAddress: buyer } },
+      { attributeType: 'BuyingGroupReference', groupReference: { groupReferenceType: 'GroupIdentity', identifier: group } },
+      { attributeType: 'Region', region },
+      { attributeType: 'SelectedPaymentMethodReference', paymentMethodReference: { paymentMethodReferenceType: 'StoredPaymentMethod' } },
+      { attributeType: 'ShippingAddress', address: { addressType: 'PhysicalAddress', fullName: ship.name || 'Customer', phoneNumber: ship.phone || '', companyName: ship.company || '', addressLine1: ship.line1 || '', addressLine2: ship.line2 || '', city: ship.city || '', stateOrRegion: ship.state || '', postalCode: ship.zip || '', countryCode: 'US' } },
+    ],
+    expectations: [],
+  };
+}
+
 // place (or trial) an order for one ASIN shipped to a customer address.
-//   opts: { asin, quantity, ship:{name,line1,line2,city,state,zip,phone}, externalId,
-//           offerId?, poNumber?, trial=true }
-// trial=true uses TrialMode (validates without creating a real order) — default-safe.
+// trial=true (default) appends TrialMode so the order validates without buying.
 async function placeOrder(opts) {
   const c = await creds();
-  if (!isConfigured(c)) return { ok: false, configured: false, reason: 'amazon_business_not_configured' };
+  // Sandbox uses mock data + the doc's example refs, so it doesn't need the real
+  // production group/buyer/payment vault keys. Production does.
+  if (c.env !== 'sandbox' && !isConfigured(c)) return { ok: false, configured: false, reason: 'amazon_business_not_configured' };
   const token = await accessToken(c);
-  const ship = opts.ship || {};
-  const payload = {
-    externalId: String(opts.externalId || ('ant-' + Date.now())).slice(0, 60),
-    lineItems: [{
-      lineItemId: '1',
-      quantity: opts.quantity || 1,
-      attributes: [
-        { SelectedProductReference: { productReferenceType: 'ProductIdentifier', identifier: String(opts.asin), identifierType: 'ASIN' } },
-      ].concat(opts.offerId ? [{ SelectedBuyingOptionReference: { offerId: String(opts.offerId) } }] : []),
-    }],
-    attributes: [
-      { Region: c.region },
-      { SelectedPaymentMethodReference: { paymentMethodReferenceType: 'StoredPaymentMethod', identifier: c.paymentRef } },
-      { BuyingGroupReference: { groupReferenceType: 'GroupIdentity', identifier: c.groupId } },
-      { BuyerReference: { userReferenceType: 'UserEmail', identifier: c.buyerEmail } },
-      { ShippingAddress: { addressType: 'PhysicalAddress', name: ship.name || 'Customer', addressLine1: ship.line1 || '', addressLine2: ship.line2 || '', city: ship.city || '', stateOrRegion: ship.state || '', postalCode: ship.zip || '', countryCode: 'US', phoneNumber: ship.phone || '' } },
-      { PurchaseOrderNumber: String(opts.poNumber || opts.externalId || 'ANT').slice(0, 30) },
-    ],
-    ...(opts.trial === false ? {} : { attributes_TrialMode: true }),
-  };
-  // TrialMode is an order attribute; include it explicitly when validating
-  if (opts.trial !== false) payload.attributes.push({ TrialMode: true });
+  const payload = buildOrderPayload(opts, c);
+  if (opts.trial !== false) payload.attributes.push({ attributeType: 'TrialMode', trialMode: true });
 
   const r = await fetch(c.orderUrl, {
     method: 'POST',
@@ -104,4 +121,4 @@ async function authCheck() {
   }
 }
 
-module.exports = { placeOrder, creds, isConfigured, authCheck, baseFor };
+module.exports = { placeOrder, creds, isConfigured, authCheck, baseFor, buildOrderPayload };
