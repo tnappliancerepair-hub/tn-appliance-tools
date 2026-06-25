@@ -965,7 +965,7 @@ async function marconeCheck(){
   try{
     const d=await fetch('/.netlify/functions/marcone-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({part_number:pn})}).then(r=>r.json());
     const r=d&&d.results&&d.results[0];
-    if(!r||!r.found){ out.innerHTML='<div style="font-size:13px;color:#9a3b3b">⚪ Not found in Marcone'+((r&&r.error)?(' — '+esc(r.error)):'')+'</div>'; return; }
+    if(!r||!r.found){ out.innerHTML='<div style="font-size:13px;color:#9a3b3b">⚪ <b>'+esc(pn)+'</b> not in Marcone — double-check the number on the diagram (could be a sub / superseded #).</div>'; return; }
     const cost=(r.cost!=null)?('$'+Number(r.cost).toFixed(2)):'—';
     const stk=r.in_stock?('🟢 '+(r.total_qty||0)+' in stock'):'🔴 out of stock';
     const eta=(r.eta_days!=null&&r.eta_days!=='')?(' · ETA '+r.eta_days+'d'):'';
