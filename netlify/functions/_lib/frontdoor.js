@@ -20,7 +20,9 @@ const { getSecret, getSecretFresh } = require('./secrets');
 
 let _tok = null, _tokExp = 0;
 
-async function env() { return ((await getSecretFresh('FRONTDOOR_ENV')) || 'production').toLowerCase(); }
+// Default sandbox until production access is granted. Set vault FRONTDOOR_ENV=production
+// (with prod keys) to flip live. Must match what the vaulted FRONTDOOR_* keys are for.
+async function env() { return ((await getSecretFresh('FRONTDOOR_ENV')) || 'sandbox').toLowerCase(); }
 async function tokenUrl() {
   return (await env()) === 'sandbox'
     ? 'https://frontdoorhome-dev.fusionauth.io/oauth2/token'
