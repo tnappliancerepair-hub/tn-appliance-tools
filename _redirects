@@ -14,3 +14,27 @@
 # (remembers who they are, opens straight to their day). No more hunting texts.
 /tech     /tech.html   200
 /me       /tech.html   200
+
+# Old-site (prior URL structure) 404s → current live pages. Added 2026-06-25 from the GSC
+# "Not found (404)" report — these slugs were indexed from a previous site and now 404.
+# 301 each to the right page so Google recovers them (and the link equity) on next crawl.
+/antioch-appliance-repair-dryer-vent-cleaning              /antioch.html        301
+/antioch-appliance-repair-dryer-vent-cleaning/             /antioch.html        301
+/nashville-tn-appliance-repair                             /nashville.html      301
+/nashville-tn-appliance-repair/                            /nashville.html      301
+/brentwood-tn-appliance-repair                             /brentwood.html      301
+/brentwood-tn-appliance-repair/                            /brentwood.html      301
+/new-orleans-la-appliance-repair-and-dryer-vent-cleaning   /new-orleans.html    301
+/new-orleans-la-appliance-repair-and-dryer-vent-cleaning/  /new-orleans.html    301
+/appliance-repair-in-louisiana-50-video-diagnostic         /appliance-ai.html   301
+/appliance-repair-in-louisiana-50-video-diagnostic/        /appliance-ai.html   301
+/locations                                                 /service-area.html   301
+/locations/                                                /service-area.html   301
+/about-us                                                  /about.html          301
+/about-us/                                                 /about.html          301
+# Florida locations we don't serve + a leaked API path → homepage
+/newportricheyappliancerepairanddryerventcleaning          /   301
+/newportricheyappliancerepairanddryerventcleaning/         /   301
+/clearwaterflappliancerepairanddryerventcleaning           /   301
+/clearwaterflappliancerepairanddryerventcleaning/          /   301
+/generate_upload_url                                       /   301
