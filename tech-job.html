@@ -921,6 +921,7 @@ async function findParts(){
     const d=await fetch('/.netlify/functions/parts-finder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,brand:appliance.brand||'',appliance_type:appliance.type||'',symptom})}).then(r=>r.json());
     if(!d.success) throw new Error(d.error||'lookup failed');
     let html='';
+    const topPN=(d.from_history&&d.from_history[0]&&d.from_history[0].part_number)||(d.candidates&&d.candidates[0]&&d.candidates[0].part_number)||'';
     if(d.from_history&&d.from_history.length){
       html+='<div style="font-size:12px;font-weight:800;color:#127a4a;margin-bottom:6px">✅ WE\'VE USED THESE BEFORE — highest trust</div>';
       html+=d.from_history.map(h=>`<div class="cand" style="border-left:3px solid #2ecc71;background:#f1faf4"><span class="pn">${esc(h.part_number)}</span><span class="conf high" style="background:#d6f5e3;color:#127a4a">${esc(h.match)}</span><div class="cn">${esc(h.failed_component||'')}</div>${mcBadge(h.marcone)}</div>`).join('');
@@ -930,12 +931,54 @@ async function findParts(){
       html+=d.candidates.map(c=>`<div class="cand"><span class="pn">${esc(c.part_number||'?')}</span><span class="conf ${esc((c.confidence||'low'))}">${esc(c.confidence||'low')}</span><div class="cn">${esc(c.name||'')}${c.note?(' — '+esc(c.note)):''}</div>${mcBadge(c.marcone)}</div>`).join('');
     }
     if(d.ai_note) html+='<div class="ai-note">'+esc(d.ai_note)+'</div>';
-    html+='<div style="font-size:12px;font-weight:700;color:var(--ink2);margin:12px 0 6px">OPEN THE DIAGRAM (source of truth)</div>';
+    // 📐 THE DIAGRAM IS THE HERO — see the exploded picture, tap your part, read the real
+    // number off it. Part names differ by brand, so the picture is the source of truth.
+    html+='<div style="font-size:14px;font-weight:800;color:#0a7d33;margin:14px 0 3px">📐 OPEN A DIAGRAM — find the exact part</div>';
+    html+='<div style="font-size:12px;color:var(--ink2);margin-bottom:8px">See the exploded picture → tap the part → read the real number. Names differ by brand, so the picture is the truth.</div>';
     html+=(d.catalogs||[]).map(c=>`<a class="cat" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.label)} ↗</a>`).join('');
+    // Got the number off the diagram? Check it live on Marcone (our API — net cost + stock).
+    html+=`<div style="border:1px solid #cfe6d8;background:#f1faf4;border-radius:10px;padding:11px;margin-top:12px">
+      <div style="font-size:12px;font-weight:800;color:#0a7d33;margin-bottom:7px">🔧 Got the number? Check Marcone — price + stock</div>
+      <div style="display:flex;gap:7px">
+        <input id="mc-pn" value="${esc(topPN)}" placeholder="Part #" autocapitalize="characters" style="flex:1;padding:10px;border:1px solid #cdd6e2;border-radius:8px;font-size:15px">
+        <button id="mc-go" class="btn primary" style="width:auto;padding:10px 16px;background:#0a7d33;font-size:14px">Check</button>
+      </div>
+      <div id="mc-out" style="margin-top:9px"></div>
+    </div>`;
     html+='<div class="warnbox">⚠ Confirm the part number on the exploded diagram before ordering. Never read part numbers to the customer.</div>';
     out.innerHTML=html;
+    const mcGo=document.getElementById('mc-go'); if(mcGo) mcGo.onclick=marconeCheck;
+    const mcPn=document.getElementById('mc-pn'); if(mcPn) mcPn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); marconeCheck(); } });
   }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
   finally{ btn.disabled=false; btn.textContent='Find the part'; }
+}
+
+// 🔧 Marcone live price + stock for a known part # (our API, account net cost).
+// Internal only — never show cost to the customer.
+async function marconeCheck(){
+  const pnEl=document.getElementById('mc-pn'); const out=document.getElementById('mc-out'); const btn=document.getElementById('mc-go');
+  if(!pnEl||!out) return;
+  const pn=(pnEl.value||'').trim();
+  if(!pn){ out.innerHTML='<div class="empty">Enter a part # (read it off the diagram).</div>'; return; }
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+  out.innerHTML='<div class="loading"><div class="spinner"></div>Checking Marcone…</div>';
+  try{
+    const d=await fetch('/.netlify/functions/marcone-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({part_number:pn})}).then(r=>r.json());
+    const r=d&&d.results&&d.results[0];
+    if(!r||!r.found){ out.innerHTML='<div style="font-size:13px;color:#9a3b3b">⚪ Not found in Marcone'+((r&&r.error)?(' — '+esc(r.error)):'')+'</div>'; return; }
+    const cost=(r.cost!=null)?('$'+Number(r.cost).toFixed(2)):'—';
+    const stk=r.in_stock?('🟢 '+(r.total_qty||0)+' in stock'):'🔴 out of stock';
+    const eta=(r.eta_days!=null&&r.eta_days!=='')?(' · ETA '+r.eta_days+'d'):'';
+    const where=r.in_stock_at?(' · '+esc(String(r.in_stock_at))):'';
+    const flags=[r.discontinued?'⚠ discontinued':'', r.drop_ship_only?'drop-ship only':'', r.hazmat?'hazmat':''].filter(Boolean).join(' · ');
+    out.innerHTML='<div style="border:1px solid #cfe6d8;background:#fff;border-radius:8px;padding:10px">'
+      +'<div style="font-weight:800;font-size:15px">'+esc(r.part_number||pn)+(r.make?(' <span style="font-weight:600;color:#5a6a85;font-size:12px">'+esc(r.make)+'</span>'):'')+'</div>'
+      +(r.description?('<div style="font-size:12.5px;color:#5a6a85;margin:2px 0 6px">'+esc(r.description)+'</div>'):'')
+      +'<div style="font-size:15px;font-weight:800;color:#0a7d33">'+cost+' <span style="font-weight:700;color:'+(r.in_stock?'#127a4a':'#c0392b')+';font-size:13px">· '+stk+eta+where+'</span></div>'
+      +(flags?('<div style="font-size:11.5px;color:#c0392b;margin-top:4px">'+flags+'</div>'):'')
+      +'</div>';
+  }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='Check'; } }
 }
 
 // ── Diagnose / error code: grounded brief (fault codes + our past fixes + similar jobs) ──
