@@ -351,8 +351,8 @@ async function renderPL(d,pr){
     ? `<div class="pl-row"><span>Parts margin (sold − cost)</span><span class="v" style="color:var(--ok)">$${partsMargin.toFixed(2)}</span></div>`
     : '';
   const expBreak=exp.total>0
-    ? `<div class="pl-row neg"><span>− Expenses (gas $${exp.by_category.gas.toFixed(0)} · truck $${exp.by_category.truck.toFixed(0)} · other $${exp.by_category.other.toFixed(0)})</span><span class="v">$${exp.total.toFixed(2)}</span></div>`
-    : `<div class="pl-row"><span>Expenses (gas/truck/fees)</span><span class="v" style="color:var(--dim)">none logged</span></div>`;
+    ? `<div class="pl-row neg"><span>− Expenses (gas $${exp.by_category.gas.toFixed(0)} · truck $${exp.by_category.truck.toFixed(0)} · ads $${(exp.by_category.ads||0).toFixed(0)} · other $${exp.by_category.other.toFixed(0)})</span><span class="v">$${exp.total.toFixed(2)}</span></div>`
+    : `<div class="pl-row"><span>Expenses (gas/truck/ads/fees)</span><span class="v" style="color:var(--dim)">none logged</span></div>`;
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div class="summary"><div class="b"><div class="v">$${rev.toFixed(0)}</div><div class="k">Revenue</div></div>

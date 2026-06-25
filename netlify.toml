@@ -93,6 +93,12 @@
 [functions."review-reply-watch"]
   schedule = "15 */2 * * *"
 
+# Ad-spend auto-log — logs the monthly Google Ads cost as a Books expense (once
+# per month) so the P&L always reflects ad spend. Runs on the 17th (after the
+# US Bank cycle closes ~16th). Amount = vault AD_SPEND_MONTHLY (default $500).
+[functions."ad-spend-autolog"]
+  schedule = "0 14 17 * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,

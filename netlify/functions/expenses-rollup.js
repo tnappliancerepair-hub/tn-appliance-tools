@@ -36,20 +36,21 @@ exports.handler = async function (event) {
       out.push(...items);
       if (items.length < 500) break;
     }
-    const by = { gas: 0, truck: 0, other: 0 };
+    const by = { gas: 0, truck: 0, ads: 0, other: 0 };
     let total = 0, count = 0;
     for (const row of out) {
       const m = meta(row);
       const t = num(m.expense_date_ms) || (row.created_at ? Date.parse(row.created_at) : 0);
       if (t < start || t > end) continue;
       const amt = num(m.amount);
-      const cat = (m.category === 'gas' || m.category === 'truck') ? m.category : 'other';
+      const c = String(m.category || '').toLowerCase();
+      const cat = (c === 'gas' || c === 'truck' || c === 'ads') ? c : 'other';
       by[cat] += amt; total += amt; count++;
     }
     return { statusCode: 200, body: JSON.stringify({
       success: true,
       total: Number(total.toFixed(2)),
-      by_category: { gas: Number(by.gas.toFixed(2)), truck: Number(by.truck.toFixed(2)), other: Number(by.other.toFixed(2)) },
+      by_category: { gas: Number(by.gas.toFixed(2)), truck: Number(by.truck.toFixed(2)), ads: Number(by.ads.toFixed(2)), other: Number(by.other.toFixed(2)) },
       count,
     }) };
   } catch (err) {
