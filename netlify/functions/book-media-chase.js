@@ -44,9 +44,10 @@ exports.handler = async function (event) {
     if (chasedJobs.has(jobId)) { skipped.push({ job: jobId, why: 'already chased' }); continue; }
     // Don't chase a lead that's already handled — scheduled, completed, or
     // canceled (incl. cleaned test jobs). Only chase still-open leads.
-    let st = '';
-    try { const jd = await fetch(`${XANO}/get_job_for_dashboard?job_id=${jobId}`, { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); st = String((jd && (jd.scheduling_status || (jd.job && jd.job.scheduling_status))) || '').toLowerCase(); } catch (_) {}
-    if (['scheduled', 'in_progress', 'completed', 'canceled', 'cancelled', 'closed', 'no_fix_possible'].includes(st)) { skipped.push({ job: jobId, why: 'status ' + st }); continue; }
+    let st = '', cst = '';
+    try { const jd = await fetch(`${XANO}/get_job?job_id=${jobId}`, { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); st = String((jd && jd.scheduling_status) || '').toLowerCase(); cst = String((jd && jd.current_status) || '').toLowerCase(); } catch (_) {}
+    const TERM = ['scheduled', 'in_progress', 'completed', 'canceled', 'cancelled', 'closed', 'no_fix_possible'];
+    if (TERM.includes(st) || TERM.includes(cst)) { skipped.push({ job: jobId, why: 'status ' + (st || cst) }); continue; }
     // What's still missing? Media (attachments) and/or availability (their reply
     // was parsed onto the job -> availability_captured_<job> marker). Recover
     // whatever's outstanding; if they've given BOTH, leave them alone.
