@@ -85,8 +85,10 @@
 <div class="done" id="done">
   <div class="ico">✅</div>
   <h2 id="done-h">Got it!</h2>
-  <p id="done-p">We just texted you a link to send a <b>quick video of the problem + a photo of the model-number sticker</b> — that's all we need to get you a fast, honest answer. Talk soon. 🐜</p>
-  <div class="trust" style="margin-top:18px">Didn't get a text in a minute? Call <a href="tel:+16152802949">615-280-2949</a>.</div>
+  <p id="done-p">One quick thing for a faster, more accurate answer:</p>
+  <a id="media-btn" href="#" style="display:block;background:linear-gradient(135deg,#ff8a00,#e26d00);color:#fff;font-weight:800;text-decoration:none;border-radius:13px;padding:16px;font-size:16px;margin:14px auto 6px;max-width:400px">📷 Send a model-# pic + a short video</a>
+  <div style="color:#718096;font-size:13px;max-width:400px;margin:0 auto">Takes 10 seconds — optional, but it lets our tech show up ready. (We texted you this link too.)</div>
+  <div class="trust" style="margin-top:18px">Questions? Call <a href="tel:+16152802949">615-280-2949</a>.</div>
 </div>
 
 <script>
@@ -116,6 +118,7 @@ document.getElementById('submit').onclick=async function(){
     var d=await r.json();
     if(d&&d.ok){
       try{ gtag('event','generate_lead',{value:1,currency:'USD',items:[{item_id:'book_repair',item_name:'Book a Repair'}]}); }catch(_){}
+      var mb=document.getElementById('media-btn'); if(mb&&d.job_id) mb.href='/finish-upload.html?job_id='+encodeURIComponent(d.job_id);
       document.getElementById('form-wrap').style.display='none';
       document.getElementById('done-h').textContent='Got it, '+first+'!';
       document.getElementById('done').style.display='block';
