@@ -818,7 +818,15 @@ async function loadAttachments(){
       const sk=a.s3_key||'';
       let inner;
       if(sk.indexOf('cfstream:')===0){ const uid=sk.slice(9);
-        inner=`<a style="position:relative;display:block;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden"><iframe src="https://iframe.cloudflarestream.com/${esc(uid)}?preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe><span class="vbadge">▶ video</span></a>`;
+        // Poster tile + tap-to-play. A freshly-recorded video is still ENCODING for a
+        // bit; auto-embedding the player during that window shows a scary "unknown
+        // error". Thumbnail loads once ready; otherwise a clean "processing" state.
+        inner=`<a href="https://iframe.cloudflarestream.com/${esc(uid)}" target="_blank" rel="noopener" onclick="return playStream(event,this,'${esc(uid)}')" style="position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;background:#0c0f15;border-radius:8px;overflow:hidden;color:#cbd3e0;text-decoration:none">
+          <img src="https://videodelivery.net/${esc(uid)}/thumbnails/thumbnail.jpg?time=1s&height=480" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div style="display:none;flex-direction:column;gap:5px;align-items:center;justify-content:center;font-size:12px;text-align:center;padding:8px"><span style="font-size:26px">🎬</span>Video processing…<br>tap ↻ refresh in a minute</div>
+          <span style="position:relative;z-index:2;width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:19px">▶</span>
+          <span class="vbadge">video</span>
+        </a>`;
       } else if(sk.indexOf('cfimg:')===0){ const iu=sk.slice(6);
         inner=`<a href="${esc(iu)}" target="_blank" rel="noopener"><img src="${esc(iu)}" loading="lazy" alt=""></a>`;
       } else {
@@ -845,6 +853,14 @@ async function delAtt(ev, attId){
     if(d&&d.ok){ toast('Deleted ✓'); loadAttachments(); }
     else toast('⚠ could not delete'+(d&&d.error?': '+d.error:''));
   }catch(e){ toast('⚠ delete failed — check signal'); }
+}
+
+// Tap a video poster → swap in the Cloudflare Stream player and play it inline.
+function playStream(ev, el, uid){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  el.outerHTML='<div style="position:relative;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden">'
+    +'<iframe src="https://iframe.cloudflarestream.com/'+uid+'?autoplay=true&preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div>';
+  return false;
 }
 
 async function uploadFile(file,kind){
