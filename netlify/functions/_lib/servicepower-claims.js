@@ -132,4 +132,32 @@ function normClaim(c) {
   };
 }
 
-module.exports = { isConfigured, isProd, retrievalUrl, retrieveClaims, normClaim };
+// Claims SUBMISSION endpoint (sibling of retrieval) — North America.
+async function submissionUrl() {
+  return (await isProd())
+    ? 'https://claimworks.servicepower.com:8443/services/claim/v1/submission'
+    : 'https://upgdev.servicepower.com:8443/services/claim/v1/submission';
+}
+
+// Submit one or more assembled claim objects. Same JSON auth as retrieval.
+// REAL WRITE — only call from the gated submit handler with confirm.
+async function submitClaims(claims) {
+  const a = await auth();
+  const payload = { authentication: { userId: a.userId, password: a.password }, claims: Array.isArray(claims) ? claims : [claims] };
+  const url = await submissionUrl();
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000) });
+  const text = await r.text();
+  let d = null; try { d = JSON.parse(text); } catch (_) {}
+  const rc = d && (d.responseCode || d.responsecode);
+  return {
+    ok: r.ok && String(rc || '').toUpperCase() === 'OK',
+    http_status: r.status, response_code: rc || null,
+    transaction_id: (d && d.transactionId) || null,
+    messages: (d && Array.isArray(d.messages)) ? d.messages.map((m) => (m && m.message) || '').filter(Boolean) : [],
+    claims_resp: (d && d.claims) || [],
+    url, sent: { ...payload, authentication: { userId: a.userId, password: '***' } },
+    raw: text.slice(0, 3000),
+  };
+}
+
+module.exports = { isConfigured, isProd, retrievalUrl, retrieveClaims, normClaim, submissionUrl, submitClaims };
