@@ -454,6 +454,7 @@ function render(){
 
       <div class="card">
         <h3>🔧 Tech help <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
+        <a href="tech-ant-chat.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:11px;background:#0a7d33;font-size:16px;padding:13px">🐜 Ask Ant — talk it through</a>
         <div class="parts-in">
           <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
           <input id="pf-symptom" placeholder="Symptom / error code (e.g. F3, not cooling)" value="${esc(problem)}">
