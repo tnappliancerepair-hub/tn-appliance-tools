@@ -1,10 +1,14 @@
-// book-media-chase — if a "Book a Repair" lead never sends their model-# pic +
-// problem video, gently text them ONCE to try to get it (so the Teddy Tool gets
-// real media instead of a blank). HARD one-chase-per-job dedup — the old
+// book-media-chase — if a "Book a Repair" lead goes quiet, gently text them ONCE
+// to recover whatever's still missing to turn them into a scheduled cash job:
+//   (a) AVAILABILITY — the day/time they want a tech (this is what actually lets
+//       the office schedule; the #1 thing to recover), and/or
+//   (b) MEDIA — model-# pic + problem video (so the Teddy Tool isn't blank).
+// The message adapts to what's missing. HARD one-chase-per-job dedup — the old
 // intake-collector spammed a customer 5x and got disabled; never again.
 //
 // Runs hourly; self-gates to 9a-7p CT, waits 2h after booking, skips jobs that
-// already have media or were already chased. Kill switch: vault BOOK_MEDIA_CHASE=false.
+// already gave BOTH availability + media, or were already chased. Kill switch:
+// vault BOOK_MEDIA_CHASE=false.
 //   GET ?dryrun=1   inspect without sending
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
@@ -38,19 +42,32 @@ exports.handler = async function (event) {
     if (now - at > WINDOW) continue;                                  // too old, give up
     if (now - at < WAIT) { skipped.push({ job: jobId, why: 'too fresh (<2h)' }); continue; }
     if (chasedJobs.has(jobId)) { skipped.push({ job: jobId, why: 'already chased' }); continue; }
-    // already sent media? then leave them alone
+    // What's still missing? Media (attachments) and/or availability (their reply
+    // was parsed onto the job -> availability_captured_<job> marker). Recover
+    // whatever's outstanding; if they've given BOTH, leave them alone.
     let hasMedia = false;
     try { const a = await fetch(`${XANO}/get_job_attachments?job_id=${jobId}`, { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); hasMedia = ((a && a.attachments) || []).some((x) => x.upload_complete_at); } catch (_) {}
-    if (hasMedia) { skipped.push({ job: jobId, why: 'media already sent' }); continue; }
+    let hasAvail = false;
+    try { const av = await crud.searchPage(EVENT_LOG, { action: 'availability_captured_' + jobId }, { id: 'desc' }, 1); hasAvail = !!(av && av.length); } catch (_) {}
+    if (hasMedia && hasAvail) { skipped.push({ job: jobId, why: 'has availability + media' }); continue; }
     const phone = e164(m.phone); if (!phone) { skipped.push({ job: jobId, why: 'no phone' }); continue; }
     const first = m.first_name || 'there';
     const apl = m.appliance ? (' ' + String(m.appliance).toLowerCase()) : ' appliance';
     const link = `https://tnapplianceexchange.net/finish-upload.html?job_id=${jobId}`;
-    const msg = `Hi ${first}, still here to help with your${apl}! Whenever you get a sec, a quick photo of the model-# sticker + a short video of the problem lets us get you a fast, honest answer: ${link} — TN Appliance Exchange 🐜`;
+    // Tailor the ask to what's outstanding. Availability is the priority recover.
+    let msg;
+    if (!hasAvail && !hasMedia) {
+      msg = `Hi ${first}, still here to help with your${apl}! Two quick things to get you scheduled: 1) what days/times work to get a tech out? (just reply here) 2) a photo of the model-# sticker + short video of the problem helps us show up ready: ${link} — TN Appliance Exchange 🐜`;
+    } else if (!hasAvail) {
+      msg = `Hi ${first}, got your photos — thank you! Just need to know what days/times work to get a tech out to your${apl}, and we'll get you on the schedule. Reply right here. — TN Appliance Exchange 🐜`;
+    } else {
+      msg = `Hi ${first}, thanks — we've got your availability! Whenever you get a sec, a quick photo of the model-# sticker + a short video of the problem lets us show up with the right part: ${link} — TN Appliance Exchange 🐜`;
+    }
 
-    if (dry) { sent.push({ job: jobId, preview: msg.slice(0, 90) }); continue; }
+    const want = (!hasAvail && !hasMedia) ? 'availability+media' : (!hasAvail ? 'availability' : 'media');
+    if (dry) { sent.push({ job: jobId, want, preview: msg.slice(0, 90) }); continue; }
     // claim BEFORE sending (so a double-run can't double-text), then send
-    try { await crud.logEvent('book_media_chase_sent', { job_id: jobId, phone: m.phone || '', at_ms: Date.now() }); } catch (_) {}
+    try { await crud.logEvent('book_media_chase_sent', { job_id: jobId, phone: m.phone || '', want, at_ms: Date.now() }); } catch (_) {}
     chasedJobs.add(jobId);
     try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: phone, message: msg, customer_first_name: first, context_tag: 'book_media_chase' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
     sent.push({ job: jobId });
