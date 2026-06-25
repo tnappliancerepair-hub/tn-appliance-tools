@@ -84,14 +84,15 @@ async function historyMatches({ model, brand, appliance_type }) {
 function catalogLinks(model) {
   const m = encodeURIComponent(String(model || '').trim());
   if (!m) return [];
+  // Best "see the exploded picture → tap the part → read the number" sources first.
+  // (Marcone lives as the live-API price/stock box on the tech tool, not here —
+  // its web portal is login-gated, so it's a poor quick-diagram link.)
   return [
-    // Marcone first — our distributor (live API net cost + stock), fastest path to order.
-    { label: 'Marcone (our distributor — net cost + stock) ⚡', url: `https://my.marcone.com/Home/RunSearchPartModelList?searchString=${m}&type=Part` },
-    { label: 'Encompass (OEM distributor — exploded diagram)', url: `https://encompass.com/search/?searchTerm=${m}` },
+    { label: 'PartSelect (exploded diagram — tap the part)', url: `https://www.partselect.com/search/?q=${m}` },
+    { label: 'AppliancePartsPros (exploded diagram — tap the part)', url: `https://www.appliancepartspros.com/search.aspx?q=${m}` },
     { label: 'Sears PartsDirect (diagram + part #s)', url: `https://www.searspartsdirect.com/search?q=${m}` },
-    { label: 'PartSelect', url: `https://www.partselect.com/search/?q=${m}` },
-    { label: 'RepairClinic', url: `https://www.repairclinic.com/Shop-For-Parts?query=${m}` },
-    { label: 'AppliancePartsPros', url: `https://www.appliancepartspros.com/search.aspx?q=${m}` },
+    { label: 'Encompass (OEM distributor — exploded diagram)', url: `https://encompass.com/search/?searchTerm=${m}` },
+    { label: 'RepairClinic (diagram)', url: `https://www.repairclinic.com/Shop-For-Parts?query=${m}` },
   ];
 }
 
