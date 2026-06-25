@@ -64,7 +64,18 @@ const TECH_ASSIST_TIMEOUT_MS = 12000;
 const XANO_TIMEOUT_MS = 9000;
 const SEND_SMS_TIMEOUT_MS = 7000;
 
-const FALLBACK_REPLY = "yo, my brain glitched for a sec. try that again in a min and i should be back. if it's urgent, text teddy at 615-485-5795.";
+const FALLBACK_REPLY = "Sorry — I hit a brief glitch on that one. Please try again in a minute. If it's urgent, text Teddy at 615-485-5795.";
+
+// Warm-container dedup of recently-handled inbound message SIDs, so a Telnyx
+// webhook retry doesn't trigger a second reply (the double-message bug).
+const _recentInboundSids = new Map(); // sid -> ts
+function _seenInboundSid(sid) {
+  const now = Date.now();
+  for (const [k, t] of _recentInboundSids) { if (now - t > 5 * 60 * 1000) _recentInboundSids.delete(k); }
+  if (_recentInboundSids.has(sid)) return true;
+  _recentInboundSids.set(sid, now);
+  return false;
+}
 
 // Tech SMS query lifeline: short lookups a tech can text on bad signal. Routed
 // to the colony loop (reliable path) as a TECH_SMS_QUERY signal.
@@ -138,6 +149,15 @@ exports.handler = async function (event) {
   console.log('[tech-sms-inbound] normalized:', {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
+
+  // Telnyx retries the inbound webhook if it doesn't get a fast 200 (e.g. when the
+  // brain is slow) → each retry re-sent the reply (the double "glitch" message,
+  // 2026-06-25). Dedup on the message SID in this warm container: if we've already
+  // handled this SID, just ack — don't reply again.
+  if (parsed.sid && _seenInboundSid(parsed.sid)) {
+    console.log('[tech-sms-inbound] duplicate webhook for sid ' + parsed.sid + ' — acking without re-reply');
+    return providerAck(provider, '');
+  }
 
   // ─── Customer-direction dispatch (2026-05-30) ───────────────────
   // Both numbers (+1 615-857-8800 tech, +1 615-588-9500 customer) are
