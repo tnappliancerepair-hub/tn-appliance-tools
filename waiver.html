@@ -46,19 +46,11 @@
   .brand .logo { font-size: 32px; }
   .brand .name { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; color: #ff8a00; }
   h1 { font-size: 26px; margin: 0 0 10px; color: #1a202c; }
-  .lede { color: #4a5568; font-size: 15px; margin-bottom: 22px; line-height: 1.55; }
-  .lede p { margin: 0 0 10px; }
-  .lede .alert { background: #fff7e6; border: 1px solid #ffd591; border-radius: 10px; padding: 12px 14px; font-weight: 700; color: #ad4e00; margin-top: 12px; }
+  .sub { color: #4a5568; font-size: 15px; margin: -2px 0 20px; }
   .card { background: #fff; border-radius: 16px; padding: 22px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-  .section-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #ff8a00; margin: 0 0 14px; }
-  .check { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #edf2f7; cursor: pointer; }
-  .check:last-child { border-bottom: 0; }
-  .check input { width: 22px; height: 22px; margin-top: 1px; flex-shrink: 0; cursor: pointer; accent-color: #ff8a00; }
-  .check .label { font-size: 14px; color: #2d3748; line-height: 1.5; }
-  .check.error { background: rgba(239,68,68,0.05); margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
-  .release { font-size: 14px; color: #2d3748; line-height: 1.6; margin-bottom: 12px; }
+  .release { font-size: 16px; color: #2d3748; line-height: 1.65; margin-bottom: 16px; }
   .release p { margin: 0 0 12px; }
-  .release .big { font-weight: 700; color: #1a202c; font-size: 15px; }
+  .release .big { font-weight: 700; color: #1a202c; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #4a5568; margin-bottom: 6px; }
   .field label .req { color: #c53030; }
@@ -72,7 +64,6 @@
   .btn-clear { background: rgba(0,0,0,0.06); color: #1a202c; flex: 0 0 100px; }
   .btn-save { background: linear-gradient(135deg, #ff8a00, #e26d00); color: #fff; }
   .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
-  .reserve-note { background: #fff7e6; border-left: 4px solid #ff8a00; padding: 12px 14px; border-radius: 0 10px 10px 0; font-size: 13px; color: #ad4e00; margin: 18px 0 16px; line-height: 1.5; }
   .err { background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.3); color: #c53030; padding: 12px 14px; border-radius: 10px; font-size: 14px; margin-top: 12px; display: none; }
   .err.show { display: block; }
   .done { background: linear-gradient(135deg, #10b981, #047857); color: #fff; padding: 26px 22px; border-radius: 16px; text-align: center; font-size: 17px; font-weight: 700; line-height: 1.5; margin-top: 20px; display: none; }
@@ -86,81 +77,19 @@
   <div class="name">TN APPLIANCE EXCHANGE</div>
 </div>
 
-<h1>Required Before In-Home Service</h1>
-<div style="font-size: 15px; color: #ff8a00; font-weight: 700; margin: -4px 0 22px; letter-spacing: 0.02em">In-Home Service Authorization &amp; Risk Acknowledgment</div>
-<div class="lede">
-  <p>Many appliance repairs require moving, disconnecting, and reconnecting the unit.</p>
-  <p>When appliances are moved, older plumbing lines, valves, drain hoses, electrical outlets, flooring, cabinetry, or shut-off valves may fail if they are worn, brittle, corroded, improperly installed, or previously stressed.</p>
-  <div class="alert">This form is required before we dispatch a technician.</div>
-</div>
+<h1>Quick release before we get started</h1>
+<div class="sub">Takes 10 seconds — just sign with your finger.</div>
 
 <div class="card">
-  <div class="section-title">Movement & Utilities</div>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="movement_consent">
-    <span class="label">I understand the appliance may need to be moved or disconnected during service. Normal service procedures include reasonable movement, disconnection, reconnection, and testing of the appliance.</span>
-  </label>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="valves_may_fail">
-    <span class="label">I understand that water shut-off valves, gas valves, and electrical disconnects may not fully function or may fail when operated.</span>
-  </label>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="testing_disconnect">
-    <span class="label">I understand that testing may require temporary disconnection and reconnection of water, gas, or electrical service.</span>
-  </label>
-</div>
-
-<div class="card">
-  <div class="section-title">Pre-Existing Conditions</div>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="components_may_fail">
-    <span class="label">I understand older or pre-existing plumbing, electrical, or structural components may fail when disturbed.</span>
-  </label>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="not_responsible_pre_existing">
-    <span class="label">I acknowledge and agree that TN Appliance Exchange shall not be responsible for any damage resulting from pre-existing, concealed, deteriorated, or improperly installed conditions that fail during normal service procedures.</span>
-  </label>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="no_consequential_damage">
-    <span class="label">I understand TN Appliance Exchange is not responsible for consequential or secondary damage arising from failure of pre-existing conditions.</span>
-  </label>
-</div>
-
-<div class="card">
-  <div class="section-title">Access & Scope</div>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="appliance_accessible">
-    <span class="label">I confirm the appliance is accessible and that the surrounding area is safe and clear of hazards.</span>
-  </label>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="gas_line_homeowner">
-    <span class="label">I understand that existing gas line conditions are the homeowner's responsibility.</span>
-  </label>
-</div>
-
-<div class="card">
-  <div class="section-title">Service Authorization</div>
-  <label class="check" data-check>
-    <input type="checkbox" data-ack="authorize_service">
-    <span class="label">I authorize TN Appliance Exchange to proceed with in-home service under these terms.</span>
-  </label>
-</div>
-
-<div class="card">
-  <div class="section-title">Final Acknowledgment & Release</div>
   <div class="release">
-    <p>Normal service procedures include reasonable movement, disconnection, reconnection, and testing of the appliance.</p>
-    <p class="big">By signing below, I acknowledge and agree to the above terms and release TN Appliance Exchange from liability related to pre-existing, concealed, deteriorated, or improperly installed conditions that fail during normal service procedures, including any consequential, secondary, or indirect damage arising from such failure.</p>
+    <p>Appliances are complicated, and a repair sometimes turns up a hidden or pre-existing problem we couldn't see going in — old wiring, a slow leak, a worn-out part — that can give out during normal service.</p>
+    <p class="big">By signing below, you understand that TN Appliance Exchange isn't responsible for problems caused by those hidden or pre-existing conditions, or for related damage that comes from them.</p>
+    <p>We'll always treat your home and your appliance with care. 🐜</p>
   </div>
 
   <div class="field">
-    <label for="type-name">Type your name <span class="req">*</span></label>
+    <label for="type-name">Your name <span class="req">*</span></label>
     <input id="type-name" type="text" placeholder="First Last" autocomplete="name" inputmode="text">
-  </div>
-
-  <div class="field">
-    <label for="signer-email">Email (optional)</label>
-    <input id="signer-email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email">
   </div>
 
   <div class="field">
@@ -171,18 +100,16 @@
     </div>
   </div>
 
-  <div class="reserve-note">⚠️ TN Appliance Exchange reserves the right to pause or discontinue service if unsafe or hazardous conditions are identified.</div>
-
   <div class="row">
     <button class="btn btn-clear" id="btn-clear">Clear</button>
-    <button class="btn btn-save" id="btn-save">✓ Submit signature</button>
+    <button class="btn btn-save" id="btn-save">✓ Sign &amp; submit</button>
   </div>
   <div class="err" id="err"></div>
 </div>
 
 <div class="done" id="done">
-  ✓ Thank you. Your release of liability is on file.<br>
-  <span style="font-size:14px;font-weight:500;opacity:0.9">A copy has been recorded with your job. We'll see you at your appointment.</span>
+  ✓ Thank you — you're all set.<br>
+  <span style="font-size:14px;font-weight:500;opacity:0.9">Your release is on file with your job.</span>
 </div>
 
 <script>
@@ -191,9 +118,9 @@
   var params = new URLSearchParams(location.search);
   var JOB_ID = Number(params.get('job_id') || 0);
   if (!JOB_ID) {
-    var errEl = document.getElementById('err');
-    errEl.textContent = 'This link is missing a job reference. Please use the link from your appointment text.';
-    errEl.classList.add('show');
+    var e0 = document.getElementById('err');
+    e0.textContent = 'This link is missing a job reference. Please use the link from your appointment text.';
+    e0.classList.add('show');
   }
 
   // Canvas signature
@@ -246,51 +173,18 @@
     hasInk = false; placeholder.style.display = 'flex'; sizeCanvas();
   });
 
-  // Submit
+  // Submit — name + signature only (simple release, no checkboxes).
   var saveBtn = document.getElementById('btn-save');
   var errEl = document.getElementById('err');
-  var errFocused = null;
-  function clearErr() { errEl.classList.remove('show'); errEl.textContent = ''; if (errFocused) { errFocused.classList.remove('error'); errFocused = null; } }
-  function showErr(msg, scrollTo) {
-    errEl.textContent = msg;
-    errEl.classList.add('show');
-    if (scrollTo) {
-      scrollTo.classList.add('error');
-      errFocused = scrollTo;
-      scrollTo.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }
+  function clearErr() { errEl.classList.remove('show'); errEl.textContent = ''; }
+  function showErr(msg) { errEl.textContent = msg; errEl.classList.add('show'); errEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
   saveBtn.addEventListener('click', async function () {
     clearErr();
-    if (!JOB_ID) {
-      showErr('No job reference. Please use the link from your appointment text.');
-      return;
-    }
-    // Verify all 9 acknowledgments
-    var unchecked = null;
-    document.querySelectorAll('[data-check]').forEach(function (el) {
-      if (unchecked) return;
-      var cb = el.querySelector('input[type="checkbox"]');
-      if (!cb.checked) unchecked = el;
-    });
-    if (unchecked) {
-      showErr('Please check each acknowledgment before signing.', unchecked);
-      return;
-    }
+    if (!JOB_ID) { showErr('No job reference. Please use the link from your appointment text.'); return; }
     var name = document.getElementById('type-name').value.trim();
-    var email = document.getElementById('signer-email').value.trim();
     if (!name) { showErr('Please type your name.'); return; }
-    if (email && !/.+@.+\..+/.test(email)) { showErr('That email doesn\'t look right — leave it blank or fix it.'); return; }
-    if (!hasInk) { showErr('Please sign at the bottom before submitting.'); return; }
-
-    // Gather acknowledgments
-    var acks = {};
-    document.querySelectorAll('[data-check] input[type="checkbox"]').forEach(function (cb) {
-      acks[cb.getAttribute('data-ack')] = cb.checked;
-    });
+    if (!hasInk) { showErr('Please sign above before submitting.'); return; }
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving…';
@@ -303,25 +197,24 @@
           job_id: JOB_ID,
           signature_b64: b64,
           customer_name: name,
-          customer_email: email,
-          acknowledgments_json: JSON.stringify(acks),
-          user_agent: navigator.userAgent || '',
+          acknowledgments_json: JSON.stringify({ simple_release_v1: true }),
+          user_agent: navigator.userAgent || ''
         })
       });
       var d = await r.json();
       if (d && d.success) {
-        document.querySelectorAll('.card, .lede').forEach(function (c) { c.style.display = 'none'; });
+        document.querySelectorAll('.card').forEach(function (c) { c.style.display = 'none'; });
         document.getElementById('done').classList.add('show');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         showErr((d && d.message) || 'Could not save. Please try again or call 615-280-2949.');
         saveBtn.disabled = false;
-        saveBtn.textContent = '✓ Submit signature';
+        saveBtn.textContent = '✓ Sign & submit';
       }
     } catch (e) {
       showErr('Network error. Please try again.');
       saveBtn.disabled = false;
-      saveBtn.textContent = '✓ Submit signature';
+      saveBtn.textContent = '✓ Sign & submit';
     }
   });
 })();
