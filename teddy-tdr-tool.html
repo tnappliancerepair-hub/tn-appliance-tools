@@ -70,6 +70,12 @@
     .header-badge { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.3); border-radius: 20px; padding: 4px 10px; font-size: 10px; color: var(--accent); font-weight: 700; font-family: var(--mono); white-space: nowrap; }
     .back-link { color: var(--muted2); text-decoration: none; font-size: 12px; font-family: var(--mono); display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; margin-bottom: 8px; }
     .back-link:hover { color: var(--text); }
+    /* Floating "back to the job" — always visible for a tech who came from
+       their ticket, so they return to the exact same job from anywhere. */
+    .back-to-job-float { position: fixed; left: 14px; bottom: 16px; z-index: 99999; background: #0a7d33; color: #fff;
+      text-decoration: none; font-weight: 800; font-size: 15px; padding: 13px 18px; border-radius: 999px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.45); display: none; align-items: center; gap: 8px; }
+    .back-to-job-float:active { background: #086628; }
 
     .cockpit-card { background: var(--card); border: 1px solid var(--border2); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
     .cockpit-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -203,6 +209,21 @@
 <script src="/ant-tdr-card.js?v=20260604-tdr-card" defer></script>
 </head>
 <body>
+  <a id="back-to-job-float" class="back-to-job-float" href="#">← Back to the job</a>
+  <script>
+    // If a tech opened Teddy Tool from their job ticket (tech_id in the URL),
+    // pin an always-visible button that takes them right back to that same job.
+    (function(){
+      var p = new URLSearchParams(window.location.search);
+      var tech = p.get('tech_id') || '';
+      var job = p.get('job_id') || p.get('job') || '';
+      if (tech && job) {
+        var b = document.getElementById('back-to-job-float');
+        b.href = 'tech-job.html?job_id=' + encodeURIComponent(job) + '&tech_id=' + encodeURIComponent(tech);
+        b.style.display = 'inline-flex';
+      }
+    })();
+  </script>
   <div id="app">
     <div class="container">
       <div class="loading-screen">
@@ -838,7 +859,9 @@ function renderReview() {
   }
 
   return renderHeader() +
-    '<a class="back-link" href="dashboard.html">← Back to dashboard</a>' +
+    (function(){ var p=new URLSearchParams(window.location.search); var t=p.get('tech_id')||''; var j=p.get('job_id')||p.get('job')||state.jobId||'';
+      return t ? ('<a class="back-link" href="tech-job.html?job_id='+encodeURIComponent(j)+'&tech_id='+encodeURIComponent(t)+'">← Back to the job</a>')
+               : '<a class="back-link" href="dashboard.html">← Back to dashboard</a>'; })() +
     renderCockpitHeader() +
     '<div class="section-card" id="recall-section" style="display:none;border:1px solid rgba(231,76,60,0.45)"><div id="cpsc-recall-box"></div></div>' +
     renderAntsGuessPanel() +
