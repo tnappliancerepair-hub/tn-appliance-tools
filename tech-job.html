@@ -249,6 +249,7 @@ async function loadJob(){
     renderAntTdr(tdr, allTdrs);
     startAntTdrPoll();
     loadAttachments();
+    loadWaiverStatus();
     loadDayJobs();
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
@@ -421,6 +422,8 @@ function render(){
           <button class="act done" id="a-done"><span class="ic">✅</span>Complete</button>
         </div>
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
+        <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
+        <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
       </div>
 
       <div class="card" id="pay-card" style="display:none">
@@ -804,6 +807,21 @@ async function saveNotes(){
   }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
   finally{ btn.disabled=false; setTimeout(()=>{note.textContent='';},4000); }
 }
+
+// Release-of-liability status on the ticket. Tech taps the button → waiver.html
+// opens for this job (customer signs on the tech's phone) → waiver_signed_at flips.
+async function loadWaiverStatus(){
+  const el=document.getElementById('release-status'); const btn=document.getElementById('release-btn');
+  if(!el) return;
+  try{
+    const d=await xanoGet('get_waiver_status','job_id='+JOB_ID);
+    const signed = d && (d.waiver_signed===true || (d.waiver_signed_at && Number(d.waiver_signed_at)>0));
+    if(signed){ el.innerHTML='✅ Release of liability signed'; el.style.color='#127a4a'; if(btn) btn.textContent='✍️ Release signed — tap to re-sign'; }
+    else { el.innerHTML='⚠ Not signed yet — have the customer sign before you leave'; el.style.color='#b06a00'; }
+  }catch(_){ el.textContent=''; }
+}
+// Customer signs in a new tab; refresh the ✓ when the tech returns to the ticket.
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && document.getElementById('release-btn')) loadWaiverStatus(); });
 
 // ── media ───────────────────────────────────────────────────────
 async function loadAttachments(){
