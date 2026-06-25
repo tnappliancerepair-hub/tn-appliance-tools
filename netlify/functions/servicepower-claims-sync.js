@@ -49,6 +49,7 @@ async function loadState() {
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const dry = q.dryrun === '1';
+  const quiet = q.quiet === '1';   // persist state but don't text (first-run baseline)
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const showDetail = q.secret === admin;
 
@@ -126,7 +127,7 @@ exports.handler = async function (event) {
       });
     } catch (_) {}
 
-    if (newlyPaid.length || newlyRejected.length) {
+    if (!quiet && (newlyPaid.length || newlyRejected.length)) {
       let body = '[ant] 💵 ServicePower claims update:\n';
       if (newlyPaid.length) {
         const sum = newlyPaid.reduce((a, t) => a + Number(t.paid_total || 0), 0);
