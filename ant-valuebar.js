@@ -8,7 +8,7 @@
   try {
     var p = (location.pathname || '').toLowerCase();
     // skip internal tools + the intake/thank-you pages (the bar's own destination)
-    if (/office|tech-|tech\.|admin|teddy|warranty|money|payroll|dispatch|operator|needs-|dupe|cluster|frontdoor|schedule-sanity|callback|financial|call-performance|customer-search|job-detail|health-check|operator-status|agent-proposals|cash-pipeline|appliance-ai|quick-check|pay-thanks|finish-upload|cash-tdr|signup|company-admin|melissa|recent-calls|media-board|cash-leads|vacation|parts-ledger|parts-orders|parts-finder|view-job|dashboard|leaderboard|payout|tech-day|tech-scheduler|crew|loop-control/.test(p)) return;
+    if (/office|tech-|tech\.|admin|teddy|warranty|money|payroll|dispatch|operator|needs-|dupe|cluster|frontdoor|schedule-sanity|callback|financial|call-performance|customer-search|job-detail|health-check|operator-status|agent-proposals|cash-pipeline|appliance-ai|book-repair|quick-check|pay-thanks|finish-upload|cash-tdr|signup|company-admin|melissa|recent-calls|media-board|cash-leads|vacation|parts-ledger|parts-orders|parts-finder|view-job|dashboard|leaderboard|payout|tech-day|tech-scheduler|crew|loop-control/.test(p)) return;
     if (document.getElementById('ant-valuebar')) return;
 
     var css = ''
@@ -19,6 +19,9 @@
       + '#ant-valuebar a.vb-cta{flex:0 0 auto;background:#160800;color:#fff;text-decoration:none;font-weight:800;'
       + 'border-radius:999px;padding:7px 16px;font-size:13px;white-space:nowrap}'
       + '#ant-valuebar a.vb-cta:hover{background:#000}'
+      + '#ant-valuebar a.vb-cta2{background:transparent;color:#160800;border:2px solid #160800;padding:5px 13px}'
+      + '#ant-valuebar a.vb-cta2:hover{background:rgba(0,0,0,.12)}'
+      + '@media(max-width:680px){#ant-valuebar a.vb-cta2{display:none}}'
       + '#ant-valuebar .vb-full{display:inline}#ant-valuebar .vb-short{display:none}'
       + '@media(max-width:680px){#ant-valuebar{font-size:12.5px;gap:9px;padding:8px 10px}'
       + '#ant-valuebar .vb-full{display:none}#ant-valuebar .vb-short{display:inline}}';
@@ -33,10 +36,11 @@
     var inCity = city ? (' in <b>' + city + '</b>') : '';
     bar.innerHTML =
       '<div class="vb-txt">'
-      + '<span class="vb-full">⚡ Don\'t pay <b>$100–150</b> just to get looked at. <b>$50 phone diagnosis</b>' + inCity + ' — '
-      + 'snap a video + model pic from your phone, <b>anytime 24/7</b>. Honest answer (even &ldquo;don\'t fix it&rdquo;) in <b>2 business hours</b>.</span>'
-      + '<span class="vb-short">⚡ <b>$50 phone diagnosis</b>' + inCity + ' — half the price, answer in <b>2 hrs</b>. 24/7.</span>'
-      + '</div><a class="vb-cta" href="/appliance-ai.html">Start now →</a>';
+      + '<span class="vb-full">🔧 Broken appliance' + inCity + '? <b>Book a repair</b> — we text you right back. Or get a <b>$50 phone diagnosis</b> first (half the $100–150 others charge, answer in 2 hrs).</span>'
+      + '<span class="vb-short">🔧 <b>Book a repair</b>' + inCity + ' — we text you right back.</span>'
+      + '</div>'
+      + '<a class="vb-cta" href="/book-repair.html">Book a Repair →</a>'
+      + '<a class="vb-cta vb-cta2" href="/appliance-ai.html">$50 Quick Check</a>';
 
     function mount() { if (document.body && !document.getElementById('ant-valuebar')) document.body.insertBefore(bar, document.body.firstChild); }
     if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
