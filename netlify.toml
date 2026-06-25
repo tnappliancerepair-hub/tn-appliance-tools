@@ -227,3 +227,10 @@
 # slips unreturned (unreturned = no pay + a core charge). ?dryrun=1 to inspect.
 [functions."squaretrade-rma-watch"]
   schedule = "*/30 * * * *"
+
+# Auto-review requests — daily 6:30pm CT (23:30 UTC). Texts a one-tap Google review link
+# to customers whose job completed that day. Forward-only (lookback window) + 60-day
+# per-customer dedup (shares the colony agent's dedup key so no double-texting). Reviews
+# lift Local Services Ads + map-pack rank = more free leads. ?dryrun=1 to inspect.
+[functions."review-request-sweep"]
+  schedule = "30 23 * * *"
