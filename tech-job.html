@@ -778,8 +778,8 @@ async function voiceReport(){
     if(cap.labor_hours){ const lh=parseFloat(cap.labor_hours); if(lh>0) body.labor_time_hours=lh; }
     try{
       const d=await xanoPost('create_tdr',body);
-      if(d.success){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
-      else { note.className='save-note err'; note.textContent=d.error||'save failed'; }
+      if(d && d.tdr){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
+      else { note.className='save-note err'; note.textContent=d.message||d.error||'save failed'; }
     }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
   };
   mediaRec.start();
@@ -798,8 +798,8 @@ async function saveNotes(){
     const body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:txt};
     if(part) body.verified_part_number=part;
     const d=await xanoPost('create_tdr',body);
-    if(d.success){ note.className='save-note ok'; note.textContent='Saved ✓'; }
-    else { note.className='save-note err'; note.textContent=d.error||'save failed'; }
+    if(d && d.tdr){ note.className='save-note ok'; note.textContent='Saved ✓'; }
+    else { note.className='save-note err'; note.textContent=d.message||d.error||'save failed'; }
   }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
   finally{ btn.disabled=false; setTimeout(()=>{note.textContent='';},4000); }
 }
