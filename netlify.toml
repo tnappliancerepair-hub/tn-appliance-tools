@@ -82,6 +82,11 @@
 [functions."book-media-chase"]
   schedule = "0 * * * *"
 
+# Cash-ready push — text Teddy the moment a self-pay web lead has given
+# availability (so it can be scheduled fast). Once per job, 8a-8p CT.
+[functions."cash-ready-notify"]
+  schedule = "20 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
