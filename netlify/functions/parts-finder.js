@@ -85,6 +85,8 @@ function catalogLinks(model) {
   const m = encodeURIComponent(String(model || '').trim());
   if (!m) return [];
   return [
+    // Marcone first — our distributor (live API net cost + stock), fastest path to order.
+    { label: 'Marcone (our distributor — net cost + stock) ⚡', url: `https://my.marcone.com/Home/RunSearchPartModelList?searchString=${m}&type=Part` },
     { label: 'Encompass (OEM distributor — exploded diagram)', url: `https://encompass.com/search/?searchTerm=${m}` },
     { label: 'Sears PartsDirect (diagram + part #s)', url: `https://www.searspartsdirect.com/search?q=${m}` },
     { label: 'PartSelect', url: `https://www.partselect.com/search/?q=${m}` },
