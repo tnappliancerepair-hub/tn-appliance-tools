@@ -75,8 +75,13 @@ exports.handler = async function (event) {
     await Promise.all(chunk.map(async (cid) => {
       try {
         const theirs = await search(ids.jobs, { customer_id: cid }, { id: 'desc' }, 20, 1);
-        const w = theirs.find(isWarranty);
-        if (w) warrantyOf.set(cid, { company: String(w.warranty_company || '').trim(), claim: String(w.claim_number || '').trim(), from_job: w.id });
+        const wj = theirs.filter(isWarranty);
+        if (wj.length) {
+          const w = wj.find((x) => String(x.claim_number || '').trim()) || wj[0];
+          // only copy the claim when unambiguous (one warranty job) — else company only
+          const claims = [...new Set(wj.map((x) => String(x.claim_number || '').trim()).filter(Boolean))];
+          warrantyOf.set(cid, { company: String(w.warranty_company || '').trim(), claim: claims.length === 1 ? claims[0] : '', from_job: w.id, warranty_jobs: wj.length });
+        }
       } catch (_) {}
     }));
   }
