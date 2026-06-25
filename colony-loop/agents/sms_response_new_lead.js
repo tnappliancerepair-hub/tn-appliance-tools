@@ -23,14 +23,17 @@ const PUBLIC_SITE = (config.publicSiteBase || 'tnapplianceexchange.net').replace
 
 function composeReply(body) {
   const text = String(body || '').toLowerCase();
-  // Lightly personalize based on the customer's wording
+  // Lightly personalize based on the customer's wording. Word-boundaried + specific
+  // terms only — bare "air"/"heat"/"ac" substring-matched everyday words ("fairly"
+  // → HVAC; Heather, 2026-06-25). When nothing clearly matches, stay neutral — a
+  // wrong appliance label reads worse than none.
   let opener = "Got it — thanks for reaching out.";
-  if (/fridge|refrig|freezer/.test(text)) opener = "Got it — fridge repair, perfect.";
-  else if (/washer|wash machine|laundry/.test(text)) opener = "Got it — washer repair, perfect.";
-  else if (/dryer/.test(text)) opener = "Got it — dryer repair, perfect.";
-  else if (/dishwash/.test(text)) opener = "Got it — dishwasher repair, perfect.";
-  else if (/oven|range|stove|cook/.test(text)) opener = "Got it — oven/range repair, perfect.";
-  else if (/hvac|heat|air|ac\b|furnace/.test(text)) opener = "Got it — HVAC repair, perfect.";
+  if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker)\b/.test(text)) opener = "Got it — fridge repair, perfect.";
+  else if (/\b(washer|washing machine|laundry)\b/.test(text)) opener = "Got it — washer repair, perfect.";
+  else if (/\b(dryer)\b/.test(text)) opener = "Got it — dryer repair, perfect.";
+  else if (/\b(dishwasher|dish ?washer)\b/.test(text)) opener = "Got it — dishwasher repair, perfect.";
+  else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = "Got it — oven/range repair, perfect.";
+  else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = "Got it — HVAC repair, perfect.";
 
   return `${opener} Tap here to finish setting up in about 60 seconds: ${PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
 }
