@@ -51,11 +51,11 @@ exports.handler = async function (event) {
   if (!jobId) return json(200, { ok: false, error: 'Could not submit — please call 615-280-2949.' });
 
   // 2) SPEED-TO-LEAD — text the customer within seconds (the conversion lever).
-  // Ask for the model-# photo + a short problem video; these upload onto the job
-  // and feed the Teddy Tool so the owner pre-diagnoses from real media, not a blank.
+  // Ask when they're available (their reply is parsed onto the job so it can get
+  // scheduled) AND for a model-# pic + problem video (feeds the Teddy Tool).
   const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
   const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
-  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request! Quick favor so we can help you fast: tap here to send a photo of the model-number sticker + a short video of the problem → " + uploadUrl + " . Then we'll text you to set up the visit. (Or call/text 615-280-2949.)";
+  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request! What days/times work to get a tech out? Just reply right here. To help us show up ready, you can also tap to send a model-# pic + short video: " + uploadUrl + " . (Or call/text 615-280-2949.)";
   try {
     await fetch(XANO + '/send_sms', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -67,6 +67,10 @@ exports.handler = async function (event) {
   // 3) we just texted them — suppress the loop's duplicate greeting + log the lead
   try { await crud.logEvent('new_job_greeting_sent', { job_id: jobId, source: 'web_book', via: 'speed_to_lead', at_ms: Date.now() }); } catch (_) {}
   try { await crud.logEvent('web_book_lead', { job_id: jobId, first_name: first, phone: phoneDigits, appliance, zip, at_ms: Date.now() }); } catch (_) {}
+  // Arm the inbound router: the customer's reply (their availability) gets parsed
+  // onto the job (customer_preference_text) + a warm ack — instead of going nowhere.
+  // Same record_event_log path the colony availability pipeline reads.
+  try { await fetch(XANO + '/record_event_log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'availability_requested_' + jobId, metadata_json: JSON.stringify({ source: 'web_book', phone: phoneDigits, at_ms: Date.now() }) }), signal: AbortSignal.timeout(10000) }); } catch (_) {}
 
   return json(200, { ok: true, job_id: jobId });
 };
