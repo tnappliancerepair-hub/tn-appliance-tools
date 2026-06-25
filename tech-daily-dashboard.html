@@ -930,6 +930,19 @@
     } catch (e) { /* offline ok */ }
   }
 
+  // Mark an inbox message read on the server (keeps the "N new" badge accurate +
+  // lets the office see ✓ Read). Used by tap, per-message delete, and Clear all.
+  function markInboxRead(msgId, pin) {
+    const id = parseInt(msgId, 10);
+    if (!id) return;
+    try {
+      fetch(`${XANO_BASE}/mark_tech_inbox_message_read`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tech_id: parseInt(TECH_ID, 10), pin: pin || localStorage.getItem(PIN_STORAGE_KEY), message_id: id }) }).catch(() => {});
+      fetch('/.netlify/functions/tech-message', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'read_receipt', tech_id: parseInt(TECH_ID, 10), message_id: id }) }).catch(() => {});
+    } catch (_) {}
+  }
+
   function renderInbox(d) {
     const host = document.getElementById('inboxHost');
     if (!host) return;
@@ -956,7 +969,10 @@
           <span style="font-size:14px">💬</span>
           <span style="font-weight:700">MESSAGES</span>
           ${unreadBadge}
-          ${anyRead ? '<button id="clearReadBtn" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:7px;padding:3px 9px;font-size:10px;cursor:pointer">Clear read</button>' : ''}
+          ${visible.length ? `<div style="margin-left:auto;display:flex;gap:6px">
+            ${anyRead ? '<button id="clearReadBtn" style="background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:7px;padding:3px 9px;font-size:10px;cursor:pointer">Clear read</button>' : ''}
+            <button id="clearAllBtn" style="background:none;border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:7px;padding:3px 9px;font-size:10px;cursor:pointer">Clear all</button>
+          </div>` : ''}
         </div>
         <div id="inboxList"></div>
         <button id="notifBtn" style="display:none;width:100%;margin-top:10px;background:rgba(255,107,53,0.14);color:#ff8c61;border:1px solid rgba(255,107,53,0.4);border-radius:8px;padding:11px;font-weight:800;font-size:14px;cursor:pointer">🔔 Turn on notifications</button>
@@ -990,6 +1006,7 @@
             <span style="font-weight:700;color:#1f2736">${senderName}</span>
             ${isUnread ? '<span style="color:#d9531e;font-weight:800;font-size:10px">●UNREAD</span>' : ''}
             <span style="margin-left:auto;font-family:var(--mono)">${time}</span>
+            <button class="inbox-del" data-del-id="${m.id}" data-del-unread="${isUnread ? '1' : '0'}" title="Delete" style="background:none;border:0;color:#9aa3b2;font-size:20px;line-height:1;padding:0 4px;margin-left:6px;cursor:pointer;font-weight:700">&times;</button>
           </div>
           <div style="font-size:14px;color:#161c28;line-height:1.45;font-weight:500">${body}</div>
         </div>
@@ -1057,6 +1074,33 @@
       } catch (_) {}
       loadInbox();
     };
+    // Clear all: wipe every visible message from this device (the whole pile).
+    const clrAll = document.getElementById('clearAllBtn');
+    if (clrAll) clrAll.onclick = () => {
+      const pin = localStorage.getItem(PIN_STORAGE_KEY);
+      try {
+        const set = new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]'));
+        visible.forEach(m => { set.add(String(m.id)); if (!m.read_at) markInboxRead(m.id, pin); });
+        localStorage.setItem(DISMISS_KEY, JSON.stringify([...set]));
+      } catch (_) {}
+      loadInbox();
+    };
+    // Per-message delete (✕): hide one message (read or unread) on this device.
+    list.querySelectorAll('.inbox-del').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.delId;
+        if (btn.dataset.delUnread === '1') markInboxRead(id, localStorage.getItem(PIN_STORAGE_KEY));
+        try {
+          const set = new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]'));
+          set.add(String(id));
+          localStorage.setItem(DISMISS_KEY, JSON.stringify([...set]));
+        } catch (_) {}
+        const card = btn.closest('[data-msg-id]');
+        if (card) card.remove();
+        if (!list.querySelector('[data-msg-id]')) loadInbox();
+      });
+    });
     // Notifications: show the button unless already on.
     const nbtn = document.getElementById('notifBtn');
     if (nbtn && window.AntPush) {
