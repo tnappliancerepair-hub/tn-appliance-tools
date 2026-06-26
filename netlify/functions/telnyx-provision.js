@@ -360,6 +360,23 @@ exports.handler = async function (event) {
       return json(200, { ok: true, from, job, link, sent: out });
     }
 
+    if (action === 'testlink') {
+      // Send the $1 cash Quick Check test link to Teddy (or &to=) FROM the customer
+      // line 588-9500 — so we also prove SMS-with-a-link actually DELIVERS to a real
+      // phone (a cash customer reported never getting our links; HCP's got through →
+      // smells like carrier A2P/10DLC URL filtering). Teddy, 2026-06-26.
+      const from = '+16155889500';
+      const to = String(q.to || '+16154855795').replace(/[^\d+]/g, '');
+      const dest = to.startsWith('+') ? to : ('+1' + to.replace(/^1/, ''));
+      const link = `${SITE}/?qc=tn-qc-test-2026`;
+      const text = `TN Appliance — here's the $1 test of the Quick Check. Tap to run it end-to-end (Dryer → I'm paying myself → record a 10-15s video → snap any model sticker → pay $1): ${link}  (Reply STOP to opt out.)`;
+      try {
+        const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text }), signal: AbortSignal.timeout(12000) });
+        const sd = await send.json().catch(() => ({}));
+        return json(200, { ok: send.ok, from, to: dest, link, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
+      } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
