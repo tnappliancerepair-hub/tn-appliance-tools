@@ -23,9 +23,13 @@ async function listAccounts() {
     out.push({ label: process.env.GMAIL_ACCOUNT_LABEL || 'tnappliancerepair@gmail.com', clientId: id1, clientSecret: sec1, refreshToken: rt1 });
   }
 
-  // 2nd inbox shares the same (production-published) OAuth client by default.
-  const id2 = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || id1;
-  const sec2 = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || sec1;
+  // 2nd inbox is minted via the "Ant Ads" WEB OAuth client (GOOGLE_ADS_*) — a
+  // Web client supports the https redirect URI the connect flow needs (the Gmail
+  // "AHS Poller" client is Desktop-type and can't hold one). A refresh token must
+  // be read back with the SAME client that minted it, so account 2 pairs
+  // GMAIL2_REFRESH_TOKEN with the Ads client id/secret.
+  const id2 = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
+  const sec2 = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'));
   const rt2 = await getSecretPreferVault('GMAIL2_REFRESH_TOKEN');
   if (id2 && sec2 && rt2) {
     out.push({ label: process.env.GMAIL2_ACCOUNT_LABEL || 'tnappliance@gmail.com', clientId: id2, clientSecret: sec2, refreshToken: rt2 });

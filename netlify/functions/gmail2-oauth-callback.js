@@ -19,9 +19,9 @@ exports.handler = async function (event) {
   const code = q.code;
   if (!code) return { statusCode: 400, headers: { 'Content-Type': 'text/html' }, body: page('Missing authorization code', '<p>Start over at <code>/.netlify/functions/gmail2-oauth-start</code>.</p>') };
 
-  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GMAIL_CLIENT_ID'));
-  const secret = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || (await getSecretPreferVault('GMAIL_CLIENT_SECRET'));
-  if (!id || !secret) return { statusCode: 500, headers: { 'Content-Type': 'text/html' }, body: page('Not configured', '<p>Gmail OAuth client missing.</p>') };
+  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
+  const secret = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'));
+  if (!id || !secret) return { statusCode: 500, headers: { 'Content-Type': 'text/html' }, body: page('Not configured', '<p>Web OAuth client (GOOGLE_ADS_CLIENT_ID/SECRET) missing.</p>') };
 
   try {
     const body = new URLSearchParams({ grant_type: 'authorization_code', client_id: id, client_secret: secret, code, redirect_uri: REDIRECT });

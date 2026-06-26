@@ -1,10 +1,14 @@
 // One-time hookup for a SECOND Gmail inbox (tnappliance@gmail.com — where the
-// Amazon Business + Google Ads receipts/approvals land). Reuses the existing,
-// production-published Gmail OAuth client and mints a separate read-only token.
+// Amazon Business + Google Ads receipts/approvals land). Mints a read-only Gmail
+// token via the "Ant Ads" WEB OAuth client (same one Search Console uses) — a
+// Web client can hold the https redirect URI; the Gmail "AHS Poller" client is
+// Desktop-type and CANNOT (that's the redirect_uri_mismatch error).
 //
-// PREREQ (one console step, done once): in Google Cloud → the Gmail OAuth client
-// → Authorized redirect URIs → add:
+// PREREQ (one console step, done once): Google Cloud → APIs & Services →
+// Credentials → "Ant Ads" client → Authorized redirect URIs → add:
 //   https://tnapplianceexchange.net/.netlify/functions/gmail2-oauth-callback
+//   (also ensure the consent screen lists the .../auth/gmail.readonly scope, and
+//    add tnappliance@gmail.com as a Test user if the app is in Testing mode)
 //
 // THEN: open this link WHILE SIGNED IN AS tnappliance@gmail.com (use an
 // incognito window so you don't accidentally authorize the wrong account):
@@ -16,10 +20,10 @@ const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/gmail2-oaut
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 exports.handler = async function () {
-  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GMAIL_CLIENT_ID'));
+  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
   if (!id) {
     return { statusCode: 500, headers: { 'Content-Type': 'text/html' },
-      body: '<p>No Gmail OAuth client configured. Need <b>GMAIL_CLIENT_ID</b> (already set for inbox #1).</p>' };
+      body: '<p>No Web OAuth client configured. Need <b>GOOGLE_ADS_CLIENT_ID</b> (the "Ant Ads" web client, already set from the Ads/GSC hookup).</p>' };
   }
   const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.searchParams.set('response_type', 'code');
