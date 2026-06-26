@@ -33,6 +33,68 @@ const XANO_RECORD_INBOUND = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/rec
 const XANO_EXTRA_YES = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/process_customer_extra_yes';
 const EXTRA_TIMEOUT_MS = 6000;
 const XANO_TIMEOUT_MS = 9000;
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const PUBLIC_SITE = 'tnapplianceexchange.net';
+
+// Specific-intent keywords (mirror of the loop's KEYWORD_ROUTES). If a cold
+// lead's text matches one of these, do NOT fire the instant new-lead greeting —
+// let the loop route it to the right responder (cancel / reschedule / status…).
+function hasSpecificIntent(body) {
+  const t = String(body || '').trim();
+  if (!t) return false;
+  return /^\s*(M|A|MORNING|AFTERNOON|ANYTIME|EITHER|EVENING)\s*[.!]?\s*$/i.test(t)
+    || /\b(reschedule|reschedul|new time|push back|move it|change the time)\b/i.test(t)
+    || /\b(cancel|cancell|don't need|no longer|nevermind|never mind)\b/i.test(t)
+    || /\b(part|parts|ordered|shipping|arrival)\b/i.test(t)
+    || /\b(invoice|bill|charge|pay|payment|how much|cost|price)\b/i.test(t)
+    || /\b(technician|tech|on the way|eta|arriving|how far)\b/i.test(t)
+    || /\b(unhappy|complain|frustrat|terrible|awful|worst|refund|sue|lawyer)\b/i.test(t)
+    || /\b(where(?:'?s| is) my|status|any update|update on)\b/i.test(t);
+}
+
+// Same warm new-lead reply the loop composes (sms_response_new_lead) — replicated
+// so we can send it INSTANTLY inline for a cold lead, then write the loop's dedup
+// marker so it doesn't re-send. Template only (no Claude) = sub-second.
+function composeNewLeadReply(body) {
+  const text = String(body || '').toLowerCase();
+  let opener = 'Got it — thanks for reaching out.';
+  if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker)\b/.test(text)) opener = 'Got it — fridge repair, perfect.';
+  else if (/\b(washer|washing machine|laundry)\b/.test(text)) opener = 'Got it — washer repair, perfect.';
+  else if (/\b(dryer)\b/.test(text)) opener = 'Got it — dryer repair, perfect.';
+  else if (/\b(dishwasher|dish ?washer)\b/.test(text)) opener = 'Got it — dishwasher repair, perfect.';
+  else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = 'Got it — oven/range repair, perfect.';
+  else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = 'Got it — HVAC repair, perfect.';
+  return `${opener} Tap here to finish setting up in about 60 seconds: ${PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+}
+
+// Fire the instant inline reply for a genuinely-new lead. Bounded; best-effort.
+async function instantNewLeadReply(fromPhone, body) {
+  const phoneKey = String(fromPhone || '').replace(/\D/g, '');
+  if (!phoneKey) return false;
+  const dedupKey = 'new_lead_replied_' + phoneKey;
+  // Skip if the loop (or a prior inline send) already greeted this number in 24h.
+  try {
+    const rc = new AbortController(); const rt = setTimeout(() => rc.abort(), 4000);
+    const rr = await fetch(`${XANO_BASE}/list_recent_event_log?action=${encodeURIComponent(dedupKey)}&days_back=1&limit=3`, { signal: rc.signal });
+    clearTimeout(rt);
+    const rd = await rr.json().catch(() => ({}));
+    if (rd && (rd.count > 0 || (Array.isArray(rd.items) && rd.items.length > 0))) return false;
+  } catch (_) { /* fail open — better to greet than stay silent */ }
+
+  const reply = composeNewLeadReply(body);
+  const sc = new AbortController(); const st = setTimeout(() => sc.abort(), 6000);
+  try {
+    await fetch(`${XANO_BASE}/send_sms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: fromPhone, body: reply, message: reply, context_tag: 'instant_new_lead_reply' }),
+      signal: sc.signal,
+    });
+  } catch (e) { clearTimeout(st); console.warn('[customer-sms-inbound] instant send failed', String((e && e.message) || e)); return false; }
+  clearTimeout(st);
+  // Write the marker the loop's new-lead agent checks, so it skips (no double-text).
+  try { await crud.logEvent(dedupKey, { outcome: 'instant_inline_reply', phone: fromPhone, at_ms: Date.now() }); } catch (_) {}
+  return true;
+}
 
 // Translate an inbound customer message to English (so the office can read every
 // text regardless of language). Returns {is_english, lang_name, english} or null.
@@ -277,6 +339,21 @@ exports.handler = async function (event) {
     } else {
       console.error('[customer-sms-inbound] Xano fetch error:', err.message);
     }
+  }
+
+  // ⚡ INSTANT first-reply for a cold new lead (LSA / Google-chat speed-to-lead).
+  // The loop's sms_response_new_lead is canonical but runs on a ~2-min tick →
+  // 2-4 min wait. For a brand-new number (customer_known=false) whose message is
+  // a generic intake (not a specific intent like cancel/status), send the SAME
+  // reply inline in ~1s + mark it so the loop doesn't double-send. Known
+  // customers + specific intents still flow through the loop with full context.
+  try {
+    if (recordData && recordData.customer_known === false && !hasSpecificIntent(parsed.body)) {
+      const sent = await instantNewLeadReply(parsed.from, parsed.body);
+      console.log('[customer-sms-inbound] instant new-lead reply:', { sent, from: parsed.from });
+    }
+  } catch (e) {
+    console.warn('[customer-sms-inbound] instant reply error:', String((e && e.message) || e));
   }
 
   // Capture any texted photos/videos onto the resolved job (or by phone if the
