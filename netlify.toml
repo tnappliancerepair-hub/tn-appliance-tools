@@ -99,6 +99,13 @@
 [functions."ad-spend-autolog"]
   schedule = "0 14 17 * *"
 
+# GBP post generator — a fresh Google Business Profile post every week is a real
+# map-pack ranking signal + free "dryer repair near me" visibility. Ant drafts an
+# on-brand (dryer-weighted) post + texts Teddy a one-tap link to publish. Flips to
+# auto-post when the Business Profile API lands. Mondays 2pm UTC (~8-9am CT).
+[functions."gbp-post-generator"]
+  schedule = "0 14 * * 1"
+
 # SquareTrade auto-assign — routes tech-less SquareTrade jobs straight to the area
 # tech (zip→cluster, capacity/day-off aware, next-rank fallback). Kills the manual
 # accept/schedule step so warranty flows hands-off. Every 10 min.
