@@ -145,6 +145,34 @@ document.getElementById('submit').onclick=async function(){
   }catch(e){ showErr('Connection error — please try again or call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning →'; }
 };
 </script>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"Service",
+  "serviceType":"Dryer vent cleaning",
+  "provider":{
+    "@type":"LocalBusiness",
+    "name":"TN Appliance Exchange",
+    "telephone":"+1-615-280-2949",
+    "url":"https://tnapplianceexchange.net/",
+    "areaServed":["Nashville TN","Murfreesboro TN","Franklin TN","Brentwood TN","Mt Juliet TN","Hammond LA"]
+  },
+  "areaServed":["Middle Tennessee"],
+  "description":"Certified (CSIA C-DET) dryer vent cleaning. We're appliance techs, so we also open and clean the lint inside the dryer itself — most vent cleaners won't. Faster drying, lower fire risk."
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"FAQPage",
+  "mainEntity":[
+    {"@type":"Question","name":"How often should I clean my dryer vent?","acceptedAnswer":{"@type":"Answer","text":"About once a year for most homes, or sooner if your dryer takes two-plus cycles to dry, runs hot, or smells musty. Longer vent runs and bigger households clog faster."}},
+    {"@type":"Question","name":"Is a clogged dryer vent dangerous?","acceptedAnswer":{"@type":"Answer","text":"Yes. Lint buildup is a leading cause of dryer fires and also makes the dryer overheat and work harder, wasting energy and shortening its life. Cleaning it out removes the hazard."}},
+    {"@type":"Question","name":"Do you clean inside the dryer too?","acceptedAnswer":{"@type":"Answer","text":"We can. Because we're certified appliance repair technicians, we can open the dryer and clear the lint trapped inside the machine — where a lot of the fire hazard builds up — not just the vent line. Most vent-only companies won't do this."}},
+    {"@type":"Question","name":"My dryer takes 2-3 cycles to dry — is it the vent?","acceptedAnswer":{"@type":"Answer","text":"Usually yes. Slow drying is the most common sign of a clogged vent restricting airflow. Cleaning it out typically restores normal drying in a single cycle."}}
+  ]
+}
+</script>
 <script defer src="/ant-address-autocomplete.js"></script>
 <script defer src="/ant-valuebar.js"></script>
 </body>
