@@ -8,6 +8,19 @@
 # REVERSIBLE: delete this one line.
 /                     /appliance-ai.html   200!
 
+# Same clean intake for the non-English communities, in their language (the page
+# is fully translated via ?lang=). 2026-06-26. Each /xx/ was a single homepage.
+/es                   /appliance-ai.html?lang=es   200!
+/es/                  /appliance-ai.html?lang=es   200!
+/vi                   /appliance-ai.html?lang=vi   200!
+/vi/                  /appliance-ai.html?lang=vi   200!
+/ar                   /appliance-ai.html?lang=ar   200!
+/ar/                  /appliance-ai.html?lang=ar   200!
+/hi                   /appliance-ai.html?lang=hi   200!
+/hi/                  /appliance-ai.html?lang=hi   200!
+/fr                   /appliance-ai.html?lang=fr   200!
+/fr/                  /appliance-ai.html?lang=fr   200!
+
 # Legacy WordPress URL redirects (added 2026-05-05).
 # Old GoDaddy WordPress site used /privacy-policy-2/ and /terms-and-conditions/
 # slugs. After Netlify migration, canonical paths became /privacy and /terms.
