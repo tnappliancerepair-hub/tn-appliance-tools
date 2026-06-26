@@ -418,7 +418,14 @@ exports.handler = async function (event) {
     //     endpoint is idempotent (skips if the text is already present), so
     //     a re-delivered end-of-call-report won't double-append.
     const isInboundCustomerCall = !callMeta.source;
-    if (resolvedJobId && summary && isInboundCustomerCall && !isVoicemailish) {
+    // GUARD (2026-06-26): never merge a call summary when the caller is one of OUR
+    // OWN numbers — Teddy/Danielle's cell, the shop lines, or a masked/forwarded
+    // shop number. Those resolve (via lookup_customer_by_phone) to a stale internal
+    // customer record whose most-recent open job becomes a magnet that collects
+    // EVERY such call's transcript (job #19065 was piling up Jay Billington + a
+    // dozen unrelated callers onto Mike Hartwell). Real customer calls still merge.
+    const callerIsOurs = isInternalNumber(callerNumber);
+    if (resolvedJobId && summary && isInboundCustomerCall && !isVoicemailish && !callerIsOurs) {
       await safePost(`${XANO_BASE}/merge_call_note_into_problem_summary`, {
         job_id: resolvedJobId,
         note: summary.slice(0, 600),
