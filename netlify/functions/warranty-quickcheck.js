@@ -120,10 +120,11 @@ exports.handler = async function (event) {
   // 🛡️ siren → Teddy + Danielle (pre-diagnosis ready — get the tech rolling ready)
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
   const machine = [m.brand, m.appliance].filter(Boolean).join(' ') || 'appliance';
+  const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
   const msg = '🛡️ WARRANTY pre-diagnosis — ' + (m.name || '(customer)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 110)
     + (m.warranty_company ? (' · ' + m.warranty_company) : '')
-    + '  Job #' + (jobId || '?') + ' → ' + link;
+    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote;
   try { await sendSms(OWNER, msg, 'owner', 'warranty_quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'warranty_quick_check'); } catch (_) {}
 

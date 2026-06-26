@@ -194,9 +194,21 @@ export async function run(signal, ctx) {
   const claimNo = String(payload.claim_number || '').toUpperCase();
   const phoneDigits = String(payload.customer_phone || '').replace(/\D/g, '');
   const isTestJob = claimNo.startsWith('TEST') || phoneDigits.startsWith('15555550') || phoneDigits.startsWith('5555550');
+  // MEDIA SOURCES: web/app intake collects a video + model photo, and
+  // customer_intake_bundle_ready.js already texts Teddy the Teddy Tool link the
+  // moment that media LANDS. Firing the prediag link here too just sends Teddy an
+  // EMPTY Teddy Tool (no video/pic yet) — Teddy 2026-06-26 "a bunch of empty teddy
+  // tool links." So for these sources we skip the prediag and let the media-arrival
+  // ping own it. Warranty/dispatch-email jobs (no media expected) keep the prediag.
+  const MEDIA_SOURCES = new Set(['web_chat', 'appliance_ai', 'quick_check', 'cash_tdr', 'in_home', 'in_home_diagnostic', 'customer_pay', 'self_pay', 'cash']);
+  const srcLower = String(payload.source || '').toLowerCase();
+  const isMediaSource = MEDIA_SOURCES.has(srcLower);
   try {
     if (isTestJob) {
       // Silent skip — never page anyone for synthetic jobs.
+    } else if (isMediaSource) {
+      // Skip — bundle_ready pings Teddy the Teddy Tool link once the video/photo lands.
+      log('prediag_skipped_media_source', { job_id: jobId, source: srcLower });
     } else {
     const dedup = await xano.getPrediagSentForJob(jobId);
     if (dedup && dedup.sent) {

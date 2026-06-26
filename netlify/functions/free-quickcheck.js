@@ -94,9 +94,13 @@ exports.handler = async function (event) {
   // 💵 siren → Teddy + Danielle (FREE, so they jump on it)
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
   const machine = [m.brand, m.appliance].filter(Boolean).join(' ') || 'appliance';
+  // Flag when there's no media yet so Teddy/Danielle don't tap into an empty tool
+  // (Teddy 2026-06-26). The shoot-it link was texted to the customer; the media-
+  // arrival ping will fire the real "ready to diagnose" notification.
+  const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
   const msg = '💵 FREE QUICK-CHECK — ' + (m.name || '(caller)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 120)
-    + '  Job #' + (jobId || '?') + ' → ' + link;
+    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
 
