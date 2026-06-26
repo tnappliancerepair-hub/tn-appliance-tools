@@ -16,12 +16,22 @@ async function accountReports(days) {
   const end = new Date();
   const start = new Date(end.getTime() - (days || 30) * 86400000);
   const s = ymd(start), e = ymd(end);
-  const q = `manager_customer_id:${c.managerId}`
-    + ` AND start_date_range.year:${s.y} AND start_date_range.month:${s.m} AND start_date_range.day:${s.day}`
-    + ` AND end_date_range.year:${e.y} AND end_date_range.month:${e.m} AND end_date_range.day:${e.day}`;
-  // keep the colons literal — the LSA query parser wants field:value, and an
-  // encoded %3A makes it miss the fields ("No manager_customer_id provided").
-  const url = `${BASE}/accountReports:search?query=${encodeURIComponent(q).replace(/%3A/g, ':')}&pageSize=50`;
+  // accountReports.search: the `query` is ONLY the account filter
+  // (semicolon-separated field:value), and the date range is SEPARATE URL params
+  // (startDate.year/month/day, endDate.*). Putting dates or AND in the query is
+  // what triggered "No manager_customer_id provided".
+  const q = `manager_customer_id:${c.managerId}`;
+  const params = new URLSearchParams();
+  params.set('query', q);
+  params.set('startDate.year', String(s.y));
+  params.set('startDate.month', String(s.m));
+  params.set('startDate.day', String(s.day));
+  params.set('endDate.year', String(e.y));
+  params.set('endDate.month', String(e.m));
+  params.set('endDate.day', String(e.day));
+  params.set('pageSize', '50');
+  // keep the field:value colon literal (encoded %3A makes the parser miss the field)
+  const url = `${BASE}/accountReports:search?${params.toString().replace(/%3A/g, ':')}`;
   const headers = { Authorization: 'Bearer ' + token, 'developer-token': c.devToken };
   let r, d;
   try { r = await fetch(url, { headers }); d = await r.json().catch(() => ({})); } catch (err) { return { ok: false, error: String(err.message || err) }; }
