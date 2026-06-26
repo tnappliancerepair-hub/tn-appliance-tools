@@ -23,7 +23,7 @@ async function creds() {
     getSecretPreferVault('GOOGLE_ADS_REFRESH_TOKEN'), getSecretPreferVault('GOOGLE_ADS_DEVELOPER_TOKEN'),
     getSecretPreferVault('GOOGLE_ADS_MANAGER_ID'), getSecretPreferVault('GOOGLE_ADS_API_VERSION'),
   ]);
-  return { clientId, clientSecret, refresh, devToken, managerId: digits(mgr), version: (ver || 'v18').trim() };
+  return { clientId, clientSecret, refresh, devToken, managerId: digits(mgr), version: (ver || 'v21').trim() };
 }
 
 async function accessToken(c) {
