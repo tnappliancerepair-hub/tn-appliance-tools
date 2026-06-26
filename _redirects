@@ -1,3 +1,13 @@
+# ── FRONT DOOR = the Quick Check intake page (2026-06-26, Teddy) ──
+# The structured intake (appliance → problem → warranty/cash → video + model pic
+# → contact) is the page that makes customers ACT, and it self-routes warranty
+# (FREE) vs cash ($50). Serving it at "/" means every link to the bare domain
+# (new-lead texts, scheduling texts, ads, GBP chat) now lands here — "the link
+# that closes the deal." 200! = rewrite at the clean root URL, forced over the
+# static index.html. Old homepage chat still reachable at /index.html.
+# REVERSIBLE: delete this one line.
+/                     /appliance-ai.html   200!
+
 # Legacy WordPress URL redirects (added 2026-05-05).
 # Old GoDaddy WordPress site used /privacy-policy-2/ and /terms-and-conditions/
 # slugs. After Netlify migration, canonical paths became /privacy and /terms.
