@@ -10,6 +10,19 @@ TN Appliance *used to run used-appliance stores*, and the market still thinks "s
 1. **Aggressive buy/sell/store negatives** (below) at the account level.
 2. **Ad copy that re-trains:** lead with "We **repair** it — we don't sell it." Turn the legacy into a differentiator.
 
+## 🧹 PRE-LAUNCH CLEANUP (do first — wipe the slate)
+Audit 2026-06-26 found the account is NOT cleanly paused, and the old campaigns are cruft that waste money + reinforce the "store" confusion:
+| Campaign | Status found | 7-day cost | Action |
+|---|---|---|---|
+| **jan video camp** | **ELIGIBLE — still running** | **$61.20** (0 conv) | **PAUSE then DELETE** (live drain, YouTube, nothing) |
+| $50 Quick Check | Paused | $93.82 (pre-pause) | DELETE |
+| search $50 | Not eligible / misconfigured | $0 | DELETE |
+| Performance Max-1 | Paused | $0 | DELETE |
+
+- One old ad literally says *"…used appliance **sales** and repairs"* → it's telling Google to show us for "used appliance" buyers (the exact store-confusion problem). **Delete it.**
+- **The $500/mo charge is mostly the LSA (Google Guaranteed)** — separate per-lead billing, the real working channel. Keep it ON.
+- **Fix the hours:** GBP + LSA both say **"Closed now · Opens at 9 AM"** → losing early-morning high-intent calls. Set to **24 hours (Ant answers 24/7)** or 6am–9pm, on **both** Google Business Profile and LSA settings.
+
 ## Budget + structure — DRYER-FIRST phasing (Teddy's call: go mostly dryers to start)
 Reasoning: dryers are the easiest jobs, fastest to close, easy money — perfect to **bootstrap the flywheel** (cash + reviews + repeat base) before widening. Prove the model on dryers, *then* layer in fridge.
 
@@ -101,6 +114,9 @@ Send ad clicks to the appliance-matched booking page, **not** the homepage.
 4. Expand geo only after the beachhead metro is profitable.
 
 ## Launch checklist (flip on when Basic Access approves)
+- [ ] **CLEANUP FIRST:** pause + delete the 4 junk campaigns (jan video camp, $50 Quick Check, search $50, Performance Max-1)
+- [ ] **Fix hours → 24h (or 6am–9pm) on BOTH Google Business Profile AND LSA settings** (stop the "Closed at 9 AM" morning bleed)
+- [ ] Keep LSA / Google Guaranteed ON (the real lead channel)
 - [ ] 3 campaigns, geo-targeted to the chosen metro(s), budgets set
 - [ ] Keywords loaded (Phrase + Exact)
 - [ ] **Account-level shared negative list applied** (the buy/sell/store block first)
