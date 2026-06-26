@@ -28,27 +28,18 @@ const APPLIANCE_NICE = {
   microwave: 'microwave',
 };
 
-function fmtAppointment(startMs, endMs) {
-  if (!startMs) return '(time tbd)';
-  const startStr = new Date(Number(startMs)).toLocaleString('en-US', {
+// DAY ONLY — we run day-of routing, NOT clock-time appointments. The stored
+// scheduled_start time-of-day is a routing placeholder, never a promise to the
+// customer (Danielle 2026-06-26: customers were getting told a specific "3:00 PM"
+// that didn't match what was arranged). The real window is texted the morning of.
+function fmtAppointment(startMs) {
+  if (!startMs) return '(day tbd)';
+  return new Date(Number(startMs)).toLocaleString('en-US', {
     timeZone: 'America/Chicago',
-    weekday: 'short',
+    weekday: 'long',
     month: 'short',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
   });
-  if (endMs && Number(endMs) > Number(startMs)) {
-    const endTime = new Date(Number(endMs)).toLocaleString('en-US', {
-      timeZone: 'America/Chicago',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${startStr} – ${endTime}`;
-  }
-  return startStr;
 }
 
 function applianceLabel(raw) {
@@ -62,11 +53,14 @@ function bareDomain() {
 
 function customerBody({ first, appliance, apptStr, techFirst, portalUrl }) {
   const name = (first || '').trim() || 'there';
+  // Only name a tech when one is FIRMLY assigned — never guess a name (Danielle
+  // 2026-06-26: customers were told a tech who wasn't actually on the job).
   const techClause = techFirst ? `Your tech will be ${techFirst}.` : '';
   const portalClause = portalUrl ? `View/reschedule: ${portalUrl}` : '';
   return [
-    `Hi ${name}, your ${appliance} repair is confirmed for ${apptStr}.`,
+    `Hi ${name}, your ${appliance} repair is set for ${apptStr}.`,
     techClause,
+    `We'll text you a live arrival window the morning of.`,
     portalClause,
     `Reply STOP to cancel or call 866-268-0111.`,
   ].filter(Boolean).join(' ');
@@ -136,13 +130,16 @@ export async function run(signal, ctx) {
   const tech = ctxData.tech || null;
   const jobLabel = job.job_number || String(job.id);
   const appliance = applianceLabel(job.appliance_type);
-  const apptStr = fmtAppointment(scheduledStartMs, scheduledEndMs);
+  const apptStr = fmtAppointment(scheduledStartMs);
 
   const custFirst = (customer?.first_name || '').trim();
   const custLast = (customer?.last_name || '').trim();
   const custName = `${custFirst} ${custLast}`.trim() || '(no customer)';
   const custPhone = normalizeE164(customer?.phone);
-  const techFirst = (tech?.first_name || '').trim();
+  // Only name the tech when one is actually assigned on this schedule action.
+  // Without this guard the context loader falls back to tech #1 (Teddy) or a
+  // suggestion, and the customer gets told the wrong person.
+  const techFirst = technicianId > 0 ? (tech?.first_name || '').trim() : '';
   const techPhone = normalizeE164(tech?.phone);
 
   const addressParts = [job.service_address, job.service_city, job.service_state]
