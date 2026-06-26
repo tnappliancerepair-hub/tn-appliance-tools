@@ -417,6 +417,26 @@
   .avail-line .avail-ico { flex: 0 0 auto; }
   .avail-line b { color: #74e3c4; font-weight: 700; }
 
+  /* Bird's-eye availability banner — top of every card so the tech sees when
+     the customer is / isn't free BEFORE planning the stop (Teddy 2026-06-26). */
+  .avail-banner {
+    background: rgba(255,179,84,0.11);
+    border: 1px solid rgba(255,179,84,0.45);
+    border-left: 4px solid #ffb454;
+    border-radius: 9px;
+    padding: 9px 11px;
+    margin: 0 0 11px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  .avail-banner .lbl {
+    display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .07em;
+    color: #ffb454; margin-bottom: 2px; text-transform: uppercase;
+  }
+  .avail-banner .access { margin-top: 5px; font-size: 13px; color: var(--muted); }
+  .avail-banner .access b { color: #ffb454; font-weight: 700; }
+
   .teddy-note {
     background: rgba(245,166,35,0.06);
     border-left: 3px solid var(--orange);
@@ -1363,6 +1383,14 @@
     // parsed onto the job as customer_preference_text). Surfacing it here so the
     // tech sees when the customer said they're around before he plans his route.
     const pref = (j.customer_preference_text || '').trim();
+    // Show the customer's ACTUAL words (Teddy 2026-06-26 — no paraphrasing, nothing
+    // miscommunicated). customer_preference_text may be stored as
+    // "🗓 Availability: <their words>  ·  ⚑ Customer language: ..." — pull out just
+    // their availability words; if there's no label, the whole field IS their words.
+    let availText = pref;
+    const am = pref.match(/Availability:\s*([\s\S]*?)(?:\s*·\s*⚑|$)/i);
+    if (am && am[1].trim()) availText = am[1].trim();
+    else availText = pref.replace(/^🗓\s*/, '').replace(/\s*·\s*⚑[\s\S]*$/, '').trim();
     const access = (j.access_notes || '').trim();
 
     const attCount = item.attachments_count || 0;
@@ -1447,6 +1475,10 @@
           ${practicePill}
           ${crewPill}
         </div>
+        ${(availText || access) ? `<div class="avail-banner">
+          ${availText ? `<span class="lbl">🗓 When they're available — their words</span>“${escapeHtml(availText)}”` : ''}
+          ${access ? `<div class="access">🔑 <b>Access:</b> ${escapeHtml(access)}</div>` : ''}
+        </div>` : ''}
         <div class="customer-line">${escapeHtml(custName)}</div>
         <div class="appliance-line">${applianceLine}</div>
         ${window.AntConstraints ? AntConstraints.render(j, {dark:true}) : ''}
@@ -1455,8 +1487,6 @@
           <div class="text">${escapeHtml(addressText)}</div>
         </div>
         ${problem ? `<div class="problem-line">"${escapeHtml(problem)}"</div>` : ''}
-        ${pref ? `<div class="avail-line"><span class="avail-ico">🗓</span> <span><b>Customer availability:</b> ${escapeHtml(pref)}</span></div>` : ''}
-        ${access ? `<div class="avail-line"><span class="avail-ico">🔑</span> <span><b>Access:</b> ${escapeHtml(access)}</span></div>` : ''}
         ${teddyHtml}
         ${latestTdrHtml}
         ${attHtml}
