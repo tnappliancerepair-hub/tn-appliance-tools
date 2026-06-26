@@ -86,15 +86,17 @@ Vent-cleaning only: `air duct`, `hvac`, `duct cleaning`, `chimney`, `kit`, `brus
 - H: "Dryer Won't Heat? We Fix It Fast" · "Honest Dryer Repair — We Answer Live" · "We Repair Dryers — We Don't Sell Them"
 - D: "Same-day dryer repair, upfront pricing, we come to you. Real tech, honest options. Call now."
 
-**Dryer Vent Cleaning** (safety hook)
-- H: "Dryer Taking 2-3 Cycles? Clogged Vent" · "Dryer Vent Cleaning — Faster Drying, Safer Home"
-- D: "A clogged dryer vent is a fire risk and wastes energy. Pro cleaning, done today. Call now."
+**Dryer Vent Cleaning** (safety hook + the two differentiators: **certified** + **we open the dryer**)
+- H: "Dryer Taking 2-3 Cycles? Clogged Vent" · "Certified Dryer Vent Cleaning" · "We Clean Inside the Dryer Too"
+- D: "Certified (C-DET) dryer vent cleaning — and we're appliance techs, so we open the dryer and clean the lint inside it (most companies won't). Faster drying, safer home. Call now."
+- **The moat to lead with:** Teddy holds the **CSIA Certified Dryer Exhaust Technician (C-DET)** credential — *the only nationally recognized dryer-vent cert* — AND we open/clean the dryer itself (competitors won't, it's a liability for non-repair vent cleaners). Two things no duct-cleaning competitor can match. Put C-DET in a callout + the "we open the dryer" line in descriptions.
+- **Upsell built in:** the full dryer + vent deep-clean (we open the machine) is a **paid add-on** offered on every vent job — bigger ticket, and it's the safety upgrade only we can do.
 
 **Refrigerator Repair** (urgency)
 - H: "Fridge Not Cooling? Same-Day Repair" · "Don't Lose Your Food — Fast Fridge Repair"
 - D: "Refrigerator down? We answer live and come out fast. Honest diagnosis, upfront price."
 
-**Assets:** call extensions (calls are the conversion — Ant answers every one), location extensions, sitelinks (Book Online / Our Service Area / Reviews), callout extensions ("We Repair, Not Replace", "Upfront Pricing", "We Answer Live").
+**Assets:** call extensions (calls are the conversion — Ant answers every one), location extensions, sitelinks (Book Online / Our Service Area / Reviews), callout extensions ("We Repair, Not Replace", "Upfront Pricing", "We Answer Live"). **Vent campaign callouts:** "CSIA Certified (C-DET)", "We Open the Dryer Too", "Faster Drying, Safer Home".
 
 ## Landing pages (message match = lower CPC via Quality Score)
 - Dryer ads → `book-repair.html?appliance=Dryer&city={metro}`
