@@ -245,6 +245,71 @@ exports.handler = async function (event) {
       return json(200, { ok: true, profiles, numbers: out });
     }
 
+    if (action === 'setsms') {
+      // WRITE: route customer numbers -> customer-sms-inbound and tech numbers ->
+      // tech-sms-inbound. Creates a dedicated customer messaging profile if one
+      // doesn't exist yet. Idempotent (reuses profiles by webhook).
+      //   ?action=setsms&customer=+1...[,+1...]&tech=+1...[,+1...]
+      const custWebhook = `${SITE}/.netlify/functions/customer-sms-inbound`;
+      const techWebhook = `${SITE}/.netlify/functions/tech-sms-inbound`;
+      const customerNums = String(q.customer || '').split(',').map((s) => s.trim()).filter(Boolean);
+      const techNums = String(q.tech || '').split(',').map((s) => s.trim()).filter(Boolean);
+      if (!customerNums.length && !techNums.length) return json(400, { ok: false, error: 'pass &customer=+1...[,+1...] and/or &tech=+1...' });
+
+      const pr = await fetch(`${TELNYX}/messaging_profiles?page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pr.json().catch(() => ({}));
+      const profs = pd.data || [];
+      const findByWebhook = (frag) => profs.find((p) => String(p.webhook_url || '').includes(frag));
+
+      let custProf = findByWebhook('customer-sms-inbound');
+      if (!custProf && customerNums.length) {
+        const cr = await fetch(`${TELNYX}/messaging_profiles`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ name: 'TN Appliance Customer SMS', webhook_url: custWebhook, webhook_api_version: '2', whitelisted_destinations: ['US', 'CA'] }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const cd = await cr.json().catch(() => ({}));
+        if (!cr.ok) return json(200, { ok: false, step: 'create_customer_profile', error: JSON.stringify(cd.errors || cd).slice(0, 300) });
+        custProf = cd.data;
+      }
+      let techProf = findByWebhook('tech-sms-inbound');
+      if (!techProf && techNums.length) {
+        const tr = await fetch(`${TELNYX}/messaging_profiles`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ name: 'TN Appliance Tech SMS', webhook_url: techWebhook, webhook_api_version: '2', whitelisted_destinations: ['US', 'CA'] }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const td = await tr.json().catch(() => ({}));
+        if (!tr.ok) return json(200, { ok: false, step: 'create_tech_profile', error: JSON.stringify(td.errors || td).slice(0, 300) });
+        techProf = td.data;
+      }
+
+      const assign = async (e164, profId) => {
+        const fr = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(e164)}`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const fd = await fr.json().catch(() => ({}));
+        const rec = (fd.data || [])[0];
+        if (!rec) return { number: e164, ok: false, error: 'number not found' };
+        const ur = await fetch(`${TELNYX}/phone_numbers/${rec.id}/messaging`, {
+          method: 'PATCH', headers: H,
+          body: JSON.stringify({ messaging_profile_id: profId }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const ud = await ur.json().catch(() => ({}));
+        return { number: e164, ok: ur.ok, error: ur.ok ? null : JSON.stringify(ud.errors || ud).slice(0, 200) };
+      };
+
+      const results = [];
+      for (const e of customerNums) results.push({ role: 'customer', ...(await assign(e, custProf && custProf.id)) });
+      for (const e of techNums) results.push({ role: 'tech', ...(await assign(e, techProf && techProf.id)) });
+
+      return json(200, {
+        ok: true,
+        customer_profile: custProf ? { id: custProf.id, name: custProf.name, webhook: custProf.webhook_url } : null,
+        tech_profile: techProf ? { id: techProf.id, name: techProf.name, webhook: techProf.webhook_url } : null,
+        results,
+      });
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
