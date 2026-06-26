@@ -387,8 +387,11 @@ function pitchQuickCheck(){
 // In-home ($100) path — skip the phone-diagnosis media, go straight to booking.
 function pitchInHome(){
   setHead('We\'ll <span class="accent">come to you.</span>','$100 in-home diagnostic — credited to your repair.');
-  antMsg('You got it — we\'ll send a tech to your home to diagnose it in person. The <b>$100 diagnostic comes right off your repair</b>, and you only pay it at the visit. Let me grab a few details and get you on the schedule.');
-  think(700, consentGate);
+  // Even for in-home, capture the video + model FIRST — Teddy 2026-06-26: a tech
+  // should never roll a truck blind. You don't pay until the visit, so it costs
+  // nothing to send the video + model # and get your tech there ready to fix it.
+  antMsg('You got it — we\'ll send a tech to your home. The <b>$100 diagnostic comes off your repair</b> and you only pay it at the visit. First, two quick things so your tech shows up <b>ready to fix it the first trip</b> — a short video + a photo of the model sticker.');
+  think(800, capVideo);
 }
 // Drives the visible status line under a capture button as the upload runs.
 function captureStatus(barEl, txtEl){
@@ -616,7 +619,7 @@ function submitInHome(){
         appliance:state.appliance, brand:state.brand,
         problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair) — '+(state.problem||''),
         sms_consent:state.smsConsent, town:state.town, conv_id:state.convId,
-        has_video:false, has_model:false, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic'
+        has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic'
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); doneInHome(); }

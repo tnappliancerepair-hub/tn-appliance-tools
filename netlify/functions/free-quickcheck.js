@@ -100,18 +100,27 @@ exports.handler = async function (event) {
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
 
-  // never lose the media — text a finish-upload link if expected media didn't land
+  // never lose the media — text the no-form finish-upload link if expected media
+  // didn't land, AND ALWAYS for the in-home $100 path (Teddy 2026-06-26: every
+  // in-home customer MUST shoot a video + send the model photo so we never roll a
+  // truck unprepared / go out twice). They pay only at the visit.
   const yes = (v) => v === true || String(v) === 'yes' || String(v) === 'true';
+  const isInHome = String(m.service_type || '') === 'in_home_diagnostic';
   const videoMissing = yes(m.has_video) && !videoLinked;
   const photoMissing = yes(m.has_model) && !photoLinked;
-  if (jobId && (videoMissing || photoMissing)) {
+  if (jobId && (isInHome || videoMissing || photoMissing)) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
-    await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: convId ? String(convId) : '', phone: phone, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
+    await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: convId ? String(convId) : '', phone: phone, in_home: isInHome, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
     if (yes(m.sms_consent) && phone) {
       const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
-      const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
-      const cmsg = 'TN Appliance: got your Quick Check! When you have a sec on better signal, tap to add ' + what + ' so we can nail the diagnosis: ' + finishLink + '  (Reply STOP to opt out.)';
-      try { await sendSms(phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
+      if (isInHome && !videoLinked && !photoLinked) {
+        const cmsg = 'TN Appliance: you\'re on the schedule! One quick must-do so your tech rolls up ready to fix it the first trip — tap here to shoot a short video of the problem + a photo of the model-number sticker: ' + finishLink + '  (Reply STOP to opt out.)';
+        try { await sendSms(phone, cmsg, 'customer', 'in_home_media'); } catch (_) {}
+      } else {
+        const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
+        const cmsg = 'TN Appliance: got your Quick Check! When you have a sec on better signal, tap to add ' + what + ' so we can nail the diagnosis: ' + finishLink + '  (Reply STOP to opt out.)';
+        try { await sendSms(phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
+      }
     }
   }
 
