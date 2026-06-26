@@ -23,19 +23,24 @@ Audit 2026-06-26 found the account is NOT cleanly paused, and the old campaigns 
 - **The $500/mo charge is mostly the LSA (Google Guaranteed)** — separate per-lead billing, the real working channel. Keep it ON.
 - **Fix the hours:** GBP + LSA both say **"Closed now · Opens at 9 AM"** → losing early-morning high-intent calls. Set to **24 hours (Ant answers 24/7)** or 6am–9pm, on **both** Google Business Profile and LSA settings.
 
-## Budget + structure — DRYER-FIRST phasing (Teddy's call: go mostly dryers to start)
-Reasoning: dryers are the easiest jobs, fastest to close, easy money — perfect to **bootstrap the flywheel** (cash + reviews + repeat base) before widening. Prove the model on dryers, *then* layer in fridge.
+## 🔒 LOCKED LAUNCH CONFIG (Teddy, 2026-06-26) — PURE DRYER REPAIR, day-by-day, scale winners
+Decision after a full strategy session. Start measured + watchful, find what's winning, then pour budget into proven winners. **Maximum autonomy** end-state, governed by **profit (cost-per-booked-job), not a dollar cap.**
 
-**Phase 1 — launch ($500/mo, dryer-dominant):**
-| Campaign | Budget | Geo |
-|---|---|---|
-| **Dryer Repair** | ~$350 (70%) | Middle TN first, then LA |
-| **Dryer Vent Cleaning** | ~$75 (15%) | **Middle TN + Andre's LA only** (hold John's area until tooled — protect reviews) |
-| **Refrigerator Repair** | ~$75 (15%) | small test in the best metro |
+| Campaign | Daily budget | Geo | Service |
+|---|---|---|---|
+| **Dryer Repair — Middle TN** | **$40/day** | Nashville metro / Middle TN | Dryer **repair only** |
+| **Dryer Repair — Walker, LA** | **$35/day** | **~25-mi radius around Walker, LA** (John's base — scoops Denham Springs, Livingston Parish, east Baton Rouge, toward Hammond) | Dryer **repair only** |
 
-**Phase 2 — scale on proof:** as dryer jobs print and reviews build, raise the fridge weight (toward the 50/50 portfolio) and expand geo. **Budget scales with ROI, not calendar** — reinvest ~10% of revenue into ads *as long as the return holds* (see ROAS rule below).
+**~$75/day total (~$525/wk, ~$2K/mo).** Two SEPARATE campaigns → two SEPARATE scoreboards (TN and LA never compete — different auctions). Radius-around-Walker keeps John's routes tight = more jobs/day, better margin.
 
-Start in **Middle TN** (fully tooled for vent, best tech capacity). **Geo-target tightly** — owning one metro beats being a ghost everywhere.
+**Key calls locked:**
+- **VENT CLEANING = HOLD.** Crew is dryer-*repair* expert, barely-tested on vent. Advertise the strength; don't risk early reviews on a service we're not yet great at. The vent page + C-DET moat stay loaded — flip on once the crew's run a handful of vent jobs and is comfortable.
+- **FRIDGE = HOLD.** Concentrate force on dryers first (Tyson principle). Layer fridge in later once dryers print.
+- **One LA metro only (Walker), not BR + North Shore split** — $35 across two metros = ghost in both. Concentrate, prove, then add the next LA market.
+- **Day-by-day at first**, daily scoreboard to Teddy's cell (615-485-5795). Ant auto-kills waste (zero-converters + store/buy negatives) with no approval; **budget RAISES are the scaling lever** — Ant flags a proven winner ("booked 3 at $32 — raise $40→$80?"), Teddy one-tap approves early, Ant raises winners solo once trust + data are there.
+- **Governor self-calibrates.** Ant reads the REAL ticket off each booked self-pay job (conversion-value feed) → knows actual cost-per-job vs revenue-per-job → pushes spend up while it's a <~15% reinvestment, eases off when a job's cost crosses what it's worth. No need to hand-set the ticket value; the data sets it.
+
+**Phase 2 — scale on proof:** shift budget to whichever market/keyword books jobs cheapest; add the 2nd LA metro; THEN layer vent cleaning (crew ready) + fridge. Budget follows ROAS, not the calendar.
 
 ## The budget rule: it's an investment, not a cost
 Spend is governed by **return, not a fixed number.** Track **profit per ad dollar (ROAS)**. As long as $1 in ads returns several dollars of *profitable* booked work, there's no real ceiling — reinvest ~10% of revenue (or more) into the channels that prove out. The conversion-VALUE tracking below is what makes this safe: you only scale what's measurably paying back. Stop/cut anything that isn't.
