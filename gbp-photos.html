@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add Google Profile Photos</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #0f1720; color: #eef3f8; padding: 22px 18px 60px; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 8px 0 4px; }
+  p.sub { color: #9fb0c0; font-size: 15px; line-height: 1.45; margin: 0 0 20px; }
+  .btn { display: block; width: 100%; border: 0; border-radius: 14px; background: #2f6df6; color: #fff;
+         font-size: 19px; font-weight: 700; padding: 18px; text-align: center; cursor: pointer; }
+  .btn:active { background: #2257d0; }
+  input[type=file] { display: none; }
+  .hint { color: #7f93a6; font-size: 13px; text-align: center; margin: 12px 0 0; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 22px; }
+  .cell { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #1b2632; }
+  .cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cell .badge { position: absolute; bottom: 4px; right: 4px; background: rgba(20,28,38,.85); border-radius: 20px; font-size: 13px; padding: 2px 7px; }
+  .cell.pending img { opacity: .45; }
+  .done { margin-top: 24px; background: #16351f; border: 1px solid #2c6b3f; color: #b8f0c8; border-radius: 12px; padding: 16px; text-align: center; font-size: 16px; display: none; }
+  .done.show { display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📸 Add a few job photos</h1>
+  <p class="sub">Snap or pick <b>2–3 photos</b> from a job this week — a clean install, a repair, the truck on site. These go on our Google profile so we show up for “appliance repair near me” (more work for everyone). Takes 20 seconds.</p>
+
+  <label class="btn" for="picker">Add photos</label>
+  <input id="picker" type="file" accept="image/*" multiple>
+  <p class="hint">You can pick from your camera or your photo library.</p>
+
+  <div class="grid" id="grid"></div>
+  <div class="done" id="done">✅ Thanks! Sent <span id="cnt">0</span> photo(s). You can add more anytime.</div>
+</div>
+
+<script>
+  var qs = new URLSearchParams(location.search);
+  var techId = (qs.get('tech_id') || '').replace(/\D/g, '') || null;
+  var grid = document.getElementById('grid');
+  var doneEl = document.getElementById('done');
+  var sent = 0;
+
+  document.getElementById('picker').addEventListener('change', function (e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    files.forEach(handleFile);
+    e.target.value = '';
+  });
+
+  function handleFile(file) {
+    if (!/^image\//.test(file.type)) return;
+    var cell = document.createElement('div');
+    cell.className = 'cell pending';
+    var img = document.createElement('img');
+    var badge = document.createElement('div'); badge.className = 'badge'; badge.textContent = '…';
+    cell.appendChild(img); cell.appendChild(badge); grid.appendChild(cell);
+
+    var reader = new FileReader();
+    reader.onload = function () {
+      img.src = reader.result;
+      downscale(reader.result, function (b64) { upload(b64, cell, badge); });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function downscale(dataUrl, cb) {
+    var im = new Image();
+    im.onload = function () {
+      var max = 1600, w = im.width, h = im.height;
+      if (w > max || h > max) { if (w >= h) { h = Math.round(h * max / w); w = max; } else { w = Math.round(w * max / h); h = max; } }
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(im, 0, 0, w, h);
+      try { cb(c.toDataURL('image/jpeg', 0.85)); } catch (_) { cb(dataUrl); }
+    };
+    im.onerror = function () { cb(dataUrl); };
+    im.src = dataUrl;
+  }
+
+  function upload(b64, cell, badge) {
+    fetch('/.netlify/functions/photo-upload', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: b64, uploaded_by: 'tech' })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok || !d.s3_key) throw new Error('upload failed');
+      return fetch('/.netlify/functions/gbp-photo-log', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ s3_key: d.s3_key, tech_id: techId })
+      });
+    }).then(function () {
+      cell.className = 'cell'; badge.textContent = '✓';
+      sent++; document.getElementById('cnt').textContent = sent; doneEl.classList.add('show');
+    }).catch(function () {
+      badge.textContent = '↻'; cell.style.cursor = 'pointer';
+      cell.onclick = function () { badge.textContent = '…'; cell.className = 'cell pending'; cell.onclick = null; upload(b64, cell, badge); };
+    });
+  }
+</script>
+</body>
+</html>

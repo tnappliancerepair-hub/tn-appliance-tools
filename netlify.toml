@@ -106,6 +106,13 @@
 [functions."gbp-post-generator"]
   schedule = "0 14 * * 1"
 
+# GBP photo request — weekly text to the field crew for 2-3 job photos (keeps the
+# Google profile photo-fresh = map-pack rank + clicks). One-tap upload link per
+# tech; photos land tagged for Teddy to post. Tue 2:30pm UTC (~9:30am CT). Kill
+# switch: vault GBP_PHOTO_REQUEST=false.
+[functions."gbp-photo-request"]
+  schedule = "30 14 * * 2"
+
 # SquareTrade auto-assign — routes tech-less SquareTrade jobs straight to the area
 # tech (zip→cluster, capacity/day-off aware, next-rank fallback). Kills the manual
 # accept/schedule step so warranty flows hands-off. Every 10 min.
