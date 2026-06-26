@@ -146,6 +146,10 @@
   .cap-btn.done{border-style:solid;border-color:var(--green);color:var(--green);}
   .cap-btn.busy{border-color:var(--orange);color:var(--orange);opacity:.85;}
   .cap-btn.busy .emo{animation:breathe 1.1s ease-in-out infinite;}
+  .cap-row{display:flex;gap:10px;width:100%;}
+  .cap-row .cap-btn{flex:1;padding:20px 12px;}
+  .cap-row .cap-btn .emo{font-size:26px;}
+  .cap-note{margin-top:9px;font-family:var(--mono);font-size:12.5px;color:var(--gray);line-height:1.45;text-align:center;}
   .uprog{width:100%;height:7px;background:#1a1a1a;border-radius:6px;margin-top:9px;overflow:hidden;}
   .upbar{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--green));border-radius:6px;transition:width .35s ease;}
   .upbar.warn{background:#caa23a;}
@@ -397,13 +401,17 @@ function capVideo(){
   setHead('Show me what’s <span class="accent">going on.</span>','A video tells me more than anything else.');
   antMsg('Take a video of your '+esc(state.appliance.toLowerCase())+' and <b>talk me through it</b> — tell me what it <b>is and isn’t doing</b>, what you’re seeing or hearing, and what you need help with. The more detail the better. <b>Take as long as you need</b> — walk me through exactly what you’re going through.');
   const w=document.createElement('div'); w.className='capture';
-  w.innerHTML='<label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>'
+  w.innerHTML='<div class="cap-row">'
+    +'<label class="cap-btn" id="vbtn"><span class="emo">🎥</span><span>Record a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile-cam"></label>'
+    +'<label class="cap-btn" id="vbtn2"><span class="emo">📁</span><span>Upload a video</span><input type="file" accept="video/*" class="hidden" id="vfile-up"></label>'
+    +'</div>'
+    +'<div class="cap-note">📹 <b>Short videos load fastest</b> — keep it under 30 seconds. <b>10–15 seconds is all we need.</b></div>'
     +'<div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>';
   FLOW.appendChild(w);
-  document.getElementById('vfile').onchange=e=>{
+  const onVideo=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
     state.video=true; state.videoFile=file;
-    const b=document.getElementById('vbtn'); b.classList.add('done'); const vl=b.querySelectorAll('span')[1]; if(vl) vl.textContent='✓ Video added';
+    ['vbtn','vbtn2'].forEach(id=>{const b=document.getElementById(id); if(b){b.classList.add('done'); const vl=b.querySelectorAll('span')[1]; if(vl) vl.textContent='✓ Video added';}});
     document.getElementById('vprog').classList.remove('hidden'); document.getElementById('vstat').classList.remove('hidden');
     if(!state.convId) state.convId = Date.now();
     const st = captureStatus(document.getElementById('vbar'), document.getElementById('vstat'));
@@ -412,18 +420,24 @@ function capVideo(){
     state.uploads.push(AntVideo.upload(file, { convId:state.convId, uploadedBy:'customer', onStatus:st, s3Fallback:f=>uploadMedia(f,'video',st) }).then(r=>{ state.videoUploaded=!!(r&&r.ok); return r; }));
     setTimeout(()=>{clearFlow(); think(500, capModel);},900);   // keep moving while it uploads in parallel
   };
+  document.getElementById('vfile-cam').onchange=onVideo;
+  document.getElementById('vfile-up').onchange=onVideo;
 }
 function capModel(){
   setHead('Now the <span class="accent">model number.</span>','Usually on a sticker inside the door or on the back.');
   antMsg('Snap a photo of the model sticker — that\'s how I get you the exact part and the real price.');
   const w=document.createElement('div'); w.className='capture';
-  w.innerHTML='<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>'
+  w.innerHTML='<div class="cap-row">'
+    +'<label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Take a photo</span><input type="file" accept="image/*" capture="environment" class="hidden" id="mfile-cam"></label>'
+    +'<label class="cap-btn" id="mbtn2"><span class="emo">📁</span><span>Upload a photo</span><input type="file" accept="image/*" class="hidden" id="mfile-up"></label>'
+    +'</div>'
+    +'<div class="cap-note">📸 The model sticker is usually <b>inside the door</b> or on the <b>back</b> of the unit.</div>'
     +'<div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>';
   FLOW.appendChild(w);
-  document.getElementById('mfile').onchange=e=>{
+  const onModel=e=>{
     const file=e.target.files&&e.target.files[0]; if(!file) return;
     state.model=true; state.modelFile=file;
-    const b=document.getElementById('mbtn'); b.classList.add('done'); const ml=b.querySelectorAll('span')[1]; if(ml) ml.textContent='✓ Model photo added';
+    ['mbtn','mbtn2'].forEach(id=>{const b=document.getElementById(id); if(b){b.classList.add('done'); const ml=b.querySelectorAll('span')[1]; if(ml) ml.textContent='✓ Model photo added';}});
     document.getElementById('mprog').classList.remove('hidden'); document.getElementById('mstat').classList.remove('hidden');
     if(!state.convId) state.convId = Date.now();
     const mst = captureStatus(document.getElementById('mbar'), document.getElementById('mstat'));
@@ -439,6 +453,8 @@ function capModel(){
       think(700, ()=>{ antMsg(_msg); think(500, _next); });
     },900);
   };
+  document.getElementById('mfile-cam').onchange=onModel;
+  document.getElementById('mfile-up').onchange=onModel;
 }
 
 // ── SMS CONSENT GATE (TCR / A2P compliance — preserved) ──
