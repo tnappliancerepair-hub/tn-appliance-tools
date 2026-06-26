@@ -748,12 +748,12 @@ function renderDrawer(d){
   // date IN Ant (kills double-entry into the old tool).
   const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
   document.getElementById('d-body').innerHTML=`
-    ${!techReport ? `<div class="dcard" style="border-color:#f5a623">
-      <h4>📋 Report not filed</h4>
-      <p style="color:var(--dim,#8a93a1);font-size:13px;margin:4px 0 10px">No tech report yet. Ping ${esc(t.name||'the tech')} — Ant texts them what's missing + calls to finish it by voice.</p>
+    <div class="dcard" style="border-color:#f5a623">
+      <h4>📋 ${techReport ? 'Tech report — need more?' : 'Report not filed'}</h4>
+      <p style="color:var(--dim,#8a93a1);font-size:13px;margin:4px 0 10px">${techReport ? 'A report\'s been started. Need '+esc(t.name||'the tech')+' to finish it or add detail? Ping them — Ant texts what\'s missing + calls to wrap it up.' : 'No tech report yet. Ping '+esc(t.name||'the tech')+' — Ant texts them what\'s missing + calls to finish it by voice.'}</p>
       <button onclick="reqTechReport(${jid})" style="width:100%;padding:11px;border:0;border-radius:9px;background:#f5a623;color:#fff;font-weight:800;font-size:14px;cursor:pointer">📋 Request report from tech</button>
       <div id="reqrep-msg" style="font-size:12px;color:var(--dim,#8a93a1);margin-top:6px"></div>
-    </div>` : ''}
+    </div>
     <div class="dcard">
       <h4>📋 Job file</h4>
       <div class="kv">
