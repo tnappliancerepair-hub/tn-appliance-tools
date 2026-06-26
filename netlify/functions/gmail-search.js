@@ -7,8 +7,8 @@
 //   q defaults to an Amazon-Business-API correspondence search.
 //   &full=1 also pulls the To/Cc headers + a longer snippet.
 'use strict';
-const { google } = require('googleapis');
 const { getSecret } = require('./_lib/secrets');
+const { searchAll } = require('./_lib/gmail-accounts');
 
 const DEFAULT_Q = '("amazon business" OR amazon.com OR amazonaws.com OR amazonservices.com) '
   + '(api OR "ordering api" OR "business api" OR "selling partner" OR "solution provider" '
@@ -25,31 +25,15 @@ exports.handler = async function (event) {
   const query = String(q0.q || DEFAULT_Q);
   const max = Math.min(parseInt(q0.max, 10) || 20, 50);
   const full = q0.full === '1';
+  const want = full ? ['Subject', 'From', 'To', 'Cc', 'Date'] : ['Subject', 'From', 'Date'];
 
-  const clientId = process.env.GMAIL_CLIENT_ID, clientSecret = process.env.GMAIL_CLIENT_SECRET, refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) return json(200, { ok: false, error: 'no gmail creds in env' });
-
-  let matches = [];
+  let res;
   try {
-    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
-    oauth2.setCredentials({ refresh_token: refreshToken });
-    const gmail = google.gmail({ version: 'v1', auth: oauth2 });
-    const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: max });
-    const msgs = (list.data && list.data.messages) || [];
-    const want = full ? ['Subject', 'From', 'To', 'Cc', 'Date'] : ['Subject', 'From', 'Date'];
-    for (const m of msgs) {
-      try {
-        const fm = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'metadata', metadataHeaders: want });
-        const hs = (fm.data && fm.data.payload && fm.data.payload.headers) || [];
-        const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
-        const row = { id: m.id, thread: fm.data.threadId, date: get('Date'), from: get('From'), subject: get('Subject'), snippet: (fm.data && fm.data.snippet) || '' };
-        if (full) { row.to = get('To'); row.cc = get('Cc'); }
-        matches.push(row);
-      } catch (_) {}
-    }
+    res = await searchAll(query, { max, headers: want });
   } catch (e) {
     return json(200, { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) });
   }
+  if (!res.accounts.length) return json(200, { ok: false, error: 'no connected gmail accounts' });
 
-  return json(200, { ok: true, query, count: matches.length, matches });
+  return json(200, { ok: true, query, accounts: res.accounts, count: res.matches.length, matches: res.matches });
 };

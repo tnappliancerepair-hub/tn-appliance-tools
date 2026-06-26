@@ -14,7 +14,7 @@
 // stream of routine AHS/ServicePower DISPATCH emails the warranty pollers read.
 'use strict';
 
-const { google } = require('googleapis');
+const { searchAll } = require('./_lib/gmail-accounts');
 const { sendSms } = require('./_lib/sms');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG = 3;
@@ -58,24 +58,11 @@ function classify(m) {
 
 exports.handler = async function (event) {
   const dry = (event.queryStringParameters || {}).dryrun === '1';
-  const clientId = process.env.GMAIL_CLIENT_ID, clientSecret = process.env.GMAIL_CLIENT_SECRET, refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-  if (!clientId || !clientSecret || !refreshToken) return { statusCode: 200, body: 'no gmail creds' };
-
   let matches = [];
   try {
-    const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
-    oauth2.setCredentials({ refresh_token: refreshToken });
-    const gmail = google.gmail({ version: 'v1', auth: oauth2 });
-    const list = await gmail.users.messages.list({ userId: 'me', q: QUERY, maxResults: 12 });
-    const msgs = (list.data && list.data.messages) || [];
-    for (const m of msgs) {
-      try {
-        const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'metadata', metadataHeaders: ['Subject', 'From', 'Date'] });
-        const hs = (full.data && full.data.payload && full.data.payload.headers) || [];
-        const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
-        matches.push({ id: m.id, subject: get('Subject'), from: get('From'), date: get('Date'), snippet: (full.data && full.data.snippet) || '' });
-      } catch (_) {}
-    }
+    const res = await searchAll(QUERY, { max: 12 });
+    if (!res.accounts.length) return { statusCode: 200, body: 'no connected gmail accounts' };
+    matches = res.matches;
   } catch (e) {
     return { statusCode: 200, body: 'gmail read failed: ' + String((e && e.message) || e) };
   }
@@ -89,7 +76,7 @@ exports.handler = async function (event) {
 
   const top = fresh[0];
   const which = classify(top);
-  const body = `[ant] 📬 Possible VENDOR API email just landed — likely ${which}:\n\n"${(top.subject || '(no subject)').slice(0, 90)}"\nfrom ${(top.from || '').slice(0, 50)}\n\nCheck tnappliancerepair@gmail.com — if it's API access/credentials, vault them (or sign/forward) and tell Ant to wire it.`;
+  const body = `[ant] 📬 Possible VENDOR API email just landed — likely ${which}:\n\n"${(top.subject || '(no subject)').slice(0, 90)}"\nfrom ${(top.from || '').slice(0, 50)}\n\nCheck ${top.account || 'your inbox'} — if it's API access/credentials, vault them (or sign/forward) and tell Ant to wire it.`;
   try { await sendSms(OWNER, body, 'owner', 'vendor_api_watch'); } catch (_) {}
   fresh.forEach((m) => seen.add(m.id));
   await recordSeen(seen);
