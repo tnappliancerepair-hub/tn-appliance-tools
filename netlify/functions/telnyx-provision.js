@@ -388,10 +388,22 @@ exports.handler = async function (event) {
       const appliance = String(q.appliance || '').trim() || 'appliance';
       const name = String(q.name || '').trim();
       const isFree = String(q.free || '') === '1';
-      const link = `${SITE}/appliance-ai.html?${isFree ? 'free=tn-free-2026&' : ''}appliance=${encodeURIComponent(appliance)}`;
+      const job = String(q.job || '').replace(/\D/g, '');
+      const payNote = String(q.paynote || '') === '1';
       const hi = name ? `Hi ${name}, ` : 'Hi, ';
-      const freeClause = isFree ? 'No charge for this one — it\'s covered by your trip fee. ' : '';
-      const text = `${hi}this is Ant with TN Appliance Exchange. Here's your link for your ${appliance.toUpperCase()} 👇 Tap it, record a short video of what it's doing, snap a photo of the model-number sticker, and let me know what days/times work for you. ${freeClause}${link}  (Reply STOP to opt out.)`;
+      let link, text;
+      if (job) {
+        // No-form "just shoot it" link tied to an existing job (finish-upload =
+        // video + model photo only, no fields to fill). Used for multi-machine /
+        // already-known customers. paynote=1 => flat $50, pay at the visit.
+        link = `${SITE}/finish-upload.html?job_id=${job}`;
+        const pay = payNote ? ' It\'s a flat $50 Quick Check — you can take care of it whenever our tech comes out.' : '';
+        text = `${hi}this is Ant with TN Appliance Exchange. For your ${appliance.toUpperCase()} 👇 please shoot a quick video of what it's doing + a CLEAR photo of the model-number sticker right here (no forms, ~60 sec):${pay} ${link}  (Reply STOP to opt out.)`;
+      } else {
+        link = `${SITE}/appliance-ai.html?${isFree ? 'free=tn-free-2026&' : ''}appliance=${encodeURIComponent(appliance)}`;
+        const freeClause = isFree ? 'No charge for this one — it\'s covered by your trip fee. ' : '';
+        text = `${hi}this is Ant with TN Appliance Exchange. Here's your link for your ${appliance.toUpperCase()} 👇 Tap it, record a short video of what it's doing, snap a photo of the model-number sticker, and let me know what days/times work for you. ${freeClause}${link}  (Reply STOP to opt out.)`;
+      }
       try {
         const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text }), signal: AbortSignal.timeout(12000) });
         const sd = await send.json().catch(() => ({}));
