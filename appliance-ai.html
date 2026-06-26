@@ -430,7 +430,14 @@ function capModel(){
     // Cloudflare Images (reliable) first; S3 fallback. Photo is critical — never weak.
     state.uploads = state.uploads || [];
     state.uploads.push(AntPhoto.upload(file, { convId:state.convId, uploadedBy:'customer', onStatus:mst, s3Fallback:f=>uploadMedia(f,'photo',mst) }).then(r=>{ state.modelUploaded=!!(r&&r.ok); return r; }));
-    setTimeout(()=>{clearFlow(); think(700, ()=>{ antMsg('Perfect. Last thing and then your answer\'s on its way.'); think(500, consentGate); });},900);
+    setTimeout(()=>{clearFlow();
+      // Warranty → straight to the one-field phone finish. Cash → the normal
+      // consent + contact + availability + payment chain.
+      const _isWarranty = state.payer==='warranty';
+      const _next = _isWarranty ? warrantyFinish : consentGate;
+      const _msg = _isWarranty ? 'Perfect — last thing, just your number and you\'re set.' : 'Perfect. Last thing and then your answer\'s on its way.';
+      think(700, ()=>{ antMsg(_msg); think(500, _next); });
+    },900);
   };
 }
 
@@ -599,22 +606,48 @@ function doneInHome(){
 }
 
 // ── WARRANTY path ──
+// WARRANTY path (rebuilt 2026-06-26 — Teddy): warranty customers are lazy + we
+// already have their info from the dispatch, so the ONLY things we ask for are
+// what we don't have + actually need: a VIDEO, the MODEL #, and a PHONE. No
+// redundant warranty-co/claim/zip wall. Lead with the capture (video → model),
+// then a one-field phone finish.
 function warrantyPath(){
-  setHead('You\'re <span class="accent">covered.</span>','Let\'s get you on the schedule — no charge.');
-  antMsg('Great — since it\'s under warranty, there\'s no Quick Check fee. I just need a couple things to get you scheduled.');
+  if(!state.convId) state.convId = Date.now();
+  state.serviceType='warranty_prediag';
+  setHead('You\'re <span class="accent">covered.</span>','No charge — let\'s get your tech showing up ready to fix it.');
+  antMsg('Perfect — since it\'s under warranty there\'s <b>no fee</b>. Quickest way to get this fixed right the first time: show me a quick <b>video</b> + a photo of the <b>model sticker</b>, and your tech rolls up already knowing the problem and the part. Takes about 60 seconds. 🐜');
+  think(800, capVideo);
+}
+// WARRANTY finish — the bare minimum: just a phone (prefilled when we know it).
+function warrantyFinish(){
+  setHead('Last thing — <span class="accent">your number.</span>','So we can text you to lock in the day.');
+  antMsg('That\'s all I need. What\'s the best <b>phone number</b> to reach you?');
   const f=document.createElement('div'); f.className='field';
-  f.innerHTML='<input id="w-co" placeholder="Warranty company (AHS, ServicePower…)">'
-    +'<input id="w-claim" placeholder="Claim / authorization # (if you have it)">'
-    +'<input id="w-name" placeholder="Your name" autocomplete="name">'
-    +'<input id="w-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
-    +'<input id="w-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
-    +'<button class="go" id="w-go">Get me scheduled →</button>';
+  f.innerHTML='<input id="wf-phone" type="tel" placeholder="Phone number" autocomplete="tel" value="'+esc(state.phone||'')+'">'
+    +'<input id="wf-name" placeholder="Your name (optional)" autocomplete="name" value="'+esc(state.name||'')+'">'
+    +'<input id="wf-claim" placeholder="Claim / authorization # (optional)" value="'+esc(state.claim||'')+'">'
+    +'<button class="go" id="wf-go">Get me scheduled →</button>'
+    +'<div style="font-size:11px;color:var(--gray,#888);margin-top:8px;line-height:1.4">By tapping, you agree to receive texts from TN Appliance Exchange about your repair. Msg &amp; data rates may apply. Reply STOP to opt out. <a href="/privacy.html" style="color:inherit">Privacy</a> · <a href="/terms.html" style="color:inherit">Terms</a></div>';
   FLOW.appendChild(f);
-  document.getElementById('w-go').onclick=()=>{
-    const nm=document.getElementById('w-name').value.trim(), ph=document.getElementById('w-phone').value.trim();
-    if(!nm||ph.replace(/\D/g,'').length<10){ alert('Please add your name and a valid phone.'); return; }
-    clearFlow(); think(800, ()=>{ setHead('Got it — <span class="accent">we\'re on it.</span>','');
-      antMsg('Thanks '+esc(nm.split(' ')[0])+'. We\'ve got your '+esc(state.appliance.toLowerCase())+' and we\'ll reach out to lock in your day. You\'ll get a text/call from our office shortly. 🐜'); });
+  document.getElementById('wf-go').onclick=async()=>{
+    const ph=document.getElementById('wf-phone').value.trim();
+    if(ph.replace(/\D/g,'').length<10){ alert('Please add a valid phone number so we can reach you.'); return; }
+    state.phone=ph;
+    state.name=document.getElementById('wf-name').value.trim()||state.name||'';
+    state.claim=document.getElementById('wf-claim').value.trim();
+    const btn=document.getElementById('wf-go'); btn.disabled=true; btn.textContent='Sending…';
+    state.mediaPending=(state.video&&!state.videoUploaded)||(state.model&&!state.modelUploaded);
+    try{ gtag('event','generate_lead',{ currency:'USD', value:0, appliance:state.appliance||'', payer:'warranty' }); }catch(_){}
+    try{
+      const r=await fetch(FN+'/warranty-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:state.name, phone:state.phone, appliance:state.appliance, brand:state.brand, problem:state.problem,
+        warranty_company:state.warranty||'', claim_number:state.claim||'', conv_id:state.convId,
+        has_video:state.video, has_model:state.model, sms_consent:true, town:state.town, language:LANG
+      })});
+      const d=await r.json().catch(()=>({}));
+      if(d&&d.ok){ clearFlow(); done(); }
+      else { btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
 }
 
