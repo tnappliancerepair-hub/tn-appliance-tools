@@ -5,9 +5,19 @@
 Long demand-channel + data-cleanup day. All LIVE on `main` (branch `claude/good-morning-aujwba`); Netlify auto-deploys. Two Mac actions done this session (loop refresh + one XS push).
 
 ### 🎯 TOMORROW'S PLAN — LOCKED BY TEDDY (do in order)
-**Theme: the demand levers that WORK for local cash = paid-ads efficiency + map pack (NOT the SEO landers — they don't index).**
-1. **MAKE THE AD MONEY WORK (#1).** Teddy's already spending $500/mo on Google Ads — make it earn. **GATE: Teddy first does the 6-step Google-Ads OAuth** (self-serve, no Google wait — Cloud Console: enable Ads API → consent screen PUBLISHED not Testing → Web OAuth client w/ redirect `…/google-ads-oauth-callback` → vault `GOOGLE_ADS_CLIENT_ID`/`_SECRET` → hit `…/google-ads-oauth-start` → approve). Then Claude runs `google-ads-test`, **pulls the real campaign performance** (cost-per-lead, wasted spend, converting keywords) and reports straight: is the $500 buying cash jobs or burning? Then optimize/automate. Also confirm the **Basic Access** form is submitted.
-2. **MAP-PACK PUSH (#2).** The free local engine (where "appliance repair near me" actually clicks). Build a **GBP post generator** (weekly on-brand posts = ranking signal), audit GBP completeness (categories/services/photos), tie the review engine in tighter. Teddy also answers the 2 live negative reviews (Jay 1★ / Susan 2★ — drafts in the 6/26 chat).
+
+**🚨 #1 — FIX SQUARETRADE AUTO-SCHEDULE (live warranty jobs vanishing; do FIRST).**
+Danielle reported 6/26: SquareTrade jobs stopped showing in her Needs-Scheduled queue ("none of the SquareTrade showed up today"). **Root cause (data-confirmed):** through 6/24 every scheduled SquareTrade job had a **tech assigned**; starting **~6/25 (when auto-accept went active)** they land **`scheduled` with a DATE but NO tech** ("scheduled-no-tech" limbo) → the system thinks they're handled so they **drop out of Needs Scheduled, but they're not on any tech's day.** The auto-accept does the accept + stamps the dispatch date but **never runs the tech-assignment step.** (AHS is unaffected — no accept step.) NO jobs are lost; they're in the wrong status bucket. **THE FIX (Teddy decided — book it STRAIGHT to the area tech, fully hands-off):**
+```
+SquareTrade dispatch lands → auto-accept (yes to warranty co)
+  → check_service_zone(zip) → area tech (rank-1, skip owner — logic already exists)
+  → assign that tech + the dispatch's date → DONE (scheduled to the right tech, on his board)
+```
+**Guardrails (already have the pieces — cluster ranks, route-days, day-off, 6/day capacity):** respect day-off/capacity; if the area tech is maxed/off, fall to the next-rank tech in that cluster; **ping a human ONLY on a true exception** (no tech covers the zip, or everyone's maxed). No "Needs Accept" step, no human placing — warranty flows like everything else. This IS the auto-scheduling focus. Verify cold in the morning (volume was low/1 job late 6/26) then ship carefully — it's live warranty scheduling, not a blind night hack. Files: `servicepower-auto-accept.js` (where the accept happens) + `check_service_zone` + the assign path (`reassign_job`/`danielle_schedule_parallel_job`).
+
+**Theme for the rest: the demand levers that WORK for local cash = paid-ads efficiency + map pack (NOT the SEO landers — they don't index).**
+2. **MAKE THE AD MONEY WORK (#2).** Teddy's already spending $500/mo on Google Ads — make it earn. **GATE: Teddy first does the 6-step Google-Ads OAuth** (self-serve, no Google wait — Cloud Console: enable Ads API → consent screen PUBLISHED not Testing → Web OAuth client w/ redirect `…/google-ads-oauth-callback` → vault `GOOGLE_ADS_CLIENT_ID`/`_SECRET` → hit `…/google-ads-oauth-start` → approve). Then Claude runs `google-ads-test`, **pulls the real campaign performance** (cost-per-lead, wasted spend, converting keywords) and reports straight: is the $500 buying cash jobs or burning? Then optimize/automate. Also confirm the **Basic Access** form is submitted.
+3. **MAP-PACK PUSH (#3).** The free local engine (where "appliance repair near me" actually clicks). Build a **GBP post generator** (weekly on-brand posts = ranking signal), audit GBP completeness (categories/services/photos), tie the review engine in tighter. Teddy also answers the 2 live negative reviews (Jay 1★ / Susan 2★ — drafts in the 6/26 chat).
 *(Self-checkout auto-placer = saved for a vision day, not tomorrow.)*
 
 ### 🟢 AMAZON BUSINESS API — SANDBOX AUTH PROVEN (sandbox-first, like Frontdoor)
