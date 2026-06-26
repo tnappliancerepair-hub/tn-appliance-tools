@@ -377,6 +377,28 @@ exports.handler = async function (event) {
       } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
     }
 
+    if (action === 'customerlink') {
+      // Send a customer a labeled intake link from the customer line (588-9500),
+      // pre-set to one appliance. &free=1 waives the charge (multi-machine / trip-fee
+      // customers). One call per machine. Reply lands on customer-sms-inbound → Ant.
+      const from = '+16155889500';
+      const to = String(q.to || '').replace(/[^\d+]/g, '');
+      if (to.replace(/\D/g, '').length < 10) return json(400, { ok: false, error: 'pass &to=<customer phone>' });
+      const dest = to.startsWith('+') ? to : ('+1' + to.replace(/^1/, ''));
+      const appliance = String(q.appliance || '').trim() || 'appliance';
+      const name = String(q.name || '').trim();
+      const isFree = String(q.free || '') === '1';
+      const link = `${SITE}/appliance-ai.html?${isFree ? 'free=tn-free-2026&' : ''}appliance=${encodeURIComponent(appliance)}`;
+      const hi = name ? `Hi ${name}, ` : 'Hi, ';
+      const freeClause = isFree ? 'No charge for this one — it\'s covered by your trip fee. ' : '';
+      const text = `${hi}this is Ant with TN Appliance Exchange. Here's your link for your ${appliance.toUpperCase()} 👇 Tap it, record a short video of what it's doing, snap a photo of the model-number sticker, and let me know what days/times work for you. ${freeClause}${link}  (Reply STOP to opt out.)`;
+      try {
+        const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text }), signal: AbortSignal.timeout(12000) });
+        const sd = await send.json().catch(() => ({}));
+        return json(200, { ok: send.ok, from, to: dest, appliance, free: isFree, link, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
+      } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));

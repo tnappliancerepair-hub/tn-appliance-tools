@@ -200,7 +200,10 @@ const FN = 'https://tnapplianceexchange.net/.netlify/functions';  // absolute ca
 const QC_PRICE = 50;   // live $50 Quick Check
 // FREE_MODE: skip payment entirely + never block on a slow upload, so a customer
 // on bad signal can always finish. Flip to false to restore the paid flow.
-const FREE_MODE = false;   // LIVE: $50 cash Quick Check (warranty path is free + separate)
+// LIVE default: $50 cash Quick Check. A controlled link carrying ?free=tn-free-2026
+// waives the charge (used when the customer is already paying a trip fee, or for
+// multi-machine customers who shouldn't pay per machine) — Teddy 2026-06-26.
+const FREE_MODE = ((new URLSearchParams(location.search).get('free') || '') === 'tn-free-2026');
 const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
 // Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
 const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
