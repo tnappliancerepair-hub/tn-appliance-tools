@@ -377,6 +377,37 @@ exports.handler = async function (event) {
       });
     }
 
+    // 4a-quater. INBOUND HANG-UP / NO-CONNECT → TEXT THE INTAKE LINK (Teddy
+    //     2026-06-26: "it's 2026 — we're not chasing tire-kickers on the phone.
+    //     If they call + hang up, text them the link. If they text back, let Ant
+    //     talk to them right there and resolve it in the thread."). We send from
+    //     the customer-direction line, so any reply lands on customer-sms-inbound
+    //     → the customer brain → Ant converses. Fires on inbound customer calls
+    //     that didn't connect (voicemail/silence/no-answer) or a quick hang-up;
+    //     skips internal/our-own numbers; deduped per caller / 24h.
+    {
+      const inboundCust = !callMeta.source;
+      let durSec = Number(msg.durationSeconds || (msg.call && msg.call.durationSeconds) || 0);
+      if (!durSec && msg.startedAt && msg.endedAt) { try { durSec = Math.max(0, (new Date(msg.endedAt) - new Date(msg.startedAt)) / 1000); } catch (_) {} }
+      const shortHangup = /customer-ended-call|customer-hung-up|hung-up/.test(endedReason.toLowerCase()) && durSec > 0 && durSec < 25;
+      const hungUp = isVoicemailish || shortHangup;
+      const callerLast10 = String(callerNumber || '').replace(/\D/g, '').slice(-10);
+      const ourOwn = !!NUMBER_PROFILES[callerLast10];
+      if (inboundCust && hungUp && callerLast10.length === 10 && !isInternalNumber(callerNumber) && !ourOwn) {
+        let already = false;
+        try {
+          const dr = await fetch(`${XANO_BASE}/list_recent_event_log?action=hangup_intake_texted_${callerLast10}&days_back=1&limit=1`, { signal: AbortSignal.timeout(4000) });
+          const dd = await dr.json().catch(() => ({}));
+          already = !!(dd && (dd.count > 0 || (Array.isArray(dd.items) && dd.items.length > 0)));
+        } catch (_) {}
+        if (!already) {
+          const body = "TN Appliance Exchange — sorry we couldn't connect just now! No need to wait on hold. Just tell me what's going on right here and I'll get you taken care of (takes about 60 sec): https://tnapplianceexchange.net  — or text me back and I'll help you right here. (Reply STOP to opt out.)";
+          await safePost(`${XANO_BASE}/send_sms`, { to: callerNumber, body, message: body, context_tag: 'hangup_intake_text' });
+          await safePost(XANO_RECORD_EVENT, { action: `hangup_intake_texted_${callerLast10}`, metadata_json: JSON.stringify({ caller: callerNumber, ended_reason: endedReason, dur_sec: durSec, vapi_call_id: callId, at_ms: Date.now() }) });
+        }
+      }
+    }
+
     // 4a-ter. CUSTOMER VOICE → TDR pre-fill. For INBOUND customer calls
     //     only — no outbound `source` flag (outbound dispatches AND the
     //     tech field-assist call both set callMeta.source, so a present
