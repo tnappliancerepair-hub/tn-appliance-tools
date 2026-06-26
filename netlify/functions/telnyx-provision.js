@@ -210,6 +210,41 @@ exports.handler = async function (event) {
       return json(200, { ok: r.ok, connections: conns });
     }
 
+    if (action === 'messaging') {
+      // Read-only: which numbers can TEXT, and where each one's INBOUND routes.
+      // Lists every phone number → its messaging profile → that profile's inbound
+      // webhook URL. A number with no profile can't text; a profile with no
+      // webhook (or the wrong one) = inbound texts go nowhere.
+      const pr = await fetch(`${TELNYX}/messaging_profiles?page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pr.json().catch(() => ({}));
+      const profiles = {};
+      (pd.data || []).forEach((p) => { profiles[p.id] = { name: p.name, enabled: p.enabled, webhook_url: p.webhook_url || '', webhook_api_version: p.webhook_api_version || '' }; });
+
+      const nr = await fetch(`${TELNYX}/phone_numbers?page[size]=100`, { headers: H, signal: AbortSignal.timeout(15000) });
+      const nd = await nr.json().catch(() => ({}));
+      const nums = nd.data || [];
+      const out = [];
+      for (let i = 0; i < nums.length && i < 25; i++) {
+        const n = nums[i] || {};
+        let profId = n.messaging_profile_id || null;
+        if (!profId && n.id) {
+          try {
+            const mr = await fetch(`${TELNYX}/phone_numbers/${n.id}/messaging`, { headers: H, signal: AbortSignal.timeout(8000) });
+            const md = await mr.json().catch(() => ({}));
+            profId = (md.data && md.data.messaging_profile_id) || null;
+          } catch (_) {}
+        }
+        const prof = profId ? (profiles[profId] || { name: '(unknown profile)', webhook_url: '' }) : null;
+        out.push({
+          phone_number: n.phone_number,
+          can_text: !!prof,
+          messaging_profile: prof ? prof.name : '(none — cannot send/receive texts)',
+          inbound_webhook: prof ? (prof.webhook_url || '(profile has NO inbound webhook → texts go nowhere)') : '',
+        });
+      }
+      return json(200, { ok: true, profiles, numbers: out });
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
