@@ -19,7 +19,9 @@ async function accountReports(days) {
   const q = `manager_customer_id:${c.managerId}`
     + ` AND start_date_range.year:${s.y} AND start_date_range.month:${s.m} AND start_date_range.day:${s.day}`
     + ` AND end_date_range.year:${e.y} AND end_date_range.month:${e.m} AND end_date_range.day:${e.day}`;
-  const url = `${BASE}/accountReports:search?query=${encodeURIComponent(q)}&pageSize=50`;
+  // keep the colons literal — the LSA query parser wants field:value, and an
+  // encoded %3A makes it miss the fields ("No manager_customer_id provided").
+  const url = `${BASE}/accountReports:search?query=${encodeURIComponent(q).replace(/%3A/g, ':')}&pageSize=50`;
   const headers = { Authorization: 'Bearer ' + token, 'developer-token': c.devToken };
   let r, d;
   try { r = await fetch(url, { headers }); d = await r.json().catch(() => ({})); } catch (err) { return { ok: false, error: String(err.message || err) }; }
