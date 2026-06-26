@@ -105,11 +105,17 @@ exports.handler = async function (event) {
 
   const lang = String(m.language || 'en').toLowerCase();
   const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
-  if (jobId && LANGNAME[lang]) {
-    try { await crud.update(crud.TABLES.jobs, jobId, { customer_preference_text: '⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).' }); } catch (_) {}
+  const availability = String(m.availability || '').trim();
+  // Availability + language both land in customer_preference_text (the routing/
+  // scheduling layer reads it). Availability first — it's what gets them scheduled.
+  if (jobId && (availability || LANGNAME[lang])) {
+    const parts = [];
+    if (availability) parts.push('🗓 Availability: ' + availability);
+    if (LANGNAME[lang]) parts.push('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).');
+    try { await crud.update(crud.TABLES.jobs, jobId, { customer_preference_text: parts.join('  ·  ') }); } catch (_) {}
   }
 
-  await crud.logEvent('warranty_quick_check_created', { conv_id: convId ? String(convId) : '', job_id: jobId, name: m.name, phone: phone, warranty_company: m.warranty_company || '', claim_number: m.claim_number || '', machine: [m.brand, m.appliance].filter(Boolean).join(' '), town: m.town, problem: m.problem, language: lang, linked_attachments: linkedAttachments, at_ms: Date.now() });
+  await crud.logEvent('warranty_quick_check_created', { conv_id: convId ? String(convId) : '', job_id: jobId, name: m.name, phone: phone, warranty_company: m.warranty_company || '', claim_number: m.claim_number || '', machine: [m.brand, m.appliance].filter(Boolean).join(' '), town: m.town, problem: m.problem, availability: availability, language: lang, linked_attachments: linkedAttachments, at_ms: Date.now() });
 
   // 🛡️ siren → Teddy + Danielle (pre-diagnosis ready — get the tech rolling ready)
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;

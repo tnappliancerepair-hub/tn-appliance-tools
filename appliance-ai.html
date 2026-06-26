@@ -445,11 +445,13 @@ function capModel(){
     state.uploads = state.uploads || [];
     state.uploads.push(AntPhoto.upload(file, { convId:state.convId, uploadedBy:'customer', onStatus:mst, s3Fallback:f=>uploadMedia(f,'photo',mst) }).then(r=>{ state.modelUploaded=!!(r&&r.ok); return r; }));
     setTimeout(()=>{clearFlow();
-      // Warranty → straight to the one-field phone finish. Cash → the normal
-      // consent + contact + availability + payment chain.
+      // BOTH paths now ask availability right after the media (Teddy 2026-06-26 —
+      // "the more available you are, the quicker we get you in"). Warranty →
+      // availability → one-field phone finish. Cash → consent + contact +
+      // availability + payment. askAvailability self-routes by payer.
       const _isWarranty = state.payer==='warranty';
-      const _next = _isWarranty ? warrantyFinish : consentGate;
-      const _msg = _isWarranty ? 'Perfect — last thing, just your number and you\'re set.' : 'Perfect. Last thing and then your answer\'s on its way.';
+      const _next = _isWarranty ? askAvailability : consentGate;
+      const _msg = _isWarranty ? 'Perfect — one quick thing about your schedule and you\'re set.' : 'Perfect. A couple quick things and then your answer\'s on its way.';
       think(700, ()=>{ antMsg(_msg); think(500, _next); });
     },900);
   };
@@ -496,15 +498,15 @@ function collectContact(){
 // the tech (customers don't pick slots — they don't know the tech's route).
 // Stored as customer_preference_text so the scheduling/routing layer reads it.
 function askAvailability(){
-  setHead('When works <span class="accent">for you?</span>','We match a tech to your schedule — you don\'t pick a time.');
-  antMsg('Last thing — what days/times generally work for you, and are there any you <b>can\'t</b> do? We\'ll route a tech to you on a day that fits.');
+  setHead('When are you <span class="accent">available?</span>','The more open you are, the faster we get you in.');
+  antMsg('Important — <b>when are you available, and when are you NOT?</b> The more available you are, the quicker we can squeeze you in. Give us an idea over the <b>next 4–5 days</b> — the days and rough times that work, and any you <b>can\'t</b> do — so we get you in as soon as possible.');
   const f=document.createElement('div'); f.className='field';
-  f.innerHTML='<textarea id="f-avail" rows="3" placeholder="e.g. Off Tue & Thu, mornings are best, can\'t do weekends" style="width:100%;font-size:16px;padding:12px;border-radius:11px;border:1px solid var(--bord2);background:var(--surface);color:var(--white);font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>'
+  f.innerHTML='<textarea id="f-avail" rows="3" placeholder="e.g. Free Mon & Tue all day, Wed after 2pm, can\'t do Thu, Fri mornings only" style="width:100%;font-size:16px;padding:12px;border-radius:11px;border:1px solid var(--bord2);background:var(--surface);color:var(--white);font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>'
     +'<div id="av-quick" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div>'
     +'<button class="go" id="av-go">Continue →</button>';
   FLOW.appendChild(f);
   const ta=f.querySelector('#f-avail');
-  ['Any day is fine','Mornings best','Afternoons best','Weekdays only','No weekends'].forEach(t=>{
+  ['I\'m wide open','Most days work','Mornings best','Afternoons best','Weekdays only','No weekends'].forEach(t=>{
     const b=document.createElement('button'); b.type='button'; b.textContent=t;
     b.style.cssText='background:var(--surface);border:1px solid var(--bord2);color:var(--gray);border-radius:18px;padding:7px 13px;font-size:13px;font-family:var(--mono);cursor:pointer';
     b.onclick=()=>{ ta.value=(ta.value.trim()?ta.value.trim()+', ':'')+t; ta.focus(); };
@@ -517,6 +519,9 @@ function askAvailability(){
     // thank-you page). Lets the campaign optimize toward people who actually
     // finish the flow, not just clicks.
     try{ gtag('event','generate_lead',{ currency:'USD', value: state.serviceType==='in_home'?100:(FREE_MODE?0:50), appliance: state.appliance||'', payer: state.payer||'' }); }catch(_){}
+    // Warranty asks availability BEFORE the phone finish; everyone else continues
+    // to in-home / free / paid checkout.
+    if(state.payer==='warranty'){ clearFlow(); think(500, ()=>{ antMsg('Got it — last thing, just your number and you\'re set.'); think(400, warrantyFinish); }); return; }
     clearFlow(); think(500, state.serviceType==='in_home' ? submitInHome : (FREE_MODE ? submitFree : payStep));
   };
 }
@@ -658,7 +663,8 @@ function warrantyFinish(){
       const r=await fetch(FN+'/warranty-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, appliance:state.appliance, brand:state.brand, problem:state.problem,
         warranty_company:state.warranty||'', claim_number:state.claim||'', conv_id:state.convId,
-        has_video:state.video, has_model:state.model, sms_consent:true, town:state.town, language:LANG
+        has_video:state.video, has_model:state.model, sms_consent:true, town:state.town,
+        availability:state.availability||'', language:LANG
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
