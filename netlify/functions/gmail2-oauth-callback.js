@@ -19,8 +19,14 @@ exports.handler = async function (event) {
   const code = q.code;
   if (!code) return { statusCode: 400, headers: { 'Content-Type': 'text/html' }, body: page('Missing authorization code', '<p>Start over at <code>/.netlify/functions/gmail2-oauth-start</code>.</p>') };
 
-  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
-  const secret = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'));
+  // Which inbox slot this connect was for, carried in state ('gmailn_<n>_<ts>').
+  let n = 2;
+  const mm = String(q.state || '').match(/^gmailn_(\d+)_/);
+  if (mm) { const v = parseInt(mm[1], 10); if (v >= 2 && v <= 5) n = v; }
+  const TOKEN_KEY = 'GMAIL' + n + '_REFRESH_TOKEN';
+
+  const id = (await getSecretPreferVault('GMAIL' + n + '_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
+  const secret = (await getSecretPreferVault('GMAIL' + n + '_CLIENT_SECRET')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'));
   if (!id || !secret) return { statusCode: 500, headers: { 'Content-Type': 'text/html' }, body: page('Not configured', '<p>Web OAuth client (GOOGLE_ADS_CLIENT_ID/SECRET) missing.</p>') };
 
   try {
@@ -29,16 +35,16 @@ exports.handler = async function (event) {
     const d = await r.json().catch(() => ({}));
     if (!d.refresh_token) {
       return { statusCode: 502, headers: { 'Content-Type': 'text/html' },
-        body: page('Token exchange failed', '<p>No refresh_token returned. If you authorized this inbox before, revoke at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> and run the start link again (in an incognito window, signed in as tnappliance@gmail.com).</p><pre>' + JSON.stringify(d, null, 2) + '</pre>') };
+        body: page('Token exchange failed', '<p>No refresh_token returned. If you authorized this inbox before, revoke at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a> and run the start link again (in an incognito window, signed in as the inbox you are adding).</p><pre>' + JSON.stringify(d, null, 2) + '</pre>') };
     }
     let saved = false;
-    try { await setSecret('GMAIL2_REFRESH_TOKEN', d.refresh_token); saved = true; } catch (_) {}
+    try { await setSecret(TOKEN_KEY, d.refresh_token); saved = true; } catch (_) {}
     return {
       statusCode: 200, headers: { 'Content-Type': 'text/html' },
-      body: page('✅ Second inbox connected (tnappliance@gmail.com)',
+      body: page('✅ Inbox #' + n + ' connected',
         saved
-          ? '<p><b>Done.</b> Ant now reads tnappliance@gmail.com too. Verify: open <code>/.netlify/functions/gmail-search?secret=YOUR_ADMIN&q=amazon</code> — matches should be tagged with their account.</p>'
-          : ('<p>Connected, but auto-save failed. Add this to the vault as <b>GMAIL2_REFRESH_TOKEN</b>:</p><textarea readonly style="width:100%;height:120px;font-family:monospace" onclick="this.select()">' + d.refresh_token + '</textarea>')),
+          ? '<p><b>Done.</b> Ant now reads this inbox too (slot ' + n + '). The search tool + the API watchers scan it from here on.</p>'
+          : ('<p>Connected, but auto-save failed. Add this to the vault as <b>' + TOKEN_KEY + '</b>:</p><textarea readonly style="width:100%;height:120px;font-family:monospace" onclick="this.select()">' + d.refresh_token + '</textarea>')),
     };
   } catch (err) {
     return { statusCode: 500, headers: { 'Content-Type': 'text/html' }, body: page('Error', '<pre>' + (err.message || '') + '</pre>') };

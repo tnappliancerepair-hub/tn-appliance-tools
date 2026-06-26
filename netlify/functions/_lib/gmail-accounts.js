@@ -11,6 +11,10 @@
 const { google } = require('googleapis');
 const { getSecretPreferVault } = require('./secrets');
 
+// Friendly labels for known extra-inbox slots (cosmetic; shown on match tags).
+// New slots default to 'inbox-<n>' until a GMAIL{n}_ACCOUNT_LABEL is set.
+const EXTRA_LABELS = { 2: 'tnappliance@gmail.com' };
+
 // Returns [{ label, clientId, clientSecret, refreshToken }] for every inbox we
 // have a working token for. Missing accounts are simply omitted (never throws).
 async function listAccounts() {
@@ -23,16 +27,23 @@ async function listAccounts() {
     out.push({ label: process.env.GMAIL_ACCOUNT_LABEL || 'tnappliancerepair@gmail.com', clientId: id1, clientSecret: sec1, refreshToken: rt1 });
   }
 
-  // 2nd inbox is minted via the "Ant Ads" WEB OAuth client (GOOGLE_ADS_*) — a
-  // Web client supports the https redirect URI the connect flow needs (the Gmail
-  // "AHS Poller" client is Desktop-type and can't hold one). A refresh token must
-  // be read back with the SAME client that minted it, so account 2 pairs
-  // GMAIL2_REFRESH_TOKEN with the Ads client id/secret.
-  const id2 = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
-  const sec2 = (await getSecretPreferVault('GMAIL2_CLIENT_SECRET')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'));
-  const rt2 = await getSecretPreferVault('GMAIL2_REFRESH_TOKEN');
-  if (id2 && sec2 && rt2) {
-    out.push({ label: process.env.GMAIL2_ACCOUNT_LABEL || 'tnappliance@gmail.com', clientId: id2, clientSecret: sec2, refreshToken: rt2 });
+  // Extra inboxes (slots 2..5) are all minted via the "Ant Ads" WEB OAuth client
+  // (GOOGLE_ADS_*) — a Web client can hold the https redirect URI the connect
+  // flow needs (the Gmail "AHS Poller" client is Desktop-type and can't). A
+  // refresh token must be read back with the SAME client that minted it, so each
+  // slot pairs its GMAIL{n}_REFRESH_TOKEN with the Ads client id/secret. Adding
+  // an inbox = hit gmail2-oauth-start?n=<n> signed in as that account; no extra
+  // console step (same client, same already-registered redirect).
+  const adsId = await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID');
+  const adsSec = await getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET');
+  for (let n = 2; n <= 5; n++) {
+    const rt = await getSecretPreferVault('GMAIL' + n + '_REFRESH_TOKEN');
+    if (!rt) continue;
+    const id = (await getSecretPreferVault('GMAIL' + n + '_CLIENT_ID')) || adsId;
+    const sec = (await getSecretPreferVault('GMAIL' + n + '_CLIENT_SECRET')) || adsSec;
+    if (!id || !sec) continue;
+    const label = (await getSecretPreferVault('GMAIL' + n + '_ACCOUNT_LABEL')) || EXTRA_LABELS[n] || ('inbox-' + n);
+    out.push({ label, clientId: id, clientSecret: sec, refreshToken: rt });
   }
 
   return out;

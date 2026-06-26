@@ -19,8 +19,12 @@ const { getSecretPreferVault } = require('./_lib/secrets');
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/gmail2-oauth-callback';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-exports.handler = async function () {
-  const id = (await getSecretPreferVault('GMAIL2_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
+exports.handler = async function (event) {
+  // ?n=<slot> picks which GMAIL{n}_REFRESH_TOKEN to fill (2..5). Default 2.
+  const q = (event && event.queryStringParameters) || {};
+  let n = parseInt(q.n, 10); if (!(n >= 2 && n <= 5)) n = 2;
+
+  const id = (await getSecretPreferVault('GMAIL' + n + '_CLIENT_ID')) || (await getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'));
   if (!id) {
     return { statusCode: 500, headers: { 'Content-Type': 'text/html' },
       body: '<p>No Web OAuth client configured. Need <b>GOOGLE_ADS_CLIENT_ID</b> (the "Ant Ads" web client, already set from the Ads/GSC hookup).</p>' };
@@ -33,6 +37,6 @@ exports.handler = async function () {
   u.searchParams.set('access_type', 'offline');
   u.searchParams.set('prompt', 'consent');
   u.searchParams.set('include_granted_scopes', 'true');
-  u.searchParams.set('state', 'gmail2_' + Date.now());
+  u.searchParams.set('state', 'gmailn_' + n + '_' + Date.now());
   return { statusCode: 302, headers: { Location: u.toString() }, body: '' };
 };
