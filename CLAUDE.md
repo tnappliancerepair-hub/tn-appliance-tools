@@ -1,5 +1,50 @@
 # Appliance Ant
 
+## 🌙 2026-06-26 (EVENING, Friday) — 2ND/3RD GMAIL CONNECTED · LSA TIGHTENED + DIALED · SMS NUMBER ROUTING UNTANGLED · INSTANT LEAD REPLY · FRONT DOOR = INTAKE PAGE · TECH-PHOTO LOOP (READ FIRST)
+
+Long out-of-pocket + automation session with Teddy (branch `claude/shop-automation-setup-r9wzpm`, fast-forwarded to `main`; Netlify auto-deploys). Theme: make the paid-demand + customer-intake funnel actually work end-to-end. All LIVE on `main` unless noted.
+
+### 📬 SECOND + THIRD GMAIL INBOX CONNECTED (Amazon/Ads receipts were invisible)
+- Built **`_lib/gmail-accounts.js`** — multi-account helper (`searchAll` scans EVERY connected inbox, tags each hit with its account; loops slots 2..5). Wired into **`gmail-search`** + all 3 API watchers (**`amazon-api-watch`/`google-api-watch`/`vendor-api-watch`**) so approvals landing in ANY inbox now trigger the text.
+- **`gmail2-oauth-start`/`-callback`** (generalized via `?n=` slot → `GMAIL{n}_REFRESH_TOKEN`). **KEY FOOTGUN:** the Gmail token uses the **"TN Appliance AHS Poller Client" which is a DESKTOP OAuth client → it CAN'T hold an https redirect URI** (that's the `redirect_uri_mismatch` error). Fix: mint via the **"Ant Ads" WEB client** (`GOOGLE_ADS_CLIENT_ID`, same one Search Console uses). Teddy added the redirect URI to the Ant Ads client.
+- **CONNECTED: inbox #2 `tnappliance@gmail.com`** (Amazon + Google Ads receipts) **+ inbox #3** (a personal/business email). Vault: `GMAIL2_REFRESH_TOKEN`, `GMAIL3_REFRESH_TOKEN`. Verified live — search returns hits tagged from all three.
+- **Inbox findings:** Google Ads Basic Access = **ACK only, still pending**. Amazon = nothing yet (now covered). **ServicePower SS-87708 "API issues" = let it auto-close** (Teddy: "no longer needed, we have it ready").
+
+### 🥊 LSA (Local Services Ads / Google Guaranteed) — TIGHTENED + DIALED for Middle TN (still PAUSED by choice)
+- **Service area tightened to 3 tech-anchored pods** (Teddy's call — "go hard where we live, not spread thin"): **Rutherford** (Murfreesboro/Smyrna/La Vergne) · **east Davidson** (Antioch home base/Hermitage/Donelson/Old Hickory/Madison/E.Nash + Mt.Juliet) · **Clarksville** (37040/42/43, Lee's base). Keep/cut zip lists + the locked footprint recorded in `docs/google-ads-launch-plan-2026-06.md`. **Cleared the county exclusions** (they conflicted with included zips → blocked Save).
+- **🚨 LSA website was a DEAD typo'd URL** — `tnappliancexchange.net` (missing an 'e') → curl: dead (000). Fixed to **`tnapplianceexchange.net`** (live 200). That alone was killing every LSA click.
+- Job types: **Dryer ON** (+ dishwasher/oven/fridge; freezer/microwave off). Budget ~$285/wk (~$40/day, matches the dryer plan). Bidding: automated/maximize.
+- **Teddy wants LSA API-MANAGED, won't flip it on manually.** Honest reality given to him: **LSA has NO write API** (on/off/budget/hours are dashboard-only for everyone) — the API-managed lever is **Search campaigns** (full control once Basic Access lands). His vision (locked): conversational ad control — *"spend $100 in Rutherford on dryer ads,"* on/off, **capacity-tied** (*"no LA stops → run LA ads"*). That's the Google Ads API Search autopilot, gated on Basic Access.
+- LSA reporting connector (`lsa-test` / `_lib/lsa.js`) works but returns empty (paused = 0 charged leads). Education locked: LSA = pay-per-lead, fixed-ish rate, **NO time-of-day discounts** (cap via manual bid; the manual-bid suggested range = the real market price). Search ads = auction, varies by hour (where dayparting lives). Appliance leads ~**$15–35**, not $100. **LSA phone = 615-280-2949 → Vapi/Ant answers every call** (the phone-first edge). LSA lead notifications → tnappliancerepair@gmail.com (Ant reads it).
+
+### 🔀 SMS NUMBER ROUTING — UNTANGLED (the customer text line was dead)
+- **Root cause:** every SMS-capable Telnyx number sat on ONE messaging profile → **all inbound went to `tech-sms-inbound`** (the TECH brain), which **glitches on customer messages** ("I hit a glitch, text Teddy"). The customer brain (`customer-sms-inbound`) was built but its webhook was **never wired**.
+- Built **`telnyx-provision` actions**: `messaging` (read — each number → profile → inbound webhook) + `setsms` (write — route customer vs tech numbers; creates a "TN Appliance Customer SMS" profile → customer-sms-inbound; idempotent). Needs `TELNYX_API_KEY` (vaulted) + the vapi-admin secret.
+- **LIVE STATE (verified):** **588-9500 (primary customer) + 280-2949 (main) → CUSTOMER brain; 857-8800 → TECH brain.** Calls unchanged (Vapi). **Fixes Google Chat too** (it points at 588-9500). Customer line CONFIRMED working — a real outside number (Teddy's son) texted "broken dryer" → got the on-brand new-lead reply.
+- **FOOTGUN:** Telnyx messaging webhooks are **profile-level** (no per-number override) → a separate profile per brain. And `customer-sms-inbound` does **NOT reply inline** (the loop does) → a broken loop chain OR texting from the owner's own number = **total silence** (tech-sms-inbound DOES reply inline, which is why it looked "alive" but glitchy).
+
+### ⚡ INSTANT FIRST-REPLY for cold leads (LSA speed-to-lead)
+- Customer replies took **2–4 min** (loop tick 120s × 2 signal hops). Built an **inline instant reply in `customer-sms-inbound.js`**: a cold lead (`customer_known=false`, generic intake, no specific-intent keyword) gets the SAME new-lead reply in **~1s** + writes the loop's `new_lead_replied_<phone>` dedup marker so `sms_response_new_lead` skips (no double-text). Template-only (no Claude), doesn't touch loop cadence. Known customers + specific intents still flow through the loop with full context.
+- **Tick drop to 30s is now safe** (queue is local + load low, 130/hr) — it's a Mac-side change (`TICK_MS=30000` in `colony-loop/.env` + restart). Optional now that first-touch is instant.
+
+### 🧹 HOMEPAGE DECLUTTER → FRONT DOOR = THE $50 QUICK CHECK INTAKE PAGE (Teddy's call)
+- A customer told a tech the old homepage "looked like a hacker site"; Alec (Teddy's 16-yo) flagged the clutter. **index.html decluttered:** language strip moved up top, the 11-link wall above the chat removed → relocated to the bottom business-info footer (SEO + reachability preserved), chat now front-and-center.
+- **THEN — `_redirects`: `/  →  /appliance-ai.html  200!`** (forced rewrite). The **$50 Quick Check intake page is now the website front door.** It **self-routes warranty (FREE) vs cash ($50)** so it's safe for everyone. Every bare-domain link (new-lead texts, scheduling texts, ads, GBP chat) now lands on the intake. Old homepage still at `/index.html`. **Reversible — one line.** Teddy: "this is the link that closes the deal — send it to everyone."
+
+### 📸 GBP TECH-PHOTO LOOP (map-pack freshness, hands-off)
+- `gbp-photo-request.js` (weekly Tue ~9:30am CT → texts field crew Jimmy/Andre/Lee/John for 2-3 job photos, one-tap link, once/ISO-week dedup, kill switch `GBP_PHOTO_REQUEST=false`) → `gbp-photos.html` (mobile upload, reliable server-side via `photo-upload`) → `gbp-photo-log.js` (tags as `gbp_photo` + throttled Teddy "ready to post" text) → `list-gbp-photos.js` + `gbp-photos-review.html` (owner gallery: download + post to GBP). **Fired the first request live to all 4 techs.** Same photos feed the LSA profile ("+16% leads").
+
+### 🩹 OFFICE BOARD — Danielle's report-request button restored
+- "Message tech for report" button vanished once a tech filled ANY note (gated on `!techReport`). Now **always shows in the job file** with adaptive text ("Report not filed" vs "Tech report — need more?"). Danielle can nudge a tech on in-progress/half-reported jobs again.
+
+### ⏭️ OPEN / NEXT (this session's carryover)
+- **🥇 WARRANTY INTAKE REBUILD (locked spec, Teddy):** warranty = **video + model # + phone, ONLY** (warranty customers are lazy/half-want a new machine — minimal friction), **prefilled from the texted link**. Current warranty path (`warrantyPath()` in appliance-ai.html) captures NOTHING (no video/model) + **`free-quickcheck.js` HARDCODES `customer_type:self_pay`** → a warranty submit would mislabel + risk a dup of the dispatch job. Needs a careful pass (live page + payment + likely an XS touch so warranty is tagged right + attaches to the existing dispatch job instead of creating a new one).
+- **Prefill magic** (the ultimate, esp. for chat-close): texted link carries job context → intake prefills name/phone/warranty + skips warranty customers straight to video+model. Loop/Mac-side (link must carry job_id/token).
+- **Google Ads Basic Access** (pending, watchers armed) → build the **conversational, profit-governed Search autopilot** ("spend $X in [geo] on dryer ads," on/off, capacity-tied). OAuth + connector already built.
+- **Schema port** onto `appliance-ai.html` (now the homepage) to keep Google trust signals.
+- **Tick → 30s** (Mac-side) for snappier follow-up replies. **LSA flip-on** = Teddy's call (verify manual-bid cap when ready).
+- **DON'T:** route warranty through `free-quickcheck` as-is (self_pay mislabel); don't crank the loop tick without the local queue (it's local now, so 30s is fine); don't put customer SMS on the tech messaging profile.
+
 ## 🎯 2026-06-26 (CONTINUED, PM) — GOOGLE ADS STRATEGY LOCKED · SEO DATA ENGINE LIVE · "USED-STORE" LEGACY DIAGNOSED · ADDRESS AUTOCOMPLETE (READ FIRST)
 
 Long strategy + build session, all LIVE on `main` (branch `claude/good-morning-aujwba`), Netlify auto-deploys. The thesis Teddy landed on: **automating Google (ads + map pack + SEO) is the single biggest lever — it's the faucet that fills idle capacity with OUT-OF-POCKET (self-pay) jobs.** Demand, not supply, is the constraint.
