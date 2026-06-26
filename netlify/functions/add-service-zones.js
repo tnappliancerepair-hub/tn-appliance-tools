@@ -13,7 +13,7 @@ function authH() { return { Authorization: 'Bearer ' + process.env.XANO_METADATA
 let _tid = null;
 async function zoneTableId() {
   if (_tid) return _tid;
-  for (const id of [54, 55, 56, 57, 58, 50, 51, 52, 53, 48, 49, 40, 41, 42, 43, 44, 45, 46]) {
+  for (let id = 1; id <= 70; id++) {
     try {
       const r = await fetch(`${META}/table/${id}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ per_page: 1, page: 1 }) });
       if (!r.ok) continue;
