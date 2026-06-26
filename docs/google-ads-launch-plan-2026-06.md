@@ -33,6 +33,14 @@ Decision after a full strategy session. Start measured + watchful, find what's w
 
 **~$75/day total (~$525/wk, ~$2K/mo).** Two SEPARATE campaigns → two SEPARATE scoreboards (TN and LA never compete — different auctions). 40-mi LA radius covers **two techs** (John/Walker + Andre/Hammond) = more capacity to absorb demand without overbooking one guy.
 
+### 📍 MIDDLE TN GEO — LOCKED to the tight LSA footprint (Teddy, 2026-06-26)
+The Middle TN dryer campaign targets the SAME tight footprint Teddy dialed into Local Services Ads — three dense pods, each anchored on a tech's home, no sprawl (LSA + Search + map pack all reinforce the same core instead of spreading thin). **Do NOT broaden to "Nashville metro" generically** — match these:
+- **Pod 1 · Rutherford** (Jimmy + Teddy): 37086 (La Vergne), 37127/37128/37129/37130 (Murfreesboro), 37167 (Smyrna) — or target "Rutherford County" whole.
+- **Pod 2 · East Davidson** (Teddy/Antioch home base): 37013 (Antioch), 37076 (Hermitage), 37115 (Madison), 37138 (Old Hickory), 37206 (East Nash), 37210/37211 (South Nash), 37214/37217 (Donelson), 37216 (Inglewood) + 37122 (Mt. Juliet, east edge). **West-side Davidson excluded on purpose** (Bellevue/West Nash 37205/37209/37221).
+- **Pod 3 · Clarksville** (Lee, lives there; strong dryer market — Ft. Campbell rentals): 37040, 37042, 37043.
+- **Cut/excluded:** Williamson/Franklin/Brentwood/Nolensville (37027/37064/37067/37135), Sumner (Gallatin 37066 / Hendersonville 37075), Wilson-Lebanon (37087), Cheatham/Dickson (37015/37055/37146). LSA exclusions were cleared — coverage is defined by inclusion only.
+- **LSA status (2026-06-26):** service area tightened to the above + hours being set to 24/7. **Still PAUSED — must be turned ON to run.** Add LSA profile photos (Google: "+16% leads with photos"; the new tech-photo loop feeds these).
+
 **Key calls locked:**
 - **VENT CLEANING = HOLD.** Crew is dryer-*repair* expert, barely-tested on vent. Advertise the strength; don't risk early reviews on a service we're not yet great at. The vent page + C-DET moat stay loaded — flip on once the crew's run a handful of vent jobs and is comfortable.
 - **FRIDGE = HOLD.** Concentrate force on dryers first (Tyson principle). Layer fridge in later once dryers print.
