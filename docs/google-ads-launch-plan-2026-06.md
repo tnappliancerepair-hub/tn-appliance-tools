@@ -29,9 +29,9 @@ Decision after a full strategy session. Start measured + watchful, find what's w
 | Campaign | Daily budget | Geo | Service |
 |---|---|---|---|
 | **Dryer Repair — Middle TN** | **$40/day** | Nashville metro / Middle TN | Dryer **repair only** |
-| **Dryer Repair — Walker, LA** | **$35/day** | **~25-mi radius around Walker, LA** (John's base — scoops Denham Springs, Livingston Parish, east Baton Rouge, toward Hammond) | Dryer **repair only** |
+| **Dryer Repair — Walker, LA** | **$35/day** | **~40-mi radius around Walker, LA** — covers Walker (John's base) + Hammond (Andre's base) + Denham Springs, Livingston Parish, east Baton Rouge, toward the North Shore | Dryer **repair only** |
 
-**~$75/day total (~$525/wk, ~$2K/mo).** Two SEPARATE campaigns → two SEPARATE scoreboards (TN and LA never compete — different auctions). Radius-around-Walker keeps John's routes tight = more jobs/day, better margin.
+**~$75/day total (~$525/wk, ~$2K/mo).** Two SEPARATE campaigns → two SEPARATE scoreboards (TN and LA never compete — different auctions). 40-mi LA radius covers **two techs** (John/Walker + Andre/Hammond) = more capacity to absorb demand without overbooking one guy.
 
 **Key calls locked:**
 - **VENT CLEANING = HOLD.** Crew is dryer-*repair* expert, barely-tested on vent. Advertise the strength; don't risk early reviews on a service we're not yet great at. The vent page + C-DET moat stay loaded — flip on once the crew's run a handful of vent jobs and is comfortable.
