@@ -37,10 +37,9 @@ async function jobsTableId() {
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  // allow scheduled invocation (no secret) OR owner-gated manual
-  const scheduled = !!event.headers && (event.headers['x-nf-event'] === 'schedule');
-  if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+  // Runs on a schedule (cron) + manually. Safe to run openly: idempotent (only
+  // acts on tech-less SquareTrade jobs, assigns them to their area tech — re-runs
+  // find 0 candidates), and kill-switchable via the vault.
   if (String(await getSecret('SQUARETRADE_AUTOASSIGN') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
   if (!process.env.XANO_METADATA_TOKEN) return json(500, { ok: false, error: 'no metadata token' });
   const dry = q.dryrun === '1';

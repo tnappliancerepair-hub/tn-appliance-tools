@@ -99,6 +99,12 @@
 [functions."ad-spend-autolog"]
   schedule = "0 14 17 * *"
 
+# SquareTrade auto-assign — routes tech-less SquareTrade jobs straight to the area
+# tech (zip→cluster, capacity/day-off aware, next-rank fallback). Kills the manual
+# accept/schedule step so warranty flows hands-off. Every 10 min.
+[functions."squaretrade-autoassign"]
+  schedule = "*/10 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
