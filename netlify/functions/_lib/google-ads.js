@@ -34,9 +34,10 @@ async function accessToken(c) {
   return d.access_token;
 }
 
-function apiHeaders(token, c) {
+function apiHeaders(token, c, loginCidOverride) {
   const h = { Authorization: 'Bearer ' + token, 'developer-token': c.devToken, 'Content-Type': 'application/json' };
-  if (c.managerId) h['login-customer-id'] = c.managerId;
+  const lcid = loginCidOverride != null ? String(loginCidOverride).replace(/\D/g, '') : c.managerId;
+  if (lcid) h['login-customer-id'] = lcid;
   return h;
 }
 

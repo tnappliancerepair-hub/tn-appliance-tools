@@ -38,9 +38,13 @@ exports.handler = async function (event) {
   for (const cid of cids) {
     const url = `https://googleads.googleapis.com/${ver}/customers/${cid}/googleAds:search`;
     let r, d;
-    try { r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); }
+    // try as direct account (login-cid = the account itself); if that fails, retry via manager
+    try { r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c, cid), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); }
     catch (e) { out.push({ cid, error: String(e.message || e) }); continue; }
-    if (!r.ok) { out.push({ cid, http: r.status, error: (d.error && (d.error.message || d.error.status)) || d, detail: (d.error && d.error.details) || null }); continue; }
+    if (!r.ok && r.status === 403 && c.managerId) {
+      try { r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c, c.managerId), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); } catch (_) {}
+    }
+    if (!r.ok) { out.push({ cid, http: r.status, error: (d.error && (d.error.message || d.error.status)) || d, detail: (d.error && d.error.details && d.error.details[0] && d.error.details[0].errors) || null }); continue; }
     const rows = (d.results || []).map((x) => ({
       campaign: x.campaign && x.campaign.name, status: x.campaign && x.campaign.status,
       cost: x.metrics ? Math.round((Number(x.metrics.costMicros || 0) / 1e6) * 100) / 100 : 0,
