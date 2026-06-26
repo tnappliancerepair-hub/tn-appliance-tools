@@ -332,6 +332,34 @@ exports.handler = async function (event) {
       return json(200, { ok: true, from, link, sent: out });
     }
 
+    if (action === 'crewpreview') {
+      // ONE-TIME: show the crew the POPULATED Teddy Tool — Jimmy's real warranty
+      // Quick Check (video + model photo + auto-read model#) — so they see what the
+      // office/Teddy see the second a warranty customer runs it. From the customer
+      // line so it threads back to Ant if anyone replies. Teddy, 2026-06-26.
+      const from = '+16155889500';
+      const job = String(q.job || '19928').replace(/\D/g, '') || '19928';
+      const link = `${SITE}/teddy-tdr-tool.html?job_id=${job}`;
+      const recips = [
+        { name: 'Teddy', to: '+16154855795' },
+        { name: 'Jimmy', to: '+16159671304' },
+        { name: 'Andre', to: '+15049099413' },
+        { name: 'Lee', to: '+16158291654' },
+        { name: 'John', to: '+18133527686' },
+        { name: 'Danielle', to: '+16154850713' },
+      ];
+      const out = [];
+      for (const rc of recips) {
+        const text = `${rc.name}, this is what Teddy + the office see the moment a warranty customer runs the Quick Check — this is Jimmy's real test: his video, the model-sticker photo, and the model # auto-read off it (GE GSE25GSHCSS). Open it: ${link}  This is the one link we send every warranty customer — let's talk through it next week. (Reply STOP to opt out.)`;
+        try {
+          const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: rc.to, text }), signal: AbortSignal.timeout(12000) });
+          const sd = await send.json().catch(() => ({}));
+          out.push({ name: rc.name, to: rc.to, ok: send.ok, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 200) });
+        } catch (e) { out.push({ name: rc.name, to: rc.to, ok: false, error: String((e && e.message) || e) }); }
+      }
+      return json(200, { ok: true, from, job, link, sent: out });
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));

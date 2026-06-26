@@ -61,6 +61,11 @@ exports.handler = async function (event) {
         claim_number: m.claim_number || '',
         recommended_service: 'warranty_prediag',
         channel: 'appliance_ai',
+        // create_job_from_chat REQUIRES a non-empty zip or it fails ("Missing param: zip")
+        // → job_id null → office fallback + media never links (the warranty-intake bug,
+        // 2026-06-26). The minimal warranty flow only asks phone, so default to the shop
+        // zip; the REAL service address comes from the warranty dispatch match / scheduling.
+        zip: (m.zip && String(m.zip).trim()) || '37013',
         sms_consent: m.sms_consent === true || m.sms_consent === 'yes',
         conversation_id: convId,
       }),
@@ -115,6 +120,16 @@ exports.handler = async function (event) {
     + '  Job #' + (jobId || '?') + ' → ' + link;
   try { await sendSms(OWNER, msg, 'owner', 'warranty_quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'warranty_quick_check'); } catch (_) {}
+
+  // If the SUBMITTER is one of our techs (testing the flow), text THEM the Teddy
+  // Tool link too — so they see exactly what the office/Teddy Tool sees. (Teddy
+  // 2026-06-26 — Jimmy testing the warranty intake.)
+  const TECH_PHONES10 = ['6154855795', '6159671304', '5049099413', '6158291654', '7315049617', '8133527686'];
+  const submitterLast10 = phone.replace(/\D/g, '').slice(-10);
+  if (jobId && TECH_PHONES10.includes(submitterLast10)) {
+    const techMsg = '🔧 That\'s your test submission — here\'s exactly what Teddy + the office see in the Teddy Tool: ' + link;
+    try { await sendSms(phone, techMsg, 'technician', 'warranty_qc_tech_preview'); } catch (_) {}
+  }
 
   // never lose the media — text a finish-upload link if expected media didn't land
   const yes = (v) => v === true || String(v) === 'yes' || String(v) === 'true';
