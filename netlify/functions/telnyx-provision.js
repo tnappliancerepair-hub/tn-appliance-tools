@@ -310,6 +310,28 @@ exports.handler = async function (event) {
       });
     }
 
+    if (action === 'warrantytest') {
+      // Send Jimmy + Danielle the EXACT warranty-customer link, FROM the customer
+      // line (588-9500), so they see what a warranty customer gets + can reply
+      // (→ customer-sms-inbound → Ant). Teddy's preview, 2026-06-26.
+      const from = '+16155889500';
+      const link = 'https://tnapplianceexchange.net';
+      const recips = [
+        { name: 'Jimmy', to: '+16159671304' },
+        { name: 'Danielle', to: '+16154850713' },
+      ];
+      const out = [];
+      for (const rc of recips) {
+        const text = `Hi ${rc.name}, this is Ant with TN Appliance Exchange about your dryer repair. The fastest way to get your tech out ready to fix it the first time — tap here to send a quick video + a photo of the model sticker, takes about 60 seconds: ${link}  Or just reply right here and I'll help you. (Reply STOP to opt out.)`;
+        try {
+          const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: rc.to, text }), signal: AbortSignal.timeout(12000) });
+          const sd = await send.json().catch(() => ({}));
+          out.push({ name: rc.name, to: rc.to, ok: send.ok, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 200) });
+        } catch (e) { out.push({ name: rc.name, to: rc.to, ok: false, error: String((e && e.message) || e) }); }
+      }
+      return json(200, { ok: true, from, link, sent: out });
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
