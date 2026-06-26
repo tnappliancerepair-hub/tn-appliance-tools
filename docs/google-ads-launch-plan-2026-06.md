@@ -99,7 +99,7 @@ Vent-cleaning only: `air duct`, `hvac`, `duct cleaning`, `chimney`, `kit`, `brus
 ## Landing pages (message match = lower CPC via Quality Score)
 - Dryer ads → `book-repair.html?appliance=Dryer&city={metro}`
 - Fridge ads → `book-repair.html?appliance=Refrigerator&city={metro}`
-- Vent ads → a dedicated dryer-vent-cleaning page (TODO: build a focused vent-cleaning booking page).
+- Vent ads → **`dryer-vent-cleaning.html`** (✅ built 6/26 — safety-hook copy, "signs your vent needs cleaning" list, same speed-to-lead text-back engine; posts appliance_type "Dryer Vent Cleaning").
 Send ad clicks to the appliance-matched booking page, **not** the homepage.
 
 ## Conversion tracking — track VALUE, not just count (critical)

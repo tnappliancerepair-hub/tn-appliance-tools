@@ -53,9 +53,11 @@ exports.handler = async function (event) {
   // 2) SPEED-TO-LEAD — text the customer within seconds (the conversion lever).
   // Ask when they're available (their reply is parsed onto the job so it can get
   // scheduled) AND for a model-# pic + problem video (feeds the Teddy Tool).
+  const isVent = /vent/i.test(appliance);
   const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
+  const reqWord = isVent ? ' request' : ' repair request'; // "vent cleaning repair" reads odd
   const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
-  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request! What days/times work to get a tech out? Just reply right here. To help us show up ready, you can also tap to send a model-# pic + short video: " + uploadUrl + " . (Or call/text 615-280-2949.)";
+  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + reqWord + "! What days/times work to get a tech out? Just reply right here. To help us show up ready, you can also tap to send a model-# pic + short video: " + uploadUrl + " . (Or call/text 615-280-2949.)";
   try {
     await fetch(XANO + '/send_sms', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
