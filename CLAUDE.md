@@ -1,5 +1,52 @@
 # Appliance Ant
 
+## 🎯 2026-06-26 (CONTINUED, PM) — GOOGLE ADS STRATEGY LOCKED · SEO DATA ENGINE LIVE · "USED-STORE" LEGACY DIAGNOSED · ADDRESS AUTOCOMPLETE (READ FIRST)
+
+Long strategy + build session, all LIVE on `main` (branch `claude/good-morning-aujwba`), Netlify auto-deploys. The thesis Teddy landed on: **automating Google (ads + map pack + SEO) is the single biggest lever — it's the faucet that fills idle capacity with OUT-OF-POCKET (self-pay) jobs.** Demand, not supply, is the constraint.
+
+### 🥊 GOOGLE ADS — LAUNCH CONFIG LOCKED (flip on when Basic Access lands, ~3 days; `google-api-watch` armed)
+Full plan in `docs/google-ads-launch-plan-2026-06.md`. Teddy's decisions this session:
+- **$75/day, day-by-day to start.** Watch daily, **scale the winners** as they prove (not blind aggression — "find what's winning, then go hard there").
+- **PURE DRYER REPAIR.** Vent cleaning = HOLD (crew barely-tested on vent; don't risk early reviews; vent page + C-DET moat stay loaded). Fridge = HOLD (concentrate force first).
+- **Two separate geo-campaigns** (TN and LA never compete — different auctions): **Dryer Repair Middle TN $40/day** + **Dryer Repair ~40-mi radius around Walker, LA $35/day** (covers Walker/John + Hammond/Andre + Denham Springs/east BR).
+- **Aggression posture (Teddy): "aggressive aggressive aggressive" on dryers** — but the smart kind: concentrate, bid to be #1 on dryer terms, hit all surfaces, win on speed-to-lead (Ant answers every call). The governor is **profit, not a dollar cap.**
+- **MAXIMUM AUTONOMY (Teddy's call), profit-governed:** ceiling = **cost-per-booked-job** (spend as hard as it stays profitable), NOT a fixed $. Kill switch `GOOGLE_ADS_AUTOPILOT=false`. Daily scoreboard to Teddy's cell. Ramp: day-one autonomy on SAFE levers (auto-negatives, kill zero-converters); full BUDGET autonomy after ~2 wks of conversion data. Ant matches each booked self-pay job's real ticket back to spend (conversion-VALUE feed) → self-calibrates.
+- **Pre-launch cleanup (when Basic Access lands):** delete 4 junk campaigns (jan video camp — Teddy PAUSED it this session; $50 Quick Check; search $50; Performance Max-1). **Honest cost-per-job estimate Teddy should expect: ~$50–90 to start (LA cheaper), NOT the $32 illustrative number.** Still need from Teddy (optional — Ant self-measures): rough dryer-repair ticket value.
+- **Capabilities scoped for Teddy:** Search ads = FULL autonomous control (API write). LSA = read/report/dispute-flag; budget/hours/services stay dashboard-side. GBP/Maps = draft-and-tap now, fuller auto when GBP API approves (case 4-9470000004382). Ant = one brain across all 3, drives what it can, tees up one-tap for the rest.
+
+### 🔎 SEO DATA ENGINE — LIVE + FIRST DATA PULLED (the big unlock)
+- **Search Console connector BUILT + CONNECTED:** `_lib/search-console.js` + `gsc-oauth-start`/`-callback` (reuses Ads OAuth client, read-only webmasters scope, auto-vaults `GSC_REFRESH_TOKEN`) + `gsc-queries.js` (owner-gated; surfaces **striking-distance** queries = position ~5-20 = cheapest page-1 wins). Teddy added the `gsc-oauth-callback` redirect URI + approved + **enabled the Search Console API** in Cloud project 1040849744214. Data flows.
+- **🚨 KEY FINDING — the "used appliance store" legacy is in the ORGANIC SEO too (proven 3rd time).** Dryer organic terms you rank for are almost ALL **buy-intent**: "used washer and dryer," "used dryers for sale near me," "used dryer store near me," "cheap washer and dryer set." You're **invisible for "dryer repair"** and visible for "used dryers for sale." (Matches the GBP search-terms finding: top terms = "appliance stores near me" / "used appliance store near me".) **So repair SEO = build-from-scratch, NOT nudge-page-2.** Near-term repair demand = MAP PACK + PAID ADS; SEO is the slow rebuild. One quick organic win available: `clothes dryer vent installation` (pos 4.7, 40 impr, 0 clicks) — adjacent to the vent page.
+- **The "used-store" sweep result:** the **WEBSITE IS CLEAN** — zero "used/for-sale/we-sell" copy; schema correctly typed `LocalBusiness` (not Store). The legacy is **OFF-SITE**: the brand name "Ex**change**" (= buy/sell/trade), old citations (Yelp/BBB), GBP category, and the old `tnappliancerepair.com` Duda site. **On-site counter shipped:** homepage `LocalBusiness` schema now asserts repair — `alternateName: "TN Appliance Repair"`, description "we do not sell used appliances," `slogan`, `knowsAbout`, `makesOffer` repair services.
+
+### 🧹 SEO / MAP-PACK BUILDS SHIPPED
+- **GBP weekly post generator** (`gbp-post-generator.js`, scheduled Mondays ~8-9am CT): Ant drafts an on-brand dryer-weighted Google Business post (Haiku, rotates topics by ISO week), texts Teddy a one-tap publish link. Draft-and-tap now (kill switch `GBP_POST_GENERATOR=false`, `?dryrun=1`); flips to auto-post when GBP API lands.
+- **`dryer-repair.html`** (existing strong hub) upgraded: **booking-first CTAs** (was still leading with old "$50 Quick Check"), sharper title, **removed a DUPLICATE FAQPage schema** (two on one page = Google distrusts both). Kept the rich content + internal-link hub.
+- **`dryer-vent-cleaning.html`** (NEW page from this session) — vent booking page: safety hook, "signs you need cleaning," **C-DET (CSIA Certified Dryer Exhaust Technician) credential badge + "we open the dryer, they won't" differentiator** (Teddy's real moat) + full dryer+vent deep-clean as a **paid add-on**. Added Service + FAQ schema. Posts `appliance_type:"Dryer Vent Cleaning"`.
+
+### 📍 ADDRESS AUTOCOMPLETE — built + LIVE (Google Places)
+`maps-key.js` (serves the referrer-restricted browser key) + `ant-address-autocomplete.js` (new `PlaceAutocompleteElement`; fills street/city/state/zip on select; **degrades to plain manual entry if no key — zero breakage**). Wired into `book-repair.html` + `dryer-vent-cleaning.html`. Teddy created a **referrer-restricted browser key** (Maps JS + Places API New, sites `tnapplianceexchange.net/*` + `*.netlify.app/*`) → vaulted `GOOGLE_MAPS_BROWSER_KEY` → **live** (`maps-key` returns it). Clean ZIPs → better `check_service_zone` routing. (TODO: also wire into `appliance-ai.html`/`book.html` — dynamic fields, needs a re-trigger hook.)
+
+### 🛠️ LIVE OPS FIXES (function-API writes from chat)
+- **Lee's accidental Start** — job **19589** (Kevin Rucker, warranty dishwasher) got tapped to in-progress while Lee scrolled. Reverted `scheduling_status`→scheduled via `office_set_job_status` (badge reads scheduling_status first, so fixed on his board). Caveats flagged: the Start auto-texted the customer "tech arrived" (can't unsend); a ~6h no-show check may ping Teddy (harmless, leftover — couldn't cancel the queued signal remotely). **NOT a true dup** — offered a Start-confirm guard to prevent recurrence (not yet built).
+- **Bryan Smith "duplicate"** — was NOT a data dup: only ONE Ant job (**19759**, SquareTrade washer). The two tech-board cards = **HCP + Ant both showing the same job** (parallel-systems overlap, resolves at cutover). Real issue underneath: 19759 was **SquareTrade scheduled-no-tech** (technician_id null). Assigned area tech **Jimmy (2)** via `reassign_job` (37075 → TN East cluster). ⚠️ **It slipped past `squaretrade-autoassign`** — the auto-assign likely doesn't catch jobs already `scheduled` but tech-less. TIGHTEN THIS.
+- **LSA query format fixed** (`_lib/lsa.js`): `accountReports.search` wants `manager_customer_id:X` as the ONLY query content + dates as SEPARATE `startDate.*/endDate.*` URL params (not AND/dates-in-query). Still 403 until Basic Access (test token).
+
+### ⏭️ OPEN / NEXT — TEDDY ACTIONS (off-site = the real SEO levers)
+1. **🥇 GBP categories** — remove any "Appliance store" / "Used appliance store"; keep ONLY "Appliance repair service." (Biggest off-site lever against the used-store rankings.) Also add services (Dryer repair, Dryer vent cleaning) + LA service-area towns + **10-20 real job photos** (huge map-pack lever).
+2. **Fix LSA business hours → 24h** in ads.google.com/localservices → Settings (GBP is already 24h; the LSA listing has its own hours still showing "Opens 9 AM").
+3. **GBP Chat** = set to `sms:+16155889500` (Teddy did it — pending Google review).
+4. **Kill/redirect old `tnappliancerepair.com`** (still advertising used sales = off-site billboard for wrong intent).
+5. **Amazon** production auth email (watcher armed) → vault group/buyer/payment + flip `AMAZON_BUSINESS_ENV=production`.
+
+### ⏭️ OPEN / NEXT — CLAUDE BUILDS
+- **When Google Ads Basic Access approves:** delete 4 junk campaigns → launch the 2 dryer campaigns ($75/day) → pull `google-ads-performance` → set conversion-VALUE tracking → build the profit-governed autopilot + daily scoreboard.
+- **Weekly SEO opportunity text** (GSC now connected): Ant texts Teddy "you're #6 for 'dryer repair murfreesboro', 140 searches — one nudge from page 1, want me to optimize?" Turn the data loop into a weekly approve-to-act.
+- **Tighten `squaretrade-autoassign`** to catch already-`scheduled`-but-tech-less jobs (19759 proved the gap).
+- **Start-confirm guard** on tech-job.html Start button (prevent accidental starts firing arrival texts).
+- Wire address autocomplete into appliance-ai.html/book.html (dynamic fields).
+- **DON'T:** spray keyword edits across the 1,272 landers (doorway pattern Google ignores); rely on organic for near-term repair demand (it's pointed at used-buyers — map pack + ads carry it).
+
 ## 🌙 2026-06-26 — AMAZON API SANDBOX LIVE · REVIEW ENGINE · WARRANTY-MISLABEL ROOT-FIXED · GOOGLE ADS OAUTH BUILT · CASH FUNNEL (READ FIRST)
 
 Long demand-channel + data-cleanup day. All LIVE on `main` (branch `claude/good-morning-aujwba`); Netlify auto-deploys. Two Mac actions done this session (loop refresh + one XS push).
