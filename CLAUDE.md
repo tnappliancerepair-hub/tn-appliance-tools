@@ -1,5 +1,55 @@
 # Appliance Ant
 
+## 🌙 2026-06-26 — AMAZON API SANDBOX LIVE · REVIEW ENGINE · WARRANTY-MISLABEL ROOT-FIXED · GOOGLE ADS OAUTH BUILT · CASH FUNNEL (READ FIRST)
+
+Long demand-channel + data-cleanup day. All LIVE on `main` (branch `claude/good-morning-aujwba`); Netlify auto-deploys. Two Mac actions done this session (loop refresh + one XS push).
+
+### 🟢 AMAZON BUSINESS API — SANDBOX AUTH PROVEN (sandbox-first, like Frontdoor)
+Teddy created a **Solution Provider Portal (SPP)** account (under **tnappliance@gmail.com** — same login as the Amazon Business buyer acct **A-22A7N0U5ZWQ5H**), made a **Sandbox app**, vaulted the 3 LWA creds (`AMAZON_LWA_CLIENT_ID`/`_SECRET`/`_REFRESH_TOKEN`). **`amazon-business-test?secret=` → `token_acquired:true`, env sandbox** — auth works live. Connector `_lib/amazon-business.js` reworked **sandbox-first** with an env switch (`AMAZON_BUSINESS_ENV`, default sandbox so no real order can fire) + base `https://sandbox.na.business-api.amazon.com`. **Ordering payload REWRITTEN to the documented schema** (the old guessed shape would 400 at prod) — `attributeType`-tagged attributes, per docs.business.amazon.com/docs/placing-an-order. `?order=1` trial reaches the Ordering API (static sandbox returns `InvalidInput "Could not match input arguments"` = expected; the static sandbox only mock-matches Amazon's exact example, can't test our real data — auth+endpoint+schema all proven). **The Amazon API was NEVER an email** — it's a portal/console thing; support chat → call center will EMAIL BACK in 24-48h (no ref#, they reach Amazon's internal team). `amazon-api-watch` widened to catch the call-center reply. **TO GO LIVE: production app authorization (the 24-48h email / advisor) → vault `GROUP_ID`/`BUYER_EMAIL`/`PAYMENT_REF` + flip `AMAZON_BUSINESS_ENV=production`.** `amazon-business-order.js` auto-placer scaffold still ready.
+
+### ⭐ REVIEW ENGINE — both halves live (the demand lever that actually works for local cash)
+- **Satisfaction gate (NEW):** `review-request-sweep` (daily 6:30pm, **confirmed firing**, 3 queued) now texts **"How'd we do? 👍/👎"** FIRST instead of a cold review link. Reply routes itself via `_lib/satisfaction.js` + an interceptor in `customer-sms-inbound.js`: **👍 → Google review link**, **👎 → "what could we have done better?"** (captures privately + alerts Teddy, intercepts unhappy before a public 1-star). State machine in event_log (`satisfaction_state_<phone>`: awaiting_rating→awaiting_feedback→done). Classifier handles emoji+words. (Honest note flagged to Teddy: pure 👍-only-gets-link = "review gating," gray-area w/ Google; built as he asked, board doesn't block anyone from reviewing publicly on their own.)
+- **Review REPLY engine (NEW `review-reply-watch`, every 2h, baselined):** GBP `businessprofile-noreply@google.com` "X left a review" emails → Haiku extracts the review + drafts a warm on-brand owner reply → texts Teddy to post (one-tap link). **HARD SAFETY: negatives (≤3★) flagged URGENT, never auto** (4-5★ "reply ready"). Drafts proven good on real reviews (Jay 1★, Ginny 5★, Susan 2★ etc.) — personalized (referenced Jimmy/Allstate). Full auto-post of positives bolts on when GBP API approval lands (case 4-9470000004382).
+- **2 live negative reviews surfaced** for Teddy to answer (Jay 1★, Susan 2★) — drafts in chat.
+
+### 🧹 WARRANTY-MISLABEL — ROOT-CAUSED + FIXED END-TO-END (Teddy's catch)
+**Finding: ~29–44% of the "cash leads" board was WARRANTY customers** mislabeled `self_pay`. Root cause: every non-dispatch door (the **intake "get more info" link → website chat**, AND a pile of old **HCP imports**) defaults `customer_type:self_pay`. So a warranty customer touching the site spawns a `self_pay` duplicate (James Preston: warranty job 19818 AHS + self_pay web dupe 19819, same customer 5733).
+- **Board self-protects:** `cash-leads` + `cash-ready-notify` now exclude any self_pay job whose customer also has a warranty job (best-effort, 6s time-budget so it never hangs the board; `?keep_warranty=1` to see them).
+- **Existing dups relabeled:** `relabel-warranty-dups` (+ `-background` full sweep, 15-min) → set `customer_type:warranty` + copied company/claim (claim only when unambiguous) via `update_job_full_info` (XS db.edit — bypasses the metadata enum-drop footgun). **Dups → 0** (verified). NOTE: the first big confirm call wrote all rows even though its RESPONSE timed out — Netlify functions execute the writes before the gateway kills the response.
+- **ROOT FIX deployed + LIVE-VERIFIED (Mac XS push):** `create_job_from_chat_POST.xs` — a returning customer who already has a warranty job now **inherits warranty (+ company/claim) instead of creating a self_pay dupe**. Smoke-tested live: warranty-seed phone → web "cash" booking came back `warranty` + AHS + claim. Same "customer has a warranty job" rule the board filters on, so DB now agrees with the board.
+
+### 💸 CASH FUNNEL (demand into the pipe Teddy built)
+- **1,160 local SEO landers** now lead with a primary **"🔧 Book a Repair — we text you right back"** CTA (Quick Check demoted to secondary, mirrors homepage); `book-repair.html` prefills appliance+city from the lander. **BUT KEY FINDING (GSC + live `site:`): only ~104 of 1,272 pages are INDEXED** — the landers are a doorway-page pattern, mostly stuck "discovered, not indexed"; the ranking pages are the OLD `/city-tn-appliance-repair/` ones. **Don't count on the landers for cash demand.** The real local levers = **GBP / map pack + reviews + LSA** (hence the review-engine focus).
+- `book-media-chase` upgraded: recovers **availability** (the thing that lets you schedule), not just media; skips terminal/scheduled jobs; message adapts to what's outstanding.
+- `cash-ready-notify` (NEW, hourly): texts Teddy the moment a self-pay web lead has given availability (speed-to-book), owner-only, once/job.
+- `cash-leads` board: surfaces the customer's texted-back **availability** on each card.
+
+### 💰 BOOKS — Google Ads spend tracked
+$500 Google Ads charge (on the **US Bank** TN Appliance card; receipt email is in **tnappliance@gmail.com** from googleadspayments@google.com — NOT in tnappliancerepair). Added **"ads" as a distinct P&L expense line** (`expenses-rollup` + `money.html`) + **`ad-spend-autolog`** (monthly on the 17th, $500 default via vault `AD_SPEND_MONTHLY`, dedup per month). June logged. (P&L tab reflects it; the Digits "Books" tab reflects it once the US Bank charge is categorized Advertising in Digits.)
+
+### 🔑 GOOGLE ADS OAUTH — full flow BUILT (waiting only on Teddy, NOT on Google)
+`google-ads-oauth-start` + `-callback` (auto-vaults `GOOGLE_ADS_REFRESH_TOKEN`, mirrors the Digits OAuth pattern) + `_lib/google-ads.js` connector + `google-ads-test`. Dev token + manager id (160-509-9162) already vaulted; only client_id/secret/refresh missing. **Teddy's part (self-serve, ~5 min, no Google wait): Google Cloud Console → enable Google Ads API → OAuth consent screen PUBLISHED/production (⚠️ "Testing" mode expires the refresh token in 7 days) → create OAuth Web client with redirect `https://tnapplianceexchange.net/.netlify/functions/google-ads-oauth-callback` → vault `GOOGLE_ADS_CLIENT_ID`/`_SECRET` → hit the start link → approve.** Then `google-ads-test` verifies. Only Google-gated piece = **Basic Access** for the dev token (unlocks REAL campaigns vs test; doesn't block OAuth) — confirm that form is actually submitted.
+
+### 🛠️ MISC + MAC ACTIONS DONE
+- **`gmail-search.js`** (NEW owner-gated admin tool) — search the connected inbox (`?secret=&q=`) for any thread; used to prove the Amazon API never emailed. **Only searches tnappliancerepair@gmail.com** (the GMAIL_* OAuth acct); tnappliance@gmail.com (Ads + Amazon receipts) is NOT searchable until its Gmail is connected — offer to vault it.
+- **Loop refreshed on the Mac** (bootout→bootstrap, one PID) → this session's earlier loop fixes now live: **per-recipient SMS dup guard in `xano.js`** (spam backstop), availability/parts **terminal-status guards**, **https** customer links.
+- **`delete-parts-order.js`** + `reset-job-addons.js` admin tools (from earlier) used to clean test rows.
+
+### ⚠️ FOOTGUNS LEARNED TODAY
+- **Netlify SYNC functions time out (~10-26s) on heavy per-customer metadata scans** (warranty-dup lookup, big relabel). Fixes: time-budget the loop (cash-leads 6s) OR use a **`-background` function** (15-min). And: **confirm-writes still EXECUTE when the response times out** (the relabel wrote everything despite a dead response).
+- **`create_job_from_chat` requires a `channel` param** (else `Missing param: channel`).
+- **Creating test jobs while the loop is LIVE pings Teddy's phone** (the 4 ZZTest "new job needs pre-diagnosis" owner texts) — don't spin up test jobs against the live loop without warning; route around the owner-notification path.
+- **`xano workspace push` "table does not exist" warnings = stale-cache noise** (the push still landed — "Pushed 1 documents"). Verify by behavior, not the warnings.
+- **Static Amazon sandbox only mock-matches Amazon's exact example** — a real-data trial returns `InvalidInput`; that's expected, not a bug. Real validation = production.
+
+### ⏭️ OPEN / NEXT (the tomorrow list lives in chat too)
+- **Amazon:** await 24-48h support email (watcher armed) → production app authorization → vault group/buyer/payment + flip env=production → wire auto-placer.
+- **Google Ads OAuth:** Teddy does the 6 self-serve steps → "Ads connected" → verify. Confirm Basic Access form submitted.
+- **GBP API** (case 4-9470000004382): pending → bolt auto-post-positives onto `review-reply-watch` when it lands.
+- **Reviews:** Teddy answer the 2 live negatives (Jay/Susan); watch first satisfaction-gate replies roll in.
+- **Carryover:** self-checkout `SELF_CHECKOUT_AUTOPLACE_LIVE` flip + `add_tdr_failure` Mac push; NSA connector (needs vaulted creds); connect tnappliance@gmail.com to gmail-search.
+- **DON'T:** rely on the 1,160 SEO landers for cash demand (doorway/unindexed) — push GBP/reviews/LSA; never auto-post a negative review reply.
+
 ## ☀️ 2026-06-25 (EARLY AM, before 6am) — AUTO-ACCEPT LIVE + WARRANTY COMMAND CENTER + AUTO-REVIEWS + FRONTDOOR API MOVING (READ FIRST)
 
 Huge pre-dawn run. All LIVE on `main` (branch `claude/good-morning-aujwba`).
