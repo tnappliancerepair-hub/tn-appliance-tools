@@ -574,10 +574,11 @@
     setWaiverState(data && data.job);
     render(data);
     renderAvailabilityGrid(data);
-    maybeShowWaiverBanner(data && data.job);
-    // No auto-pop modal on load (Teddy 2026-06-27): the passive banner + the
-    // schedule-time gate (ensureWaiverSigned) are enough. Auto-popping the modal
-    // AND showing the banner = the "asked me to sign twice" double-nag.
+    // get_customer_job_view does NOT return the waiver fields, so we can't tell
+    // signed-state from `data.job` — ask get_waiver_status directly. refreshWaiverState
+    // shows the banner only when truly unsigned, and removes it when signed. No
+    // auto-pop modal on load (the banner + the schedule-time gate are enough).
+    refreshWaiverState();
     recordPortalEvent('portal_viewed').catch(() => {});
   }
 
@@ -756,7 +757,12 @@
       .then((r) => r.json())
       .then((d) => {
         const signed = !!(d && (d.waiver_signed === true || (d.waiver_signed_at && Number(d.waiver_signed_at) > 0)));
-        if (!signed) return;
+        if (!signed) {
+          // Truly unsigned → show the single gentle banner (status-gated inside).
+          WAIVER_SIGNED = false;
+          maybeShowWaiverBanner(jobData && jobData.job);
+          return;
+        }
         WAIVER_SIGNED = true;
         if (jobData && jobData.job) jobData.job.waiver_signed_at = d.waiver_signed_at || Date.now();
         const b = document.getElementById('waiverBanner'); if (b) b.remove();
