@@ -35,9 +35,11 @@ exports.handler = async function (event) {
     try {
       const only = q.only ? String(q.only).split(',').map((n) => parseInt(n, 10)).filter(Boolean) : [15];
       const eventLogPages = q.elpages ? parseInt(q.elpages, 10) : undefined;
+      const actions = q.actions ? String(q.actions).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
       const clearFirst = !!q.clear;
-      const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst });
-      return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, summary }) };
+      const t0 = Date.now();
+      const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst, actions });
+      return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, ms: Date.now() - t0, summary }) };
     } catch (e) {
       return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
     }

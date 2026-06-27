@@ -108,10 +108,12 @@ async function pageTable(id, onChunk, popts) {
 }
 
 // Back up event_log's MONEY rows only — one fast filtered query per action type.
-async function pageEventLogMoney(onChunk) {
+// `actions` (optional) limits to a subset — for bite-sized runs.
+async function pageEventLogMoney(onChunk, actions) {
   let total = 0, part = 0, buf = [];
   const perPage = 200;
-  for (const action of MONEY_ACTIONS) {
+  const list = (actions && actions.length) ? actions : MONEY_ACTIONS;
+  for (const action of list) {
     for (let page = 1; page <= 200; page++) {
       const res = await readPage(EVENT_LOG_TABLE, page, perPage, 'asc', { action });
       if (res.items == null) break;
@@ -199,7 +201,7 @@ async function backupTables(opts = {}) {
     try {
       // event_log = money rows only (fast, by action). Everything else = full table.
       const res = isEventLog
-        ? await pageEventLogMoney(insertChunk)
+        ? await pageEventLogMoney(insertChunk, opts.actions)
         : await pageTable(id, insertChunk, { sort: 'asc', maxPages: MAX_PAGES });
       summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined });
     } catch (e) {
