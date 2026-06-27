@@ -29,8 +29,11 @@ const sb = require('./supabase');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const EVENT_LOG_TABLE = 3;
-const PAGE_SIZE = 500;     // rows per Xano read page (fewer round-trips on big tables)
-const CHUNK_ROWS = 500;    // rows per Supabase insert — one insert per page; small enough for big-metadata rows
+const PAGE_SIZE = 200;     // default rows per Xano read page
+const CHUNK_ROWS = 500;    // rows per Supabase insert
+// Tables with heavy rows (big JSON) need smaller pages so a page response doesn't
+// blow the read timeout. parts_orders carries fat order payloads.
+const HEAVY_PER_PAGE = { 47: 50 };
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
 const BACKUP_TABLE = 'xano_backup_chunks';
 
@@ -202,7 +205,7 @@ async function backupTables(opts = {}) {
       // event_log = money rows only (fast, by action). Everything else = full table.
       const res = isEventLog
         ? await pageEventLogMoney(insertChunk, opts.actions)
-        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: opts.maxPagesOverride || MAX_PAGES, perPage: opts.perPage || PAGE_SIZE });
+        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: opts.maxPagesOverride || MAX_PAGES, perPage: opts.perPage || HEAVY_PER_PAGE[id] || PAGE_SIZE });
       summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined });
     } catch (e) {
       summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });
