@@ -8,6 +8,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { backupTables } = require('./_lib/backup');
+const sb = require('./_lib/supabase');
 
 const LEGACY_ADMIN = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const SITE = (process.env.URL || 'https://tnapplianceexchange.net').replace(/\/+$/, '');
@@ -17,6 +18,16 @@ exports.handler = async function (event) {
   let admin = '';
   try { admin = (await getSecret('VAPI_ADMIN_SECRET')) || ''; } catch (_) {}
   admin = admin || LEGACY_ADMIN;
+
+  // Status: read the latest snapshot's manifest from Supabase (verify it ran + counts).
+  if (q.status && q.secret === admin) {
+    try {
+      const rows = await sb.select('xano_backup_chunks', { table_name: 'eq._manifest', order: 'created_at.desc', limit: '1', select: 'snapshot_date,created_at,rows' });
+      return { statusCode: 200, body: JSON.stringify({ ok: true, latest: (rows && rows[0]) || null }) };
+    } catch (e) {
+      return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
+    }
+  }
 
   // Live verify: tiny synchronous backup (technicians = a handful of rows).
   if (q.probe && q.secret === admin) {
