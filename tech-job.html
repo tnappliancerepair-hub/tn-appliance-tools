@@ -662,7 +662,12 @@ async function custAddonCard(row){
         description:row.dataset.n, kind:'addon',
         metadata:{ addon_key:row.dataset.k, name:row.dataset.n, mode:'installed', tech_cut:row.dataset.cut, technician_id:String(TECH_ID||''), source:'tech_collect' } })});
     const d=await r.json();
-    if(d&&d.ok&&d.url&&!d.placeholder){ window.open(d.url,'_blank'); if(stat) stat.innerHTML='💳 Checkout opened — hand them the phone for Apple Pay/card. It\'ll show ✅ paid once done.'; row.querySelectorAll('.ca-rm').forEach(x=>x.disabled=false); }
+    if(d&&d.ok&&d.url&&!d.placeholder){
+      if(stat) stat.innerHTML='💳 Opening secure checkout — hand them the phone for Apple Pay/card…';
+      // navigate THIS tab (reliable on mobile; window.open after await gets popup-blocked).
+      // Tech hands the phone over to pay, then taps back to the job.
+      window.location.href=d.url; return;
+    }
     else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'could not open checkout'); row.querySelectorAll('button').forEach(x=>x.disabled=false); }
   }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button').forEach(x=>x.disabled=false); }
 }

@@ -10,6 +10,14 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const JOBS_TABLE = 7;
 
+// Allow the call from any TN Appliance host (www or non-www) so a www page load
+// doesn't fail the cross-origin POST.
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
@@ -30,13 +38,14 @@ async function lookupJobTech(jobId) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   try {
     const b = JSON.parse(event.body || '{}');
     const job_id = parseInt(b.job_id, 10);
     const addon_key = String(b.addon_key || '').trim();
     if (!job_id || !addon_key) {
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: 'job_id and addon_key required' }) };
+      return { statusCode: 400, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, error: 'job_id and addon_key required' }) };
     }
     const price = parseFloat(b.price) || 0;
     const discount = parseFloat(b.discount) || 0;
@@ -84,10 +93,10 @@ exports.handler = async function (event) {
     });
     if (!r.ok) {
       const t = await r.text();
-      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'xano ' + r.status, detail: t.slice(0, 160) }) };
+      return { statusCode: 502, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, error: 'xano ' + r.status, detail: t.slice(0, 160) }) };
     }
-    return { statusCode: 200, body: JSON.stringify({ success: true, addon_key, net_price: Math.max(0, price - discount).toFixed(2) }) };
+    return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true, addon_key, net_price: Math.max(0, price - discount).toFixed(2) }) };
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ success: false, error: err.message }) };
+    return { statusCode: 500, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ success: false, error: err.message }) };
   }
 };

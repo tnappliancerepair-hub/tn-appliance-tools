@@ -1259,9 +1259,9 @@
       if (b.classList.contains('claimed')) return;
       b.disabled = true; b.textContent = 'Adding…';
       try {
-        const r = await fetch('/.netlify/functions/record-addon', {
+        const r = await fetch('/.netlify/functions/save-extra', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: (deal.normal - deal.sale), tech_cut: dealCut, source: 'weekly_deal' }),
+          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: 0, tech_cut: dealCut, source: 'weekly_deal' }),
         });
         const d = await r.json();
         if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; const pb = $('dealPayBtn'); if (pb) { pb.disabled = true; pb.style.display = 'none'; } }
@@ -1447,7 +1447,7 @@
           btn.disabled = true; btn.textContent = isInquire ? 'Sending…' : 'Adding…';
         }
         try {
-          const r = await fetch('/.netlify/functions/record-addon', {
+          const r = await fetch('/.netlify/functions/save-extra', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ job_id: JOB_ID, addon_key: btn.dataset.key, name: btn.dataset.name, price: parseFloat(btn.dataset.price), discount: parseFloat(btn.dataset.disc), tech_cut: parseFloat(btn.dataset.cut) || 0, cost: parseFloat(btn.dataset.cost) || 0, mode: mode, source: isInquire ? 'customer_inquiry' : 'customer_portal' }),
           });
