@@ -70,19 +70,35 @@ async function pageTable(id, onChunk) {
 }
 
 // The metadata token is content-scoped (GET /table list returns 403), so we
-// can't enumerate tables — probe a candidate id range and keep the ones that respond.
-async function discoverIds() {
-  const found = [];
+// can't enumerate tables — probe a candidate id range, sample one row, keep the id
+// + its column names so we can shape-skip the giant AI/noise tables.
+async function discoverTables() {
+  const out = [];
   for (let id = 1; id <= 60; id++) {
     if (SKIP_IDS.has(id)) continue;
     try {
       const r = await fetch(`${META}/table/${id}/content/search`, {
         method: 'POST', headers: metaHeaders(), body: JSON.stringify({ per_page: 1, page: 1 }),
       });
-      if (r.ok) found.push(id);
+      if (!r.ok) continue;
+      const d = await r.json();
+      const sample = ((d && d.items) || [])[0] || null;
+      out.push({ id, keys: sample ? Object.keys(sample) : [] });
     } catch (_) {}
   }
-  return found;
+  return out;
+}
+
+// Skip the big/irrelevant tables this is NOT meant to back up (they're either
+// huge — embeddings/vector store — or AI/plumbing noise, not money/business data).
+function shouldSkipByShape(keys) {
+  const k = new Set(keys);
+  if (k.has('embedding') || k.has('vector') || k.has('embedding_vector')) return true; // vector store (huge)
+  if (k.has('signal_type')) return true;                       // colony_signals (transient)
+  if (k.has('role') && k.has('content')) return true;          // agent_message
+  if (k.has('cost_usd') || k.has('prompt_tokens') || k.has('total_tokens')) return true; // claude_call_log
+  if (k.has('value') && k.has('name') && keys.length <= 4) return true; // app_config (secrets)
+  return false;
 }
 
 // Wipe an existing same-day snapshot so a re-run is idempotent (no dup chunks).
@@ -103,8 +119,11 @@ async function backupTables(opts = {}) {
 
   let ids = (opts.only && opts.only.length) ? opts.only : null;
   if (!ids) {
-    const discovered = await discoverIds();
-    ids = Array.from(new Set([...CORE_IDS, ...discovered])).filter((id) => !SKIP_IDS.has(id));
+    const discovered = await discoverTables();
+    const keep = discovered.filter((t) => !shouldSkipByShape(t.keys)).map((t) => t.id);
+    // CORE money/business tables always; plus discovered business tables (TDRs,
+    // tech_earnings, etc.); minus the giant AI/noise tables.
+    ids = Array.from(new Set([...CORE_IDS, ...keep])).filter((id) => !SKIP_IDS.has(id));
   }
 
   if (!opts.keepExisting) await clearSnapshot(date);
