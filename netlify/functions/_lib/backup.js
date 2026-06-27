@@ -47,15 +47,22 @@ function metaHeaders() {
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
 
+// event_log is the high-churn action ledger — too big to dump whole every night.
+// Cap the nightly snapshot to the most-recent rows (where all current money
+// activity lives); full-history event_log is a separate one-time/incremental pull.
+const EVENT_LOG_RECENT_PAGES = 200; // 200 x 500 = up to 100k most-recent rows
+
 // Page a table's content, flushing to onChunk() every CHUNK_ROWS rows.
-async function pageTable(id, onChunk) {
+async function pageTable(id, onChunk, popts) {
+  const sortDir = (popts && popts.sort) || 'asc';
+  const maxPages = (popts && popts.maxPages) || MAX_PAGES;
   let total = 0, part = 0, buf = [];
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  for (let page = 1; page <= maxPages; page++) {
     let r;
     try {
       r = await fetch(`${META}/table/${id}/content/search`, {
         method: 'POST', headers: metaHeaders(),
-        body: JSON.stringify({ per_page: PAGE_SIZE, page, sort: { id: 'asc' } }),
+        body: JSON.stringify({ per_page: PAGE_SIZE, page, sort: { id: sortDir } }),
       });
     } catch (_) { break; }
     if (!r.ok) { if (page === 1) return { ok: false, status: r.status, total: 0, parts: 0 }; break; }
@@ -136,11 +143,13 @@ async function backupTables(opts = {}) {
     const name = NAME_MAP[id] || ('table-' + id);
     // Isolate each table: one failure (e.g. a too-big insert) must NOT abort the
     // whole backup or skip the manifest. Record it and move on.
+    const capped = (id === EVENT_LOG_TABLE);
+    const popts = capped ? { sort: 'desc', maxPages: EVENT_LOG_RECENT_PAGES } : { sort: 'asc', maxPages: MAX_PAGES };
     try {
       const res = await pageTable(id, async (rows, part) => {
         await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
-      });
-      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status });
+      }, popts);
+      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, recent_only: capped || undefined });
     } catch (e) {
       summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });
     }
