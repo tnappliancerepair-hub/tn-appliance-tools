@@ -27,6 +27,10 @@ Live-ops session with Teddy (branch `claude/shop-automation-setup-r9wzpm` → pu
 4. **💰 MONEY TRACKING SYSTEM** (next-week build alongside self-scheduling).
 5. **Cleanup:** cancel test job **19927** (junk ZZTEST); decide on reactivating Denise #19937 / Brian #19938; scrub Teddy's cell off magnet job #19065.
 
+### 💡 IDEA TO HAMMER OUT — per-appliance line/hose upsell = revenue + liability shield (Teddy 2026-06-27)
+Offer to replace the wear-item line/hose on EVERY out-of-pocket job, appliance-aware:
+🔥 Dryer → **dryer vent hose**, 🧊 Fridge → **water supply line**, 🌀 Washer → **fill hoses**, 🍽️ Dishwasher → **supply line**. **Charge premium labor** ("a pro's already there — get our money's worth," not gouge). **The catalog already has all four in `ant-addons.js`** (price + part cost + tech cut, rule = part cost + 30% + tech cut 50%/min $20) → this is WIRING, not new build. Surface in (a) the intake flow right after appliance pick (one-tap "add fresh [line], installed $X") and (b) the existing `tech-job.html` add-on card (decide in person). **TWO-FOLD (Teddy's key point): it's also a LIABILITY SHIELD — must record the DECLINE, not just the sale**, so a future "my line's leaking" → "we offered to replace it on [date], you declined." (The waiver already does this for hoses: signed + box unchecked = documented warned-and-declined — LIVE.) **OPEN: Teddy to confirm the installed price per line (or use the pricing rule for defaults).** Keep it simple.
+
 ### 🚀 MAC DEPLOY NEEDED (2 loop fixes staged on main)
 `appointment_scheduled.js` (day-only confirmation + no wrong tech) and `job_created.js` (skip empty prediag for media sources) are pushed but the loop won't pick them up until:
 ```
