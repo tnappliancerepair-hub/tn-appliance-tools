@@ -53,13 +53,27 @@ function metaHeaders() {
 const EVENT_LOG_PER_PAGE = 100;     // small pages so the giant table's query returns fast (avoids read timeout)
 const EVENT_LOG_RECENT_PAGES = 200; // 200 x 100 = up to 20k most-recent rows (recent money activity)
 
+// event_log is a giant, mostly-NOISE action log (plumbing markers, GC'd at 7d).
+// Dumping it whole is slow + pointless. Instead back up only the money/business
+// rows by action type — fast, and captures the money regardless of age.
+const MONEY_ACTIONS = [
+  'office_invoice_logged', 'customer_payment_received', 'customer_payment_refunded',
+  'tech_payout_recorded', 'tech_tip_paid', 'payout_ready_notified',
+  'addon_requested', 'addon_fulfilled', 'addon_voided',
+  'quick_check_paid', 'free_quick_check_created', 'warranty_quick_check_created',
+  'sp_claim_sync_state', 'line_offer_decision', 'floors_flag', 'offsite_backup_completed',
+];
+
 // One page read, with a timeout + one retry (handles transient "fetch failed").
-async function readPage(id, page, perPage, sortDir) {
+// `search` (optional) = a metadata content/search filter, e.g. { action: 'x' }.
+async function readPage(id, page, perPage, sortDir, search) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      const body = { per_page: perPage, page, sort: { id: sortDir } };
+      if (search) body.search = search;
       const r = await fetch(`${META}/table/${id}/content/search`, {
         method: 'POST', headers: metaHeaders(),
-        body: JSON.stringify({ per_page: perPage, page, sort: { id: sortDir } }),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(25000),
       });
       if (!r.ok) return { httpStatus: r.status, items: null };
@@ -88,6 +102,23 @@ async function pageTable(id, onChunk, popts) {
     buf.push(...items); total += items.length;
     if (buf.length >= CHUNK_ROWS) { await onChunk(buf, part++); buf = []; }
     if (items.length < perPage) break;
+  }
+  if (buf.length) { await onChunk(buf, part++); }
+  return { ok: true, total, parts: part };
+}
+
+// Back up event_log's MONEY rows only — one fast filtered query per action type.
+async function pageEventLogMoney(onChunk) {
+  let total = 0, part = 0, buf = [];
+  const perPage = 200;
+  for (const action of MONEY_ACTIONS) {
+    for (let page = 1; page <= 200; page++) {
+      const res = await readPage(EVENT_LOG_TABLE, page, perPage, 'asc', { action });
+      if (res.items == null) break;
+      buf.push(...res.items); total += res.items.length;
+      if (buf.length >= CHUNK_ROWS) { await onChunk(buf, part++); buf = []; }
+      if (res.items.length < perPage) break;
+    }
   }
   if (buf.length) { await onChunk(buf, part++); }
   return { ok: true, total, parts: part };
@@ -161,14 +192,16 @@ async function backupTables(opts = {}) {
     const name = NAME_MAP[id] || ('table-' + id);
     // Isolate each table: one failure (e.g. a too-big insert) must NOT abort the
     // whole backup or skip the manifest. Record it and move on.
-    const capped = (id === EVENT_LOG_TABLE);
-    const elPages = opts.eventLogPages || EVENT_LOG_RECENT_PAGES;
-    const popts = capped ? { sort: 'desc', maxPages: elPages, perPage: EVENT_LOG_PER_PAGE } : { sort: 'asc', maxPages: MAX_PAGES };
+    const isEventLog = (id === EVENT_LOG_TABLE);
+    const insertChunk = async (rows, part) => {
+      await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
+    };
     try {
-      const res = await pageTable(id, async (rows, part) => {
-        await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
-      }, popts);
-      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, recent_only: capped || undefined });
+      // event_log = money rows only (fast, by action). Everything else = full table.
+      const res = isEventLog
+        ? await pageEventLogMoney(insertChunk)
+        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: MAX_PAGES });
+      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined });
     } catch (e) {
       summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });
     }
