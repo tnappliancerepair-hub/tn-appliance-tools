@@ -56,12 +56,13 @@ exports.handler = async function (event) {
     const stripe = new Stripe(key);
     const opts = {
       mode: 'payment',
-      // EASIEST checkout (Teddy 2026-06-27): let Stripe surface Apple Pay / Google
-      // Pay / Link / card automatically based on the device — so on an iPhone it's
-      // one-tap Apple Pay (Face ID, no typing). The "confirm it's you" wall Teddy
-      // hit was just Link recognizing his OWN email; normal customers tap a wallet,
-      // save to Link, or type a card — and Checkout always offers "Pay without Link".
-      automatic_payment_methods: { enabled: true },
+      // EASIEST checkout (Teddy 2026-06-27): no payment_method_types set, so Stripe
+      // Checkout uses the DASHBOARD's automatic payment methods — Apple Pay / Google
+      // Pay / Link / card by device (one-tap Apple Pay on iPhone, no typing). The
+      // "confirm it's you" wall Teddy hit was just Link recognizing his OWN email;
+      // normal customers tap a wallet, save to Link, or type a card (and Checkout
+      // always offers "Pay without Link"). To make wallets show, enable Apple Pay/
+      // Google Pay + verify the domain in the Stripe Dashboard (Settings > Payments).
       line_items: [{
         price_data: { currency: 'usd', product_data: { name: productName }, unit_amount: priceCents },
         quantity: 1,
