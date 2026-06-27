@@ -41,8 +41,15 @@ const BACKUP_TABLE = 'xano_backup_chunks';
 const NAME_MAP = { 3: 'event_log', 6: 'customer', 7: 'jobs', 15: 'technicians', 46: 'warranty_submissions', 47: 'parts_orders' };
 // NEVER back these up: app_config (53) holds vault SECRETS; colony_signals (38) is the transient queue.
 const SKIP_IDS = new Set([53, 38]);
-// Money + business core we always include (probe discovers the rest).
-const CORE_IDS = [7, 6, 3, 47, 46, 15];
+// Explicit allowlist of money + business tables (ids confirmed from a full
+// discovery run — all small/safe). event_log(3)=money-only, parts_orders(47)=heavy
+// (small pages). This is bounded + reliable; discovery is opt-in (?discover) for
+// a deeper one-off. Excludes the giant AI/vector tables and secrets/transient.
+const CORE_IDS = [
+  7, 6, 3, 47, 46, 15,                                  // jobs, customer, event_log, parts_orders, warranty, technicians
+  4, 9, 11, 12, 13, 16, 17, 22, 23, 25, 26, 27, 28, 29, // business (TDRs, earnings, clusters, etc.)
+  30, 33, 34, 35, 36, 37, 41, 48, 50,
+];
 
 function metaHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
@@ -177,11 +184,10 @@ async function backupTables(opts = {}) {
   if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
   const date = opts.date || new Date().toISOString().slice(0, 10);
 
-  // Default: CORE money/business tables + shape-filtered discovery of the rest
-  // (TDRs, earnings, etc.) — the giant AI/noise tables are skipped by shape, and
-  // the per-read timeout means a slow table fails gracefully instead of hanging.
-  let ids = (opts.only && opts.only.length) ? opts.only : null;
-  if (!ids) {
+  // Default: the explicit money/business allowlist (bounded + reliable).
+  // ?discover adds shape-filtered discovery of any other tables for a deeper one-off.
+  let ids = (opts.only && opts.only.length) ? opts.only : [...CORE_IDS];
+  if (!opts.only && opts.discover) {
     const discovered = await discoverTables();
     const keep = discovered.filter((t) => !shouldSkipByShape(t.keys)).map((t) => t.id);
     ids = Array.from(new Set([...CORE_IDS, ...keep])).filter((id) => !SKIP_IDS.has(id));
