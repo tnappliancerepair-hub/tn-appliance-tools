@@ -76,6 +76,8 @@ exports.handler = async function (event) {
         availability: s(b.availability, 300),
         language: s(b.language, 8) || 'en',
         town: s(b.town, 80),
+        hose_item: s(b.hose_item, 60),
+        hose_choice: s(b.hose_choice, 8),
         conv_id: s(b.conv_id, 40),
         has_video: b.has_video ? 'yes' : 'no',
         has_model: b.has_model ? 'yes' : 'no',

@@ -128,5 +128,17 @@ exports.handler = async function (event) {
     }
   }
 
+  // Record the line/hose safety-offer decision (Teddy 2026-06-27) — a recorded
+  // DECLINE is the liability protection; a YES tells the office to bring it.
+  const hoseChoice = String(m.hose_choice || '').toLowerCase();
+  const hoseItem = String(m.hose_item || '').trim();
+  if (jobId && (hoseChoice === 'yes' || hoseChoice === 'no') && hoseItem) {
+    try { await crud.logEvent('line_offer_decision', { job_id: jobId, item: hoseItem, choice: hoseChoice, source: 'intake', at_ms: Date.now() }); } catch (_) {}
+    if (hoseChoice === 'yes') {
+      const hmsg = '🔧 ' + hoseItem.toUpperCase() + ' ADD-ON: ' + (m.name || 'customer') + ' said YES at intake on job #' + jobId + ' — bring + install + add to the ticket.';
+      try { await sendSms(DANIELLE, hmsg, 'warranty_handler', 'hose_addon_request'); } catch (_) {}
+    }
+  }
+
   return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, job_id: jobId, first_name: first, media_linked: linkedAttachments }) };
 };

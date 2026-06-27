@@ -204,7 +204,7 @@ const QC_PRICE = 50;   // live $50 Quick Check
 // waives the charge (used when the customer is already paying a trip fee, or for
 // multi-machine customers who shouldn't pay per machine) — Teddy 2026-06-26.
 const FREE_MODE = ((new URLSearchParams(location.search).get('free') || '') === 'tn-free-2026');
-const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0 };
+const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0, hoseItem:'', hoseChoice:'' };
 // Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
 const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
 
@@ -455,14 +455,43 @@ function capModel(){
       // "the more available you are, the quicker we get you in"). Warranty →
       // availability → one-field phone finish. Cash → consent + contact +
       // availability + payment. askAvailability self-routes by payer.
+      // ACROSS THE BOARD (Teddy 2026-06-27): every customer — warranty included
+      // (we do the most warranty) — gets the quick safety add-on (line/hose opt
+      // in/out, recorded either way as the protection paper trail). Then warranty
+      // → availability → phone; cash → consent + contact + pay.
       const _isWarranty = state.payer==='warranty';
-      const _next = _isWarranty ? askAvailability : consentGate;
+      const _next = _isWarranty ? function(){ safetyOffer(askAvailability); } : function(){ safetyOffer(consentGate); };
       const _msg = _isWarranty ? 'Perfect — one quick thing about your schedule and you\'re set.' : 'Perfect. A couple quick things and then your answer\'s on its way.';
       think(700, ()=>{ antMsg(_msg); think(500, _next); });
     },900);
   };
   document.getElementById('mfile-cam').onchange=onModel;
   document.getElementById('mfile-up').onchange=onModel;
+}
+
+// ── SAFETY ADD-ON (appliance-aware line/hose upsell) ────────────────────────
+// One quick, optional step in the cash flow (Teddy 2026-06-27). Framed as a
+// safety recommendation from real authorities — NOT salesy. The Yes/No is kept
+// either way: a recorded "No" is the liability protection ("we offered, you
+// declined"); a "Yes" tells the office to bring + install it. Skips appliances
+// with no wear-item. The signed waiver carries the formal version.
+const SAFETY_LINES = {
+  dryer:        { item: 'dryer vent hose',         price: 50,  why: 'Worn dryer venting and lint are the #1 cause of dryer fires (NFPA).' },
+  refrigerator: { item: 'refrigerator water line', price: 50,  why: 'The water line behind the fridge is a common hidden slow-leak under your floor.' },
+  washer:       { item: 'washer fill hoses',       price: 50,  why: 'Burst washer hoses are a top cause of home water damage — most recommend replacing them every 3–5 years.' },
+  dishwasher:   { item: 'dishwasher supply line',  price: 120, why: 'The dishwasher supply line hides under the cabinet where a slow leak goes unseen for months.' }
+};
+function normAppl(s){ s=String(s||'').toLowerCase(); if(s.indexOf('dry')>-1)return'dryer'; if(s.indexOf('fridge')>-1||s.indexOf('refriger')>-1||s.indexOf('freez')>-1)return'refrigerator'; if(s.indexOf('wash')>-1)return'washer'; if(s.indexOf('dish')>-1)return'dishwasher'; return''; }
+function safetyOffer(next){
+  const rec = SAFETY_LINES[normAppl(state.appliance)];
+  if(!rec){ next(); return; }   // appliance with no wear-item → skip, keep it simple
+  setHead('One quick <span class="accent">safety add-on.</span>','Totally optional — your call either way.');
+  antMsg('💧 '+rec.why+' Since we\'ll already be there, want us to put on a <b>fresh '+esc(rec.item)+'</b>? About <b>$'+rec.price+' installed.</b>');
+  choices([{emo:'✅',label:'Yes, add a fresh '+rec.item,wide:true},{emo:'❌',label:'No thanks',wide:true}], it=>{
+    state.hoseItem=rec.item; state.hoseChoice = it.label.indexOf('Yes')>-1 ? 'yes':'no';
+    youMsg(state.hoseChoice==='yes' ? ('Yes — fresh '+rec.item) : 'No thanks');
+    clearFlow(); think(400, next);
+  });
 }
 
 // ── SMS CONSENT GATE (TCR / A2P compliance — preserved) ──
@@ -556,7 +585,8 @@ function submitFree(){
       const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, sms_consent:state.smsConsent, town:state.town,
-        conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG
+        conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG,
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
@@ -606,7 +636,8 @@ function payStep(){
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
-        availability:state.availability||'', qc_test:QC_TEST, language:LANG, service:svc
+        availability:state.availability||'', qc_test:QC_TEST, language:LANG, service:svc,
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
@@ -634,7 +665,8 @@ function submitInHome(){
         appliance:state.appliance, brand:state.brand,
         problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair) — '+(state.problem||''),
         sms_consent:state.smsConsent, town:state.town, conv_id:state.convId,
-        has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic'
+        has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic',
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); doneInHome(); }
@@ -685,7 +717,8 @@ function warrantyFinish(){
         name:state.name, phone:state.phone, appliance:state.appliance, brand:state.brand, problem:state.problem,
         warranty_company:state.warranty||'', claim_number:state.claim||'', conv_id:state.convId,
         has_video:state.video, has_model:state.model, sms_consent:true, town:state.town,
-        availability:state.availability||'', language:LANG
+        availability:state.availability||'', language:LANG,
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
