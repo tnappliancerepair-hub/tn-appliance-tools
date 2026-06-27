@@ -121,6 +121,14 @@ exports.handler = async function (event) {
     } catch (_) {}
   }
 
+  // Flip the job row to PAID — the money is recorded in event_log (that's what
+  // fired the siren), but the row field stayed "unpaid" and could confuse the
+  // office. payment_collected (bool) is the reliable signal; payment_status:'paid'
+  // is best-effort (no-ops if the enum lacks it). Teddy 2026-06-27.
+  if (jobId) {
+    try { await crud.update(crud.TABLES.jobs, jobId, { payment_status: 'paid', payment_collected: true, stripe_payment_reference: sessionId }); } catch (_) {}
+  }
+
   // record the payment + the idempotency marker
   const amount = amtPaid;
   await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, service, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
