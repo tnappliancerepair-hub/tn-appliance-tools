@@ -160,6 +160,13 @@
 [functions."tdr-chase"]
   schedule = "0 16,21 * * *"
 
+# Off-site backup (Phase 0) — mirrors money-critical Xano tables (incl. event_log,
+# the ledger) into Supabase, a separate platform, every night. Cloud-run so it
+# does NOT depend on the Mac. The scheduled trigger fires the -background worker.
+# 3:00am CT = 08:00 UTC, just before the event_log GC below.
+[functions."nightly-backup"]
+  schedule = "0 8 * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.

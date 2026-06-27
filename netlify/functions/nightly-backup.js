@@ -1,0 +1,43 @@
+// nightly-backup — scheduled trigger (3:00am CT) + manual controls.
+//   - cron (no params)            -> fires the background worker (full backup)
+//   - ?secret=<admin>            -> manual full run (fires the background worker)
+//   - ?probe=1&secret=<admin>    -> SMALL synchronous backup (technicians only),
+//                                    returns the result so we can verify the whole
+//                                    Xano->Supabase chain live without waiting.
+'use strict';
+
+const { getSecret } = require('./_lib/secrets');
+const { backupTables } = require('./_lib/backup');
+
+const LEGACY_ADMIN = 'tn-vapi-admin-9f83b1c4e7a206d5';
+const SITE = (process.env.URL || 'https://tnapplianceexchange.net').replace(/\/+$/, '');
+
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
+  let admin = '';
+  try { admin = (await getSecret('VAPI_ADMIN_SECRET')) || ''; } catch (_) {}
+  admin = admin || LEGACY_ADMIN;
+
+  // Live verify: tiny synchronous backup (technicians = a handful of rows).
+  if (q.probe && q.secret === admin) {
+    try {
+      const summary = await backupTables({ only: [15], writeAudit: false, keepExisting: true });
+      return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, summary }) };
+    } catch (e) {
+      return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
+    }
+  }
+
+  const manualOk = q.secret === admin;
+  const isCron = !q.secret && !q.probe; // scheduled invocation carries no query params
+  if (!manualOk && !isCron) return { statusCode: 401, body: 'unauthorized' };
+
+  // Fire the heavy worker (background fn returns 202 quickly); don't block the cron.
+  try {
+    const url = `${SITE}/.netlify/functions/nightly-backup-background?secret=${encodeURIComponent(admin)}`;
+    await fetch(url, { signal: AbortSignal.timeout(8000) }).catch(() => {});
+    return { statusCode: 200, body: JSON.stringify({ ok: true, triggered: true }) };
+  } catch (e) {
+    return { statusCode: 200, body: JSON.stringify({ ok: true, triggered: true, note: String((e && e.message) || e) }) };
+  }
+};

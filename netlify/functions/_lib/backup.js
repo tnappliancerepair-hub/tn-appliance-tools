@@ -1,22 +1,38 @@
-// Off-site backup core — reads Xano tables via the Metadata API and writes
-// timestamped JSON snapshots to S3 (storage we own; same bucket attachments use).
-// Runs entirely in the cloud (Netlify), so it does NOT depend on the Mac Mini
-// (which is itself a single point of failure). This is Phase 0 of the money/data
-// plan: the independent copy that makes retiring Google Sheets safe.
+// Off-site backup core — reads Xano tables via the Metadata API and mirrors them
+// into SUPABASE (a separate Postgres platform we own). Runs entirely in the cloud
+// (Netlify), so it does NOT depend on the Mac Mini (itself a single point of
+// failure). Phase 0 of the money/data plan: the independent copy that makes
+// retiring Google Sheets safe — and it's queryable, so a job can be pulled back
+// out, not just unzipped from a file.
 //
 // CRITICAL vs the old Mac script (colony-loop/scripts/xano-backup.js): that one
 // SKIPS event_log — but event_log is the money ledger (invoices, payments,
 // add-ons, payouts). This one backs it up (chunked, so big tables don't blow
-// memory or time).
+// memory or the insert body limit).
+//
+// Destination table (create once in the Supabase SQL editor):
+//   create table if not exists xano_backup_chunks (
+//     id bigint generated always as identity primary key,
+//     snapshot_date date not null,
+//     table_name text not null,
+//     table_id int,
+//     part int not null default 0,
+//     row_count int not null default 0,
+//     rows jsonb not null,
+//     created_at timestamptz not null default now()
+//   );
+//   create index if not exists xano_backup_chunks_lookup
+//     on xano_backup_chunks (snapshot_date, table_name);
 'use strict';
 
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const sb = require('./supabase');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const EVENT_LOG_TABLE = 3;
 const PAGE_SIZE = 200;
-const CHUNK_ROWS = 10000;   // rows per S3 object — bounds memory regardless of table size
-const MAX_PAGES = 8000;     // runaway backstop (1.6M rows/table)
+const CHUNK_ROWS = 2000;   // rows per Supabase insert — bounds the request body
+const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
+const BACKUP_TABLE = 'xano_backup_chunks';
 
 // Known table ids → friendly names. Unknown discovered ids fall back to table-<id>.
 const NAME_MAP = { 3: 'event_log', 6: 'customer', 7: 'jobs', 15: 'technicians', 46: 'warranty_submissions', 47: 'parts_orders' };
@@ -29,31 +45,6 @@ function metaHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
-}
-
-function s3Client() {
-  const region = process.env.TN_AWS_S3_REGION;
-  const accessKeyId = process.env.TN_AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.TN_AWS_SECRET_ACCESS_KEY;
-  if (!region || !accessKeyId || !secretAccessKey || !process.env.TN_AWS_S3_BUCKET) {
-    throw new Error('S3 not configured (TN_AWS_S3_REGION/ACCESS_KEY_ID/SECRET_ACCESS_KEY/S3_BUCKET)');
-  }
-  return new S3Client({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
-  });
-}
-
-async function putJSON(client, key, obj) {
-  await client.send(new PutObjectCommand({
-    Bucket: process.env.TN_AWS_S3_BUCKET,
-    Key: key,
-    ContentType: 'application/json',
-    Body: JSON.stringify(obj),
-  }));
-  return key;
 }
 
 // Page a table's content, flushing to onChunk() every CHUNK_ROWS rows.
@@ -94,12 +85,21 @@ async function discoverIds() {
   return found;
 }
 
+// Wipe an existing same-day snapshot so a re-run is idempotent (no dup chunks).
+async function clearSnapshot(date) {
+  const c = await sb.cfg();
+  if (!c.url || !c.key) throw new Error('supabase_not_configured');
+  await fetch(`${c.url}/rest/v1/${BACKUP_TABLE}?snapshot_date=eq.${encodeURIComponent(date)}`, {
+    method: 'DELETE',
+    headers: { apikey: c.key, Authorization: 'Bearer ' + c.key, Prefer: 'return=minimal' },
+    signal: AbortSignal.timeout(12000),
+  }).catch(() => {});
+}
+
 // Run a backup. opts.only = [ids] for a scoped run (probe/verify); else core+discovered.
 async function backupTables(opts = {}) {
+  if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
   const date = opts.date || new Date().toISOString().slice(0, 10);
-  const root = (process.env.BACKUP_S3_PREFIX || 'backups/xano').replace(/\/+$/, '');
-  const prefix = `${root}/${date}`;
-  const client = s3Client();
 
   let ids = (opts.only && opts.only.length) ? opts.only : null;
   if (!ids) {
@@ -107,25 +107,21 @@ async function backupTables(opts = {}) {
     ids = Array.from(new Set([...CORE_IDS, ...discovered])).filter((id) => !SKIP_IDS.has(id));
   }
 
-  const summary = { date, started_at: new Date().toISOString(), tables: [], keys: [] };
+  if (!opts.keepExisting) await clearSnapshot(date);
+
+  const summary = { date, started_at: new Date().toISOString(), tables: [] };
   for (const id of ids) {
     const name = NAME_MAP[id] || ('table-' + id);
     const res = await pageTable(id, async (rows, part) => {
-      const key = `${prefix}/${name}.part${String(part).padStart(3, '0')}.json`;
-      await putJSON(client, key, { table: name, table_id: id, part, count: rows.length, rows });
-      summary.keys.push(key);
+      await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
     });
     summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status });
   }
   summary.finished_at = new Date().toISOString();
   summary.total_rows = summary.tables.reduce((s, t) => s + (t.rows || 0), 0);
 
-  // manifest for this snapshot + a stable "latest" pointer
-  await putJSON(client, `${prefix}/manifest.json`, summary);
-  await putJSON(client, `${root}/latest.json`, {
-    date, manifest: `${prefix}/manifest.json`, total_rows: summary.total_rows,
-    tables: summary.tables.map((t) => ({ name: t.name, rows: t.rows })),
-  });
+  // manifest row for this snapshot (table_name='_manifest')
+  await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: '_manifest', table_id: null, part: 0, row_count: summary.tables.length, rows: summary });
 
   if (opts.writeAudit) {
     try {
@@ -133,7 +129,7 @@ async function backupTables(opts = {}) {
         method: 'POST', headers: metaHeaders(),
         body: JSON.stringify({
           action: 'offsite_backup_completed',
-          metadata: { date, total_rows: summary.total_rows, tables: summary.tables.length, bucket: process.env.TN_AWS_S3_BUCKET, prefix, at_ms: Date.now() },
+          metadata: { date, total_rows: summary.total_rows, tables: summary.tables.length, dest: 'supabase', at_ms: Date.now() },
         }),
       });
     } catch (_) {}
