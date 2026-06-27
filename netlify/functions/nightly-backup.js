@@ -34,7 +34,9 @@ exports.handler = async function (event) {
   if (q.probe && q.secret === admin) {
     try {
       const only = q.only ? String(q.only).split(',').map((n) => parseInt(n, 10)).filter(Boolean) : [15];
-      const summary = await backupTables({ only, writeAudit: false, keepExisting: true });
+      const eventLogPages = q.elpages ? parseInt(q.elpages, 10) : undefined;
+      const clearFirst = !!q.clear;
+      const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst });
       return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, summary }) };
     } catch (e) {
       return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
