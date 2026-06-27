@@ -1,5 +1,41 @@
 # Appliance Ant
 
+## 💳🛡️ 2026-06-27 (Sat, Day 2) — PAYMENTS LIVE + the PROTECTION SYSTEM (waiver · hoses · floors · before/after video) (READ FIRST)
+
+Continuation with Teddy. Theme: get payments wired+tested, then build a lean "protect ourselves" system (his biggest worry: every year several "your machine leaked, buy me a new floor" threats). Everything LIVE on `main` (Netlify) unless noted. **Guiding rule Teddy repeated all day: KEEP IT SIMPLE — no 10-page waiver, don't bloat the intake flow he loves.**
+
+### 💳 PAYMENTS — wired + PROVEN LIVE (the hard gate is cleared)
+- **$50 Quick Check + $100 in-home BOTH now pay BEFORE scheduling** (out-of-pocket only; **warranty stays free — no payment screen**). Media is still captured FIRST (never gate the must-have video behind payment), then payment, then the job is created. `payStep` is amount/service-aware ($100 in-home / $50 phone, $1 with `?qc=tn-qc-test-2026`); `create-quickcheck-payment` + `verify-quickcheck` carry a `service` field and label the job + siren (💵 vs 🏠💵). `?free=tn-free-2026` is the only no-charge override.
+- **🎉 $1 LIVE TEST CLEARED on Teddy's U.S. Bank card** (Exchange Card 3712, pending $1 6/27) — the full chain is proven: pay → verify-quickcheck → job + 💵 siren + media link + model-OCR. Backend confirmed from the server for $50/$100/$1 sessions. **Cash ads are unblocked.** (This funnel is all Netlify-Stripe, NOT the Mac `qc_create_checkout_session` XS.)
+
+### 🛡️ THE PROTECTION SYSTEM (lean, across the board incl. WARRANTY — we do the most warranty)
+- **Waiver (`waiver.html`) hardened** — kept pre-existing-conditions language; ADDED **moving-the-machine damage** (old water lines/hoses/valves/flooring disturbed when a unit is pulled out — the real lawsuit vector) + a **fold-in line "we check the area for leaks before we leave."**
+- **Appliance-aware hose/line Yes/No ON THE WAIVER** (signed = the protection). Waiver fetches the job's appliance and shows the matching wear-item with **cited authority data + source line**: 🔥 dryer vent hose (*NFPA ~13,800 dryer fires/yr, failure-to-clean #1; USFA/CSIA service yearly*), 🌀 washer fill hoses (*IBHS ~55% of washer water-damage claims; replace rubber hoses **every 3–5 yrs**, braided last longer*), 🧊 fridge water line, 🍽️ dishwasher supply line. **Explicit Yes/No required** — a recorded **"No" IS the liability shield** ("we offered, you declined on [date]"); a "Yes" pings Danielle to bring + install. **TWO-FOLD: protection that pays.**
+- **Completion sign-off (`sign.html`)** — customer signs *"work area left clean + leak-free,"* AND the **tech shoots the after no-leak video right there** (no leak either side of the hose), saved on the job. Before/after video + signed release = airtight.
+- **🛟 FLOORS flag at INTAKE (Phase 1, LIVE)** — Teddy's "biggest danger" fix. One quick question for everyone (*"especially concerned about your flooring?"*); 95% tap "fine" and move on. If concerned → pick: **🛹 air-sled float (+$125)** / **💪 I'll move it myself (no charge, no risk)** / **👍 be extra careful (accept risk)**. Threads through every intake submit → job's `customer_preference_text` as `🛟 FLOORS: <label>` + `floors_flag` event; **air-sled pings Danielle to route a sled + add $125**. Shows as a **prominent red banner at the top of the tech's daily-dashboard stop** so nobody rolls up blind (kills the wasted second trip). It's ALSO Teddy's **decline lever** — flagged before scheduling, so the office can say "not worth the $30k-floor risk, pass" before sending anyone. (Air-sled $125 is recorded, collected at the visit — no extra Stripe.)
+- **Waiver coverage is already across-the-board:** WAIVER_DUE texts it pre-appointment for any scheduled job (warranty incl.), tech-job.html shows "⚠ not signed — sign before you start" with on-site signing, and scheduling is gated until signed.
+
+### 🗓️ Smaller wins
+- **Availability question = weekdays only** ("we run Mon–Fri, no weekends") — pre-written, day chips Mon–Fri.
+- **API check:** Google Ads Basic Access = **ack only, still pending**; Amazon = nothing; vendor = nothing real. Fixed `vendor-api-watch` to **`-in:sent`** so it stops false-flagging our OWN sent emails as vendor replies.
+
+### 🗓️ PARKED — revisit next month
+- **Intake-flow hose/line upsell**: built, then PULLED to keep the intake flow pristine (Teddy: hose Yes/No lives ONLY on the signed waiver for now). `safetyOffer()` + `SAFETY_LINES` + `normAppl()` + the `hose_item`/`hose_choice` plumbing are **still in `appliance-ai.html` but DORMANT** (not called) → re-wire ONE line in capModel to bring back. Also wire real per-appliance install pricing from `ant-addons.js`.
+- **FLOORS Phase 2**: pricing menu, **2-man + protective-slide tier** (premium, ~$150–200), **sled-aware routing** (only 2 sleds / 5 guys → ties into self-scheduling), before-floor video. Teddy wants air-sled ~$125; 2-man higher.
+
+### ⚠️ FOOTGUNS / RULES (this session)
+- **Pay-before-schedule is OUT-OF-POCKET ONLY. Warranty NEVER hits a payment screen** (warranty path → warrantyFinish, free).
+- **Never gate the must-have media (video/model) behind payment** — capture first, then pay.
+- **Protection-first framing on every option:** "we minimize the risk as much as possible — moving a heavy appliance is never 100% risk-free" (even the air-sled can ride over a glass shard). The recorded DECLINE is the shield.
+- **Keep it simple** — Teddy pulled the intake hose-upsell to protect the flow; don't re-bloat.
+- **Never send Teddy's cell to anyone** (standing rule).
+
+### 🚀 MAC DEPLOY STILL PENDING (2 loop fixes from Day 1)
+`appointment_scheduled.js` (day-only confirmation + no wrong tech) + `job_created.js` (skip empty prediag for media sources):
+```
+cd ~/tn-appliance-tools && git pull origin main && launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop
+```
+
 ## 🛠️ 2026-06-27 (Sat) — INTAKE FUNNEL HARDENED: warranty zip bug, in-home media, availability everywhere, empty-tool + data-crossing fixes (READ FIRST)
 
 Live-ops session with Teddy (branch `claude/shop-automation-setup-r9wzpm` → pushed to `main`; Netlify auto-deploys). Real customers were already flowing through the new intake ("5 submissions already"), so this was bug-fixing the funnel under live fire. **Two pending loop fixes need a Mac pull + kickstart to go live** (command at bottom). Everything else is LIVE.
