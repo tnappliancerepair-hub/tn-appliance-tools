@@ -145,7 +145,8 @@ async function backupTables(opts = {}) {
     // Isolate each table: one failure (e.g. a too-big insert) must NOT abort the
     // whole backup or skip the manifest. Record it and move on.
     const capped = (id === EVENT_LOG_TABLE);
-    const popts = capped ? { sort: 'desc', maxPages: EVENT_LOG_RECENT_PAGES } : { sort: 'asc', maxPages: MAX_PAGES };
+    const elPages = opts.eventLogPages || EVENT_LOG_RECENT_PAGES;
+    const popts = capped ? { sort: 'desc', maxPages: elPages } : { sort: 'asc', maxPages: MAX_PAGES };
     try {
       const res = await pageTable(id, async (rows, part) => {
         await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });

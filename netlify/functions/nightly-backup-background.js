@@ -18,9 +18,11 @@ exports.handler = async function (event) {
   admin = admin || LEGACY_ADMIN;
   if (secret !== admin) return { statusCode: 401, body: 'unauthorized' };
 
-  const clearFirst = !!((event.queryStringParameters || {}).clear);
+  const q = event.queryStringParameters || {};
+  const clearFirst = !!q.clear;
+  const eventLogPages = q.elpages ? parseInt(q.elpages, 10) : undefined;
   try {
-    const summary = await backupTables({ writeAudit: true, clearFirst });
+    const summary = await backupTables({ writeAudit: true, clearFirst, eventLogPages });
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
