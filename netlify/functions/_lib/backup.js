@@ -202,7 +202,7 @@ async function backupTables(opts = {}) {
       // event_log = money rows only (fast, by action). Everything else = full table.
       const res = isEventLog
         ? await pageEventLogMoney(insertChunk, opts.actions)
-        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: MAX_PAGES });
+        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: opts.maxPagesOverride || MAX_PAGES, perPage: opts.perPage || PAGE_SIZE });
       summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined });
     } catch (e) {
       summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });

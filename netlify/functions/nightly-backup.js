@@ -37,8 +37,10 @@ exports.handler = async function (event) {
       const eventLogPages = q.elpages ? parseInt(q.elpages, 10) : undefined;
       const actions = q.actions ? String(q.actions).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
       const clearFirst = !!q.clear;
+      const perPage = q.perpage ? parseInt(q.perpage, 10) : undefined;
+      const maxPagesOverride = q.maxpages ? parseInt(q.maxpages, 10) : undefined;
       const t0 = Date.now();
-      const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst, actions });
+      const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst, actions, perPage, maxPagesOverride });
       return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, ms: Date.now() - t0, summary }) };
     } catch (e) {
       return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
