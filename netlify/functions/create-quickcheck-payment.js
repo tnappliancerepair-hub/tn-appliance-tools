@@ -56,6 +56,11 @@ exports.handler = async function (event) {
     const stripe = new Stripe(key);
     const opts = {
       mode: 'payment',
+      // Card only — disable Stripe Link (the "confirm it's you / verify your phone"
+      // wall). Link recognizes the customer_email and forces a phone-verify step
+      // that confuses customers + caused the weird back-button behavior. Customers
+      // should just type a card. (Teddy 2026-06-27.)
+      payment_method_types: ['card'],
       line_items: [{
         price_data: { currency: 'usd', product_data: { name: productName }, unit_amount: priceCents },
         quantity: 1,
