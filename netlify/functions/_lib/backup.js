@@ -29,8 +29,8 @@ const sb = require('./supabase');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const EVENT_LOG_TABLE = 3;
-const PAGE_SIZE = 200;
-const CHUNK_ROWS = 500;    // rows per Supabase insert — small, so big-metadata rows (event_log) don't blow the body limit
+const PAGE_SIZE = 500;     // rows per Xano read page (fewer round-trips on big tables)
+const CHUNK_ROWS = 500;    // rows per Supabase insert — one insert per page; small enough for big-metadata rows
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
 const BACKUP_TABLE = 'xano_backup_chunks';
 
