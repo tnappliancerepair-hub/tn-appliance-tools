@@ -455,12 +455,12 @@ function capModel(){
       // "the more available you are, the quicker we get you in"). Warranty →
       // availability → one-field phone finish. Cash → consent + contact +
       // availability + payment. askAvailability self-routes by payer.
-      // ACROSS THE BOARD (Teddy 2026-06-27): every customer — warranty included
-      // (we do the most warranty) — gets the quick safety add-on (line/hose opt
-      // in/out, recorded either way as the protection paper trail). Then warranty
-      // → availability → phone; cash → consent + contact + pay.
+      // Intake flow stays pristine (Teddy 2026-06-27): the hose/line Yes/No lives
+      // ONLY on the signed waiver for now (everyone signs it = the protection
+      // record). safetyOffer() is kept dormant below — re-wire here to bring the
+      // intake-flow upsell back. Revisit next month as things progress.
       const _isWarranty = state.payer==='warranty';
-      const _next = _isWarranty ? function(){ safetyOffer(askAvailability); } : function(){ safetyOffer(consentGate); };
+      const _next = _isWarranty ? askAvailability : consentGate;
       const _msg = _isWarranty ? 'Perfect — one quick thing about your schedule and you\'re set.' : 'Perfect. A couple quick things and then your answer\'s on its way.';
       think(700, ()=>{ antMsg(_msg); think(500, _next); });
     },900);
