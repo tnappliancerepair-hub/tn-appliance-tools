@@ -26,7 +26,11 @@ const QUERY = 'newer_than:45d '
   // Exclude the already-handled mSupply/Marcone PARTS-API credential email (vaulted +
   // live, order #74992380). A future MarconeAI email has a different subject, so this
   // won't hide the real one we're still waiting on.
-  + '-subject:"mSupply API Credentials"';
+  + '-subject:"mSupply API Credentials" '
+  // Exclude our OWN sent emails — the Frontdoor/vendor requests WE sent were
+  // matching the filter and showing as "vendor replied" false positives
+  // (Teddy 2026-06-27). -in:sent drops them across all connected inboxes.
+  + '-in:sent';
 
 function hdr() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null; }
 
