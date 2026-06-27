@@ -21,8 +21,9 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const clearFirst = !!q.clear;
   const eventLogPages = q.elpages ? parseInt(q.elpages, 10) : undefined;
+  const only = q.only ? String(q.only).split(',').map((n) => parseInt(n, 10)).filter(Boolean) : undefined;
   try {
-    const summary = await backupTables({ writeAudit: true, clearFirst, eventLogPages });
+    const summary = await backupTables({ writeAudit: true, clearFirst, eventLogPages, only });
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
