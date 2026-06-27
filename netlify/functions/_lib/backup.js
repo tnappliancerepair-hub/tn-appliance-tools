@@ -50,7 +50,7 @@ function metaHeaders() {
 // event_log is the high-churn action ledger — too big to dump whole every night.
 // Cap the nightly snapshot to the most-recent rows (where all current money
 // activity lives); full-history event_log is a separate one-time/incremental pull.
-const EVENT_LOG_RECENT_PAGES = 200; // 200 x 500 = up to 100k most-recent rows
+const EVENT_LOG_RECENT_PAGES = 40; // 40 x 500 = up to 20k most-recent rows (recent money activity), bounded time
 
 // Page a table's content, flushing to onChunk() every CHUNK_ROWS rows.
 async function pageTable(id, onChunk, popts) {
@@ -63,8 +63,9 @@ async function pageTable(id, onChunk, popts) {
       r = await fetch(`${META}/table/${id}/content/search`, {
         method: 'POST', headers: metaHeaders(),
         body: JSON.stringify({ per_page: PAGE_SIZE, page, sort: { id: sortDir } }),
+        signal: AbortSignal.timeout(25000), // never hang on a slow huge-table query
       });
-    } catch (_) { break; }
+    } catch (_) { break; } // timeout/network -> stop this table, keep what we have
     if (!r.ok) { if (page === 1) return { ok: false, status: r.status, total: 0, parts: 0 }; break; }
     const d = await r.json();
     const items = (d && d.items) || [];
