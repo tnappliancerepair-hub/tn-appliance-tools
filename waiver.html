@@ -86,8 +86,14 @@
     <p>• <b>Hidden or pre-existing problems</b> — old wiring, a slow leak, a worn-out part — that we couldn't see going in and that can give out during normal service.</p>
     <p>• <b>Old water lines, hoses, valves, shut-offs, or flooring</b> that have to be disturbed when a machine is pulled out and moved to work on it. Aged connections and floors can wear, leak, or fail when a unit that's sat for years is moved — even when it's handled carefully.</p>
     <p class="big">By signing below, you understand that TN Appliance Exchange isn't responsible for problems caused by those hidden or pre-existing conditions, or for old water lines, connections, hoses, or flooring that are disturbed by the normal, careful moving of your appliance.</p>
+    <p style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:11px 13px;font-size:14.5px;color:#7c2d12">💧 <b>Worth knowing:</b> if your water-supply hoses haven't been replaced in the last few years, they're a real leak risk — the industry recommends fresh hoses about every <b>5 years</b>. We can't be responsible for old hoses that may leak, but while we're already there we're happy to install new ones for you.</p>
     <p>We always move and reconnect with care, and we check the area before we leave to confirm there's no active leak. We'll treat your home and your appliance like our own. 🐜</p>
   </div>
+
+  <label for="want-hoses" style="display:flex;gap:10px;align-items:flex-start;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 13px;margin:14px 0 4px;cursor:pointer;font-size:14.5px;color:#14532d;line-height:1.45">
+    <input type="checkbox" id="want-hoses" style="width:20px;height:20px;margin-top:1px;flex:0 0 auto">
+    <span>🔧 <b>Yes — install fresh hoses on my visit</b> (recommended). We'll bring them and add it to your ticket.</span>
+  </label>
 
   <div class="field">
     <label for="type-name">Your name <span class="req">*</span></label>
@@ -193,18 +199,27 @@
     try {
       var dataUrl = canvas.toDataURL('image/png');
       var b64 = (dataUrl.split(',')[1] || '');
+      var wantsHoses = !!(document.getElementById('want-hoses') && document.getElementById('want-hoses').checked);
       var r = await fetch(XANO + '/save_customer_waiver', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           job_id: JOB_ID,
           signature_b64: b64,
           customer_name: name,
-          acknowledgments_json: JSON.stringify({ simple_release_v1: true }),
+          acknowledgments_json: JSON.stringify({ simple_release_v1: true, water_line_moving_v1: true, wants_new_hoses: wantsHoses }),
           user_agent: navigator.userAgent || ''
         })
       });
       var d = await r.json();
       if (d && d.success) {
+        // Customer opted into fresh hoses — ping the office so the tech brings +
+        // installs them and it gets added to the ticket (Teddy 2026-06-27 upsell).
+        if (wantsHoses) {
+          try {
+            var hoseMsg = '🔧 HOSE ADD-ON: customer ' + name + ' requested fresh hoses installed on job #' + JOB_ID + ' (signed on the waiver). Bring + install + add to the ticket.';
+            fetch(XANO + '/send_sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: '+16154850713', body: hoseMsg, message: hoseMsg, context_tag: 'hose_addon_request' }) }).catch(function () {});
+          } catch (e) {}
+        }
         document.querySelectorAll('.card').forEach(function (c) { c.style.display = 'none'; });
         document.getElementById('done').classList.add('show');
         window.scrollTo({ top: 0, behavior: 'smooth' });
