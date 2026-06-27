@@ -56,11 +56,12 @@ exports.handler = async function (event) {
     const stripe = new Stripe(key);
     const opts = {
       mode: 'payment',
-      // Card only — disable Stripe Link (the "confirm it's you / verify your phone"
-      // wall). Link recognizes the customer_email and forces a phone-verify step
-      // that confuses customers + caused the weird back-button behavior. Customers
-      // should just type a card. (Teddy 2026-06-27.)
-      payment_method_types: ['card'],
+      // EASIEST checkout (Teddy 2026-06-27): let Stripe surface Apple Pay / Google
+      // Pay / Link / card automatically based on the device — so on an iPhone it's
+      // one-tap Apple Pay (Face ID, no typing). The "confirm it's you" wall Teddy
+      // hit was just Link recognizing his OWN email; normal customers tap a wallet,
+      // save to Link, or type a card — and Checkout always offers "Pay without Link".
+      automatic_payment_methods: { enabled: true },
       line_items: [{
         price_data: { currency: 'usd', product_data: { name: productName }, unit_amount: priceCents },
         quantity: 1,
