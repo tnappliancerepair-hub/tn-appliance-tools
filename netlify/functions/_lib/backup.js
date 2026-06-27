@@ -126,7 +126,10 @@ async function backupTables(opts = {}) {
     ids = Array.from(new Set([...CORE_IDS, ...keep])).filter((id) => !SKIP_IDS.has(id));
   }
 
-  if (!opts.keepExisting) await clearSnapshot(date);
+  // Only wipe the day's snapshot when explicitly asked (opts.clearFirst). Auto-
+  // clearing made concurrent/repeated runs delete each other's progress mid-flight.
+  // The nightly cron is a single run, so duplicate chunks aren't a concern in practice.
+  if (opts.clearFirst) await clearSnapshot(date);
 
   const summary = { date, started_at: new Date().toISOString(), tables: [] };
   for (const id of ids) {
