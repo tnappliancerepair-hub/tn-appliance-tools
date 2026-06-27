@@ -1395,42 +1395,26 @@
   function renderProtection(job, viewState) {
     const el = $('protectCard'); if (!el) return;
     if (viewState === 'canceled' || viewState === 'completed') { el.style.display = 'none'; return; }
-    const PRICE = 120;
     const pref = String(job.customer_preference_text || '');
     const floorConcern = /FLOORS:/i.test(pref) && !/FLOORS:\s*(fine|not? concerned|no\b)/i.test(pref);
     el.style.display = '';
     el.innerHTML = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px">' +
       (floorConcern ? '<div style="font-weight:800;color:#1e3a8a;font-size:13px;margin-bottom:4px">🛟 You told us you\'re worried about your floors — here\'s the protection</div>' : '<div style="font-weight:800;color:#1e3a8a;font-size:13px;margin-bottom:4px">🛟 Protect your floors</div>') +
       '<div style="font-weight:800;font-size:16px;color:#10243e">Smart leak-detector kit</div>' +
-      '<div style="font-size:13px;color:#3b5a7a;line-height:1.5;margin:6px 0 10px">Small sensors at every spot water can leak — behind the fridge, under the dishwasher and washer, by the toilet or water heater. The smart version texts your phone the moment it senses water so you can shut it off before it ever reaches your floor.</div>' +
-      '<div style="font-size:20px;font-weight:900;color:#10243e;margin-bottom:8px">$' + PRICE + ' <span style="font-size:13px;font-weight:600;color:#3b5a7a">installed</span></div>' +
-      '<button id="protectPay" style="width:100%;background:#127a4a;color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">💳 Pay now · $' + PRICE + '</button>' +
-      '<button id="protectVisit" style="width:100%;background:#fff;color:#127a4a;border:1px solid #bfe3cf;border-radius:11px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;margin-top:8px">Add it to my visit — pay at the door</button>' +
-      '<div id="protectNote" style="font-size:12px;color:#3b5a7a;margin-top:8px"></div></div>';
+      '<div style="font-size:13px;color:#3b5a7a;line-height:1.5;margin:6px 0 10px">Small sensors at every spot water can leak — under the dishwasher, behind the fridge, under the washer, behind the toilet, under a bathroom sink. The smart version texts your phone the moment it senses water so you can shut it off before it ever reaches your floor; a simpler version just sounds an alarm.</div>' +
+      '<button id="protectVisit" style="width:100%;background:#127a4a;color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">Yes — send me details</button>' +
+      '<div id="protectNote" style="font-size:12px;color:#3b5a7a;margin-top:8px">Tell us your concerns and we\'ll research the right setup and price for you — no obligation.</div></div>';
     const note = $('protectNote');
-    const pay = $('protectPay'), visit = $('protectVisit');
-    if (pay) pay.onclick = async () => {
-      pay.disabled = true; pay.textContent = 'Opening secure checkout…';
-      try {
-        const r = await fetch('/.netlify/functions/create-stripe-payment-link', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: JOB_ID, amount_cents: PRICE * 100, description: 'Smart leak-detector kit (installed)', kind: 'addon',
-            metadata: { addon_key: 'leak_detector_kit', name: 'Smart leak-detector kit', mode: 'installed', tech_cut: '50', source: 'customer_portal' } }),
-        });
-        const d = await r.json();
-        if (d && d.ok && d.url && !d.placeholder) { window.location.href = d.url; return; }
-        pay.disabled = false; pay.textContent = '💳 Pay now · $' + PRICE;
-      } catch (_) { pay.disabled = false; pay.textContent = '💳 Pay now · $' + PRICE; }
-    };
+    const visit = $('protectVisit');
     if (visit) visit.onclick = async () => {
-      visit.disabled = true; visit.textContent = 'Adding…';
+      visit.disabled = true; visit.textContent = 'Sending…';
       try {
         const r = await fetch('/.netlify/functions/save-extra', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: 'Smart leak-detector kit', price: PRICE, discount: 0, tech_cut: 50, mode: 'installed', source: 'customer_portal' }),
+          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: 'Smart leak-detector kit (quote requested)', price: 0, discount: 0, tech_cut: 0, mode: 'inquire', source: 'customer_portal' }),
         });
         const d = await r.json();
-        if (d && d.success) { visit.textContent = "✓ Added — we'll set it up on your visit"; if (pay) { pay.disabled = true; pay.style.display = 'none'; } if (note) note.textContent = 'Your tech will install it and you can pay then.'; }
+        if (d && d.success) { visit.textContent = "✓ Got it — we'll quote it on your visit"; if (note) note.textContent = 'Your tech will go over the options and price with you.'; }
         else { visit.disabled = false; visit.textContent = 'Try again'; }
       } catch (_) { visit.disabled = false; visit.textContent = 'Try again'; }
     };
