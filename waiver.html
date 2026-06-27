@@ -135,10 +135,10 @@
   // liability protection ("we offered to replace it on [date], you declined").
   var HOSE_REC = null;
   var LINE_MAP = {
-    dryer:        { item: 'dryer vent hose',         price: 50,  why: 'The NFPA reports clothes dryers cause about 13,800 home fires a year, and failure to clean is the #1 cause. The U.S. Fire Administration and CSIA recommend servicing dryer exhaust at least once a year.' },
-    refrigerator: { item: 'refrigerator water line', price: 50,  why: 'The water line behind the fridge is a common hidden slow-leak source under your floor — a fresh braided line is cheap insurance.' },
-    washer:       { item: 'washer fill hoses',       price: 50,  why: 'Insurance research (IBHS) found supply hoses cause about 55% of washing-machine water-damage claims, with failures climbing after 5 years — most makers say replace them every 5 years.' },
-    dishwasher:   { item: 'dishwasher supply line',  price: 120, why: 'The supply line runs under your cabinet where a slow leak can go unseen for months — a fresh braided line prevents hidden cabinet and floor damage.' }
+    dryer:        { item: 'dryer vent hose',         price: 50,  why: 'The NFPA reports clothes dryers cause about 13,800 home fires a year, and failure to clean is the #1 cause. The U.S. Fire Administration and CSIA recommend servicing dryer exhaust at least once a year.', source: 'NFPA · U.S. Fire Administration · CSIA' },
+    refrigerator: { item: 'refrigerator water line', price: 50,  why: 'The water line behind the fridge is a common hidden slow-leak source under your floor — a fresh braided line is cheap insurance.', source: '' },
+    washer:       { item: 'washer fill hoses',       price: 50,  why: 'Insurance research found supply hoses cause about 55% of washing-machine water-damage claims, with failures climbing after 5 years — most makers say replace them every 5 years.', source: 'Insurance Institute for Business & Home Safety (IBHS)' },
+    dishwasher:   { item: 'dishwasher supply line',  price: 120, why: 'The supply line runs under your cabinet where a slow leak can go unseen for months — a fresh braided line prevents hidden cabinet and floor damage.', source: '' }
   };
   function normAppliance(s) {
     s = String(s || '').toLowerCase();
@@ -158,7 +158,8 @@
         HOSE_REC = { key: normAppliance(appl), item: rec.item, price: rec.price };
         document.getElementById('hose-rec').innerHTML =
           '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 13px;margin:14px 0 4px;color:#7c2d12;font-size:14.5px;line-height:1.5">'
-          + '<p style="margin:0 0 9px">💧 <b>One quick safety recommendation.</b> ' + rec.why + " While we're already there, we can put on a fresh <b>" + rec.item + '</b> — about <b>$' + rec.price + ' installed.</b></p>'
+          + '<p style="margin:0 0 6px">💧 <b>One quick safety recommendation.</b> ' + rec.why + " While we're already there, we can put on a fresh <b>" + rec.item + '</b> — about <b>$' + rec.price + ' installed.</b></p>'
+          + (rec.source ? '<div style="font-size:11px;color:#9a6a3a;font-style:italic;margin:0 0 10px">Source: ' + rec.source + '</div>' : '<div style="margin-bottom:10px"></div>')
           + '<label style="display:flex;gap:9px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#14532d"><input type="radio" name="hose-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — install a fresh ' + rec.item + ' (~$' + rec.price + ')</span></label>'
           + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="hose-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
           + '</div>';
