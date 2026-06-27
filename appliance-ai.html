@@ -505,14 +505,15 @@ function collectContact(){
 // Stored as customer_preference_text so the scheduling/routing layer reads it.
 function askAvailability(){
   setHead('When are you <span class="accent">available?</span>','The more open you are, the faster we get you in.');
-  antMsg('Important — <b>when are you available, and when are you NOT?</b> The more available you are, the quicker we can squeeze you in. Give us an idea over the <b>next 4–5 days</b> — the days and rough times that work, and any you <b>can\'t</b> do — so we get you in as soon as possible.');
+  antMsg('Important — <b>when are you available, and when are you NOT?</b> The more available you are, the quicker we can squeeze you in. We run <b>Monday–Friday</b> (we don\'t work weekends), so give us an idea over the <b>next few weekdays</b> — the days and rough times that work, and any you <b>can\'t</b> do.');
   const f=document.createElement('div'); f.className='field';
   f.innerHTML='<textarea id="f-avail" rows="3" placeholder="e.g. Free Mon & Tue all day, Wed after 2pm, can\'t do Thu, Fri mornings only" style="width:100%;font-size:16px;padding:12px;border-radius:11px;border:1px solid var(--bord2);background:var(--surface);color:var(--white);font-family:var(--mono);resize:vertical;box-sizing:border-box"></textarea>'
+    +'<div class="cap-note" style="text-align:left;margin:8px 2px 0">🗓 We service <b>Mon–Fri</b> — no weekends.</div>'
     +'<div id="av-quick" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div>'
     +'<button class="go" id="av-go">Continue →</button>';
   FLOW.appendChild(f);
   const ta=f.querySelector('#f-avail');
-  ['I\'m wide open','Most days work','Mornings best','Afternoons best','Weekdays only','No weekends'].forEach(t=>{
+  ['I\'m wide open (weekdays)','Mornings best','Afternoons best','Mon','Tue','Wed','Thu','Fri'].forEach(t=>{
     const b=document.createElement('button'); b.type='button'; b.textContent=t;
     b.style.cssText='background:var(--surface);border:1px solid var(--bord2);color:var(--gray);border-radius:18px;padding:7px 13px;font-size:13px;font-family:var(--mono);cursor:pointer';
     b.onclick=()=>{ ta.value=(ta.value.trim()?ta.value.trim()+', ':'')+t; ta.focus(); };
