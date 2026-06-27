@@ -36,7 +36,13 @@
   <div class="sub" id="ctx">Loading…</div>
 
   <div class="card">
-    <div class="ack">By signing below, I confirm that <b id="ackName">the technician</b> completed the service on my <b id="ackAppl">appliance</b> today and that the work was done to my satisfaction.</div>
+    <div class="ack">By signing below, I confirm that <b id="ackName">the technician</b> completed the service on my <b id="ackAppl">appliance</b> today, that the work was done to my satisfaction, and that <b>the work area was left clean and free of any active leak.</b></div>
+  </div>
+
+  <div class="card" id="noleak-card">
+    <div class="ack" style="margin-bottom:10px">📹 <b>No-leak check</b> (tech) — shoot a quick video showing the area is dry before the customer signs. It saves on the job with the sign-off.</div>
+    <label id="vbtn" style="display:block;text-align:center;background:#1d2533;border:1.5px dashed var(--line);border-radius:11px;padding:16px;cursor:pointer;font-size:15px">📹 Record the no-leak video<input type="file" accept="video/*" capture="environment" id="vfile" style="display:none"></label>
+    <div class="msg" id="vstat"></div>
   </div>
 
   <div class="card">
@@ -100,6 +106,33 @@ document.getElementById('clear').onclick=()=>{ ctx.clearRect(0,0,canvas.width,ca
   }catch(_){ document.getElementById('ctx').textContent='Sign below to confirm the repair.'; }
 })();
 
+// No-leak completion video (tech shoots before the customer signs) — Teddy
+// 2026-06-27: show no leak from either side of the hose. Saved on the job;
+// with the signed "left dry/leak-free" line above = airtight protection.
+// Non-blocking: a bad signal never stops the customer from signing.
+async function uploadNoLeak(file){
+  var vstat=document.getElementById('vstat');
+  var set=function(t,cls){ vstat.className='msg'+(cls?(' '+cls):''); vstat.textContent=t; };
+  var s3=async function(){
+    var mime=file.type||'video/mp4';
+    var gen=await (await fetch(XANO+'/generate_upload_url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,attachment_type:'intake',file_type:'video',original_filename:file.name||'no-leak.mp4',mime_type:mime,uploaded_by:'tech',caption:'No-leak completion video'})})).json();
+    if(!gen||!gen.s3_key||!gen.attachment_id) throw new Error('init');
+    var pres=await (await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key,mime_type:mime})})).json();
+    if(!pres||!pres.upload_url) throw new Error('presign');
+    await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':mime},body:file});
+    await fetch(XANO+'/save_attachment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({attachment_id:gen.attachment_id,file_size_bytes:file.size||0})}).catch(function(){});
+    return {ok:true};
+  };
+  try{
+    set('Uploading no-leak video…');
+    if(window.AntVideo){ await AntVideo.upload(file,{jobId:JOB_ID,uploadedBy:'tech',onStatus:function(){},s3Fallback:function(){return s3();}}); }
+    else { await s3(); }
+    set('✓ No-leak video saved','ok');
+    var b=document.getElementById('vbtn'); b.style.background='#103a22'; b.style.borderStyle='solid';
+  }catch(e){ set('⚠ Upload hiccup — check signal and tap to retry','err'); }
+}
+var _vf=document.getElementById('vfile'); if(_vf){ _vf.onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(f) uploadNoLeak(f); }; }
+
 document.getElementById('done').onclick=async function(){
   const msg=document.getElementById('msg');
   if(!dirty){ msg.className='msg err'; msg.textContent='Please sign in the box first.'; return; }
@@ -115,5 +148,6 @@ document.getElementById('done').onclick=async function(){
   }catch(e){ msg.className='msg err'; msg.textContent='⚠ connection error — try again'; this.disabled=false; }
 };
 </script>
+<script src="/ant-video-upload.js"></script>
 </body>
 </html>
