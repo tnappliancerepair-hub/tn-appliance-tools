@@ -204,7 +204,7 @@ const QC_PRICE = 50;   // live $50 Quick Check
 // waives the charge (used when the customer is already paying a trip fee, or for
 // multi-machine customers who shouldn't pay per machine) — Teddy 2026-06-26.
 const FREE_MODE = ((new URLSearchParams(location.search).get('free') || '') === 'tn-free-2026');
-const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0, hoseItem:'', hoseChoice:'' };
+const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, video:false, model:false, videoFile:null, modelFile:null, name:'', phone:'', email:'', address:'', city:'', zip:'', town:'', warranty:'', claim:'', convId:0, hoseItem:'', hoseChoice:'', floors:'', floorsLabel:'' };
 // Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
 const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
 
@@ -455,12 +455,14 @@ function capModel(){
       // "the more available you are, the quicker we get you in"). Warranty →
       // availability → one-field phone finish. Cash → consent + contact +
       // availability + payment. askAvailability self-routes by payer.
-      // Intake flow stays pristine (Teddy 2026-06-27): the hose/line Yes/No lives
-      // ONLY on the signed waiver for now (everyone signs it = the protection
-      // record). safetyOffer() is kept dormant below — re-wire here to bring the
-      // intake-flow upsell back. Revisit next month as things progress.
+      // FLOORS FLAG stays in the intake (Teddy 2026-06-27): the tech MUST know
+      // before he rolls so he shows up prepared (no blind visit, no second trip).
+      // One quick question for everyone → warranty: floors → availability → phone;
+      // cash: floors → consent → contact → pay. (Hose/line upsell lives on the
+      // waiver; safetyOffer() below stays dormant — revisit next month.)
       const _isWarranty = state.payer==='warranty';
-      const _next = _isWarranty ? askAvailability : consentGate;
+      const _afterFloors = _isWarranty ? askAvailability : consentGate;
+      const _next = function(){ floorsStep(_afterFloors); };
       const _msg = _isWarranty ? 'Perfect — one quick thing about your schedule and you\'re set.' : 'Perfect. A couple quick things and then your answer\'s on its way.';
       think(700, ()=>{ antMsg(_msg); think(500, _next); });
     },900);
@@ -491,6 +493,35 @@ function safetyOffer(next){
     state.hoseItem=rec.item; state.hoseChoice = it.label.indexOf('Yes')>-1 ? 'yes':'no';
     youMsg(state.hoseChoice==='yes' ? ('Yes — fresh '+rec.item) : 'No thanks');
     clearFlow(); think(400, next);
+  });
+}
+
+// ── FLOORS FLAG (the no-blind-visit protection) ─────────────────────────────
+// Teddy 2026-06-27: capture floor concern AT INTAKE so the tech rolls up
+// prepared. One quick question for all; if concerned, pick how to handle it
+// (air-sled +$125 / customer moves it / be-careful). Lands on the tech's
+// dashboard. 95% tap "fine" and move on — one extra tap, like availability.
+function floorsStep(next){
+  setHead('Quick question about your <span class="accent">floors.</span>','So your tech rolls up prepared — no surprises.');
+  antMsg('Are you <b>especially concerned about your flooring</b> where the machine sits? (high-end or delicate floors we\'d be moving the unit across)');
+  choices([
+    {emo:'👍',label:'My floors are fine — standard',wide:true},
+    {emo:'🛟',label:'Yes — I\'m concerned about my floors',wide:true},
+  ], it=>{
+    if(it.label.indexOf('fine')>-1){ state.floors='standard'; state.floorsLabel=''; youMsg('Floors are fine'); clearFlow(); think(400,next); return; }
+    youMsg('Concerned about my floors'); clearFlow();
+    setHead('We\'ll <span class="accent">protect them.</span>','Pick what works for you — your call.');
+    antMsg('Got it — we\'ll treat them like our own. Even with protection, moving a heavy machine is never 100% risk-free, so pick how you\'d like us to handle it:');
+    choices([
+      {emo:'🛹',label:'Float it on our air-sled — barely touches the floor (+$125)',wide:true},
+      {emo:'💪',label:'I\'ll move it out myself before you arrive (no charge)',wide:true},
+      {emo:'👍',label:'Just be extra careful — I understand the risk',wide:true},
+    ], c=>{
+      if(c.label.indexOf('air-sled')>-1){ state.floors='air_sled'; state.floorsLabel='AIR-SLED requested (+$125) — bring a sled'; youMsg('Air-sled, please'); }
+      else if(c.label.indexOf('myself')>-1){ state.floors='self_move'; state.floorsLabel='Customer will move the unit OUT themselves before arrival — it\'ll be ready'; youMsg('I\'ll move it myself'); }
+      else { state.floors='careful_ack'; state.floorsLabel='Concerned about floors — be EXTRA careful (customer accepts the moving risk)'; youMsg('Just be careful'); }
+      clearFlow(); think(400,next);
+    });
   });
 }
 
@@ -586,7 +617,7 @@ function submitFree(){
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG,
-        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }
@@ -637,7 +668,7 @@ function payStep(){
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
         availability:state.availability||'', qc_test:QC_TEST, language:LANG, service:svc,
-        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
@@ -666,7 +697,7 @@ function submitInHome(){
         problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair) — '+(state.problem||''),
         sms_consent:state.smsConsent, town:state.town, conv_id:state.convId,
         has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic',
-        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); doneInHome(); }
@@ -718,7 +749,7 @@ function warrantyFinish(){
         warranty_company:state.warranty||'', claim_number:state.claim||'', conv_id:state.convId,
         has_video:state.video, has_model:state.model, sms_consent:true, town:state.town,
         availability:state.availability||'', language:LANG,
-        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||''
+        hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ clearFlow(); done(); }

@@ -437,6 +437,20 @@
   .avail-banner .access { margin-top: 5px; font-size: 13px; color: var(--muted); }
   .avail-banner .access b { color: #ffb454; font-weight: 700; }
 
+  /* Floors flag — red, top of card: tech must see it before he rolls. */
+  .floor-banner {
+    background: rgba(255,90,90,0.12);
+    border: 1px solid rgba(255,90,90,0.5);
+    border-left: 4px solid #ff5a5a;
+    border-radius: 9px;
+    padding: 9px 11px;
+    margin: 0 0 11px;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #ffd9d9;
+  }
+
   .teddy-note {
     background: rgba(245,166,35,0.06);
     border-left: 3px solid var(--orange);
@@ -1383,14 +1397,19 @@
     // parsed onto the job as customer_preference_text). Surfacing it here so the
     // tech sees when the customer said they're around before he plans his route.
     const pref = (j.customer_preference_text || '').trim();
-    // Show the customer's ACTUAL words (Teddy 2026-06-26 — no paraphrasing, nothing
-    // miscommunicated). customer_preference_text may be stored as
-    // "🗓 Availability: <their words>  ·  ⚑ Customer language: ..." — pull out just
-    // their availability words; if there's no label, the whole field IS their words.
-    let availText = pref;
-    const am = pref.match(/Availability:\s*([\s\S]*?)(?:\s*·\s*⚑|$)/i);
-    if (am && am[1].trim()) availText = am[1].trim();
-    else availText = pref.replace(/^🗓\s*/, '').replace(/\s*·\s*⚑[\s\S]*$/, '').trim();
+    // customer_preference_text packs segments joined by " · ":
+    // "🗓 Availability: <words> · 🛟 FLOORS: <label> · ⚑ Customer language: ...".
+    // Split it and pull each cleanly so availability never absorbs the floors/
+    // language tags (Teddy 2026-06-26/27). Floors gets its own prominent banner.
+    const _segs = pref.split(/\s*·\s*/);
+    let availText = '';
+    let floorsText = '';
+    for (let si = 0; si < _segs.length; si++) {
+      const s = (_segs[si] || '').trim();
+      if (/^🛟/.test(s)) { const fm = s.match(/FLOORS:\s*([\s\S]*)/i); floorsText = (fm && fm[1].trim()) ? fm[1].trim() : s.replace(/^🛟\s*/, '').trim(); continue; }
+      if (/^⚑/.test(s)) continue;
+      if (!availText && s) { const am = s.match(/Availability:\s*([\s\S]*)/i); availText = (am && am[1].trim()) ? am[1].trim() : s.replace(/^🗓\s*/, '').trim(); }
+    }
     const access = (j.access_notes || '').trim();
 
     const attCount = item.attachments_count || 0;
@@ -1475,6 +1494,7 @@
           ${practicePill}
           ${crewPill}
         </div>
+        ${floorsText ? `<div class="floor-banner">🛟 FLOORS — ${escapeHtml(floorsText)}</div>` : ''}
         ${(availText || access) ? `<div class="avail-banner">
           ${availText ? `<span class="lbl">🗓 When they're available — their words</span>“${escapeHtml(availText)}”` : ''}
           ${access ? `<div class="access">🔑 <b>Access:</b> ${escapeHtml(access)}</div>` : ''}

@@ -109,8 +109,8 @@ exports.handler = async function (event) {
   // create_job_from_chat only takes zip — set the full service address on the job row
   const lang = String(m.language || 'en').toLowerCase();
   const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
-  if (jobId && (m.address || m.city || m.availability || LANGNAME[lang])) {
-    const pref = [m.availability || '', LANGNAME[lang] ? ('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).') : ''].filter(Boolean).join(' · ');
+  if (jobId && (m.address || m.city || m.availability || m.floors_label || LANGNAME[lang])) {
+    const pref = [m.availability || '', m.floors_label ? ('🛟 FLOORS: ' + m.floors_label) : '', LANGNAME[lang] ? ('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).') : ''].filter(Boolean).join(' · ');
     try {
       await crud.update(crud.TABLES.jobs, jobId, {
         service_address: m.address || '',
@@ -166,6 +166,18 @@ exports.handler = async function (event) {
     if (hoseChoice === 'yes') {
       const hmsg = '🔧 ' + hoseItem.toUpperCase() + ' ADD-ON: ' + (m.name || 'customer') + ' said YES at intake on job #' + jobId + ' — bring + install + add to the ticket.';
       try { await sendSms(DANIELLE, hmsg, 'warranty_handler', 'hose_addon_request'); } catch (_) {}
+    }
+  }
+
+  // FLOORS flag (Teddy 2026-06-27): tech must show up prepared — no blind visit.
+  // air_sled → route a sled + add $125; logged either way; the banner rides
+  // customer_preference_text to the tech's dashboard.
+  const floorsChoice = String(m.floors || '').toLowerCase();
+  if (jobId && floorsChoice && floorsChoice !== 'standard') {
+    try { await crud.logEvent('floors_flag', { job_id: jobId, choice: floorsChoice, label: String(m.floors_label || ''), at_ms: Date.now() }); } catch (_) {}
+    if (floorsChoice === 'air_sled') {
+      const fmsg = '🛟 AIR-SLED ($125) requested on job #' + jobId + ' (' + (m.name || 'customer') + ') — route a sled-equipped tech + add $125 to the ticket.';
+      try { await sendSms(DANIELLE, fmsg, 'warranty_handler', 'air_sled_request'); } catch (_) {}
     }
   }
 

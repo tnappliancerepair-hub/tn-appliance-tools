@@ -108,9 +108,11 @@ exports.handler = async function (event) {
   const availability = String(m.availability || '').trim();
   // Availability + language both land in customer_preference_text (the routing/
   // scheduling layer reads it). Availability first — it's what gets them scheduled.
-  if (jobId && (availability || LANGNAME[lang])) {
+  const floorsLabel = String(m.floors_label || '').trim();
+  if (jobId && (availability || floorsLabel || LANGNAME[lang])) {
     const parts = [];
     if (availability) parts.push('🗓 Availability: ' + availability);
+    if (floorsLabel) parts.push('🛟 FLOORS: ' + floorsLabel);
     if (LANGNAME[lang]) parts.push('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).');
     try { await crud.update(crud.TABLES.jobs, jobId, { customer_preference_text: parts.join('  ·  ') }); } catch (_) {}
   }
@@ -163,6 +165,16 @@ exports.handler = async function (event) {
     if (hoseChoice === 'yes') {
       const hmsg = '🔧 ' + hoseItem.toUpperCase() + ' ADD-ON: ' + (m.name || 'customer') + ' said YES at intake on job #' + jobId + ' — bring + install + add to the ticket.';
       try { await sendSms(DANIELLE, hmsg, 'warranty_handler', 'hose_addon_request'); } catch (_) {}
+    }
+  }
+
+  // FLOORS flag (Teddy 2026-06-27): tech must show up prepared — no blind visit.
+  const floorsChoice = String(m.floors || '').toLowerCase();
+  if (jobId && floorsChoice && floorsChoice !== 'standard') {
+    try { await crud.logEvent('floors_flag', { job_id: jobId, choice: floorsChoice, label: String(m.floors_label || ''), at_ms: Date.now() }); } catch (_) {}
+    if (floorsChoice === 'air_sled') {
+      const fmsg = '🛟 AIR-SLED ($125) requested on job #' + jobId + ' (' + (m.name || 'customer') + ') — route a sled-equipped tech + add $125 to the ticket.';
+      try { await sendSms(DANIELLE, fmsg, 'warranty_handler', 'air_sled_request'); } catch (_) {}
     }
   }
 
