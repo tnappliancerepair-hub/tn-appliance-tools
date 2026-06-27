@@ -93,6 +93,10 @@
        from the job's appliance. The signed choice (esp. a NO) is the protection. -->
   <div id="hose-rec"></div>
 
+  <!-- Whole-home leak-detector kit — floor protection + documented offer/decline.
+       Shown on every waiver; personalized when the customer flagged floor concern. -->
+  <div id="leak-rec"></div>
+
   <div class="field">
     <label for="type-name">Your name <span class="req">*</span></label>
     <input id="type-name" type="text" placeholder="First Last" autocomplete="name" inputmode="text">
@@ -148,10 +152,35 @@
     if (s.indexOf('dish') > -1) return 'dishwasher';
     return '';
   }
+  // Whole-home smart leak-detector kit (Teddy 2026-06-27). The floor-protection
+  // play: small sensors at every leak point — behind the fridge, under the
+  // dishwasher + washer, by the toilet/water heater. Smart version texts your
+  // phone; simpler version just alarms so you can shut the water off. Offered on
+  // every waiver; the recorded Yes/No (especially No) is the liability shield,
+  // and it's the direct answer for any customer worried about their floors.
+  var LEAK_KIT = { item: 'smart leak-detector kit', price: 120,
+    why: 'Insurance research (IBHS) ties most washer water-damage claims to leaks — and a slow leak under a fridge, dishwasher or washer can rot a floor before you ever see it. We place sensors at every water point; the smart version texts your phone the moment it gets wet, so you can shut the water off before it reaches the floor.',
+    source: 'Insurance Institute for Business & Home Safety (IBHS)' };
+  var LEAK_REC = null;
+  function renderLeak(floorConcern) {
+    LEAK_REC = { item: LEAK_KIT.item, price: LEAK_KIT.price };
+    document.getElementById('leak-rec').innerHTML =
+      '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 13px;margin:14px 0 4px;color:#1e3a8a;font-size:14.5px;line-height:1.5">'
+      + (floorConcern ? '<p style="margin:0 0 6px;font-weight:700">🛟 You told us you\'re concerned about your flooring — this is the protection for it.</p>' : '')
+      + '<p style="margin:0 0 6px">💧 <b>Protect your floors — smart leak-detector kit.</b> ' + LEAK_KIT.why + ' We can set the kit up while we\'re there — about <b>$' + LEAK_KIT.price + ' installed.</b></p>'
+      + '<div style="font-size:11px;color:#3b5a9a;font-style:italic;margin:0 0 10px">Source: ' + LEAK_KIT.source + '</div>'
+      + '<label style="display:flex;gap:9px;align-items:center;background:#eff8ff;border:1px solid #bcdcff;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#1e3a8a"><input type="radio" name="leak-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — set up the leak-detector kit (~$' + LEAK_KIT.price + ')</span></label>'
+      + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="leak-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
+      + '</div>';
+  }
   if (JOB_ID) {
     fetch(XANO + '/get_job_for_dashboard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: JOB_ID }) })
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        // floor concern flag flows in customer_preference_text as "🛟 FLOORS: ..."
+        var pref = (d && d.job && d.job.customer_preference_text) || (d && d.customer_preference_text) || '';
+        var floorConcern = /FLOORS:/i.test(pref) && !/FLOORS:\s*(fine|not? concerned|no)/i.test(pref);
+        renderLeak(floorConcern);
         var appl = (d && d.appliance && d.appliance.type) || (d && d.job && d.job.appliance_type) || '';
         var rec = LINE_MAP[normAppliance(appl)];
         if (!rec) return;
@@ -164,7 +193,7 @@
           + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="hose-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
           + '</div>';
       })
-      .catch(function () {});
+      .catch(function () { renderLeak(false); });
   }
 
   // Canvas signature
@@ -233,6 +262,8 @@
     // recorded choice (especially "No") is the whole protection.
     var hoseChoice = (document.querySelector('input[name="hose-opt"]:checked') || {}).value || '';
     if (HOSE_REC && !hoseChoice) { showErr('One more — please choose Yes or No on the ' + HOSE_REC.item + ' recommendation above.'); return; }
+    var leakChoice = (document.querySelector('input[name="leak-opt"]:checked') || {}).value || '';
+    if (LEAK_REC && !leakChoice) { showErr('One more — please choose Yes or No on the leak-detector kit above.'); return; }
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving…';
@@ -248,7 +279,7 @@
           customer_name: name,
           // hose_choice = the signed yes/no on the wear-item; a "no" is the record
           // that protects us later. wants_new_hoses kept for back-compat.
-          acknowledgments_json: JSON.stringify({ simple_release_v1: true, water_line_moving_v1: true, hose_item: hoseItem, hose_choice: hoseChoice, wants_new_hoses: hoseChoice === 'yes' }),
+          acknowledgments_json: JSON.stringify({ simple_release_v1: true, water_line_moving_v1: true, hose_item: hoseItem, hose_choice: hoseChoice, wants_new_hoses: hoseChoice === 'yes', leak_kit_item: LEAK_REC ? LEAK_REC.item : '', leak_kit_choice: leakChoice, wants_leak_kit: leakChoice === 'yes' }),
           user_agent: navigator.userAgent || ''
         })
       });
@@ -260,6 +291,18 @@
           try {
             var hoseMsg = '🔧 ' + HOSE_REC.item.toUpperCase() + ' ADD-ON: ' + name + ' said YES on job #' + JOB_ID + ' (~$' + HOSE_REC.price + ', signed on the waiver). Bring + install + add to the ticket.';
             fetch(XANO + '/send_sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: '+16154850713', body: hoseMsg, message: hoseMsg, context_tag: 'hose_addon_request' }) }).catch(function () {});
+          } catch (e) {}
+        }
+        // Customer said YES to the leak-detector kit — record it as an add-on so it
+        // surfaces on the tech's job card (Customer asked for these), the office
+        // invoice worksheet, and the to-fulfill banner. (save-extra = blocker-proof
+        // alias of record-addon.)
+        if (leakChoice === 'yes' && LEAK_REC) {
+          try {
+            fetch('/.netlify/functions/save-extra', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: LEAK_REC.item, price: LEAK_REC.price, discount: 0, tech_cut: 50, mode: 'installed', source: 'waiver' })
+            }).catch(function () {});
           } catch (e) {}
         }
         document.querySelectorAll('.card').forEach(function (c) { c.style.display = 'none'; });
