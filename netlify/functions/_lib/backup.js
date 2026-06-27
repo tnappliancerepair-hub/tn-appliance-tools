@@ -124,12 +124,13 @@ async function backupTables(opts = {}) {
   if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
   const date = opts.date || new Date().toISOString().slice(0, 10);
 
-  let ids = (opts.only && opts.only.length) ? opts.only : null;
-  if (!ids) {
+  // Explicit allowlist of money/business tables — deterministic + bounded, so a
+  // surprise big table can never blow the window. (opts.discover=true adds shape-
+  // filtered discovery for a deeper one-off; default is the core set.)
+  let ids = (opts.only && opts.only.length) ? opts.only : [...CORE_IDS];
+  if (!opts.only && opts.discover) {
     const discovered = await discoverTables();
     const keep = discovered.filter((t) => !shouldSkipByShape(t.keys)).map((t) => t.id);
-    // CORE money/business tables always; plus discovered business tables (TDRs,
-    // tech_earnings, etc.); minus the giant AI/noise tables.
     ids = Array.from(new Set([...CORE_IDS, ...keep])).filter((id) => !SKIP_IDS.has(id));
   }
 
