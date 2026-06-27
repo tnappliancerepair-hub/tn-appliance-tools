@@ -18,8 +18,9 @@ exports.handler = async function (event) {
   admin = admin || LEGACY_ADMIN;
   if (secret !== admin) return { statusCode: 401, body: 'unauthorized' };
 
+  const clearFirst = !!((event.queryStringParameters || {}).clear);
   try {
-    const summary = await backupTables({ writeAudit: true });
+    const summary = await backupTables({ writeAudit: true, clearFirst });
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
