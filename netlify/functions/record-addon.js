@@ -43,13 +43,18 @@ exports.handler = async function (event) {
     const tech_cut = parseFloat(b.tech_cut) || 0;
     const cost = parseFloat(b.cost) || 0; // our part cost (for P&L margin)
     const mode = String(b.mode || 'installed'); // installed | ship | inquire
-    const status = String(b.status || 'requested');
+    const status = String(b.status || 'requested'); // requested | fulfilled | voided
+    // voided = customer clicked it by mistake; the tech (or office) takes it back
+    // off the job so it never gets billed or credited. Keyed job_id+addon_key so
+    // addons-pending + the invoice worksheet drop it.
+    const isVoid = status === 'voided';
     // Credit the tech only at fulfillment. Prefer an explicit technician_id from
     // the caller (office board knows it), else resolve from the job record.
     let technician_id = parseInt(b.technician_id, 10) || 0;
     if (status === 'fulfilled' && !technician_id) technician_id = await lookupJobTech(job_id);
+    const action = status === 'fulfilled' ? 'addon_fulfilled' : (isVoid ? 'addon_voided' : 'addon_requested');
     const row = {
-      action: status === 'fulfilled' ? 'addon_fulfilled' : 'addon_requested',
+      action,
       metadata: {
         job_id,
         addon_key,
@@ -57,11 +62,13 @@ exports.handler = async function (event) {
         price: price.toFixed(2),
         discount: discount.toFixed(2),
         net_price: Math.max(0, price - discount).toFixed(2),
-        tech_cut: tech_cut.toFixed(2),
+        tech_cut: isVoid ? '0.00' : tech_cut.toFixed(2),
         cost: cost.toFixed(2),
         technician_id: technician_id || null,
         mode: mode,
         status: status,
+        voided_by: isVoid ? (parseInt(b.technician_id, 10) || null) : undefined,
+        void_reason: isVoid ? String(b.reason || 'customer mistake') : undefined,
         source: String(b.source || 'customer_portal'),
         requested_at_ms: Date.now(),
       },

@@ -482,6 +482,12 @@ function render(){
         <div id="mi-out" style="margin-top:11px"></div>
       </div>
 
+      <div class="card" id="cust-addons-card" style="display:none;border:2px solid #f0a82a;background:#fffaf0">
+        <h3>🛒 Customer asked for these <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">confirm before you do it</span></h3>
+        <div style="font-size:12px;color:var(--ink2,#555);margin:-4px 0 8px;line-height:1.5">The customer clicked these in their portal. Confirm with them at the door — if they tapped one by mistake, hit <b>Remove</b>. If they want it, do the work + collect, then hit <b>Confirm &amp; done</b>.</div>
+        <div id="cust-addons-list"></div>
+      </div>
+
       <div class="card" id="addons-card" style="display:none">
         <h3>🛍️ Add-ons / offers <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">offer at the stop</span></h3>
         <div id="addons-list"></div>
@@ -542,6 +548,7 @@ function wireActions(){
   };
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
+  renderCustomerAddons();
   mountConvo();
   applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
   loadPayment();             // self-pay jobs: let the tech text the customer a card-pay link from the field
@@ -604,6 +611,54 @@ async function logTechAddon(b){
         : mode==='ship' ? '✓ office will ship it' : '✓ logged — +$'+(parseFloat(b.dataset.cut)||0)+' to your pay';
     } else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'failed'); row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
   }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
+}
+
+// ── Customer-requested add-ons (from the portal) ───────────────
+// Shows what the customer clicked so the tech is never blind. Two actions:
+//   Confirm & done → addon_fulfilled (credits the tech, billed on the invoice)
+//   Remove         → addon_voided   (customer tapped it by mistake; off the job)
+async function renderCustomerAddons(){
+  const card=document.getElementById('cust-addons-card'); const list=document.getElementById('cust-addons-list');
+  if(!card||!list||!JOB_ID) return;
+  let items=[];
+  try{
+    const r=await fetch('/.netlify/functions/addons-pending?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'});
+    const d=await r.json(); items=(d&&d.items)||[];
+  }catch(_){ }
+  if(!items.length){ card.style.display='none'; return; }
+  card.style.display='';
+  list.innerHTML=items.map(a=>{
+    const price=parseFloat(a.net_price)||0;
+    const k=esc(a.addon_key), n=esc(a.name||a.addon_key);
+    return '<div class="ca-row" data-k="'+k+'" data-n="'+n+'" data-price="'+price+'" data-cut="'+(parseFloat(a.tech_cut)||0)+'" style="padding:10px 0;border-top:1px solid var(--line,#e3e8ef)">'
+      +'<div style="font-weight:800;font-size:15px">'+n+' · $'+price.toFixed(2)+'</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;align-items:center">'
+      +'<button class="btn primary ca-ok" style="flex:1;min-width:130px">✓ Confirm &amp; done</button>'
+      +'<button class="btn ca-rm" style="flex:1;min-width:110px;background:#fdece9;border:1px solid #f3c0b7;color:#c0392b">✗ Remove (mistake)</button>'
+      +'<span class="ca-stat" style="font-size:12px;font-weight:700;color:var(--ok,#1aa260);width:100%"></span>'
+      +'</div></div>';
+  }).join('');
+  list.querySelectorAll('.ca-row').forEach(row=>{
+    const ok=row.querySelector('.ca-ok'), rm=row.querySelector('.ca-rm');
+    if(ok) ok.onclick=()=>custAddonAction(row,'fulfilled');
+    if(rm) rm.onclick=()=>{ if(confirm('Remove "'+row.dataset.n+'"? Use this if the customer tapped it by mistake.')) custAddonAction(row,'voided'); };
+  });
+}
+async function custAddonAction(row,status){
+  const stat=row.querySelector('.ca-stat');
+  row.querySelectorAll('button').forEach(x=>x.disabled=true);
+  if(stat) stat.textContent='…';
+  try{
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:JOB_ID, technician_id:TECH_ID, addon_key:row.dataset.k, name:row.dataset.n,
+        price:parseFloat(row.dataset.price)||0, tech_cut:parseFloat(row.dataset.cut)||0,
+        status:status, mode:'installed', source:'tech_job' })});
+    const d=await r.json();
+    if(d&&d.success){
+      if(stat){ stat.textContent = status==='voided' ? '✗ removed — not billed' : '✓ done — billed + credited to your pay'; }
+      setTimeout(renderCustomerAddons, 900); // drops the row (now fulfilled/voided)
+    } else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'failed'); row.querySelectorAll('button').forEach(x=>x.disabled=false); }
+  }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button').forEach(x=>x.disabled=false); }
 }
 
 // 🔁 ServicePower dispatch status push — SHADOW by default (servicepower-push.js logs what

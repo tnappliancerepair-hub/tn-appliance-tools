@@ -34,14 +34,19 @@ function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { t
 
 exports.config = { timeout: 26 };
 
-exports.handler = async function () {
+exports.handler = async function (event) {
   try {
-    const [requested, fulfilled] = await Promise.all([
+    const jobFilter = (event && event.queryStringParameters && event.queryStringParameters.job_id)
+      ? String(event.queryStringParameters.job_id) : '';
+    const [requested, fulfilled, voided] = await Promise.all([
       fetchByAction('addon_requested'),
       fetchByAction('addon_fulfilled'),
+      fetchByAction('addon_voided'),
     ]);
     const done = new Set();
     for (const f of fulfilled) { const m = meta(f); done.add(m.job_id + '|' + m.addon_key); }
+    // voided = customer added it by mistake, tech/office took it back off — drop it
+    for (const v of voided) { const m = meta(v); done.add(m.job_id + '|' + m.addon_key); }
     // de-dupe requests by job+addon, keep latest; drop fulfilled
     const byKey = {};
     for (const r of requested) {
@@ -53,7 +58,8 @@ exports.handler = async function () {
         byKey[key] = { job_id: m.job_id, addon_key: m.addon_key, name: m.name, net_price: m.net_price || m.price, tech_cut: m.tech_cut || '0.00', mode: m.mode || 'installed', paid: !!m.paid, source: m.source || '', when };
       }
     }
-    const items = Object.values(byKey).sort((a, b) => b.when - a.when);
+    let items = Object.values(byKey).sort((a, b) => b.when - a.when);
+    if (jobFilter) items = items.filter((x) => String(x.job_id) === jobFilter);
     return { statusCode: 200, body: JSON.stringify({ success: true, count: items.length, items }) };
   } catch (err) {
     return { statusCode: 200, body: JSON.stringify({ success: false, error: err.message, count: 0, items: [] }) };

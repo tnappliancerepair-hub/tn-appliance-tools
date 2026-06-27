@@ -861,6 +861,13 @@ function renderDrawer(d){
         <div class="k">Tip $</div><input class="inv" id="inv-tip" inputmode="decimal" placeholder="0.00">
         <div class="k">Tech pay $</div><input class="inv" id="inv-techpay" inputmode="decimal" placeholder="0.00">
       </div>
+      <div id="inv-addons-line" style="display:none;margin-top:11px;padding:8px 10px;background:#fffaf0;border:1px solid #f0d9a8;border-radius:9px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:13px;font-weight:800;color:#9a5a12">🛍️ Add-ons (customer-requested)</div>
+          <div style="font-size:15px;font-weight:800;color:#9a5a12" id="inv-addons">$0.00</div>
+        </div>
+        <div id="inv-addons-items" style="font-size:11px;color:var(--ink2);margin-top:5px;line-height:1.6"></div>
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;padding:8px 10px;background:#f1faf4;border:1px solid #cdeeda;border-radius:9px">
         <div style="font-size:13px;font-weight:700;color:var(--ink2)">Parts margin (charge − cost)</div>
         <div style="font-size:15px;font-weight:800" id="inv-margin">$0.00</div>
@@ -1083,23 +1090,44 @@ function prefillInvoice(jid,rate){
     tp.addEventListener('input',()=>{ tp.dataset.touched='1'; });
   }
   if(saved._savedAt){document.getElementById('inv-note').textContent='Last saved '+new Date(saved._savedAt).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
+  window.__addonsTotal=0;
   recomputeInvoice();
+  loadInvoiceAddons(jid);
 }
 function num(id){const v=parseFloat((document.getElementById(id)||{}).value);return isNaN(v)?0:v;}
 function recomputeInvoice(){
   const cost=num('inv-partcost'), charge=num('inv-parts'), margin=charge-cost;
-  // Customer invoice = labor + parts charge + shipping + tax + tip (our cost is
-  // internal, not billed). Margin = what we charge for parts − what we paid.
-  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip');
+  // Customer invoice = labor + parts charge + shipping + tax + tip + add-ons the
+  // customer requested (our cost is internal, not billed).
+  const addons=(typeof window.__addonsTotal==='number')?window.__addonsTotal:0;
+  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip')+addons;
   const m=document.getElementById('inv-margin');
   if(m){m.textContent='$'+margin.toFixed(2);m.style.color=margin<0?'#c0392b':'#127a4a';}
   const el=document.getElementById('inv-total');if(el)el.textContent='$'+total.toFixed(2);
 }
+// Pull the customer-requested add-ons for this job into the worksheet so they're
+// never missed on the bill. Auto-summed into the invoice total; not editable.
+async function loadInvoiceAddons(jid){
+  window.__addonsTotal=0;
+  const line=document.getElementById('inv-addons-line'); if(!line)return;
+  try{
+    const r=await fetch('/.netlify/functions/addons-for-job?job_id='+encodeURIComponent(jid),{cache:'no-store'});
+    const d=await r.json(); const items=(d&&d.items)||[];
+    if(!items.length){ line.style.display='none'; recomputeInvoice(); return; }
+    let sum=0; const rows=items.map(a=>{const p=parseFloat(a.net_price)||0;sum+=p;const tag=a.fulfilled?' ✓':'';return esc(a.name||a.addon_key)+' — $'+p.toFixed(2)+tag;});
+    window.__addonsTotal=sum;
+    const amt=document.getElementById('inv-addons'); if(amt)amt.textContent='$'+sum.toFixed(2);
+    const it=document.getElementById('inv-addons-items'); if(it)it.innerHTML=rows.join('<br>');
+    line.style.display='';
+  }catch(_){ line.style.display='none'; }
+  recomputeInvoice();
+}
 async function saveInvoice(jid){
   const data={};INV_FIELDS.forEach(f=>{data[f]=(document.getElementById('inv-'+f)||{}).value||'';});
   const cost=num('inv-partcost'), charge=num('inv-parts'), margin=charge-cost;
-  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip');
-  data.parts_margin=margin.toFixed(2);data.amount_invoiced=total.toFixed(2);data._savedAt=Date.now();
+  const addons=(typeof window.__addonsTotal==='number')?window.__addonsTotal:0;
+  const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip')+addons;
+  data.parts_margin=margin.toFixed(2);data.addons=addons.toFixed(2);data.amount_invoiced=total.toFixed(2);data._savedAt=Date.now();
   // Always persist locally so her entries are never lost, then record to the
   // server audit (record_job_invoice writes an event_log row — no schema
   // change needed; once pushed it's the durable record).
@@ -1110,7 +1138,7 @@ async function saveInvoice(jid){
     await fetch(XANO+'/record_job_invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       job_id:parseInt(jid,10),technician_id:(window.__drawerTech||0),labor:data.labor,
       part_cost:data.partcost,parts_charge:data.parts,markup:margin.toFixed(2),parts_margin:margin.toFixed(2),
-      shipping:data.ship,tax:data.tax,tip:data.tip,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
+      shipping:data.ship,tax:data.tax,tip:data.tip,addons:data.addons,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
     })});
   }catch(_){/* endpoint may not be deployed yet; localStorage holds it */}
 }
