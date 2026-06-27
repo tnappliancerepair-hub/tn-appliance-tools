@@ -526,9 +526,14 @@ function askAvailability(){
     // finish the flow, not just clicks.
     try{ gtag('event','generate_lead',{ currency:'USD', value: state.serviceType==='in_home'?100:(FREE_MODE?0:50), appliance: state.appliance||'', payer: state.payer||'' }); }catch(_){}
     // Warranty asks availability BEFORE the phone finish; everyone else continues
-    // to in-home / free / paid checkout.
+    // to paid checkout. Payment is taken BEFORE scheduling for BOTH the $50 Quick
+    // Check and the $100 in-home (Teddy 2026-06-27). The ?free= token is the only
+    // no-charge override (multi-machine / trip-fee waivers) → free booking.
     if(state.payer==='warranty'){ clearFlow(); think(500, ()=>{ antMsg('Got it — last thing, just your number and you\'re set.'); think(400, warrantyFinish); }); return; }
-    clearFlow(); think(500, state.serviceType==='in_home' ? submitInHome : (FREE_MODE ? submitFree : payStep));
+    let _next;
+    if(FREE_MODE){ _next = (state.serviceType==='in_home') ? submitInHome : submitFree; }
+    else { _next = payStep; }   // payStep charges $100 for in-home, $50 for phone QC
+    clearFlow(); think(500, _next);
   };
 }
 // FREE submit — no payment, and we DO NOT block on the media upload (that's what
@@ -559,12 +564,21 @@ function submitFree(){
   };
 }
 function payStep(){
-  setHead('Lock in your <span class="accent">Quick Check.</span>','$'+QC_PRICE+' now — credited to your repair.');
+  // Amount + service by path: $50 phone Quick Check vs $100 in-home visit. The
+  // test token (?qc=) makes either $1 server-side. Payment happens BEFORE the job
+  // lands on the schedule (Teddy 2026-06-27) — media was already captured above.
+  const isInHome = state.serviceType==='in_home';
+  const amt = isInHome ? 100 : QC_PRICE;
+  const svc = isInHome ? 'in_home' : 'quick_check';
+  if(isInHome){ setHead('Lock in your <span class="accent">in-home visit.</span>','$100 — credited to your repair. We schedule once it\'s paid.'); }
+  else { setHead('Lock in your <span class="accent">Quick Check.</span>','$'+amt+' now — credited to your repair.'); }
   const p=document.createElement('div'); p.className='pay';
-  p.innerHTML='<div class="amt">$'+QC_PRICE+'</div><div class="amtsub">Credited to your repair · honest answer within 2 business hours</div>'
-    +'<button class="go" id="pay-go">Pay $'+QC_PRICE+' &amp; get my answer →</button>';
+  const sub = isInHome ? 'Credited to your repair · a tech comes to you' : 'Credited to your repair · honest answer within 2 business hours';
+  const cta = isInHome ? ('Pay $'+amt+' &amp; get scheduled →') : ('Pay $'+amt+' &amp; get my answer →');
+  p.innerHTML='<div class="amt">$'+amt+'</div><div class="amtsub">'+sub+'</div>'
+    +'<button class="go" id="pay-go">'+cta+'</button>';
   FLOW.appendChild(p);
-  const payLabel='Pay $'+QC_PRICE+' & get my answer →';
+  const payLabel=cta.replace('&amp;','&');
   if(state.uploads && state.uploads.length){
     const note=document.createElement('div'); note.className='upnote'; note.id='upnote';
     note.textContent='📎 Sending your video + photo securely…';
@@ -591,7 +605,7 @@ function payStep(){
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
-        availability:state.availability||'', qc_test:QC_TEST, language:LANG
+        availability:state.availability||'', qc_test:QC_TEST, language:LANG, service:svc
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html

@@ -42,10 +42,16 @@ exports.handler = async function (event) {
   const email = s(b.email, 120);
   const machine = [s(b.brand, 40), s(b.appliance, 40)].filter(Boolean).join(' ') || 'appliance';
   const isTest = s(b.qc_test, 40) === QC_TEST_TOKEN;
-  const priceCents = isTest ? TEST_PRICE_CENTS : PRICE_CENTS;
+  // service: 'in_home' = $100 tech-comes-out (pay before we schedule), else $50 phone
+  // Quick Check. Test token makes either $1. (Teddy 2026-06-27.)
+  const service = s(b.service, 20) === 'in_home' ? 'in_home' : 'quick_check';
+  const baseCents = service === 'in_home' ? 10000 : PRICE_CENTS;
+  const priceCents = isTest ? TEST_PRICE_CENTS : baseCents;
   const productName = isTest
-    ? 'Appliance Quick Check — TEST ($1)'
-    : 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)';
+    ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')
+    : (service === 'in_home'
+        ? 'In-Home Diagnostic — tech comes to you ($100, credited to your repair)'
+        : 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)');
   try {
     const stripe = new Stripe(key);
     const opts = {
@@ -57,7 +63,8 @@ exports.handler = async function (event) {
       success_url: `${SITE}/quick-check-thanks.html?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/appliance-ai.html`,
       metadata: {
-        kind: 'quick_check',
+        kind: service,
+        service: service,
         amount_cents: String(priceCents),
         is_test: isTest ? 'yes' : 'no',
         name: s(b.name, 120), phone: phone, email: email,

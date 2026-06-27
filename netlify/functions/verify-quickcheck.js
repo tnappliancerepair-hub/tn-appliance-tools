@@ -38,6 +38,13 @@ exports.handler = async function (event) {
   }
   const m = session.metadata || {};
   const first = String(m.name || '').trim().split(/\s+/)[0] || '';
+  // service: 'in_home' ($100 tech-comes-out) vs 'quick_check' ($50 phone). Both are
+  // paid-before-scheduled self-pay jobs; only the labeling/wording differs.
+  const service = String(m.service || m.kind || 'quick_check') === 'in_home' ? 'in_home' : 'quick_check';
+  const amtPaid = Number(m.amount_cents || (service === 'in_home' ? 10000 : 5000)) / 100;
+  const probPrefix = service === 'in_home'
+    ? ('🏠 IN-HOME DIAGNOSTIC ($' + amtPaid + ' PAID, credited to repair) — ')
+    : ('💵 QUICK CHECK ($' + amtPaid + ' PAID) — ');
 
   // idempotency — refresh of the thanks page must not create a 2nd job/charge record
   try {
@@ -62,9 +69,9 @@ exports.handler = async function (event) {
         zip: m.zip || '',
         appliance_type: m.appliance || 'appliance',
         brand: m.brand || '',
-        problem_summary: '💵 QUICK CHECK ($50 PAID) — ' + (m.problem || ''),
+        problem_summary: probPrefix + (m.problem || ''),
         customer_type: 'self_pay',
-        recommended_service: 'quick_check',
+        recommended_service: service,
         channel: 'appliance_ai',
         sms_consent: m.sms_consent === 'yes',
         conversation_id: convId,
@@ -115,15 +122,16 @@ exports.handler = async function (event) {
   }
 
   // record the payment + the idempotency marker
-  const amount = Number(m.amount_cents || 5000) / 100;
-  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
-  await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'quick_check', session_id: sessionId, source: 'quick_check', at_ms: Date.now() });
+  const amount = amtPaid;
+  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, service, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
+  await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: service, session_id: sessionId, source: service, at_ms: Date.now() });
   // Web funnel: the 'paid' step — ties to the same conv_id as open/started/reached_pay.
   try { await crud.logEvent('web_funnel', { step: 'paid', conv_id: m.conv_id || '', appliance: m.appliance || m.machine || '', at_ms: Date.now() }); } catch (_) {}
 
-  // 💵 CASH siren → Teddy + Danielle
+  // 💵 PAID siren → Teddy + Danielle
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
-  const msg = '💵💵 CASH QUICK-CHECK PAID — $' + amount + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
+  const sirenHead = service === 'in_home' ? ('🏠💵 IN-HOME PAID — $' + amount) : ('💵💵 CASH QUICK-CHECK PAID — $' + amount);
+  const msg = sirenHead + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
     + (m.town ? (' · ' + m.town) : '') + ' — ' + (m.problem || '').slice(0, 120)
     + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
