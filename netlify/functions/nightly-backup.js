@@ -29,10 +29,12 @@ exports.handler = async function (event) {
     }
   }
 
-  // Live verify: tiny synchronous backup (technicians = a handful of rows).
+  // Live verify: synchronous backup of specific tables (default technicians).
+  // ?probe=1&only=6,47 to test specific table ids and see counts/errors inline.
   if (q.probe && q.secret === admin) {
     try {
-      const summary = await backupTables({ only: [15], writeAudit: false, keepExisting: true });
+      const only = q.only ? String(q.only).split(',').map((n) => parseInt(n, 10)).filter(Boolean) : [15];
+      const summary = await backupTables({ only, writeAudit: false, keepExisting: true });
       return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, summary }) };
     } catch (e) {
       return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
