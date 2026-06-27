@@ -575,9 +575,9 @@
     render(data);
     renderAvailabilityGrid(data);
     maybeShowWaiverBanner(data && data.job);
-    // Release of liability is the FIRST thing the customer sees — sign it up front
-    // and get it out of the way, so the tech never has to chase it at the door.
-    if (data && data.job && !data.job.waiver_signed_at) { try { showWaiverModal('open'); } catch (_) {} }
+    // No auto-pop modal on load (Teddy 2026-06-27): the passive banner + the
+    // schedule-time gate (ensureWaiverSigned) are enough. Auto-popping the modal
+    // AND showing the banner = the "asked me to sign twice" double-nag.
     recordPortalEvent('portal_viewed').catch(() => {});
   }
 
@@ -729,6 +729,10 @@
   }
   function maybeShowWaiverBanner(job) {
     if (job && job.waiver_signed_at) return;
+    // Don't nag the waiver on a job that's no longer getting scheduled — canceled/
+    // completed/terminal jobs shouldn't ask for a release (Teddy 2026-06-27).
+    const _st = String((job && (job.scheduling_status || job.current_status)) || '').toLowerCase();
+    if (['canceled', 'cancelled', 'completed', 'no_fix_possible'].includes(_st)) return;
     if (document.getElementById('waiverBanner')) return;
     const banner = document.createElement('div');
     banner.id = 'waiverBanner';
