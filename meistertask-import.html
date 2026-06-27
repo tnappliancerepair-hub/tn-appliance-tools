@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>MeisterTask Import → Supabase</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; background: #0f1420; color: #e7ecf3; }
+  h1 { font-size: 20px; }
+  .card { background: #18202e; border: 1px solid #283449; border-radius: 12px; padding: 16px; margin: 14px 0; }
+  label { display: block; font-size: 13px; color: #9fb0c6; margin: 10px 0 4px; }
+  input[type=text], input[type=password] { width: 100%; padding: 11px; border: 1px solid #2c3a52; border-radius: 9px; background: #0f1726; color: #e7ecf3; font-size: 15px; box-sizing: border-box; }
+  input[type=file] { width: 100%; color: #cdd8e6; margin-top: 6px; }
+  button { width: 100%; padding: 14px; border: 0; border-radius: 10px; background: #1f6fed; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 14px; }
+  button:disabled { opacity: .5; }
+  .muted { color: #8294ac; font-size: 12.5px; line-height: 1.5; }
+  #log { font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; background: #0b1220; border: 1px solid #233048; border-radius: 9px; padding: 12px; margin-top: 12px; max-height: 320px; overflow: auto; }
+  .ok { color: #4ade80; } .err { color: #f87171; } .info { color: #7fb2ff; }
+</style>
+</head>
+<body>
+  <h1>🗂️ MeisterTask → Supabase</h1>
+  <div class="card muted">
+    Drop a MeisterTask <b>JSON export</b> here. It finds the cards, then stores them in the Supabase
+    <code>meistertask_archive</code> table (the 7-year history, off Xano). One board at a time.
+    Run the table SQL once first (see below if you get a "table not found" error).
+  </div>
+
+  <div class="card">
+    <label>Board name (label for this file)</label>
+    <input type="text" id="board" placeholder="e.g. TN Jobs">
+    <label>Admin secret</label>
+    <input type="password" id="secret" placeholder="admin secret">
+    <label>MeisterTask JSON export file</label>
+    <input type="file" id="file" accept=".json,application/json">
+    <button id="go" disabled>Select a file first</button>
+    <div id="log"></div>
+  </div>
+
+  <div class="card muted">
+    <b>One-time Supabase setup</b> (SQL editor → run once):<br>
+    <code style="display:block;white-space:pre-wrap;margin-top:6px;color:#cdd8e6">create table if not exists meistertask_archive (
+  id bigint generated always as identity primary key,
+  board text, card_id text, title text, notes text,
+  card jsonb not null, imported_at timestamptz not null default now()
+);
+create index if not exists meistertask_archive_board on meistertask_archive (board);</code>
+  </div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+function log(msg, cls) { const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+let CARDS = null;
+
+// MeisterTask exports vary — find the cards array robustly: known keys first,
+// else the largest array of objects that look like cards (have a name/title).
+function findCards(data) {
+  if (Array.isArray(data) && data.length && typeof data[0] === 'object') return data;
+  const known = ['tasks', 'cards', 'items'];
+  for (const k of known) { if (Array.isArray(data?.[k]) && data[k].length) return data[k]; }
+  if (data?.project) { for (const k of known) { if (Array.isArray(data.project[k])) return data.project[k]; } }
+  // recursive: collect all arrays-of-objects, pick the biggest that has name/title-ish
+  let best = null;
+  (function walk(o) {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) {
+      if (o.length && typeof o[0] === 'object' && (o[0].name || o[0].title || o[0].notes || o[0].description)) {
+        if (!best || o.length > best.length) best = o;
+      }
+      o.forEach(walk); return;
+    }
+    Object.values(o).forEach(walk);
+  })(data);
+  return best;
+}
+
+$('file').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  $('go').disabled = true; $('go').textContent = 'Reading…'; logEl.innerHTML = '';
+  if (!$('board').value.trim()) $('board').value = f.name.replace(/\.json$/i, '');
+  try {
+    const text = await f.text();
+    const data = JSON.parse(text);
+    CARDS = findCards(data);
+    if (!CARDS || !CARDS.length) { log('Could not find a cards array in this file. Tell Claude the file structure.', 'err'); log(JSON.stringify(Object.keys(data || {})), 'muted'); $('go').textContent = 'No cards found'; return; }
+    log('Found ' + CARDS.length + ' cards.', 'ok');
+    log('Sample card keys: ' + JSON.stringify(Object.keys(CARDS[0])), 'info');
+    log('Sample title: ' + (CARDS[0].name || CARDS[0].title || '(none)'), 'info');
+    $('go').disabled = false; $('go').textContent = 'Upload ' + CARDS.length + ' cards to Supabase';
+  } catch (err) { log('Parse error: ' + err.message, 'err'); $('go').textContent = 'Bad file'; }
+});
+
+$('go').addEventListener('click', async () => {
+  if (!CARDS) return;
+  const board = $('board').value.trim() || 'meistertask';
+  const secret = $('secret').value.trim();
+  if (!secret) { log('Enter the admin secret.', 'err'); return; }
+  $('go').disabled = true;
+  const BATCH = 200; let done = 0, failed = 0;
+  for (let i = 0; i < CARDS.length; i += BATCH) {
+    const batch = CARDS.slice(i, i + BATCH);
+    try {
+      const r = await fetch('/.netlify/functions/import-meistertask', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret, board, cards: batch }),
+      });
+      const d = await r.json();
+      if (d.ok) { done += d.inserted; log('Stored ' + done + ' / ' + CARDS.length, 'ok'); }
+      else { failed += batch.length; log('Batch failed: ' + (d.error || r.status), 'err'); if (/unauthorized|not_configured/.test(d.error || '')) break; }
+    } catch (err) { failed += batch.length; log('Batch error: ' + err.message, 'err'); }
+  }
+  log('Done. Stored ' + done + (failed ? (', failed ' + failed) : '') + '.', failed ? 'err' : 'ok');
+  $('go').textContent = 'Done — ' + done + ' stored';
+});
+</script>
+</body>
+</html>
