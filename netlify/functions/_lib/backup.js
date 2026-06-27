@@ -50,28 +50,44 @@ function metaHeaders() {
 // event_log is the high-churn action ledger — too big to dump whole every night.
 // Cap the nightly snapshot to the most-recent rows (where all current money
 // activity lives); full-history event_log is a separate one-time/incremental pull.
-const EVENT_LOG_RECENT_PAGES = 40; // 40 x 500 = up to 20k most-recent rows (recent money activity), bounded time
+const EVENT_LOG_PER_PAGE = 100;     // small pages so the giant table's query returns fast (avoids read timeout)
+const EVENT_LOG_RECENT_PAGES = 200; // 200 x 100 = up to 20k most-recent rows (recent money activity)
+
+// One page read, with a timeout + one retry (handles transient "fetch failed").
+async function readPage(id, page, perPage, sortDir) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await fetch(`${META}/table/${id}/content/search`, {
+        method: 'POST', headers: metaHeaders(),
+        body: JSON.stringify({ per_page: perPage, page, sort: { id: sortDir } }),
+        signal: AbortSignal.timeout(25000),
+      });
+      if (!r.ok) return { httpStatus: r.status, items: null };
+      const d = await r.json();
+      return { items: (d && d.items) || [] };
+    } catch (_) {
+      if (attempt === 1) return { items: null, errored: true };
+    }
+  }
+  return { items: null, errored: true };
+}
 
 // Page a table's content, flushing to onChunk() every CHUNK_ROWS rows.
 async function pageTable(id, onChunk, popts) {
   const sortDir = (popts && popts.sort) || 'asc';
   const maxPages = (popts && popts.maxPages) || MAX_PAGES;
+  const perPage = (popts && popts.perPage) || PAGE_SIZE;
   let total = 0, part = 0, buf = [];
   for (let page = 1; page <= maxPages; page++) {
-    let r;
-    try {
-      r = await fetch(`${META}/table/${id}/content/search`, {
-        method: 'POST', headers: metaHeaders(),
-        body: JSON.stringify({ per_page: PAGE_SIZE, page, sort: { id: sortDir } }),
-        signal: AbortSignal.timeout(25000), // never hang on a slow huge-table query
-      });
-    } catch (_) { break; } // timeout/network -> stop this table, keep what we have
-    if (!r.ok) { if (page === 1) return { ok: false, status: r.status, total: 0, parts: 0 }; break; }
-    const d = await r.json();
-    const items = (d && d.items) || [];
+    const res = await readPage(id, page, perPage, sortDir);
+    if (res.items == null) {
+      if (page === 1) { if (buf.length) await onChunk(buf, part++); return { ok: false, status: res.httpStatus, total, parts: part }; }
+      break; // mid-table read failure: keep what we have
+    }
+    const items = res.items;
     buf.push(...items); total += items.length;
     if (buf.length >= CHUNK_ROWS) { await onChunk(buf, part++); buf = []; }
-    if (items.length < PAGE_SIZE) break;
+    if (items.length < perPage) break;
   }
   if (buf.length) { await onChunk(buf, part++); }
   return { ok: true, total, parts: part };
@@ -125,11 +141,11 @@ async function backupTables(opts = {}) {
   if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
   const date = opts.date || new Date().toISOString().slice(0, 10);
 
-  // Explicit allowlist of money/business tables — deterministic + bounded, so a
-  // surprise big table can never blow the window. (opts.discover=true adds shape-
-  // filtered discovery for a deeper one-off; default is the core set.)
-  let ids = (opts.only && opts.only.length) ? opts.only : [...CORE_IDS];
-  if (!opts.only && opts.discover) {
+  // Default: CORE money/business tables + shape-filtered discovery of the rest
+  // (TDRs, earnings, etc.) — the giant AI/noise tables are skipped by shape, and
+  // the per-read timeout means a slow table fails gracefully instead of hanging.
+  let ids = (opts.only && opts.only.length) ? opts.only : null;
+  if (!ids) {
     const discovered = await discoverTables();
     const keep = discovered.filter((t) => !shouldSkipByShape(t.keys)).map((t) => t.id);
     ids = Array.from(new Set([...CORE_IDS, ...keep])).filter((id) => !SKIP_IDS.has(id));
@@ -147,7 +163,7 @@ async function backupTables(opts = {}) {
     // whole backup or skip the manifest. Record it and move on.
     const capped = (id === EVENT_LOG_TABLE);
     const elPages = opts.eventLogPages || EVENT_LOG_RECENT_PAGES;
-    const popts = capped ? { sort: 'desc', maxPages: elPages } : { sort: 'asc', maxPages: MAX_PAGES };
+    const popts = capped ? { sort: 'desc', maxPages: elPages, perPage: EVENT_LOG_PER_PAGE } : { sort: 'asc', maxPages: MAX_PAGES };
     try {
       const res = await pageTable(id, async (rows, part) => {
         await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
