@@ -30,7 +30,7 @@ const sb = require('./supabase');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const EVENT_LOG_TABLE = 3;
 const PAGE_SIZE = 200;
-const CHUNK_ROWS = 2000;   // rows per Supabase insert — bounds the request body
+const CHUNK_ROWS = 500;    // rows per Supabase insert — small, so big-metadata rows (event_log) don't blow the body limit
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
 const BACKUP_TABLE = 'xano_backup_chunks';
 
@@ -112,10 +112,16 @@ async function backupTables(opts = {}) {
   const summary = { date, started_at: new Date().toISOString(), tables: [] };
   for (const id of ids) {
     const name = NAME_MAP[id] || ('table-' + id);
-    const res = await pageTable(id, async (rows, part) => {
-      await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
-    });
-    summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status });
+    // Isolate each table: one failure (e.g. a too-big insert) must NOT abort the
+    // whole backup or skip the manifest. Record it and move on.
+    try {
+      const res = await pageTable(id, async (rows, part) => {
+        await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: name, table_id: id, part, row_count: rows.length, rows });
+      });
+      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status });
+    } catch (e) {
+      summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });
+    }
   }
   summary.finished_at = new Date().toISOString();
   summary.total_rows = summary.tables.reduce((s, t) => s + (t.rows || 0), 0);
