@@ -1114,7 +1114,9 @@ async function loadInvoiceAddons(jid){
     const r=await fetch('/.netlify/functions/addons-for-job?job_id='+encodeURIComponent(jid),{cache:'no-store'});
     const d=await r.json(); const items=(d&&d.items)||[];
     if(!items.length){ line.style.display='none'; recomputeInvoice(); return; }
-    let sum=0; const rows=items.map(a=>{const p=parseFloat(a.net_price)||0;sum+=p;const tag=a.fulfilled?' ✓':'';return esc(a.name||a.addon_key)+' — $'+p.toFixed(2)+tag;});
+    // Only UNPAID add-ons add to the bill — paid ones (card/cash) are already
+    // collected and shown as "✓ paid" so we never charge twice.
+    let sum=0; const rows=items.map(a=>{const p=parseFloat(a.net_price)||0;let tag='';if(a.paid){tag=' · ✅ paid'+(a.pay_method?(' ('+esc(a.pay_method)+')'):'');}else{sum+=p;if(a.fulfilled)tag=' ✓';}return esc(a.name||a.addon_key)+' — $'+p.toFixed(2)+tag;});
     window.__addonsTotal=sum;
     const amt=document.getElementById('inv-addons'); if(amt)amt.textContent='$'+sum.toFixed(2);
     const it=document.getElementById('inv-addons-items'); if(it)it.innerHTML=rows.join('<br>');

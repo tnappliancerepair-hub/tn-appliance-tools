@@ -58,6 +58,7 @@ exports.handler = async function (event) {
       const when = Number(m.requested_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
       const rowPrice = parseFloat(m.net_price || m.price) || 0;
       const fulfilledNow = (r.action === 'addon_fulfilled') || (byKey[key] && byKey[key].fulfilled);
+      const paidNow = !!m.paid || (byKey[key] && byKey[key].paid);
       if (!byKey[key] || when > byKey[key].when) {
         // carry the best non-zero price forward (the office "Ordered ✓" fulfill row
         // has no price; the requested row holds the real one)
@@ -66,16 +67,21 @@ exports.handler = async function (event) {
           job_id: m.job_id, addon_key: m.addon_key, name: m.name || (byKey[key] && byKey[key].name),
           net_price: (rowPrice > 0 ? rowPrice : prevPrice).toFixed(2),
           tech_cut: m.tech_cut || (byKey[key] && byKey[key].tech_cut) || '0.00',
-          mode: m.mode || 'installed', status: m.status || r.action, fulfilled: !!fulfilledNow, when,
+          mode: m.mode || 'installed', status: m.status || r.action,
+          fulfilled: !!fulfilledNow, paid: !!paidNow, pay_method: m.pay_method || (byKey[key] && byKey[key].pay_method) || '', when,
         };
       } else {
         if (rowPrice > (parseFloat(byKey[key].net_price) || 0)) byKey[key].net_price = rowPrice.toFixed(2);
         if (fulfilledNow) byKey[key].fulfilled = true;
+        if (paidNow) { byKey[key].paid = true; if (m.pay_method) byKey[key].pay_method = m.pay_method; }
       }
     }
     const items = Object.values(byKey).sort((a, b) => b.when - a.when);
     const total = items.reduce((s, x) => s + (parseFloat(x.net_price) || 0), 0);
-    return { statusCode: 200, body: JSON.stringify({ success: true, count: items.length, total: total.toFixed(2), items }) };
+    // unpaid_total = what the office invoice should ADD (paid add-ons are already
+    // collected via Stripe/cash and must not be re-billed on the job invoice).
+    const unpaidTotal = items.filter((x) => !x.paid).reduce((s, x) => s + (parseFloat(x.net_price) || 0), 0);
+    return { statusCode: 200, body: JSON.stringify({ success: true, count: items.length, total: total.toFixed(2), unpaid_total: unpaidTotal.toFixed(2), items }) };
   } catch (err) {
     return { statusCode: 200, body: JSON.stringify({ success: false, error: err.message, count: 0, total: '0.00', items: [] }) };
   }

@@ -48,6 +48,10 @@ exports.handler = async function (event) {
     // off the job so it never gets billed or credited. Keyed job_id+addon_key so
     // addons-pending + the invoice worksheet drop it.
     const isVoid = status === 'voided';
+    // paid = the money is already collected (card via Stripe, or cash/check the
+    // tech took on site) — so the office invoice worksheet must NOT re-bill it.
+    const paid = b.paid === true || String(b.paid) === 'true';
+    const pay_method = paid ? String(b.pay_method || 'card') : '';
     // Credit the tech only at fulfillment. Prefer an explicit technician_id from
     // the caller (office board knows it), else resolve from the job record.
     let technician_id = parseInt(b.technician_id, 10) || 0;
@@ -67,6 +71,8 @@ exports.handler = async function (event) {
         technician_id: technician_id || null,
         mode: mode,
         status: status,
+        paid: paid || undefined,
+        pay_method: pay_method || undefined,
         voided_by: isVoid ? (parseInt(b.technician_id, 10) || null) : undefined,
         void_reason: isVoid ? String(b.reason || 'customer mistake') : undefined,
         source: String(b.source || 'customer_portal'),

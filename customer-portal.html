@@ -1250,10 +1250,11 @@
       '<div class="dn">' + escapeHtml(deal.name) + '</div>' +
       '<div class="dp"><span class="was">$' + deal.normal + '</span>$' + deal.sale + '</div>' +
       '<div class="dd">' + escapeHtml(deal.pitch) + '</div>' +
-      '<button id="dealBtn">Yes — add it to my visit</button>';
-    const b = $('dealBtn');
+      '<button id="dealPayBtn" style="background:#127a4a">💳 Pay now · $' + deal.sale + '</button>' +
+      '<button id="dealBtn" style="background:#fff;color:#127a4a;border:1px solid #bfe3cf;margin-top:6px">Add it to my visit — pay at the door</button>';
     // Tech still earns their normal cut for the work, even on a deal week.
     const dealCut = (AntAddons.get(deal.key) || {}).tech_cut || 0;
+    const b = $('dealBtn');
     if (b) b.onclick = async () => {
       if (b.classList.contains('claimed')) return;
       b.disabled = true; b.textContent = 'Adding…';
@@ -1263,9 +1264,27 @@
           body: JSON.stringify({ job_id: JOB_ID, addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', price: deal.sale, discount: (deal.normal - deal.sale), tech_cut: dealCut, source: 'weekly_deal' }),
         });
         const d = await r.json();
-        if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; }
+        if (d && d.success) { b.classList.add('claimed'); b.textContent = "✓ Got it — we'll make time on your visit"; const pb = $('dealPayBtn'); if (pb) { pb.disabled = true; pb.style.display = 'none'; } }
         else { b.disabled = false; b.textContent = 'Try again'; }
       } catch (_) { b.disabled = false; b.textContent = 'Try again'; }
+    };
+    // 💳 Pay now — Stripe addon checkout for the deal price (card/Apple Pay).
+    const pb = $('dealPayBtn');
+    if (pb) pb.onclick = async () => {
+      pb.disabled = true; pb.textContent = 'Opening secure checkout…';
+      try {
+        const pr = await fetch('/.netlify/functions/create-stripe-payment-link', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: JOB_ID, amount_cents: Math.round(deal.sale * 100),
+            description: deal.name + ' (weekly deal)', kind: 'addon',
+            metadata: { addon_key: 'weekly_' + deal.key, name: deal.name + ' (weekly deal)', mode: 'installed', tech_cut: dealCut, source: 'weekly_deal' },
+          }),
+        });
+        const pd = await pr.json();
+        if (pd && pd.ok && pd.url && !pd.placeholder) { window.location.href = pd.url; return; }
+        pb.disabled = false; pb.textContent = '💳 Pay now · $' + deal.sale;
+      } catch (_) { pb.disabled = false; pb.textContent = '💳 Pay now · $' + deal.sale; }
     };
   }
 
@@ -1381,34 +1400,42 @@
             '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="0" data-disc="0" data-cut="0" data-inquire="1" data-mode="inquire">Ask us about it</button></div>';
         }
         const net = Math.max(0, a.price - (a.discount || 0));
+        // 💳 Pay now (charges the NET price up front, card/Apple Pay) — for
+        // customers who'd rather settle it now. data-mode="pay" → Stripe addon
+        // checkout (not warranty-gated). Sibling "add to my visit" = pay at the door.
+        const payNow = '<button class="addon-add" style="background:#127a4a" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + net + '" data-disc="0" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="pay">💳 Pay now · $' + net + '</button>';
         if (a.ship_price) {
-          // Dual option: we install (tech earns) OR ship-only / you install (cheaper).
+          // Options: pay now (install) · install + pay at the door · ship-only/you install.
           return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
             '<div class="addon-pitch">' + pitch + '</div>' +
-            '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">We install it · $' + net + '</button>' +
+            payNow +
+            '<button class="addon-add" style="background:#fff;color:#127a4a;border:1px solid #bfe3cf;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">Add to my visit — pay at the door · $' + net + '</button>' +
             '<button class="addon-add" style="background:#fff;color:#1f6fed;border:1px solid #cfe0ff;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.ship_price + '" data-disc="0" data-cut="' + (a.ship_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="ship">Just ship it · $' + a.ship_price + ' + tax <span style="opacity:.8">(you install)</span></button></div>';
         }
         return head + '<div class="addon-price"><span class="was">$' + a.price + '</span>$' + net + '</div></div>' +
           '<div class="addon-pitch">' + pitch + '</div>' +
-          '<button class="addon-add" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">Add it · save $' + (a.discount || 0) + '</button></div>';
+          payNow +
+          '<button class="addon-add" style="background:#fff;color:#127a4a;border:1px solid #bfe3cf;margin-top:6px" data-key="' + a.key + '" data-name="' + nm + '" data-price="' + a.price + '" data-disc="' + (a.discount || 0) + '" data-cut="' + (a.tech_cut || 0) + '" data-cost="' + (a.cost || 0) + '" data-mode="installed">Add to my visit — pay at the door · $' + net + '</button></div>';
       }).join('');
     el.querySelectorAll('.addon-add').forEach(btn => {
       btn.onclick = async () => {
         if (btn.classList.contains('added')) return;
         const mode = btn.dataset.mode || 'installed';
         const isInquire = mode === 'inquire';
-        // Ship-only is a pay-now purchase: open Stripe checkout. Payment success
-        // records + fulfills it (verify-payment). If Stripe isn't configured we
-        // fall through to just logging the request for the office to handle.
-        if (mode === 'ship') {
+        // Ship-only AND "Pay now" are pay-now purchases: open Stripe checkout.
+        // Payment success records + fulfills it (verify-payment). If Stripe isn't
+        // configured we fall through to just logging the request for the office.
+        if (mode === 'ship' || mode === 'pay') {
           btn.disabled = true; btn.textContent = 'Opening secure checkout…';
           try {
+            const payMode = mode === 'ship' ? 'ship' : 'installed';
+            const desc = mode === 'ship' ? (btn.dataset.name + ' (shipped to you)') : btn.dataset.name;
             const pr = await fetch('/.netlify/functions/create-stripe-payment-link', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 job_id: JOB_ID, amount_cents: Math.round(parseFloat(btn.dataset.price) * 100),
-                description: btn.dataset.name + ' (shipped to you)', kind: 'addon',
-                metadata: { addon_key: btn.dataset.key, name: btn.dataset.name, mode: 'ship', tech_cut: btn.dataset.cut, cost: btn.dataset.cost, source: 'customer_portal' },
+                description: desc, kind: 'addon',
+                metadata: { addon_key: btn.dataset.key, name: btn.dataset.name, mode: payMode, tech_cut: btn.dataset.cut, cost: btn.dataset.cost, source: 'customer_portal' },
               }),
             });
             const pd = await pr.json();
