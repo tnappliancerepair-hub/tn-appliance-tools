@@ -440,6 +440,18 @@ function render(){
         <div id="pay-body"></div>
       </div>
 
+      <div class="card" id="takepay-card">
+        <h3>💳 Take a payment</h3>
+        <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">For anything the customer pays out of pocket — diagnostic fee, an add-on, the repair. Charge a card right here (hand them the phone for Apple Pay), or text them a link.</div>
+        <label style="font-size:12px;color:var(--dim)">What's it for?</label>
+        <input id="tp-note" placeholder="e.g. coil cleaning, diagnostic fee" style="width:100%;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;margin:4px 0 9px">
+        <label style="font-size:12px;color:var(--dim)">Amount ($)</label>
+        <input id="tp-amt" inputmode="decimal" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 11px">
+        <button class="btn primary" id="tp-charge" style="width:100%;background:#127a4a;margin-bottom:8px">💳 Charge a card now</button>
+        <button class="btn" id="tp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text them a pay link</button>
+        <div id="tp-note-out" style="font-size:12.5px;margin-top:9px"></div>
+      </div>
+
       <div class="card" id="ant-tdr-live" style="display:none"></div>
 
       <div class="card">
@@ -549,6 +561,7 @@ function wireActions(){
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
   renderCustomerAddons();
+  wireTakePayment();
   mountConvo();
   applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
   loadPayment();             // self-pay jobs: let the tech text the customer a card-pay link from the field
@@ -689,6 +702,37 @@ async function custAddonAction(row,status,opts){
       setTimeout(renderCustomerAddons, 900); // drops the row (now fulfilled/voided)
     } else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'failed'); row.querySelectorAll('button').forEach(x=>x.disabled=false); }
   }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button').forEach(x=>x.disabled=false); }
+}
+
+// ── 💳 Take a payment (on-the-spot, any job incl. warranty) ────
+// The everyday "the customer is paying me now" tool. Charges via Stripe
+// kind:'addon' (NOT warranty-gated) so it works on warranty jobs too.
+function wireTakePayment(){
+  const charge=document.getElementById('tp-charge'), txt=document.getElementById('tp-text');
+  if(charge) charge.onclick=()=>takePayment('charge');
+  if(txt) txt.onclick=()=>takePayment('text');
+}
+async function takePayment(how){
+  const out=document.getElementById('tp-note-out');
+  const amt=parseFloat(String((document.getElementById('tp-amt')||{}).value||'').replace(/[^0-9.]/g,''));
+  const note=String((document.getElementById('tp-note')||{}).value||'').trim() || 'Service payment';
+  if(!amt||amt<=0){ if(out){ out.style.color='#c2691c'; out.textContent='Enter the amount first.'; } const i=document.getElementById('tp-amt'); if(i)i.focus(); return; }
+  const ch=document.getElementById('tp-charge'), tx=document.getElementById('tp-text');
+  if(ch) ch.disabled=true; if(tx) tx.disabled=true;
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent=how==='charge'?'Opening secure checkout…':'Texting the customer a pay link…'; }
+  try{
+    const r=await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:JOB_ID, amount_cents:Math.round(amt*100), description:note, kind:'addon',
+        metadata:{ addon_key:'tech_charge', name:note, mode:'service', technician_id:String(TECH_ID||''), source:'tech_collect' } })});
+    const d=await r.json();
+    if(!(d&&d.ok&&d.url&&!d.placeholder)){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ '+((d&&d.error)||'could not start payment'); } if(ch)ch.disabled=false; if(tx)tx.disabled=false; return; }
+    if(how==='charge'){ window.location.href=d.url; return; } // same-tab = reliable on mobile; hand them the phone
+    // text: send the customer the checkout link
+    const sr=await xanoPost('send_customer_payment_link',{job_id:JOB_ID,url:d.url,amount:amt.toFixed(2),note:note}).catch(()=>null);
+    if(sr&&(sr.success||sr.sent)){ if(out){ out.style.color='#127a4a'; out.innerHTML='✅ Pay link texted — <b>$'+amt.toFixed(2)+'</b> for '+esc(note)+'.'; } }
+    else { if(out){ out.style.color='#127a4a'; out.innerHTML='Link ready — <a href="'+esc(d.url)+'" target="_blank" rel="noopener" style="font-weight:800">open it here</a> or copy to send. (Auto-text not available on this job.)'; } }
+    if(tx) tx.disabled=false;
+  }catch(_){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ connection error — try again.'; } if(ch)ch.disabled=false; if(tx)tx.disabled=false; }
 }
 
 // 🔁 ServicePower dispatch status push — SHADOW by default (servicepower-push.js logs what
