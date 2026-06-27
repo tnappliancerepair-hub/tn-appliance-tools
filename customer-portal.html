@@ -745,6 +745,28 @@
     if (hero && hero.parentNode) hero.parentNode.insertBefore(banner, hero);
   }
 
+  // Drop the waiver banner the moment the customer returns already-signed. They
+  // tap Sign → waiver.html → sign → come BACK to the portal (browser back / tab
+  // refocus), but the portal still had the pre-sign job data, so the banner
+  // lingered ("it asked me to sign AGAIN after I signed"). On return, re-check the
+  // waiver status (no-auth endpoint) and remove the banner if it's now signed.
+  function refreshWaiverState() {
+    if (!JOB_ID) return;
+    fetch(`${XANO_BASE}/get_waiver_status?job_id=${encodeURIComponent(JOB_ID)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const signed = !!(d && (d.waiver_signed === true || (d.waiver_signed_at && Number(d.waiver_signed_at) > 0)));
+        if (!signed) return;
+        WAIVER_SIGNED = true;
+        if (jobData && jobData.job) jobData.job.waiver_signed_at = d.waiver_signed_at || Date.now();
+        const b = document.getElementById('waiverBanner'); if (b) b.remove();
+        try { hideWaiverModal(); } catch (_) {}
+      })
+      .catch(() => {});
+  }
+  window.addEventListener('pageshow', refreshWaiverState);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshWaiverState(); });
+
   function queueAvailSave() {
     updateAvailStatus('Saving…');
     clearTimeout(availSaveTimer);
