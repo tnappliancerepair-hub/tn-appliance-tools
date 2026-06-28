@@ -37,6 +37,14 @@ So both inputs the engine needs: **customer availability ✓ (intake)** + **tech
 (the interview — the one missing piece)**. With both, the engine just **clusters customers onto the
 days that tech is available** and adds them to his day. Everyone wins, everyone's informed.
 
+## ✅ BUILT 2026-06-28 — the tech-interview assistant (path A)
+- Vapi assistant **"Ant — Tech Setup"** id `ec2be4b8-c1c4-4c68-a7ea-d44f7d63a3e6` (inbound voice copied).
+- Conducts the in-depth interview + tells the tech: "want more work, tell me" + "running behind, I'll notify customers & help."
+- Saves via `save_tech_profile` tool → `tech-interview-tool.js` → event_log `tech_profile_v1` → read by `get-tech-profile`.
+- Control (vapi-admin, secret-gated): `?action=setup_tech_interview[&update_id=]` (create/update prompt) · `?action=interview_call&to=+1...&assistant_id=ec2be4b8-...&tech_id=N&tech_first=Name` (place the call).
+- Profile store: `set-tech-profile` / `get-tech-profile` (live, empty). Roster: Jimmy 615-967-1304, Andre 504-909-9413, Lee 615-829-1654, John 813-352-7686, Teddy 615-485-5795.
+- **NEXT:** test-call Teddy → tune her → call the crew → wire profile (hard filter + soft score) into the scheduler.
+
 ## So the build reduces to:
 1. **Tech profiles** (the interview) — the only missing INPUT.
 2. **Clustering / auto-place** honoring customer availability (have it) + tech profile (wire it).
