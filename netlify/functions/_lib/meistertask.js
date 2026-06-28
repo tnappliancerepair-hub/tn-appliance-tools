@@ -7,16 +7,19 @@
 //   API docs: https://developers.meister.co / https://www.meistertask.com/api
 'use strict';
 
-const { getSecret } = require('./secrets');
+const { getSecretPreferVault } = require('./secrets');
 
 const BASE = (process.env.MEISTERTASK_API_BASE || 'https://www.meistertask.com/api').replace(/\/+$/, '');
 let _token = null;
 
+// Vault-FIRST + cache-only-when-found: getSecretPreferVault never caches the
+// empty case, so a token added to the vault after a cold probe is picked up on
+// the next warm call (a plain getSecret would cache '' and stay "not configured").
 async function token() {
   if (_token) return _token;
-  const t = await getSecret('MEISTERTASK_TOKEN');
-  _token = String(t || '');
-  return _token;
+  const t = String((await getSecretPreferVault('MEISTERTASK_TOKEN')) || '');
+  if (t) _token = t;
+  return t;
 }
 
 async function isConfigured() { return !!(await token()); }
