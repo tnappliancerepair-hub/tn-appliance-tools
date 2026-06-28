@@ -362,6 +362,67 @@ const DEFAULT_JOB_DURATION_MS = 2 * 60 * 60 * 1000;
 // slot picking.
 const SLOT_OFFSET_FROM_START_MS = 60 * 60 * 1000;
 
+// ---- tech-profile wiring (the interview → the schedule) -------------------
+// The "Ant — Tech Setup" interview saves an event_log tech_profile_v1 row read
+// by the get-tech-profile endpoint. computeOffer pulls it and honors HARD
+// constraints (recurring days off, earliest/latest hours, good-day stop cap,
+// avoided appliances/areas) absolutely, and optimizes the slot toward SOFT
+// prefs (ideal start). No profile yet → returns null → behaves exactly as before.
+const DOW_FULL = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const normList = (a) => (Array.isArray(a) ? a : []).map((s) => String(s || '').trim().toLowerCase()).filter(Boolean);
+function matchAny(value, list) {
+  const v = String(value || '').toLowerCase();
+  if (!v || !list || !list.length) return false;
+  return list.some((x) => x && (v.includes(x) || x.includes(v)));
+}
+// free-text day list ("Tuesdays", "tue", "Sun") → Set of full lowercase names
+function normDays(arr) {
+  const out = new Set();
+  for (const x of (arr || [])) {
+    const s = String(x || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+    if (s.length < 3) continue;
+    for (const d of DOW_FULL) if (d.startsWith(s.slice(0, 3))) out.add(d);
+  }
+  return out;
+}
+// free-text clock ("8", "8am", "8:30", "5 pm", "17:00", "noon") → minutes-from-midnight or null
+function parseClock(raw) {
+  let s = String(raw || '').trim().toLowerCase();
+  if (!s) return null;
+  if (s === 'noon') return 12 * 60;
+  if (s === 'midnight') return 0;
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?/.exec(s);
+  if (!m) return null;
+  let h = Number(m[1]); const min = Number(m[2] || 0); const ap = m[3];
+  if (!Number.isFinite(h) || h > 23 || min > 59) return null;
+  if (ap) { const pm = ap[0] === 'p'; if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12; }
+  return h * 60 + min;
+}
+function profileConstraints(profile) {
+  if (!profile || typeof profile !== 'object') return null;
+  const stops = Number(profile.stops_max);
+  return {
+    daysOff: normDays(profile.days_off_hard),
+    startMin: parseClock(profile.start_earliest),
+    endMin: parseClock(profile.end_latest),
+    idealMin: parseClock(profile.start_ideal),
+    stopsMax: Number.isFinite(stops) && stops > 0 ? stops : null,
+    areasAvoid: normList(profile.areas_avoid),
+    appliancesAvoid: normList(profile.appliance_avoid),
+  };
+}
+// Pull the tech's saved profile via the deployed get-tech-profile endpoint.
+// Best-effort: any failure / no profile → null (engine runs unconstrained).
+async function fetchTechProfile(techId) {
+  try {
+    const sig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined;
+    const r = await fetch(`${config.netlifyFunctionsBase}/get-tech-profile?tech_id=${techId}`, sig ? { signal: sig } : {});
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.found && j.profile) ? j.profile : null;
+  } catch (_) { return null; }
+}
+
 // Compute a route-smart, AVAILABILITY-HONORING offer WITHOUT booking — the
 // self-scheduling autopilot's brain. Mirrors tryAutoBook's tech-resolution +
 // day-walk, but (a) filters days by the CUSTOMER's stated availability and
@@ -383,6 +444,19 @@ async function computeOffer({ jobId, job, customer, job_address, ctx }) {
   const techId = Number(result.technician_id);
   if (techId === 1) return { success: false, reason: 'fallback_to_owner' };
 
+  // Tech PROFILE (the interview). HARD constraints honored absolutely; SOFT
+  // prefs optimized around. No profile yet → pc=null → unconstrained (old behavior).
+  const profile = await fetchTechProfile(techId);
+  const pc = profileConstraints(profile);
+
+  // HARD: he told us he avoids this appliance or this area → don't auto-place
+  // him here. Fall through to the exception/owner path instead of forcing it.
+  const cityForAvoid = (job_address?.service_city || customer?.city || '').trim();
+  if (pc && matchAny(job.appliance_type, pc.appliancesAvoid))
+    return { success: false, reason: 'tech_avoids_appliance', technician_id: techId };
+  if (pc && matchAny(cityForAvoid, pc.areasAvoid))
+    return { success: false, reason: 'tech_avoids_area', technician_id: techId };
+
   // Customer availability — the constraint the old auto-booker ignored.
   // getAutoScheduleContext doesn't return the pref text, so fetch the full job.
   let prefText = job.customer_preference_text || '';
@@ -403,16 +477,19 @@ async function computeOffer({ jobId, job, customer, job_address, ctx }) {
     ? new Date(partsEtaDate.getTime() + 24 * 3600 * 1000)
     : new Date(Date.now() + 24 * 3600 * 1000);
 
+  const jobDurMin = DEFAULT_JOB_DURATION_MS / 60000;
   for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
     const candidate = new Date(baseDate.getTime() + dayOffset * 24 * 3600 * 1000);
     const dowName = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' });
     if (dowName === 'Sat' || dowName === 'Sun') continue;   // weekend default off
     if (!avail.dayOk(candidate)) continue;                  // ← CUSTOMER availability
 
+    const dowLower = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).toLowerCase();
+    if (pc && pc.daysOff.has(dowLower)) continue;           // ← TECH hard day off (e.g. Tue = wife's day off)
+
     const ymd = candidate.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
     const dayStartMs = chicagoMidnightMs(ymd);
     const dayEndMs = dayStartMs + 24 * 3600 * 1000;
-    const dowLower = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).toLowerCase();
 
     let constraints;
     try {
@@ -422,18 +499,35 @@ async function computeOffer({ jobId, job, customer, job_address, ctx }) {
     } catch (_) { continue; }
     if (!constraints || !constraints.success) continue;
     if (constraints.full_day_off) continue;
-    const maxJobs = constraints.max_jobs_per_day || SYSTEM_MAX_JOBS_PER_DAY;
+
+    // HARD: capacity — system/tech cap, tightened by his stated good-day max.
+    let maxJobs = constraints.max_jobs_per_day || SYSTEM_MAX_JOBS_PER_DAY;
+    if (pc && pc.stopsMax) maxJobs = Math.min(maxJobs, pc.stopsMax);
     if (constraints.existing_job_count >= maxJobs) continue;
 
-    const wStart = parseHHMM(constraints.working_start || '08:00');
-    if (wStart == null) continue;
-    const slotMin = wStart + (SLOT_OFFSET_FROM_START_MS / 60000);
+    // HARD: working window — tightened by his stated earliest start / latest end.
+    let startMinW = parseHHMM(constraints.working_start || '08:00');
+    let endMinW = parseHHMM(constraints.working_end || '16:00');
+    if (startMinW == null) continue;
+    if (endMinW == null) endMinW = startMinW + 8 * 60;
+    if (pc && pc.startMin != null) startMinW = Math.max(startMinW, pc.startMin);
+    if (pc && pc.endMin != null) endMinW = Math.min(endMinW, pc.endMin);
+    if (endMinW - startMinW < jobDurMin) continue;          // his window too tight that day
+
+    // SOFT: aim for his ideal start; otherwise a 1h runway after he starts.
+    // Always keep the job inside the (possibly tightened) window.
+    let slotMin = (pc && pc.idealMin != null) ? Math.max(startMinW, pc.idealMin) : startMinW + (SLOT_OFFSET_FROM_START_MS / 60000);
+    if (slotMin + jobDurMin > endMinW) slotMin = endMinW - jobDurMin;
+    if (slotMin < startMinW) slotMin = startMinW;
     const startMs = dayStartMs + slotMin * 60 * 1000;
 
-    const why = avail.hasConstraints ? 'fits his day + your availability' : 'fits his day';
-    return { success: true, technician_id: techId, scheduled_start_ms: startMs, why, availability: avail.describe() };
+    const bits = [];
+    if (avail.hasConstraints) bits.push('your availability');
+    if (pc && (pc.daysOff.size || pc.startMin != null || pc.endMin != null || pc.stopsMax || pc.idealMin != null)) bits.push('his profile');
+    const why = bits.length ? ('fits his day + ' + bits.join(' + ')) : 'fits his day';
+    return { success: true, technician_id: techId, scheduled_start_ms: startMs, why, availability: avail.describe(), profile_applied: !!pc };
   }
-  return { success: false, reason: 'no_open_day' };
+  return { success: false, reason: 'no_open_day', technician_id: techId, profile_applied: !!pc };
 }
 
 // Try to deterministically auto-book the job. Returns

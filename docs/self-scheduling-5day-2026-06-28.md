@@ -60,6 +60,18 @@ days that tech is available** and adds them to his day. Everyone wins, everyone'
 - Profile store: `set-tech-profile` / `get-tech-profile` (live, empty). Roster: Jimmy 615-967-1304, Andre 504-909-9413, Lee 615-829-1654, John 813-352-7686, Teddy 615-485-5795.
 - **NEXT:** test-call Teddy → tune her → call the crew → wire profile (hard filter + soft score) into the scheduler.
 
+## ✅ DONE — tech profile WIRED into computeOffer (the centerpiece)
+`job_intake_complete.js computeOffer()` now fetches each tech's interview profile
+(via the deployed `get-tech-profile` endpoint) and honors it:
+- **HARD (filter, never violated):** recurring days off (`days_off_hard`, e.g. Tue=wife's day),
+  earliest-start / latest-end hours (`start_earliest`/`end_latest`), good-day stop cap
+  (`stops_max`), avoided appliances (`appliance_avoid`) + avoided areas (`areas_avoid`) →
+  the last two fall through to the exception/owner path instead of forcing a bad placement.
+- **SOFT (optimized):** slot aims for his `start_ideal`, kept inside the (tightened) window.
+- **Graceful:** no profile yet → unconstrained, identical to old behavior. Helpers unit-tested
+  (day-name + clock parsing, 12/12). Ships dark; lights up per-tech as interviews land.
+- **Deploy:** Mac `git pull origin main` + `launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`.
+
 ## So the build reduces to:
 1. **Tech profiles** (the interview) — the only missing INPUT.
 2. **Clustering / auto-place** honoring customer availability (have it) + tech profile (wire it).
