@@ -56,14 +56,39 @@ async function buildCurrent() {
   return rows;
 }
 
-function smsDigest(d) {
-  const fmt = (x) => `${x.q} ${x.prev != null ? x.prev + '→' + x.pos : '#' + x.pos}`;
+// page-level coverage: how many distinct pages Google actually SURFACES (a clean
+// proxy for "indexed + getting shown"). 90-day window catches the long tail.
+// surfacing = pages with >=1 impression; page1 = pages averaging position <=10.
+async function buildPages() {
+  const res = await gsc.query({ days: 90, dimensions: ['page'], rowLimit: 5000 });
+  const rows = res.rows || [];
+  let surfacing = 0, page1 = 0, impressions = 0;
+  for (const r of rows) {
+    const i = r.impressions || 0;
+    if (i > 0) surfacing++;
+    if (i > 0 && (r.position || 99) <= 10) page1++;
+    impressions += i;
+  }
+  return { surfacing, page1, impressions };
+}
+
+function pagesLine(pages, prev) {
+  if (!pages) return null;
+  const dS = prev ? pages.surfacing - prev.surfacing : null;
+  const dP = prev ? pages.page1 - prev.page1 : null;
+  const sgn = (n) => (n > 0 ? `+${n}` : `${n}`);
+  return `🔎 Pages on Google: ${pages.surfacing} surfacing${dS != null ? ` (${sgn(dS)})` : ''} · ${pages.page1} on page 1${dP != null ? ` (${sgn(dP)})` : ''}`;
+}
+
+function smsDigest(d, pages, prevPages) {
   const lines = ['📊 Weekly SEO movement — TN Appliance'];
+  const pl = pagesLine(pages, prevPages);
+  if (pl) lines.push(pl);
   if (d.climbers.length) lines.push('📈 Up: ' + d.climbers.slice(0, 5).map((x) => `${x.q} ${x.prev}→${x.pos} (+${x.delta})`).join(' · '));
   if (d.newPage1.length) lines.push('⭐ New page-1: ' + d.newPage1.slice(0, 4).map((x) => `${x.q} #${x.pos}`).join(' · '));
   if (d.striking.length) lines.push('🎯 Almost pg-1: ' + d.striking.slice(0, 4).map((x) => `${x.q} #${x.pos}`).join(' · '));
   if (d.slippers.length) lines.push('📉 Slipped: ' + d.slippers.slice(0, 3).map((x) => `${x.q} ${x.prev}→${x.pos}`).join(' · '));
-  if (lines.length === 1) lines.push('No tracked repair terms with impressions yet this week.');
+  if (!d.climbers.length && !d.newPage1.length && !d.striking.length && !d.slippers.length) lines.push('No tracked repair-term movement this week — watch the pages-on-Google count climb as new pages index.');
   return lines.join('\n');
 }
 
@@ -77,8 +102,9 @@ exports.handler = async function (event) {
     const snaps = await recentSnapshots(2);
     if (!snaps.length) return json(200, { ok: true, note: 'no snapshots yet — the weekly run will create the first one.' });
     const cur = meta(snaps[0]);
-    const prevMap = snaps[1] ? posMap(meta(snaps[1])) : {};
-    return json(200, { ok: true, latest_date: cur.date, prior_date: snaps[1] ? meta(snaps[1]).date : null, tracked: (cur.rows || []).length, movement: diff(cur.rows || [], prevMap), all: cur.rows });
+    const prevSnap = snaps[1] ? meta(snaps[1]) : null;
+    const prevMap = prevSnap ? posMap(prevSnap) : {};
+    return json(200, { ok: true, latest_date: cur.date, prior_date: prevSnap ? prevSnap.date : null, tracked: (cur.rows || []).length, pages: cur.pages || null, pages_prior: prevSnap ? (prevSnap.pages || null) : null, movement: diff(cur.rows || [], prevMap), all: cur.rows });
   }
 
   // ----- RUN: snapshot + diff + SMS (weekly; skip if <5 days since last unless force) -----
@@ -95,14 +121,17 @@ exports.handler = async function (event) {
 
   let curRows;
   try { curRows = await buildCurrent(); } catch (e) { return json(200, { ok: false, error: 'gsc query failed: ' + String((e && e.message) || e) }); }
+  let pages = null;
+  try { pages = await buildPages(); } catch (_) {}
   const prevMap = last ? posMap(last) : {};
+  const prevPages = last ? (last.pages || null) : null;
   const movement = diff(curRows, prevMap);
 
-  // write the new snapshot
-  try { await crud.logEvent(ACTION, { date: todayCT(), rows: curRows }); } catch (_) {}
+  // write the new snapshot (rows = ranking terms, pages = coverage counts)
+  try { await crud.logEvent(ACTION, { date: todayCT(), rows: curRows, pages }); } catch (_) {}
 
-  const digest = smsDigest(movement);
+  const digest = smsDigest(movement, pages, prevPages);
   let sms = 'skipped';
   if (!q.dryrun) { try { await sendSms(OWNER, digest, 'owner', 'gsc_weekly_report'); sms = 'sent'; } catch (e) { sms = String(e.message || e); } }
-  return json(200, { ok: true, snapshot_date: todayCT(), tracked: curRows.length, sms, digest, movement });
+  return json(200, { ok: true, snapshot_date: todayCT(), tracked: curRows.length, pages, pages_prior: prevPages, sms, digest, movement });
 };
