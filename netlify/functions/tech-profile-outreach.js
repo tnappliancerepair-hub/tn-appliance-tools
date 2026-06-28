@@ -23,13 +23,22 @@ function msg(name, techId) {
     + `Can't talk when I call, or want to start now? Tap here anytime: ${link}. And anytime you want more work or a day off, just reply right here. Teddy's got your back.`;
 }
 
+function toE164(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') return '+' + d;
+  if (d.length === 10) return '+1' + d;
+  if (String(raw || '').trim().startsWith('+')) return String(raw).trim();
+  return d ? '+' + d : '';
+}
 async function sendTelnyx(to, text) {
   const key = (await getSecret('TELNYX_API_KEY')) || process.env.TELNYX_API_KEY;
   if (!key) return { ok: false, error: 'no TELNYX_API_KEY (env or vault)' };
+  const dest = toE164(to);
+  if (!dest) return { ok: false, error: 'bad phone: ' + to };
   try {
     const r = await fetch('https://api.telnyx.com/v2/messages', {
       method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: TELNYX_FROM, to, text }),
+      body: JSON.stringify({ from: TELNYX_FROM, to: dest, text }),
     });
     const j = await r.json().catch(() => ({}));
     return { ok: r.ok, status: r.status, id: (j.data && j.data.id) || null, error: r.ok ? null : (JSON.stringify(j).slice(0, 160)) };
@@ -58,7 +67,7 @@ exports.handler = async function (event) {
   const targets = rows.filter((t) => ACTIVE[t.id] && (!only || t.id === only) && (includeOwner || t.id !== 1) && String(t.phone || '').replace(/\D/g, '').length >= 10);
   if (b.dry_run) {
     const keyPresent = !!((await getSecret('TELNYX_API_KEY')) || process.env.TELNYX_API_KEY);
-    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry_run: true, telnyx_key_present: keyPresent, would_send: targets.map((t) => ({ tech: ACTIVE[t.id], id: t.id, phone_last4: String(t.phone).replace(/\D/g, '').slice(-4) })), sample_message: targets[0] ? msg(ACTIVE[targets[0].id], targets[0].id) : null }) };
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry_run: true, telnyx_key_present: keyPresent, would_send: targets.map((t) => ({ tech: ACTIVE[t.id], id: t.id, to: toE164(t.phone), phone_last4: String(t.phone).replace(/\D/g, '').slice(-4) })), sample_message: targets[0] ? msg(ACTIVE[targets[0].id], targets[0].id) : null }) };
   }
 
   const results = [];
