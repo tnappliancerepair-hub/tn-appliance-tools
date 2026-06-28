@@ -31,6 +31,8 @@ function buildProfile(b) {
     life_windows: p.life_windows || '',
     // geography
     home_base: p.home_base || '', areas_pref: arr(p.areas_pref), drive_radius_mi: p.drive_radius_mi != null ? Number(p.drive_radius_mi) : null, areas_avoid: arr(p.areas_avoid),
+    // last stop of the day (a routing lever — end the day where he wants to be)
+    last_stop_where: p.last_stop_where || '', last_stop_why: p.last_stop_why || '',
     // skills
     appliance_strong: arr(p.appliance_strong), appliance_avoid: arr(p.appliance_avoid),
     // the human bar

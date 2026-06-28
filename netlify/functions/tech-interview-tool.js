@@ -27,6 +27,7 @@ function buildProfile(p) {
     day_prefs_soft: p.day_prefs_soft || '', weekends: p.weekends || '',
     life_windows: p.life_windows || '',
     home_base: p.home_base || '', areas_pref: arr(p.areas_pref), drive_radius_mi: p.drive_radius_mi != null && p.drive_radius_mi !== '' ? Number(p.drive_radius_mi) : null, areas_avoid: arr(p.areas_avoid),
+    last_stop_where: p.last_stop_where || '', last_stop_why: p.last_stop_why || '',
     appliance_strong: arr(p.appliance_strong), appliance_avoid: arr(p.appliance_avoid),
     great_day: p.great_day || '', frustrating: p.frustrating || '',
     notes: p.notes || '',
