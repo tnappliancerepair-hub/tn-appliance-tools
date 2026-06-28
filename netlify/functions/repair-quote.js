@@ -70,19 +70,24 @@ exports.handler = async function (event) {
           ? `National avg ~$${nat} → customer saves ~$${save} (${out.savings_pct}%) with us`
           : `Includes premium OEM part — still fair vs the ~$${nat} national average`;
       }
-      // 💰 Amazon-equivalent BUDGET tier — estimated from OEM cost (aftermarket ≈ 60%).
-      // Flaunt the second option; clearly an ESTIMATE (tech confirms via Auto-find parts).
+      // 💰 Amazon-equivalent BUDGET tier — SAME flat labor, different part.
+      // When the Amazon Business API is live, pass the REAL cost via ?amazon_cost=
+      // → real price + margin (cost ÷ .75), estimated:false. Until then, estimate
+      // from OEM cost (aftermarket ≈ 60%), clearly flagged. The labor never changes.
       if (part.found && part.cost > 0) {
-        const AMAZON_RATIO = 0.6;
-        const estCost = Math.round(part.cost * AMAZON_RATIO * 100) / 100;
-        const estSell = sellPrice(estCost, { warranty });
-        const estTotal = Math.round((r.flat_labor + estSell) * 100) / 100;
-        const amzSave = nat ? Math.round((nat - estTotal) * 100) / 100 : null;
+        const realAmzCost = q.amazon_cost != null && q.amazon_cost !== '' ? Number(q.amazon_cost) : null;
+        const isReal = realAmzCost != null && !isNaN(realAmzCost) && realAmzCost > 0;
+        const amzCost = isReal ? Math.round(realAmzCost * 100) / 100 : Math.round(part.cost * 0.6 * 100) / 100; // 0.6 = aftermarket estimate ratio (placeholder until API)
+        const amzSell = sellPrice(amzCost, { warranty }); // same cost÷.75 margin rule
+        const amzTotal = Math.round((r.flat_labor + amzSell) * 100) / 100; // SAME flat labor
+        const amzSave = nat ? Math.round((nat - amzTotal) * 100) / 100 : null;
+        const tag = isReal ? '' : ' est';
         out.amazon_est = {
-          estimated: true, est_part_cost: estCost, sell: estSell, total: estTotal,
+          estimated: !isReal, source: isReal ? 'amazon_api' : 'estimate_0.6x_oem',
+          part_cost: amzCost, sell: amzSell, total: amzTotal,
           savings_vs_national: amzSave,
           savings_pct: (nat && amzSave > 0) ? Math.round((amzSave / nat) * 100) : 0,
-          note: `Budget (Amazon-equivalent) ~$${estTotal} est${(nat && amzSave > 0) ? ` — saves ~$${amzSave} (${Math.round((amzSave / nat) * 100)}%) vs national` : ''}. Confirm exact part with Auto-find.`,
+          note: `Budget (Amazon-equivalent) ~$${amzTotal}${tag}${(nat && amzSave > 0) ? ` — saves ~$${amzSave} (${Math.round((amzSave / nat) * 100)}%) vs national` : ''}.${isReal ? '' : ' Confirm exact part with Auto-find.'}`,
         };
       }
     } else {

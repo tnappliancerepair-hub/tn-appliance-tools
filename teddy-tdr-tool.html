@@ -1142,7 +1142,9 @@ async function menuPick(key){
         '✅ <b>OEM:</b> $'+d.flat_labor+' labor + $'+Number(d.part.sell).toFixed(0)+' part = <b>$'+oemTotal+'</b>'+oemSave+'<br>';
       if(amz){
         var amzSave=(amz.savings_vs_national&&amz.savings_vs_national>0)?(' <span style="color:#7CFFA0">save ~$'+Math.round(amz.savings_vs_national)+' ('+amz.savings_pct+'%)</span>'):'';
-        tiers += '💰 <b>Amazon-equivalent:</b> ~<b>$'+Number(amz.total).toFixed(0)+'</b> est'+amzSave+' <span style="opacity:.7;font-size:11px">(budget option nobody else offers — confirm exact part w/ Auto-find)</span>';
+        var amzEst = amz.estimated ? ' est' : '';
+        var amzTail = amz.estimated ? ' <span style="opacity:.7;font-size:11px">(budget option nobody else offers — confirm exact part w/ Auto-find)</span>' : ' <span style="opacity:.7;font-size:11px">(live Amazon price + margin — budget option nobody else offers)</span>';
+        tiers += '💰 <b>Amazon-equivalent:</b> ~<b>$'+Number(amz.total).toFixed(0)+'</b>'+amzEst+amzSave+amzTail;
       }
       tiers += '</div>';
       menuPreview = '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;line-height:1.5;">'+
