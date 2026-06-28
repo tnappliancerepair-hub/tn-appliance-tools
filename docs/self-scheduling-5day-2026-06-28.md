@@ -2,14 +2,31 @@
 
 GOAL: self-scheduling LIVE in 5 days.
 
-## ⚡ MODEL EVOLUTION (Teddy 2026-06-28) — AUTO-PLACE, don't offer
-The regular path is no longer "offer to the tech." It's:
-1. An **AI assistant CALLS the customer** (outbound), builds a **fresh profile**, and captures their **preferred schedule**.
-2. Ant **adds the job directly to the best tech's schedule**, doing its best to honor the customer's preference (+ route, capacity, parts-ETA). No tech acceptance step — it's PLACED.
-3. Customer gets the confirmation + live window.
-**Exception path only (occasional/tricky):** if it can't be made to fit, THEN call/offer it to the tech → he can send it back → offer others → owner last resort. The old tech-offer/escalate engine becomes this EXCEPTION handler, not the regular flow.
+## ⚡ MODEL EVOLUTION (Teddy 2026-06-28) — TECH-PROFILE FIRST, then AUTO-PLACE
+The foundation is understanding each TECH deeply, then building him a day he can run with pride.
 
-(Supersedes the "offer-first, tech is decision-maker" model in self-scheduling-autopilot-plan-2026-06-19.md.)
+**0. FOUNDATION — AI interviews each TECH (the new centerpiece).**
+   An AI assistant **calls each technician** and does an **in-depth interview** to build a rich
+   profile of how he wants to work + his real life:
+   - working style: starts early vs works late; preferred hours
+   - hard constraints: e.g. **Tuesdays off (wife's day off)**, no 7am (kids/school), day-off patterns
+   - soft preferences: prefers afternoons, certain areas, machines he's strongest on
+   - what a good, productive day looks like TO HIM
+   Stored as a structured tech profile — **hard constraints honored absolutely, soft prefs optimized around.**
+
+**1. REGULAR PATH — auto-place from the profiles.**
+   Ant uses each tech's profile (+ route/cluster density, capacity, parts-ETA, customer need)
+   to **auto-build each guy a productive day and ADD the jobs to his schedule.** No offer.
+   Goal: a day he can do **with pride** because it's built around his real life.
+
+**2. TECH NOTIFY:** auto-added to his dashboard + **heads-up text with a 'flag a problem' tap** (Teddy's pick).
+
+**3. EXCEPTION ONLY (occasional/tricky):** if a job can't fit a profile cleanly → call/offer the
+   tech → he can send it back → offer others → owner last resort. The old tech-offer/escalate
+   engine becomes this EXCEPTION handler, not the regular flow.
+
+(Supersedes BOTH the "offer-first" model in self-scheduling-autopilot-plan-2026-06-19.md AND the
+earlier mis-read "call the customer" version — the call is to the TECH, to build his profile.)
 
 ## Reality check — most of it is already BUILT (why 5 days is real)
 - ✅ Offer engine `tech_job_offer.js` (shadow/live, unit-tested) + `grab.html` book chain + `APPOINTMENT_SCHEDULED` → customer confirm.
