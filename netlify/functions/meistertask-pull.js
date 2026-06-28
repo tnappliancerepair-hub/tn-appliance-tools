@@ -32,6 +32,25 @@ exports.handler = async function (event) {
     }
   }
 
+  // ?debug=<projectId> -> raw shapes so we can see why tasks came back empty
+  if (q.debug) {
+    const pid = q.debug;
+    const out = { project: pid };
+    const tryGet = async (label, fn) => { try { const v = await fn(); out[label] = { ok: true, count: Array.isArray(v) ? v.length : (v ? 1 : 0), sample: Array.isArray(v) ? v.slice(0, 2) : v }; } catch (e) { out[label] = { ok: false, error: String((e && e.message) || e) }; } };
+    await tryGet('sections', () => mt.mtGet(`/projects/${pid}/sections`));
+    await tryGet('project_tasks_nostatus', () => mt.mtGet(`/projects/${pid}/tasks`));
+    await tryGet('project_tasks_statusall', () => mt.mtGet(`/projects/${pid}/tasks`, { status: 'all' }));
+    // if we got a section, probe its tasks both ways
+    const secs = out.sections && out.sections.sample;
+    const sid = Array.isArray(secs) && secs[0] && secs[0].id;
+    if (sid) {
+      await tryGet('section_tasks_nostatus', () => mt.mtGet(`/sections/${sid}/tasks`));
+      await tryGet('section_tasks_statusall', () => mt.mtGet(`/sections/${sid}/tasks`, { status: 'all' }));
+      out.section_probed = sid;
+    }
+    return { statusCode: 200, body: JSON.stringify(out, null, 2) };
+  }
+
   if (q.probe) {
     try {
       const projects = await mt.listProjects();
