@@ -88,11 +88,13 @@ async function mtList(path, { perPage = 50, maxPages = 2000, params = {} } = {})
 }
 
 // ---- domain helpers -------------------------------------------------------
+// NOTE: do NOT pass status=all — MeisterTask 400s on it ("Invalid value for
+// status parameter"). The default (no status) already returns EVERY task,
+// including archived/completed (status 8) and open (status 1) — verified live.
 const listProjects = () => mtList('/projects', { params: { status: 'all' } });
 const listSections = (projectId) => mtList(`/projects/${projectId}/sections`);
-// tasks: try section-scoped first (most reliable); status=all to include done/archived.
-const listSectionTasks = (sectionId) => mtList(`/sections/${sectionId}/tasks`, { params: { status: 'all' } });
-const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`, { params: { status: 'all' } });
+const listSectionTasks = (sectionId) => mtList(`/sections/${sectionId}/tasks`);
+const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
 
 module.exports = {
