@@ -18,9 +18,9 @@ const ACTIVE = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 function msg(name, techId) {
   const link = `${SITE}/tech-schedule.html?tech_id=${techId}`;
   return `Hey ${name}, it's Ant 🐜 from TN Appliance — happy to help, and my whole job is to make your days easier. `
-    + `Teddy's setting me up to build your schedule around YOUR life: your hours, any regular days off (and why), the areas you want, where you like your last stop, and what a great day looks like. `
-    + `Take 2 min to tell me and I'll honor all of it. Want more work? I'll fill your day. Running behind? I'll text your customers and help. `
-    + `You stay focused on getting the jobs done great — I'll handle the rest. And anytime you want more work or need a day off, just reply right here and I've got it. Teddy's got your back and wants you to win. Talk to me here: ${link}`;
+    + `Heads up: I'm going to give you a quick call in a bit to set your schedule up around YOUR life — your hours, any regular days off, the areas you want, where you like your last stop — and to show you everything I can do for you out in the field. `
+    + `It's all about helping YOU win: want more work, I'll fill your day; running behind or stuck on a job, call or text me and I'll jump in. You focus on getting the jobs done great — I'll handle the rest. `
+    + `Can't talk when I call, or want to start now? Tap here anytime: ${link}. And anytime you want more work or a day off, just reply right here. Teddy's got your back.`;
 }
 
 async function sendTelnyx(to, text) {
