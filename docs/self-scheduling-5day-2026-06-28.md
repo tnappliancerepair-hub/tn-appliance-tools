@@ -2,6 +2,12 @@
 
 GOAL: self-scheduling LIVE in 5 days.
 
+## ❤️ THE WHY (Teddy 2026-06-28)
+**These techs are Teddy's people — family and close friends.** John = his cousin, Jimmy = his
+brother, Andre = his son, Lee = his friend. *"These are my people. If they win, we will."*
+Build every tech-facing thing with that in mind: this is taking care of the people he loves, not
+managing staff. Warmth, respect, and genuine help are the bar — not efficiency for its own sake.
+
 ## 🌟 GOVERNING PRINCIPLE (Teddy 2026-06-28)
 **"No more surprises — it's all communication, with a positive attitude."**
 Everything in this system is PROACTIVE, TRANSPARENT, POSITIVE communication. Nobody —
