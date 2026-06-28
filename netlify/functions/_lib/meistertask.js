@@ -24,22 +24,52 @@ async function token() {
 
 async function isConfigured() { return !!(await token()); }
 
-// GET with bearer auth + a timeout. Returns parsed JSON (array or object).
-async function mtGet(path, params) {
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
+// Global min-interval throttle so we never burst into MeisterTask's rate limit.
+// ~1.1s between calls (≈55/min) — tune via MEISTERTASK_PACE_MS.
+const PACE_MS = Number(process.env.MEISTERTASK_PACE_MS || 1100);
+let _lastCallAt = 0;
+async function pace() {
+  const wait = _lastCallAt + PACE_MS - Date.now();
+  if (wait > 0) await sleep(wait);
+  _lastCallAt = Date.now();
+}
+
+// GET with bearer auth + a timeout, with 429 backoff. MeisterTask rate-limits
+// the API aggressively ("429 Retry later"), so on a 429 we honor Retry-After
+// (or exp-backoff) and retry a handful of times before giving up.
+async function mtGet(path, params, { retries = 5 } = {}) {
   const tok = await token();
   if (!tok) throw new Error('meistertask_not_configured (set MEISTERTASK_TOKEN)');
   const qs = params ? ('?' + new URLSearchParams(params).toString()) : '';
-  const r = await fetch(`${BASE}${path}${qs}`, {
-    headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
-    signal: AbortSignal.timeout(25000),
-  });
-  if (!r.ok) {
-    const body = await r.text().catch(() => '');
-    const e = new Error(`meistertask ${path} -> ${r.status}: ${body.slice(0, 180)}`);
-    e.status = r.status;
-    throw e;
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    await pace();
+    let r;
+    try {
+      r = await fetch(`${BASE}${path}${qs}`, {
+        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
+        signal: AbortSignal.timeout(25000),
+      });
+    } catch (e) { lastErr = e; await sleep(1500 * (attempt + 1)); continue; }
+    if (r.status === 429) {
+      const ra = Number(r.headers.get('retry-after'));
+      const waitMs = ra > 0 ? (ra * 1000 + 500) : Math.min(30000, 2000 * Math.pow(2, attempt));
+      lastErr = new Error(`meistertask ${path} -> 429 (waited ${waitMs}ms)`);
+      lastErr.status = 429;
+      if (attempt < retries) { await sleep(waitMs); continue; }
+      throw lastErr;
+    }
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      const e = new Error(`meistertask ${path} -> ${r.status}: ${body.slice(0, 180)}`);
+      e.status = r.status;
+      throw e;
+    }
+    return r.json();
   }
-  return r.json();
+  throw lastErr || new Error('meistertask ' + path + ' failed');
 }
 
 // Page through a list endpoint (MeisterTask supports ?page & ?per_page; a short
