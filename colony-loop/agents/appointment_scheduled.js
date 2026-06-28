@@ -11,10 +11,11 @@ const MIN_LEAD_MS = 60 * 60 * 1000; // don't bother if the appointment is <1h aw
 // office still needs to book a real time before notifying the customer.
 const SKIP_CUSTOMER_SOURCES = new Set(['tech_claim']);
 
-// Sources where the tech doesn't need a confirmation SMS (they did the
-// action themselves). Office-driven and external-driven sources get the
-// tech SMS so the tech sees "ant confirms" on their phone.
-const SKIP_TECH_SOURCES = new Set(['tech_claim', 'tech_pick', 'tech_reschedule']);
+// Sources where the tech doesn't need a confirmation SMS here. tech_* did the
+// action themselves; 'auto_place' sends its own warm heads-up from the
+// autopilot (job_intake_complete) so we suppress the generic one to avoid a
+// double-text. Other office/external sources still get the "ant confirms" text.
+const SKIP_TECH_SOURCES = new Set(['tech_claim', 'tech_pick', 'tech_reschedule', 'auto_place']);
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator',

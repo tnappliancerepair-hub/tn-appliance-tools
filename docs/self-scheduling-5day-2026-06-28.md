@@ -60,6 +60,19 @@ days that tech is available** and adds them to his day. Everyone wins, everyone'
 - Profile store: `set-tech-profile` / `get-tech-profile` (live, empty). Roster: Jimmy 615-967-1304, Andre 504-909-9413, Lee 615-829-1654, John 813-352-7686, Teddy 615-485-5795.
 - **NEXT:** test-call Teddy → tune her → call the crew → wire profile (hard filter + soft score) into the scheduler.
 
+## ✅ MODEL LOCKED — AUTO-PLACE (Teddy 2026-06-28): "just add it to their schedule"
+**No offer, no acceptance, no escalate sweep.** If a job fits the tech's profile +
+the customer's availability + doesn't exceed his stop cap → Ant **adds it to his day**
+and sends a warm heads-up ("added to your {day}, built around your schedule, reply if it
+doesn't work"). Customer confirmation rides the existing APPOINTMENT_SCHEDULED chain.
+If nothing fits → fall through to the exception path (legacy 3-options to Teddy).
+**This RETIRES the offer/escalate model — the wait-then-escalate sweep is NO LONGER NEEDED.**
+- `job_intake_complete.js`: autopilot path books directly (`source='auto_place'`) instead of
+  emitting TECH_JOB_OFFER. Shadow (`techOfferEnabled`, `techOfferLive` off) = preview to Teddy,
+  places nothing. Live (`techOfferLive` on) = books + warm tech heads-up + 1-line Teddy FYI.
+- `appointment_scheduled.js`: skips its generic tech text for `auto_place` (autopilot sends the
+  warm one) — customer confirm still fires.
+
 ## ✅ DONE — tech profile WIRED into computeOffer (the centerpiece)
 `job_intake_complete.js computeOffer()` now fetches each tech's interview profile
 (via the deployed `get-tech-profile` endpoint) and honors it:

@@ -14,9 +14,18 @@
 //      → SMS "ready except waiting on parts" + emit WAITING_FOR_PARTS
 //   5. pending propose row already on queue for this job → silent skip
 //   6. green-light → enqueue propose w/ priority=1 + SMS Teddy w/ city
-import { toOwner } from '../sms.js';
+import { toOwner, toTech } from '../sms.js';
 import { config } from '../config.js';
 import { parseAvailability } from '../availability.js';
+
+// Tech contact (phone + first name) for the auto-place heads-up. Best-effort.
+async function techContact(ctx, jobId, techId) {
+  try {
+    const c = await ctx.xano.getTechAssignmentContext(jobId, techId);
+    const t = (c && (c.tech || c.technician)) || {};
+    return { phone: String(t.phone || '').trim(), first: String(t.first_name || t.name || '').trim() };
+  } catch (_) { return { phone: '', first: '' }; }
+}
 
 const APPLIANCE_NICE = {
   refrigerator: 'refrigerator',
@@ -242,35 +251,59 @@ export async function run(signal, ctx) {
   // pulled in if no one takes it. Falls through to the legacy paths only when
   // an offer can't be computed (no zip/tech/open day). Retires the 3-options
   // model when on. Gated by TECH_OFFER_ENABLED (default off → no change).
+  // AUTO-PLACE (Teddy 2026-06-28): no offer, no acceptance, no escalate. If a
+  // job fits the tech's profile + the customer's availability + his stop cap,
+  // computeOffer returns the slot and we just ADD it to his day, with a warm
+  // heads-up ('reply if it doesn't work'). Customer confirmation rides the
+  // existing APPOINTMENT_SCHEDULED chain. Gated: techOfferEnabled = autopilot on
+  // (shadow), techOfferLive = actually place. If nothing fits → fall through to
+  // the exception path (legacy 3-options to Teddy).
   if (config.techOfferEnabled) {
     const offer = await computeOffer({ jobId, job, customer, job_address, ctx });
     if (offer.success) {
-      await xano.emitSignal({
-        signal_type: 'TECH_JOB_OFFER',
-        signal_strength: 60,
-        payload: {
-          job_id: jobId,
-          technician_id: offer.technician_id,
-          scheduled_start_ms: offer.scheduled_start_ms,
-          label: [custName, appliance, city].filter(Boolean).join(' '),
-          why: offer.why,
-          customer_first: custName,
-          appliance,
-          city,
-          source_signal_id: signal.id,
-        },
-      });
-      const meta = {
-        job_id: jobId, outcome: 'tech_offer_emitted',
-        technician_id: offer.technician_id, scheduled_start_ms: offer.scheduled_start_ms,
-        availability: offer.availability,
-      };
-      await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
-      log('try_auto_schedule_handled', meta);
-      return { success: true, action: 'tech_offer_emitted', job_id: jobId, technician_id: offer.technician_id };
+      const startMs = offer.scheduled_start_ms;
+      const day = new Date(startMs).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+      const tmStr = new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+      const lbl = [custName, appliance, city].filter(Boolean).join(', ');
+
+      // SHADOW: preview to Teddy, place nothing, ping nobody.
+      if (!config.techOfferLive) {
+        await toOwner(`[ant shadow] Would auto-place job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, {
+          action: 'auto_place_shadow', job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, source_signal_id: signal.id,
+        });
+        const meta = { job_id: jobId, outcome: 'auto_place_shadow', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied };
+        await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+        log('try_auto_schedule_handled', meta);
+        return { success: true, action: 'auto_place_shadow', job_id: jobId, technician_id: offer.technician_id };
+      }
+
+      // LIVE: add it to his schedule.
+      let bookRes;
+      try {
+        bookRes = await xano.autoBookExistingJob({ job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, scheduled_end_ms: startMs + DEFAULT_JOB_DURATION_MS, source: 'auto_place' });
+      } catch (err) { bookRes = { success: false, error: String(err.message || err) }; }
+
+      if (bookRes && bookRes.success) {
+        // Warm heads-up to the tech (appointment_scheduled.js skips its generic
+        // tech text for source 'auto_place' so this is the only one he gets).
+        const { phone, first } = await techContact(ctx, jobId, offer.technician_id);
+        let techRes = 'no_phone';
+        if (phone) {
+          const body = `Hey ${first || 'there'} — added a stop to your ${day}: ${custName}, ${appliance} in ${city}, ~${tmStr} CT. Built around your schedule + the customer's availability. If it doesn't work for you, just reply here and I'll fix it — no problem. 🐜`;
+          try { const r = await toTech(phone, body, { action: 'auto_place_tech_heads_up', job_id: jobId, technician_id: offer.technician_id, source: 'auto_place' }); techRes = (r && r.success) ? 'ok' : 'maybe_failed'; } catch (_) { techRes = 'maybe_failed'; }
+        }
+        await toOwner(`[ant] Auto-placed job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, { action: 'auto_place_owner_fyi', job_id: jobId, technician_id: offer.technician_id, source_signal_id: signal.id });
+        const meta = { job_id: jobId, outcome: 'auto_placed', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied, tech_heads_up: techRes };
+        await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+        log('try_auto_schedule_handled', meta);
+        return { success: true, action: 'auto_placed', job_id: jobId, technician_id: offer.technician_id };
+      }
+      log('try_auto_schedule_autoplace_book_failed', { job_id: jobId, detail: JSON.stringify(bookRes).slice(0, 180) });
+      // book failed → fall through to legacy propose
+    } else {
+      log('try_auto_schedule_offer_falling_back', { job_id: jobId, reason: offer.reason, detail: offer.detail });
     }
-    log('try_auto_schedule_offer_falling_back', { job_id: jobId, reason: offer.reason, detail: offer.detail });
-    // fall through to legacy auto-book / propose
+    // nothing fit (or book failed) → fall through to the exception path below
   }
 
   if (config.autoBookEnabled) {
