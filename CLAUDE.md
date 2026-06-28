@@ -1,5 +1,36 @@
 # Appliance Ant
 
+## 🗓️🐜 2026-06-28 (Sun) — SELF-SCHEDULING AUTOPILOT (5-DAY GOAL) + MEISTERTASK 8-YR HISTORY MINED + FLAT-RATE MENU (READ FIRST)
+
+Big day with Teddy. Two arcs: (1) mined 8 years of MeisterTask history → flat-rate repair menu + national benchmark; (2) **THE headline — self-scheduling autopilot, Teddy set a hard 5-DAY GOAL.** All committed/pushed to `main` (branch `claude/shop-automation-setup-r9wzpm`). Plan docs: `docs/self-scheduling-5day-2026-06-28.md` (the live plan + principle + why), `docs/tech-profile-interview-2026-06-28.md`, `docs/flaw-fix-gameplan-2026-06-28.md`, `docs/national-price-benchmark-2026-06-28.md`, `docs/job-history-wide-view-and-flaws-2026-06-28.md`, `docs/flat-rate-repair-menu-2026-06-28.md`, `docs/api-followup-drafts-2026-06-28.md`.
+
+### 🗓️ SELF-SCHEDULING AUTOPILOT — 5-DAY GOAL (Teddy: "self scheduling in 5 days. That's the goal we will achieve")
+**Model EVOLVED this session (supersedes the offer-first plan in `self-scheduling-autopilot-plan-2026-06-19.md`):**
+- **Customer side = ALREADY DONE.** Availability captured at Quick Check intake (`customer_preference_text`) + shown openly on the daily dashboard (built 6/27). No customer call needed.
+- **Tech side = the one missing INPUT → build a rich profile per tech.** Teddy's call: an **AI assistant CALLS each tech** for an in-depth interview about how he wants to work.
+- **Regular path = AUTO-PLACE, not offer:** engine clusters customers onto the days that tech is available (honoring customer availability + tech profile + route/capacity/parts-ETA) and **adds the job to his day.** No tech acceptance step. Tech gets **auto-add + heads-up text + 'flag a problem' tap** (Teddy's pick).
+- **Tech-offer/escalate engine = DEMOTED to the EXCEPTION handler** (only when a job can't fit cleanly → call/offer tech → send back → others → owner).
+- **🌟 GOVERNING PRINCIPLE: "No more surprises — it's all communication, with a positive attitude."** Every feature must pass it.
+- **❤️ THE WHY: the techs are Teddy's people** — John=cousin, Jimmy=brother, Andre=son, Lee=friend. *"These are my people. If they win, we will."* Build tech-facing tools with that care.
+
+**✅ BUILT TODAY — the tech-interview Vapi assistant ("Ant — Tech Setup", id `ec2be4b8-c1c4-4c68-a7ea-d44f7d63a3e6`, inbound voice copied):**
+- She calls each tech, in-depth interview: hours (start/end), good-day size + max stops + pace, **hard recurring days off + WHY** (e.g. Tue=wife's day off), life windows (kids/school/lunch), **ALL areas he wants + ALL areas he doesn't**, **last stop of the day where + WHY** (route his final job there — near home/kid pickup), strong/avoid appliances, weekends, great-vs-frustrating day.
+- Relationship layer (Teddy's adds): "want more work any day, I'll fill it" · **"I can adjust your schedule as the day goes on"** · **"want pings when today's callers pop up in your area? I'll slot them in"** (`wants_area_pings`) · "running behind, I'll text your next customers + help" · **personal note: "Teddy will do everything he can to help you succeed."**
+- Saves via `save_tech_profile` tool → `tech-interview-tool.js` → event_log `tech_profile_v1` → read by `get-tech-profile.js`. Capture store: `set-tech-profile.js` (admin-gated). Profile carries hard (filter-out) + soft (score) fields incl. `last_stop_where/why`, `areas_pref`/`areas_avoid`, `wants_more_work`, `wants_area_pings`.
+- **Control (vapi-admin, secret-gated):** `?action=setup_tech_interview[&update_id=ec2be4b8-...]` (create/update prompt+tool) · `?action=interview_call&to=+1...&assistant_id=ec2be4b8-...&tech_id=N&tech_first=Name` (place the call).
+- **NEXT (resume here): test-call Teddy** (`interview_call` to +16154855795, tech_id 1) → he hears her → tune → **call the crew** (Jimmy 615-967-1304, Andre 504-909-9413, Lee 615-829-1654, John 813-352-7686) → **WIRE profiles into the scheduler** (computeOffer in `job_intake_complete.js`: hard days-off/hours/areas FILTER, soft prefs SCORE, last-stop routing) → shadow (`TECH_OFFER_ENABLED=true`, Mac pull+kickstart) → live (`TECH_OFFER_LIVE=true`). v1 offer engine is built+dark; auto-place reuses the same book chain. **The one remaining engine gap if we keep an exception path: the wait-then-escalate sweep (not built).**
+
+### 📋 FLAT-RATE REPAIR MENU + NATIONAL BENCHMARK (LIVE in Teddy Tool)
+- Mined the MeisterTask comment archive → common repairs → `_lib/repair-menu.js` price-book + `repair-quote.js` engine (`?menu` · `?repair=KEY&part=#` = flat labor + LIVE Marcone cost÷.75 = all-in · `?amazon_cost=` = real Amazon tier). Wired into `teddy-tdr-tool.html` (📋 Flat-Rate Repair Menu picker).
+- **Prices = "meet in the middle"** of historical vs national (Teddy's call): ice maker $140, compressor $525, control board $205, evap fan $170, washer motor $205, etc. Bearing held $300, service call $95. (`NAT_AVG` map drives the value-proof.)
+- **Value-proof in the quote (Teddy: "national avg should look absurd — they know the secret"):** 🏚️ national avg framed as the hidden-markup price → ✅ OUR OEM tier → 💰 **Amazon-equivalent budget tier** (estimate now at 0.6×OEM; **flips to real price+margin when Amazon API lands via `?amazon_cost=`**, same flat labor). Honest: premium-OEM-part case drops the fake "save" claim. **NEXT (offered): mirror onto customer-facing `cash-tdr-customer.html` 4-option view.**
+
+### 🗄️ MEISTERTASK HISTORY — FULLY MINED (8,115 cards, comments + analysis)
+- All comments pulled (externally-driven `grindbatch` loop, Netlify bg was flaky). Analyzers: `meistertask-comment-analysis` (labor $75→80/hr OLD warranty rate — **Teddy: today = ~$100/hr but priced BY THE JOB, flat per repair**), `meistertask-volume` (appliance×symptom: ice maker = #1 repair, 1,239), `meistertask-flaws` (**scheduling churn 23% = #1 flaw**), `meistertask-repair-price` (per-repair $). Stored as `_*` rows in Supabase `meistertask_archive`.
+- **Flaw-fix method = measure→connect→shadow→live→watch, biggest leak first (scheduling churn → the autopilot above). Most fixes already half-built.**
+
+### 🔑 API STATUS (Teddy asked confidence): platform approvals (Google Ads/GBP/Amazon) likely-but-timing-uncertain; Frontdoor/AHS (BD-gated) slowest. Everything build-ready; nothing blocks (manual/estimate paths exist). **Follow-up nudge drafts ready** in `docs/api-followup-drafts-2026-06-28.md` (Amazon production + Frontdoor sandbox-auth) — Teddy to send from the matching inboxes.
+
 ## 💳🛡️ 2026-06-27 (Sat, Day 2) — PAYMENTS LIVE + the PROTECTION SYSTEM (waiver · hoses · floors · before/after video) (READ FIRST)
 
 Continuation with Teddy. Theme: get payments wired+tested, then build a lean "protect ourselves" system (his biggest worry: every year several "your machine leaked, buy me a new floor" threats). Everything LIVE on `main` (Netlify) unless noted. **Guiding rule Teddy repeated all day: KEEP IT SIMPLE — no 10-page waiver, don't bloat the intake flow he loves.**
