@@ -881,6 +881,8 @@ function renderReview() {
 
     '<div class="section-card"><div id="ant-brain"></div></div>' +
 
+    repairMenuCardHtml() +
+
     '<div class="section-card">' +
       '<div class="section-title">Part Recommendations</div>' +
 
@@ -1085,6 +1087,56 @@ async function marconePrice(){
     const inStock=r.in_stock&&r.total_qty>0;
     out.innerHTML='<span style="color:'+(inStock?'#127a4a':'#c2691c')+';font-weight:700">🔧 Marcone $'+Number(r.cost).toFixed(2)+' · '+(inStock?(r.total_qty+' in stock'+((r.eta_days!=null&&r.eta_days<=1)?' · ships now':'')):'out of stock')+'</span>'+(r.description?(' <span style="color:var(--muted)">— '+escapeHtml(r.description)+'</span>'):'');
   }catch(e){ out.innerHTML='<span style="color:#c2691c">Lookup failed — try again.</span>'; }
+}
+
+// ── 📋 FLAT-RATE REPAIR MENU — pick a common repair → flat labor fills in +
+// the part auto-prices live from Marcone (cost ÷ .75). All-in shown as a preview.
+let REPAIR_MENU = null;     // cached price-book from repair-quote?menu=1
+let menuPreview = '';        // last quote preview HTML (survives re-render)
+function repairMenuCardHtml(){
+  if(!REPAIR_MENU || REPAIR_MENU==='loading'){ loadRepairMenu(); return '<div class="section-card"><div class="section-title">📋 Flat-Rate Repair Menu</div><div style="font-size:12.5px;color:var(--muted)">Loading menu…</div></div>'; }
+  const groups = REPAIR_MENU.groups || {};
+  let opts = '<option value="">— pick a common repair —</option>';
+  Object.keys(groups).forEach(function(appl){
+    opts += '<optgroup label="'+escapeHtml(appl)+'">';
+    (groups[appl]||[]).forEach(function(r){ opts += '<option value="'+escapeAttr(r.key)+'">'+escapeHtml(r.label)+' — $'+r.flat_labor+' labor'+(r.confirm?' ⚠️':'')+'</option>'; });
+    opts += '</optgroup>';
+  });
+  return '<div class="section-card">'+
+    '<div class="section-title">📋 Flat-Rate Repair Menu</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px;">Pick the repair → flat labor fills in + the part auto-prices from Marcone (cost ÷ .75). ⚠️ = verify the flat price (heavy job).</div>'+
+    '<select onchange="menuPick(this.value)" style="width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:11px 12px;font-size:14px;font-family:var(--sans);outline:none;">'+opts+'</select>'+
+    '<div id="repairMenuPreview" style="font-size:13px;margin-top:10px;">'+(menuPreview||'')+'</div>'+
+  '</div>';
+}
+function loadRepairMenu(){
+  if(REPAIR_MENU==='loading') return; REPAIR_MENU='loading';
+  fetch('/.netlify/functions/repair-quote?menu=1').then(function(r){return r.json();}).then(function(d){ REPAIR_MENU=(d&&d.ok)?d:{groups:{}}; render(); }).catch(function(){ REPAIR_MENU={groups:{}}; render(); });
+}
+async function menuPick(key){
+  if(!key || !REPAIR_MENU || REPAIR_MENU==='loading') return;
+  let r=null; const g=REPAIR_MENU.groups||{}; Object.keys(g).forEach(function(a){ (g[a]||[]).forEach(function(x){ if(x.key===key) r=x; }); });
+  if(!r) return;
+  state.laborEstimate = '$'+r.flat_labor;
+  const part = (r.common_parts && r.common_parts[0]) || '';
+  if(part) state.oemPartNumber = part;
+  menuPreview = '<span style="color:var(--muted)">Pricing '+(part?escapeHtml(part):'…')+' live from Marcone…</span>';
+  render();
+  try{
+    const d = await fetch('/.netlify/functions/repair-quote?repair='+encodeURIComponent(key)+(part?('&part='+encodeURIComponent(part)):'')).then(function(x){return x.json();});
+    if(d && d.part && d.part.found){
+      state.oemPrice = '$'+Number(d.part.cost).toFixed(2);
+      menuPreview = '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;line-height:1.5;">'+
+        '<b>'+escapeHtml(d.label)+'</b><br>'+
+        '$'+d.flat_labor+' labor + $'+Number(d.part.sell).toFixed(2)+' part <span style="color:var(--muted)">('+escapeHtml(d.part.part_number)+(d.part.description?(' — '+escapeHtml(d.part.description)):'')+')</span> = <b style="color:#127a4a">$'+Number(d.total).toFixed(2)+' all-in</b>'+
+        (d.confirm?'<br><span style="color:#c2691c">⚠️ heavy job — confirm the flat labor is right</span>':'')+
+        '<br><span style="color:var(--muted);font-size:11.5px">Filled the OEM part #, our cost, and flat labor below — adjust if this machine\'s different.</span></div>';
+    } else {
+      state.oemPrice = '';
+      menuPreview = '<div style="color:#c2691c">Flat labor $'+r.flat_labor+' set. Couldn\'t auto-price '+(part?escapeHtml(part):'the part')+' — enter the part # + cost below.</div>';
+    }
+  }catch(e){ menuPreview = '<div style="color:#c2691c">Flat labor set; live part lookup failed — enter the part below.</div>'; }
+  render();
 }
 
 // ── One-tap Marcone order → DROP-SHIP TO THE CUSTOMER (never a tech/office).
