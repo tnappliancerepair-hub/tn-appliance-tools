@@ -49,6 +49,7 @@ exports.handler = async function (event) {
           technician_id: techId, name: a.name || a.tech_first_name || '',
           profile: buildProfile(a),
           wants_more_work: a.wants_more_work === true || String(a.wants_more_work).toLowerCase() === 'true' || String(a.wants_more_work).toLowerCase() === 'yes',
+          wants_area_pings: a.wants_area_pings === true || String(a.wants_area_pings).toLowerCase() === 'true' || String(a.wants_area_pings).toLowerCase() === 'yes',
           source: 'ant_interview', at_ms: Date.now(),
         });
         result = "Got it — I've saved your profile and I'll build your days around that.";
