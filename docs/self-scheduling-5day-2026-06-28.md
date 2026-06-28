@@ -28,6 +28,20 @@ The foundation is understanding each TECH deeply, then building him a day he can
 (Supersedes BOTH the "offer-first" model in self-scheduling-autopilot-plan-2026-06-19.md AND the
 earlier mis-read "call the customer" version — the call is to the TECH, to build his profile.)
 
+## ✅ The customer side is ALREADY DONE (don't rebuild it) — Teddy 2026-06-28
+- Customer availability ("when I am / am not free") is **captured at the Quick Check intake**
+  → `customer_preference_text`. No customer call needed for scheduling.
+- It's **already shown openly on the daily dashboard** in the customer's exact words (built 6/27)
+  → tech + office are fully informed and work accordingly.
+So both inputs the engine needs: **customer availability ✓ (intake)** + **tech availability/profile
+(the interview — the one missing piece)**. With both, the engine just **clusters customers onto the
+days that tech is available** and adds them to his day. Everyone wins, everyone's informed.
+
+## So the build reduces to:
+1. **Tech profiles** (the interview) — the only missing INPUT.
+2. **Clustering / auto-place** honoring customer availability (have it) + tech profile (wire it).
+3. **Transparency** — customer preference on the dashboard (have it); add the placed-day + 'flag a problem'.
+
 ## Reality check — most of it is already BUILT (why 5 days is real)
 - ✅ Offer engine `tech_job_offer.js` (shadow/live, unit-tested) + `grab.html` book chain + `APPOINTMENT_SCHEDULED` → customer confirm.
 - ✅ `computeOffer()` fires for EVERY new job (JOB_INTAKE_COMPLETE) and **honors customer availability** (`avail.dayOk()`), tech route + capacity, and parts-ETA. (Two of the three "gaps" in the old plan are already closed.)
