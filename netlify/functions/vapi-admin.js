@@ -231,7 +231,7 @@ exports.handler = async function (event) {
     const res = q.update_id
       ? await vapi('PATCH', `/assistant/${q.update_id}`, key, body)
       : await vapi('POST', '/assistant', key, body);
-    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, assistant_id: res.json && res.json.id, name: res.json && res.json.name, error: res.ok ? null : res.json }, null, 2) };
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, assistant_id: res.json && res.json.id, name: res.json && res.json.name, prompt_len: PROMPT.length, has_practice: PROMPT.includes('PRACTICE'), error: res.ok ? null : res.json }, null, 2) };
   }
 
   // Place the tech-interview call. ?action=interview_call&to=+1...&assistant_id=<id>
