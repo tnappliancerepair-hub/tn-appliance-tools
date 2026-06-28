@@ -53,6 +53,42 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: true, sampled: out.length, with_comments: withComments, results: out }, null, 2) };
   }
 
+  // ?grindbatch=N -> SYNC: process the next N cards from the saved cursor, store
+  // their comments, advance + save the cursor, return progress. Driven in a loop
+  // from outside (reliable; sidesteps flaky Netlify background execution).
+  if (q.grindbatch) {
+    if (!(await mt.isConfigured())) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'meistertask_not_configured' }) };
+    const n = Math.min(18, Math.max(1, Number(q.grindbatch) || 12));
+    const board = q.board || '';
+    // load or init cursor
+    let state = null;
+    if (!q.restart) { try { const rs = await sb.select(TABLE, { board: 'eq._comment_state', order: 'imported_at.desc', limit: '1' }); state = rs && rs[0] && rs[0].card; } catch (_) {} }
+    if (!state || (board && state.scope !== (board || 'ALL'))) state = { scope: board || 'ALL', offset: 0, processed: 0, with_comments: 0, comments_total: 0, done: false, started_at: new Date().toISOString() };
+    if (state.done) return { statusCode: 200, body: JSON.stringify({ ok: true, done: true, state }) };
+    let page;
+    try { page = await realCardsPage(state.scope === 'ALL' ? '' : state.scope, state.offset, n); }
+    catch (e) { return { statusCode: 200, body: JSON.stringify({ ok: false, error: String((e && e.message) || e), state }) }; }
+    if (!Array.isArray(page) || !page.length) {
+      state.done = true; state.updated_at = new Date().toISOString();
+      try { await sb.del(TABLE, { board: 'eq._comment_state' }); } catch (_) {}
+      try { await sb.insert(TABLE, { board: '_comment_state', card_id: state.scope, title: 'comment_cursor', notes: '', card: state }); } catch (_) {}
+      return { statusCode: 200, body: JSON.stringify({ ok: true, done: true, state }) };
+    }
+    const store = [];
+    for (const c of page) {
+      let comments = [];
+      try { comments = await mt.listTaskComments(c.card_id); } catch (_) { comments = []; }
+      const nc = Array.isArray(comments) ? comments.length : 0;
+      state.processed++; state.offset++;
+      if (nc) { state.with_comments++; state.comments_total += nc; store.push({ board: '_comment', card_id: String(c.card_id), title: '', notes: '', card: { card_id: c.card_id, board: c.board, n: nc, comments } }); }
+    }
+    if (store.length) { try { await sb.insert(TABLE, store); } catch (e) { return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'insert: ' + String((e && e.message) || e), state }) }; } }
+    state.updated_at = new Date().toISOString();
+    try { await sb.del(TABLE, { board: 'eq._comment_state' }); } catch (_) {}
+    try { await sb.insert(TABLE, { board: '_comment_state', card_id: state.scope, title: 'comment_cursor', notes: '', card: state }); } catch (_) {}
+    return { statusCode: 200, body: JSON.stringify({ ok: true, batch: page.length, state }) };
+  }
+
   // ?grindtest=N -> run the grind logic INLINE for N cards, surfacing errors (no self-chain)
   if (q.grindtest) {
     const n = Math.min(10, Math.max(1, Number(q.grindtest) || 3));
