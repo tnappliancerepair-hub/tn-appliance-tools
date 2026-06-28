@@ -132,6 +132,108 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Create (or &update_id=) the outbound "Ant — Tech Setup" interview assistant.
+  // She calls each tech, interviews him about how he wants to work, builds his
+  // profile (save_tech_profile tool → tech-interview-tool), AND opens the ongoing
+  // relationship: tell her if you want more work any day; if you're running behind
+  // she'll notify the next customers + help. Copies inbound voice so "she" sounds
+  // like Ant.   ?action=setup_tech_interview[&update_id=<id>]
+  if (action === 'setup_tech_interview') {
+    const INBOUND_ID = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const inb = (await vapi('GET', `/assistant/${INBOUND_ID}`, key)).json || {};
+    const PROMPT = [
+      "You are Ant's scheduling assistant for TN Appliance Exchange, calling one of our technicians, {{tech_first_name}} (technician id {{technician_id}}). Your job: have a warm, genuine, IN-DEPTH conversation to learn exactly how HE wants to work, so we can build his days around his real life — a day he can run with pride. Talk like a friendly teammate, not a survey. Let him talk; follow up naturally.",
+      "",
+      "Cover all of this (conversationally, in any order):",
+      "1. Hours: what time he likes to START, how early is too early, and how late he's good to work.",
+      "2. A good day: how many stops feels like a solid full day, and what's just too many. Packed pace or steady?",
+      "3. Days off he needs on the REGULAR — and the reason (e.g. Tuesdays off because his wife is off). These are hard — we always protect them.",
+      "4. Anything to work around: kids, school pickup, lunch, standing commitments.",
+      "5. Areas he likes to stay in, his home base, and how far he'll drive on a normal day. Areas to avoid.",
+      "6. Machines/brands he's strongest on, and any he'd rather hand off.",
+      "7. Saturdays — never, sometimes, or only if it's worth it.",
+      "8. What makes a day GREAT for him, and what makes one frustrating.",
+      "",
+      "ALSO tell him two things, warmly:",
+      "- 'Any day you want MORE work, just tell me and I'll fill your day up.' Ask if he generally wants to be kept busy.",
+      "- 'And if you're ever running behind, let me know — I'll text your next customers a heads-up and help you sort it out, so you're never sweating it alone.'",
+      "",
+      "Then read his profile back to confirm ('So I've got you: start at 8, off Tuesdays for family, Murfreesboro area, strong on Samsung and LG, max 6 stops — that right?'). When he confirms, call save_tech_profile with technician_id {{technician_id}} and everything you learned. Thank him and let him know his days will now be built around this.",
+      "",
+      "Rules: keep it real and not too long. He's a busy tech. If he can't talk now, offer to call back and end politely. Never discuss customer diagnoses, parts, or pricing — this call is only about HIM and how he works. Always include technician_id {{technician_id}} when you save.",
+    ].join('\n');
+    const tool = {
+      type: 'function',
+      function: {
+        name: 'save_tech_profile',
+        description: "Save the technician's work-style + life profile so we build his schedule around it. Call once he's confirmed the read-back.",
+        parameters: {
+          type: 'object',
+          properties: {
+            technician_id: { type: 'string', description: 'The tech id (provided in call variables as technician_id).' },
+            tech_first_name: { type: 'string' },
+            start_earliest: { type: 'string', description: 'Earliest he will start (e.g. "8am").' },
+            start_ideal: { type: 'string' },
+            end_latest: { type: 'string', description: 'Latest he will work.' },
+            stops_good: { type: 'string', description: 'Comfortable stops per day.' },
+            stops_max: { type: 'string', description: 'Absolute max stops per day.' },
+            pace: { type: 'string', description: 'packed or steady.' },
+            days_off_hard: { type: 'string', description: 'Recurring HARD days off, comma-separated (e.g. "Tue").' },
+            days_off_reason: { type: 'string' },
+            day_prefs_soft: { type: 'string', description: 'Soft day preferences.' },
+            weekends: { type: 'string', description: 'never | sometimes | yes.' },
+            life_windows: { type: 'string', description: 'Kids/school/lunch/commitments to work around.' },
+            home_base: { type: 'string' },
+            areas_pref: { type: 'string', description: 'Preferred areas, comma-separated.' },
+            drive_radius_mi: { type: 'string', description: 'How far he will drive (miles).' },
+            areas_avoid: { type: 'string', description: 'Areas to avoid, comma-separated.' },
+            appliance_strong: { type: 'string', description: 'Strong appliances/brands, comma-separated.' },
+            appliance_avoid: { type: 'string', description: 'Appliances/brands to hand off, comma-separated.' },
+            weekends_note: { type: 'string' },
+            wants_more_work: { type: 'string', description: 'yes if he generally wants to be kept busy / take extra stops.' },
+            great_day: { type: 'string', description: 'What makes a day great for him.' },
+            frustrating: { type: 'string', description: 'What makes a day frustrating.' },
+            notes: { type: 'string' },
+          },
+          required: ['technician_id'],
+        },
+      },
+      server: { url: 'https://tnapplianceexchange.net/.netlify/functions/tech-interview-tool' },
+    };
+    const body = {
+      name: 'Ant — Tech Setup',
+      firstMessage: "Hey {{tech_first_name}}, it's Ant from T-N Appliance — got a few minutes? I want to set up your schedule around how YOU like to work, so your days actually fit your life. Cool if I ask you a few things?",
+      model: {
+        provider: (inb.model && inb.model.provider) || 'anthropic',
+        model: (inb.model && inb.model.model) || 'claude-sonnet-4-5-20250929',
+        messages: [{ role: 'system', content: PROMPT }],
+        tools: [tool],
+      },
+    };
+    if (inb.voice) body.voice = inb.voice;
+    if (inb.transcriber) body.transcriber = inb.transcriber;
+    body.backgroundSound = inb.backgroundSound || 'off';
+    const res = q.update_id
+      ? await vapi('PATCH', `/assistant/${q.update_id}`, key, body)
+      : await vapi('POST', '/assistant', key, body);
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, assistant_id: res.json && res.json.id, name: res.json && res.json.name, error: res.ok ? null : res.json }, null, 2) };
+  }
+
+  // Place the tech-interview call. ?action=interview_call&to=+1...&assistant_id=<id>
+  //   &tech_id=2&tech_first=Jimmy [&from_id=]
+  if (action === 'interview_call') {
+    const to = String(q.to || '').trim();
+    const assistantId = String(q.assistant_id || '').trim();
+    if (!to || !assistantId) return { statusCode: 400, body: JSON.stringify({ ok: false, error: '?to= and ?assistant_id= required' }) };
+    const fromId = String(q.from_id || 'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31').trim();
+    const callBody = {
+      assistantId, phoneNumberId: fromId, customer: { number: to },
+      assistantOverrides: { variableValues: { tech_first_name: q.tech_first || 'there', technician_id: String(q.tech_id || '0') } },
+    };
+    const res = await vapi('POST', '/call', key, callBody);
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, call_id: res.json && res.json.id, to, tech_id: q.tech_id, error: res.ok ? null : res.json }, null, 2) };
+  }
+
   // Patch an assistant's backgroundSound (kill the call-center ambiance).
   // ?action=setbg&id=<assistantId>&value=off  (value defaults to 'off')
   if (action === 'setbg') {
