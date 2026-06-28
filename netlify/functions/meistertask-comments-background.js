@@ -93,6 +93,9 @@ exports.handler = async function (event) {
       }
     }
     if (rows.length) { try { await sb.insert(TABLE, rows); } catch (_) {} }
+    // checkpoint every batch so progress is visible + a crash loses ≤1 batch
+    state.updated_at = new Date().toISOString();
+    await saveState(state);
     if (stoppedForTime) break;
   }
 
