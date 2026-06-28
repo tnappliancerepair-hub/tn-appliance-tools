@@ -1126,10 +1126,21 @@ async function menuPick(key){
     const d = await fetch('/.netlify/functions/repair-quote?repair='+encodeURIComponent(key)+(part?('&part='+encodeURIComponent(part)):'')).then(function(x){return x.json();});
     if(d && d.part && d.part.found){
       state.oemPrice = '$'+Number(d.part.cost).toFixed(2);
+      var natLine = '';
+      if(d.national_avg){
+        if(typeof d.savings_vs_national==='number' && d.savings_vs_national>=5){
+          natLine = '<div style="margin-top:7px;padding:7px 10px;background:#0f3b22;border:1px solid #1f7a3f;border-radius:7px;color:#bff0cf;">'+
+            '🇺🇸 National average: <b>$'+d.national_avg+'</b> &nbsp;·&nbsp; You: <b>$'+Number(d.total).toFixed(0)+'</b> &nbsp;→&nbsp; <b style="color:#7CFFA0">customer saves ~$'+Math.round(d.savings_vs_national)+' ('+d.savings_pct+'%)</b></div>';
+        } else {
+          natLine = '<div style="margin-top:7px;padding:7px 10px;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:var(--muted);">'+
+            '🇺🇸 National average ~$'+d.national_avg+' · premium OEM part — still fair</div>';
+        }
+      }
       menuPreview = '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;line-height:1.5;">'+
         '<b>'+escapeHtml(d.label)+'</b><br>'+
         '$'+d.flat_labor+' labor + $'+Number(d.part.sell).toFixed(2)+' part <span style="color:var(--muted)">('+escapeHtml(d.part.part_number)+(d.part.description?(' — '+escapeHtml(d.part.description)):'')+')</span> = <b style="color:#127a4a">$'+Number(d.total).toFixed(2)+' all-in</b>'+
         (d.confirm?'<br><span style="color:#c2691c">⚠️ heavy job — confirm the flat labor is right</span>':'')+
+        natLine+
         '<br><span style="color:var(--muted);font-size:11.5px">Filled the OEM part #, our cost, and flat labor below — adjust if this machine\'s different.</span></div>';
     } else {
       state.oemPrice = '';

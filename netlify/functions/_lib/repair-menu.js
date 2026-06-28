@@ -59,6 +59,19 @@ const REPAIRS = [
   { key: 'door_full', appliance: 'Any', label: 'Full door replacement', flat_labor: 150, confirm: true, common_parts: ['W11551301'] },
 ];
 
+// National ALL-IN average (parts+labor) per repair, from 2025–26 published data
+// (HomeGuide/Angi/HomeAdvisor/Fixr) — see docs/national-price-benchmark-2026-06-28.md.
+// Used to PROVE VALUE: "your price vs the national average — customer saves $X."
+const NAT_AVG = {
+  fridge_ice_maker: 260, fridge_door_gasket: 200, fridge_compressor: 975, fridge_water_line: 195,
+  fridge_water_valve: 175, fridge_evap_fan: 325, fridge_defrost: 300, fridge_temp_control: 200,
+  washer_drain_pump: 225, washer_bearing: 200, washer_door_lock: 200, washer_shocks: 225, washer_motor: 400,
+  dryer_heating_element: 230, dryer_belt: 175, dryer_thermal: 115,
+  dw_drain_pump: 175, dw_wash_pump: 275, dw_water_valve: 175, dw_supply_line: 175,
+  oven_bake_element: 250, oven_surface: 225, oven_igniter: 235,
+  control_board: 375, user_interface: 275, door_full: 300,
+};
+
 function byKey(k) { return REPAIRS.find((r) => r.key === k) || null; }
 
-module.exports = { REPAIRS, SERVICE_CALL, byKey, sellPrice };
+module.exports = { REPAIRS, SERVICE_CALL, NAT_AVG, byKey, sellPrice };

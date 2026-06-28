@@ -6,7 +6,7 @@
 //   add &warranty=1 to bill the part at cost (vendor-supplied warranty parts)
 'use strict';
 
-const { REPAIRS, SERVICE_CALL, byKey, sellPrice } = require('./_lib/repair-menu');
+const { REPAIRS, SERVICE_CALL, NAT_AVG, byKey, sellPrice } = require('./_lib/repair-menu');
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 const SITE = (process.env.URL || 'https://tnapplianceexchange.net').replace(/\/+$/, '');
@@ -38,7 +38,7 @@ exports.handler = async function (event) {
   // whole menu (grouped by appliance) for the picker
   if (q.menu) {
     const groups = {};
-    for (const r of REPAIRS) { (groups[r.appliance] = groups[r.appliance] || []).push({ key: r.key, label: r.label, flat_labor: r.flat_labor, confirm: !!r.confirm, common_parts: r.common_parts }); }
+    for (const r of REPAIRS) { (groups[r.appliance] = groups[r.appliance] || []).push({ key: r.key, label: r.label, flat_labor: r.flat_labor, confirm: !!r.confirm, common_parts: r.common_parts, national_avg: NAT_AVG[r.key] || null }); }
     return j(200, { ok: true, service_call: SERVICE_CALL, groups });
   }
 
@@ -52,7 +52,8 @@ exports.handler = async function (event) {
   if (q.repair) {
     const r = byKey(q.repair);
     if (!r) return j(404, { ok: false, error: 'unknown repair key' });
-    const out = { ok: true, repair: r.key, label: r.label, appliance: r.appliance, flat_labor: r.flat_labor, confirm: !!r.confirm, common_parts: r.common_parts };
+    const nat = NAT_AVG[r.key] || null;
+    const out = { ok: true, repair: r.key, label: r.label, appliance: r.appliance, flat_labor: r.flat_labor, confirm: !!r.confirm, common_parts: r.common_parts, national_avg: nat };
     const partNum = q.part || (r.common_parts && r.common_parts[0]);
     if (partNum) {
       const [res] = await marcone([partNum]);
@@ -60,6 +61,15 @@ exports.handler = async function (event) {
       out.part = part;
       out.total = part.found ? Math.round((r.flat_labor + part.sell) * 100) / 100 : null;
       out.breakdown = part.found ? `$${r.flat_labor} labor + $${part.sell} part = $${out.total}` : `$${r.flat_labor} labor + part (lookup failed — enter part #)`;
+      // value-proof vs national average (only when we beat it — honest framing)
+      if (out.total != null && nat) {
+        const save = Math.round((nat - out.total) * 100) / 100;
+        out.savings_vs_national = save;
+        out.savings_pct = save > 0 ? Math.round((save / nat) * 100) : 0;
+        out.value_note = save >= 5
+          ? `National avg ~$${nat} → customer saves ~$${save} (${out.savings_pct}%) with us`
+          : `Includes premium OEM part — still fair vs the ~$${nat} national average`;
+      }
     } else {
       out.note = 'no part on file — enter the part # to get the all-in total';
     }
