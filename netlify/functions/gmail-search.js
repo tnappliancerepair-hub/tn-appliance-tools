@@ -8,7 +8,7 @@
 //   &full=1 also pulls the To/Cc headers + a longer snippet.
 'use strict';
 const { getSecret } = require('./_lib/secrets');
-const { searchAll } = require('./_lib/gmail-accounts');
+const { searchAll, readFirst } = require('./_lib/gmail-accounts');
 
 const DEFAULT_Q = '("amazon business" OR amazon.com OR amazonaws.com OR amazonservices.com) '
   + '(api OR "ordering api" OR "business api" OR "selling partner" OR "solution provider" '
@@ -23,6 +23,18 @@ exports.handler = async function (event) {
   if (q0.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   const query = String(q0.q || DEFAULT_Q);
+
+  // &read=1 → return the full decoded BODY of the first match (for reading one email)
+  if (q0.read === '1') {
+    try {
+      const m = await readFirst(query, { maxChars: Math.min(parseInt(q0.chars, 10) || 6000, 20000) });
+      if (!m) return json(200, { ok: true, found: false, query });
+      return json(200, { ok: true, found: true, query, message: m });
+    } catch (e) {
+      return json(200, { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) });
+    }
+  }
+
   const max = Math.min(parseInt(q0.max, 10) || 20, 50);
   const full = q0.full === '1';
   const want = full ? ['Subject', 'From', 'To', 'Cc', 'Date'] : ['Subject', 'From', 'Date'];

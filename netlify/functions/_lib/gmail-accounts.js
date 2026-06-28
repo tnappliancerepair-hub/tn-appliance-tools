@@ -87,4 +87,43 @@ async function searchAll(query, opts) {
   return { accounts: accounts.map((a) => a.label), matches };
 }
 
-module.exports = { listAccounts, clientFor, searchAll };
+// Decode a Gmail payload to readable text — prefers text/plain, falls back to
+// stripped text/html. Recurses through multipart bodies.
+function decodeBody(payload) {
+  if (!payload) return '';
+  const b64 = (d) => { try { return Buffer.from(String(d || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } };
+  const walk = (p, type) => {
+    if (!p) return '';
+    if (p.mimeType === type && p.body && p.body.data) return b64(p.body.data);
+    for (const c of (p.parts || [])) { const r = walk(c, type); if (r) return r; }
+    return '';
+  };
+  let txt = walk(payload, 'text/plain');
+  if (!txt) { const html = walk(payload, 'text/html'); if (html) txt = html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'); }
+  if (!txt && payload.body && payload.body.data) txt = b64(payload.body.data);
+  return txt.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Find the first message matching `query` across all inboxes and return its
+// decoded body + headers. For reading one specific email in full.
+async function readFirst(query, opts) {
+  const o = opts || {};
+  const accounts = await listAccounts();
+  for (const acct of accounts) {
+    try {
+      const gmail = clientFor(acct);
+      const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 1 });
+      const msgs = (list.data && list.data.messages) || [];
+      if (!msgs.length) continue;
+      const fm = await gmail.users.messages.get({ userId: 'me', id: msgs[0].id, format: 'full' });
+      const hs = (fm.data && fm.data.payload && fm.data.payload.headers) || [];
+      const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
+      let body = decodeBody(fm.data && fm.data.payload);
+      if (o.maxChars) body = body.slice(0, o.maxChars);
+      return { account: acct.label, id: msgs[0].id, date: get('Date'), from: get('From'), subject: get('Subject'), body };
+    } catch (_) { /* try next inbox */ }
+  }
+  return null;
+}
+
+module.exports = { listAccounts, clientFor, searchAll, readFirst };
