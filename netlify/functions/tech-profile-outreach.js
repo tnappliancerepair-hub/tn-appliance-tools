@@ -57,7 +57,8 @@ exports.handler = async function (event) {
   // dry_run = compute the recipient list + message, send nothing.
   const targets = rows.filter((t) => ACTIVE[t.id] && (!only || t.id === only) && (includeOwner || t.id !== 1) && String(t.phone || '').replace(/\D/g, '').length >= 10);
   if (b.dry_run) {
-    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry_run: true, would_send: targets.map((t) => ({ tech: ACTIVE[t.id], id: t.id, phone_last4: String(t.phone).replace(/\D/g, '').slice(-4) })), sample_message: targets[0] ? msg(ACTIVE[targets[0].id], targets[0].id) : null }) };
+    const keyPresent = !!((await getSecret('TELNYX_API_KEY')) || process.env.TELNYX_API_KEY);
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry_run: true, telnyx_key_present: keyPresent, would_send: targets.map((t) => ({ tech: ACTIVE[t.id], id: t.id, phone_last4: String(t.phone).replace(/\D/g, '').slice(-4) })), sample_message: targets[0] ? msg(ACTIVE[targets[0].id], targets[0].id) : null }) };
   }
 
   const results = [];
