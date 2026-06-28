@@ -1,8 +1,15 @@
 # Self-Scheduling Autopilot — 5-DAY DELIVERY (committed 2026-06-28)
 
-GOAL: self-scheduling LIVE in 5 days. The TECH is the decision-maker; Ant computes
-one route-smart, availability-honoring offer → tech taps YES → auto-books → customer
-confirmed. Owner only on exception. (Full vision: self-scheduling-autopilot-plan-2026-06-19.md)
+GOAL: self-scheduling LIVE in 5 days.
+
+## ⚡ MODEL EVOLUTION (Teddy 2026-06-28) — AUTO-PLACE, don't offer
+The regular path is no longer "offer to the tech." It's:
+1. An **AI assistant CALLS the customer** (outbound), builds a **fresh profile**, and captures their **preferred schedule**.
+2. Ant **adds the job directly to the best tech's schedule**, doing its best to honor the customer's preference (+ route, capacity, parts-ETA). No tech acceptance step — it's PLACED.
+3. Customer gets the confirmation + live window.
+**Exception path only (occasional/tricky):** if it can't be made to fit, THEN call/offer it to the tech → he can send it back → offer others → owner last resort. The old tech-offer/escalate engine becomes this EXCEPTION handler, not the regular flow.
+
+(Supersedes the "offer-first, tech is decision-maker" model in self-scheduling-autopilot-plan-2026-06-19.md.)
 
 ## Reality check — most of it is already BUILT (why 5 days is real)
 - ✅ Offer engine `tech_job_offer.js` (shadow/live, unit-tested) + `grab.html` book chain + `APPOINTMENT_SCHEDULED` → customer confirm.
