@@ -37,6 +37,8 @@ exports.handler = async function (event) {
     parts_source: {}, part_numbers: {}, cards_with_diagnosis_block: 0, cards_with_payment: 0,
   };
   const partRe = /\b([A-Z]{1,4}\d{2,}[A-Z0-9]{2,})\b/g; // loose appliance part-number shape (WP2198202, DC92-01802Q-ish)
+  const seen = new Set(); // dedupe by card_id (restart re-runs can insert dup _comment rows)
+  let dupSkipped = 0;
   let offset = 0;
   for (;;) {
     let rows;
@@ -46,6 +48,9 @@ exports.handler = async function (event) {
     for (const r of rows) {
       const card = r.card || {};
       if (scopeBoard && card.board !== scopeBoard) continue;
+      const cid = String(card.card_id || r.card_id || '');
+      if (cid && seen.has(cid)) { dupSkipped++; continue; }
+      if (cid) seen.add(cid);
       const comments = Array.isArray(card.comments) ? card.comments : [];
       if (!comments.length) continue;
       res.comment_cards++;
@@ -55,10 +60,14 @@ exports.handler = async function (event) {
         const text = String((cm && (cm.text || cm.body || cm.content)) || '');
         const yr = String((cm && cm.created_at) || (cm && cm.at) || '').slice(0, 4);
         if (!text) continue;
-        // labor rate $/hr (e.g. "1 x $75.00/hr", "$80.00/hr", "2 x $80.00/hr")
+        // labor rate $/hr — catch both "$75.00/hr" and the line-item "1 x $75.00/hr" / "0.5 x $80.00/hr"
         const rates = [];
         money(/\$\s*([\d,]+(?:\.\d{1,2})?)\s*\/\s*hr/, text, rates);
-        for (const v of rates) { res.labor_rate_per_hr.push(v); if (/^\d{4}$/.test(yr)) { (res.labor_rate_by_year[yr] = res.labor_rate_by_year[yr] || []).push(v); } }
+        money(/[\d.]+\s*x\s*\$\s*([\d,]+(?:\.\d{1,2})?)\s*\/?\s*hr/, text, rates);
+        for (const v of rates) { if (v < 30 || v > 200) continue; res.labor_rate_per_hr.push(v); if (/^\d{4}$/.test(yr)) { (res.labor_rate_by_year[yr] = res.labor_rate_by_year[yr] || []).push(v); } }
+        // repair-estimate total — "Diagnosis & Repair Estimate" then the appliance line's $ total
+        const est2 = []; money(/(?:repair estimate|diagnosis & repair)[\s\S]{0,80}?\$\s*([\d,]+\.\d{2})/i, text, est2);
+        for (const v of est2) if (v >= 50 && v <= 5000) res.repair_estimate_totals.push(v);
         // diagnosis fee $95
         if (/\$\s*95(?:\.0{1,2})?\b/.test(text)) res.diagnosis_fee_95++;
         // labor hours from TDR block
@@ -89,7 +98,7 @@ exports.handler = async function (event) {
   const byYear = {}; for (const y of Object.keys(res.labor_rate_by_year).sort()) byYear[y] = stats(res.labor_rate_by_year[y]);
   const topParts = Object.entries(res.part_numbers).sort((a, b) => b[1] - a[1]).slice(0, 40).map(([p, n]) => ({ part: p, seen: n }));
   const out = {
-    ok: true, scope: res.scope, comment_cards: res.comment_cards, total_comments: res.total_comments,
+    ok: true, scope: res.scope, comment_cards: res.comment_cards, total_comments: res.total_comments, dup_cards_skipped: dupSkipped,
     cards_with_diagnosis_block: res.cards_with_diagnosis_block, cards_with_payment: res.cards_with_payment,
     labor_rate_per_hr: stats(res.labor_rate_per_hr), labor_rate_by_year: byYear,
     diagnosis_fee_95_mentions: res.diagnosis_fee_95,
