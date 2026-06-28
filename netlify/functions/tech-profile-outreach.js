@@ -17,10 +17,8 @@ const ACTIVE = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
 function msg(name, techId) {
   const link = `${SITE}/tech-schedule.html?tech_id=${techId}`;
-  return `Hey ${name}, it's Ant 🐜 from TN Appliance — happy to help, and my whole job is to make your days easier. `
-    + `Heads up: I'm going to give you a quick call in a bit to set your schedule up around YOUR life — your hours, any regular days off, the areas you want, where you like your last stop — and to show you everything I can do for you out in the field. `
-    + `It's all about helping YOU win: want more work, I'll fill your day; running behind or stuck on a job, call or text me and I'll jump in. You focus on getting the jobs done great — I'll handle the rest. `
-    + `Can't talk when I call, or want to start now? Tap here anytime: ${link}. And anytime you want more work or a day off, just reply right here. Teddy's got your back.`;
+  return `Hey ${name}, it's Ant 🐜 from TN Appliance. Heads up — I'll call you shortly to set your schedule around how YOU like to work, and show you everything I can do to make your days easier. `
+    + `Want more work or stuck on a job? Just call or text me, I've got you. Start now or reply anytime: ${link}`;
 }
 
 function toE164(raw) {
