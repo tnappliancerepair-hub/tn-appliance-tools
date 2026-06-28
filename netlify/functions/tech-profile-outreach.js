@@ -8,6 +8,7 @@
 'use strict';
 
 const crud = require('./_lib/xano/metadata-crud');
+const { getSecret } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const TELNYX_FROM = '+16158578800'; // tech-direction line
@@ -16,10 +17,10 @@ const ACTIVE = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
 function msg(name, techId) {
   const link = `${SITE}/tech-schedule.html?tech_id=${techId}`;
-  return `Hey ${name}, it's Ant 🐜 — the new + improved scheduling assistant for TN Appliance. `
-    + `We set your profile up before, but I want to make sure I've got it exactly right so I can build your days the way YOU like to run. `
-    + `Nobody's dictating your schedule — just tell me your hours, any regular days off, and what a great day looks like out there. `
-    + `Takes 2 min, just talk to it like you would the office: ${link}`;
+  return `Hey ${name}, it's Ant 🐜 from TN Appliance. Teddy's setting me up to build each of you a daily schedule around YOUR life — not the other way around. `
+    + `Take 2 min to tell me how you like to work: your hours, any regular days off (and why), the areas you want, where you like your last stop, and what a great day looks like for you. `
+    + `I'll honor all of it. Want more work some days? I'll fill it. Running behind? I'll text your customers and help. `
+    + `Teddy's got your back — he'll do everything he can to help you win. Just talk to me here: ${link}`;
 }
 
 async function sendTelnyx(to, text) {
@@ -39,14 +40,25 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { b = {}; }
 
-  const vr = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: String(b.office_password || '') }) });
-  const vd = await vr.json().catch(() => ({}));
-  if (!vd || !vd.success) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'wrong office password' }) };
+  // Auth: admin secret OR office password.
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  let authed = b.secret && b.secret === admin;
+  if (!authed) {
+    const vr = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: String(b.office_password || '') }) });
+    const vd = await vr.json().catch(() => ({}));
+    authed = !!(vd && vd.success);
+  }
+  if (!authed) return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'unauthorized (need secret or office_password)' }) };
 
   let rows = [];
   try { rows = await crud.searchPage(TECH_TABLE, {}, { id: 'asc' }, 50); } catch (_) {}
   const only = b.tech_id ? parseInt(b.tech_id, 10) : null;
-  const targets = rows.filter((t) => ACTIVE[t.id] && (!only || t.id === only) && String(t.phone || '').replace(/\D/g, '').length >= 10);
+  const includeOwner = b.include_owner === true;
+  // dry_run = compute the recipient list + message, send nothing.
+  const targets = rows.filter((t) => ACTIVE[t.id] && (!only || t.id === only) && (includeOwner || t.id !== 1) && String(t.phone || '').replace(/\D/g, '').length >= 10);
+  if (b.dry_run) {
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry_run: true, would_send: targets.map((t) => ({ tech: ACTIVE[t.id], id: t.id, phone_last4: String(t.phone).replace(/\D/g, '').slice(-4) })), sample_message: targets[0] ? msg(ACTIVE[targets[0].id], targets[0].id) : null }) };
+  }
 
   const results = [];
   for (const t of targets) {
