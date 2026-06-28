@@ -500,6 +500,12 @@ function render(){
         <div id="cust-addons-list"></div>
       </div>
 
+      <div class="card" id="wparts-card" style="display:none;border:2px solid #6aa3ff;background:#f3f8ff">
+        <h3>📦 Parts for this job <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">confirm + return</span></h3>
+        <div style="font-size:12px;color:var(--ink2,#555);margin:-4px 0 8px;line-height:1.5">Parts supplied for this job. Tap to confirm what you actually have, and mark each one once you ship it back. <b>If a part isn't here</b> — or the customer says there's no old part to return — tap <b>⚠️ Not here</b> and call the office before you leave. That timestamped flag is what protects you from a chargeback.</div>
+        <div id="wparts-list"></div>
+      </div>
+
       <div class="card" id="addons-card" style="display:none">
         <h3>🛍️ Add-ons / offers <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">offer at the stop</span></h3>
         <div id="addons-list"></div>
@@ -561,6 +567,7 @@ function wireActions(){
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
   renderCustomerAddons();
+  renderJobParts();
   wireTakePayment();
   mountConvo();
   applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
@@ -702,6 +709,62 @@ async function custAddonAction(row,status,opts){
       setTimeout(renderCustomerAddons, 900); // drops the row (now fulfilled/voided)
     } else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'failed'); row.querySelectorAll('button').forEach(x=>x.disabled=false); }
   }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button').forEach(x=>x.disabled=false); }
+}
+
+// ── 📦 Parts responsibility (expected vs received vs discrepancy) ──
+// Lists the parts supplied for this job (auto from the RMA tracker + office
+// write-ins). Tech confirms returns or flags a missing part — the flag is the
+// timestamped chargeback shield ("vendor said 4, only 3 here / customer had no old part").
+async function renderJobParts(){
+  const card=document.getElementById('wparts-card'), list=document.getElementById('wparts-list');
+  if(!card||!list||!JOB_ID) return;
+  const claim=encodeURIComponent((job&&job.claim_number)||'');
+  let parts=[];
+  try{ const d=await fetch('/.netlify/functions/warranty-parts?job_id='+JOB_ID+'&claim='+claim).then(r=>r.json()); parts=(d&&d.parts)||[]; }catch(_){}
+  if(!parts.length){ card.style.display='none'; return; }
+  card.style.display='';
+  list.innerHTML=parts.map(p=>{
+    const nm=esc(p.part), sub=esc([p.vendor,p.distributor].filter(Boolean).join(' · '));
+    const st=p.status;
+    const badge = st==='returned'?'<span style="color:#127a4a;font-weight:800">✓ returned</span>'
+      : st==='used'?'<span style="color:#666;font-weight:700">used · no return</span>'
+      : '<span style="color:#c2691c;font-weight:800">⮌ needs return</span>';
+    return '<div class="wp-row" data-p="'+nm+'" style="padding:10px 0;border-top:1px solid var(--line,#e3e8ef)">'
+      +'<div style="font-weight:800;font-size:14px">'+nm+'&nbsp; '+badge+'</div>'
+      +(sub?'<div style="font-size:12px;color:var(--dim)">'+sub+'</div>':'')
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center">'
+      +'<button class="btn wp-ret" style="flex:1;min-width:120px;background:#127a4a;color:#fff">📦 Returned/shipped</button>'
+      +'<button class="btn wp-used" style="flex:1;min-width:100px;background:#fff;border:1px solid var(--line,#e3e8ef)">🔧 Used · no return</button>'
+      +'<button class="btn wp-disc" style="flex:1;min-width:100px;background:#fdece9;border:1px solid #f3c0b7;color:#c0392b">⚠️ Not here</button>'
+      +'<span class="wp-stat" style="font-size:12px;font-weight:700;width:100%"></span>'
+      +'</div></div>';
+  }).join('');
+  list.querySelectorAll('.wp-row').forEach(row=>{
+    const p=row.dataset.p;
+    const ret=row.querySelector('.wp-ret'), used=row.querySelector('.wp-used'), disc=row.querySelector('.wp-disc');
+    if(ret) ret.onclick=()=>wpStatus(row,p,'returned');
+    if(used) used.onclick=()=>wpStatus(row,p,'used');
+    if(disc) disc.onclick=()=>wpDiscrepancy(row,p);
+  });
+}
+async function wpStatus(row,part,status){
+  const s=row.querySelector('.wp-stat'); if(s){s.style.color='var(--dim)';s.textContent='…';}
+  try{
+    const r=await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:JOB_ID,part:part,status:status})});
+    const d=await r.json();
+    if(d&&d.ok){ if(s){s.style.color='#127a4a';s.textContent=status==='returned'?'✓ marked returned':'✓ marked used';} setTimeout(renderJobParts,800); }
+    else if(s){ s.style.color='#c0392b'; s.textContent='⚠ failed'; }
+  }catch(_){ if(s){s.style.color='#c0392b';s.textContent='⚠ error';} }
+}
+async function wpDiscrepancy(row,part){
+  if(!confirm('Flag "'+part+'" as NOT here?\n\nUse this if the part never arrived, or the customer says there is no old part to return. Then call the office before you leave.')) return;
+  const s=row.querySelector('.wp-stat'); if(s){s.style.color='var(--dim)';s.textContent='…';}
+  try{
+    const r=await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'discrepancy',job_id:JOB_ID,part:part,technician_id:TECH_ID,reason:'tech flagged not present'})});
+    const d=await r.json();
+    if(d&&d.ok){ if(s){s.style.color='#c0392b';s.innerHTML='⚠️ Logged with today\'s date — now <b>call the office</b> to sort it out. You\'re covered.';} }
+    else if(s){ s.style.color='#c0392b'; s.textContent='⚠ failed — try again'; }
+  }catch(_){ if(s){s.style.color='#c0392b';s.textContent='⚠ error';} }
 }
 
 // ── 💳 Take a payment (on-the-spot, any job incl. warranty) ────

@@ -38,6 +38,15 @@ exports.handler = async function (event) {
       await crud.logEvent('warranty_part_status', { job_id: jobId, part: String(b.part), status: String(b.status || 'returned'), at_ms: Date.now() });
       return j(200, { ok: true });
     }
+    // tech flags an expected part that ISN'T actually here (vendor said N, fewer arrived,
+    // or the customer says there was no old part). Timestamped = the chargeback shield.
+    if (b.action === 'discrepancy') {
+      await crud.logEvent('warranty_part_discrepancy', {
+        job_id: jobId, part: String(b.part || ''), technician_id: Number(b.technician_id || 0) || null,
+        reason: String(b.reason || b.note || 'not present'), at_ms: Date.now(),
+      });
+      return j(200, { ok: true });
+    }
     // add a manually-recorded supplied part (any vendor — SquareTrade / FrontDoor / NSA)
     if (!b.part) return j(400, { ok: false, error: 'part required' });
     await crud.logEvent('warranty_part_supplied', {
