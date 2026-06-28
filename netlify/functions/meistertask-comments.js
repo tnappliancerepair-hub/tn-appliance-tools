@@ -53,6 +53,36 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: true, sampled: out.length, with_comments: withComments, results: out }, null, 2) };
   }
 
+  // ?grindtest=N -> run the grind logic INLINE for N cards, surfacing errors (no self-chain)
+  if (q.grindtest) {
+    const n = Math.min(10, Math.max(1, Number(q.grindtest) || 3));
+    const dbg = { steps: [] };
+    try {
+      dbg.steps.push('reading state');
+      let rows0;
+      try { rows0 = await sb.select(TABLE, { board: 'eq._comment_state', order: 'imported_at.desc', limit: '1' }); dbg.steps.push('state read ok n=' + (rows0 ? rows0.length : 0)); }
+      catch (e) { dbg.state_read_error = String((e && e.message) || e); }
+      dbg.steps.push('reading real cards page');
+      const cards = await realCardsPage(q.board || 'TN Jobs', 0, n);
+      dbg.cards = (cards || []).map((c) => c.card_id);
+      const store = [];
+      for (const c of (cards || [])) {
+        const comments = await mt.listTaskComments(c.card_id);
+        const nc = Array.isArray(comments) ? comments.length : 0;
+        if (nc) store.push({ board: '_comment', card_id: String(c.card_id), title: '', notes: '', card: { card_id: c.card_id, board: c.board, n: nc, comments } });
+      }
+      dbg.steps.push('inserting ' + store.length + ' comment rows');
+      if (store.length) { try { await sb.insert(TABLE, store); dbg.steps.push('insert ok'); } catch (e) { dbg.insert_error = String((e && e.message) || e); } }
+      dbg.steps.push('testing saveState (del+insert _comment_state)');
+      try { await sb.del(TABLE, { board: 'eq._comment_state' }); dbg.steps.push('del ok'); } catch (e) { dbg.del_error = String((e && e.message) || e); }
+      try { await sb.insert(TABLE, { board: '_comment_state', card_id: 'TEST', title: 'comment_cursor', notes: '', card: { offset: n, processed: n, test: true } }); dbg.steps.push('state insert ok'); } catch (e) { dbg.state_insert_error = String((e && e.message) || e); }
+      return { statusCode: 200, body: JSON.stringify({ ok: true, dbg }, null, 2) };
+    } catch (e) {
+      dbg.fatal = String((e && e.stack) || e);
+      return { statusCode: 200, body: JSON.stringify({ ok: false, dbg }, null, 2) };
+    }
+  }
+
   // fire the grind (background, self-chaining)
   const url = `${SITE}/.netlify/functions/meistertask-comments-background?secret=${encodeURIComponent(admin)}${q.board ? '&board=' + encodeURIComponent(q.board) : ''}${q.restart ? '&restart=1' : ''}`;
   await fetch(url, { signal: AbortSignal.timeout(8000) }).catch(() => {});
