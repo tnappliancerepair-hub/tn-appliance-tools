@@ -17,10 +17,10 @@ const ACTIVE = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
 function msg(name, techId) {
   const link = `${SITE}/tech-schedule.html?tech_id=${techId}`;
-  return `Hey ${name}, it's Ant 🐜 from TN Appliance. Teddy's setting me up to build each of you a daily schedule around YOUR life — not the other way around. `
-    + `Take 2 min to tell me how you like to work: your hours, any regular days off (and why), the areas you want, where you like your last stop, and what a great day looks like for you. `
-    + `I'll honor all of it. Want more work some days? I'll fill it. Running behind? I'll text your customers and help. `
-    + `Teddy's got your back — he'll do everything he can to help you win. Just talk to me here: ${link}`;
+  return `Hey ${name}, it's Ant 🐜 from TN Appliance — happy to help, and my whole job is to make your days easier. `
+    + `Teddy's setting me up to build your schedule around YOUR life: your hours, any regular days off (and why), the areas you want, where you like your last stop, and what a great day looks like. `
+    + `Take 2 min to tell me and I'll honor all of it. Want more work? I'll fill your day. Running behind? I'll text your customers and help. `
+    + `You stay focused on getting the jobs done great — I'll handle the rest. And anytime you want more work or need a day off, just reply right here and I've got it. Teddy's got your back and wants you to win. Talk to me here: ${link}`;
 }
 
 async function sendTelnyx(to, text) {
