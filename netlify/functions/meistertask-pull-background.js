@@ -13,9 +13,12 @@ const TABLE = 'meistertask_archive';
 
 function pick(o, keys) { for (const k of keys) { if (o && o[k] != null && String(o[k]).trim()) return String(o[k]); } return ''; }
 
-async function pullAll({ withComments } = {}) {
+async function pullAll({ withComments, clearFirst } = {}) {
   const projects = await mt.listProjects();
-  const summary = { started_at: new Date().toISOString(), projects: [], total_tasks: 0 };
+  const summary = { started_at: new Date().toISOString(), projects: [], total_tasks: 0, cleared: !!clearFirst };
+  // Idempotent refresh: wipe prior archived cards (keep _manifest history) so a
+  // re-run REPLACES instead of duplicating. Only when explicitly asked.
+  if (clearFirst) { try { await sb.del(TABLE, { board: 'neq._manifest' }); } catch (e) { summary.clear_error = String((e && e.message) || e); } }
   for (const p of projects) {
     const board = pick(p, ['name', 'title']) || ('project-' + (p.id || ''));
     let tasks = [];
@@ -53,7 +56,7 @@ exports.handler = async function (event) {
   if (!(await mt.isConfigured())) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'meistertask_not_configured (set MEISTERTASK_TOKEN)' }) };
   if (!(await sb.isConnected())) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'supabase_not_configured' }) };
   try {
-    const summary = await pullAll({ withComments: !!q.comments });
+    const summary = await pullAll({ withComments: !!q.comments, clearFirst: !!q.clear });
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
     return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };

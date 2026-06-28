@@ -109,4 +109,23 @@ async function recordEvent(row, { throwOnError = false } = {}) {
   }
 }
 
-module.exports = { cfg, isConnected, insert, select, recordEvent };
+// DELETE rows matching PostgREST filters, e.g. del('meistertask_archive', { board: 'neq._manifest' }).
+// Requires at least one filter (PostgREST refuses an unfiltered delete by default).
+async function del(table, filters = {}) {
+  const c = await cfg();
+  if (!c.url || !c.key) throw new Error('supabase_not_configured');
+  const qs = new URLSearchParams(filters).toString();
+  if (!qs) throw new Error('del requires a filter (refusing unfiltered delete)');
+  const r = await fetch(`${c.url}/rest/v1/${table}?${qs}`, {
+    method: 'DELETE',
+    headers: headers(c, { Prefer: 'return=minimal' }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`supabase delete ${table} -> ${r.status}: ${t.slice(0, 200)}`);
+  }
+  return { ok: true };
+}
+
+module.exports = { cfg, isConnected, insert, select, del, recordEvent };

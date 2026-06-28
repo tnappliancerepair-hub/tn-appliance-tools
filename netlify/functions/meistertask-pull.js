@@ -61,7 +61,7 @@ exports.handler = async function (event) {
   }
 
   try {
-    const url = `${SITE}/.netlify/functions/meistertask-pull-background?secret=${encodeURIComponent(admin)}${q.comments ? '&comments=1' : ''}`;
+    const url = `${SITE}/.netlify/functions/meistertask-pull-background?secret=${encodeURIComponent(admin)}${q.comments ? '&comments=1' : ''}${q.clear ? '&clear=1' : ''}`;
     await fetch(url, { signal: AbortSignal.timeout(8000) }).catch(() => {});
     return { statusCode: 200, body: JSON.stringify({ ok: true, triggered: true }) };
   } catch (e) {
