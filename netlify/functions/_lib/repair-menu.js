@@ -20,39 +20,42 @@ function sellPrice(costUsd, { warranty = false } = {}) {
 // service-call / diagnostic (rolls into the repair if they proceed)
 const SERVICE_CALL = { key: 'service_call', label: 'Service call / diagnostic', flat_labor: 95, note: 'rolls into the repair if approved' };
 
-// repair price-book. flat_labor = DEFAULT (approve/edit). common_parts from history.
+// repair price-book. flat_labor = "MEET IN THE MIDDLE" set (Teddy 2026-06-28):
+// midpoint between what TN had been charging and the national-implied LABOR
+// (national all-in minus a typical part). Easy to tweak any single number.
+// confirm:true = heavy job, double-check on quote.
 const REPAIRS = [
   // 🧊 Refrigerator
-  { key: 'fridge_ice_maker', appliance: 'Refrigerator', label: 'Ice maker', flat_labor: 110, common_parts: ['W10873791', 'WR30X35285', 'ACZ74170502', 'AEQ73449909'] },
-  { key: 'fridge_door_gasket', appliance: 'Refrigerator', label: 'Door gasket / seal', flat_labor: 110, common_parts: ['WD08X10057', 'WR14X27230'] },
-  { key: 'fridge_compressor', appliance: 'Refrigerator', label: 'Compressor / sealed system', flat_labor: 375, confirm: true, common_parts: ['W10503278', 'W10594330'] },
-  { key: 'fridge_water_line', appliance: 'Refrigerator', label: 'Water line / dispenser', flat_labor: 130, common_parts: ['WP3385089', 'W11465533'] },
-  { key: 'fridge_water_valve', appliance: 'Refrigerator', label: 'Water inlet valve', flat_labor: 110, common_parts: ['W11025984', 'WPW10179146'] },
-  { key: 'fridge_evap_fan', appliance: 'Refrigerator', label: 'Evaporator / condenser fan', flat_labor: 140, common_parts: ['W11671461', 'ADQ73913310'] },
-  { key: 'fridge_defrost', appliance: 'Refrigerator', label: 'Defrost system (heater/thermostat)', flat_labor: 140, common_parts: [] },
-  { key: 'fridge_temp_control', appliance: 'Refrigerator', label: 'Thermostat / temp control', flat_labor: 110, common_parts: [] },
+  { key: 'fridge_ice_maker', appliance: 'Refrigerator', label: 'Ice maker', flat_labor: 140, common_parts: ['W10873791', 'WR30X35285', 'ACZ74170502', 'AEQ73449909'] },
+  { key: 'fridge_door_gasket', appliance: 'Refrigerator', label: 'Door gasket / seal', flat_labor: 120, common_parts: ['WD08X10057', 'WR14X27230'] },
+  { key: 'fridge_compressor', appliance: 'Refrigerator', label: 'Compressor / sealed system', flat_labor: 525, confirm: true, common_parts: ['W10503278', 'W10594330'] },
+  { key: 'fridge_water_line', appliance: 'Refrigerator', label: 'Water line / dispenser', flat_labor: 135, common_parts: ['WP3385089', 'W11465533'] },
+  { key: 'fridge_water_valve', appliance: 'Refrigerator', label: 'Water inlet valve', flat_labor: 115, common_parts: ['W11025984', 'WPW10179146'] },
+  { key: 'fridge_evap_fan', appliance: 'Refrigerator', label: 'Evaporator / condenser fan', flat_labor: 170, common_parts: ['W11671461', 'ADQ73913310'] },
+  { key: 'fridge_defrost', appliance: 'Refrigerator', label: 'Defrost system (heater/thermostat)', flat_labor: 170, common_parts: [] },
+  { key: 'fridge_temp_control', appliance: 'Refrigerator', label: 'Thermostat / temp control', flat_labor: 130, common_parts: [] },
   // 🌀 Washer
-  { key: 'washer_drain_pump', appliance: 'Washer', label: 'Drain pump', flat_labor: 130, common_parts: ['WH01X32580', 'WPW10276397'] },
+  { key: 'washer_drain_pump', appliance: 'Washer', label: 'Drain pump', flat_labor: 150, common_parts: ['WH01X32580', 'WPW10276397'] },
   { key: 'washer_bearing', appliance: 'Washer', label: 'Bearing / spider / tub', flat_labor: 300, confirm: true, common_parts: ['W11643701', 'W11335100'] },
-  { key: 'washer_door_lock', appliance: 'Washer', label: 'Door lock / lid switch', flat_labor: 120, common_parts: ['W10653840', 'W11589973'] },
-  { key: 'washer_shocks', appliance: 'Washer', label: 'Shocks / suspension', flat_labor: 130, common_parts: ['ACV72909503'] },
-  { key: 'washer_motor', appliance: 'Washer', label: 'Drive motor / clutch', flat_labor: 160, common_parts: ['WE17X10010'] },
+  { key: 'washer_door_lock', appliance: 'Washer', label: 'Door lock / lid switch', flat_labor: 125, common_parts: ['W10653840', 'W11589973'] },
+  { key: 'washer_shocks', appliance: 'Washer', label: 'Shocks / suspension', flat_labor: 150, common_parts: ['ACV72909503'] },
+  { key: 'washer_motor', appliance: 'Washer', label: 'Drive motor / clutch', flat_labor: 205, common_parts: ['WE17X10010'] },
   // 🔥 Dryer
-  { key: 'dryer_heating_element', appliance: 'Dryer', label: 'Heating element', flat_labor: 110, common_parts: ['WD22X10063', 'W11025156'] },
-  { key: 'dryer_belt', appliance: 'Dryer', label: 'Belt', flat_labor: 130, common_parts: ['WH16X26911', 'WH01X24180'] },
+  { key: 'dryer_heating_element', appliance: 'Dryer', label: 'Heating element', flat_labor: 120, common_parts: ['WD22X10063', 'W11025156'] },
+  { key: 'dryer_belt', appliance: 'Dryer', label: 'Belt', flat_labor: 135, common_parts: ['WH16X26911', 'WH01X24180'] },
   { key: 'dryer_thermal', appliance: 'Dryer', label: 'Thermal fuse / thermostat', flat_labor: 100, common_parts: ['WE04X36457', 'W10258275'] },
   // 🍽️ Dishwasher
-  { key: 'dw_drain_pump', appliance: 'Dishwasher', label: 'Drain pump', flat_labor: 130, common_parts: [] },
-  { key: 'dw_wash_pump', appliance: 'Dishwasher', label: 'Wash pump / motor', flat_labor: 160, common_parts: [] },
-  { key: 'dw_water_valve', appliance: 'Dishwasher', label: 'Water inlet valve', flat_labor: 110, common_parts: [] },
-  { key: 'dw_supply_line', appliance: 'Dishwasher', label: 'Supply line / leak', flat_labor: 130, common_parts: ['W11454372', 'W11162042'] },
+  { key: 'dw_drain_pump', appliance: 'Dishwasher', label: 'Drain pump', flat_labor: 135, common_parts: [] },
+  { key: 'dw_wash_pump', appliance: 'Dishwasher', label: 'Wash pump / motor', flat_labor: 180, common_parts: [] },
+  { key: 'dw_water_valve', appliance: 'Dishwasher', label: 'Water inlet valve', flat_labor: 120, common_parts: [] },
+  { key: 'dw_supply_line', appliance: 'Dishwasher', label: 'Supply line / leak', flat_labor: 135, common_parts: ['W11454372', 'W11162042'] },
   // ♨️ Range / Oven
-  { key: 'oven_bake_element', appliance: 'Range/Oven', label: 'Bake / broil element', flat_labor: 120, common_parts: ['WB23M24', 'AEB73944601'] },
-  { key: 'oven_surface', appliance: 'Range/Oven', label: 'Surface burner / element / switch', flat_labor: 120, common_parts: ['WB30X47331', 'WB24T10022'] },
-  { key: 'oven_igniter', appliance: 'Range/Oven', label: 'Oven igniter', flat_labor: 110, common_parts: ['WP8054129', 'WR55X26671'] },
+  { key: 'oven_bake_element', appliance: 'Range/Oven', label: 'Bake / broil element', flat_labor: 130, common_parts: ['WB23M24', 'AEB73944601'] },
+  { key: 'oven_surface', appliance: 'Range/Oven', label: 'Surface burner / element / switch', flat_labor: 130, common_parts: ['WB30X47331', 'WB24T10022'] },
+  { key: 'oven_igniter', appliance: 'Range/Oven', label: 'Oven igniter', flat_labor: 130, common_parts: ['WP8054129', 'WR55X26671'] },
   // 🔧 Cross-appliance
-  { key: 'control_board', appliance: 'Any', label: 'Control / main board', flat_labor: 120, common_parts: ['W11395618'] },
-  { key: 'user_interface', appliance: 'Any', label: 'User interface / display / panel', flat_labor: 110, common_parts: ['W10539780', 'WR55X11144'] },
+  { key: 'control_board', appliance: 'Any', label: 'Control / main board', flat_labor: 205, common_parts: ['W11395618'] },
+  { key: 'user_interface', appliance: 'Any', label: 'User interface / display / panel', flat_labor: 160, common_parts: ['W10539780', 'WR55X11144'] },
   { key: 'door_full', appliance: 'Any', label: 'Full door replacement', flat_labor: 150, confirm: true, common_parts: ['W11551301'] },
 ];
 
