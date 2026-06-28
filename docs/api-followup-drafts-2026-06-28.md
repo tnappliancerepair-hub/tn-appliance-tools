@@ -35,6 +35,48 @@ Owner, TN Appliance Exchange LLC
 
 ---
 
+## 1b) Google Ads API — reply to the "incomplete application" (DO NOT resubmit the form)
+
+**Reply to:** ads-api-compliance@google.com (reply ON the existing thread [6-3335000041044])
+**From:** tnappliancerepair@gmail.com (the address that applied)
+**Subject:** Re: [6-3335000041044] Your Google Ads API Basic Access Application
+
+Hello Google Ads API Compliance team,
+
+Thank you for the review. Here is a detailed description of our business model and our intended use of the Google Ads API, along with working content pages on our website.
+
+BUSINESS MODEL
+TN Appliance Exchange LLC is a residential appliance-repair company serving Middle Tennessee and southeast Louisiana. We repair refrigerators, washers, dryers, dishwashers, and ranges/ovens for both home-warranty customers (American Home Shield/Frontdoor, SquareTrade, etc.) and cash/self-pay homeowners. Website: https://tnapplianceexchange.net
+
+Our homepage routes first-time visitors into a customer service-request flow, so here are direct links to our company-information content for your review:
+- Company & services: https://tnapplianceexchange.net/index.html
+- Dryer repair: https://tnapplianceexchange.net/dryer-repair.html
+- Dishwasher repair: https://tnapplianceexchange.net/dishwasher-repair.html
+- Oven/range repair: https://tnapplianceexchange.net/oven-repair.html
+- Privacy policy: https://tnapplianceexchange.net/privacy.html
+- Terms: https://tnapplianceexchange.net/app-terms.html
+
+USE CASE OF THE GOOGLE ADS API
+We will use the API solely to manage our OWN single Google Ads account. We are a first-party advertiser — we are not building a tool for, and will not manage ads on behalf of, any third-party advertisers. Specifically we will:
+- Pull our campaign/ad-group/keyword performance (cost, clicks, conversions) for internal reporting.
+- Adjust our own budgets and bids, and pause underperforming campaigns/keywords.
+- Add negative keywords to reduce wasted spend.
+- Feed our booked-job conversion values back in to optimize spend by service type and geography.
+This is an internal optimization tool for our own advertising account only.
+
+Developer contact: [optional — a role-based address like ads-api@tnapplianceexchange.net if you have domain email; otherwise leave the current contact]
+
+Please let me know if you need anything further.
+
+Thank you,
+James "Teddy" Pivacek
+Owner, TN Appliance Exchange LLC
+866-268-0111
+
+> Belt-and-suspenders: because the reviewer judged the ROOT URL (which redirects to the
+> chat intake), strongly consider TEMPORARILY pointing `/` → the content homepage during the
+> review (one-line `_redirects` change, flip back the instant they approve). Claude can do it.
+
 ## 2) Frontdoor / AHS — Dispatch Connector: authorize sandbox key + production access
 
 **To:** partnerapiadmin@frontdoorhome.com  (cc your BD rep "Ben" if you have his address)
