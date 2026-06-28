@@ -1126,22 +1126,30 @@ async function menuPick(key){
     const d = await fetch('/.netlify/functions/repair-quote?repair='+encodeURIComponent(key)+(part?('&part='+encodeURIComponent(part)):'')).then(function(x){return x.json();});
     if(d && d.part && d.part.found){
       state.oemPrice = '$'+Number(d.part.cost).toFixed(2);
-      var natLine = '';
+      var oemTotal = Number(d.total).toFixed(0);
+      var amz = d.amazon_est || null;
+      // The "industry/national average" framed as the hidden-markup price (the absurd one).
+      var natBlock = '';
       if(d.national_avg){
-        if(typeof d.savings_vs_national==='number' && d.savings_vs_national>=5){
-          natLine = '<div style="margin-top:7px;padding:7px 10px;background:#0f3b22;border:1px solid #1f7a3f;border-radius:7px;color:#bff0cf;">'+
-            '🇺🇸 National average: <b>$'+d.national_avg+'</b> &nbsp;·&nbsp; You: <b>$'+Number(d.total).toFixed(0)+'</b> &nbsp;→&nbsp; <b style="color:#7CFFA0">customer saves ~$'+Math.round(d.savings_vs_national)+' ('+d.savings_pct+'%)</b></div>';
-        } else {
-          natLine = '<div style="margin-top:7px;padding:7px 10px;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:var(--muted);">'+
-            '🇺🇸 National average ~$'+d.national_avg+' · premium OEM part — still fair</div>';
-        }
+        natBlock = '<div style="margin-top:9px;padding:9px 11px;background:#3a1414;border:1px dashed #7a3b3b;border-radius:7px;color:#f0c9c9;">'+
+          '🏚️ <b>Typical shop / national average: ~$'+d.national_avg+'</b><br>'+
+          '<span style="font-size:11.5px;opacity:.85">part marked up + hidden, no budget option</span></div>';
       }
+      // OUR two transparent tiers — both undercut the "absurd" national number.
+      var oemSave=(d.national_avg&&typeof d.savings_vs_national==='number'&&d.savings_vs_national>=5)?(' <span style="color:#7CFFA0">save ~$'+Math.round(d.savings_vs_national)+' ('+d.savings_pct+'%)</span>'):(d.national_avg?' <span style="opacity:.8">premium OEM part</span>':'');
+      var tiers = '<div style="margin-top:8px;padding:9px 11px;background:#0f3b22;border:1px solid #1f7a3f;border-radius:7px;color:#cdeed6;line-height:1.7;">'+
+        '<div style="font-size:11px;letter-spacing:.04em;opacity:.8;margin-bottom:3px;">OUR HONEST PRICE — you see the real part cost</div>'+
+        '✅ <b>OEM:</b> $'+d.flat_labor+' labor + $'+Number(d.part.sell).toFixed(0)+' part = <b>$'+oemTotal+'</b>'+oemSave+'<br>';
+      if(amz){
+        var amzSave=(amz.savings_vs_national&&amz.savings_vs_national>0)?(' <span style="color:#7CFFA0">save ~$'+Math.round(amz.savings_vs_national)+' ('+amz.savings_pct+'%)</span>'):'';
+        tiers += '💰 <b>Amazon-equivalent:</b> ~<b>$'+Number(amz.total).toFixed(0)+'</b> est'+amzSave+' <span style="opacity:.7;font-size:11px">(budget option nobody else offers — confirm exact part w/ Auto-find)</span>';
+      }
+      tiers += '</div>';
       menuPreview = '<div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;line-height:1.5;">'+
-        '<b>'+escapeHtml(d.label)+'</b><br>'+
-        '$'+d.flat_labor+' labor + $'+Number(d.part.sell).toFixed(2)+' part <span style="color:var(--muted)">('+escapeHtml(d.part.part_number)+(d.part.description?(' — '+escapeHtml(d.part.description)):'')+')</span> = <b style="color:#127a4a">$'+Number(d.total).toFixed(2)+' all-in</b>'+
+        '<b>'+escapeHtml(d.label)+'</b> <span style="color:var(--muted)">('+escapeHtml(d.part.part_number)+(d.part.description?(' — '+escapeHtml(d.part.description)):'')+')</span>'+
         (d.confirm?'<br><span style="color:#c2691c">⚠️ heavy job — confirm the flat labor is right</span>':'')+
-        natLine+
-        '<br><span style="color:var(--muted);font-size:11.5px">Filled the OEM part #, our cost, and flat labor below — adjust if this machine\'s different.</span></div>';
+        natBlock + tiers +
+        '<div style="margin-top:7px;font-size:11.5px;color:var(--muted)">Filled OEM part #, our cost, and flat labor below. The transparency IS the pitch — they know the secret now.</div></div>';
     } else {
       state.oemPrice = '';
       menuPreview = '<div style="color:#c2691c">Flat labor $'+r.flat_labor+' set. Couldn\'t auto-price '+(part?escapeHtml(part):'the part')+' — enter the part # + cost below.</div>';

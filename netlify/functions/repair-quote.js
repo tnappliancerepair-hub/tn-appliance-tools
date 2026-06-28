@@ -70,6 +70,21 @@ exports.handler = async function (event) {
           ? `National avg ~$${nat} → customer saves ~$${save} (${out.savings_pct}%) with us`
           : `Includes premium OEM part — still fair vs the ~$${nat} national average`;
       }
+      // 💰 Amazon-equivalent BUDGET tier — estimated from OEM cost (aftermarket ≈ 60%).
+      // Flaunt the second option; clearly an ESTIMATE (tech confirms via Auto-find parts).
+      if (part.found && part.cost > 0) {
+        const AMAZON_RATIO = 0.6;
+        const estCost = Math.round(part.cost * AMAZON_RATIO * 100) / 100;
+        const estSell = sellPrice(estCost, { warranty });
+        const estTotal = Math.round((r.flat_labor + estSell) * 100) / 100;
+        const amzSave = nat ? Math.round((nat - estTotal) * 100) / 100 : null;
+        out.amazon_est = {
+          estimated: true, est_part_cost: estCost, sell: estSell, total: estTotal,
+          savings_vs_national: amzSave,
+          savings_pct: (nat && amzSave > 0) ? Math.round((amzSave / nat) * 100) : 0,
+          note: `Budget (Amazon-equivalent) ~$${estTotal} est${(nat && amzSave > 0) ? ` — saves ~$${amzSave} (${Math.round((amzSave / nat) * 100)}%) vs national` : ''}. Confirm exact part with Auto-find.`,
+        };
+      }
     } else {
       out.note = 'no part on file — enter the part # to get the all-in total';
     }
