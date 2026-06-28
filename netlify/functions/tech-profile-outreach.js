@@ -24,8 +24,8 @@ function msg(name, techId) {
 }
 
 async function sendTelnyx(to, text) {
-  const key = process.env.TELNYX_API_KEY;
-  if (!key) return { ok: false, error: 'no TELNYX_API_KEY' };
+  const key = (await getSecret('TELNYX_API_KEY')) || process.env.TELNYX_API_KEY;
+  if (!key) return { ok: false, error: 'no TELNYX_API_KEY (env or vault)' };
   try {
     const r = await fetch('https://api.telnyx.com/v2/messages', {
       method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
