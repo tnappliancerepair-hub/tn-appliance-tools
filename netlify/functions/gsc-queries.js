@@ -15,6 +15,24 @@ exports.handler = async function (event) {
   const days = Math.max(1, Math.min(90, parseInt(p.days, 10) || 28));
   const filter = (p.q || '').toLowerCase().trim();
 
+  // &dim=page → page-level view: which URLs Google actually surfaces (the keep/retire signal)
+  if (p.dim === 'page') {
+    let pr;
+    try { pr = await gsc.query({ days, dimensions: ['page'], rowLimit: 2000 }); }
+    catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    if (!pr.ok) return json(200, pr);
+    const pages = pr.rows
+      .map((r) => ({ page: (r.keys[0] || '').replace('https://tnapplianceexchange.net/', ''), impressions: r.impressions, clicks: r.clicks, position: Math.round(r.position * 10) / 10 }))
+      .sort((a, b) => b.impressions - a.impressions);
+    const withImpr = pages.filter((x) => x.impressions > 0);
+    return json(200, {
+      ok: true, site: pr.site, days,
+      note: 'page-level: pages with impressions are the KEEPERS (Google surfaces them). Everything not here = zero impressions = retire/consolidate/noindex candidate.',
+      pages_with_impressions: withImpr.length,
+      pages: pages.slice(0, 300),
+    });
+  }
+
   let res;
   try { res = await gsc.query({ days, dimensions: ['query'], rowLimit: 500 }); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
