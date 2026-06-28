@@ -2,6 +2,15 @@
 
 GOAL: self-scheduling LIVE in 5 days.
 
+## 🌟 GOVERNING PRINCIPLE (Teddy 2026-06-28)
+**"No more surprises — it's all communication, with a positive attitude."**
+Everything in this system is PROACTIVE, TRANSPARENT, POSITIVE communication. Nobody —
+tech or customer — is ever caught off guard. The tech knows his day and that it was built
+around his life; the customer sees their preference honored + a live window; running behind
+is handled WITH them, not sprung on them. Ant is on everyone's side. Every feature is held
+to this: if it would surprise someone or carry a negative tone, it's built wrong. This is the
+through-line of the whole autopilot — the schedule is a conversation, not a command.
+
 ## ⚡ MODEL EVOLUTION (Teddy 2026-06-28) — TECH-PROFILE FIRST, then AUTO-PLACE
 The foundation is understanding each TECH deeply, then building him a day he can run with pride.
 
