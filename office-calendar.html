@@ -669,6 +669,32 @@
       grid-template-columns: 60px repeat(var(--tech-count, 6), minmax(120px, 1fr));
     }
   }
+  /* ── HCP-style mini month calendar (side picker) ── */
+  .cal-body { display: flex; align-items: flex-start; gap: 0; }
+  .cal-body > .scroll { flex: 1; min-width: 0; }
+  .mini-cal {
+    flex: 0 0 232px; width: 232px; position: sticky; top: 8px;
+    padding: 12px; margin: 8px 0 8px 12px;
+    background: var(--surface, #fff); border: 1px solid var(--border-soft, #e6e6ea);
+    border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); user-select: none;
+  }
+  .mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .mc-title { font-weight: 800; font-size: 14px; }
+  .mc-nav { border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; color: var(--ink,#222); }
+  .mc-nav:hover { background: #f3f4f8; }
+  .mc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .mc-dow { margin-bottom: 2px; }
+  .mc-dowcell { text-align: center; font-size: 10px; font-weight: 700; color: var(--dim,#9aa); padding: 2px 0; }
+  .mc-cell { aspect-ratio: 1/1; border: 0; background: transparent; border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--ink,#222); display: flex; align-items: center; justify-content: center; }
+  .mc-cell:hover { background: #eef1f6; }
+  .mc-empty { background: transparent; cursor: default; }
+  .mc-inrange { background: #e7f0ff; }
+  .mc-sel { background: var(--blue,#2563eb) !important; color: #fff !important; font-weight: 800; }
+  .mc-today { box-shadow: inset 0 0 0 2px var(--ok,#16a34a); font-weight: 800; }
+  .mc-today-btn { width: 100%; margin-top: 10px; padding: 8px; border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 9px; font-weight: 800; font-size: 12.5px; cursor: pointer; color: var(--ink,#222); }
+  .mc-today-btn:hover { background: #f3f4f8; }
+  .mc-hint { font-size: 10.5px; color: var(--dim,#9aa); margin-top: 8px; line-height: 1.4; text-align: center; }
+  @media (max-width: 860px) { .mini-cal { display: none; } .cal-body { display: block; } }
 </style>
   <script src="/office-ask.js?v=20260603-1"></script>
 </head>
@@ -737,8 +763,11 @@
   </div>
   <div class="cal-summary" id="calSummary"></div>
   <div class="tech-filter" id="techFilter" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border-soft)"></div>
-  <div class="scroll" id="scroll">
-    <div id="content"></div>
+  <div class="cal-body">
+    <aside class="mini-cal" id="miniCal"></aside>
+    <div class="scroll" id="scroll">
+      <div id="content"></div>
+    </div>
   </div>
 </div>
 
@@ -1343,6 +1372,9 @@ function __initCalendar() {
     viewWeekBtn?.classList.toggle('active', currentView === 'week');
     viewTodayBtn?.classList.toggle('active', currentView === 'today');
     viewListBtn?.classList.toggle('active', currentView === 'list');
+    // Snap the mini-calendar to the selected day's month + repaint it.
+    miniCalView = startOfMonthOf(currentWeekStart);
+    renderMiniCal();
   }
 
   function renderTodayView(data, techs, jobs) {
@@ -1510,6 +1542,45 @@ function __initCalendar() {
     currentWeekStart = ymd(d);
     updateUrl();
     loadWeek();
+  }
+
+  // ── HCP-style mini month calendar (side picker) ────────────────
+  // Pick any day → the schedule shows that day forward. Browse months with ‹ ›
+  // without reloading; picking a day loads it. Today ring + selected-range fill.
+  let miniCalView = null; // Date = first of the displayed month
+  function startOfMonthOf(ymdStr) { const d = parseYMD(ymdStr); return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function renderMiniCal() {
+    const host = $('miniCal'); if (!host) return;
+    if (!miniCalView) miniCalView = startOfMonthOf(currentWeekStart);
+    const y = miniCalView.getFullYear(), m = miniCalView.getMonth();
+    const startDow = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const selStart = parseYMD(currentWeekStart);
+    const selStartStr = ymd(selStart);
+    const range = new Set();
+    for (let i = 0; i < 7; i++) { const d = new Date(selStart); d.setDate(d.getDate() + i); range.add(ymd(d)); }
+    const todayStr = serverTodayCT || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    let h = '<div class="mc-head"><button class="mc-nav" id="mcPrev" title="previous month">‹</button>'
+      + '<div class="mc-title">' + MONTHS[m] + ' ' + y + '</div>'
+      + '<button class="mc-nav" id="mcNext" title="next month">›</button></div>'
+      + '<div class="mc-grid mc-dow">' + ['S','M','T','W','T','F','S'].map(d => '<div class="mc-dowcell">' + d + '</div>').join('') + '</div>'
+      + '<div class="mc-grid mc-days">';
+    for (let i = 0; i < startDow; i++) h += '<div class="mc-cell mc-empty"></div>';
+    for (let day = 1; day <= daysInMonth; day++) {
+      const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      const cls = ['mc-cell'];
+      if (range.has(ds)) cls.push('mc-inrange');
+      if (ds === selStartStr) cls.push('mc-sel');
+      if (ds === todayStr) cls.push('mc-today');
+      h += '<button class="' + cls.join(' ') + '" data-d="' + ds + '">' + day + '</button>';
+    }
+    h += '</div><button class="mc-today-btn" id="mcToday">Today</button>'
+      + '<div class="mc-hint">Pick any day — the schedule shows that day forward.</div>';
+    host.innerHTML = h;
+    $('mcPrev').onclick = () => { miniCalView = new Date(y, m - 1, 1); renderMiniCal(); };
+    $('mcNext').onclick = () => { miniCalView = new Date(y, m + 1, 1); renderMiniCal(); };
+    const tb = $('mcToday'); if (tb) tb.onclick = () => { if (serverTodayCT) { currentWeekStart = serverTodayCT; updateUrl(); loadWeek(); } };
+    host.querySelectorAll('.mc-cell[data-d]').forEach((b) => { b.onclick = () => { currentWeekStart = b.dataset.d; updateUrl(); loadWeek(); }; });
   }
 
   function updateUrl() {
