@@ -10,6 +10,7 @@
 'use strict';
 
 const { sendSms } = require('./_lib/sms');
+let sb = null; try { sb = require('./_lib/supabase'); } catch (_) {}
 const OWNER_PHONE = '+16154855795';     // Teddy
 const DANIELLE_PHONE = '+16154850713';
 const SITE = 'https://tnapplianceexchange.net';
@@ -222,6 +223,38 @@ async function alertNewJob(name, args, data) {
   } catch (_) {}
 }
 
+// HCP BRIDGE (interim — until everything's on Ant). If Xano doesn't know the
+// caller, check the HCP archive (Supabase) by phone so Ant still recognizes them
+// and can recall past service. Fast (indexed phone10/cust_id), bounded, never throws.
+async function hcpEnrich(callerPhone, shaped) {
+  try {
+    if (!sb) return shaped;
+    const digits = String(callerPhone || '').replace(/\D/g, '').slice(-10);
+    if (digits.length !== 10 || SHOP_DIGITS.has(digits)) return shaped;
+    const custs = await sb.select('hcp_archive', { kind: 'eq.customer', phone10: 'eq.' + digits, limit: 1 });
+    const cust = custs && custs[0];
+    if (!cust) return shaped;
+    const c = cust.data || {};
+    const first = c.first_name || String(c.company || '').split(' ')[0] || '';
+    const cid = String(cust.hcp_id || c.id || '');
+    let jobs = [];
+    if (cid) { try { jobs = await sb.select('hcp_archive', { kind: 'eq.job', cust_id: 'eq.' + cid, order: 'id.desc', limit: 3, select: 'd:data->>description,ws:data->>work_status,bal:data->>outstanding_balance' }); } catch (_) {} }
+    const cents = (x) => Number(String(x == null ? '' : x).replace(/[^0-9.\-]/g, '')) || 0;
+    const history = (jobs || []).map((j) => ({ what: String(j.d || '').slice(0, 80), status: j.ws || '' }));
+    const owed = (jobs || []).reduce((s, j) => s + cents(j.bal), 0);
+    return {
+      ...shaped,
+      found: true,
+      source: 'hcp_history',
+      from_past_records: true,
+      customer_first_name: shaped.customer_first_name || first,
+      hcp_history: history,
+      past_balance: owed > 0 ? '$' + (owed / 100).toFixed(2) : '$0.00',
+      note: 'Recognized from our PAST (Housecall Pro) records — not a current Ant job. Greet by name + recall past service; confirm details for anything current.',
+    };
+  } catch (_) { return shaped; }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let body; try { body = JSON.parse(event.body || '{}'); } catch (_) { body = {}; }
@@ -237,7 +270,15 @@ exports.handler = async function (event) {
     // Shape + push the caller's answer FIRST so the tool response is ready the
     // instant the lookup returns. The bookkeeping below talks to the flaky Xano
     // metadata API — it must never delay (or silence) the call.
-    const shaped = shapeResult(c.name, data);
+    let shaped = shapeResult(c.name, data);
+    // HCP bridge: caller unknown to Xano? fall back to the HCP archive (bounded so
+    // it can never hang the call — returns the original result if it's slow).
+    if (c.name === 'lookup_customer_by_phone' && shaped && !shaped.found) {
+      shaped = await Promise.race([
+        hcpEnrich(callerPhone || a.phone || a.phone_number || a.phone_e164, shaped),
+        new Promise((r) => setTimeout(() => r(shaped), 2500)),
+      ]);
+    }
     results.push({ toolCallId: c.id, result: typeof shaped === 'string' ? shaped : JSON.stringify(shaped) });
     // Best-effort audit/capture/alert, hard-bounded. A slow or hung metadata API
     // can't add more than BOOKKEEPING_CAP_MS to the tool response (this is the
