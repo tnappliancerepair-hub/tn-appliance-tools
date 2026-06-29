@@ -59,7 +59,8 @@ exports.handler = async function (event) {
     if (!r.ok && r.status === 403 && c.managerId) {
       try { r = await fetch(`${base}${path}`, { method: 'POST', headers: ads.apiHeaders(token, c, c.managerId), body: JSON.stringify(body) }); d = await r.json().catch(() => ({})); } catch (_) {}
     }
-    return { ok: r.ok, status: r.status, d, err: r.ok ? null : ((d.error && (d.error.message || d.error.status)) || (d.error && d.error.details) || d) };
+    const detail = d.error && d.error.details && d.error.details[0] && (d.error.details[0].errors || d.error.details[0]);
+    return { ok: r.ok, status: r.status, d, err: r.ok ? null : { message: (d.error && d.error.message) || null, detail: detail || (d.error && d.error.status) || d } };
   }
 
   // 1) resolve geo target constants for the cities (City type, in the state)
@@ -88,7 +89,7 @@ exports.handler = async function (event) {
   // 3) campaign (manual CPC so a cold-start test reliably serves; PAUSED unless enable)
   const camp = await post('/campaigns:mutate', { operations: [{ create: {
     name, advertisingChannelType: 'SEARCH', status: enable ? 'ENABLED' : 'PAUSED', campaignBudget: budgetRes,
-    manualCpc: {}, networkSettings: { targetGoogleSearch: true, targetSearchNetwork: false, targetContentNetwork: false, targetPartnerSearchNetwork: false },
+    targetSpend: {}, networkSettings: { targetGoogleSearch: true, targetSearchNetwork: false, targetContentNetwork: false, targetPartnerSearchNetwork: false },
     startDate: todayYMD(),
   } }] });
   if (!camp.ok) return json(200, { ok: false, step: 'campaign', error: camp.err, budget: budgetRes });
