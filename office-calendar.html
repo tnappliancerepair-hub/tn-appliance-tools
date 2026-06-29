@@ -723,6 +723,7 @@
     <div class="view-toggle" style="display:flex; gap:6px; margin-left:10px;">
       <button class="nav-btn view-btn active" id="viewWeekBtn" title="Week grid view" data-view="week">Week</button>
       <button class="nav-btn view-btn" id="viewTodayBtn" title="Today list view" data-view="today">Today</button>
+      <button class="nav-btn view-btn" id="viewListBtn" title="List view — every job this range, chronological" data-view="list">List</button>
     </div>
     <div class="spacer"></div>
     <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
@@ -735,6 +736,7 @@
     <span class="lg-note">Drag a job to another tech or day to move it · click it to reschedule / unschedule / cancel</span>
   </div>
   <div class="cal-summary" id="calSummary"></div>
+  <div class="tech-filter" id="techFilter" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border-soft)"></div>
   <div class="scroll" id="scroll">
     <div id="content"></div>
   </div>
@@ -787,11 +789,19 @@ function __initCalendar() {
   const newJobBtn = $('newJobBtn');
   const viewWeekBtn = $('viewWeekBtn');
   const viewTodayBtn = $('viewTodayBtn');
+  const viewListBtn = $('viewListBtn');
   // Phones default to the list ("today") view — the wide week grid is desktop-
   // only. Explicit ?view= always wins.
   let currentView = params.get('view') === 'today' ? 'today'
+    : params.get('view') === 'list' ? 'list'
     : params.get('view') === 'week' ? 'week'
     : (window.innerWidth < 760 ? 'today' : 'week');
+
+  // Per-tech show/hide filter (HCP-style). hiddenTechs holds tech ids to HIDE
+  // (0 = Unassigned). Persisted so the office's view sticks across reloads.
+  let hiddenTechs = new Set();
+  try { const raw = localStorage.getItem('tn_cal_hidden_techs'); if (raw) hiddenTechs = new Set(JSON.parse(raw).map(Number)); } catch (_) {}
+  function saveHidden() { try { localStorage.setItem('tn_cal_hidden_techs', JSON.stringify([...hiddenTechs])); } catch (_) {} }
 
   // ── Auth ───────────────────────────────────────────────────────
   function unlock() {
@@ -908,25 +918,26 @@ function __initCalendar() {
     renderHeader(data);
     renderSummaryBar(data);
 
-    const techs = data.technicians || [];
-    const jobs = data.jobs || [];
+    const allTechs = data.technicians || [];
+    const allJobs = data.jobs || [];
+    renderTechFilter(allTechs);                          // HCP-style show/hide-by-tech checklist
+    const showUnassigned = !hiddenTechs.has(0);
+    const techs = allTechs.filter((t) => !hiddenTechs.has(Number(t.id)));
+    const jobs = allJobs.filter((j) => { const tid = Number(j.technician_id) || 0; return tid === 0 ? showUnassigned : !hiddenTechs.has(tid); });
     const unscheduled = data.unscheduled || [];
     const availability = data.availability || [];
     const techCount = Math.max(techs.length, 1);
 
     lastTechs = techs;
     lastJobsById = {};
-    for (const j of jobs) lastJobsById[j.id] = j;
+    for (const j of allJobs) lastJobsById[j.id] = j;
     // Include unscheduled jobs so the tray can open them in the same
     // schedule/reschedule modal as everything else.
     for (const j of unscheduled) lastJobsById[j.id] = j;
 
-    // Branch on view mode. Today view replaces the week grid with a
-    // chronological list of all jobs scheduled for today across all techs.
-    if (currentView === 'today') {
-      renderTodayView(data, techs, jobs);
-      return;
-    }
+    // Branch on view mode.
+    if (currentView === 'today') { renderTodayView(data, techs, jobs); return; }
+    if (currentView === 'list') { renderListView(data, techs, jobs); return; }
 
     // Index data
     // assigned[techId][dateStr] -> [jobs]
@@ -1331,6 +1342,7 @@ function __initCalendar() {
     // View toggle active state.
     viewWeekBtn?.classList.toggle('active', currentView === 'week');
     viewTodayBtn?.classList.toggle('active', currentView === 'today');
+    viewListBtn?.classList.toggle('active', currentView === 'list');
   }
 
   function renderTodayView(data, techs, jobs) {
@@ -1375,41 +1387,91 @@ function __initCalendar() {
     </div>`);
     parts.push(`<div class="today-list" style="padding:8px 12px">`);
 
-    for (const j of todayJobs) {
-      const time = j.scheduled_start ? fmtTimeShort(j.scheduled_start) : '—';
-      const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
-      const appl = (j.appliance_type || '').toLowerCase();
-      const brand = (j.brand || '').trim();
-      const city = (j.service_city || '').trim();
-      const status = (j.scheduling_status || '').toLowerCase();
-      const ct = (j.customer_type || '').toLowerCase();
-      const tech = techById[j.technician_id];
-      const techLabel = tech
-        ? `${(tech.first_name || '').trim()} ${(tech.last_name || '').trim().slice(0,1)}${tech.last_name ? '.' : ''}`.trim()
-        : 'unassigned';
-
-      let bk = 'self_pay';
-      if (ct === 'warranty') bk = 'warranty';
-      if (status === 'completed') bk = 'completed';
-
-      parts.push(`
-        <div class="today-row blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
-             style="display:grid;grid-template-columns:80px 1fr auto;gap:12px;align-items:center;padding:12px 14px;margin:8px 0;border-radius:8px;cursor:pointer;min-height:48px">
-          <div style="font-family:var(--mono);font-weight:700;color:var(--text);font-size:14px">${escapeHtml(time)}</div>
-          <div>
-            <div style="font-weight:700;color:var(--text);font-size:14px">${escapeHtml(cust)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">
-              ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
-            </div>
-            <div style="margin-top:3px">${partsBadge(j)}</div>
-          </div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
-        </div>
-      `);
-    }
+    for (const j of todayJobs) parts.push(jobRowHtml(j, techById));
     parts.push(`</div>`);
     content.innerHTML = parts.join('');
     attachClickHandlers();
+  }
+
+  // One job row, shared by Today + List views.
+  function jobRowHtml(j, techById) {
+    const time = j.scheduled_start ? fmtTimeShort(j.scheduled_start) : '—';
+    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
+    const appl = (j.appliance_type || '').toLowerCase();
+    const brand = (j.brand || '').trim();
+    const city = (j.service_city || '').trim();
+    const status = (j.scheduling_status || '').toLowerCase();
+    const ct = (j.customer_type || '').toLowerCase();
+    const tech = techById[j.technician_id];
+    const techLabel = tech
+      ? `${(tech.first_name || '').trim()} ${(tech.last_name || '').trim().slice(0,1)}${tech.last_name ? '.' : ''}`.trim()
+      : 'unassigned';
+    let bk = 'self_pay';
+    if (ct === 'warranty') bk = 'warranty';
+    if (status === 'completed') bk = 'completed';
+    return `
+      <div class="today-row blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
+           style="display:grid;grid-template-columns:80px 1fr auto;gap:12px;align-items:center;padding:12px 14px;margin:8px 0;border-radius:8px;cursor:pointer;min-height:48px">
+        <div style="font-family:var(--mono);font-weight:700;color:var(--text);font-size:14px">${escapeHtml(time)}</div>
+        <div>
+          <div style="font-weight:700;color:var(--text);font-size:14px">${escapeHtml(cust)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">
+            ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
+          </div>
+          <div style="margin-top:3px">${partsBadge(j)}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
+      </div>`;
+  }
+
+  // HCP-style per-tech show/hide checklist. Renders "Select all" + Unassigned +
+  // every tech; tapping toggles that tech's jobs in EVERY view (week/today/list).
+  function renderTechFilter(allTechs) {
+    const el = document.getElementById('techFilter');
+    if (!el) return;
+    const chip = (id, label) => {
+      const off = hiddenTechs.has(id);
+      return `<button class="tfchip" data-tf="${id}" style="font:600 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid ${off ? 'var(--border-soft)' : 'var(--orange,#e8743b)'};background:${off ? 'transparent' : 'var(--orange,#e8743b)'};color:${off ? 'var(--muted)' : '#fff'}">${off ? '☐' : '☑'} ${escapeHtml(label)}</button>`;
+    };
+    const parts = [`<button class="tfchip" data-tf="__all__" style="font:700 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid var(--text);background:transparent;color:var(--text)">Select all</button>`];
+    parts.push(chip(0, 'Unassigned'));
+    for (const t of allTechs) { const nm = ((t.first_name || '') + ' ' + (t.last_name || '')).trim() || ('Tech ' + t.id); parts.push(chip(Number(t.id), nm)); }
+    el.innerHTML = parts.join(' ');
+    el.querySelectorAll('.tfchip').forEach((b) => b.onclick = () => {
+      const v = b.dataset.tf;
+      if (v === '__all__') hiddenTechs.clear();
+      else { const id = Number(v); hiddenTechs.has(id) ? hiddenTechs.delete(id) : hiddenTechs.add(id); }
+      saveHidden();
+      if (dashboardData) render(dashboardData);
+    });
+  }
+
+  // List view: every job in the loaded range, grouped by day, chronological —
+  // honors the per-tech filter. The "List view" Danielle asked for.
+  function renderListView(data, techs, jobs) {
+    const techById = {}; for (const t of techs) techById[t.id] = t;
+    const trayHtml = (data.unscheduled && data.unscheduled.length && !hiddenTechs.has(0)) ? renderUnscheduled(data.unscheduled) : '';
+    const byDay = {};
+    for (const j of jobs) { const d = j.scheduled_start ? ctDateForMs(j.scheduled_start) : '~'; (byDay[d] = byDay[d] || []).push(j); }
+    const days = Object.keys(byDay).sort((a, b) => (a === '~' ? 1 : b === '~' ? -1 : a.localeCompare(b)));
+    if (!days.length) {
+      content.innerHTML = trayHtml + `<div class="today-empty" style="padding:48px 20px;text-align:center;color:var(--muted)"><div style="font-size:40px">🐜</div>No jobs in this range for the selected techs.</div>`;
+      attachClickHandlers(); return;
+    }
+    const parts = []; if (trayHtml) parts.push(trayHtml);
+    for (const d of days) {
+      const list = byDay[d].sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
+      parts.push(`<div class="today-header" style="padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)"><div style="font-family:var(--display);letter-spacing:0.05em;font-size:16px;color:var(--text)">${d === '~' ? 'No date set' : dayLabel(d)}</div><div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${list.length} ${list.length === 1 ? 'job' : 'jobs'}</div></div>`);
+      parts.push(`<div class="today-list" style="padding:8px 12px">`);
+      for (const j of list) parts.push(jobRowHtml(j, techById));
+      parts.push(`</div>`);
+    }
+    content.innerHTML = parts.join('');
+    attachClickHandlers();
+  }
+
+  function dayLabel(ymdStr) {
+    try { return parseYMD(ymdStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); } catch (_) { return ymdStr; }
   }
 
   // ── Nav ────────────────────────────────────────────────────────
@@ -1418,7 +1480,7 @@ function __initCalendar() {
 
   // View toggle. Today view re-renders the same loaded data — no extra fetch.
   function setView(view) {
-    if (view !== 'week' && view !== 'today') return;
+    if (view !== 'week' && view !== 'today' && view !== 'list') return;
     if (currentView === view) return;
     currentView = view;
     updateUrl();
@@ -1427,6 +1489,7 @@ function __initCalendar() {
   }
   viewWeekBtn?.addEventListener('click', () => setView('week'));
   viewTodayBtn?.addEventListener('click', () => setView('today'));
+  viewListBtn?.addEventListener('click', () => setView('list'));
   todayBtn.addEventListener('click', () => {
     if (!serverTodayCT) return;
     currentWeekStart = serverTodayCT; // jump to today-forward, not the past week
@@ -1458,7 +1521,7 @@ function __initCalendar() {
     } else if (currentWeekStart) {
       url.searchParams.set('week', currentWeekStart);
     }
-    if (currentView === 'today') url.searchParams.set('view', 'today');
+    if (currentView === 'today' || currentView === 'list') url.searchParams.set('view', currentView);
     else url.searchParams.delete('view');
     window.history.replaceState({}, '', url.toString());
   }
