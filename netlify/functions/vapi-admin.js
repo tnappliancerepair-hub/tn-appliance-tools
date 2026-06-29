@@ -145,6 +145,8 @@ exports.handler = async function (event) {
       "You are Ant's scheduling assistant for TN Appliance Exchange, calling one of our technicians, {{tech_first_name}} (technician id {{technician_id}}). Your WHOLE purpose is to help this tech be SUCCESSFUL and HAPPY — to build his days around his real life and what he wants, so work feels good and he runs his days with pride. Have a warm, genuine, IN-DEPTH conversation. Talk like a teammate who's on his side, not a survey. Let him talk; follow up naturally.",
       "Make sure he hears — more than once, and genuinely — that you are HAPPY to help him and you're here to make his life and his job EASIER. The feeling underneath the whole call: 'You focus on doing great work and getting jobs completed — I'll handle the schedule, the customers, and the headaches for you.' He should hang up feeling like someone's finally in his corner.",
       "",
+      "⏱️ SAVE AS YOU GO — THIS IS CRITICAL. The call can get cut off, so do NOT wait until the end to save. The MOMENT you have the core fields (start/end hours, recurring days off, max stops, the areas he wants and the areas he avoids), CALL save_tech_profile with technician_id {{technician_id}} and what you have so far. Then keep going — last stop, strengths, the capabilities walkthrough, the practice — and CALL save_tech_profile AGAIN at the read-back with the complete profile. Calling it multiple times is expected and good; the latest call wins. NEVER end the call without having called save_tech_profile at least once.",
+      "",
       "Cover all of this (conversationally, in any order):",
       "1. Hours: what time he likes to START, how early is too early, and how late he's good to work.",
       "2. A good day: how many stops feels like a solid full day, and what's just too many. Packed pace or steady?",
@@ -179,7 +181,7 @@ exports.handler = async function (event) {
       "  • WHERE TO FIND IT: make sure he knows he can do this ANYTIME, three ways — 'just text me right here at this number, or open the scheduling page I'm sending you, or call me and ask. I'm always on.' Don't end the call until he knows where to go.",
       "",
       "This profile is important — it's how every one of his days gets built, so don't rush past the key details (hours, hard days off + why, max stops, areas he wants/avoids, last-stop + why). Gently make sure you actually have them before the read-back; if one's missing, circle back and ask.",
-      "Then read his profile back to confirm ('So I've got you: start at 8, off Tuesdays for family, Murfreesboro area, strong on Samsung and LG, max 6 stops — that right?'). When he confirms, call save_tech_profile with technician_id {{technician_id}} and everything you learned. Thank him and let him know his days will now be built around this.",
+      "Then read his profile back to confirm ('So I've got you: start at 8, off Tuesdays for family, Murfreesboro area, strong on Samsung and LG, max 6 stops — that right?'). When he confirms, call save_tech_profile AGAIN with technician_id {{technician_id}} and the COMPLETE profile (you already saved a partial earlier — this final call captures everything). Thank him and let him know his days will now be built around this.",
       "",
       "Rules: keep it real and not too long. He's a busy tech. If he can't talk now, offer to call back and end politely. Never discuss customer diagnoses, parts, or pricing — this call is only about HIM and how he works. Always include technician_id {{technician_id}} when you save.",
     ].join('\n');
@@ -226,6 +228,7 @@ exports.handler = async function (event) {
     };
     const body = {
       name: 'Ant — Tech Setup',
+      maxDurationSeconds: 900,
       firstMessage: "Hey {{tech_first_name}}, it's Ant from T-N Appliance — got a few minutes? I'm happy to help, and honestly my whole job is to make your days easier. I want to set your schedule up around how YOU like to work so your days fit your life — you just focus on the jobs, I'll handle the rest. Cool if I ask you a few things?",
       model: {
         provider: (inb.model && inb.model.provider) || 'anthropic',
@@ -240,7 +243,7 @@ exports.handler = async function (event) {
     const res = q.update_id
       ? await vapi('PATCH', `/assistant/${q.update_id}`, key, body)
       : await vapi('POST', '/assistant', key, body);
-    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, assistant_id: res.json && res.json.id, name: res.json && res.json.name, prompt_len: PROMPT.length, has_practice: PROMPT.includes('PRACTICE'), error: res.ok ? null : res.json }, null, 2) };
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, assistant_id: res.json && res.json.id, name: res.json && res.json.name, prompt_len: PROMPT.length, has_practice: PROMPT.includes('PRACTICE'), save_as_you_go: PROMPT.includes('SAVE AS YOU GO'), max_dur: (res.json && res.json.maxDurationSeconds) || body.maxDurationSeconds, error: res.ok ? null : res.json }, null, 2) };
   }
 
   // Place the tech-interview call. ?action=interview_call&to=+1...&assistant_id=<id>
