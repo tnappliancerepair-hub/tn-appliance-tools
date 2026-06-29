@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Current Jobs Map · Ant Office</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; font: 15px/1.4 -apple-system, system-ui, sans-serif; color: #1c2530; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: #fff; border-bottom: 1px solid #e3e8ee; padding: 9px 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+  #bar h1 { font-size: 16px; margin: 0; font-weight: 800; }
+  .scope { display: flex; gap: 4px; }
+  .scope button, .nav-link { font: 600 13px/1 system-ui; padding: 7px 11px; border-radius: 8px; border: 1px solid #d4dbe3; background: #f4f7fa; color: #2c3a47; cursor: pointer; text-decoration: none; }
+  .scope button.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  #count { font-size: 13px; color: #5b6b7a; margin-left: auto; }
+  #legend { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 12px; background: #fafbfc; border-bottom: 1px solid #eef2f6; position: fixed; top: 52px; left: 0; right: 0; z-index: 999; }
+  .tk { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #fff; border: 1px solid #e3e8ee; cursor: pointer; user-select: none; }
+  .tk.off { opacity: .38; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  #map { position: fixed; top: 96px; left: 0; right: 0; bottom: 0; background: #e8edf1; }
+  .map-pin { width: 26px; height: 26px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+  .map-pin b { transform: rotate(45deg); color: #fff; font-size: 11px; font-weight: 800; }
+  .pop b { font-size: 14px; } .pop .s { color: #5b6b7a; font-size: 12px; } .pop a { color: #1f6feb; font-weight: 700; text-decoration: none; }
+  #status { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; background: #1c2530; color: #fff; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; box-shadow: 0 2px 10px rgba(0,0,0,.3); }
+  #gate { position: fixed; inset: 0; background: #0d1117; z-index: 5000; display: none; align-items: center; justify-content: center; }
+  #gate.show { display: flex; }
+  #gate .box { background: #161b22; padding: 26px; border-radius: 14px; width: 280px; text-align: center; color: #e6edf3; }
+  #gate input { width: 100%; padding: 11px; margin: 12px 0; border-radius: 8px; border: 1px solid #30363d; background: #0d1117; color: #fff; font-size: 16px; text-align: center; }
+  #gate button { width: 100%; padding: 11px; border: 0; border-radius: 8px; background: #1f6feb; color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+  #gate .err { color: #ff7b72; font-size: 13px; min-height: 16px; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>🗺 Current Jobs</h1>
+  <div class="scope" id="scope">
+    <button data-scope="current" class="on">Current</button>
+    <button data-scope="today">Today</button>
+    <button data-scope="week">Next 7 days</button>
+  </div>
+  <a class="nav-link" href="office-calendar.html">📅 Calendar</a>
+  <span id="count">loading…</span>
+</div>
+<div id="legend"></div>
+<div id="map"></div>
+<div id="status" style="display:none"></div>
+
+<div id="gate"><div class="box">
+  <div>🔒 Office access</div>
+  <input id="pw" type="password" placeholder="office password" autocomplete="off" />
+  <button id="pwBtn">Unlock</button>
+  <div class="err" id="pwErr"></div>
+</div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const GEO_PREFIX = 'tn_geo_v1:', GEO_TTL = 30*24*60*60*1000;
+const TECH = { 1:{n:'Teddy',c:'#8957e5'}, 2:{n:'Jimmy',c:'#1f6feb'}, 3:{n:'Andre',c:'#e3672b'}, 4:{n:'Lee',c:'#1a7f37'}, 6:{n:'John',c:'#bf3989'}, 0:{n:'Unassigned',c:'#8b97a3'} };
+const $ = (id) => document.getElementById(id);
+let MAP, MARKERS = [], ALL = [], SCOPE = 'current', OFF = new Set();
+
+// ── office auth (shared key with the calendar) ──
+function authed() { return localStorage.getItem('tn_office_auth') === '1'; }
+async function tryAuth(pw) {
+  try { const r = await fetch(`${XANO}/verify_office_password`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) }); const d = await r.json().catch(()=>({})); return !!(d && (d.valid || d.ok || d.success)); } catch(_) { return false; }
+}
+function showGate() { $('gate').classList.add('show'); $('pw').focus(); }
+$('pwBtn').onclick = async () => { const v = $('pw').value; $('pwErr').textContent = 'checking…'; if (await tryAuth(v)) { localStorage.setItem('tn_office_auth','1'); $('gate').classList.remove('show'); boot(); } else { $('pwErr').textContent = 'wrong password'; } };
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('pwBtn').click(); });
+
+// ── geocoding (cached + paced; shares cache with the tech map) ──
+let _lastGeo = 0;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function hash(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))|0; return h; }
+async function geocode(addr) {
+  const key = GEO_PREFIX + hash(addr);
+  try { const raw = localStorage.getItem(key); if (raw) { const p = JSON.parse(raw); if (p && Date.now()-p.ts < GEO_TTL) return {lat:p.lat,lng:p.lng}; } } catch(_){}
+  const wait = Math.max(0, 1100 - (Date.now()-_lastGeo)); _lastGeo = Date.now()+wait; await sleep(wait);
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1&countrycodes=us`);
+    const d = await r.json(); if (!Array.isArray(d) || !d.length) return null;
+    const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon); if (!isFinite(lat)||!isFinite(lng)) return null;
+    localStorage.setItem(key, JSON.stringify({lat,lng,ts:Date.now()})); return {lat,lng};
+  } catch(_) { return null; }
+}
+
+const ymd = ms => new Date(ms).toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+const todayY = () => new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'});
+function inScope(j) {
+  const st = String(j.scheduling_status||'').toLowerCase();
+  if (st === 'completed' || st === 'canceled' || st === 'no_fix_possible') return false; // never on a "current" map
+  if (SCOPE === 'current') return true;                                  // all open/active work
+  const start = Number(j.scheduled_start||0); if (!start) return SCOPE === 'current';
+  if (SCOPE === 'today') return ymd(start) === todayY();
+  if (SCOPE === 'week') { const days = (new Date(ymd(start)) - new Date(todayY()))/86400000; return days >= 0 && days <= 7; }
+  return true;
+}
+
+async function load() {
+  $('count').textContent = 'loading…';
+  try { const r = await fetch(`${XANO}/list_jobs_for_office_map?limit=300`); const d = await r.json(); ALL = Array.isArray(d) ? d : (d.jobs || d.items || []); }
+  catch(_) { $('count').textContent = 'load failed'; return; }
+  buildLegend(); render();
+}
+
+function buildLegend() {
+  const ids = [...new Set(ALL.map(j => Number(j.technician_id)||0))].sort((a,b)=>a-b);
+  $('legend').innerHTML = ids.map(id => { const t = TECH[id]||TECH[0]; return `<span class="tk${OFF.has(id)?' off':''}" data-tk="${id}"><span class="dot" style="background:${t.c}"></span>${t.n}</span>`; }).join('');
+  $('legend').querySelectorAll('.tk').forEach(el => el.onclick = () => { const id = Number(el.dataset.tk); OFF.has(id)?OFF.delete(id):OFF.add(id); el.classList.toggle('off'); render(); });
+}
+
+async function render() {
+  if (!MAP) { MAP = L.map('map',{zoomControl:true,attributionControl:false}).setView([36.0,-86.7],8); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(MAP); }
+  MARKERS.forEach(m => MAP.removeLayer(m)); MARKERS = [];
+  const jobs = ALL.filter(inScope).filter(j => !OFF.has(Number(j.technician_id)||0));
+  const cap = 150, toPlot = jobs.slice(0, cap);
+  $('count').textContent = `${jobs.length} current job${jobs.length===1?'':'s'}${jobs.length>cap?` (mapping first ${cap})`:''}`;
+  $('status').style.display = 'block'; $('status').textContent = `plotting ${toPlot.length}…`;
+  const coords = [];
+  for (const j of toPlot) {
+    const parts = [j.address, j.city, j.zip].filter(Boolean); if (!parts.length) continue;
+    const ll = await geocode(parts.join(', ')); if (!ll) continue;
+    const tid = Number(j.technician_id)||0, t = TECH[tid]||TECH[0];
+    const icon = L.divIcon({ className:'', html:`<div class="map-pin" style="background:${t.c}"><b>${t.n[0]}</b></div>`, iconSize:[26,26], iconAnchor:[13,26], popupAnchor:[0,-24] });
+    const start = Number(j.scheduled_start||0);
+    const when = start ? new Date(start).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'America/Chicago'}) : 'no date set';
+    const m = L.marker([ll.lat,ll.lng],{icon}).addTo(MAP).bindPopup(
+      `<div class="pop"><b>${(j.customer_name||('Job #'+j.job_id))}</b><br><span class="s">${(j.appliance_type||'')} · ${when} · ${t.n}<br>${parts.join(', ')}<br>${(j.scheduling_status||'')}</span><br><a href="job-detail.html?job_id=${j.job_id}">Open job →</a></div>`);
+    MARKERS.push(m); coords.push([ll.lat,ll.lng]);
+    if (coords.length % 8 === 0) { $('status').textContent = `plotting ${coords.length}/${toPlot.length}…`; }
+  }
+  if (coords.length === 1) MAP.setView(coords[0], 12);
+  else if (coords.length > 1) MAP.fitBounds(coords, { padding:[40,40] });
+  $('status').style.display = 'none';
+}
+
+$('scope').querySelectorAll('button').forEach(b => b.onclick = () => { SCOPE = b.dataset.scope; $('scope').querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); render(); });
+
+function boot() { load(); }
+if (authed()) boot(); else showGate();
+</script>
+</body>
+</html>
