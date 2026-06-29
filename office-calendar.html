@@ -718,6 +718,7 @@
       <button class="nav-btn today-btn" id="todayBtn">Today</button>
       <button class="nav-btn" id="nextWeek" title="next week">›</button>
       <span class="week-range" id="weekRange">—</span>
+      <input type="date" class="nav-btn" id="jumpDate" title="Jump to any date — past history or future schedule" style="padding:5px 8px;font:inherit;cursor:pointer" />
     </div>
     <div class="view-toggle" style="display:flex; gap:6px; margin-left:10px;">
       <button class="nav-btn view-btn active" id="viewWeekBtn" title="Week grid view" data-view="week">Week</button>
@@ -1433,6 +1434,13 @@ function __initCalendar() {
     loadWeek();
   });
 
+  // Jump-to-date: instantly go to ANY week — past (history) or future (scheduled).
+  // This is what makes past/present/future one tap instead of clicking ‹/› a dozen times.
+  const jumpDate = $('jumpDate');
+  jumpDate?.addEventListener('change', () => {
+    if (jumpDate.value) { currentWeekStart = jumpDate.value; updateUrl(); loadWeek(); }
+  });
+
   function stepWeek(deltaDays) {
     const d = parseYMD(currentWeekStart);
     d.setDate(d.getDate() + deltaDays);
@@ -1442,6 +1450,8 @@ function __initCalendar() {
   }
 
   function updateUrl() {
+    const jd = document.getElementById('jumpDate');
+    if (jd && currentWeekStart) jd.value = currentWeekStart;   // keep the picker showing where we are
     const url = new URL(window.location.href);
     if (currentWeekStart && currentWeekStart === currentWeekOfDateStr(serverTodayCT)) {
       url.searchParams.delete('week');

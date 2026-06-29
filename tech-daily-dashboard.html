@@ -823,6 +823,17 @@
   }
 
   async function tryUnlock() {
+    // OFFICE BYPASS (HCP-style, Teddy 2026-06-29): a device already logged into
+    // the office (shared 'tn_office_auth' key, set on the calendar/office pages) —
+    // or one opened with ?office=1 — sees ANY tech's schedule with NO tech PIN.
+    // The office is trusted and logs in once; per-tech PINs are only for the techs
+    // on their own phones. So "pull up John's schedule" needs zero PIN.
+    const officeFlag = new URLSearchParams(location.search).get('office') === '1';
+    if (officeFlag || localStorage.getItem('tn_office_auth') === '1') {
+      if (officeFlag) { try { localStorage.setItem('tn_office_auth', '1'); } catch (_) {} }
+      unlock();
+      return;
+    }
     const cached = localStorage.getItem(PIN_STORAGE_KEY);
     if (cached) {
       const ok = await verifyAccess(cached);
