@@ -226,6 +226,14 @@
 [functions."payment-email-watch"]
   schedule = "*/30 * * * *"
 
+# Teddy Tool submission watch — Teddy: "Teddy Tools submitted should also be sent to
+# the techs that work that area." On each diagnosis filed from the Teddy Tool, TEXTS
+# the area tech the diagnosis + tech-job link (live now — techs bypass the customer
+# gate) and EMAILS tnappliancerepair@gmail.com a tracking record (dormant until
+# EMAIL_ENABLED=true). Every 15 min. ?dry=1 lists recent submissions + who'd be told.
+[functions."tdr-submit-watch"]
+  schedule = "*/15 * * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
