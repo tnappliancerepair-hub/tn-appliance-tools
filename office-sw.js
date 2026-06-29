@@ -1,7 +1,7 @@
 // Service worker for Ant Office (office PWA).
 // Network-first so the cockpit is always fresh when online; falls back
 // to cache shell when offline. Bumped 2026-06-04 — initial install.
-const CACHE = 'ant-office-v1-2026-06-04';
+const CACHE = 'ant-office-v2-2026-06-29';
 const SHELL = [
   '/office-dashboard.html',
   '/office-today.html',

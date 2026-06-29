@@ -1590,9 +1590,14 @@ function __initCalendar() {
     for (let i = 0; i < 7; i++) { const d = new Date(selStart); d.setDate(d.getDate() + i); range.add(ymd(d)); }
     const todayStr = serverTodayCT || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
     const monthFull = new Date(y, m, 1).toLocaleString('en-US', { month: 'long' });
-    let h = '<div class="mc-head"><button class="mc-nav" id="mcPrev" title="previous month">‹</button>'
-      + '<div class="mc-title">' + monthFull + ' ' + y + '</div>'
-      + '<button class="mc-nav" id="mcNext" title="next month">›</button></div>'
+    // Month header — INLINE-styled (no CSS-class dependency) so the month name + ‹ ›
+    // arrows always render, even if a class is overridden/stale on a given device.
+    const navBtn = 'border:1px solid #cfcfd8;background:#fff;border-radius:8px;width:36px;height:36px;font-size:22px;font-weight:800;line-height:1;cursor:pointer;color:#1a1a2e;flex:0 0 auto';
+    let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px">'
+      + '<button id="mcPrev" title="previous month" style="' + navBtn + '">‹</button>'
+      + '<div style="font-weight:800;font-size:17px;text-align:center;flex:1;color:#1a1a2e">' + monthFull + ' ' + y + '</div>'
+      + '<button id="mcNext" title="next month" style="' + navBtn + '">›</button>'
+      + '</div>'
       + '<div class="mc-grid mc-dow">' + ['S','M','T','W','T','F','S'].map(d => '<div class="mc-dowcell">' + d + '</div>').join('') + '</div>'
       + '<div class="mc-grid mc-days">';
     for (let i = 0; i < startDow; i++) h += '<div class="mc-cell mc-empty"></div>';
@@ -1605,7 +1610,7 @@ function __initCalendar() {
       h += '<button class="' + cls.join(' ') + '" data-d="' + ds + '">' + day + '</button>';
     }
     h += '</div><button class="mc-today-btn" id="mcToday">Today</button>'
-      + '<div class="mc-hint">Pick any day — the schedule shows that day forward.</div>';
+      + '<div class="mc-hint">Tap a day to jump the schedule there · use ‹ › above to change month.</div>';
     host.innerHTML = h;
     $('mcPrev').onclick = () => { miniCalView = new Date(y, m - 1, 1); renderMiniCal(); };
     $('mcNext').onclick = () => { miniCalView = new Date(y, m + 1, 1); renderMiniCal(); };
