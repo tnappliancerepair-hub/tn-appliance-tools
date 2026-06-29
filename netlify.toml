@@ -191,6 +191,16 @@
 [functions."v2-shadow"]
   schedule = "0 */3 * * *"
 
+# Parts-arrival watcher — the no-Danielle "part's here → put them back on a tech's
+# day" loop. Detects arrivals per awaiting-parts job from delivery EMAILS (covers
+# Amazon, which has no API but emails a receipt; + Marcone/FedEx + warranty ship
+# emails) matched to the customer's zip/name, plus a soft ETA-passed signal. SHADOW
+# by default: texts Teddy a "parts in, ready to schedule" digest. Go live =
+# PARTS_ARRIVAL_LIVE=true → email-confirmed jobs auto-move to Needs Scheduled and
+# the auto-place engine schedules them hands-off. 3x/day (9a/1p/5p CT).
+[functions."parts-arrival-watch"]
+  schedule = "0 14,18,22 * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
