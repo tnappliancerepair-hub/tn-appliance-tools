@@ -971,20 +971,23 @@ async function loadWarrantyParts(jid, claim){
     const head=(d.unchecked? `<div style="font-size:11px;font-weight:800;color:#b3690a;margin-bottom:6px">⏳ ${d.unchecked} part${d.unchecked>1?'s':''} the tech hasn't checked yet${d.missing?` · ⚠️ ${d.missing} missing`:''}</div>`:(d.missing?`<div style="font-size:11px;font-weight:800;color:#c0392b;margin-bottom:6px">⚠️ ${d.missing} missing — follow up</div>`:'<div style="font-size:11px;font-weight:800;color:#0a7d33;margin-bottom:6px">✓ all parts checked by the tech</div>'));
     el.innerHTML=head+parts.map(p=>{
       const st=p.status, ret=st==='returned', miss=st==='missing', tr=st==='to_return', used=st==='used';
+      // Badge reflects a CONFIRMED state — an unchecked supply default (often "used")
+      // shows "to check" so it never reads done next to the waiting-on-tech flag.
       const badge=ret?'<span style="color:#0a7d33;font-weight:800">✓ returned</span>'
         : miss?'<span style="color:#c0392b;font-weight:800">⚠️ missing</span>'
+        : !p.checked?'<span style="color:#b3690a;font-weight:800">• to check</span>'
         : used?'<span style="color:#0a7d33;font-weight:800">✓ used</span>'
-        : tr&&p.checked?'<span style="color:#b3690a;font-weight:800">↩ unused · return it</span>'
-        : '<span style="color:#b3690a;font-weight:800">↩ to return</span>';
+        : '<span style="color:#b3690a;font-weight:800">↩ unused · return it</span>';
       const who=p.checked?`<span style="color:${p.checked_by==='office'?'#555':'#0a7d33'};font-weight:700">checked by ${esc(p.checked_by||'tech')}</span>`:'<span style="color:#b3690a;font-weight:800">⏳ waiting on tech</span>';
       const info=[p.description,p.vendor,p.distributor,p.return_desc,p.note,p.tracking?('track '+p.tracking):''].filter(Boolean).join(' · ');
       // Office manual override — same 3 options the tech has, plus the terminal "Mark returned".
       const ovBtn=(label,status,bg,bd,fg)=>`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','${status}')" style="padding:4px 8px;border:1px solid ${bd};border-radius:7px;background:${bg};color:${fg};font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
+      const ch=(w)=> (p.checked && st===w) || (w==='missing' && miss); // only light a confirmed choice
       let btns='';
       if(!ret){
-        btns+=ovBtn('Used','used',used?'#0a7d33':'#fff',used?'#0a7d33':'var(--line)',used?'#fff':'inherit');
-        btns+=ovBtn('Unused','unused',tr?'#c2691c':'#fff',tr?'#c2691c':'var(--line)',tr?'#fff':'inherit');
-        btns+=ovBtn('Missing','missing',miss?'#c0392b':'#fff',miss?'#c0392b':'#f3c0b7',miss?'#fff':'#c0392b');
+        btns+=ovBtn('Used','used',ch('used')?'#0a7d33':'#fff',ch('used')?'#0a7d33':'var(--line)',ch('used')?'#fff':'inherit');
+        btns+=ovBtn('Unused','unused',ch('to_return')?'#c2691c':'#fff',ch('to_return')?'#c2691c':'var(--line)',ch('to_return')?'#fff':'inherit');
+        btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'#f3c0b7',ch('missing')?'#fff':'#c0392b');
         if(tr) btns+=`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','returned')" style="padding:4px 8px;border:0;border-radius:7px;background:#0a7d33;color:#fff;font-size:11px;font-weight:800;cursor:pointer">Mark returned ✓</button>`;
       }
       return `<div style="padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div>${who}</div><div style="font-size:11px;color:var(--ink2);margin:3px 0 6px">${esc(info)||'—'}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div></div>`;

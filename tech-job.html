@@ -726,21 +726,24 @@ async function renderJobParts(){
   list.innerHTML=parts.map(p=>{
     const nm=esc(p.part), desc=esc(p.description||''), sub=esc([p.vendor,p.distributor].filter(Boolean).join(' · '));
     const st=p.status;
+    // Only treat a status as "chosen" once it's actually been confirmed (or it's a
+    // returned/missing decision). A part's supply default (often "used") must NOT look
+    // done — the whole point is the tech taps one per part.
+    const chosen=(want)=> (p.checked && st===want) || (want==='missing' && st==='missing') || (want==='returned' && st==='returned');
     const badge = st==='returned'?'<span style="color:#127a4a;font-weight:800">✓ returned</span>'
-      : st==='used'?'<span style="color:#127a4a;font-weight:800">✓ used</span>'
       : st==='missing'?'<span style="color:#c0392b;font-weight:800">⚠️ missing</span>'
-      : p.checked?'<span style="color:#c2691c;font-weight:800">↩︎ unused · return it</span>'
-      : '<span style="color:#c2691c;font-weight:800">• needs your check</span>';
-    const on=(want)=>st===want?'box-shadow:0 0 0 3px rgba(18,122,74,.25);':'';
-    const onMiss=st==='missing'?'box-shadow:0 0 0 3px rgba(192,57,43,.25);':'';
+      : !p.checked?'<span style="color:#c2691c;font-weight:800">• needs your check</span>'
+      : st==='used'?'<span style="color:#127a4a;font-weight:800">✓ used</span>'
+      : '<span style="color:#c2691c;font-weight:800">↩︎ unused · return it</span>';
+    const onMiss=chosen('missing')?'box-shadow:0 0 0 3px rgba(192,57,43,.25);':'';
     return '<div class="wp-row" data-p="'+nm+'" style="padding:10px 0;border-top:1px solid var(--line,#e3e8ef)">'
       +'<div style="font-weight:800;font-size:14px">'+nm+'&nbsp; '+badge+'</div>'
       +(desc?'<div style="font-size:12px;color:var(--ink2,#555)">'+desc+'</div>':'')
       +(sub?'<div style="font-size:12px;color:var(--dim)">'+sub+'</div>':'')
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center">'
-      +'<button class="btn wp-used" style="flex:1;min-width:90px;background:'+(st==='used'?'#127a4a':'#fff')+';color:'+(st==='used'?'#fff':'inherit')+';border:1px solid '+(st==='used'?'#127a4a':'var(--line,#e3e8ef)')+';'+on('used')+'">🔧 Used</button>'
-      +'<button class="btn wp-unused" style="flex:1;min-width:90px;background:'+(st==='to_return'?'#c2691c':'#fff')+';color:'+(st==='to_return'?'#fff':'inherit')+';border:1px solid '+(st==='to_return'?'#c2691c':'var(--line,#e3e8ef)')+';'+on('to_return')+'">↩︎ Unused</button>'
-      +'<button class="btn wp-miss" style="flex:1;min-width:90px;background:'+(st==='missing'?'#c0392b':'#fdece9')+';color:'+(st==='missing'?'#fff':'#c0392b')+';border:1px solid #f3c0b7;'+onMiss+'">⚠️ Missing</button>'
+      +'<button class="btn wp-used" style="flex:1;min-width:90px;background:'+(chosen('used')?'#127a4a':'#fff')+';color:'+(chosen('used')?'#fff':'inherit')+';border:1px solid '+(chosen('used')?'#127a4a':'var(--line,#e3e8ef)')+'">🔧 Used</button>'
+      +'<button class="btn wp-unused" style="flex:1;min-width:90px;background:'+(chosen('to_return')?'#c2691c':'#fff')+';color:'+(chosen('to_return')?'#fff':'inherit')+';border:1px solid '+(chosen('to_return')?'#c2691c':'var(--line,#e3e8ef)')+'">↩︎ Unused</button>'
+      +'<button class="btn wp-miss" style="flex:1;min-width:90px;background:'+(chosen('missing')?'#c0392b':'#fdece9')+';color:'+(chosen('missing')?'#fff':'#c0392b')+';border:1px solid #f3c0b7;'+onMiss+'">⚠️ Missing</button>'
       +'<span class="wp-stat" style="font-size:12px;font-weight:700;width:100%"></span>'
       +'</div></div>';
   }).join('');
