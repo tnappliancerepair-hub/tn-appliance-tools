@@ -208,6 +208,26 @@ const state = { appliance:'', brand:'', problem:'', payer:'', smsConsent:null, v
 // Test link (?qc=<token>) makes this session's Quick Check $1 instead of $50.
 const QC_TEST = (new URLSearchParams(location.search).get('qc') || '');
 
+// ── Google Ads attribution ────────────────────────────────────────────────────
+// Capture the ad click id (gclid / gbraid / wbraid) the moment a Google-Ads visitor
+// lands, and keep it for ~90 days. When a self-pay job is created we tie the click to
+// it, so Ant can later report "this click became a $X cash job" back to Google.
+const AD_CLICK = (function(){
+  try{
+    const u=new URLSearchParams(location.search);
+    const g=u.get('gclid')||'', gb=u.get('gbraid')||'', wb=u.get('wbraid')||'';
+    if(g||gb||wb){ const v={gclid:g,gbraid:gb,wbraid:wb,t:Date.now()}; localStorage.setItem('tn_ad_click',JSON.stringify(v)); return v; }
+    const saved=JSON.parse(localStorage.getItem('tn_ad_click')||'null');
+    if(saved && (Date.now()-(saved.t||0))<90*86400000) return saved;
+  }catch(_){}
+  return null;
+})();
+function recordAdClick(jobId){
+  if(!AD_CLICK) return;
+  try{ fetch(FN+'/record-gclid',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
+    body:JSON.stringify({job_id:jobId||0,gclid:AD_CLICK.gclid||'',gbraid:AD_CLICK.gbraid||'',wbraid:AD_CLICK.wbraid||'',conv_id:String(state.convId||'')})}); }catch(_){}
+}
+
 // ── FAIL-PROOF MEDIA UPLOAD (built for low / spotty signal) ───────────────────
 // XHR-based PUT with live progress, per-attempt timeout, and automatic retries
 // with backoff. Each hop (init / presign / put / save) uses absolute canonical
@@ -620,7 +640,7 @@ function submitFree(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ clearFlow(); done(); }
+      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); done(); }
       else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -671,7 +691,7 @@ function payStep(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json();
-      if(d&&d.ok&&d.url){ window.location.href=d.url; }   // -> Stripe Checkout -> quick-check-thanks.html
+      if(d&&d.ok&&d.url){ recordAdClick(0); window.location.href=d.url; }   // capture the click (job lands after pay) -> Stripe Checkout
       else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 615-280-2949.'); }
   };
@@ -700,7 +720,7 @@ function submitInHome(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ clearFlow(); doneInHome(); }
+      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); doneInHome(); }
       else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -752,7 +772,7 @@ function warrantyFinish(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ clearFlow(); done(); }
+      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); done(); }
       else { btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
