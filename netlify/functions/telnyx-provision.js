@@ -360,6 +360,26 @@ exports.handler = async function (event) {
       return json(200, { ok: true, from, job, link, sent: out });
     }
 
+    if (action === 'techtool') {
+      // Text ONE tech the populated Teddy Tool link for a specific job, with an
+      // optional note. From the tech line (857-8800) so replies hit the tech brain.
+      //   ?action=techtool&job=19979&to=+16159671304&note=<url-encoded>
+      const from = '+16158578800';
+      const job = String(q.job || '').replace(/\D/g, '');
+      if (!job) return json(400, { ok: false, error: 'pass &job=' });
+      const toRaw = String(q.to || '').replace(/[^\d+]/g, '');
+      if (toRaw.replace(/\D/g, '').length < 10) return json(400, { ok: false, error: 'pass &to=<tech phone>' });
+      const dest = toRaw.startsWith('+') ? toRaw : ('+1' + toRaw.replace(/^1/, ''));
+      const link = `${SITE}/teddy-tdr-tool.html?job_id=${job}`;
+      let note = ''; try { note = q.note ? decodeURIComponent(q.note) : ''; } catch (_) { note = q.note || ''; }
+      const text = (note ? note + '\n\n' : '') + `Teddy Tool for this job — diagnosis, photos/video, parts, all in one place: ${link}`;
+      try {
+        const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text }), signal: AbortSignal.timeout(12000) });
+        const sd = await send.json().catch(() => ({}));
+        return json(200, { ok: send.ok, from, to: dest, job, link, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
+      } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    }
+
     if (action === 'testlink') {
       // Send the $1 cash Quick Check test link to Teddy (or &to=) FROM the customer
       // line 588-9500 — so we also prove SMS-with-a-link actually DELIVERS to a real
