@@ -53,19 +53,25 @@ function parseMessage(body) {
   return out;
 }
 
-// Look for "part(s) ordered from <distributor> [eta <date>]" (+ a loose standalone eta).
+// Look for "part(s) ordered from <distributor> [eta <date>]". These are long email
+// THREADS (lots of CSC cross-talk), so we anchor on the order phrase and only read
+// the NLA/cancel signal + the ETA from a small window AROUND that phrase — a stray
+// "bill out labor" elsewhere in the thread must not nuke a legit current order.
 function scanParts(seg) {
-  // Skip "no part is coming" cases — NLA / bill-out-labor / cancelled. Recording a
-  // "Part from Marcone" on these would mislead the office into thinking one's en route.
-  if (/\bNLA\b|no longer available|bill out labor|labor to date|cancel(l)?ed/i.test(seg)) return null;
-  const om = seg.match(/parts?\s*(?:\([s]?\))?\s*(?:were\s+|are\s+|have\s+been\s+)?order(?:ed)?\s+(?:from|through|with)\s+([A-Za-z0-9 .&'\-]{2,40}?)(?=[.,\n;]|\s+eta|\s+by\b|$)/i);
+  const re = /parts?\s*(?:\([s]?\))?\s*(?:were\s+|are\s+|have\s+been\s+)?order(?:ed)?\s+(?:from|through|with)\s+([A-Za-z0-9 .&'\-]{2,40}?)(?=[.,\n;]|\s+eta|\s+by\b|$)/i;
+  const om = re.exec(seg);
   if (!om) return null;
+  const start = Math.max(0, om.index - 30);
+  const win = seg.slice(start, om.index + om[0].length + 130); // sentence around the order
+  // "No part is coming" cases — NLA / bill-out-labor / cancelled — only count when they
+  // sit right next to THIS order phrase (not somewhere else in the thread).
+  if (/\bNLA\b|no longer available|bill out labor|labor to date|cancel(l)?ed/i.test(win)) return null;
   const distributor = om[1].trim().replace(/\s+/g, ' ');
   let eta = '';
-  const etaM = seg.match(/\beta\b[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i) || seg.match(/(?:arriv\w+|expected|delivery)[^0-9]{0,12}([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+  const etaM = win.match(/\beta\b[:\s]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i) || win.match(/(?:arriv\w+|expected|delivery)[^0-9]{0,12}([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
   if (etaM) eta = isoDate(etaM[1]);
-  const note = (seg.match(/(parts?[^.\n]{0,120})/i) || [])[1] || '';
-  return { distributor, eta, note: note.trim().slice(0, 160) };
+  const note = win.replace(/\s+/g, ' ').trim().slice(0, 160);
+  return { distributor, eta, note };
 }
 
 function pickJobId(d) {
