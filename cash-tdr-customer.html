@@ -114,6 +114,9 @@
   footer { text-align:center; padding:22px 0 6px; border-top:1px solid var(--border); margin-top:24px; }
   footer p { color:var(--gray); font-size:12px; margin-bottom:4px; }
   footer a { color:var(--orange); text-decoration:none; font-weight:600; font-family:var(--mono); }
+.vp-banner { font-size:13px; color:var(--gray); line-height:1.6; margin:-2px 0 14px; padding:11px 14px; border:1px solid var(--border); border-left:3px solid var(--orange); border-radius:8px; background:rgba(255,98,0,.04); }
+.vp { font-size:12.5px; color:var(--gray); line-height:1.6; margin:10px 0 0; padding:9px 12px; border-radius:8px; background:rgba(57,255,20,.05); border:1px solid rgba(57,255,20,.18); }
+.vp s { color:var(--gray); opacity:.8; } .vp b { color:var(--green); }
 </style>
 </head>
 <body>
@@ -145,6 +148,7 @@
 
   <section class="failures">
     <h2 id="failures-heading">Your repair options</h2>
+    <p class="vp-banner">Most shops hand you one marked-up number — and never show the part cost or offer a budget option. Here's everything, honestly: four options per repair, the same parts we'd use, your call.</p>
     <div id="failures-wrap"></div>
   </section>
 
@@ -236,6 +240,27 @@ function renderFailures() {
   });
 }
 
+// National ALL-IN average (parts+labor) per repair type, 2025-26 published data
+// (HomeGuide/Angi/HomeAdvisor/Fixr) — mirrors _lib/repair-menu.js NAT_AVG. Used to
+// PROVE VALUE honestly: only shown when our OEM-install all-in actually beats it.
+// Conservative numbers; first keyword match wins. Returns CENTS or null.
+const NAT_AVG_RULES = [
+  [/ice ?maker/, 260], [/compressor|sealed system/, 975], [/control board|main board|\bcontrol\b/, 375],
+  [/display|user interface|touchpad|control panel/, 275], [/evaporator|condenser|cooling fan|fan motor|evap/, 325],
+  [/defrost/, 300], [/heating element|\bheater\b/, 230], [/igniter|ignitor/, 235],
+  [/bake|broil/, 250], [/surface|burner|cooktop element/, 225], [/drive motor|\bmotor\b/, 400],
+  [/wash pump/, 275], [/water inlet|inlet valve|fill valve|water valve/, 175], [/water line|dispenser/, 195],
+  [/door boot|door gasket|door seal|gasket|\bseal\b/, 200], [/lid switch|door lock|door latch|\blatch\b/, 200],
+  [/shock|suspension/, 225], [/thermostat|thermistor|temp control|temperature sensor/, 200],
+  [/thermal fuse|\bfuse\b/, 150], [/bearing|spider|\btub\b/, 200], [/\bbelt\b/, 175],
+  [/drain pump|\bdrain\b/, 225], [/spray arm/, 200], [/full door|door assembly/, 300], [/\bpump\b/, 200],
+];
+function natAvgCents(desc) {
+  const s = String(desc || '').toLowerCase();
+  for (const [re, usd] of NAT_AVG_RULES) { if (re.test(s)) return usd * 100; }
+  return null;
+}
+
 function failureCardHTML(f) {
   const isRental = state.data.is_rental;
   // Out-of-area (outside our TN/LA service area): ship-the-part only, no labor.
@@ -246,6 +271,12 @@ function failureCardHTML(f) {
     : '';
   const sel = (k) => state.selections[f.id] === k ? ' selected' : '';
   const p = f.pricing;
+  // Value-proof: real national all-in vs our OEM-install all-in. Honest — only
+  // shown when we actually beat it (the "secret" most shops keep hidden).
+  const nat = natAvgCents(f.failure_description);
+  const vp = (nat && p.install_oem && p.install_oem.total && nat > p.install_oem.total)
+    ? `<p class="vp">🏚️ Typical shop, all-in: <s>~${money(nat)}</s> — parts + labor bundled, marked up, no budget option. ✅ Above is your real menu: OEM or aftermarket, we install or you DIY. <b>You pick — that's the secret they don't share.</b></p>`
+    : '';
   const installButtons = outOfArea ? '' : `
         <button class="opt${sel('install_oem')}" data-failure-id="${esc(f.id)}" data-option="install_oem">
           <span class="name">We Install · OEM</span>
@@ -278,6 +309,7 @@ function failureCardHTML(f) {
           <span class="desc">Aftermarket equivalent. ${outOfArea ? 'Shipped to you.' : 'You install.'}</span>
         </button>${installButtons}
       </div>
+      ${vp}
       ${shipNote}
       <button class="opt-skip${sel('skip')}" data-failure-id="${esc(f.id)}" data-option="skip">Skip this repair · $0</button>
     </article>`;
