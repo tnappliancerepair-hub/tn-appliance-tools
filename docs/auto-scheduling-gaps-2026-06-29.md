@@ -21,21 +21,24 @@ Goal: complete auto-scheduling. This is the end-to-end audit + what's closed vs 
 
 ## ⛳ REMAINING (in priority order)
 
-### A. Overbooking race — the one real PRE-LIVE hole 🔴
-`auto_book_existing_job` does NOT re-check capacity before booking. If the live sweep
-places multiple jobs for the SAME tech+day in one run, each computeOffer can see the
-same `existing_job_count` and all book → over the cap. **Not a shadow problem** (no
-booking). **Fix before flipping `TECH_OFFER_LIVE`:** add a capacity precondition to
-`auto_book_existing_job_POST.xs` — re-count that tech's jobs in the day window and
-refuse (success:false) if at/over `max_jobs_per_day`; computeOffer's caller already
-handles a book failure by falling through. (XS change → Mac push. Drafted carefully
-when we're at go-live; until then shadow is safe.)
+### A. Overbooking race — ✅ GUARD DRAFTED (push at go-live)
+`auto_book_existing_job` didn't re-check capacity, so the live sweep could overbook a
+tech placing several same-day jobs in one run. **Capacity guard added to
+`auto_book_existing_job_POST.xs`** — before booking it re-counts the tech's OTHER real
+jobs in the same working day (proposed slot ±11h cleanly isolates one 8a-4p day) and
+refuses (precondition) at the system cap of 6; computeOffer's caller already handles a
+book failure by falling through. **XS change → Teddy pushes at go-live:**
+`xano workspace push -i "api/**/auto_book_existing_job*" --force`. Shadow is unaffected
+(no booking), so this can wait until just before `TECH_OFFER_LIVE`.
 
-### B. Route-density clustering (enhancement, not a blocker)
-computeOffer picks the FIRST open day that fits constraints — not the day that best
-DENSIFIES the tech's existing route. Teddy's vision is "cluster customers onto the days
-the tech is already out there." v1 (first-fit) is fine to launch; clustering is a
-quality upgrade: prefer a day where the tech already has nearby stops.
+### B. Route-density clustering — ✅ DONE
+computeOffer now collects up to the first 6 valid days and **rides the earliest day the
+tech is ALREADY working** (his stops that day are in his cluster → groups the route,
+saves a dedicated trip); falls back to the soonest valid day if none. Bounded to the
+first 6 options so the customer is never pushed far out for density. (Ships with the loop
+deploy — JS, no XS push.) Future upgrade: true per-stop geographic proximity (needs a
+day's-stops-with-zips endpoint); count-based clustering is a solid proxy given
+cluster-based tech routing.
 
 ### C. Last-stop routing (enhancement)
 Profile captures `last_stop_where/why`, but computeOffer only sets the day + a start

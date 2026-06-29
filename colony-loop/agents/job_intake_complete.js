@@ -539,6 +539,10 @@ async function computeOffer({ jobId, job, customer, job_address, ctx }) {
     : new Date(Date.now() + 24 * 3600 * 1000);
 
   const jobDurMin = DEFAULT_JOB_DURATION_MS / 60000;
+  // Collect valid days (instead of taking the first), so we can ROUTE-CLUSTER:
+  // prefer the earliest day the tech is already working over an empty day, within
+  // a small horizon — densifies his route without pushing the customer far out.
+  const candidates = [];
   for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
     const candidate = new Date(baseDate.getTime() + dayOffset * 24 * 3600 * 1000);
     const dowName = candidate.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' });
@@ -586,9 +590,17 @@ async function computeOffer({ jobId, job, customer, job_address, ctx }) {
     if (avail.hasConstraints) bits.push('your availability');
     if (pc && (pc.daysOff.size || pc.startMin != null || pc.endMin != null || pc.stopsMax || pc.idealMin != null)) bits.push('his profile');
     const why = bits.length ? ('fits his day + ' + bits.join(' + ')) : 'fits his day';
-    return { success: true, technician_id: techId, scheduled_start_ms: startMs, why, availability: avail.describe(), profile_applied: !!pc };
+    candidates.push({ startMs, existing: Number(constraints.existing_job_count) || 0, why });
+    if (candidates.length >= 6) break; // enough options to cluster across; stop scanning
   }
-  return { success: false, reason: 'no_open_day', technician_id: techId, profile_applied: !!pc };
+  if (!candidates.length) return { success: false, reason: 'no_open_day', technician_id: techId, profile_applied: !!pc };
+  // ROUTE-CLUSTERING: ride the earliest day he's ALREADY working (his existing stops
+  // that day are in his cluster, so this groups the route + saves a dedicated trip);
+  // otherwise the soonest valid day. Bounded to the first 6 valid days so the customer
+  // is never pushed far out just for density.
+  const chosen = candidates.find((c) => c.existing > 0) || candidates[0];
+  const why = chosen.existing > 0 ? (chosen.why + ' + grouped with his route that day') : chosen.why;
+  return { success: true, technician_id: techId, scheduled_start_ms: chosen.startMs, why, availability: avail.describe(), profile_applied: !!pc, clustered: chosen.existing > 0 };
 }
 
 // Try to deterministically auto-book the job. Returns

@@ -40,7 +40,26 @@ query auto_book_existing_job verb=POST {
       error_type = "notfound"
       error = "Job not found"
     }
-  
+
+    // CAPACITY GUARD (last-resort against the live auto-place race): re-count this
+    // tech's OTHER real jobs in the same working day (proposed slot +/- 11h cleanly
+    // isolates one 8a-4p day) and refuse to book if already at the system cap of 6.
+    // computeOffer honors the per-tech max at eval time; this stops gross overbooking
+    // when several same-tech jobs are placed in one sweep run before counts update.
+    db.query jobs {
+      where = $db.jobs.technician_id == $input.technician_id && $db.jobs.id != $input.job_id && $db.jobs.scheduling_status != "canceled" && $db.jobs.scheduled_start >= ($input.scheduled_start_ms - 39600000) && $db.jobs.scheduled_start <= ($input.scheduled_start_ms + 39600000)
+      return = {type: "list", paging: {page: 1, per_page: 50}}
+    } as $sameday
+
+    var $sameday_count {
+      value = ($sameday.items|count)
+    }
+
+    precondition ($sameday_count < 6) {
+      error_type = "inputerror"
+      error = "tech at day capacity"
+    }
+
     var $prior_tech {
       value = ($job.technician_id ?? 0)
     }
