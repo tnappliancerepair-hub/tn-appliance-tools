@@ -670,13 +670,15 @@
     }
   }
   /* ── HCP-style mini month calendar (side picker) ── */
-  .cal-body { display: flex; align-items: flex-start; gap: 0; }
-  .cal-body > .scroll { flex: 1; min-width: 0; }
+  /* #scroll is position:fixed (the page's scroll region) — make IT the flex row so
+     the mini-cal sits beside the schedule instead of being covered by it. */
+  #scroll { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 0; }
+  #scroll > #content { flex: 1 1 340px; min-width: 0; }
   .mini-cal {
-    flex: 0 0 232px; width: 232px; position: sticky; top: 8px;
-    padding: 12px; margin: 8px 0 8px 12px;
+    flex: 0 0 232px; width: 232px; position: sticky; top: 0;
+    padding: 12px; margin: 0 12px 8px 0;
     background: var(--surface, #fff); border: 1px solid var(--border-soft, #e6e6ea);
-    border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); user-select: none;
+    border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); user-select: none; z-index: 2;
   }
   .mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .mc-title { font-weight: 800; font-size: 14px; }
@@ -694,7 +696,8 @@
   .mc-today-btn { width: 100%; margin-top: 10px; padding: 8px; border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 9px; font-weight: 800; font-size: 12.5px; cursor: pointer; color: var(--ink,#222); }
   .mc-today-btn:hover { background: #f3f4f8; }
   .mc-hint { font-size: 10.5px; color: var(--dim,#9aa); margin-top: 8px; line-height: 1.4; text-align: center; }
-  @media (max-width: 860px) { .mini-cal { display: none; } .cal-body { display: block; } }
+  /* Narrow screens: don't hide it — stack the mini-cal full-width above the schedule. */
+  @media (max-width: 860px) { .mini-cal { flex-basis: 100%; width: auto; position: static; margin: 0 0 10px 0; } }
 </style>
   <script src="/office-ask.js?v=20260603-1"></script>
 </head>
@@ -763,11 +766,9 @@
   </div>
   <div class="cal-summary" id="calSummary"></div>
   <div class="tech-filter" id="techFilter" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border-soft)"></div>
-  <div class="cal-body">
+  <div class="scroll" id="scroll">
     <aside class="mini-cal" id="miniCal"></aside>
-    <div class="scroll" id="scroll">
-      <div id="content"></div>
-    </div>
+    <div id="content"></div>
   </div>
 </div>
 
