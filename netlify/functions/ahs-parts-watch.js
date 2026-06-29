@@ -55,6 +55,9 @@ function parseMessage(body) {
 
 // Look for "part(s) ordered from <distributor> [eta <date>]" (+ a loose standalone eta).
 function scanParts(seg) {
+  // Skip "no part is coming" cases — NLA / bill-out-labor / cancelled. Recording a
+  // "Part from Marcone" on these would mislead the office into thinking one's en route.
+  if (/\bNLA\b|no longer available|bill out labor|labor to date|cancel(l)?ed/i.test(seg)) return null;
   const om = seg.match(/parts?\s*(?:\([s]?\))?\s*(?:were\s+|are\s+|have\s+been\s+)?order(?:ed)?\s+(?:from|through|with)\s+([A-Za-z0-9 .&'\-]{2,40}?)(?=[.,\n;]|\s+eta|\s+by\b|$)/i);
   if (!om) return null;
   const distributor = om[1].trim().replace(/\s+/g, ' ');
