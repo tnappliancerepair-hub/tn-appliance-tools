@@ -30,6 +30,22 @@ exports.handler = async function (event) {
   const days = Math.max(1, Math.min(14, parseInt(q.days, 10) || 3));
   const sinceMs = Date.now() - days * 86400000;
 
+  // ?test=1 — send one confirmation email to TO right now, bypassing dedup. Proves
+  // the live pipe end-to-end without waiting on a new payment.
+  if (q.test === '1') {
+    const subject = '✅ Email test — TN Appliance payment alerts are LIVE';
+    const body = 'If you can read this in ' + TO + ', payment-tracking emails are working.\n\nFrom now on every payment (quick-check, in-home, Stripe add-ons, cash) emails you here.\n\nSent ' + ctTime(Date.now()) + ' CT.';
+    let t = { ok: false };
+    try {
+      const r = await fetch(`${SITE}/.netlify/functions/send-email`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'X-Internal-Auth': process.env.EMAIL_SHARED_SECRET || '' },
+        body: JSON.stringify({ to: TO, subject, body }), signal: AbortSignal.timeout(15000),
+      });
+      t = await r.json().catch(() => ({ ok: false }));
+    } catch (e) { t = { ok: false, error: String(e.message || e) }; }
+    return json(200, { ok: true, test: true, to: TO, email: t, note: t && t.mode === 'live' ? 'SENT live — check the inbox' : (t && t.mode === 'dry-run' ? 'dry-run — EMAIL_ENABLED is OFF' : 'send failed') });
+  }
+
   let rows = [];
   try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'customer_payment_received' }, { id: 'desc' }, 200); }
   catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
@@ -74,7 +90,10 @@ exports.handler = async function (event) {
     sent = await r.json().catch(() => ({ ok: false }));
   } catch (e) { sent = { ok: false, error: String(e.message || e) }; }
 
-  if (sent && sent.ok) {
+  // ONLY dedup on a real LIVE send. A dry-run (EMAIL_ENABLED off) also returns
+  // ok:true, and recording it here "burns" the payment so it never emails once
+  // email is turned on — that's the bug that ate the first batch of receipts.
+  if (sent && sent.ok && sent.mode === 'live') {
     try { await crud.logEvent('payment_email_sent', { ids: fresh.map((p) => Number(p.id)), count: fresh.length, total, mode: sent.mode || 'live', at_ms: Date.now() }); } catch (_) {}
   }
   out.email = sent;

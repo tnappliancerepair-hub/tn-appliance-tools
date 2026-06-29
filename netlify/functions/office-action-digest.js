@@ -76,8 +76,10 @@ exports.handler = async function (event) {
     sent = await r.json().catch(() => ({ ok: false }));
   } catch (e) { sent = { ok: false, error: String(e.message || e) }; }
 
-  // 5. record what we emailed so we don't re-nag (only on a real/dry-run-ok send)
-  if (sent && sent.ok) {
+  // 5. record what we emailed so we don't re-nag — ONLY on a real LIVE send. A
+  // dry-run (EMAIL_ENABLED off) returns ok:true too; recording it would burn the
+  // item so it never emails once email is on.
+  if (sent && sent.ok && sent.mode === 'live') {
     try { await crud.logEvent('office_action_digest_sent', { keys: openKeys, new_keys: fresh.map(keyOf), count: open.length, mode: sent.mode || 'live', at_ms: Date.now() }); } catch (_) {}
   }
   out.email = sent;
