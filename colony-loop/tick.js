@@ -29,6 +29,8 @@ const LEAN_KEEP = new Set([
   'STUCK_JOB_DETECTOR', 'STUCK_INTAKE_PROGRESS', 'ORPHAN_RECONCILER', 'PARALLEL_INTAKE_WATCH',
   // once-a-day office wrap Danielle + Teddy rely on
   'OFFICE_EOD_SUMMARY', 'DAILY_REVENUE_SUMMARY',
+  // self-scheduling autopilot — the universal auto-place trigger
+  'AUTO_SCHEDULE_SWEEP',
 ]);
 // Every scheduled (clock-driven) emit routes through here. In lean mode a
 // non-kept signal is dropped before it touches the queue. Calls store.emitSignal
@@ -321,6 +323,26 @@ async function maybeEmitTimeSignals() {
         } catch (err) {
           xano.logLocal('scheduler_periodic_checkin_emit_failed', { error: err.message });
         }
+      }
+    }
+  }
+
+  // AUTO_SCHEDULE_SWEEP — the universal auto-place trigger. Mon-Sat at 8/11/14/17
+  // CT, only when the autopilot is armed (TECH_OFFER_ENABLED). Pulls the needs-
+  // scheduled queue (every intake source) and feeds ready jobs through the
+  // auto-place engine. Per-hour-slot dedup so ticks within the hour don't multi-emit.
+  if (String(process.env.TECH_OFFER_ENABLED || '').toLowerCase() === 'true') {
+    const dayShort = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(new Date(nowTs));
+    const dateCt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowTs));
+    if (dayShort !== 'Sun' && [8, 11, 14, 17].includes(hour)) {
+      const dayKey = `${dateCt}_${hour}`;
+      let fired = false;
+      try { fired = await xano.checkEventLogFiredToday('auto_schedule_sweep_emitted', dayKey); } catch (_) {}
+      if (!fired) {
+        try {
+          await emitScheduled({ signal_type: 'AUTO_SCHEDULE_SWEEP', signal_strength: 35, payload: { slot: dayKey, emitted_ct: fmtCT(nowTs) } });
+          await xano.recordEvent('auto_schedule_sweep_emitted', { day: dayKey, hour });
+        } catch (err) { xano.logLocal('auto_schedule_sweep_emit_failed', { error: err.message }); }
       }
     }
   }

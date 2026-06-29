@@ -304,6 +304,13 @@ export async function findExtraWorkForTech(techId, limit = 3) {
   return getJSON(`${INTAKE()}/find_extra_work_for_tech?tech_id=${encodeURIComponent(techId)}&limit=${encodeURIComponent(limit)}`);
 }
 
+// All unscheduled jobs needing scheduling (every intake source — the office
+// "needs scheduled" queue). Drives the auto-schedule sweep (the universal trigger).
+// Returns { success, count, items:[{ id, ... }] }.
+export async function listNeedsScheduledParallel(limit = 25) {
+  return getJSON(`${INTAKE()}/list_needs_scheduled_parallel?limit=${encodeURIComponent(limit)}`);
+}
+
 export async function getAppointmentConfirmationSent(jobId, scheduledStartMs) {
   return getJSON(`${INTAKE()}/get_appointment_confirmation_sent?job_id=${jobId}&scheduled_start_ms=${scheduledStartMs}`);
 }

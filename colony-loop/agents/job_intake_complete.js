@@ -115,6 +115,11 @@ export async function run(signal, ctx) {
   }
 
   const { job, customer, job_address, has_pre_diagnosis, pending_propose_count } = ctxData;
+  // Sweep-sourced evaluations (the universal auto-place trigger) are SILENT: no
+  // owner SMS on blocked gates, no shadow preview text, no legacy 3-options
+  // propose. Teddy reviews via event_log; the tech still gets the heads-up on a
+  // real live placement. Keeps the backlog sweep from flooding anyone.
+  const sweep = String(payload.source || '') === 'auto_schedule_sweep';
   const appliance = applianceLabel(job.appliance_type);
   const custName = customerLabel(customer);
   const city = cityLabel(customer, job_address);
@@ -156,6 +161,12 @@ export async function run(signal, ctx) {
 
   // Gate 3: pre-diagnosis missing.
   if (!has_pre_diagnosis) {
+    if (sweep) {
+      const meta = { job_id: jobId, outcome: 'sweep_skip_no_prediag' };
+      await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+      log('try_auto_schedule_handled', meta);
+      return { success: true, action: 'sweep_skip_no_prediag', job_id: jobId };
+    }
     const body =
       `[ant] Job #${jobId} customer intake complete - needs your pre-diagnosis in Teddy Tool.\n` +
       `${custName}, ${appliance}, ${city}`;
@@ -182,6 +193,12 @@ export async function run(signal, ctx) {
   // Gate 4: parts blocked.
   const partsStatus = String(job.parts_status || '').trim().toLowerCase();
   if (PARTS_PENDING_STATUSES.has(partsStatus)) {
+    if (sweep) {
+      const meta = { job_id: jobId, outcome: 'sweep_skip_parts', parts_status: partsStatus };
+      await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+      log('try_auto_schedule_handled', meta);
+      return { success: true, action: 'sweep_skip_parts', job_id: jobId };
+    }
     const body =
       `[ant] Job #${jobId} ready except waiting on parts (status=${partsStatus}).\n` +
       `${custName}, ${appliance}, ${city}`;
@@ -266,9 +283,10 @@ export async function run(signal, ctx) {
       const tmStr = new Date(startMs).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
       const lbl = [custName, appliance, city].filter(Boolean).join(', ');
 
-      // SHADOW: preview to Teddy, place nothing, ping nobody.
+      // SHADOW: preview to Teddy, place nothing, ping nobody. (Sweep-sourced =
+      // silent; logged to event_log for Teddy to review instead of texting.)
       if (!config.techOfferLive) {
-        await toOwner(`[ant shadow] Would auto-place job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, {
+        if (!sweep) await toOwner(`[ant shadow] Would auto-place job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, {
           action: 'auto_place_shadow', job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, source_signal_id: signal.id,
         });
         const meta = { job_id: jobId, outcome: 'auto_place_shadow', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied };
@@ -292,7 +310,7 @@ export async function run(signal, ctx) {
           const body = `Hey ${first || 'there'} — added a stop to your ${day}: ${custName}, ${appliance} in ${city}, ~${tmStr} CT. Built around your schedule + the customer's availability. If it doesn't work for you, just reply here and I'll fix it — no problem. 🐜`;
           try { const r = await toTech(phone, body, { action: 'auto_place_tech_heads_up', job_id: jobId, technician_id: offer.technician_id, source: 'auto_place' }); techRes = (r && r.success) ? 'ok' : 'maybe_failed'; } catch (_) { techRes = 'maybe_failed'; }
         }
-        await toOwner(`[ant] Auto-placed job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, { action: 'auto_place_owner_fyi', job_id: jobId, technician_id: offer.technician_id, source_signal_id: signal.id });
+        if (!sweep) await toOwner(`[ant] Auto-placed job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, { action: 'auto_place_owner_fyi', job_id: jobId, technician_id: offer.technician_id, source_signal_id: signal.id });
         const meta = { job_id: jobId, outcome: 'auto_placed', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied, tech_heads_up: techRes };
         await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
         log('try_auto_schedule_handled', meta);
@@ -304,6 +322,16 @@ export async function run(signal, ctx) {
       log('try_auto_schedule_offer_falling_back', { job_id: jobId, reason: offer.reason, detail: offer.detail });
     }
     // nothing fit (or book failed) → fall through to the exception path below
+  }
+
+  // Sweep-sourced + nothing auto-placed → stop here silently. No legacy 3-options
+  // propose, no owner SMS (that path is for real-time intake completions, not the
+  // backlog sweep). The job stays in the queue and gets re-evaluated next sweep.
+  if (sweep) {
+    const meta = { job_id: jobId, outcome: 'sweep_no_fit' };
+    await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
+    log('try_auto_schedule_handled', meta);
+    return { success: true, action: 'sweep_no_fit', job_id: jobId };
   }
 
   if (config.autoBookEnabled) {
