@@ -500,6 +500,12 @@ function render(){
         <div id="cust-addons-list"></div>
       </div>
 
+      <div class="card" id="partsloc-card" style="display:none;border:2px solid #f0b84a;background:#fffaf0">
+        <h3>📍 Where are the parts? <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">pick up before you roll</span></h3>
+        <div style="font-size:12px;color:var(--ink2,#555);margin:-4px 0 8px;line-height:1.5">Parts ordered for this job and where to get them. 🏬 = swing by the distributor to pick it up. 🏠 = already shipped to the customer's home.</div>
+        <div id="partsloc-list"></div>
+      </div>
+
       <div class="card" id="wparts-card" style="display:none;border:2px solid #6aa3ff;background:#f3f8ff">
         <h3>📦 Parts for this job <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">tap one per part</span></h3>
         <div style="font-size:12px;color:var(--ink2,#555);margin:-4px 0 8px;line-height:1.5">These are the parts the warranty company supplied for this job. For each one, tap <b>Used</b>, <b>Unused</b>, or <b>Missing</b>.<br>• <b>Used</b> = you put it in, nothing to send back.<br>• <b>Unused</b> = didn't need it → it goes back to them.<br>• <b>Missing</b> = it never showed up, or there's no old part to return. <b>Call the office before you leave</b> — that timestamp protects you from a chargeback.</div>
@@ -567,6 +573,7 @@ function wireActions(){
   document.getElementById('mi-go').onclick=modelIntel;
   renderTechAddons();
   renderCustomerAddons();
+  renderPartsLocation();
   renderJobParts();
   wireTakePayment();
   mountConvo();
@@ -715,6 +722,24 @@ async function custAddonAction(row,status,opts){
 // Lists the parts supplied for this job (auto from the RMA tracker + office
 // write-ins). Tech confirms returns or flags a missing part — the flag is the
 // timestamped chargeback shield ("vendor said 4, only 3 here / customer had no old part").
+// 📍 Where are the parts? — parts WE ordered (Marcone/Ideal's pickup vs shipped to home).
+async function renderPartsLocation(){
+  const card=document.getElementById('partsloc-card'), list=document.getElementById('partsloc-list');
+  if(!card||!list||!JOB_ID) return;
+  let parts=[];
+  try{ const d=await fetch('/.netlify/functions/job-parts?job_id='+JOB_ID).then(r=>r.json()); parts=(d&&d.parts)||[]; }catch(_){}
+  if(!parts.length){ card.style.display='none'; return; }
+  card.style.display='';
+  list.innerHTML=parts.map(p=>{
+    const nm=esc(p.part||p.name||'part'), sub=esc([p.name&&p.name!==p.part?p.name:'',p.supplier_nice].filter(Boolean).join(' · '));
+    const color=p.pickup?'#b3690a':(p.placed?'#127a4a':'#888');
+    return '<div style="padding:9px 0;border-top:1px solid var(--line,#e3e8ef)">'
+      +'<div style="font-weight:800;font-size:14px">'+nm+'</div>'
+      +(sub?'<div style="font-size:12px;color:var(--dim)">'+sub+'</div>':'')
+      +'<div style="font-size:13px;font-weight:700;color:'+color+';margin-top:3px">'+esc(p.where_icon)+' '+esc(p.where)+'</div>'
+      +'</div>';
+  }).join('');
+}
 async function renderJobParts(){
   const card=document.getElementById('wparts-card'), list=document.getElementById('wparts-list');
   if(!card||!list||!JOB_ID) return;
@@ -725,6 +750,8 @@ async function renderJobParts(){
   card.style.display='';
   list.innerHTML=parts.map(p=>{
     const nm=esc(p.part), desc=esc(p.description||''), sub=esc([p.vendor,p.distributor].filter(Boolean).join(' · '));
+    // Warranty-supplied parts ship to the customer's home — tell the tech where it is.
+    const loc='🏠 At the customer\'s home'+(p.tracking?(' · track '+esc(p.tracking)):'');
     const st=p.status;
     // Only treat a status as "chosen" once it's actually been confirmed (or it's a
     // returned/missing decision). A part's supply default (often "used") must NOT look
@@ -740,6 +767,7 @@ async function renderJobParts(){
       +'<div style="font-weight:800;font-size:14px">'+nm+'&nbsp; '+badge+'</div>'
       +(desc?'<div style="font-size:12px;color:var(--ink2,#555)">'+desc+'</div>':'')
       +(sub?'<div style="font-size:12px;color:var(--dim)">'+sub+'</div>':'')
+      +'<div style="font-size:12px;font-weight:700;color:#2c6fb0;margin-top:2px">'+loc+'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center">'
       +'<button class="btn wp-used" style="flex:1;min-width:90px;background:'+(chosen('used')?'#127a4a':'#fff')+';color:'+(chosen('used')?'#fff':'inherit')+';border:1px solid '+(chosen('used')?'#127a4a':'var(--line,#e3e8ef)')+'">🔧 Used</button>'
       +'<button class="btn wp-unused" style="flex:1;min-width:90px;background:'+(chosen('to_return')?'#c2691c':'#fff')+';color:'+(chosen('to_return')?'#fff':'inherit')+';border:1px solid '+(chosen('to_return')?'#c2691c':'var(--line,#e3e8ef)')+'">↩︎ Unused</button>'

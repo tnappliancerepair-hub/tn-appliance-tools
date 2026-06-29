@@ -1,0 +1,66 @@
+// job-parts — answers ONE question for a job: "where are the parts?" Combines the
+// parts WE order (parts_orders) into a clean, tech-readable location so the field
+// guy knows whether to swing by Marcone / Ideal's to pick them up, or they're already
+// shipped to the customer's home. The warranty-SUPPLIED parts (ServicePower/AHS) live
+// on warranty-parts.js — those ship to the customer's home and are shown there.
+//
+//   GET ?job_id=   -> { ok, parts:[{ part, name, supplier, supplier_nice, status,
+//                         tracking, eta, ship_to, where, where_icon, pickup }] }
+'use strict';
+const crud = require('./_lib/xano/metadata-crud');
+const PARTS_ORDERS = 47;
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
+function j(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
+function parseNotes(n) { try { return JSON.parse(n || '{}'); } catch (_) { return {}; } }
+
+// distributor key → how the tech says it
+const SUPPLIER_NICE = { marcone: 'Marcone', ideal: "Ideal's", ideals: "Ideal's", 'ideal appliance': "Ideal's", amazon: 'Amazon', encompass: 'Encompass', reliable: 'Reliable', tribles: 'Tribles', msupply: 'Marcone' };
+function nice(s) { const k = String(s || '').toLowerCase().trim(); if (SUPPLIER_NICE[k]) return SUPPLIER_NICE[k]; return k ? k.replace(/\b\w/g, (c) => c.toUpperCase()) : 'the distributor'; }
+
+exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  const q = event.queryStringParameters || {};
+  const jobId = parseInt(String(q.job_id || '').replace(/\D/g, ''), 10) || 0;
+  if (!jobId) return j(400, { ok: false, error: 'job_id required' });
+
+  let rows = [];
+  try { rows = await crud.searchPage(PARTS_ORDERS, { job_id: jobId }, { ordered_at: 'desc' }, 50) || []; } catch (_) {}
+
+  const parts = rows.map((r) => {
+    const m = parseNotes(r.notes);
+    const supplier = String(r.supplier || '').toLowerCase();
+    const supplier_nice = nice(supplier);
+    const status = String(r.order_status || '');
+    const tracking = r.order_reference || '';
+    const eta = r.parts_eta_date || m.eta || '';
+    const shipTo = (m.ship_to || 'customer').toLowerCase();
+    const placed = status !== 'to_order';
+    const customerBound = shipTo === 'customer';
+
+    // Build the human "where is it / where do I get it" line.
+    let where, where_icon, pickup = false;
+    if (!placed) {
+      where = customerBound
+        ? `Not ordered yet — will ship to the customer's home`
+        : `Not ordered yet — will be picked up at ${supplier_nice}`;
+      where_icon = '⏳';
+      pickup = !customerBound;
+    } else if (customerBound) {
+      where = `Shipped to the customer's home` + (eta ? ` · ETA ${eta}` : '') + (tracking ? ` · track ${tracking}` : '');
+      where_icon = '🏠';
+    } else {
+      where = `Pick up at ${supplier_nice}` + (tracking ? ` · ref ${tracking}` : '') + (eta ? ` · ready ${eta}` : '');
+      where_icon = '🏬';
+      pickup = true;
+    }
+
+    return {
+      order_id: r.id, part: r.part_number, name: r.part_name || '',
+      supplier, supplier_nice, status, tracking, eta, ship_to: shipTo,
+      placed, where, where_icon, pickup,
+    };
+  }).filter((p) => p.part && p.part !== 'TBD' || p.name);
+
+  const pickups = parts.filter((p) => p.pickup).length;
+  return j(200, { ok: true, count: parts.length, pickups, parts });
+};

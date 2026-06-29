@@ -846,6 +846,12 @@ function renderDrawer(d){
       </div>
     </div>
 
+    <div class="dcard" id="partsloc-card" style="display:none">
+      <h4>📍 Where are the parts?</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Parts <b>we ordered</b> for this job and where they are — 🏬 pick up at the distributor, 🏠 shipped to the customer's home. So the tech knows where to get them.</div>
+      <div id="parts-loc" style="font-size:12px;color:var(--ink2)"></div>
+    </div>
+
     <div class="dcard">
       <h4>📦 Warranty parts (supplied by warranty co)</h4>
       <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Parts the <b>warranty company ships</b> for this job — auto-pulled from the return-label + ServicePower emails. The <b>tech checks each one in the field</b> (Used / Unused / Missing) and it shows here automatically. A <b>⏳ waiting-on-tech</b> tag means he hasn't checked it yet — you can set it yourself if he missed it. <b>Unused</b> parts must go back; tap <b>Mark returned</b> once it ships.</div>
@@ -957,11 +963,27 @@ function renderDrawer(d){
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
   loadWarrantyParts(jid, j.claim_number||'');
+  loadPartsLocation(jid);
 }
 
 // 📦 Warranty parts SUPPLIED by the vendor (SquareTrade/Allstate) — auto-pulled from the
 // return-label emails (squaretrade-rma-watch) + manual add. Mark used/returned so no part
 // slips into a chargeback.
+// 📍 Where are the parts? — parts WE ordered (distributor pickup vs shipped to home).
+async function loadPartsLocation(jid){
+  const card=document.getElementById('partsloc-card'), el=document.getElementById('parts-loc'); if(!card||!el) return;
+  let parts=[];
+  try{ const d=await (await fetch('/.netlify/functions/job-parts?job_id='+jid)).json(); parts=(d&&d.parts)||[]; }catch(_){}
+  if(!parts.length){ card.style.display='none'; return; }
+  card.style.display='';
+  el.innerHTML=parts.map(p=>{
+    const color=p.pickup?'#b3690a':(p.placed?'#0a7d33':'#888');
+    const sub=[p.name&&p.name!==p.part?p.name:'',p.supplier_nice].filter(Boolean).join(' · ');
+    return '<div style="padding:7px 0;border-top:1px solid var(--line)"><div class="mono" style="font-weight:800;font-size:13px">'+esc(p.part||p.name||'part')+'</div>'
+      +(sub?'<div style="font-size:11px;color:var(--ink2)">'+esc(sub)+'</div>':'')
+      +'<div style="font-size:12px;font-weight:700;color:'+color+';margin-top:2px">'+esc(p.where_icon)+' '+esc(p.where)+'</div></div>';
+  }).join('');
+}
 async function loadWarrantyParts(jid, claim){
   const el=document.getElementById('warr-parts'); if(!el) return;
   try{
@@ -980,6 +1002,7 @@ async function loadWarrantyParts(jid, claim){
         : '<span style="color:#b3690a;font-weight:800">↩ unused · return it</span>';
       const who=p.checked?`<span style="color:${p.checked_by==='office'?'#555':'#0a7d33'};font-weight:700">checked by ${esc(p.checked_by||'tech')}</span>`:'<span style="color:#b3690a;font-weight:800">⏳ waiting on tech</span>';
       const info=[p.description,p.vendor,p.distributor,p.return_desc,p.note,p.tracking?('track '+p.tracking):''].filter(Boolean).join(' · ');
+      const loc=`🏠 At the customer's home${p.tracking?(' · track '+esc(p.tracking)):''}`; // warranty parts ship to the home
       // Office manual override — same 3 options the tech has, plus the terminal "Mark returned".
       const ovBtn=(label,status,bg,bd,fg)=>`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','${status}')" style="padding:4px 8px;border:1px solid ${bd};border-radius:7px;background:${bg};color:${fg};font-size:11px;font-weight:700;cursor:pointer">${label}</button>`;
       const ch=(w)=> (p.checked && st===w) || (w==='missing' && miss); // only light a confirmed choice
@@ -990,7 +1013,7 @@ async function loadWarrantyParts(jid, claim){
         btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'#f3c0b7',ch('missing')?'#fff':'#c0392b');
         if(tr) btns+=`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','returned')" style="padding:4px 8px;border:0;border-radius:7px;background:#0a7d33;color:#fff;font-size:11px;font-weight:800;cursor:pointer">Mark returned ✓</button>`;
       }
-      return `<div style="padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div>${who}</div><div style="font-size:11px;color:var(--ink2);margin:3px 0 6px">${esc(info)||'—'}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div></div>`;
+      return `<div style="padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div>${who}</div><div style="font-size:11px;color:var(--ink2);margin:3px 0 2px">${esc(info)||'—'}</div><div style="font-size:11px;font-weight:700;color:#2c6fb0;margin-bottom:6px">${loc}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div></div>`;
     }).join('');
   }catch(_){ el.innerHTML='<span style="color:#b00">Could not load.</span>'; }
 }

@@ -742,6 +742,11 @@
         <div class="title-sub">Ant Office</div>
       </div>
     </div>
+    <div class="month-display" style="display:flex;align-items:center;gap:6px;margin-right:6px">
+      <button class="nav-btn" id="prevMonth" title="previous month">‹</button>
+      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:var(--ink,#1a1a2e)">—</span>
+      <button class="nav-btn" id="nextMonth" title="next month">›</button>
+    </div>
     <div class="week-display">
       <button class="nav-btn" id="prevWeek" title="previous week">‹</button>
       <button class="nav-btn today-btn" id="todayBtn">Today</button>
@@ -1366,6 +1371,9 @@ function __initCalendar() {
 
   function renderHeader(data) {
     weekRange.textContent = fmtWeekRange(data.week_start_ct, data.week_end_ct);
+    // Month label in the top toolbar (always visible, even if the side mini-cal is off-screen).
+    const ml = $('monthLabel');
+    if (ml) { try { const d = parseYMD(currentWeekStart); ml.textContent = d.toLocaleString('en-US', { month: 'long', year: 'numeric' }); } catch (_) {} }
     const isCurrent = data.week_start_ct === currentWeekOfDateStr(data.today_ct);
     todayBtn.classList.toggle('active', isCurrent);
     todayBtn.textContent = isCurrent ? 'this week' : 'jump to today';
@@ -1519,6 +1527,17 @@ function __initCalendar() {
   // ── Nav ────────────────────────────────────────────────────────
   prevWeek.addEventListener('click', () => stepWeek(-7));
   nextWeek.addEventListener('click', () => stepWeek(7));
+
+  // Month arrows (top toolbar, HCP-style): jump the schedule a whole month.
+  // Lands on the 1st of that month so she sees that month forward.
+  function stepMonth(delta) {
+    const d = parseYMD(currentWeekStart);
+    const nd = new Date(d.getFullYear(), d.getMonth() + delta, 1);
+    currentWeekStart = ymd(nd);
+    updateUrl(); loadWeek();
+  }
+  $('prevMonth')?.addEventListener('click', () => stepMonth(-1));
+  $('nextMonth')?.addEventListener('click', () => stepMonth(1));
 
   // View toggle. Today view re-renders the same loaded data — no extra fetch.
   function setView(view) {
