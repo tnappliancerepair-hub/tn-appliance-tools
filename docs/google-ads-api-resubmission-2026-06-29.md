@@ -1,5 +1,11 @@
 # Google Ads API — Basic Access RESUBMISSION (case 6-3335000041044)
 
+> ✅ **ALREADY SENT by Teddy — Sun Jun 28, 9:44 AM.** His reply on the thread covers the
+> business model, use case, and direct content links. DO NOT resend (a duplicate muddies
+> the case). The homepage flip (/ → index.html, 6/29) complements it so the bare domain
+> also shows content. Now waiting on Google's next response. Draft below kept for reference.
+
+
 **Bounce reason (28 Jun):** reviewer hit `/` and saw the chat app, not business
 content ("your company website does not have content related to your application").
 **Fixed:** `/` now serves `index.html` — the full appliance-repair homepage
