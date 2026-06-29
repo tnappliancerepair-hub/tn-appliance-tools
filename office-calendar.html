@@ -129,12 +129,13 @@
   .topbar {
     position: fixed;
     top: 0; left: 0; right: 0;
-    height: 60px;
+    min-height: 60px;
     background: linear-gradient(180deg, #0e1118, #131720);
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    padding: 0 18px;
+    flex-wrap: wrap;
+    padding: 8px 18px;
     gap: 14px;
     z-index: 90;
   }
@@ -2364,5 +2365,31 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <script>window.AntTalkReload=function(){ try{ location.reload(); }catch(_){} };</script>
 <script src="/ant-talk.js?v=1"></script>
 <script src="/ant-shell.js?v=20260612-1" defer></script>
+<script>
+/* Layout fix: the injected office nav (#office-topnav, z:9000) sits at the very top
+   and was covering the .topbar (week + month nav) and the top of the schedule/
+   mini-calendar (Teddy: "hidden under the search bar"). Stack everything BELOW the
+   nav at runtime by measuring its real height. Re-runs on resize. */
+(function(){
+  function fitBelowNav(){
+    var nav=document.getElementById('office-topnav');
+    var tb=document.querySelector('.topbar');
+    var sc=document.getElementById('scroll');
+    if(!nav) return false;
+    var navH=nav.offsetHeight||0;
+    if(tb){ tb.style.top=navH+'px'; }
+    var tbH=tb?tb.offsetHeight:60;
+    var below=(navH+tbH)+'px';
+    if(sc){ sc.style.top=below; }
+    var ld=document.getElementById('loading'); if(ld && ld.style.inset){ ld.style.inset=below+' 0 0 0'; }
+    return true;
+  }
+  function tryFit(n){ if(fitBelowNav()) { /* one more pass after fonts/wrap settle */ setTimeout(fitBelowNav,120); return; } if(n<60) setTimeout(function(){tryFit(n+1);},50); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){tryFit(0);});
+  else tryFit(0);
+  window.addEventListener('load',fitBelowNav);
+  window.addEventListener('resize',function(){ clearTimeout(window.__fitT); window.__fitT=setTimeout(fitBelowNav,80); });
+})();
+</script>
 </body>
 </html>
