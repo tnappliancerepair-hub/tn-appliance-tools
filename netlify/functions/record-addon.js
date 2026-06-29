@@ -52,11 +52,16 @@ exports.handler = async function (event) {
     const tech_cut = parseFloat(b.tech_cut) || 0;
     const cost = parseFloat(b.cost) || 0; // our part cost (for P&L margin)
     const mode = String(b.mode || 'installed'); // installed | ship | inquire
-    const status = String(b.status || 'requested'); // requested | fulfilled | voided
+    const status = String(b.status || 'requested'); // requested | fulfilled | voided | acknowledged
     // voided = customer clicked it by mistake; the tech (or office) takes it back
     // off the job so it never gets billed or credited. Keyed job_id+addon_key so
     // addons-pending + the invoice worksheet drop it.
     const isVoid = status === 'voided';
+    // acknowledged = office has "figured out what's going on" with it (texted the
+    // customer, ordered it, whatever) and just wants it OFF the front-page to-fulfill
+    // banner. Drops from addons-pending but STAYS on the job's ticket (addons-for-job
+    // still bills it) — a dismiss, not a void.
+    const isAck = status === 'acknowledged';
     // paid = the money is already collected (card via Stripe, or cash/check the
     // tech took on site) — so the office invoice worksheet must NOT re-bill it.
     const paid = b.paid === true || String(b.paid) === 'true';
@@ -65,7 +70,7 @@ exports.handler = async function (event) {
     // the caller (office board knows it), else resolve from the job record.
     let technician_id = parseInt(b.technician_id, 10) || 0;
     if (status === 'fulfilled' && !technician_id) technician_id = await lookupJobTech(job_id);
-    const action = status === 'fulfilled' ? 'addon_fulfilled' : (isVoid ? 'addon_voided' : 'addon_requested');
+    const action = status === 'fulfilled' ? 'addon_fulfilled' : (isVoid ? 'addon_voided' : (isAck ? 'addon_acknowledged' : 'addon_requested'));
     const row = {
       action,
       metadata: {

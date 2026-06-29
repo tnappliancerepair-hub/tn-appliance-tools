@@ -38,15 +38,19 @@ exports.handler = async function (event) {
   try {
     const jobFilter = (event && event.queryStringParameters && event.queryStringParameters.job_id)
       ? String(event.queryStringParameters.job_id) : '';
-    const [requested, fulfilled, voided] = await Promise.all([
+    const [requested, fulfilled, voided, acknowledged] = await Promise.all([
       fetchByAction('addon_requested'),
       fetchByAction('addon_fulfilled'),
       fetchByAction('addon_voided'),
+      fetchByAction('addon_acknowledged'),
     ]);
     const done = new Set();
     for (const f of fulfilled) { const m = meta(f); done.add(m.job_id + '|' + m.addon_key); }
     // voided = customer added it by mistake, tech/office took it back off — drop it
     for (const v of voided) { const m = meta(v); done.add(m.job_id + '|' + m.addon_key); }
+    // acknowledged = office X'd it off the banner (figured out what's going on) —
+    // drop from the to-fulfill list but it STAYS on the job ticket (addons-for-job).
+    for (const a of acknowledged) { const m = meta(a); done.add(m.job_id + '|' + m.addon_key); }
     // de-dupe requests by job+addon, keep latest; drop fulfilled
     const byKey = {};
     for (const r of requested) {
