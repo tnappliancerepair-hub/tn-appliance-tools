@@ -133,6 +133,22 @@
 [functions."squaretrade-autoassign"]
   schedule = "*/10 * * * *"
 
+# ServicePower supplied-parts watcher — reads the "SERVICER NEW NOTES" part emails
+# (one per Call Number), matches each to its job, and records the supplied parts so
+# the tech's "Parts for this job" card lists exactly what should be there (Used /
+# Unused / Missing) and the office sees it on the drawer. Every 20 min. Dedups by
+# message id so a re-run never double-adds.
+[functions."servicepower-parts-watch"]
+  schedule = "5,25,45 * * * *"
+
+# AHS / Frontdoor supplied-parts watcher — AHS sends a plain Work Order email with
+# the part described in prose ("Part(s) ordered from Marcone eta MM/DD/YYYY"), no
+# part #. This captures the distributor + ETA + WO, puts the supplied part on the
+# tech ticket, and stamps parts_eta_date so the auto-scheduler waits for it. Every
+# 20 min, offset from ServicePower. Dedups by message id.
+[functions."ahs-parts-watch"]
+  schedule = "12,32,52 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,

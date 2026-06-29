@@ -53,9 +53,35 @@ function parseMessage(body) {
   return out;
 }
 
+// Resolve a ServicePower Call Number → job_id. The intake stores the Call Number
+// as jobs.claim_number, and find_job_by_claim_number also checks dispatch_source_id.
+// Its response shape is { best:{job_id}, candidates:[{job_id}] } — NOT a top-level
+// job_id (that was the bug that made every match come back null). We read best/
+// candidates, and fall back to a direct metadata search on both fields.
+function pickJobId(d) {
+  if (!d) return null;
+  if (d.best && d.best.job_id) return Number(d.best.job_id);
+  const c = Array.isArray(d.candidates) ? d.candidates : [];
+  if (c.length && c[0].job_id) return Number(c[0].job_id);
+  return null;
+}
 async function matchJob(call) {
-  for (const p of ['claim_number', 'claim']) {
-    try { const d = await (await fetch(`${XANO}/find_job_by_claim_number?${p}=${encodeURIComponent(call)}`, { signal: AbortSignal.timeout(10000) })).json(); const jid = d && (d.job_id || (d.job && d.job.id) || d.id); if (jid) return Number(jid); } catch (_) {}
+  const variants = Array.from(new Set([call, String(call).replace(/^0+/, '')].filter(Boolean)));
+  for (const v of variants) {
+    try {
+      const d = await (await fetch(`${XANO}/find_job_by_claim_number?claim_number=${encodeURIComponent(v)}`, { signal: AbortSignal.timeout(10000) })).json();
+      const jid = pickJobId(d);
+      if (jid) return jid;
+    } catch (_) {}
+  }
+  // Last resort: direct metadata search on the jobs table (exact, then trimmed).
+  for (const v of variants) {
+    for (const field of ['claim_number', 'dispatch_source_id']) {
+      try {
+        const row = await crud.searchOne(crud.TABLES.jobs, { [field]: v }, { created_at: 'desc' });
+        if (row && row.id) return Number(row.id);
+      } catch (_) {}
+    }
   }
   return null;
 }
