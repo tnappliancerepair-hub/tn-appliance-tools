@@ -1466,14 +1466,23 @@ function __initCalendar() {
       const off = hiddenTechs.has(id);
       return `<button class="tfchip" data-tf="${id}" style="font:600 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid ${off ? 'var(--border-soft)' : 'var(--orange,#e8743b)'};background:${off ? 'transparent' : 'var(--orange,#e8743b)'};color:${off ? 'var(--muted)' : '#fff'}">${off ? '☐' : '☑'} ${escapeHtml(label)}</button>`;
     };
-    const parts = [`<button class="tfchip" data-tf="__all__" style="font:700 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid var(--text);background:transparent;color:var(--text)">Select all</button>`];
+    const parts = [`<span style="font:700 12px/1 system-ui;color:var(--muted);align-self:center;margin-right:2px">Techs (tap one):</span>`,
+      `<button class="tfchip" data-tf="__all__" style="font:700 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid var(--text);background:${hiddenTechs.size === 0 ? 'var(--text)' : 'transparent'};color:${hiddenTechs.size === 0 ? '#fff' : 'var(--text)'}">All techs</button>`];
     parts.push(chip(0, 'Unassigned'));
     for (const t of allTechs) { const nm = ((t.first_name || '') + ' ' + (t.last_name || '')).trim() || ('Tech ' + t.id); parts.push(chip(Number(t.id), nm)); }
     el.innerHTML = parts.join(' ');
+    const allIds = [0, ...allTechs.map((t) => Number(t.id))];
     el.querySelectorAll('.tfchip').forEach((b) => b.onclick = () => {
       const v = b.dataset.tf;
-      if (v === '__all__') hiddenTechs.clear();
-      else { const id = Number(v); hiddenTechs.has(id) ? hiddenTechs.delete(id) : hiddenTechs.add(id); }
+      if (v === '__all__') { hiddenTechs.clear(); }
+      else {
+        const id = Number(v);
+        // SOLO on click: show only this tech (see their schedule). Click the
+        // already-soloed tech again → back to all. "All techs" also restores.
+        const soloedToThis = !hiddenTechs.has(id) && hiddenTechs.size === (allIds.length - 1);
+        if (soloedToThis) hiddenTechs.clear();
+        else hiddenTechs = new Set(allIds.filter((x) => x !== id));
+      }
       saveHidden();
       if (dashboardData) render(dashboardData);
     });
