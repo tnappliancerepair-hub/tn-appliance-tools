@@ -683,6 +683,7 @@
     <a id="navPerf" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(180,140,255,0.10);border:1px solid rgba(180,140,255,0.25);color:#b48cff;border-radius:8px;text-decoration:none">📊 Performance</a>
     <a id="navPayouts" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(0,214,143,0.10);border:1px solid rgba(0,214,143,0.25);color:#00d68f;border-radius:8px;text-decoration:none">💰 Payouts</a>
     <a id="navDayOff" href="#" style="flex:1;text-align:center;padding:8px;background:rgba(255,107,107,0.10);border:1px solid rgba(255,107,107,0.25);color:#ff6b6b;border-radius:8px;text-decoration:none">🛑 Day Off</a>
+    <a id="navReturns" href="#" style="flex:1;min-width:48%;text-align:center;padding:8px;background:rgba(240,180,80,0.12);border:1px solid rgba(240,180,80,0.30);color:#f0b450;border-radius:8px;text-decoration:none">🔁 Returns <span id="navReturnsBadge"></span></a>
   </div>
 
   <!-- Field search — look up ANY customer/job by name, phone, or address
@@ -890,6 +891,15 @@
     if (np) np.href = `tech-performance.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     if (npay) npay.href = `tech-payouts.html?tech_id=${encodeURIComponent(TECH_ID)}`;
     if (ndo) ndo.href = `tech-day-off.html?tech_id=${encodeURIComponent(TECH_ID)}`;
+    const nret = document.getElementById('navReturns');
+    if (nret) {
+      nret.href = `tech-returns.html?tech_id=${encodeURIComponent(TECH_ID)}`;
+      // live count badge — red if any overdue
+      fetch(`/.netlify/functions/parts-returns?tech_id=${encodeURIComponent(TECH_ID)}`).then(r => r.json()).then(d => {
+        if (!d || !d.ok) return; const b = document.getElementById('navReturnsBadge');
+        if (b && d.count) { b.textContent = `(${d.count})`; if (d.overdue) { nret.style.borderColor = '#f85149'; nret.style.color = '#ff7b72'; b.textContent = `(${d.count}⚠)`; } }
+      }).catch(() => {});
+    }
     loadDashboard();
     loadInbox();
     setInterval(loadInbox, 45000);

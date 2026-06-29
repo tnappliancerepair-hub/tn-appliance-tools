@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Returns You Owe · Ant</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: #0d1117; color: #e6edf3; font: 16px/1.45 -apple-system, system-ui, sans-serif; padding: 0 0 40px; }
+  header { padding: 18px 16px 12px; position: sticky; top: 0; background: #0d1117; border-bottom: 1px solid #21262d; z-index: 5; }
+  h1 { font-size: 19px; margin: 0 0 6px; }
+  .sub { font-size: 13px; color: #9da7b3; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; margin-right: 6px; }
+  .pill.bad { background: rgba(248,81,73,.15); color: #ff7b72; }
+  .pill.warn { background: rgba(240,180,80,.15); color: #f0b450; }
+  .wrap { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #161b22; border: 1px solid #21262d; border-radius: 14px; padding: 14px; }
+  .card.red { border-color: #f85149; box-shadow: 0 0 0 1px rgba(248,81,73,.4); }
+  .card.yellow { border-color: #b8860b; }
+  .due { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+  .due.red { color: #ff7b72; } .due.yellow { color: #f0b450; } .due.ok { color: #56d364; }
+  .part { font-size: 16px; font-weight: 700; }
+  .row { font-size: 13.5px; color: #c9d1d9; margin-top: 3px; }
+  .row b { color: #e6edf3; }
+  .how { margin-top: 10px; font-size: 13px; color: #9da7b3; background: #0d1117; border: 1px dashed #30363d; border-radius: 9px; padding: 9px 11px; }
+  button { width: 100%; margin-top: 12px; background: #238636; border: 0; color: #fff; font-size: 16px; font-weight: 700; padding: 13px; border-radius: 10px; cursor: pointer; }
+  button:active { background: #1f7a30; } button:disabled { opacity: .55; }
+  .empty { text-align: center; padding: 60px 24px; color: #56d364; }
+  .empty .big { font-size: 42px; margin-bottom: 10px; }
+  .err { color: #ff7b72; padding: 24px 16px; }
+  .foot { text-align: center; font-size: 12px; color: #6e7681; padding: 18px; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔁 Returns you owe</h1>
+  <div class="sub" id="sub">Loading…</div>
+</header>
+<div id="root" class="wrap"></div>
+<div class="foot">Ship it, then tap <b>Shipped ✓</b>. You'll get a text when it's confirmed delivered — that's your proof, no chargeback. 🐜</div>
+
+<script>
+const qs = new URLSearchParams(location.search);
+let TECH = qs.get('tech_id') || localStorage.getItem('tn_tech_id') || '';
+if (TECH) localStorage.setItem('tn_tech_id', TECH);
+const root = document.getElementById('root'), sub = document.getElementById('sub');
+
+function dueClass(o){ if(o.overdue) return 'red'; if(o.days_left<=3) return 'yellow'; return 'ok'; }
+function dueText(o){
+  const d = new Date(o.due_ms).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  if(o.overdue) return '⚠ OVERDUE — was due ' + d + ' · ship TODAY';
+  if(o.days_left===0) return '⏰ DUE TODAY (' + d + ')';
+  return 'Return by ' + d + ' · ' + o.days_left + ' day' + (o.days_left===1?'':'s') + ' left';
+}
+function howLine(o){
+  const t = o.tracking ? ('Prepaid FedEx ' + o.tracking) : 'Prepaid label (check the email/office)';
+  return '📦 ' + t + ' — drop at any FedEx, or hand it to the office. ' + (o.distributor?('Back to '+o.distributor+'.'):'');
+}
+
+async function load(){
+  if(!TECH){ root.innerHTML='<div class="err">Open this from your dashboard (no tech id). </div>'; sub.textContent=''; return; }
+  try{
+    const r = await fetch('/.netlify/functions/parts-returns?tech_id='+encodeURIComponent(TECH));
+    const d = await r.json();
+    if(!d.ok){ root.innerHTML='<div class="err">'+(d.error||'Could not load')+'</div>'; sub.textContent=''; return; }
+    render(d);
+  }catch(e){ root.innerHTML='<div class="err">Connection issue — pull to refresh.</div>'; }
+}
+
+function render(d){
+  const list = d.returns || [];
+  sub.innerHTML = list.length
+    ? (d.overdue?'<span class="pill bad">'+d.overdue+' overdue</span>':'') + (d.due_soon?'<span class="pill warn">'+d.due_soon+' due soon</span>':'') + list.length + ' to return'
+    : 'all clear';
+  if(!list.length){ root.innerHTML='<div class="empty"><div class="big">✅</div>Nothing to return.<br>You\'re all clear — no chargebacks hanging over you.</div>'; return; }
+  root.innerHTML='';
+  for(const o of list){
+    const card=document.createElement('div');
+    card.className='card '+(o.overdue?'red':(o.days_left<=3?'yellow':''));
+    card.innerHTML =
+      '<div class="due '+dueClass(o)+'">'+dueText(o)+'</div>'+
+      '<div class="part">'+(o.part||'Part')+(o.return_desc?(' · '+o.return_desc):'')+'</div>'+
+      '<div class="row">For <b>'+(o.customer||('job #'+o.job_id))+'</b></div>'+
+      (o.rma?'<div class="row">RMA <b>'+o.rma+'</b></div>':'')+
+      '<div class="how">'+howLine(o)+'</div>';
+    const btn=document.createElement('button');
+    btn.textContent='Shipped ✓ — mark it returned';
+    btn.onclick=async()=>{ btn.disabled=true; btn.textContent='Saving…';
+      try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:o.job_id,part:o.part,status:'returned'})});
+        card.style.opacity=.4; btn.textContent='✓ Marked returned'; setTimeout(load,700);
+      }catch(_){ btn.disabled=false; btn.textContent='Shipped ✓ — try again'; } };
+    card.appendChild(btn);
+    root.appendChild(card);
+  }
+}
+load();
+</script>
+</body>
+</html>
