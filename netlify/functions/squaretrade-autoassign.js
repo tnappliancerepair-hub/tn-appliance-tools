@@ -12,6 +12,7 @@
 //   GET ?max=30     cap jobs per run
 'use strict';
 const { getSecret } = require('./_lib/secrets');
+const crud = require('./_lib/xano/metadata-crud');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
@@ -110,10 +111,28 @@ exports.handler = async function (event) {
       if (r.ok && d && d.error == null) assigned++; else failed.push({ job: p.job_id, err: (d && d.error) || r.status });
     } catch (e) { failed.push({ job: p.job_id, err: String(e.message || e) }); }
   }
-  // ping owner on any exception
+  // ping owner on any exception — but DEDUP per job so a stuck job alerts ONCE,
+  // not every scheduled run (the spam Teddy saw: same #19978 over and over). A job
+  // re-alerts only if it's still stuck 72h later.
+  let warned = 0;
   if (exceptions.length) {
-    const body = `[ant] ⚠️ ${exceptions.length} SquareTrade job(s) couldn't auto-route to a tech (no coverage or all maxed) — need a human: ` + exceptions.slice(0, 6).map((e) => `#${e.job_id} ${e.zip}`).join(', ');
-    try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'sq_autoassign_exception' }) }); } catch (_) {}
+    const recentlyWarned = new Set();
+    try {
+      const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sq_autoassign_warned' }, { id: 'desc' }, 60);
+      const cut = Date.now() - 72 * 3600 * 1000;
+      for (const r of rows || []) {
+        if (Number(r.created_at || 0) && Number(r.created_at) < cut) continue;
+        let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+        for (const id of (m && m.ids) || []) recentlyWarned.add(Number(id));
+      }
+    } catch (_) {}
+    const freshEx = exceptions.filter((e) => !recentlyWarned.has(Number(e.job_id)));
+    if (freshEx.length) {
+      const body = `[ant] ⚠️ ${freshEx.length} SquareTrade job(s) couldn't auto-route to a tech (no coverage or all maxed) — need a human: ` + freshEx.slice(0, 6).map((e) => `#${e.job_id} ${e.zip}`).join(', ');
+      try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'sq_autoassign_exception' }) }); } catch (_) {}
+      try { await crud.logEvent('sq_autoassign_warned', { ids: freshEx.map((e) => Number(e.job_id)), count: freshEx.length, at_ms: Date.now() }); } catch (_) {}
+      warned = freshEx.length;
+    }
   }
-  return json(200, { ok: true, mode: 'live', assigned, failed: failed.length, exceptions: exceptions.length, failed_list: failed.slice(0, 8), exception_list: exceptions.slice(0, 8) });
+  return json(200, { ok: true, mode: 'live', assigned, failed: failed.length, exceptions: exceptions.length, warned, failed_list: failed.slice(0, 8), exception_list: exceptions.slice(0, 8) });
 };
