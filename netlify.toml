@@ -216,6 +216,16 @@
 [functions."office-action-digest"]
   schedule = "0 13-23 * * *"
 
+# Payment email watch — Teddy asked: "any payments received should make an email to
+# tnappliancerepair@gmail.com, we're having a hard time knowing when things get paid
+# for, including cash jobs." Reads the canonical `customer_payment_received` event
+# (every path writes it: quick-check $50/$100, Stripe add-ons/invoice, in-home, cash)
+# and emails a receipt when a NEW payment lands (dedup'd by event id). Every 30 min.
+# DORMANT until email is turned on (EMAIL_ENABLED=true + SES verify the recipient) —
+# dry-runs safely; ?dry=1 lists recent payments to answer "did that payment land?".
+[functions."payment-email-watch"]
+  schedule = "*/30 * * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
