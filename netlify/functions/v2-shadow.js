@@ -15,13 +15,22 @@
 // customer-availability honoring, same route clustering — but read-only and in
 // normal JS instead of the brittle XS path we're migrating away from.
 //
-//   GET ?secret=<admin>[&predict=25][&reconcile=40][&dry=1]
+// Two predict tracks:
+//   • queue          — the needs-scheduled queue (intake → schedule)
+//   • awaiting_parts — jobs parked in awaiting_parts that never auto-return to a
+//                      tech's day when the part lands (e.g. #19832 — John's missing
+//                      1pm). Measures how often v2 would catch the re-placement
+//                      before the office has to.
+//
+//   GET ?secret=<admin>[&predict=25][&parts=20][&reconcile=40][&dry=1]
 //        predict   = max NEW queue jobs to decide this run (default 25)
+//        parts     = max awaiting-parts jobs to decide this run (default 20)
 //        reconcile = max prior predictions to check against reality (default 40)
 //        dry=1     = compute + report, write NOTHING to Supabase
 'use strict';
 
 const supa = require('./_lib/supabase');
+const crud = require('./_lib/xano/metadata-crud');
 const { getSecret } = require('./_lib/secrets');
 
 const INTAKE = (process.env.XANO_INTAKE_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA').replace(/\/+$/, '');
@@ -78,7 +87,10 @@ const ymdCT = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Amer
 //   {status:'vendor_locked'}            — date set by vendor
 //   {status:'no_fit', reason}           — placeable but engine found no slot
 //   {status:'predicted', tech, startMs, why, profile_applied, clustered}
-async function v2Decide(jobId, snap) {
+// opts.ignoreParts — for the AWAITING-PARTS re-placement track: skip the
+// parts-pending gate (the whole point is to predict who/when this goes BACK on a
+// tech's day once the part is in). Sets snap.part_ready (eta passed/absent).
+async function v2Decide(jobId, snap, opts = {}) {
   let ctxData;
   try { ctxData = await getJSON(`${INTAKE}/get_auto_schedule_context?job_id=${jobId}`); }
   catch (e) { return { status: 'no_fit', reason: 'context_load_failed' }; }
@@ -99,7 +111,14 @@ async function v2Decide(jobId, snap) {
 
   if (!has_pre_diagnosis) return { status: 'gated', reason: 'no_prediag' };
   const partsStatus = String(job.parts_status || '').trim().toLowerCase();
-  if (PARTS_PENDING.has(partsStatus)) return { status: 'gated', reason: 'parts_' + partsStatus };
+  // Awaiting-parts track: note whether the part looks in (eta absent or passed),
+  // and DON'T gate on parts — we want the re-placement pick regardless.
+  if (opts.ignoreParts) {
+    const eta = job.parts_eta_date ? new Date(job.parts_eta_date) : null;
+    snap.part_ready = !(eta && !isNaN(eta) && eta.getTime() > Date.now());
+  } else if (PARTS_PENDING.has(partsStatus)) {
+    return { status: 'gated', reason: 'parts_' + partsStatus };
+  }
 
   // green-light → compute the offer
   const zip = snap.zip;
@@ -188,6 +207,7 @@ exports.handler = async function (event) {
   if (!(await supa.isConnected())) return json(200, { ok: false, error: 'supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)' });
 
   const predictCap = Math.max(0, Math.min(60, parseInt(q.predict, 10) || 25));
+  const partsCap = Math.max(0, Math.min(60, parseInt(q.parts, 10) || 20));
   const reconcileCap = Math.max(0, Math.min(100, parseInt(q.reconcile, 10) || 40));
   const dry = q.dry === '1';
 
@@ -223,21 +243,16 @@ exports.handler = async function (event) {
     const seenRows = await supa.select('v2_shadow_decisions', { select: 'job_id', limit: '5000' });
     const seen = new Set((seenRows || []).map((r) => Number(r.job_id)));
 
-    let queue = await getJSON(`${INTAKE}/list_needs_scheduled_parallel?limit=80`);
-    let items = (queue && (queue.items || queue.jobs)) || (Array.isArray(queue) ? queue : []);
-    let made = 0;
-    for (const it of items) {
-      if (made >= predictCap) break;
-      const jobId = Number(it && (it.id || it.job_id));
-      if (!jobId || seen.has(jobId)) continue;
-
-      const snap = { zip: '', city: '', appliance: '', warranty_company: '' };
+    // decide + record one job under a given origin. Returns true if recorded.
+    async function processOne(jobId, origin, opts) {
+      if (!jobId || seen.has(jobId)) return false;
+      seen.add(jobId);
+      const snap = { zip: '', city: '', appliance: '', warranty_company: '', part_ready: null };
       let dec;
-      try { dec = await v2Decide(jobId, snap); }
-      catch (e) { out.errors.push(`decide ${jobId}: ${String(e.message || e).slice(0, 80)}`); continue; }
-
+      try { dec = await v2Decide(jobId, snap, opts); }
+      catch (e) { out.errors.push(`decide ${jobId}: ${String(e.message || e).slice(0, 80)}`); return false; }
       const row = {
-        job_id: jobId,
+        job_id: jobId, origin, part_ready: snap.part_ready,
         status: dec.status,
         predicted_tech: dec.tech != null ? dec.tech : null,
         predicted_day: dec.startMs ? ymdCT(dec.startMs) : null,
@@ -248,13 +263,35 @@ exports.handler = async function (event) {
         clustered: !!dec.clustered,
         zip: snap.zip || null, city: snap.city || null, appliance: snap.appliance || null, warranty_company: snap.warranty_company || null,
       };
-      if (!dry) { try { await supa.insert('v2_shadow_decisions', row); } catch (e) { out.errors.push(`insert ${jobId}: ${String(e.message || e).slice(0, 80)}`); continue; } }
-      out.predicted++; made++;
-      if (out.samples.length < 12) out.samples.push({ job_id: jobId, status: dec.status, tech: row.predicted_tech, day: row.predicted_day, why: row.why || row.no_fit_reason });
+      if (!dry) { try { await supa.insert('v2_shadow_decisions', row); } catch (e) { out.errors.push(`insert ${jobId}: ${String(e.message || e).slice(0, 80)}`); return false; } }
+      out.predicted++;
+      if (out.samples.length < 14) out.samples.push({ job_id: jobId, origin, status: dec.status, tech: row.predicted_tech, day: row.predicted_day, part_ready: snap.part_ready, why: row.why || row.no_fit_reason });
+      return true;
     }
+
+    // Pass A — the needs-scheduled queue (intake → schedule).
+    let queue = await getJSON(`${INTAKE}/list_needs_scheduled_parallel?limit=80`);
+    let items = (queue && (queue.items || queue.jobs)) || (Array.isArray(queue) ? queue : []);
+    let madeA = 0;
+    for (const it of items) { if (madeA >= predictCap) break; if (await processOne(Number(it && (it.id || it.job_id)), 'queue', {})) madeA++; }
     out.queue_size = items.length;
+
+    // Pass B — the AWAITING-PARTS re-placement track. These jobs are parked in
+    // awaiting_parts and (like #19832) never auto-return to a tech's day when the
+    // part lands — a human has to catch them. v2 predicts who/when it'd re-place
+    // each (parts gate bypassed); reconcile then measures how often v2 would have
+    // caught it before the office had to. part_ready flags whether the part looks in.
+    // (read via the metadata API — jobs table, scheduling_status=awaiting_parts.
+    //  the list_awaiting_parts_jobs function endpoint isn't deployed in Xano.)
+    let pitems = [];
+    try { pitems = await crud.searchPage(crud.TABLES.jobs, { scheduling_status: 'awaiting_parts' }, { id: 'desc' }, 80) || []; }
+    catch (e) { out.errors.push(`awaiting_parts_list: ${String(e.message || e).slice(0, 80)}`); }
+    let madeB = 0;
+    for (const it of pitems) { if (madeB >= partsCap) break; if (await processOne(Number(it && (it.id || it.job_id)), 'awaiting_parts', { ignoreParts: true })) madeB++; }
+    out.awaiting_parts_queue = pitems.length;
+    out.awaiting_parts_predicted = madeB;
   } catch (e) { out.errors.push(`predict: ${String(e.message || e).slice(0, 120)}`); }
 
-  out.summary = `predicted ${out.predicted} · reconciled ${out.reconciled} · gone ${out.gone}${out.errors.length ? ' · ' + out.errors.length + ' errs' : ''}`;
+  out.summary = `predicted ${out.predicted} (incl ${out.awaiting_parts_predicted || 0} awaiting-parts) · reconciled ${out.reconciled} · gone ${out.gone}${out.errors.length ? ' · ' + out.errors.length + ' errs' : ''}`;
   return json(200, out);
 };

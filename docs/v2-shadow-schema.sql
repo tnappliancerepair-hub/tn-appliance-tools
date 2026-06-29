@@ -13,6 +13,11 @@ create table if not exists v2_shadow_decisions (
   id              bigint generated always as identity primary key,
   job_id          bigint not null unique,
 
+  -- where this decision came from: the needs-scheduled queue, or the
+  -- awaiting-parts re-placement track (part arrived -> who/when should it go back on?)
+  origin          text not null default 'queue',        -- queue | awaiting_parts
+  part_ready      boolean,                               -- (awaiting_parts only) does the part look in? (eta passed/absent)
+
   -- what v2 decided (its "first impression" when the job hit the queue)
   status          text not null default 'predicted',   -- predicted | no_fit | gated | vendor_locked | reconciled | gone
   predicted_tech  bigint,
@@ -42,6 +47,7 @@ create table if not exists v2_shadow_decisions (
 );
 
 create index if not exists v2_shadow_status_idx  on v2_shadow_decisions (status);
+create index if not exists v2_shadow_origin_idx  on v2_shadow_decisions (origin);
 create index if not exists v2_shadow_created_idx on v2_shadow_decisions (created_at desc);
 
 -- That's it. v2-shadow.js (Netlify, scheduled) fills it. v2-scoreboard.js reads it.
