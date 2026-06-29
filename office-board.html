@@ -867,6 +867,7 @@ function renderDrawer(d){
           <div style="font-size:15px;font-weight:800;color:#9a5a12" id="inv-addons">$0.00</div>
         </div>
         <div id="inv-addons-items" style="font-size:11px;color:var(--ink2);margin-top:5px;line-height:1.6"></div>
+        <button id="addon-text-btn" data-phone="${esc(c.phone||'')}" data-first="${esc((c.name||((c.first_name||'')+' '+(c.last_name||''))||'there').trim().split(' ')[0]||'there')}" onclick="textCustomerAddon(${jid})" style="width:100%;margin-top:8px;padding:9px;border:0;border-radius:8px;background:#9a5a12;color:#fff;font-weight:800;font-size:13px;cursor:pointer">📲 Text customer to confirm this add-on</button>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;padding:8px 10px;background:#f1faf4;border:1px solid #cdeeda;border-radius:9px">
         <div style="font-size:13px;font-weight:700;color:var(--ink2)">Parts margin (charge − cost)</div>
@@ -1113,6 +1114,7 @@ async function loadInvoiceAddons(jid){
   try{
     const r=await fetch('/.netlify/functions/addons-for-job?job_id='+encodeURIComponent(jid),{cache:'no-store'});
     const d=await r.json(); const items=(d&&d.items)||[];
+    window.__addonItems=items; // stash so the "text customer" button knows what they requested
     if(!items.length){ line.style.display='none'; recomputeInvoice(); return; }
     // Only UNPAID add-ons add to the bill — paid ones (card/cash) are already
     // collected and shown as "✓ paid" so we never charge twice.
@@ -1281,6 +1283,30 @@ async function fulfillAddon(jobId,key,name,techCut){
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// One-tap "confirm the add-on with the customer" — prewritten, leak-kit-aware.
+// Danielle opens the job, clicks once, previews the text, and it sends.
+async function textCustomerAddon(jid){
+  const btn=document.getElementById('addon-text-btn'); if(!btn)return;
+  const to=(btn.dataset.phone||'').trim(); const first=(btn.dataset.first||'there').trim()||'there';
+  if(!to){alert('No phone number on file for this customer.');return;}
+  const items=window.__addonItems||[];
+  const leak=items.find(a=>/leak/i.test(a.addon_key||'')||/leak/i.test(a.name||''));
+  let msg;
+  if(leak){
+    msg='Hi '+first+'! This is TN Appliance Exchange — you were interested in the smart water leak-detector kit. It’s a 3-piece kit, $150 installed. Would you like us to bring it and install it on your visit? I’ll get you the full info shortly. Just reply YES and we’ll add it.';
+  } else {
+    const a=items[0]||{}; const p=parseFloat(a.net_price)||0;
+    msg='Hi '+first+'! This is TN Appliance Exchange — you were interested in '+(a.name||'an add-on')+(p>0?(' (~$'+p.toFixed(0)+' installed)'):'')+'. Would you like us to bring it and install it on your visit? Just reply YES and we’ll add it.';
+  }
+  if(!confirm('Send this text to '+to+'?\n\n'+msg))return;
+  btn.disabled=true; const old=btn.textContent; btn.textContent='Sending…';
+  try{
+    const r=await fetch('/.netlify/functions/text-customer-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,to:to,message:msg})});
+    const d=await r.json();
+    if(d&&d.ok){btn.textContent='✓ Texted the customer';}
+    else{btn.disabled=false;btn.textContent=old;alert('Could not send: '+((d&&d.error)||'error'));}
+  }catch(e){btn.disabled=false;btn.textContent=old;alert('Network error — try again.');}
+}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
 
 initAuth();
