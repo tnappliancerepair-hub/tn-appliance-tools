@@ -436,6 +436,7 @@
   }
   .avail-banner .access { margin-top: 5px; font-size: 13px; color: var(--muted); }
   .avail-banner .access b { color: #ffb454; font-weight: 700; }
+  .ant-built-note { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 0 0 14px; padding: 11px 14px; border-radius: 10px; background: rgba(116,227,196,0.06); border: 1px solid rgba(116,227,196,0.22); }
 
   /* Floors flag — red, top of card: tech must see it before he rolls. */
   .floor-banner {
@@ -1304,7 +1305,7 @@
       const seg = segmentOf(it);
       (groups[seg] = groups[seg] || []).push({ it, i });
     });
-    let html = '';
+    let html = '<div class="ant-built-note">🐜 Ant builds your day around your profile + each customer\'s availability. Something not work? Tap 🚩 on any stop and I\'ll fix it — no problem.</div>';
     for (const seg of SEGMENTS) {
       const arr = groups[seg.key];
       if (!arr || !arr.length) continue;
@@ -1469,6 +1470,9 @@
 
     const phone = (c.phone || '').replace(/[^\d+]/g, '');
     const telHref = phone ? `tel:${phone.startsWith('+') ? phone : '+1' + phone.replace(/^1/, '')}` : null;
+    // 🚩 Flag-a-problem: one tap texts Ant (tech line) prefilled with this stop, so a
+    // scheduling conflict is raised WITH Ant, never sprung on anyone ("no surprises").
+    const flagHref = `sms:+16158578800?body=${encodeURIComponent(`Ant — heads up, problem with my stop: ${custName} (${appliance}). `)}`;
 
     // Inline lifecycle row — one-tap On my way / Start (gateless), or Finish (opens
     // the job to file the report). This is what makes the schedule TRUE: Ant finally
@@ -1516,6 +1520,7 @@
           <div class="quick-actions">
             ${telHref ? `<a href="${telHref}" class="quick-btn" title="call customer" onclick="event.stopPropagation()">📞</a>` : ''}
             <a href="https://maps.apple.com/?q=${addrForMaps}" class="quick-btn" title="navigate" onclick="event.stopPropagation()">🧭</a>
+            <a href="${flagHref}" class="quick-btn" title="flag a problem with this stop — text Ant" onclick="event.stopPropagation()">🚩</a>
           </div>
         </div>
       </div>
