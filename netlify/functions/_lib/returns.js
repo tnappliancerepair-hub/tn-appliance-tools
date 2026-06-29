@@ -54,11 +54,20 @@ async function loadOpenReturns(opts = {}) {
     const m = metaOf(r); const k = keyOf(m.job_id, m.part);
     if (seen.has(k)) continue; seen.add(k);
     if (closed.has(k)) continue;
-    const labelMs = Number(m.at_ms || r.created_at || 0);
+    // Deadline priority: (1) an explicit due date parsed from the email (rare today),
+    // (2) the email's ISSUE date + window (the real anchor — when the label was sent),
+    // (3) last resort, when we scraped it. Per-email day-window override = due_days.
+    const issuedMs = Number(m.issued_ms) || 0;
+    const scrapeMs = Number(m.at_ms || r.created_at || 0);
+    const days = Number(m.due_days) > 0 ? Number(m.due_days) : windowDays;
+    const anchorMs = issuedMs || scrapeMs;
+    const explicitDue = Number(m.due_ms) || 0;
+    const dueMs = explicitDue || (anchorMs + days * 86400000);
+    const source = explicitDue ? 'email_explicit' : (issuedMs ? 'email_issue_date+window' : 'scrape+window');
     open.push({
       key: k, job_id: m.job_id || null, part: m.part || '', rma: m.rma || '', tracking: m.tracking || '',
       distributor: m.distributor || '', customer: m.customer || '', return_desc: m.return_desc || '', claim: m.claim || '',
-      label_ms: labelMs, due_ms: labelMs + windowDays * 86400000,
+      issued_ms: issuedMs || null, label_ms: anchorMs, due_ms: dueMs, deadline_source: source, deadline_text: m.deadline_text || '',
     });
   }
 

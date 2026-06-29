@@ -62,6 +62,18 @@ function parseReturns(subject, body) {
   }));
 }
 
+// Best-effort explicit-deadline parser. Today's Allstate/SquareTrade RMA emails
+// carry NO deadline (just the "won't be paid / may be charged" warning), so this
+// usually returns null and we anchor off the email's issue date + policy window.
+// But if a vendor email ever says "return within N days" or "by <date>", grab it.
+function parseDeadline(body) {
+  const within = (body || '').match(/return[^.]{0,50}?within\s+(\d{1,3})\s+(business\s+)?days/i);
+  if (within) return { days: Number(within[1]) };
+  const by = (body || '').match(/return[^.]{0,50}?by\s+([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/i);
+  if (by) { const ms = Date.parse(by[1]); if (ms) return { due_ms: ms, text: by[1].trim() }; }
+  return null;
+}
+
 async function seenIds() {
   try {
     const row = await crud.searchOne(crud.TABLES.event_log, { action: 'sp_rma_seen' }, { id: 'desc' });
@@ -98,9 +110,13 @@ exports.handler = async function (event) {
         const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
         const hs = (full.data.payload && full.data.payload.headers) || [];
         const subject = (hs.find((h) => h.name === 'Subject') || {}).value || '';
-        const recs = parseReturns(subject, bodyText(full.data.payload));
+        const dateHdr = (hs.find((h) => h.name === 'Date') || {}).value || '';
+        const issuedMs = Date.parse(dateHdr) || null;   // when the label was actually issued (the real anchor)
+        const bod = bodyText(full.data.payload);
+        const dl = parseDeadline(bod);                   // explicit deadline if the email has one (usually null)
+        const recs = parseReturns(subject, bod);
         // one entry per part; key = email id + part (so multi-part emails dedup per part)
-        for (const rec of recs) if (rec.part || rec.rma) parsed.push({ id: m.id, key: `${m.id}:${rec.part || rec.rma}`, subject, ...rec });
+        for (const rec of recs) if (rec.part || rec.rma) parsed.push({ id: m.id, key: `${m.id}:${rec.part || rec.rma}`, subject, issued_ms: issuedMs, due_ms: (dl && dl.due_ms) || null, due_days: (dl && dl.days) || null, deadline_text: (dl && dl.text) || '', ...rec });
       } catch (_) {}
     }
   } catch (e) { return json(200, { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }); }
@@ -119,7 +135,7 @@ exports.handler = async function (event) {
     let n = 0;
     for (const p of parsed) {
       try {
-        await crud.logEvent('parts_return_label', { rma: p.rma, claim: p.claim, tracking: p.tracking, distributor: p.distributor, part: p.part, return_desc: p.return_desc, customer: p.customer, job_id: p.job_id || null, status: 'pending', email_id: p.id, backfill: true, at_ms: Date.now() });
+        await crud.logEvent('parts_return_label', { rma: p.rma, claim: p.claim, tracking: p.tracking, distributor: p.distributor, part: p.part, return_desc: p.return_desc, customer: p.customer, job_id: p.job_id || null, status: 'pending', email_id: p.id, issued_ms: p.issued_ms || null, due_ms: p.due_ms || null, due_days: p.due_days || null, deadline_text: p.deadline_text || '', backfill: true, at_ms: Date.now() });
         n++;
       } catch (_) {}
     }
@@ -142,7 +158,8 @@ exports.handler = async function (event) {
       await crud.logEvent('parts_return_label', {
         rma: p.rma, claim: p.claim, tracking: p.tracking, distributor: p.distributor,
         part: p.part, return_desc: p.return_desc, customer: p.customer, job_id: p.job_id || null,
-        status: 'pending', email_id: p.id, at_ms: Date.now(),
+        status: 'pending', email_id: p.id, issued_ms: p.issued_ms || null, due_ms: p.due_ms || null,
+        due_days: p.due_days || null, deadline_text: p.deadline_text || '', at_ms: Date.now(),
       });
     } catch (_) {}
   }
