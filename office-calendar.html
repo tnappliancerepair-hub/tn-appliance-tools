@@ -680,9 +680,9 @@
     background: var(--surface, #fff); border: 1px solid var(--border-soft, #e6e6ea);
     border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); user-select: none; z-index: 2;
   }
-  .mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-  .mc-title { font-weight: 800; font-size: 14px; }
-  .mc-nav { border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; line-height: 1; color: var(--ink,#222); }
+  .mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 6px; }
+  .mc-title { font-weight: 800; font-size: 15.5px; text-align: center; flex: 1; color: var(--ink,#1a1a2e); }
+  .mc-nav { border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 20px; line-height: 1; color: var(--ink,#222); flex: 0 0 auto; font-weight: 700; }
   .mc-nav:hover { background: #f3f4f8; }
   .mc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
   .mc-dow { margin-bottom: 2px; }
@@ -1570,8 +1570,9 @@ function __initCalendar() {
     const range = new Set();
     for (let i = 0; i < 7; i++) { const d = new Date(selStart); d.setDate(d.getDate() + i); range.add(ymd(d)); }
     const todayStr = serverTodayCT || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+    const monthFull = new Date(y, m, 1).toLocaleString('en-US', { month: 'long' });
     let h = '<div class="mc-head"><button class="mc-nav" id="mcPrev" title="previous month">‹</button>'
-      + '<div class="mc-title">' + MONTHS[m] + ' ' + y + '</div>'
+      + '<div class="mc-title">' + monthFull + ' ' + y + '</div>'
       + '<button class="mc-nav" id="mcNext" title="next month">›</button></div>'
       + '<div class="mc-grid mc-dow">' + ['S','M','T','W','T','F','S'].map(d => '<div class="mc-dowcell">' + d + '</div>').join('') + '</div>'
       + '<div class="mc-grid mc-days">';
