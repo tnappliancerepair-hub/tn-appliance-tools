@@ -1,12 +1,12 @@
-# ── FRONT DOOR = the Quick Check intake page (2026-06-26, Teddy) ──
-# The structured intake (appliance → problem → warranty/cash → video + model pic
-# → contact) is the page that makes customers ACT, and it self-routes warranty
-# (FREE) vs cash ($50). Serving it at "/" means every link to the bare domain
-# (new-lead texts, scheduling texts, ads, GBP chat) now lands here — "the link
-# that closes the deal." 200! = rewrite at the clean root URL, forced over the
-# static index.html. Old homepage chat still reachable at /index.html.
-# REVERSIBLE: delete this one line.
-/                     /appliance-ai.html   200!
+# ── FRONT DOOR (2026-06-29, Teddy) — temporarily serving the CONTENT homepage ──
+# Google Ads API Basic Access (case 6-3335000041044) was bounced because the
+# reviewer hit "/" and saw the chat app, not a business website ("does not have
+# content related to your application"). index.html is the full appliance-repair
+# homepage (services/about/areas + LocalBusiness schema) AND keeps the chat
+# front-and-center, so it satisfies Google's review without losing the funnel.
+# Serving index.html natively at "/" (no rewrite needed).
+# TO REVERT to the chat-first front door: uncomment the appliance-ai line below.
+# /                     /appliance-ai.html   200!
 
 # Same clean intake for the non-English communities, in their language (the page
 # is fully translated via ?lang=). 2026-06-26. Each /xx/ was a single homepage.
