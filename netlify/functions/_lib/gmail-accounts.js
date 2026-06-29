@@ -126,4 +126,29 @@ async function readFirst(query, opts) {
   return null;
 }
 
-module.exports = { listAccounts, clientFor, searchAll, readFirst };
+// Read the full decoded body of EVERY message matching `query` across all inboxes
+// (up to max). For watchers that parse many emails (e.g. ServicePower parts notes).
+async function readMany(query, opts) {
+  const o = opts || {};
+  const max = o.max || 30;
+  const accounts = await listAccounts();
+  const out = [];
+  for (const acct of accounts) {
+    try {
+      const gmail = clientFor(acct);
+      const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: max });
+      const msgs = (list.data && list.data.messages) || [];
+      for (const m of msgs) {
+        try {
+          const fm = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
+          const hs = (fm.data && fm.data.payload && fm.data.payload.headers) || [];
+          const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
+          out.push({ account: acct.label, id: m.id, thread: fm.data && fm.data.threadId, date: get('Date'), from: get('From'), subject: get('Subject'), body: decodeBody(fm.data && fm.data.payload) });
+        } catch (_) {}
+      }
+    } catch (_) { /* skip inbox */ }
+  }
+  return out;
+}
+
+module.exports = { listAccounts, clientFor, searchAll, readFirst, readMany };
