@@ -79,6 +79,18 @@ exports.handler = async function (event) {
     oauth2.setCredentials({ refresh_token: refreshToken });
     const gmail = google.gmail({ version: 'v1', auth: oauth2 });
     const list = await gmail.users.messages.list({ userId: 'me', q: QUERY, maxResults: 25 });
+    // INSPECT mode: dump a real email body so we can see the exact deadline wording.
+    //   GET ?inspect=1[&n=1]
+    if ((event.queryStringParameters || {}).inspect === '1') {
+      const n = Math.max(1, Math.min(3, parseInt((event.queryStringParameters || {}).n, 10) || 1));
+      const dump = [];
+      for (const m of ((list.data && list.data.messages) || []).slice(0, n)) {
+        const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
+        const hs = (full.data.payload && full.data.payload.headers) || [];
+        dump.push({ subject: (hs.find((h) => h.name === 'Subject') || {}).value || '', date: (hs.find((h) => h.name === 'Date') || {}).value || '', body: bodyText(full.data.payload).replace(/\s+\n/g, '\n').slice(0, 4500) });
+      }
+      return json(200, { ok: true, emails: dump });
+    }
     for (const m of ((list.data && list.data.messages) || [])) {
       try {
         const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
