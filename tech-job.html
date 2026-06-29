@@ -441,13 +441,14 @@ function render(){
       </div>
 
       <div class="card" id="takepay-card">
-        <h3>💳 Take a payment</h3>
-        <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">For anything the customer pays out of pocket — diagnostic fee, an add-on, the repair. Charge a card right here (hand them the phone for Apple Pay), or text them a link.</div>
+        <h3>💳 Take a payment <span id="tp-status" style="font-size:12px;font-weight:800;margin-left:auto"></span></h3>
+        <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">See if they've paid, and collect what's owed — card, cash/check, or text them a link. Works on any job (out-of-pocket extras count even on warranty).</div>
         <label style="font-size:12px;color:var(--dim)">What's it for?</label>
         <input id="tp-note" placeholder="e.g. coil cleaning, diagnostic fee" style="width:100%;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;margin:4px 0 9px">
         <label style="font-size:12px;color:var(--dim)">Amount ($)</label>
         <input id="tp-amt" inputmode="decimal" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 11px">
         <button class="btn primary" id="tp-charge" style="width:100%;background:#127a4a;margin-bottom:8px">💳 Charge a card now</button>
+        <button class="btn" id="tp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Mark cash/check collected</button>
         <button class="btn" id="tp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text them a pay link</button>
         <div id="tp-note-out" style="font-size:12.5px;margin-top:9px"></div>
       </div>
@@ -807,9 +808,40 @@ async function wpMissing(row,part){
 // The everyday "the customer is paying me now" tool. Charges via Stripe
 // kind:'addon' (NOT warranty-gated) so it works on warranty jobs too.
 function wireTakePayment(){
-  const charge=document.getElementById('tp-charge'), txt=document.getElementById('tp-text');
+  const charge=document.getElementById('tp-charge'), txt=document.getElementById('tp-text'), cash=document.getElementById('tp-cash');
   if(charge) charge.onclick=()=>takePayment('charge');
   if(txt) txt.onclick=()=>takePayment('text');
+  if(cash) cash.onclick=markCashCollected;
+  loadPayStatusTech();
+}
+// Show paid / balance-due at a glance — auto from real payments.
+async function loadPayStatusTech(){
+  const el=document.getElementById('tp-status'); if(!el||!JOB_ID) return;
+  try{
+    const d=await (await fetch('/.netlify/functions/job-payment?job_id='+JOB_ID,{cache:'no-store'})).json();
+    if(!d||!d.ok) return;
+    const color={paid:'#127a4a',partial:'#c2691c',unpaid:'#c0392b',covered:'#2c6fb0',none:'#8a96a8'}[d.status]||'#8a96a8';
+    const icon={paid:'💵 ',partial:'⚠️ ',unpaid:'🔴 ',covered:'🛡️ ',none:''}[d.status]||'';
+    el.style.color=color; el.textContent=icon+(d.label||'');
+    // prefill the amount with the balance due so collecting is one tap
+    const amtIn=document.getElementById('tp-amt');
+    if(amtIn && !amtIn.value && Number(d.balance||d.due)>0) amtIn.value=Number(d.balance||d.due).toFixed(2);
+  }catch(_){}
+}
+async function markCashCollected(){
+  const out=document.getElementById('tp-note-out');
+  const amt=parseFloat(String((document.getElementById('tp-amt')||{}).value||'').replace(/[^0-9.]/g,''));
+  const note=String((document.getElementById('tp-note')||{}).value||'').trim()||'Service payment';
+  if(!amt||amt<=0){ if(out){out.style.color='#c2691c';out.textContent='Enter the amount first.';} const i=document.getElementById('tp-amt'); if(i)i.focus(); return; }
+  const method=(prompt('Cash or check?','cash')||'cash').trim().toLowerCase();
+  const btn=document.getElementById('tp-cash'); if(btn) btn.disabled=true;
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Recording…'; }
+  try{
+    const d=await xanoPost('record_payment_received',{job_id:JOB_ID,amount:amt,method:method,reference:note,recorded_by:TECH_ID||0});
+    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> ('+esc(method)+').';} loadPayStatusTech(); }
+    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} }
+  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} }
+  if(btn) btn.disabled=false;
 }
 async function takePayment(how){
   const out=document.getElementById('tp-note-out');

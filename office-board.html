@@ -489,6 +489,13 @@ function cardHtml(j){
   // Report-request button — on the cards she works toward invoicing (Completion /
   // Needs Invoice / a tech's Report column). Taps Ant to text+call the tech to
   // finish the report. (Teddy 2026-06-16 — "wherever her tickets are.")
+  // 💵 quick paid/unpaid chip from the data we already have (no extra call) — full
+  // detail + actions live in the drawer. Warranty with nothing owed shows no chip.
+  const _ctl=String(j.customer_type||'').toLowerCase();
+  const _selfPay=(_ctl==='self_pay'||_ctl==='cash'||_ctl==='customer_pay');
+  const _paid=(String(j.payment_status||'').toLowerCase()==='paid')||j.payment_collected===true;
+  if(_paid) tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #b7e3c6">💵 Paid</span>');
+  else if(_selfPay) tags.push('<span class="tag" style="background:#fdecea;color:#c0392b;border:1px solid #f3c0b7">🔴 Unpaid</span>');
   const _col=placeOf(j);
   const _showReportBtn=(_col==='done'||_col==='needinv'||(typeof _col==='string'&&_col.indexOf('rep-')===0));
   const _reportBtn=_showReportBtn?`<button onclick="event.stopPropagation();reqTechReport(${j.id})" title="Ant texts + calls the tech to finish the report" style="margin-top:7px;width:100%;padding:7px;border:0;border-radius:7px;background:#fff4e0;color:#b3690a;border:1px solid #f3d49a;font-size:12px;font-weight:700;cursor:pointer">📋 Request report</button>`:'';
@@ -877,6 +884,12 @@ function renderDrawer(d){
       <div class="notes-box ${techNote?'':'muted'}">${techNote?esc(techNote):'No tech notes yet — they flow here automatically once the tech writes them.'}</div>
     </div>
 
+    <div class="dcard" id="pay-card">
+      <h4>💰 Payment</h4>
+      <div id="pay-status" style="font-size:13px;color:var(--ink2)">Loading…</div>
+      <div id="pay-actions" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+    </div>
+
     <div class="dcard">
       <h4>✅ Office checklist <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">auto-ticks as the job moves</span></h4>
       ${chkHtml}
@@ -964,11 +977,55 @@ function renderDrawer(d){
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
   loadWarrantyParts(jid, j.claim_number||'');
   loadPartsLocation(jid);
+  loadPayStatus(jid);
 }
 
 // 📦 Warranty parts SUPPLIED by the vendor (SquareTrade/Allstate) — auto-pulled from the
 // return-label emails (squaretrade-rma-watch) + manual add. Mark used/returned so no part
 // slips into a chargeback.
+// 💰 Payment status (paid / unpaid / balance) + actions — auto from real payments.
+async function loadPayStatus(jid){
+  const sEl=document.getElementById('pay-status'), aEl=document.getElementById('pay-actions');
+  if(!sEl) return;
+  let d=null; try{ d=await (await fetch('/.netlify/functions/job-payment?job_id='+jid,{cache:'no-store'})).json(); }catch(_){}
+  if(!d||!d.ok){ sEl.textContent='Could not load payment status.'; if(aEl)aEl.innerHTML=''; return; }
+  const color={paid:'#0a7d33',partial:'#b3690a',unpaid:'#c0392b',covered:'#2c6fb0',none:'#8a96a8'}[d.status]||'#8a96a8';
+  const icon={paid:'💵 ',partial:'⚠️ ',unpaid:'🔴 ',covered:'🛡️ ',none:'• '}[d.status]||'';
+  sEl.innerHTML='<span style="font-weight:800;color:'+color+'">'+icon+esc(d.label)+'</span>'
+    +(d.paid>0?'<span style="color:var(--ink2);font-weight:600"> · paid $'+Number(d.paid).toFixed(2)+(d.method?(' ('+esc(d.method)+')'):'')+'</span>':'');
+  if(!aEl) return;
+  // Office can collect or send a link on ANY job (add-ons/out-of-pocket even on warranty).
+  const bal=Number(d.balance||d.due||0);
+  aEl.innerHTML=
+    '<button onclick="payTakeCard('+jid+','+bal+')" style="flex:1;min-width:120px;padding:9px;border:0;border-radius:8px;background:#127a4a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">💳 Take card</button>'
+    +'<button onclick="payMarkCash('+jid+','+bal+')" style="flex:1;min-width:120px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;font-weight:700;font-size:12px;cursor:pointer">💵 Mark cash/check</button>'
+    +'<button onclick="payTextLink('+jid+','+bal+')" style="flex:1;min-width:120px;padding:9px;border:1px solid #bfe3cf;border-radius:8px;background:#fff;color:#127a4a;font-weight:700;font-size:12px;cursor:pointer">📲 Text pay link</button>';
+}
+async function payTakeCard(jid,bal){
+  const def=bal>0?bal.toFixed(2):'';
+  const v=prompt('Amount to charge the card ($):',def); if(v==null) return;
+  const amt=parseFloat(v); if(!(amt>0)){toast('Enter an amount');return;}
+  try{ const d=await (await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,amount_cents:Math.round(amt*100),description:'TN Appliance — Job #'+jid})})).json();
+    if(d&&d.url){ window.open(d.url,'_blank'); toast('Checkout opened — customer pays there'); }
+    else toast('⚠ '+((d&&d.error)||'could not create link')); }catch(_){toast('⚠ failed');}
+}
+async function payMarkCash(jid,bal){
+  const def=bal>0?bal.toFixed(2):'';
+  const v=prompt('Cash/check amount received ($):',def); if(v==null) return;
+  const amt=parseFloat(v); if(!(amt>0)){toast('Enter an amount');return;}
+  const method=(prompt('Method: cash or check?','cash')||'cash').trim().toLowerCase();
+  try{ const d=await postJSON('record_payment_received',{job_id:jid,amount:amt,method:method,recorded_by:0});
+    toast((d&&(d.success!==false))?'Recorded ✓':'⚠ failed'); loadPayStatus(jid); }catch(_){toast('⚠ failed');}
+}
+async function payTextLink(jid,bal){
+  const def=bal>0?bal.toFixed(2):'';
+  const v=prompt('Amount for the pay link ($):',def); if(v==null) return;
+  const amt=parseFloat(v); if(!(amt>0)){toast('Enter an amount');return;}
+  try{ const d=await (await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,amount_cents:Math.round(amt*100),description:'TN Appliance — Job #'+jid})})).json();
+    if(!d||!d.url){ toast('⚠ '+((d&&d.error)||'could not create link')); return; }
+    await postJSON('send_customer_payment_link',{job_id:jid,url:d.url,amount:amt.toFixed(2),note:'Job #'+jid}).catch(()=>null);
+    toast('Pay link texted ✓'); }catch(_){toast('⚠ failed');}
+}
 // 📍 Where are the parts? — parts WE ordered (distributor pickup vs shipped to home).
 async function loadPartsLocation(jid){
   const card=document.getElementById('partsloc-card'), el=document.getElementById('parts-loc'); if(!card||!el) return;
