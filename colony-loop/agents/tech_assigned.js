@@ -148,20 +148,24 @@ export async function run(signal, ctx) {
   // appointment_scheduled confirmation. Skip if scheduled_start is null
   // (no appointment locked in yet → no expectation to update).
   let custReassignRes = null;
-  if (isReassignment && job.scheduled_start != null && Number(job.scheduled_start) > 0) {
+  // Day-only model: never promise a clock time, and NEVER text about a stale/past
+  // appointment (that's the "Jun 12 10:44 AM" confusion Teddy caught). Only notify
+  // for an appointment that's today or later.
+  const ssMs = Number(job.scheduled_start);
+  const apptIsCurrent = ssMs > (Date.now() - 86400000); // not more than ~a day in the past
+  if (isReassignment && job.scheduled_start != null && ssMs > 0 && apptIsCurrent) {
     const custPhone = normalizeE164(customer?.phone);
     if (custPhone) {
       const custFirst = String((customer && customer.first_name) || '').trim() || 'there';
       const techFirst = String((tech && tech.first_name) || '').trim() || 'our tech';
-      const apptDate = new Date(Number(job.scheduled_start)).toLocaleString('en-US', {
+      const apptDate = new Date(ssMs).toLocaleString('en-US', {
         timeZone: 'America/Chicago',
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', hour12: true,
+        weekday: 'long', month: 'short', day: 'numeric', // DAY ONLY — no clock time
       });
       const apl = (job.appliance_type || 'appliance').toLowerCase();
       const custBody =
-        `Hi ${custFirst} - quick update: ${techFirst} will now be the tech for your ${apl} appointment ` +
-        `on ${apptDate} CT. Same time, just a different tech. Questions? Call 866-268-0111.`;
+        `Hi ${custFirst} - quick update: ${techFirst} will be your tech for your ${apl} repair ` +
+        `on ${apptDate}. We'll text you a live arrival window that morning. Questions? Call 866-268-0111.`;
       try {
         custReassignRes = await sms.toCustomer(custPhone, custBody, {
           action: 'tech_reassign_customer_notice',
