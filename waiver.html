@@ -158,8 +158,8 @@
   // phone; simpler version just alarms so you can shut the water off. Offered on
   // every waiver; the recorded Yes/No (especially No) is the liability shield,
   // and it's the direct answer for any customer worried about their floors.
-  var LEAK_KIT = { item: 'smart leak-detector kit',
-    why: 'Insurance research (IBHS) ties most washer water-damage claims to leaks — and a slow leak under a fridge, dishwasher or washer can rot a floor before you ever see it. We place a sensor at every water point — under the dishwasher, behind the fridge, under the washer, behind the toilet, under a bathroom sink. The smart version texts your phone the moment it gets wet so you can shut the water off; a simpler version just sounds an alarm.',
+  var LEAK_KIT = { item: 'smart leak-detector kit', price: 100,
+    why: 'Insurance research (IBHS) ties most washer water-damage claims to leaks — and a slow leak under a fridge, dishwasher or washer can rot a floor before you ever see it. We place smart sensors at every water point — under the dishwasher, behind the fridge, under the washer, behind the toilet, under a bathroom sink. They text your phone AND sound an alarm the moment they sense water, so you can shut it off before it ever reaches your floor.',
     source: 'Insurance Institute for Business & Home Safety (IBHS)' };
   var LEAK_REC = null;
   function renderLeak(floorConcern) {
@@ -167,9 +167,9 @@
     document.getElementById('leak-rec').innerHTML =
       '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 13px;margin:14px 0 4px;color:#1e3a8a;font-size:14.5px;line-height:1.5">'
       + (floorConcern ? '<p style="margin:0 0 6px;font-weight:700">🛟 You told us you\'re concerned about your flooring — this is the protection for it.</p>' : '')
-      + '<p style="margin:0 0 6px">💧 <b>Protect your floors — smart leak-detector kit.</b> ' + LEAK_KIT.why + ' Tell us your concerns and we\'ll research the right setup and price for you.</p>'
+      + '<p style="margin:0 0 6px">💧 <b>Protect your floors — smart leak-detector kit. $' + LEAK_KIT.price + ' installed.</b> ' + LEAK_KIT.why + '</p>'
       + '<div style="font-size:11px;color:#3b5a9a;font-style:italic;margin:0 0 10px">Source: ' + LEAK_KIT.source + '</div>'
-      + '<label style="display:flex;gap:9px;align-items:center;background:#eff8ff;border:1px solid #bcdcff;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#1e3a8a"><input type="radio" name="leak-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — send me details</span></label>'
+      + '<label style="display:flex;gap:9px;align-items:center;background:#eff8ff;border:1px solid #bcdcff;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#1e3a8a"><input type="radio" name="leak-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — add it, $' + LEAK_KIT.price + ' installed</span></label>'
       + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="leak-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
       + '</div>';
   }
@@ -307,11 +307,11 @@
         // alias of record-addon.)
         if (leakChoice === 'yes' && LEAK_REC) {
           try {
-            // quote-only for now (Teddy still pricing the kit + per-sensor labor) —
-            // record as an inquiry so the tech quotes it on site, not a fixed charge.
+            // PRICED add-on at $100 installed (Teddy 2026-06-29 — test price; raise
+            // later if it sells). Bring + install + add to the ticket.
             fetch('/.netlify/functions/save-extra', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: LEAK_REC.item + ' (quote requested)', price: 0, discount: 0, tech_cut: 0, mode: 'inquire', source: 'waiver' })
+              body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: LEAK_REC.item + ' (installed)', price: LEAK_KIT.price, discount: 0, tech_cut: 50, mode: 'install', source: 'waiver' })
             }).catch(function () {});
           } catch (e) {}
         }

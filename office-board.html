@@ -1293,7 +1293,7 @@ async function textCustomerAddon(jid){
   const leak=items.find(a=>/leak/i.test(a.addon_key||'')||/leak/i.test(a.name||''));
   let msg;
   if(leak){
-    msg='Hi '+first+'! This is TN Appliance Exchange — you were interested in the smart water leak-detector kit. It’s a 3-piece kit, $150 installed. Would you like us to bring it and install it on your visit? I’ll get you the full info shortly. Just reply YES and we’ll add it.';
+    msg='Hi '+first+'! This is TN Appliance Exchange — you were interested in the smart water leak-detector kit. It’s a 3-piece kit, $100 installed. Would you like us to bring it and install it on your visit? I’ll get you the full info shortly. Just reply YES and we’ll add it.';
   } else {
     const a=items[0]||{}; const p=parseFloat(a.net_price)||0;
     msg='Hi '+first+'! This is TN Appliance Exchange — you were interested in '+(a.name||'an add-on')+(p>0?(' (~$'+p.toFixed(0)+' installed)'):'')+'. Would you like us to bring it and install it on your visit? Just reply YES and we’ll add it.';

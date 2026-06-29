@@ -1400,10 +1400,10 @@
     el.style.display = '';
     el.innerHTML = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:16px">' +
       (floorConcern ? '<div style="font-weight:800;color:#1e3a8a;font-size:13px;margin-bottom:4px">🛟 You told us you\'re worried about your floors — here\'s the protection</div>' : '<div style="font-weight:800;color:#1e3a8a;font-size:13px;margin-bottom:4px">🛟 Protect your floors</div>') +
-      '<div style="font-weight:800;font-size:16px;color:#10243e">Smart leak-detector kit</div>' +
-      '<div style="font-size:13px;color:#3b5a7a;line-height:1.5;margin:6px 0 10px">Small sensors at every spot water can leak — under the dishwasher, behind the fridge, under the washer, behind the toilet, under a bathroom sink. The smart version texts your phone the moment it senses water so you can shut it off before it ever reaches your floor; a simpler version just sounds an alarm.</div>' +
-      '<button id="protectVisit" style="width:100%;background:#127a4a;color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">Yes — send me details</button>' +
-      '<div id="protectNote" style="font-size:12px;color:#3b5a7a;margin-top:8px">Tell us your concerns and we\'ll research the right setup and price for you — no obligation.</div></div>';
+      '<div style="font-weight:800;font-size:16px;color:#10243e">Smart leak-detector kit — $100 installed</div>' +
+      '<div style="font-size:13px;color:#3b5a7a;line-height:1.5;margin:6px 0 10px">Three smart sensors at the spots water leaks — under the dishwasher, behind the fridge, under the washer. They text your phone AND sound an alarm the moment they sense water, so you can shut it off before it ever reaches your floor. We bring them and install them on your visit.</div>' +
+      '<button id="protectVisit" style="width:100%;background:#127a4a;color:#fff;border:0;border-radius:11px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">Yes — add it to my visit ($100 installed)</button>' +
+      '<div id="protectNote" style="font-size:12px;color:#3b5a7a;margin-top:8px">We\'ll bring it and install it when we come out — just $100, no obligation until then.</div></div>';
     const note = $('protectNote');
     const visit = $('protectVisit');
     if (visit) visit.onclick = async () => {
@@ -1411,10 +1411,10 @@
       try {
         const r = await fetch('/.netlify/functions/save-extra', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: 'Smart leak-detector kit (quote requested)', price: 0, discount: 0, tech_cut: 0, mode: 'inquire', source: 'customer_portal' }),
+          body: JSON.stringify({ job_id: JOB_ID, addon_key: 'leak_detector_kit', name: 'Smart leak-detector kit (installed)', price: 100, discount: 0, tech_cut: 50, mode: 'install', source: 'customer_portal' }),
         });
         const d = await r.json();
-        if (d && d.success) { visit.textContent = "✓ Got it — we'll quote it on your visit"; if (note) note.textContent = 'Your tech will go over the options and price with you.'; }
+        if (d && d.success) { visit.textContent = "✓ Added — we'll bring + install it on your visit"; if (note) note.textContent = 'Your tech will install it and add it to your ticket — $100.'; }
         else { visit.disabled = false; visit.textContent = 'Try again'; }
       } catch (_) { visit.disabled = false; visit.textContent = 'Try again'; }
     };
