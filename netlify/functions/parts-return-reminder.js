@@ -31,9 +31,13 @@ async function sms(to, message, tag) { try { const r = await fetch(`${INTAKE}/se
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const off = String((await getSecret('PARTS_RETURN_REMINDER')) || process.env.PARTS_RETURN_REMINDER || '').toLowerCase() === 'off';
-  if (off) return json(200, { ok: true, skipped: 'PARTS_RETURN_REMINDER=off' });
-  const dry = q.dry === '1';
+  // SAFE BY DEFAULT: texting only fires when explicitly enabled (PARTS_RETURN_REMINDER=on),
+  // because the deadline window is a PLACEHOLDER until Danielle confirms it — we will NOT
+  // blast techs deadlines that might be wrong. Until enabled, the cron runs in shadow:
+  // computes + logs what it WOULD send, sends nothing. Flip on after RETURN_WINDOW_DAYS is real.
+  const flag = String((await getSecret('PARTS_RETURN_REMINDER')) || process.env.PARTS_RETURN_REMINDER || '').toLowerCase();
+  const enabled = flag === 'on' || flag === 'live' || flag === 'true';
+  const dry = q.dry === '1' || !enabled;   // not enabled → shadow (no texts, no warn records)
 
   let data;
   try { data = await loadOpenReturns({}); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
@@ -46,7 +50,7 @@ exports.handler = async function (event) {
   const clearedRows = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_return_cleared_notified' }, { id: 'desc' }, 500).catch(() => []);
   const clearedDone = new Set(clearedRows.map((r) => metaOf(r).key).filter(Boolean));
 
-  const out = { ok: true, dry, window_days: data.window_days, open: open.length, sent: { new: 0, due_soon: 0, overdue: 0, cleared: 0 }, items: [] };
+  const out = { ok: true, enabled, dry, window_days: data.window_days, open: open.length, sent: { new: 0, due_soon: 0, overdue: 0, cleared: 0 }, items: [] };
 
   // --- warnings on OPEN returns ---
   for (const o of open) {
