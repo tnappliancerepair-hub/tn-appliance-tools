@@ -43,7 +43,9 @@ exports.handler = async function (event) {
   const cap = Math.max(1, Math.min(40, parseInt(q.jobs, 10) || 20));
   const doEmail = q.noemail !== '1' && !!searchAll;
   const dry = q.dry === '1';
-  const live = process.env.PARTS_ARRIVAL_LIVE === 'true';
+  // live flag is VAULT-readable (admin-secrets.html) so it flips with no Netlify
+  // env edit (and no 4KB-cap pressure). env still works as an override.
+  const live = String((await getSecret('PARTS_ARRIVAL_LIVE')) || process.env.PARTS_ARRIVAL_LIVE || '').toLowerCase() === 'true';
   const todayMs = startOfTodayCT();
 
   const out = { ok: true, mode: live ? 'LIVE' : 'shadow', dry, email_scan: doEmail, awaiting_parts: 0, arrived: 0, by_signal: { delivery_email: 0, eta_passed: 0 }, acted: 0, items: [], errors: [] };
@@ -107,8 +109,14 @@ exports.handler = async function (event) {
   if (live && !dry) {
     for (const a of freshEmail) {
       const r = await post('mark_parts_arrived', { job_id: a.job_id, source: 'ant_parts_arrival', notes: `delivery email (${a.email && a.email.from})` });
-      if (r && (r.success || r.ok || r.job_id)) { actedIds.push(a.job_id); out.acted++; }
-      else out.errors.push(`mark ${a.job_id}: ${JSON.stringify(r).slice(0, 80)}`);
+      if (r && (r.success || r.ok || r.job_id)) {
+        actedIds.push(a.job_id); out.acted++;
+        // trigger the ONE scheduling engine immediately (don't wait up to 3h for
+        // the sweep). job_intake_complete now sees parts cleared → auto-places per
+        // the customer's availability + the tech's profile + capacity. Whether it
+        // BOOKS or just shadows is governed by the engine's own TECH_OFFER_LIVE.
+        await post('emit_colony_signal', { signal_type: 'JOB_INTAKE_COMPLETE', signal_strength: 45, source_colony: 'parts_arrival', target_colonies: '', payload: JSON.stringify({ job_id: a.job_id, source: 'parts_arrival' }) });
+      } else out.errors.push(`mark ${a.job_id}: ${JSON.stringify(r).slice(0, 80)}`);
     }
   }
 
@@ -116,7 +124,7 @@ exports.handler = async function (event) {
   if (fresh.length && !dry) {
     const lines = [];
     if (freshEmail.length) {
-      lines.push(live ? `✅ Parts DELIVERED → moved to schedule (auto):` : `🔧 Parts DELIVERED (per email) — ready to schedule:`);
+      lines.push(live ? `✅ Parts DELIVERED → sent to auto-scheduler:` : `🔧 Parts DELIVERED (per email) — ready to schedule:`);
       for (const a of freshEmail.slice(0, 8)) lines.push(`• ${a.name}${a.city ? ', ' + a.city : ''} (job #${a.job_id})`);
     }
     if (freshEta.length) {
