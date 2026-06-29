@@ -291,6 +291,14 @@
           try {
             var hoseMsg = '🔧 ' + HOSE_REC.item.toUpperCase() + ' ADD-ON: ' + name + ' said YES on job #' + JOB_ID + ' (~$' + HOSE_REC.price + ', signed on the waiver). Bring + install + add to the ticket.';
             fetch(XANO + '/send_sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: '+16154850713', body: hoseMsg, message: hoseMsg, context_tag: 'hose_addon_request' }) }).catch(function () {});
+            // RECORD it as an add-on too (not just an SMS) so it shows on the office
+            // board, the tech's "customer asked for these" card, the invoice worksheet,
+            // AND the email digest — SMS alone gets buried (Danielle 2026-06-29).
+            var hoseCut = Math.max(20, Math.round((HOSE_REC.price || 0) * 0.5));
+            fetch('/.netlify/functions/save-extra', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ job_id: JOB_ID, addon_key: 'hose_' + (HOSE_REC.key || 'line'), name: HOSE_REC.item + ' (installed)', price: HOSE_REC.price || 0, discount: 0, tech_cut: hoseCut, mode: 'install', source: 'waiver' })
+            }).catch(function () {});
           } catch (e) {}
         }
         // Customer said YES to the leak-detector kit — record it as an add-on so it
