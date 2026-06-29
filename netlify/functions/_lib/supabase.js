@@ -109,6 +109,27 @@ async function recordEvent(row, { throwOnError = false } = {}) {
   }
 }
 
+// UPDATE rows matching PostgREST filters with a partial patch, e.g.
+//   update('v2_shadow_decisions', { job_id: 'eq.19971' }, { status: 'reconciled', tech_match: true })
+// Requires at least one filter (refuses an unfiltered update).
+async function update(table, filters = {}, patch = {}) {
+  const c = await cfg();
+  if (!c.url || !c.key) throw new Error('supabase_not_configured');
+  const qs = new URLSearchParams(filters).toString();
+  if (!qs) throw new Error('update requires a filter (refusing unfiltered update)');
+  const r = await fetch(`${c.url}/rest/v1/${table}?${qs}`, {
+    method: 'PATCH',
+    headers: headers(c, { Prefer: 'return=minimal' }),
+    body: JSON.stringify(patch),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`supabase update ${table} -> ${r.status}: ${t.slice(0, 200)}`);
+  }
+  return { ok: true };
+}
+
 // DELETE rows matching PostgREST filters, e.g. del('meistertask_archive', { board: 'neq._manifest' }).
 // Requires at least one filter (PostgREST refuses an unfiltered delete by default).
 async function del(table, filters = {}) {
@@ -128,4 +149,4 @@ async function del(table, filters = {}) {
   return { ok: true };
 }
 
-module.exports = { cfg, isConnected, insert, select, del, recordEvent };
+module.exports = { cfg, isConnected, insert, select, update, del, recordEvent };

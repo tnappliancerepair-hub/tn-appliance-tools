@@ -172,6 +172,16 @@
 [functions."nightly-backup"]
   schedule = "0 8 * * *"
 
+# v2 shadow scheduler — the clean Supabase-rebuild proof. A cloud-hosted v2
+# scheduling brain (clean JS, NO Mac, NO XanoScript) decides tech+day+time for
+# every live needs-scheduled job, stores its call in Supabase, and reconciles it
+# against what the live system actually did. Touches NOTHING live — pure shadow.
+# Watch the agreement % via v2-scoreboard; cut over slice-by-slice when it holds.
+# Every 3h (predict new jobs + reconcile prior picks). Needs v2_shadow_decisions
+# table (docs/v2-shadow-schema.sql) + SUPABASE_URL/SUPABASE_SERVICE_KEY (already set).
+[functions."v2-shadow"]
+  schedule = "0 */3 * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
