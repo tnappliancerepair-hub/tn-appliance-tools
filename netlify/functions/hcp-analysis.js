@@ -46,6 +46,19 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   if (!(await sb.isConnected())) return json(200, { ok: false, error: 'supabase not configured' });
 
+  // ?sample_caller=1 — prove the phone bridge end-to-end: grab a real HCP customer
+  // with a phone, then run the exact lookup the live phone assistant does.
+  if (q.sample_caller === '1') {
+    try {
+      const cs = await sb.select('hcp_archive', { kind: 'eq.customer', phone10: 'not.is.null', limit: 1, select: 'hcp_id,phone10,data' });
+      const cust = cs && cs[0];
+      if (!cust) return json(200, { ok: true, note: 'no customer with phone10 — did the bridge SQL run?' });
+      const cid = String(cust.hcp_id || (cust.data && cust.data.id) || '');
+      const jobs = await sb.select('hcp_archive', { kind: 'eq.job', cust_id: 'eq.' + cid, order: 'id.desc', limit: 3, select: 'd:data->>description,ws:data->>work_status,bal:data->>outstanding_balance' });
+      return json(200, { ok: true, sample: { phone10: cust.phone10, name: [cust.data.first_name, cust.data.last_name].filter(Boolean).join(' '), hcp_id: cid, recent_jobs: (jobs || []).map((j) => ({ what: String(j.d || '').slice(0, 80), status: j.ws })), found_jobs: (jobs || []).length } });
+    } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+  }
+
   if (q.peek === '1') {
     try { const rows = await sb.select('hcp_archive', { kind: 'eq._analysis', order: 'id.desc', limit: 1 }); return json(200, { ok: true, analysis: (rows && rows[0] && rows[0].data) || null }); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
   }
