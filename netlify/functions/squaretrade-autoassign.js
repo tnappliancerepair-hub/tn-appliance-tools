@@ -16,10 +16,14 @@ const crud = require('./_lib/xano/metadata-crud');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
-const CAP = 6;
+const CAP = 6;            // overall per-day backstop
+const AM_CAP = 3;         // SquareTrade: max 3 morning jobs / tech / day (Teddy 2026-06-29)
+const PM_CAP = 3;         // max 3 afternoon — a 4th in a period needs the tech's OK
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function authH() { return { Authorization: 'Bearer ' + process.env.XANO_METADATA_TOKEN, 'Content-Type': 'application/json' }; }
 function ctDate(ms) { try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Number(ms))); } catch (_) { return ''; } }
+// Morning vs afternoon by the dispatch's CT hour (noon = the split).
+function periodOf(ms) { try { const h = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(Number(ms))), 10); return h < 12 ? 'AM' : 'PM'; } catch (_) { return 'PM'; } }
 const TERMINAL = new Set(['completed', 'canceled', 'cancelled', 'closed', 'no_fix_possible', 'in_progress']);
 
 let _jt = null;
@@ -74,6 +78,24 @@ exports.handler = async function (event) {
     try { d = await fetch(`${XANO}/get_tech_daily_dashboard?tech_id=${tid}&date=${date}`).then((x) => x.json()); } catch (_) {}
     dashCache[k] = d; return d;
   }
+  // Per-tech AM/PM load for a date — counted straight off the jobs table (reliable),
+  // so we can enforce the 3-morning / 3-afternoon SquareTrade cap. Cached per tech.
+  const loadCache = {};
+  async function dayLoad(tid, date) {
+    const ck = tid + '|' + date; if (loadCache[ck]) return loadCache[ck];
+    let am = 0, pm = 0;
+    try {
+      const r = await fetch(`${META}/table/${jt}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { technician_id: Number(tid) }, sort: { id: 'desc' }, per_page: 200, page: 1 }) });
+      const items = ((await r.json()).items) || [];
+      for (const jj of items) {
+        const ss = Number(jj.scheduled_start || 0); if (!ss) continue;
+        if (ctDate(ss) !== date) continue;
+        if (TERMINAL.has(String(jj.scheduling_status || '').toLowerCase())) continue;
+        if (periodOf(ss) === 'AM') am++; else pm++;
+      }
+    } catch (_) {}
+    const out = { am, pm }; loadCache[ck] = out; return out;
+  }
 
   const plan = [];
   for (const j of candidates) {
@@ -85,15 +107,26 @@ exports.handler = async function (event) {
     // ranked techs for this cluster (active, non-owner), rank asc
     const ranked = clusterRanks.filter((c) => c.cluster === zone.cluster && c.active && c.tech_active && !c.is_owner).sort((a, b) => a.rank - b.rank);
     const order = ranked.length ? ranked : (zone.suggested_technician_id ? [{ technician_id: zone.suggested_technician_id, tech_name: zone.suggested_technician_name, rank: 1 }] : []);
-    let chosen = null, reasons = [];
+    const jobPeriod = periodOf(j.scheduled_start);   // is THIS dispatch a morning or afternoon job?
+    const periodCap = jobPeriod === 'AM' ? AM_CAP : PM_CAP;
+    let chosen = null, reasons = [], periodFull = false;
     for (const t of order) {
       const dd = await dash(t.technician_id, date);
       if (dd.day_off_active) { reasons.push(`${t.tech_name || t.technician_id}:day-off`); continue; }
       if ((dd.job_count || 0) >= CAP) { reasons.push(`${t.tech_name || t.technician_id}:maxed(${dd.job_count})`); continue; }
-      chosen = { tech_id: t.technician_id, tech_name: t.tech_name, rank: t.rank, load: dd.job_count || 0 }; break;
+      // Hard SquareTrade rule: no more than 3 in the morning, 3 in the afternoon.
+      // A 4th in that period is the tech's call — never auto-placed.
+      const ld = await dayLoad(t.technician_id, date);
+      const inPeriod = jobPeriod === 'AM' ? ld.am : ld.pm;
+      if (inPeriod >= periodCap) { periodFull = true; reasons.push(`${t.tech_name || t.technician_id}:${jobPeriod}-full(${inPeriod})`); continue; }
+      chosen = { tech_id: t.technician_id, tech_name: t.tech_name, rank: t.rank, load: dd.job_count || 0, period: jobPeriod, period_load: inPeriod }; break;
     }
-    if (!chosen) { plan.push({ job_id: j.id, zip, cluster: zone.cluster, date, outcome: 'EXCEPTION: all techs off/maxed', tried: reasons }); continue; }
-    plan.push({ job_id: j.id, zip, cluster: zone.cluster, date, assign_to: chosen.tech_name, tech_id: chosen.tech_id, rank: chosen.rank, load_after: chosen.load + 1, outcome: 'assign' });
+    if (!chosen) {
+      const why = periodFull ? `EXCEPTION: all techs at the ${jobPeriod === 'AM' ? 'morning' : 'afternoon'} cap (${periodCap}) — ask a tech to take a 4th` : 'EXCEPTION: all techs off/maxed';
+      plan.push({ job_id: j.id, zip, cluster: zone.cluster, date, period: jobPeriod, outcome: why, tried: reasons });
+      continue;
+    }
+    plan.push({ job_id: j.id, zip, cluster: zone.cluster, date, period: jobPeriod, assign_to: chosen.tech_name, tech_id: chosen.tech_id, rank: chosen.rank, period_load_after: chosen.period_load + 1, load_after: chosen.load + 1, outcome: 'assign' });
   }
 
   const toAssign = plan.filter((p) => p.outcome === 'assign');
@@ -128,7 +161,9 @@ exports.handler = async function (event) {
     } catch (_) {}
     const freshEx = exceptions.filter((e) => !recentlyWarned.has(Number(e.job_id)));
     if (freshEx.length) {
-      const body = `[ant] ⚠️ ${freshEx.length} SquareTrade job(s) couldn't auto-route to a tech (no coverage or all maxed) — need a human: ` + freshEx.slice(0, 6).map((e) => `#${e.job_id} ${e.zip}`).join(', ');
+      const capFull = freshEx.filter((e) => /cap \(/.test(String(e.outcome))).length;
+      const tail = capFull ? ` (${capFull} are at the 3-per-morning/afternoon cap — reply to ask a tech to take a 4th)` : '';
+      const body = `[ant] ⚠️ ${freshEx.length} SquareTrade job(s) couldn't auto-route to a tech${tail} — need a human: ` + freshEx.slice(0, 6).map((e) => `#${e.job_id} ${e.zip}${e.period ? ' ' + e.period : ''}`).join(', ');
       try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'sq_autoassign_exception' }) }); } catch (_) {}
       try { await crud.logEvent('sq_autoassign_warned', { ids: freshEx.map((e) => Number(e.job_id)), count: freshEx.length, at_ms: Date.now() }); } catch (_) {}
       warned = freshEx.length;
