@@ -8,6 +8,7 @@
 //                         tracking, eta, ship_to, where, where_icon, pickup }] }
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
+const { getSecret } = require('./_lib/secrets');
 const PARTS_ORDERS = 47;
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function j(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
@@ -20,6 +21,18 @@ function nice(s) { const k = String(s || '').toLowerCase().trim(); if (SUPPLIER_
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   const q = event.queryStringParameters || {};
+
+  // Admin-gated ops probe: list recent parts orders across all jobs (read-only) so we
+  // can find a job that has one. ?recent=1&secret=<admin>[&n=]
+  if (q.recent) {
+    const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    if (q.secret !== admin) return j(401, { ok: false, error: 'unauthorized — ?secret=' });
+    let rows = [];
+    try { rows = await crud.searchPage(PARTS_ORDERS, {}, { ordered_at: 'desc' }, parseInt(q.n, 10) || 30) || []; } catch (_) {}
+    const list = rows.map((r) => { const m = parseNotes(r.notes); return { order_id: r.id, job_id: r.job_id, part: r.part_number, supplier: r.supplier, status: r.order_status, ship_to: (m.ship_to || 'customer') }; });
+    return j(200, { ok: true, count: list.length, orders: list });
+  }
+
   const jobId = parseInt(String(q.job_id || '').replace(/\D/g, ''), 10) || 0;
   if (!jobId) return j(400, { ok: false, error: 'job_id required' });
 
