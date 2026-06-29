@@ -54,28 +54,34 @@ exports.handler = async function (event) {
   if (!apiKey) return json(200, { ok: false, error: 'OPENAI_API_KEY not readable (check Functions scope)' });
   if (!(await sb.isConnected())) return json(200, { ok: false, error: 'supabase not configured' });
 
+  const DEFAULT = { last_id: 0, done: false, embedded: 0 };
   if (q.status === '1') {
     const cur = await readCursor();
-    return json(200, { ok: true, embed: cur.data.embed || { page: 0, done: false, embedded: 0 } });
+    return json(200, { ok: true, embed: cur.data.embed || DEFAULT });
   }
   if (q.reset === '1') {
-    const cur = await readCursor(); cur.data.embed = { page: 0, done: false, embedded: 0 }; await writeCursor(cur);
-    return json(200, { ok: true, note: 'embed cursor reset to page 0 (vectors not wiped)' });
+    const cur = await readCursor(); cur.data.embed = { ...DEFAULT }; await writeCursor(cur);
+    return json(200, { ok: true, note: 'embed cursor reset (vectors not wiped)' });
+  }
+  if (q.wipe === '1') {
+    try { await sb.del('hcp_vectors', { id: 'gt.0' }); } catch (e) { return json(200, { ok: false, error: 'wipe failed: ' + String(e.message || e) }); }
+    const cur = await readCursor(); cur.data.embed = { ...DEFAULT }; await writeCursor(cur);
+    return json(200, { ok: true, note: 'hcp_vectors wiped + cursor reset — ready for a clean grind' });
   }
 
   const cur = await readCursor();
-  const st = cur.data.embed || { page: 0, done: false, embedded: 0 };
+  const st = cur.data.embed || { ...DEFAULT };
+  if (st.last_id == null) st.last_id = 0; // migrate from old page-based cursor
   if (st.done && q.force !== '1') return json(200, { ok: true, done: true, embedded: st.embedded, note: 'already done — &force=1 to continue' });
 
   const grind = Math.max(1, Math.min(8, parseInt(q.grind, 10) || 4));
   let pagesRun = 0, added = 0;
   try {
     for (let i = 0; i < grind; i++) {
-      const offset = st.page * PAGE;
-      const rows = await sb.select('hcp_archive', { kind: 'eq.job', order: 'id.asc', limit: PAGE, offset, select: 'hcp_id,title,d:data->>description,n:data->>notes' });
+      // KEYSET pagination (walk by id) — constant-time, no offset-scan timeout.
+      const rows = await sb.select('hcp_archive', { kind: 'eq.job', id: 'gt.' + st.last_id, order: 'id.asc', limit: PAGE, select: 'id,hcp_id,title,d:data->>description,n:data->>notes' });
       if (!rows || !rows.length) { st.done = true; break; }
 
-      // build texts; skip blanks but keep index alignment by filtering together
       const usable = rows.map((r) => ({ hcp_id: r.hcp_id, body: bodyText(r) })).filter((x) => x.body.length >= 4);
       if (usable.length) {
         const vecs = await embedBatch(apiKey, usable.map((u) => u.body));
@@ -83,14 +89,15 @@ exports.handler = async function (event) {
         await sb.insert('hcp_vectors', out);
         st.embedded = (st.embedded || 0) + out.length; added += out.length;
       }
-      st.page += 1; pagesRun++;
+      st.last_id = rows[rows.length - 1].id; // advance past the whole page (incl. skipped blanks)
+      pagesRun++;
       if (rows.length < PAGE) { st.done = true; break; }
-      await sleep(150);
+      await sleep(120);
     }
   } catch (e) {
     cur.data.embed = st; await writeCursor(cur);
-    return json(200, { ok: false, error: String(e.message || e), embedded_total: st.embedded, at_page: st.page, note: 'cursor saved — safe to re-run' });
+    return json(200, { ok: false, error: String(e.message || e), embedded_total: st.embedded, at_id: st.last_id, note: 'cursor saved — safe to re-run' });
   }
   cur.data.embed = st; await writeCursor(cur);
-  return json(200, { ok: true, pages_run: pagesRun, added_this_run: added, embedded_total: st.embedded, at_page: st.page, done: !!st.done, next: st.done ? 'complete' : 'repeat &grind=' + grind });
+  return json(200, { ok: true, pages_run: pagesRun, added_this_run: added, embedded_total: st.embedded, at_id: st.last_id, done: !!st.done, next: st.done ? 'complete' : 'repeat &grind=' + grind });
 };
