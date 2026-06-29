@@ -24,7 +24,9 @@ function bodyText(payload) {
     if (!p) return '';
     if (p.mimeType === 'text/plain' && p.body && p.body.data) return Buffer.from(p.body.data, 'base64').toString('utf8');
     if (p.parts) { for (const sp of p.parts) { const t = walk(sp); if (t) return t; } }
-    if (p.mimeType === 'text/html' && p.body && p.body.data) return Buffer.from(p.body.data, 'base64').toString('utf8').replace(/<[^>]+>/g, ' ');
+    if (p.mimeType === 'text/html' && p.body && p.body.data) return Buffer.from(p.body.data, 'base64').toString('utf8')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<head[\s\S]*?<\/head>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
     return '';
   }
   return walk(payload) || '';
@@ -87,7 +89,7 @@ exports.handler = async function (event) {
       for (const m of ((list.data && list.data.messages) || []).slice(0, n)) {
         const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
         const hs = (full.data.payload && full.data.payload.headers) || [];
-        dump.push({ subject: (hs.find((h) => h.name === 'Subject') || {}).value || '', date: (hs.find((h) => h.name === 'Date') || {}).value || '', body: bodyText(full.data.payload).replace(/\s+\n/g, '\n').slice(0, 4500) });
+        dump.push({ subject: (hs.find((h) => h.name === 'Subject') || {}).value || '', date: (hs.find((h) => h.name === 'Date') || {}).value || '', body: bodyText(full.data.payload).replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').slice(0, 6000) });
       }
       return json(200, { ok: true, emails: dump });
     }
