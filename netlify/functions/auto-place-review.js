@@ -20,27 +20,30 @@ exports.handler = async function (event) {
   const sinceMs = Date.now() - days * 86400000;
   const mode = (q.mode || 'all').toLowerCase();
 
+  // Reads 'auto_place_decision' (written via recordEvent → Xano; the loop's
+  // markSignalProcessed audit is local-only under LOOP_STORE=local, so we use the
+  // recordEvent copy here). mode = 'shadow' | 'live'.
   let rows = [];
-  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'try_auto_schedule_handled' }, { id: 'desc' }, 400); }
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'auto_place_decision' }, { id: 'desc' }, 400); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
 
-  const placed = [], shadow = []; const outcomeCounts = {};
+  const placed = [], shadow = []; const modeCounts = {};
   for (const r of rows) {
     const createdAt = Number(r.created_at || 0);
     if (createdAt && createdAt < sinceMs) continue;
     const m = meta(r);
-    const oc = m.outcome || '';
-    outcomeCounts[oc] = (outcomeCounts[oc] || 0) + 1;
+    const md = m.mode || '';
+    modeCounts[md] = (modeCounts[md] || 0) + 1;
     const item = {
       job_id: m.job_id, technician_id: m.technician_id,
       when: ctTime(m.scheduled_start_ms), why: m.why || '',
-      profile_applied: !!m.profile_applied, at: ctTime(createdAt),
+      clustered: !!m.clustered, profile_applied: !!m.profile_applied, at: ctTime(m.at_ms || createdAt),
     };
-    if (oc === 'auto_placed') placed.push(item);
-    else if (oc === 'auto_place_shadow') shadow.push(item);
+    if (md === 'live') placed.push(item);
+    else if (md === 'shadow') shadow.push(item);
   }
 
-  const out = { ok: true, days, since_ct: ctTime(sinceMs), outcome_counts: outcomeCounts };
+  const out = { ok: true, days, since_ct: ctTime(sinceMs), mode_counts: modeCounts };
   if (mode === 'live' || mode === 'all') out.placed_live = placed;
   if (mode === 'shadow' || mode === 'all') out.would_place_shadow = shadow;
   out.summary = `live placed: ${placed.length} · shadow would-place: ${shadow.length} (last ${days}d)`;

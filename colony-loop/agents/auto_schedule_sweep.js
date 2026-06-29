@@ -72,6 +72,8 @@ export async function run(signal, ctx) {
   }
 
   const meta = { outcome: 'swept', queue_size: items.length, scanned, emitted, skipped_dedup: skippedDedup, live: !!config.techOfferLive };
+  // Xano-visible run summary (markSignalProcessed is local under LOOP_STORE=local).
+  try { await xano.recordEvent('auto_schedule_sweep_ran', { ...meta, at_ms: Date.now() }); } catch (_) {}
   await xano.markSignalProcessed(signal.id, 'auto_schedule_sweep_handled', meta);
   log('auto_schedule_sweep_handled', meta);
   return { success: true, action: 'swept', ...meta };

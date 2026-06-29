@@ -290,6 +290,9 @@ export async function run(signal, ctx) {
           action: 'auto_place_shadow', job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, source_signal_id: signal.id,
         });
         const meta = { job_id: jobId, outcome: 'auto_place_shadow', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied };
+        // recordEvent stays on Xano (markSignalProcessed is local under LOOP_STORE=local),
+        // so the decision is visible to auto-place-review / the office.
+        try { await xano.recordEvent('auto_place_decision', { mode: 'shadow', job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, clustered: !!offer.clustered, profile_applied: !!offer.profile_applied, source: String(payload.source || 'intake'), at_ms: Date.now() }); } catch (_) {}
         await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
         log('try_auto_schedule_handled', meta);
         return { success: true, action: 'auto_place_shadow', job_id: jobId, technician_id: offer.technician_id };
@@ -312,6 +315,8 @@ export async function run(signal, ctx) {
         }
         if (!sweep) await toOwner(`[ant] Auto-placed job #${jobId} → tech ${offer.technician_id}, ${day} ~${tmStr} CT (${offer.why}). ${lbl}`, { action: 'auto_place_owner_fyi', job_id: jobId, technician_id: offer.technician_id, source_signal_id: signal.id });
         const meta = { job_id: jobId, outcome: 'auto_placed', technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, profile_applied: offer.profile_applied, tech_heads_up: techRes };
+        // Xano-visible audit (markSignalProcessed is local under LOOP_STORE=local).
+        try { await xano.recordEvent('auto_place_decision', { mode: 'live', job_id: jobId, technician_id: offer.technician_id, scheduled_start_ms: startMs, why: offer.why, clustered: !!offer.clustered, profile_applied: !!offer.profile_applied, tech_heads_up: techRes, source: String(payload.source || 'intake'), at_ms: Date.now() }); } catch (_) {}
         await xano.markSignalProcessed(signal.id, 'try_auto_schedule_handled', meta);
         log('try_auto_schedule_handled', meta);
         return { success: true, action: 'auto_placed', job_id: jobId, technician_id: offer.technician_id };
