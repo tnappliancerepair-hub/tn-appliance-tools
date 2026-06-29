@@ -209,6 +209,13 @@
 [functions."parts-return-reminder"]
   schedule = "0 14,21 * * *"
 
+# Office action digest — Danielle's reliable EMAIL channel (she asked: add-on alerts
+# get buried in SMS, "I need an email"). Emails her the open add-ons to install when
+# a NEW one appears (dedup'd, no spam). Hourly 8a-6p CT. DORMANT until email is turned
+# on (EMAIL_ENABLED=true + SES verify danielle.tnappliance@gmail.com) — dry-runs safely.
+[functions."office-action-digest"]
+  schedule = "0 13-23 * * *"
+
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
 # 10GB cap. 3:10am CT = 08:10 UTC.
