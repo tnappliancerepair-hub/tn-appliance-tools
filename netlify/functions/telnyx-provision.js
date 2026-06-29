@@ -400,14 +400,18 @@ exports.handler = async function (event) {
         const pay = payNote ? ' It\'s a flat $50 Quick Check — you can take care of it whenever our tech comes out.' : '';
         text = `${hi}this is Ant with TN Appliance Exchange. For your ${appliance.toUpperCase()} 👇 please shoot a quick video of what it's doing + a CLEAR photo of the model-number sticker right here (no forms, ~60 sec):${pay} ${link}  (Reply STOP to opt out.)`;
       } else {
-        link = `${SITE}/appliance-ai.html?${isFree ? 'free=tn-free-2026&' : ''}appliance=${encodeURIComponent(appliance)}`;
-        const freeClause = isFree ? 'No charge for this one — it\'s covered by your trip fee. ' : '';
-        text = `${hi}this is Ant with TN Appliance Exchange. Here's your link for your ${appliance.toUpperCase()} 👇 Tap it, record a short video of what it's doing, snap a photo of the model-number sticker, and let me know what days/times work for you. ${freeClause}${link}  (Reply STOP to opt out.)`;
+        // &dollar=1 → $1 Quick Check (qc test token). &free=1 → $0. else $50.
+        const isDollar = String(q.dollar || '') === '1';
+        const pre = isFree ? 'free=tn-free-2026&' : (isDollar ? 'qc=tn-qc-test-2026&' : '');
+        link = `${SITE}/appliance-ai.html?${pre}appliance=${encodeURIComponent(appliance)}`;
+        const priceClause = isFree ? 'No charge for this one — it\'s covered by your trip fee. '
+          : (isDollar ? 'It\'s just $1 to get it in our system. ' : '');
+        text = `${hi}this is Ant with TN Appliance Exchange. Here's your link for your ${appliance.toUpperCase()} 👇 Tap it, record a short video of what it's doing, snap a clear photo of the model-number sticker, and I'll take a look and tell you straight whether it's worth fixing. ${priceClause}${link}  (Reply STOP to opt out.)`;
       }
       try {
         const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text }), signal: AbortSignal.timeout(12000) });
         const sd = await send.json().catch(() => ({}));
-        return json(200, { ok: send.ok, from, to: dest, appliance, free: isFree, link, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
+        return json(200, { ok: send.ok, from, to: dest, appliance, free: isFree, dollar: String(q.dollar || '') === '1', link, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
       } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
     }
 
