@@ -1,5 +1,14 @@
 [build]
   functions = "netlify/functions"
+  # Skip the website rebuild when a commit ONLY touches things Netlify doesn't
+  # serve — the Mac colony loop, docs, XanoScript endpoints (deployed via the
+  # Xano CLI, not here), node scripts, the separate melissa-wood site, CLAUDE.md.
+  # During heavy build sprints most commits are colony-loop/docs/api, and each
+  # was firing a full site build (= build-minute charges). This skips those.
+  # Exit 0 = SKIP build. The diff is scoped to SITE paths only; if NONE changed
+  # it's quiet (exit 0 → skip). git errors / missing refs → non-zero → build runs
+  # (safe default: never wrongly skip a real site change).
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)colony-loop' ':(exclude)docs' ':(exclude)api' ':(exclude)scripts' ':(exclude)melissa-wood' ':(exclude)CLAUDE.md'"
 
 [functions]
   node_bundler = "esbuild"
@@ -217,7 +226,9 @@
 # Every 10 min — vendor confirmation emails aren't time-critical to the
 # minute and we want the dry-run log volume manageable.
 [functions."warranty-status-gmail-watcher"]
-  schedule = "*/10 * * * *"
+  # Trimmed */10 → */30 (2026-06-29): it's DRY-RUN and vendor confirmation
+  # emails aren't minute-critical — 30 min is plenty, 3x fewer runs.
+  schedule = "*/30 * * * *"
 
 # Colony heartbeat watchdog. Every 5 min, verifies the Mac Mini loop
 # is firing loop_tick events. If the most recent tick is older than
@@ -225,7 +236,9 @@
 # alerts once per 2 hours so a long outage doesn't spam. 80% of the
 # SPOF mitigation without standing up a warm replica.
 [functions."colony-watchdog"]
-  schedule = "*/5 * * * *"
+  # Trimmed */5 → */10 (2026-06-29): threshold is 15 min, so a 10-min check
+  # still catches a Mac/loop death promptly while halving the invocations.
+  schedule = "*/10 * * * *"
 
 # HCP poll catchup — OFF as of 2026-06-15. Danielle doesn't want Ant live-
 # connected to HCP (the sync created a dupe of every email job). Replaced by a
@@ -260,21 +273,25 @@
 # lands, so he doesn't have to babysit his inbox waiting on API access. Dedups on
 # alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."amazon-api-watch"]
-  schedule = "*/30 * * * *"
+  # Trimmed */30 → hourly (2026-06-29): waiting DAYS on a one-time approval
+  # email — an hour's detection lag is irrelevant, half the runs.
+  schedule = "0 * * * *"
 
 # Google API-access email watcher — scans Gmail every 30 min for the Business Profile
 # API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
 # Access decision, and texts Teddy the moment one lands so he doesn't babysit his
 # inbox. Dedups on alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."google-api-watch"]
-  schedule = "*/30 * * * *"
+  # Trimmed */30 → hourly (2026-06-29): one-time approval email, days-long wait.
+  schedule = "0 * * * *"
 
 # Vendor (warranty + parts) API-access email watcher — scans Gmail every 30 min for
 # the Frontdoor/AHS Status API, ServicePower API, Reliable Parts (services agreement/
 # credentials), and MarconeAI API emails, and texts Teddy when one lands. Query REQUIRES
 # an API-specific phrase so it does NOT match routine AHS/ServicePower dispatch emails.
 [functions."vendor-api-watch"]
-  schedule = "*/30 * * * *"
+  # Trimmed */30 → hourly (2026-06-29): one-time approval email, days-long wait.
+  schedule = "0 * * * *"
 
 # ServicePower claims auto-reconcile — twice daily (8a + 4p CT = 13:00 + 21:00 UTC).
 # Pulls our completed/claimed SQUARE TRADE dispatches → retrieves each claim by its
