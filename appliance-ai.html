@@ -658,6 +658,9 @@ function payStep(){
   const sub = isInHome ? 'Credited to your repair · a tech comes to you' : 'Credited to your repair · honest answer within 2 business hours';
   const cta = isInHome ? ('Pay $'+amt+' &amp; get scheduled →') : ('Pay $'+amt+' &amp; get my answer →');
   p.innerHTML='<div class="amt">$'+amt+'</div><div class="amtsub">'+sub+'</div>'
+    +'<div style="background:rgba(55,211,154,.12);border:1px solid rgba(55,211,154,.4);color:#37d39a;border-radius:12px;padding:11px 13px;margin:12px 0;font-size:14px;line-height:1.45;text-align:left;">'
+    +'<b>✓ Your $'+amt+' goes straight toward your repair.</b><br>'
+    +'<span style="color:#cfe9dd;">It\'s not an extra fee — when we fix it, this comes right off the bill. Most shops charge $90–130 just to look. You\'re putting it toward the fix.</span></div>'
     +'<button class="go" id="pay-go">'+cta+'</button>';
   FLOW.appendChild(p);
   const payLabel=cta.replace('&amp;','&');
