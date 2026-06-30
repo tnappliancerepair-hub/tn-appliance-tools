@@ -1019,17 +1019,28 @@ async function voiceReport(){
   let stream;
   try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
   catch(_){ toast('Mic blocked — allow microphone, or just type'); return; }
-  audioChunks=[]; try{ mediaRec=new MediaRecorder(stream); }catch(_){ toast('Recording not supported on this browser — type it'); stream.getTracks().forEach(t=>t.stop()); return; }
+  // Record in a format the device can ACTUALLY produce. iPhones (iOS Safari)
+  // CANNOT record webm — they record mp4/AAC. The old code assumed webm and
+  // mislabeled the file, so the report never transcribed on iPhones (John,
+  // 2026-06-30). Pick a supported type and tag the blob/file with the REAL one.
+  let recMime='';
+  try{ const cands=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2','audio/aac','audio/mpeg'];
+    for(const c of cands){ if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)){ recMime=c; break; } } }catch(_){}
+  audioChunks=[];
+  try{ mediaRec = recMime ? new MediaRecorder(stream,{mimeType:recMime}) : new MediaRecorder(stream); }
+  catch(_){ try{ mediaRec=new MediaRecorder(stream); }catch(__){ toast('Recording not supported on this browser — type it'); stream.getTracks().forEach(t=>t.stop()); return; } }
   mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) audioChunks.push(e.data); };
   mediaRec.onstop=async()=>{
     stream.getTracks().forEach(t=>t.stop());
     btn.textContent='🎤 Speak your report — Ant writes it up'; btn.style.background='#0a7d33';
-    const blob=new Blob(audioChunks,{type:'audio/webm'});
+    const realType=((mediaRec && mediaRec.mimeType) || recMime || 'audio/webm').split(';')[0];
+    const ext=/mp4|aac|m4a|mpeg|mp3/i.test(realType) ? 'm4a' : 'webm';
+    const blob=new Blob(audioChunks,{type:realType});
     const note=document.getElementById('save-note'); note.className='save-note'; note.textContent='Transcribing…';
     if(blob.size<800){ note.className='save-note err'; note.textContent='Didn\'t catch that — try again'; return; }
     let text='';
     try{
-      const fd=new FormData(); fd.append('audio',blob,'report.webm');
+      const fd=new FormData(); fd.append('audio',blob,'report.'+ext);
       const r=await fetch('/.netlify/functions/whisper-transcribe',{method:'POST',body:fd});
       const d=await r.json(); text=((d&&d.text)||'').trim();
     }catch(_){}
