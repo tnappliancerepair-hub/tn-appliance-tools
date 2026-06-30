@@ -356,21 +356,23 @@ function toggleChk(id,i,el,auto){
   const box=el.querySelector('.box'); if(box)box.textContent=on?'✓':'';
 }
 function placeOf(j){
-  // Canceled jobs are DEAD — never show them on the active board, even if a
-  // stale office_stage placement lingers. (This is what made canceled jobs look
-  // like duplicates: Matthew Peck's canceled #19286 stayed stuck in Scheduled
-  // next to his real job, and Danielle's "deletes" never disappeared.)
-  if(/cancel/i.test(j.scheduling_status||'')) return '__hide__';
-  // Honor her manual placement so a dragged card STAYS where she dropped it
-  // (MeisterTask behavior). Order of truth: the kanban's own office_stage (once
-  // the XS endpoint is pushed) -> the server STAGE_MAP (works today, cloud-side)
-  // -> localStorage (instant optimism for the move that hasn't synced yet).
+  const ss=(j.scheduling_status||'').toLowerCase();
+  const cs=(j.current_status||'').toLowerCase();
+  const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
+  // TERMINAL JOBS SETTLE FIRST — before any stale office_stage placement. A
+  // canceled/completed job must NEVER stay pinned in an active folder (Waiting
+  // Parts, a tech's Report, etc.) just because it was dragged there once. This
+  // was the bug: closed-out jobs lingered in Waiting Parts and inflated the
+  // count (Danielle's 27-vs-13). Check BOTH status fields so a job closed via
+  // either one leaves the board.
+  if(/cancel/i.test(ss)||/cancel/i.test(cs)) return '__hide__';
+  if(ss==='completed'||cs==='completed'){ return hasTech?('inv-'+t):'done'; }   // done -> Invoice/Completion
+  // Non-terminal: honor her manual placement so a dragged card STAYS where she
+  // dropped it (MeisterTask behavior). Truth order: job.office_stage -> server
+  // STAGE_MAP -> localStorage (optimistic move not yet synced).
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
   const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
   if(ov) return ov;
-  const ss=(j.scheduling_status||'');
-  const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
-  if(ss==='completed'){ return hasTech?('inv-'+t):'done'; }   // done -> tech Invoice folder
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
   return 'schedule';                                           // accepted/untimed/callback
