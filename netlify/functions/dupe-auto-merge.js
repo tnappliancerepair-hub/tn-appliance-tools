@@ -119,9 +119,17 @@ exports.handler = async function (event) {
     for (const key of Object.keys(groups)) {
       const g = groups[key].filter((x, i, arr) => arr.findIndex((y) => y.id === x.id) === i);
       if (g.length < 2) continue;
-      dbg.push({ key, n: g.length, jobs: g.map((jb) => ({ id: jb.id, claim: String(jb.claim_number || '').trim(), tech: Number(jb.technician_id || 0), appl: normAppl(jb.appliance_type || jb.appliance), age_h: Math.round((Date.now() - ms(jb.created_at)) / 3600000), status: jb.scheduling_status, started: !!(jb.job_started_at || jb.tech_en_route_at) })) });
+      const keeper = g.slice().sort((a, b) => (score(b) - score(a)) || (a.id - b.id))[0];
+      const someFresh = g.some((jb) => ms(jb.created_at) >= freshCut);
+      const isClaimGroup = key.startsWith('claim:');
+      const kc = String(keeper.claim_number || '').trim();
+      dbg.push({ key, n: g.length, keeper: keeper.id, someFresh, jobs: g.map((jb) => {
+        const dc = String(jb.claim_number || '').trim();
+        const reason = jb.id === keeper.id ? 'keeper' : (!someFresh ? 'group_not_fresh' : (!cancelable(jb, freshCut) ? 'not_cancelable' : ((!isClaimGroup && dc && dc !== kc) ? 'diff_claim' : 'WOULD_CANCEL')));
+        return { id: jb.id, claim: dc, tech: Number(jb.technician_id || 0), appl: normAppl(jb.appliance_type || jb.appliance), age_h: Math.round((Date.now() - ms(jb.created_at)) / 3600000), status: jb.scheduling_status, started: !!(jb.job_started_at || jb.tech_en_route_at), decision: reason };
+      }) });
     }
-    return j(200, { ok: true, debug: true, live_jobs: live_jobs.length, customers_mapped: Object.keys(phoneOf).length, groups_2plus: dbg.length, groups: dbg.slice(0, 30) });
+    return j(200, { ok: true, debug: true, fresh_hours: freshHours, live_jobs: live_jobs.length, customers_mapped: Object.keys(phoneOf).length, groups_2plus: dbg.length, groups: dbg.slice(0, 30) });
   }
 
   // Build merge actions (dedupe a job that appears in two groups).
