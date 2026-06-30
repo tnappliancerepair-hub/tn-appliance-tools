@@ -11,6 +11,7 @@
 const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 const VAPI = 'https://api.vapi.ai';
+const INTERVIEW_ASSISTANT = 'ec2be4b8-c1c4-4c68-a7ea-d44f7d63a3e6';   // "Ant — Tech Setup"
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_MODEL = 'claude-sonnet-4-5-20250929';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -47,9 +48,17 @@ async function extractProfile(transcript, key) {
   return JSON.parse(txt);
 }
 
+// a profile "has content" if the tech actually told us something schedule-shaping
+function profileHasContent(p) {
+  if (!p) return false;
+  return !!(p.start_ideal || p.start_earliest || p.end_latest || (p.days_off_hard && p.days_off_hard.length) || (p.areas_pref && p.areas_pref.length) || p.stops_max || p.stops_good || (p.appliance_strong && p.appliance_strong.length));
+}
+// done only if a NON-EMPTY transcript profile exists (so an empty save never blocks a real interview)
 async function alreadyDone(techId) {
-  try { const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_profile_v1' }, { id: 'desc' }, 200); return rows.some((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return Number(m.technician_id) === techId && m.source === 'transcript'; }); }
-  catch (_) { return false; }
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_profile_v1' }, { id: 'desc' }, 300);
+    return rows.some((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return Number(m.technician_id) === techId && m.source === 'transcript' && profileHasContent(m.profile); });
+  } catch (_) { return false; }
 }
 
 async function saveProfile(tech, prof, callId) {
@@ -82,26 +91,45 @@ exports.handler = async function (event) {
     return json(200, { ok: true, tech, saved: true, profile: prof });
   }
 
-  // backfill: scan recent calls, find interviews by dialed tech number + duration
+  // pull a wide window of calls and keep only the ones on the INTERVIEW assistant,
+  // mapped to a tech. (Filtering by assistant is what separates a real interview
+  // from the tech calling in about a job.) Returns the LONGEST interview per tech.
+  async function interviewCallsByTech(limit) {
+    const list = await vapiGet(`/call?limit=${limit || 100}`, vkey);
+    const calls = Array.isArray(list) ? list : (list && list.calls) || [];
+    const best = {}; // techId -> {tech, call, dur}
+    for (const c of calls) {
+      if (c.assistantId !== INTERVIEW_ASSISTANT) continue;
+      const tech = techFromNumber(c.customer && c.customer.number);
+      if (!tech) continue;
+      const dur = c.startedAt && c.endedAt ? (new Date(c.endedAt) - new Date(c.startedAt)) / 1000 : 0;
+      if (!best[tech.id] || dur > best[tech.id].dur) best[tech.id] = { tech, call: c, dur };
+    }
+    return best;
+  }
+
+  // ?list=1 — diagnostic: which interview calls exist per tech (no save)
+  if (q.list === '1') {
+    const best = await interviewCallsByTech(parseInt(q.limit, 10) || 150);
+    return json(200, { ok: true, interview_assistant: INTERVIEW_ASSISTANT, by_tech: Object.values(best).map((b) => ({ tech: b.tech.name, tech_id: b.tech.id, dur: Math.round(b.dur), call_id: b.call.id, transcript_len: transcriptOf(b.call).length })) });
+  }
+
+  // backfill: build each tech's profile from their longest interview-assistant call
   if (q.backfill === '1') {
     const min = parseInt(q.min, 10) || 120;
-    const list = await vapiGet('/call?limit=50', vkey);
-    const calls = Array.isArray(list) ? list : (list && list.calls) || [];
+    const best = await interviewCallsByTech(parseInt(q.limit, 10) || 150);
     const out = [];
-    const seen = new Set();
-    for (const c of calls) {
-      const tech = techFromNumber(c.customer && c.customer.number);
-      if (!tech || seen.has(tech.id)) continue;
-      const dur = c.startedAt && c.endedAt ? (new Date(c.endedAt) - new Date(c.startedAt)) / 1000 : 0;
-      if (dur < min) continue;
-      const tr = transcriptOf(c);
+    for (const b of Object.values(best)) {
+      const { tech, call, dur } = b;
+      if (dur < min) { out.push({ tech: tech.name, skipped: 'longest interview only ' + Math.round(dur) + 's' }); continue; }
+      const tr = transcriptOf(call);
       if (tr.length < 80) { out.push({ tech: tech.name, skipped: 'short transcript', dur: Math.round(dur) }); continue; }
-      if (!q.force && await alreadyDone(tech.id)) { seen.add(tech.id); out.push({ tech: tech.name, skipped: 'already has transcript profile' }); continue; }
-      try { const prof = await extractProfile(tr, akey); await saveProfile(tech, prof, c.id); seen.add(tech.id); out.push({ tech: tech.name, tech_id: tech.id, dur: Math.round(dur), saved: true, days_off: prof.days_off_hard, areas: prof.areas_pref, start: prof.start_ideal }); }
+      if (!q.force && await alreadyDone(tech.id)) { out.push({ tech: tech.name, skipped: 'already has profile' }); continue; }
+      try { const prof = await extractProfile(tr, akey); await saveProfile(tech, prof, call.id); out.push({ tech: tech.name, tech_id: tech.id, dur: Math.round(dur), saved: true, days_off: prof.days_off_hard, areas: prof.areas_pref, start: prof.start_ideal }); }
       catch (e) { out.push({ tech: tech.name, error: String(e.message || e) }); }
     }
     return json(200, { ok: true, processed: out.length, results: out });
   }
 
-  return json(200, { ok: false, error: 'pass &call_id=&tech_id= or &backfill=1' });
+  return json(200, { ok: false, error: 'pass &call_id=&tech_id=, &backfill=1, or &list=1' });
 };
