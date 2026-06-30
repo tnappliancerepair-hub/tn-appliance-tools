@@ -448,8 +448,13 @@ query qc_create_checkout_session verb=POST {
           value = $idx|to_text
         }
       
+        // Quick Check Credit is per-TDR (0 when the Quick Check was waived/free).
+        var $qc_credit_cents {
+          value = ($tdr.labor_credit_cents ?? 5000)
+        }
+
         var $adjusted_labor {
-          value = ($total_labor_cents - 5000)
+          value = ($total_labor_cents - $qc_credit_cents)
         }
       
         conditional {

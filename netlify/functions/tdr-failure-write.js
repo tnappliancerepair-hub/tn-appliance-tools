@@ -34,6 +34,28 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   if (!process.env.XANO_METADATA_TOKEN) return json(500, { ok: false, error: 'no metadata token' });
 
+  // ?tdr_credit=<tdrId>&cents=<n>  set a TDR's labor_credit_cents (e.g. 0 when the
+  // Quick Check was waived/free). Patches the technician_decision_report row.
+  if (q.tdr_credit) {
+    const tid = String(q.tdr_credit).replace(/\D/g, '');
+    const cents = Math.max(0, parseInt(q.cents, 10) || 0);
+    // find the TDR table: has labor_credit_cents + public_view_token
+    let tdrTable = null;
+    for (let id = 1; id <= 80; id++) {
+      try {
+        const r = await fetch(`${META}/table/${id}/content/search`, { method: 'POST', headers: H(), body: JSON.stringify({ per_page: 1, page: 1 }) });
+        if (!r.ok) continue;
+        const row = ((await r.json()).items || [])[0];
+        if (row && 'labor_credit_cents' in row && 'public_view_token' in row) { tdrTable = id; break; }
+      } catch (_) {}
+    }
+    if (!tdrTable) return json(200, { ok: false, error: 'could not locate technician_decision_report table' });
+    let r, d;
+    try { r = await fetch(`${META}/table/${tdrTable}/content/${tid}`, { method: 'PATCH', headers: H(), body: JSON.stringify({ labor_credit_cents: cents }) }); d = await r.json().catch(() => ({})); }
+    catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+    return json(200, { ok: r.ok, tdr_table: tdrTable, tdr_id: tid, labor_credit_cents: cents, error: r.ok ? null : d });
+  }
+
   const t = await findTable();
   if (!t) return json(200, { ok: false, error: 'could not locate tdr_failure table' });
 

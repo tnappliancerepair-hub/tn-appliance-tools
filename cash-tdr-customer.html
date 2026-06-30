@@ -354,7 +354,9 @@ function renderSummary() {
   }).join('');
 
   const SHIPPING_CENTS = 1500;
-  const CREDIT_CENTS = 5000;
+  // Quick Check Credit is per-TDR: the server returns labor_credit_cents (default
+  // $50). When the Quick Check was waived/free (no $50 collected), it's 0 — no credit.
+  const CREDIT_CENTS = Number.isFinite(state.data.labor_credit_cents) ? state.data.labor_credit_cents : 5000;
   const creditApplied = laborSubtotal > 0 ? Math.min(CREDIT_CENTS, laborSubtotal) : 0;
   const laborAfterCredit = Math.max(0, laborSubtotal - CREDIT_CENTS);
 
