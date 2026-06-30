@@ -112,6 +112,12 @@
 [functions."cash-paid-cover"]
   schedule = "*/3 * * * *"
 
+# Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
+# schedule until you pay — fastest path is the $50 Quick Check" + their link.
+# CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.
+[functions."cash-pay-nudge"]
+  schedule = "20 * * * *"
+
 # Tech-interview calls — DISABLED 2026-06-30 per Teddy: do not call techs again
 # until transcript->profile extraction is proven. Re-enable by uncommenting.
 # [functions."tech-interview-cron"]
