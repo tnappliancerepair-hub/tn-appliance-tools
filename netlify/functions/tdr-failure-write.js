@@ -37,6 +37,17 @@ exports.handler = async function (event) {
   const t = await findTable();
   if (!t) return json(200, { ok: false, error: 'could not locate tdr_failure table' });
 
+  // ?del=27,28,30  delete duplicate failure rows by id (admin-gated above)
+  if (q.del) {
+    const ids = String(q.del).split(',').map((s) => s.trim()).filter(Boolean);
+    const results = [];
+    for (const id of ids) {
+      try { const r = await fetch(`${META}/table/${t.id}/content/${id}`, { method: 'DELETE', headers: H() }); results.push({ id, status: r.status, ok: r.ok }); }
+      catch (e) { results.push({ id, ok: false, error: String(e.message || e) }); }
+    }
+    return json(200, { ok: results.every((x) => x.ok), table_id: t.id, deleted: results });
+  }
+
   if (event.httpMethod !== 'POST' || q.probe === '1') return json(200, { ok: true, table_id: t.id, columns: t.sample_keys });
 
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
