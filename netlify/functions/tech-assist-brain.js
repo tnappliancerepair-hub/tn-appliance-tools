@@ -38,6 +38,33 @@ const TECH_TOOLS = [
 // calling Claude. Cuts a Claude turn on common cases — the data is
 // already in the prompt rather than requiring a tool round-trip.
 // Best-effort; failure just means the brain gets less ground truth.
+// Load what's ALREADY on the job's TDR so the scribe remembers across SMS turns
+// and never re-asks for a field the tech already gave (Jimmy 2026-06-30: gave the
+// info, Ant asked for all four again). Each turn's captures auto-write to the TDR,
+// so the TDR IS the running memory — read it back as existing_captured.
+async function loadCapturedFromTdr(job_id) {
+  const cap = {};
+  if (!job_id) return cap;
+  try {
+    const r = await fetch(`${XANO_BASE}/get_job_event_stream?job_id=${job_id}`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) return cap;
+    const d = await r.json();
+    const cs = (d && d.current_state) || {};
+    const t = cs.latest_tdr || {};
+    const j = cs.job || {};
+    const put = (k, v) => { const s = (v == null ? '' : String(v)).trim(); if (s) cap[k] = s; };
+    put('diagnosis', t.diagnosis);
+    put('failed_component', t.failed_component);
+    put('verified_part_number', t.verified_part_number);
+    put('repair_completed', t.repair_completed);
+    if (Number(t.labor_time_hours || 0) > 0) cap.labor_hours = String(t.labor_time_hours);
+    put('model_number', j.model_number);
+    put('brand', j.brand);
+    put('serial_number', j.serial_number);
+  } catch (_) {}
+  return cap;
+}
+
 async function prefetchIntel({ job_id, warranty_company }) {
   const out = { pre_job_intel: null, warranty_fingerprint: null };
   if (job_id) {
@@ -193,6 +220,7 @@ The captured fields auto-write back to the job row — extracting them == updati
 - Don't claim certainty you don't have. Use confidence words ("most likely," "could also be").
 - Don't make up part numbers — only state numbers you got from a verified source (the tech, a photo, a tool).
 - Don't ignore an attached photo. Always reference what you saw.
+- Don't dump a numbered checklist of all four fields in one message — that's what "blows up" the tech (Jimmy 2026-06-30). First acknowledge what he just told you, then ask for the SINGLE most important missing field in one short line. One ask at a time.
 
 JOB CONTEXT: tech=${ctx.tech_first_name} job#${ctx.job_id} appliance=${ctx.brand} ${ctx.appliance} problem=${ctx.problem}
 Already captured: ${JSON.stringify(ctx.existing_captured || {})}${renderPreJobIntel(ctx.pre_job_intel)}${renderWarrantyFingerprint(ctx.warranty_fingerprint)}`;
@@ -239,12 +267,17 @@ exports.handler = async (event) => {
     signal_type: 'TECH_SMS_ASSIST',
   };
 
-  // Pre-fetch staged intelligence + vendor fingerprint in parallel.
-  // Best-effort; failures fold into empty context blocks.
+  // Pre-fetch staged intelligence + vendor fingerprint + the TDR's already-captured
+  // fields, in parallel. Best-effort; failures fold into empty context.
   try {
-    const intel = await prefetchIntel({ job_id: ctx.job_id, warranty_company: ctx.warranty_company });
+    const [intel, tdrCap] = await Promise.all([
+      prefetchIntel({ job_id: ctx.job_id, warranty_company: ctx.warranty_company }),
+      loadCapturedFromTdr(ctx.job_id),
+    ]);
     ctx.pre_job_intel = intel.pre_job_intel;
     ctx.warranty_fingerprint = intel.warranty_fingerprint;
+    // TDR fills the gaps; anything the caller passed explicitly wins.
+    ctx.existing_captured = Object.assign({}, tdrCap, ctx.existing_captured || {});
   } catch (_) {}
 
   // Build user content (text-only OR multi-part with image blocks for MMS).
