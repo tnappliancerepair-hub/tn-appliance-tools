@@ -29,6 +29,24 @@ export async function run(signal, ctx) {
     return { success: false, action: 'skipped_missing_ids' };
   }
 
+  // ── Sticky diagnosing tech (Teddy 2026-06-30) ────────────────────
+  // The tech who goes out to DIAGNOSE is almost always the one who goes back to
+  // COMPLETE it. So the moment a tech files a TDR, stamp that tech onto the job —
+  // but ONLY if the job has no tech yet (never override a manual reassignment).
+  // The office can still Reassign for the rare case the tech/customer doesn't want
+  // the same tech back. This is why jobs were coming up tech-less on the return.
+  try {
+    const tdrTech = Number(payload.technician_id) || 0;
+    if (tdrTech > 0) {
+      const dash = await xano.getJobForDashboard(jobId).catch(() => null);
+      const jobTech = Number((dash && dash.job && dash.job.technician_id) || 0);
+      if (!jobTech) {
+        await xano.reassignJob(jobId, tdrTech).catch(() => {});
+        log('tdr_sticky_tech', { job_id: jobId, technician_id: tdrTech });
+      }
+    }
+  } catch (_) { /* best-effort — never block the rest of the chain */ }
+
   // ── Auto-route the finished report (Danielle's ask) ──────────────
   // The moment a tech finishes a TDR, drop the job into the right board folder
   // by its disposition — Waiting Parts (a part must be ordered) or Follow Up

@@ -810,6 +810,13 @@ export async function officeSetJobStatus(jobId, schedulingStatus, actor = 'Ant a
   });
 }
 
+// Attach a tech to a job (same endpoint the office board uses). Used to make the
+// diagnosing tech "sticky" — whoever goes out to diagnose stays on the job for the
+// return/completion visit by default.
+export async function reassignJob(jobId, technicianId) {
+  return postJSON(`${INTAKE()}/reassign_job`, { job_id: jobId, technician_id: technicianId });
+}
+
 // Force a job into a board folder — exactly what Danielle does when she drags a
 // card. Writes jobs.office_stage via the deployed office-stage Netlify function
 // (plain-text column, Metadata-API clean, no XS push). office_stage is the #1
