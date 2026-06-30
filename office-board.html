@@ -1100,10 +1100,19 @@ async function loadWarrantyParts(jid, claim){
 async function addWarrantyPart(jid){
   const pe=document.getElementById('wp-part'), de=document.getElementById('wp-dist'), ve=document.getElementById('wp-vendor'), se=document.getElementById('wp-status');
   const part=(pe&&pe.value.trim())||''; if(!part){toast('Enter a part #');return;}
-  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',job_id:jid,claim:window.__drawerClaim||'',part:part,distributor:(de&&de.value.trim())||'',vendor:(ve&&ve.value)||'',status:(se&&se.value)||'to_return'})}); if(pe)pe.value='';if(de)de.value=''; toast('Added ✓'); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+  const _st=(se&&se.value)||'to_return';
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',job_id:jid,claim:window.__drawerClaim||'',part:part,distributor:(de&&de.value.trim())||'',vendor:(ve&&ve.value)||'',status:_st})}); if(pe)pe.value='';if(de)de.value=''; toast('Added ✓'); if(_st==='requested')spOrderPartsShadow(jid,part); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
 }
 async function markWarrantyPart(jid,part,status){
-  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status,by:'office'})}); toast(status==='returned'?'Marked returned ✓':(status==='missing'?'Flagged missing ⚠️':(status==='requested'?'Marked requested 📨':'Updated ✓'))); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status,by:'office'})}); toast(status==='returned'?'Marked returned ✓':(status==='missing'?'Flagged missing ⚠️':(status==='requested'?'Marked requested 📨':'Updated ✓'))); if(status==='requested')spOrderPartsShadow(jid,part); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+}
+// SquareTrade/ServicePower only: when a part is marked Requested, log the exact
+// updateCallInfo "ORDER PARTS" payload we WOULD send (shadow — sends nothing). Lets
+// us prove the API path before any live test. AHS rides the Frontdoor API separately.
+function isSpJob(j){ return /squaretrade|servicepower|service power|nsa/i.test(String((j&&j.warranty_company)||'')); }
+function spOrderPartsShadow(jid,part){
+  const j=window.__drawerJob||{}; if(!isSpJob(j))return;
+  try{ fetch('/.netlify/functions/servicepower-push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),status:'order_parts',notes:'ORDER PARTS REQUEST: '+part+(j.model_number?(' — model '+j.model_number):'')})}).then(r=>r.json()).then(d=>{ if(d&&d.mode==='shadow') toast('📨 ServicePower request previewed (shadow)'); }).catch(()=>{}); }catch(_){}
 }
 
 async function saveJobInfo(id){

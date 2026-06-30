@@ -33,6 +33,10 @@ const STATUS_MAP = {
   rescheduled:{ callStatus: 'RESCHEDULED', spId: '7' },
   canceled:   { callStatus: 'CANCELLED',   spId: '4' },
   rejected:   { callStatus: 'REJECTED',    spId: '6' },
+  // Parts request: ORDER PARTS (ACT15) under the ACCEPTED main status — this is the
+  // SquareTrade "request a part" the office does in the portal. Part #/qty rides in notes.
+  order_parts:  { callStatus: 'ACCEPTED', spId: '3', sub: 'ORDER PARTS' },
+  parts_ordered:{ callStatus: 'ACCEPTED', spId: '3', sub: 'PARTS ORDERED' },
   note:       { callStatus: null,          spId: null },
 };
 
