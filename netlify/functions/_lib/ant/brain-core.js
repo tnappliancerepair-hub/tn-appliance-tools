@@ -255,6 +255,28 @@ function tryParseJsonReply(rawText) {
       parsed: true,
     };
   } catch (_) {
+    // The model didn't return PURE JSON — it wrote prose, or prose followed by
+    // the {reply,captured} object. Returning `cleaned` here leaked the raw JSON
+    // into the tech's text (Jimmy, 2026-06-30: "blowing me up with information"
+    // + a literal {"reply":...,"captured":{...}} SMS). Extract the embedded JSON
+    // object by brace-matching and use its reply; never send raw JSON.
+    const start = cleaned.search(/\{\s*"reply"\s*:/);
+    if (start >= 0) {
+      let depth = 0, endIdx = -1;
+      for (let i = start; i < cleaned.length; i++) {
+        const ch = cleaned[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+      }
+      if (endIdx > start) {
+        try {
+          const p = JSON.parse(cleaned.slice(start, endIdx + 1));
+          return { reply: (p.reply || '').trim(), captured: p.captured || {}, parsed: true };
+        } catch (_) { /* fall through to prose-only */ }
+      }
+      // Couldn't parse the JSON — send only the prose before it (strip the blob).
+      return { reply: cleaned.slice(0, start).trim(), captured: {}, parsed: false };
+    }
     return { reply: cleaned, captured: {}, parsed: false };
   }
 }
