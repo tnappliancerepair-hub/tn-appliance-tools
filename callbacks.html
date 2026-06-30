@@ -178,7 +178,7 @@ function dropCard(x,isTech){
     ? '<span class="tag" style="background:#eaf2fb;color:#2c6fb0">🔧 '+esc(techName)+' — job record</span>'
     : '<span class="tag t-other">dead air / dropped</span>';
   const nm=(x.name||'').trim();
-  const textBtn=isTech?'':'<button class="call" style="background:#0a7d33" onclick="textBack(\''+ph+'\',\''+esc((nm.split(/\s+/)[0]||'')).replace(/'/g,"\\'")+'\')">💬 Text</button>';
+  const textBtn=isTech?'':'<button class="call" style="background:#0a7d33" onclick="textDrop(\''+ph+'\',\''+esc((nm.split(/\s+/)[0]||'')).replace(/'/g,"\\'")+'\')">💬 Text</button>';
   const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a>';
   // Header: customer NAME front + center (phone underneath) when we know them.
   const who=nm?('<div class="who">'+esc(nm)+'</div><div style="font-size:13px;color:#667">'+esc(disp)+'</div>'):('<div class="who">'+esc(disp)+'</div>');
@@ -215,19 +215,22 @@ function toggleCtx(ph,btn){
   el.style.display=open?'block':'none';
   if(btn)btn.textContent=open?'▴ Hide':'▾ Read the call';
 }
-// Text the customer instead of calling — from the business line (588-9500) so the
-// reply threads back to Ant. Prefilled "returning your call" message, editable.
-async function textBack(ph,first){
+// Text a dropped-call customer from the business line (588-9500) so the reply
+// threads back to Ant. One tap → confirm → sends (the phone rides along, no typing).
+// NOTE: distinct name from the callback-row textBack(id,btn) below — they collided
+// and this one got clobbered, which is why it said "no number". (Teddy 2026-06-30)
+async function textDrop(ph,first){
+  const digits=String(ph||'').replace(/\D/g,'').slice(-10);
+  if(digits.length!==10){toast('no number on this card');return;}
   const hi=first?('Hi '+first+', '):'Hi, ';
   const def=hi+"this is TN Appliance Exchange returning your call — sorry we missed you! How can we help with your repair? Just reply here and we'll take care of you. 🐜";
-  const msg=prompt('Text to ('+ph.replace(/^(\d{3})(\d{3})(\d{4})$/,'$1) $2-$3')+':',def);
-  if(msg==null||!msg.trim())return;
+  if(!confirm('Text '+(first||'this number')+' at ('+digits.replace(/^(\d{3})(\d{3})(\d{4})$/,'$1) $2-$3')+'?\n\n"'+def+'"'))return;
+  toast('Sending…');
   try{
-    const r=await fetch('/.netlify/functions/message-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+ph,message:msg.trim()})});
+    const r=await fetch('/.netlify/functions/message-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+digits,name:first||'',message:def})});
     const d=await r.json();
-    if(d&&d.ok){alert('Text sent ✓');}
-    else alert('⚠ '+((d&&d.error)||'failed to send'));
-  }catch(_){alert('⚠ connection error');}
+    toast((d&&d.ok)?'Text sent ✓':('⚠ '+((d&&d.error)||'not sent')));
+  }catch(_){toast('⚠ connection error');}
 }
 // Clear a resolved dropped call off the board. Optimistic remove + persist so it
 // stays gone (until that number drops again). Keeps the board clean.
