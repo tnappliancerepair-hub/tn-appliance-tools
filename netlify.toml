@@ -118,6 +118,11 @@
 [functions."cash-pay-nudge"]
   schedule = "20 * * * *"
 
+# One-off, self-expiring: Frontdoor Zoom reminder w/ Ben Kelly (Jul 8 day-before +
+# Jul 9 morning-of, ~8:00 AM CT). Date-gated; no-ops every other day.
+[functions."frontdoor-zoom-reminder"]
+  schedule = "0 13 * * *"
+
 # Tech-interview calls — DISABLED 2026-06-30 per Teddy: do not call techs again
 # until transcript->profile extraction is proven. Re-enable by uncommenting.
 # [functions."tech-interview-cron"]
