@@ -110,6 +110,18 @@ exports.handler = async function (event) {
     if (cust && Number(jb.customer_id || 0) > 0) addTo('cust:' + cust + '|' + normAppl(jb.appliance_type || jb.appliance), jb);
   }
 
+  // Debug: surface the raw duplicate groups (2+ live jobs sharing a key) so we
+  // can see what's there before the safety filters trim it.
+  if (q.debug === '1') {
+    const dbg = [];
+    for (const key of Object.keys(groups)) {
+      const g = groups[key].filter((x, i, arr) => arr.findIndex((y) => y.id === x.id) === i);
+      if (g.length < 2) continue;
+      dbg.push({ key, n: g.length, jobs: g.map((jb) => ({ id: jb.id, claim: String(jb.claim_number || '').trim(), tech: Number(jb.technician_id || 0), appl: normAppl(jb.appliance_type || jb.appliance), age_h: Math.round((Date.now() - ms(jb.created_at)) / 3600000), status: jb.scheduling_status, started: !!(jb.job_started_at || jb.tech_en_route_at) })) });
+    }
+    return j(200, { ok: true, debug: true, live_jobs: live_jobs.length, customers_mapped: Object.keys(phoneOf).length, groups_2plus: dbg.length, groups: dbg.slice(0, 30) });
+  }
+
   // Build merge actions (dedupe a job that appears in two groups).
   const planned = []; const handled = new Set();
   for (const key of Object.keys(groups)) {
