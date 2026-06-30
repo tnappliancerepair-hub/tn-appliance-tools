@@ -68,14 +68,20 @@ exports.handler = async function (event) {
   // 2) ZERO-CONVERTING KEYWORD SPEND -> waste flag (pause only when LIVE)
   const kwRes = await search(`SELECT ad_group_criterion.keyword.text, ad_group_criterion.resource_name, metrics.cost_micros, metrics.conversions FROM keyword_view WHERE segments.date DURING LAST_14_DAYS AND ${onlyAnt}`);
   const waste = [];
+  let totalConv = 0;
   if (kwRes.ok) {
     for (const x of (kwRes.d.results || [])) {
       const cost = Number(x.metrics.costMicros || 0) / 1e6, conv = Number(x.metrics.conversions || 0);
+      totalConv += conv;
       if (cost >= WASTE_SPEND && conv === 0) waste.push({ kw: x.adGroupCriterion.keyword.text, resource: x.adGroupCriterion.resourceName, cost: Math.round(cost * 100) / 100 });
     }
   }
+  // SAFETY: never pause on "zero conversions" unless tracking is demonstrably alive
+  // (the account has recorded at least one conversion). Otherwise silent tracking
+  // would make every keyword look like waste and we'd pause the winners.
+  const trackingAlive = totalConv > 0;
   let paused = 0;
-  if (LIVE && waste.length) {
+  if (LIVE && trackingAlive && waste.length) {
     const ops = waste.map((w) => ({ update: { resourceName: w.resource, status: 'PAUSED' }, updateMask: 'status' }));
     const m = await api('/adGroupCriteria:mutate', { partialFailure: true, operations: ops });
     paused = (m.d && m.d.results ? m.d.results.filter(Boolean).length : 0);
@@ -90,7 +96,7 @@ exports.handler = async function (event) {
   const mode = LIVE ? 'AUTOPILOT' : 'shadow';
   let msg = `🥊 Google Ads (7d, ${mode}): $${(t.cost || 0).toFixed ? t.cost.toFixed(2) : t.cost} · ${t.clicks || 0} clicks · ${t.conversions || 0} booked` + (t.cost_per_conv ? ` · $${t.cost_per_conv}/booked` : ' · no conversions yet');
   if (junkTerms.length) msg += `\n🗑 junk terms: ${junkTerms.length}${LIVE ? ` (added ${negsAdded} negatives)` : ' (shadow — turn on autopilot to auto-block)'} e.g. "${junkTerms.slice(0, 3).map((j) => j.term).join('", "')}"`;
-  if (waste.length) msg += `\n⚠️ zero-converting spend: ${waste.length} kw, $${waste.reduce((a, w) => a + w.cost, 0).toFixed(2)}${LIVE ? ` (paused ${paused})` : ' (shadow)'}`;
+  if (waste.length) msg += `\n⚠️ zero-converting spend: ${waste.length} kw, $${waste.reduce((a, w) => a + w.cost, 0).toFixed(2)}${LIVE ? (trackingAlive ? ` (paused ${paused})` : ' (NOT paused — no tracked conversions yet, won\'t touch winners)') : ' (shadow)'}`;
   if (!junkTerms.length && !waste.length) msg += `\n✓ nothing to clean up.`;
   // text once/day unless manual
   try { await sendSms('+16154855795', msg, 'owner', 'google_ads_optimizer'); } catch (_) {}
