@@ -15,14 +15,18 @@ const num = (v) => { const n = parseFloat(String(v == null ? '' : v).replace(/[^
 const ms = (x) => x ? new Date(x).getTime() : 0;
 
 async function searchAction(tableId, action, perPage) {
-  const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action }, per_page: perPage || 400, page: 1, sort: { id: 'desc' } }) });
-  if (!r.ok) return [];
-  return ((await r.json()).items) || [];
+  try {
+    const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action }, per_page: Math.min(perPage || 400, 500), page: 1, sort: { id: 'desc' } }), signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return [];
+    return ((await r.json()).items) || [];
+  } catch (_) { return []; }
 }
 async function listPage(tableId, perPage, page) {
-  const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ per_page: perPage, page: page || 1, sort: { id: 'desc' } }) });
-  if (!r.ok) return [];
-  return ((await r.json()).items) || [];
+  try {
+    const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ per_page: Math.min(perPage, 500), page: page || 1, sort: { id: 'desc' } }), signal: AbortSignal.timeout(12000) });
+    if (!r.ok) return [];
+    return ((await r.json()).items) || [];
+  } catch (_) { return []; }
 }
 // Resolve customer + jobs tables by field shape (ids conflict across the repo).
 let _ids = null;
