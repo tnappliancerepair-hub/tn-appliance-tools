@@ -54,10 +54,17 @@ exports.handler = async function (event) {
     offset += page;
   }
 
-  // 2) Ant customers missing a phone
+  // 2) Ant customers missing a phone — paginate at 500 (metadata API caps per_page,
+  // 3000 returns 400). Walk pages until a short page comes back.
   let custs = [];
-  try { custs = await crud.searchPage(CUST, {}, { id: 'desc' }, 3000); }
-  catch (e) { return j(200, { ok: false, error: 'xano customers: ' + String(e.message || e) }); }
+  try {
+    for (let pg = 1; pg <= 30; pg++) {
+      const rows = await crud.searchPageN(CUST, {}, { id: 'desc' }, 500, pg);
+      if (!rows || !rows.length) break;
+      custs = custs.concat(rows);
+      if (rows.length < 500) break;
+    }
+  } catch (e) { return j(200, { ok: false, error: 'xano customers: ' + String(e.message || e) }); }
   const missing = custs.filter((c) => p10(c.phone).length !== 10);
 
   const filled = []; let ambiguous = 0, nomatch = 0;

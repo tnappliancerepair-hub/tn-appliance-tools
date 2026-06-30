@@ -136,6 +136,15 @@ async function searchPage(tableId, filter, sort, perPage) {
   return (r && r.items) || [];
 }
 
+// Same as searchPage but with an explicit page number, for walking past page 1.
+async function searchPageN(tableId, filter, sort, perPage, page) {
+  warnIfMultiField(filter, 'searchPageN');
+  const body = { search: filter, per_page: perPage, page: page || 1 };
+  if (sort) body.sort = sort;
+  const r = await callXano('POST', `/table/${tableId}/content/search`, body, 'searchPageN');
+  return (r && r.items) || [];
+}
+
 async function insert(tableId, row) {
   return await callXano('POST', `/table/${tableId}/content`, row, 'insert');
 }
@@ -255,6 +264,7 @@ module.exports = {
   TABLES,
   search,
   searchPage,
+  searchPageN,
   searchOne,
   insert,
   update,
