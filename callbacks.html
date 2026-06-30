@@ -123,8 +123,9 @@ async function loadDropped(){
       if(TOLLFREE.test(phone)) return;          // skip robocallers/vendors
       if(!DROP_REASONS.some(b=>reason.includes(b))) return;
       const t=Number(m.recorded_at||c.created_at)||0;
-      if(!by[phone]) by[phone]={phone,tries:0,last:0,reason,job:m.job_id};
-      by[phone].tries++; if(t>=by[phone].last){by[phone].last=t;by[phone].reason=reason;}
+      if(!by[phone]) by[phone]={phone,tries:0,last:0,reason,job:m.job_id,summary:'',transcript:'',rec:'',dur:0};
+      by[phone].tries++;
+      if(t>=by[phone].last){by[phone].last=t;by[phone].reason=reason;by[phone].summary=String(m.summary||'');by[phone].transcript=String(m.transcript_preview||'');by[phone].rec=String(m.recording_url||'');by[phone].dur=Number(m.duration_sec||0);by[phone].job=m.job_id;}
     });
     // drop anything the office cleared — UNLESS they've dropped again since (newer
     // call than the dismiss → it comes back so we don't miss a fresh attempt).
@@ -138,17 +139,40 @@ function renderDropped(){
   const cards=DROPPED.map(x=>{
     const tel=x.phone.replace(/[^0-9+]/g,'');
     const disp=tel.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3');
-    return '<div class="card" id="drop-'+p10(tel)+'" style="border-left:4px solid #c0392b;position:relative">'+
-      '<button onclick="dismissDropped(\''+p10(tel)+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
-      '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+'</div></div>'+
+    const ph=p10(tel);
+    const hasCtx=!!(x.summary||x.transcript||x.rec);
+    const mins=x.dur?(' · '+Math.round(x.dur/60)+'m call'):'';
+    // Main line = the REAL summary of what they said (so you can read it + decide),
+    // falling back to the generic note when Ant captured nothing.
+    const mainLine=x.summary
+      ? '<div class="sum"><b>What they said:</b> '+esc(x.summary)+'</div>'
+      : '<div class="sum">Call ended: '+esc(x.reason)+' — they couldn’t reach us. Call back.</div>';
+    // Expandable detail: full transcript preview + play the recording.
+    const detail=hasCtx?('<div id="ctx-'+ph+'" style="display:none;margin-top:8px;padding:10px;background:#f6f7f9;border-radius:8px;font-size:13px;line-height:1.5">'+
+        (x.transcript?'<div style="white-space:pre-wrap;color:#333">'+esc(x.transcript)+'</div>':'<div style="color:#777">No transcript captured.</div>')+
+        (x.rec?'<div style="margin-top:8px"><audio controls preload="none" src="'+esc(x.rec)+'" style="width:100%"></audio></div>':'')+
+      '</div>'):'';
+    const toggle=hasCtx?'<button onclick="toggleCtx(\''+ph+'\',this)" style="margin-top:7px;padding:6px 10px;border:1px solid #cfd6e0;border-radius:7px;background:#fff;color:#2c6fb0;font-size:12px;font-weight:700;cursor:pointer">▾ Read the call</button>':'';
+    return '<div class="card" id="drop-'+ph+'" style="border-left:4px solid #c0392b;position:relative">'+
+      '<button onclick="dismissDropped(\''+ph+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
+      '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+mins+'</div></div>'+
       '<span class="tag t-other">dead air / dropped</span>'+
       (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
       (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
-      '<div class="sum">Call ended: '+esc(x.reason)+' — they couldn’t reach us. Call back.</div>'+
-      '<div class="acts"><a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a></div>'+
+      mainLine+
+      '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a></div>'+
+      detail+
     '</div>';
   }).join('');
   el.innerHTML='<div class="sub" style="margin:18px 0 8px;color:#c0392b;font-weight:700">🔴 Dropped / dead-air calls (last 2 days) — '+DROPPED.length+' to call back</div>'+cards;
+}
+// Expand/collapse the call context (transcript + recording) so the office can
+// read what was going on and decide whether it's worth a callback.
+function toggleCtx(ph,btn){
+  const el=document.getElementById('ctx-'+ph); if(!el)return;
+  const open=el.style.display==='none';
+  el.style.display=open?'block':'none';
+  if(btn)btn.textContent=open?'▴ Hide':'▾ Read the call';
 }
 // Clear a resolved dropped call off the board. Optimistic remove + persist so it
 // stays gone (until that number drops again). Keeps the board clean.
