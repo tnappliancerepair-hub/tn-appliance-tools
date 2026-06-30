@@ -101,6 +101,12 @@
 [functions."cash-ready-notify"]
   schedule = "20 * * * *"
 
+# Call-lead chase — every cash lead that calls in but doesn't convert (no address/
+# availability, not booked) gets one follow-up text (address + availability + AI
+# link). Shares book-media-chase's dedup so nobody's double-texted. Hourly, 9a-7p CT.
+[functions."call-lead-chase"]
+  schedule = "40 * * * *"
+
 # Cash-paid cover — the moment a cash-TDR customer pays, ask availability + send
 # the waiver + hold scheduling 2-3 days for the part. Every 3 min, idempotent.
 [functions."cash-paid-cover"]
