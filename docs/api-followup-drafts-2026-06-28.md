@@ -111,3 +111,33 @@ Thank you,
 James "Teddy" Pivacek
 Owner, TN Appliance Exchange LLC
 866-268-0111 · tnappliancerepair@gmail.com
+
+## 3) Google Business Profile API — Basic Access (review replies) — NUDGE case 4-9470000004382
+
+**Reply on:** the existing case thread for **4-9470000004382** (search the Google account inbox for the case-confirmation email and reply to it). If you can't find it, re-submit at support.google.com/business/contact/api_default and reference the case number.
+**From:** the Google account that manages the TN Appliance Exchange Business Profile.
+**Subject:** Follow-up — Business Profile API Basic Access, case 4-9470000004382 (TN Appliance Exchange LLC)
+
+Hello Business Profile API team,
+
+I'm following up on my Basic Access application, **case 4-9470000004382**. I'd like to check the status and confirm there's nothing else needed from my side.
+
+About us:
+- TN Appliance Exchange LLC — an active appliance-repair business in the Nashville, TN area (and Louisiana).
+- We manage one verified Google Business Profile with roughly **1,100 customer reviews**.
+- Google Cloud project: project-fb170b47-a89e-4176-9d1 (project number 1340849724014), with the Business Profile APIs enabled.
+
+What we want to do with the API (our use case):
+1. **Read our reviews and post timely, personalized replies** — we reply to every customer by name and reference the specific repair. With ~1,100 reviews and steady new ones, doing this promptly by hand is the bottleneck; the API lets us respond faster and more consistently.
+2. Keep our business information (hours, services, posts) accurate programmatically.
+
+We only manage **our own** Business Profile — this is for first-party use on our own location, not a third-party management platform.
+
+Could you let me know:
+1. The current status of case 4-9470000004382?
+2. Anything else you need from us to approve Basic Access?
+
+Thank you for your time,
+James "Teddy" Pivacek
+Owner, TN Appliance Exchange LLC
+866-268-0111
