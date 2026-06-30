@@ -16,8 +16,13 @@ exports.handler = async function (event) {
   if (!phone || phone.replace(/\D/g, '').length < 10) return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'valid phone required' }) };
   const first = (String(b.name || '').trim().split(/\s+/)[0]) || 'there';
   const day = String(b.day || '').trim();
-  const msg = 'Hi ' + first + ", it's TN Appliance Exchange 🐜 — we got your message! We're getting you on the schedule"
-    + (day ? (' for ' + day) : '') + '. Someone will reach out to confirm. Thanks for your patience!';
+  // Custom message (e.g. a callback text from the dropped-calls board) overrides
+  // the default "we got your message" ack. Capped to stay SMS-friendly.
+  const custom = String(b.message || '').trim();
+  const msg = custom
+    ? custom.slice(0, 600)
+    : ('Hi ' + first + ", it's TN Appliance Exchange 🐜 — we got your message! We're getting you on the schedule"
+      + (day ? (' for ' + day) : '') + '. Someone will reach out to confirm. Thanks for your patience!');
 
   let sent = false, err = null;
   try { await sendSms(phone, msg, 'customer', 'message_reply'); sent = true; }

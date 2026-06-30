@@ -139,6 +139,22 @@ async function loadDropped(){
     TECHREC=live.filter(x=>TECH_INTERNAL.has(p10(x.phone)));
   }catch(_){DROPPED=[];TECHREC=[];}
   renderDropped();
+  enrichNames();
+}
+// Pull the customer's name for each card (so we greet/text by name), then re-render.
+async function enrichNames(){
+  const all=DROPPED.concat(TECHREC).filter(x=>!x._named);
+  if(!all.length)return;
+  await Promise.all(all.map(async x=>{
+    x._named=true;
+    try{
+      const r=await fetch(XANO+'/lookup_customer_by_phone?phone='+encodeURIComponent('+1'+p10(x.phone)),{cache:'no-store'});
+      const d=await r.json(); const c=(d&&d.customer)||{};
+      const nm=((c.first_name||'')+' '+(c.last_name||'')).trim();
+      if(nm)x.name=nm;
+    }catch(_){}
+  }));
+  renderDropped();
 }
 const TECH_NAMES={'6154855795':'Teddy','6159671304':'Jimmy','5049099413':'Andre','6159693115':'Andre','6158291654':'Lee','8133527686':'John','7315049617':'Billy','6154850713':'Danielle'};
 function dropCard(x,isTech){
@@ -161,15 +177,19 @@ function dropCard(x,isTech){
   const tag=isTech
     ? '<span class="tag" style="background:#eaf2fb;color:#2c6fb0">🔧 '+esc(techName)+' — job record</span>'
     : '<span class="tag t-other">dead air / dropped</span>';
+  const nm=(x.name||'').trim();
+  const textBtn=isTech?'':'<button class="call" style="background:#0a7d33" onclick="textBack(\''+ph+'\',\''+esc((nm.split(/\s+/)[0]||'')).replace(/'/g,"\\'")+'\')">💬 Text</button>';
   const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a>';
+  // Header: customer NAME front + center (phone underneath) when we know them.
+  const who=nm?('<div class="who">'+esc(nm)+'</div><div style="font-size:13px;color:#667">'+esc(disp)+'</div>'):('<div class="who">'+esc(disp)+'</div>');
   return '<div class="card" id="drop-'+ph+'" style="border-left:4px solid '+accent+';position:relative">'+
     '<button onclick="dismissDropped(\''+ph+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
-    '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+mins+'</div></div>'+
+    '<div class="top"><div>'+who+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+mins+'</div></div>'+
     tag+
     (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
     (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
     mainLine+
-    '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+callBtn+'</div>'+
+    '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+textBtn+callBtn+'</div>'+
     detail+
   '</div>';
 }
@@ -194,6 +214,20 @@ function toggleCtx(ph,btn){
   const open=el.style.display==='none';
   el.style.display=open?'block':'none';
   if(btn)btn.textContent=open?'▴ Hide':'▾ Read the call';
+}
+// Text the customer instead of calling — from the business line (588-9500) so the
+// reply threads back to Ant. Prefilled "returning your call" message, editable.
+async function textBack(ph,first){
+  const hi=first?('Hi '+first+', '):'Hi, ';
+  const def=hi+"this is TN Appliance Exchange returning your call — sorry we missed you! How can we help with your repair? Just reply here and we'll take care of you. 🐜";
+  const msg=prompt('Text to ('+ph.replace(/^(\d{3})(\d{3})(\d{4})$/,'$1) $2-$3')+':',def);
+  if(msg==null||!msg.trim())return;
+  try{
+    const r=await fetch('/.netlify/functions/message-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+ph,message:msg.trim()})});
+    const d=await r.json();
+    if(d&&d.ok){alert('Text sent ✓');}
+    else alert('⚠ '+((d&&d.error)||'failed to send'));
+  }catch(_){alert('⚠ connection error');}
 }
 // Clear a resolved dropped call off the board. Optimistic remove + persist so it
 // stays gone (until that number drops again). Keeps the board clean.
