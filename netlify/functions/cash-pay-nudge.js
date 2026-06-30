@@ -45,10 +45,11 @@ exports.handler = async function (event) {
 
   // 2) dedup — skip anyone nudged for pay in the last RENUDGE_DAYS
   const cutoff = Date.now() - RENUDGE_DAYS * 86400000;
-  const recentlyNudged = new Set();
+  const recentlyNudged = new Set();        // by job_id
+  const recentlyNudgedPhones = new Set();  // by phone last-10 — one nudge per PERSON
   try {
     const rows = await crud.searchPage(EVENT_LOG, { action: 'cash_pay_nudge_sent' }, { created_at: 'desc' }, 400);
-    for (const r of rows) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } const t = r.created_at ? new Date(r.created_at).getTime() : 0; if (m.job_id && t >= cutoff) recentlyNudged.add(Number(m.job_id)); }
+    for (const r of rows) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } const t = r.created_at ? new Date(r.created_at).getTime() : 0; if (t < cutoff) continue; if (m.job_id) recentlyNudged.add(Number(m.job_id)); const ph = String(m.phone || '').replace(/\D/g, '').slice(-10); if (ph) recentlyNudgedPhones.add(ph); }
   } catch (_) {}
 
   // 3) authoritative paid re-check on the candidate ids (payment_status +
@@ -60,14 +61,17 @@ exports.handler = async function (event) {
     try { const r = await fetch(`${SITE}/.netlify/functions/cash-payment-status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: candIds }), signal: AbortSignal.timeout(20000) }); const d = await r.json(); paidMap = d.paid || {}; typeMap = d.types || {}; } catch (_) {}
   }
 
-  const sent = [], skipped = [];
+  const sent = [], skipped = [], sentPhones = new Set();
   for (const lead of unpaidLeads) {
     if (sent.length >= MAX_PER_RUN) break;
     const jobId = Number(lead.job_id) || 0;
     const phone = e164(lead.phone);
     if (!jobId || !phone) { skipped.push({ job: jobId, why: 'no job/phone' }); continue; }
-    if (INTERNAL.has(phone.replace(/\D/g, '').slice(-10))) { skipped.push({ job: jobId, why: 'internal #' }); continue; }
+    const ph10 = phone.replace(/\D/g, '').slice(-10);
+    if (INTERNAL.has(ph10)) { skipped.push({ job: jobId, why: 'internal #' }); continue; }
     if (recentlyNudged.has(jobId)) { skipped.push({ job: jobId, why: 'nudged recently' }); continue; }
+    // one nudge per PERSON — don't text someone 3 times because they have 3 jobs
+    if (sentPhones.has(ph10) || recentlyNudgedPhones.has(ph10)) { skipped.push({ job: jobId, why: 'person already nudged' }); continue; }
     if (paidMap[jobId] === true) { skipped.push({ job: jobId, why: 'actually paid' }); continue; }
     // hard cash-only guard: if the authoritative type came back warranty, never nudge
     const t = String(typeMap[jobId] || '').toLowerCase();
@@ -85,7 +89,8 @@ exports.handler = async function (event) {
     const link = `${SITE}/appliance-ai.html?appliance=${slug(lead.appliance)}`;
     const msg = `Hi ${first}, TN Appliance Exchange here about your${apl}. Quick heads-up — we don't schedule the repair until payment's made. The fastest way onto our schedule is the $50 Quick Check: just snap a photo of the model sticker + a short video of the problem, and we'll get you a quote within hours (the $50 goes toward your repair). Tap here: ${link}  Reply with any questions! 🐜`;
 
-    if (dry) { sent.push({ job: jobId, name: first, phone, preview: msg.slice(0, 90) }); continue; }
+    if (dry) { sentPhones.add(ph10); sent.push({ job: jobId, name: first, phone, preview: msg.slice(0, 90) }); continue; }
+    sentPhones.add(ph10);
     const ok = await sendSms(phone, msg, 'customer', 'cash_pay_nudge');
     try { await crud.logEvent('cash_pay_nudge_sent', { job_id: jobId, phone: lead.phone || '', appliance: lead.appliance || '', sms: ok, at_ms: Date.now() }); } catch (_) {}
     sent.push({ job: jobId, name: first, sms: ok });
