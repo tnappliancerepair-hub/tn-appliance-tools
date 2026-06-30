@@ -129,9 +129,17 @@ exports.handler = async function (event) {
     if (g.length < 2) continue;
     if (!g.some((jb) => ms(jb.created_at) >= freshCut)) continue; // only act on fresh dupe situations
     const keeper = g.slice().sort((a, b) => (score(b) - score(a)) || (a.id - b.id))[0];
+    const isClaimGroup = key.startsWith('claim:');
+    const kc = String(keeper.claim_number || '').trim();
     for (const d of g) {
       if (d.id === keeper.id || handled.has(d.id)) continue;
       if (!cancelable(d, freshCut)) continue;
+      // CLAIM-COMPATIBILITY — the critical guard against merging a real repeat
+      // customer. In a same-customer+appliance group, only cancel a dupe whose
+      // claim is BLANK (the update-email stub) or MATCHES the keeper's claim. A
+      // DIFFERENT non-empty claim = a separate legitimate dispatch — never touch.
+      const dc = String(d.claim_number || '').trim();
+      if (!isClaimGroup && dc && dc !== kc) continue;
       handled.add(d.id);
       planned.push({
         dupe: d.id, keeper: keeper.id, by: key.split(':')[0],
