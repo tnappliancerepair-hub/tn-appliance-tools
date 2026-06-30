@@ -37,6 +37,29 @@ exports.handler = async function (event) {
   }
   rows.sort((a, b) => b.age_days - a.age_days);
 
+  // ?detail=1 — the triage list: jobs parked in awaiting-parts but parts_status
+  // says "not_needed" (likely mislabeled — schedulable now). Join customer names.
+  let triage = null;
+  if (q.detail === '1') {
+    const want = jobs.filter((j) => String(j.parts_status || '').toLowerCase() === 'not_needed');
+    const custIds = [...new Set(want.map((j) => j.customer_id).filter(Boolean))];
+    const cmap = new Map();
+    await Promise.all(custIds.map((cid) => crud.searchPage(crud.TABLES.customer, { id: cid }, null, 1).then((r) => { if (r && r[0]) cmap.set(cid, r[0]); }).catch(() => {})));
+    triage = want.map((j) => {
+      const c = cmap.get(j.customer_id) || {};
+      return {
+        job_id: j.id,
+        customer: [c.first_name, c.last_name].filter(Boolean).join(' ') || '(no name)',
+        phone: c.phone || j.customer_phone || '',
+        appliance: j.appliance_type || '', brand: j.brand || '',
+        age_days: Math.round((ms(j.created_at) ? (now - ms(j.created_at)) / DAY : 0) * 10) / 10,
+        type: j.customer_type || '', warranty: j.warranty_company || '', claim: j.claim_number || '',
+        has_scheduled_start: !!ms(j.scheduled_start),
+        zip: j.service_zip || '', city: j.service_city || '',
+      };
+    }).sort((a, b) => b.age_days - a.age_days);
+  }
+
   return json(200, {
     ok: true,
     jobs_awaiting_parts: jobs.length,
@@ -47,5 +70,6 @@ exports.handler = async function (event) {
     note: 'days_stuck = days since job created (proxy for time in pipeline). overdue = parts_eta_date already passed but job still waiting. no_eta_set = ordered but no ETA tracked (blind spots).',
     oldest_10: rows.slice(0, 10),
     most_overdue: overdue.sort((a, b) => b.eta_days_ago - a.eta_days_ago).slice(0, 8),
+    triage_not_needed: triage,
   });
 };
