@@ -106,10 +106,10 @@
 [functions."cash-paid-cover"]
   schedule = "*/3 * * * *"
 
-# Tech-interview calls — 8am CT (13:00 UTC) wave + 9am CT (14:00 UTC) retry for any
-# tech with no saved profile. Date-locked to 2026-06-30 inside the function.
-[functions."tech-interview-cron"]
-  schedule = "0 13,14 * * *"
+# Tech-interview calls — DISABLED 2026-06-30 per Teddy: do not call techs again
+# until transcript->profile extraction is proven. Re-enable by uncommenting.
+# [functions."tech-interview-cron"]
+#   schedule = "0 13,14 * * *"
 
 # Review-reply engine — when a Google review posts (GBP notification email),
 # Ant drafts an on-brand reply + texts Teddy to post it. Negative reviews are
