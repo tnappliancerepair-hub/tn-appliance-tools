@@ -51,7 +51,7 @@ exports.handler = async function (event) {
     }
     if (!tdrTable) return json(200, { ok: false, error: 'could not locate technician_decision_report table' });
     let r, d;
-    try { r = await fetch(`${META}/table/${tdrTable}/content/${tid}`, { method: 'PATCH', headers: H(), body: JSON.stringify({ labor_credit_cents: cents }) }); d = await r.json().catch(() => ({})); }
+    try { r = await fetch(`${META}/table/${tdrTable}/content/${tid}`, { method: 'PUT', headers: H(), body: JSON.stringify({ labor_credit_cents: cents }) }); d = await r.json().catch(() => ({})); }
     catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
     return json(200, { ok: r.ok, tdr_table: tdrTable, tdr_id: tid, labor_credit_cents: cents, error: r.ok ? null : d });
   }
