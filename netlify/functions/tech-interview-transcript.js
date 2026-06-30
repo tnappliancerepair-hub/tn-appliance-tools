@@ -91,16 +91,16 @@ exports.handler = async function (event) {
     return json(200, { ok: true, tech, saved: true, profile: prof });
   }
 
-  // pull a wide window of calls and keep only the ones on the INTERVIEW assistant,
-  // mapped to a tech. (Filtering by assistant is what separates a real interview
-  // from the tech calling in about a job.) Returns the LONGEST interview per tech.
+  // pull a wide window of calls and find each tech's LONGEST call (the interview is
+  // their longest — 6-12 min vs a couple min for a dispatch call). assistantId isn't
+  // reliably on the list payload, so we go by length + a hard content check at save
+  // time (a non-interview call extracts empty and is NOT saved).
   async function interviewCallsByTech(limit) {
-    const list = await vapiGet(`/call?limit=${limit || 100}`, vkey);
+    const list = await vapiGet(`/call?limit=${limit || 150}`, vkey);
     const calls = Array.isArray(list) ? list : (list && list.calls) || [];
     const best = {}; // techId -> {tech, call, dur}
     for (const c of calls) {
-      if (c.assistantId !== INTERVIEW_ASSISTANT) continue;
-      const tech = techFromNumber(c.customer && c.customer.number);
+      const tech = techFromNumber((c.customer && c.customer.number) || c.phoneNumber || '');
       if (!tech) continue;
       const dur = c.startedAt && c.endedAt ? (new Date(c.endedAt) - new Date(c.startedAt)) / 1000 : 0;
       if (!best[tech.id] || dur > best[tech.id].dur) best[tech.id] = { tech, call: c, dur };
@@ -125,8 +125,12 @@ exports.handler = async function (event) {
       const tr = transcriptOf(call);
       if (tr.length < 80) { out.push({ tech: tech.name, skipped: 'short transcript', dur: Math.round(dur) }); continue; }
       if (!q.force && await alreadyDone(tech.id)) { out.push({ tech: tech.name, skipped: 'already has profile' }); continue; }
-      try { const prof = await extractProfile(tr, akey); await saveProfile(tech, prof, call.id); out.push({ tech: tech.name, tech_id: tech.id, dur: Math.round(dur), saved: true, days_off: prof.days_off_hard, areas: prof.areas_pref, start: prof.start_ideal }); }
-      catch (e) { out.push({ tech: tech.name, error: String(e.message || e) }); }
+      try {
+        const prof = await extractProfile(tr, akey);
+        if (!profileHasContent(prof)) { out.push({ tech: tech.name, dur: Math.round(dur), skipped: 'no interview content in longest call (not saved)' }); continue; }
+        await saveProfile(tech, prof, call.id);
+        out.push({ tech: tech.name, tech_id: tech.id, dur: Math.round(dur), saved: true, days_off: prof.days_off_hard, areas: prof.areas_pref, start: prof.start_ideal });
+      } catch (e) { out.push({ tech: tech.name, error: String(e.message || e) }); }
     }
     return json(200, { ok: true, processed: out.length, results: out });
   }
