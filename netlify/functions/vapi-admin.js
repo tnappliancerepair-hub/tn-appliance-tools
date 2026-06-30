@@ -261,6 +261,16 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, call_id: res.json && res.json.id, to, tech_id: q.tech_id, error: res.ok ? null : res.json }, null, 2) };
   }
 
+  // Raise/lower an assistant's max call length so a thorough interview doesn't
+  // get cut off. ?action=setmaxdur&id=<assistantId>&seconds=1500
+  if (action === 'setmaxdur') {
+    const id = String(q.id || '').trim();
+    if (!id) return { statusCode: 400, body: JSON.stringify({ ok: false, error: '?id=<assistantId> required' }) };
+    const seconds = Math.max(60, Math.min(7200, parseInt(q.seconds, 10) || 1500));
+    const res = await vapi('PATCH', `/assistant/${id}`, key, { maxDurationSeconds: seconds });
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, id, maxDurationSeconds: (res.json && res.json.maxDurationSeconds) || seconds, error: res.ok ? null : res.json }) };
+  }
+
   // Patch an assistant's backgroundSound (kill the call-center ambiance).
   // ?action=setbg&id=<assistantId>&value=off  (value defaults to 'off')
   if (action === 'setbg') {

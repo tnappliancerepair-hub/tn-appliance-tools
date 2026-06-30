@@ -32,6 +32,30 @@ function callVars(body) {
   return Object.assign({}, md, vv);
 }
 
+const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+
+// Latest stored profile for a tech (so incremental saves MERGE, not overwrite).
+async function latestProfile(techId) {
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_profile_v1' }, { id: 'desc' }, 300);
+    for (const r of rows) {
+      let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      if (m && Number(m.technician_id) === techId) return m;
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Merge incoming (this section's answers) over what's already saved. Keep an
+// existing value whenever the new one is blank — so a partial / timed-out call
+// still leaves a profile with everything captured up to that point.
+function mergeProfile(existing, incoming) {
+  const ex = (existing && existing.profile) || {};
+  const out = {};
+  for (const k of Object.keys(incoming)) out[k] = isEmpty(incoming[k]) && !isEmpty(ex[k]) ? ex[k] : incoming[k];
+  return out;
+}
+
 function buildProfile(p) {
   return {
     start_earliest: p.start_earliest || '', start_ideal: p.start_ideal || '', end_latest: p.end_latest || '',
@@ -61,14 +85,20 @@ exports.handler = async function (event) {
       const techId = Number(a.technician_id || a.tech_id || vars.technician_id || vars.tech_id || 0);
       if (!techId) { result = 'I could not save that — missing the technician id.'; }
       else {
+        // SAVE AS YOU GO: merge this section's answers over what's already
+        // stored, so a partial/timed-out call keeps everything captured so far.
+        const prev = await latestProfile(techId);
+        const merged = mergeProfile(prev, buildProfile(a));
+        const truthy = (v, fb) => ('' + v).toLowerCase() === 'true' || ('' + v).toLowerCase() === 'yes' ? true : (v === false || ('' + v).toLowerCase() === 'no' ? false : fb);
         await crud.logEvent('tech_profile_v1', {
-          technician_id: techId, name: a.name || a.tech_first_name || vars.tech_first_name || vars.name || '',
-          profile: buildProfile(a),
-          wants_more_work: a.wants_more_work === true || String(a.wants_more_work).toLowerCase() === 'true' || String(a.wants_more_work).toLowerCase() === 'yes',
-          wants_area_pings: a.wants_area_pings === true || String(a.wants_area_pings).toLowerCase() === 'true' || String(a.wants_area_pings).toLowerCase() === 'yes',
+          technician_id: techId,
+          name: a.name || a.tech_first_name || (prev && prev.name) || vars.tech_first_name || vars.name || '',
+          profile: merged,
+          wants_more_work: 'wants_more_work' in a ? truthy(a.wants_more_work, false) : !!(prev && prev.wants_more_work),
+          wants_area_pings: 'wants_area_pings' in a ? truthy(a.wants_area_pings, false) : !!(prev && prev.wants_area_pings),
           source: 'ant_interview', at_ms: Date.now(),
         });
-        result = "Got it — I've saved your profile and I'll build your days around that.";
+        result = "Got it — saved. Keep going, I've got it.";
       }
     } catch (e) { result = 'Saved with a hiccup; the office has it.'; }
     results.push({ toolCallId: c.id, result });
