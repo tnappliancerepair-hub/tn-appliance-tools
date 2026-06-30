@@ -471,18 +471,15 @@ async function loadPaid(){
   }catch(_){}
 }
 // refOf — the reference number Danielle works EVERY job by. Picks the best
-// external number (warranty claim / dispatch / work-order / HCP), and ALWAYS
-// falls back to the Ant job # so there is never a blank. (Danielle 2026-06-30:
-// "those numbers need to be on everyone so she can move through them easier.")
+// external number (warranty claim / dispatch), and ALWAYS falls back to the Ant
+// job # so there is never a blank. (Danielle 2026-06-30: "those numbers need to
+// be on everyone so she can move through them easier.") HCP work-order / HCP id
+// dropped 2026-06-30 — that system is being eliminated.
 function refOf(j){
   const claim=String(j.claim_number||'').trim();
   const disp=String(j.dispatch_source_id||'').trim();
-  const wo=String(j.job_number||'').trim();
-  const hcp=String(j.housecall_pro_job_id||'').trim();
   if(claim) return {label:'Claim',num:claim};
-  if(wo)    return {label:'WO',num:wo};
   if(disp)  return {label:'Disp',num:disp};
-  if(hcp)   return {label:'HCP',num:hcp};
   return {label:'Job',num:'#'+j.id,ant:true};
 }
 function copyRef(ev,txt){ ev.stopPropagation(); try{navigator.clipboard.writeText(txt);}catch(_){ } try{toast('Copied '+txt);}catch(_){ } }
@@ -815,7 +812,7 @@ function renderDrawer(d){
         <div class="k">Phone</div><div class="v">${esc(c.phone||'—')}</div>
         <div class="k">Warranty</div><div class="v">${esc(j.warranty_company||'—')}</div>
         <div class="k">Claim #</div><div class="v mono">${esc(j.claim_number||'—')}</div>
-        <div class="k">WO / Dispatch</div><div class="v mono">${esc(j.dispatch_source_id||'—')}</div>
+        <div class="k">Dispatch #</div><div class="v mono">${esc(j.dispatch_source_id||'—')}</div>
         <div class="k">Appliance</div><div class="v">${esc([ap.brand,ap.type].filter(Boolean).join(' ')||'—')}</div>
         <div class="k">Model #</div><div class="v mono">${esc(ap.model_number||'—')}</div>
         <div class="k">Status</div><div class="v">${esc((j.scheduling_status||'').replace(/_/g,' ')||'—')}</div>
@@ -835,7 +832,7 @@ function renderDrawer(d){
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Problem</label>
         <textarea id="ej-problem" rows="2" placeholder="what's wrong" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(ap.problem_summary||ap.problem_description||'')}</textarea>
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Claim / WO #</label>
-        <input id="ej-claim" value="${esc(j.claim_number||'')}" placeholder="claim or work-order #" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <input id="ej-claim" value="${esc(j.claim_number||'')}" placeholder="claim or dispatch #" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Customer phone</label>
         <input id="ej-phone" type="tel" value="${esc(c.phone||'')}" placeholder="(615) 555-1234" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         <button onclick="saveJobInfo(${jid})" style="margin-top:4px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">Save info</button>

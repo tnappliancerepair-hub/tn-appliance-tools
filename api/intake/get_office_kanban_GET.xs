@@ -79,8 +79,6 @@ query get_office_kanban verb=GET {
             warranty_company : (($j.warranty_company ?? "")|trim)
             claim_number     : (($j.claim_number ?? "")|trim)
             dispatch_source_id : (($j.dispatch_source_id ?? "")|trim)
-            job_number       : (($j.job_number ?? "")|trim)
-            housecall_pro_job_id : (($j.housecall_pro_job_id ?? "")|trim)
             intake_source    : (($j.intake_source ?? "")|trim)
             parallel_mode    : ($j.parallel_mode ?? false)
             scheduled_start  : ($j.scheduled_start ?? 0)
