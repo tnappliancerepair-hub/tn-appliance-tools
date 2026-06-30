@@ -20,14 +20,14 @@ const KITS = {
     keywords: ['dryer repair', 'dryer repair near me', 'dryer not heating', 'dryer technician', 'dryer repair service', 'fix my dryer', 'appliance repair dryer'],
     headlines: ['Fast Dryer Repair', 'Same-Week Dryer Repair', 'Dryer Not Heating?', 'Local Dryer Repair Pros', '$50 Dryer Quick Check', 'Honest Dryer Repair', 'Book Dryer Repair Today', 'Dryer Fixed Right'],
     descriptions: ['Dryer not heating or spinning? Local techs fix it fast. Book your $50 Quick Check.', 'Honest, upfront pricing. Same-week service in Smyrna & Murfreesboro. Book online now.'],
-    final: 'https://tnapplianceexchange.net/?appliance=dryer',
+    final: 'https://tnapplianceexchange.net/appliance-ai.html?appliance=dryer',
   },
   refrigerator: {
     label: 'Refrigerator Repair',
     keywords: ['refrigerator repair', 'refrigerator repair near me', 'fridge not cooling', 'refrigerator technician', 'fridge repair service', 'fix my refrigerator', 'appliance repair refrigerator'],
     headlines: ['Fast Fridge Repair', 'Refrigerator Not Cooling?', 'Same-Week Fridge Repair', 'Local Fridge Repair Pros', '$50 Fridge Quick Check', 'Honest Fridge Repair', 'Book Fridge Repair Today', 'Refrigerator Fixed Right'],
     descriptions: ['Fridge not cooling? Local techs fix it fast. Book your $50 Quick Check today.', 'Honest, upfront pricing. Same-week service in Smyrna & Murfreesboro. Book online now.'],
-    final: 'https://tnapplianceexchange.net/?appliance=refrigerator',
+    final: 'https://tnapplianceexchange.net/appliance-ai.html?appliance=refrigerator',
   },
 };
 
