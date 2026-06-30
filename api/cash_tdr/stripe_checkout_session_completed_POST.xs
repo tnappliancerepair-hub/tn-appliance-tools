@@ -64,7 +64,36 @@ query stripe_checkout_session_completed verb=POST {
     var $session_obj {
       value = ($input.data.object ?? {})
     }
-  
+
+    // PAY-IN-FULL GATE: only fulfill once the session is actually PAID. For
+    // async payment methods Stripe can deliver checkout.session.completed with
+    // payment_status "unpaid"/"no_payment_required" — never route a part to us
+    // (or mark the job ready) until it is paid in full. Ack 200 so Stripe stops
+    // retrying; the real paid delivery will do the work.
+    var $payment_status {
+      value = ($session_obj.payment_status ?? "")
+    }
+
+    conditional {
+      if ($payment_status != "paid") {
+        db.add event_log {
+          data = {
+            action  : "stripe_webhook_not_paid_yet"
+            metadata: {
+            event_id      : $input.id
+            session_id    : ($session_obj.id ?? null)
+            payment_status: $payment_status
+            tdr_id        : ($session_obj.metadata.tdr_id ?? null)
+          }
+          }
+        } as $unpaid_log
+
+        return {
+          value = {ok: true, skipped: "not_paid", payment_status: $payment_status}
+        }
+      }
+    }
+
     var $tdr_id_raw {
       value = ($session_obj.metadata.tdr_id ?? null)
     }
