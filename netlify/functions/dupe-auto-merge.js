@@ -82,7 +82,9 @@ exports.handler = async function (event) {
   // Live action: env flag on (scheduled) OR explicit secret+confirm (manual test).
   const live = q.dry === '1' ? false : (envLive || (q.secret === admin && q.confirm === '1'));
 
-  const freshHours = Math.max(1, Math.min(72, parseInt(q.fresh_hours, 10) || 6));
+  // Live/scheduled stays conservative (only FRESH dupes). A dry preview may look
+  // back further so we can validate the matching against historical dupes.
+  const freshHours = Math.max(1, Math.min(q.dry === '1' ? 4320 : 72, parseInt(q.fresh_hours, 10) || 6));
   const freshCut = Date.now() - freshHours * 3600000;
 
   let T;
