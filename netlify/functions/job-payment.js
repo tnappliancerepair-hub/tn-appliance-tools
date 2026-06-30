@@ -70,5 +70,9 @@ exports.handler = async function (event) {
   else if (warranty) { status = 'covered'; label = 'Covered by warranty — nothing due'; }
   else { status = 'none'; label = 'No payment due yet'; }
 
-  return j(200, { ok: true, job_id: jobId, status, label, paid, due, balance, warranty, method: lastMethod, collected_flag: collectedFlag });
+  // The tech's cut for this job, straight off the office's logged invoice — so
+  // the field app shows "you made $X" the moment the office logs it (Teddy
+  // 2026-06-30: one input on the office tile flows to the tech's app).
+  const im = inv.length ? meta(inv[0]) : {};
+  return j(200, { ok: true, job_id: jobId, status, label, paid, due, balance, warranty, method: lastMethod, collected_flag: collectedFlag, tech_pay: num(im.tech_pay), invoice_amount: num(im.amount_invoiced) });
 };
