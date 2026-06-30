@@ -65,6 +65,7 @@ exports.handler = async function (event) {
       searchAction(EVENT, 'quick_check_paid', 400),
     ]);
   } catch (e) { return j(200, { ok: false, error: 'events: ' + String(e.message || e) }); }
+  if (q.debug === '1') return j(200, { ok: true, debug: true, inv_rows: invRows.length, pay_rows: payRows.length, qc_rows: qcRows.length, sample_inv: invRows.slice(0, 2).map(meta) });
 
   // Paid set: any job with a payment record.
   const paidBy = {};
