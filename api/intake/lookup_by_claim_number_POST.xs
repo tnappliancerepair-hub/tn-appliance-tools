@@ -25,21 +25,33 @@ query lookup_by_claim_number verb=POST {
       error = "claim_or_dispatch_number is required"
     }
 
-    // Pass 1 - exact match on jobs.claim_number (AHS-style)
+    // FORGIVING MATCH (Teddy 2026-06-30): a number SPOKEN on the phone gets
+    // transcribed with dashes/spaces ("59-279-609") while it's stored clean
+    // ("59279609"), so an exact match misses even though it's on file. Compute a
+    // digits-only form and also try that in every pass. $key_d falls back to the
+    // raw key when there are no digits, so it can never become "" and match blanks.
+    var $key_digits {
+      value = "/[^0-9]/"|regex_replace:"":$key
+    }
+    var $key_d {
+      value = ($key_digits != "") ? $key_digits : $key
+    }
+
+    // Pass 1 - match on jobs.claim_number (AHS-style), raw or digits-only
     db.query jobs {
-      where = $db.jobs.claim_number == $key
+      where = $db.jobs.claim_number == $key || $db.jobs.claim_number == $key_d
       return = {type: "list", paging: {page: 1, per_page: 5}}
     } as $by_claim
 
-    // Pass 2 - exact match on jobs.dispatch_source_id (ServicePower-style)
+    // Pass 2 - match on jobs.dispatch_source_id (ServicePower-style), raw or digits-only
     db.query jobs {
-      where = $db.jobs.dispatch_source_id == $key
+      where = $db.jobs.dispatch_source_id == $key || $db.jobs.dispatch_source_id == $key_d
       return = {type: "list", paging: {page: 1, per_page: 5}}
     } as $by_dispatch
 
-    // Pass 3a - exact match on jobs.job_number (HCP work order, human-readable)
+    // Pass 3a - match on jobs.job_number (HCP work order), raw or digits-only
     db.query jobs {
-      where = $db.jobs.job_number == $key
+      where = $db.jobs.job_number == $key || $db.jobs.job_number == $key_d
       return = {type: "list", paging: {page: 1, per_page: 5}}
     } as $by_jobnum
 
@@ -49,10 +61,8 @@ query lookup_by_claim_number verb=POST {
       return = {type: "list", paging: {page: 1, per_page: 5}}
     } as $by_hcp
 
-    // Pass 4 - if the key is numeric, try jobs.id directly (Ant internal id)
-    var $key_digits {
-      value = "/[^0-9]/"|regex_replace:"":$key
-    }
+    // Pass 4 - if the key is numeric, try jobs.id directly (Ant internal id).
+    // $key_digits already computed above (forgiving match).
     var $key_is_numeric {
       value = ($key_digits|strlen) == ($key|strlen) && ($key_digits|strlen) > 0
     }
