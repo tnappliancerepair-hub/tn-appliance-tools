@@ -43,12 +43,10 @@ exports.handler = async function (event) {
   // build the row using ONLY columns that exist on the table (from the sample)
   const cols = new Set(t.sample_keys);
   const want = {
-    tdr_id: b.tdr_id, technician_decision_report_id: b.tdr_id,
-    job_id: b.job_id,
-    failure_description: b.failure_description || '',
-    failed_component: b.failed_component || '',
-    oem_part_number: b.oem_part_number || '',
-    amazon_part_number: b.amazon_part_number || '',
+    tdr_id: b.tdr_id,
+    failure_description: b.failure_description || b.failed_component || '',
+    recommended_oem_part_number: b.oem_part_number || '',
+    recommended_amazon_part_number: b.amazon_part_number || '',
     oem_part_our_cost_cents: Number(b.oem_part_our_cost_cents) || 0,
     amazon_part_our_cost_cents: Number(b.amazon_part_our_cost_cents) || 0,
     labor_customer_cost_cents: Number(b.labor_customer_cost_cents) || 0,
