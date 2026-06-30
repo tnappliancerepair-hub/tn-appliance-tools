@@ -403,10 +403,18 @@ exports.handler = async function (event) {
     })), null, 2) };
   }
 
-  // Find Ant Inbound
-  const aResp = await vapi('GET', '/assistant?limit=100', key);
-  const inbound = listFrom(aResp).find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
-  if (!inbound) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'Ant Inbound not found', names: listFrom(aResp).map((a) => a.name) }) };
+  // Target assistant: default = Ant Inbound, OR &assistant_id=<id> to inspect/
+  // setprompt ANY assistant (e.g. the field-assist scribe a22edcd1-...).
+  let inbound;
+  if (q.assistant_id) {
+    const got = (await vapi('GET', `/assistant/${q.assistant_id}`, key)).json;
+    if (!got || !got.id) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'assistant_id not found', assistant_id: q.assistant_id }) };
+    inbound = got;
+  } else {
+    const aResp = await vapi('GET', '/assistant?limit=100', key);
+    inbound = listFrom(aResp).find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
+    if (!inbound) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'Ant Inbound not found', names: listFrom(aResp).map((a) => a.name) }) };
+  }
 
   const full = await vapi('GET', `/assistant/${inbound.id}`, key);
   const model = (full.json && full.json.model) || {};
