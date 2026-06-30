@@ -57,10 +57,18 @@ exports.handler = async function (event) {
   const minAgeMs = 45 * 60000; // tech gets 45 min before we nag
   const now = Date.now();
 
-  // Recent TDR submissions (newest first). create_tdr events carry job_id + tdr_id.
+  // Recent TDR submissions (newest first). Source from BOTH the Teddy-Tool path
+  // (create_tdr) AND the voice/field-assist path (tdr_submitted_signal_emitted) —
+  // the voice path is the one that lands notes-only, so it MUST be covered. Union
+  // both, newest first; both carry job_id + tdr_id in metadata.
   let evs = [];
-  try { evs = await crud.searchPage(crud.TABLES.event_log, { action: 'create_tdr' }, { id: 'desc' }, 150); }
-  catch (e) { return json(200, { ok: false, error: 'event_log: ' + String(e.message || e) }); }
+  try {
+    const [a, b] = await Promise.all([
+      crud.searchPage(crud.TABLES.event_log, { action: 'create_tdr' }, { id: 'desc' }, 120).catch(() => []),
+      crud.searchPage(crud.TABLES.event_log, { action: 'tdr_submitted_signal_emitted' }, { id: 'desc' }, 120).catch(() => []),
+    ]);
+    evs = [...(a || []), ...(b || [])].sort((x, y) => Number(y.id || 0) - Number(x.id || 0));
+  } catch (e) { return json(200, { ok: false, error: 'event_log: ' + String(e.message || e) }); }
 
   // Latest TDR per job within the window, old enough to evaluate.
   const seenJob = new Set();
