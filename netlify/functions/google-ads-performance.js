@@ -32,7 +32,7 @@ exports.handler = async function (event) {
   }
   if (!cids.length) return json(200, { ok: false, error: 'no client accounts found' });
 
-  const gaql = `SELECT campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc FROM campaign WHERE segments.date DURING LAST_${days}_DAYS ORDER BY metrics.cost_micros DESC`;
+  const gaql = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc FROM campaign WHERE segments.date DURING LAST_${days}_DAYS ORDER BY metrics.cost_micros DESC`;
 
   const out = [];
   for (const cid of cids) {
@@ -46,7 +46,7 @@ exports.handler = async function (event) {
     }
     if (!r.ok) { out.push({ cid, http: r.status, error: (d.error && (d.error.message || d.error.status)) || d, detail: (d.error && d.error.details && d.error.details[0] && d.error.details[0].errors) || null }); continue; }
     const rows = (d.results || []).map((x) => ({
-      campaign: x.campaign && x.campaign.name, status: x.campaign && x.campaign.status,
+      id: x.campaign && x.campaign.id, campaign: x.campaign && x.campaign.name, status: x.campaign && x.campaign.status,
       cost: x.metrics ? Math.round((Number(x.metrics.costMicros || 0) / 1e6) * 100) / 100 : 0,
       clicks: x.metrics ? Number(x.metrics.clicks || 0) : 0,
       impressions: x.metrics ? Number(x.metrics.impressions || 0) : 0,
