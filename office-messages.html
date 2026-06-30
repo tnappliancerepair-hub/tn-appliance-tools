@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Messages — Ant Office</title>
 <meta name="robots" content="noindex,follow">
@@ -32,6 +35,7 @@
   .conv{display:block;text-decoration:none;color:inherit;background:#161c26;border:1px solid #2a3040;border-radius:12px;padding:13px 14px;margin-bottom:9px;transition:transform .05s,border-color .12s}
   .conv:active{transform:scale(0.995)}
   .conv.waiting{border-left:4px solid #ff5d5d;background:#1b1620}
+  body.only-waiting .conv:not(.waiting){display:none}
   .crow{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
   .who{font-weight:800;font-size:15px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .when{color:#8a93aa;font-size:11px;font-family:'IBM Plex Mono',monospace;flex-shrink:0}
@@ -94,6 +98,13 @@ function toggleThread(key){
   if(!el)return;
   el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
+// One-tap filter — show ONLY the conversations owed a reply (the "X waiting").
+function toggleWaitingOnly(){
+  const on=document.body.classList.toggle('only-waiting');
+  const b=document.getElementById('waitFilter');
+  if(b) b.textContent = on ? '✓ showing only waiting — tap to show all' : '🔴 waiting on a reply — tap to see';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
 async function load(){
   document.getElementById('refresh').textContent='refreshing…';
@@ -127,11 +138,18 @@ async function load(){
     if(!c.phone&&s.phone)c.phone=s.phone;
     if(!c.last||s.ts>c.last.ts)c.last=s;
   }
-  const list=Object.values(conv).filter(c=>c.last).sort((a,b)=>b.last.ts-a.last.ts);
+  // WAITING-FIRST, then newest. The ones where the customer wrote last (need a
+  // reply) float to the very top so Danielle never has to hunt for what's owed.
+  const list=Object.values(conv).filter(c=>c.last).sort((a,b)=>{
+    const aw=a.last.dir==='in'?1:0, bw=b.last.dir==='in'?1:0;
+    if(aw!==bw) return bw-aw;            // waiting first
+    return b.last.ts-a.last.ts;          // then newest
+  });
   const waiting=list.filter(c=>c.last.dir==='in').length;
 
+  // "X waiting on a reply" is now a one-tap filter → show ONLY the ones owed a reply.
   document.getElementById('summary').innerHTML = list.length
-    ? `${list.length} conversation${list.length===1?'':'s'} · ${waiting?('<b>'+waiting+' waiting on a reply</b>'):'all caught up ✅'}`
+    ? `${list.length} conversation${list.length===1?'':'s'} · ${waiting?('<button id="waitFilter" onclick="toggleWaitingOnly()" style="background:#c0392b;color:#fff;border:0;border-radius:8px;padding:5px 11px;font-size:13px;font-weight:800;cursor:pointer">🔴 '+waiting+' waiting on a reply — tap to see</button>'):'all caught up ✅'}`
     : 'No customer texts in the last 14 days yet.';
 
   const box=document.getElementById('list');
