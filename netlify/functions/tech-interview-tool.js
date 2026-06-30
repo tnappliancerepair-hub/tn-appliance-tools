@@ -17,6 +17,21 @@ function toolCalls(body) {
 function parseArgs(a) { if (typeof a === 'string') { try { return JSON.parse(a); } catch (_) { return {}; } } return a || {}; }
 const arr = (v) => Array.isArray(v) ? v : (v == null || v === '' ? [] : String(v).split(',').map((s) => s.trim()).filter(Boolean));
 
+// THE BUG WE KEPT HITTING (0/4 profiles saved): the save tool required
+// technician_id from the MODEL's tool arguments, but the model never says a
+// numeric id out loud, so it left it off and every save no-op'd with "missing
+// id." interview_call injects technician_id into the call's variableValues — so
+// pull it (and the name) straight from the CALL CONTEXT in the webhook payload
+// as the reliable fallback. Covers the Vapi shapes we've seen.
+function callVars(body) {
+  const m = (body && body.message) || {};
+  const call = m.call || (body && body.call) || {};
+  const ao = call.assistantOverrides || m.assistantOverrides || {};
+  const vv = ao.variableValues || call.variableValues || {};
+  const md = call.metadata || m.metadata || {};
+  return Object.assign({}, md, vv);
+}
+
 function buildProfile(p) {
   return {
     start_earliest: p.start_earliest || '', start_ideal: p.start_ideal || '', end_latest: p.end_latest || '',
@@ -37,16 +52,17 @@ function buildProfile(p) {
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, body: '' };
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
+  const vars = callVars(body); // technician_id/name injected by interview_call
   const results = [];
   for (const c of toolCalls(body)) {
     const a = parseArgs(c.args);
     let result = 'Saved — thank you!';
     try {
-      const techId = Number(a.technician_id || a.tech_id || 0);
+      const techId = Number(a.technician_id || a.tech_id || vars.technician_id || vars.tech_id || 0);
       if (!techId) { result = 'I could not save that — missing the technician id.'; }
       else {
         await crud.logEvent('tech_profile_v1', {
-          technician_id: techId, name: a.name || a.tech_first_name || '',
+          technician_id: techId, name: a.name || a.tech_first_name || vars.tech_first_name || vars.name || '',
           profile: buildProfile(a),
           wants_more_work: a.wants_more_work === true || String(a.wants_more_work).toLowerCase() === 'true' || String(a.wants_more_work).toLowerCase() === 'yes',
           wants_area_pings: a.wants_area_pings === true || String(a.wants_area_pings).toLowerCase() === 'true' || String(a.wants_area_pings).toLowerCase() === 'yes',
