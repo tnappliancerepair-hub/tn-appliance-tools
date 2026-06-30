@@ -111,6 +111,32 @@ exports.handler = async function (event) {
     return json(200, { ok: true, mode: 'clear', kind, note: 'wiped + cursor reset to page 0' });
   }
 
+  // CATCHUP — the safe "final pull" before cancel: fetch the NEWEST pages and
+  // insert ONLY records not already archived (no wipe, no duplicates, since the
+  // archive inserts plain). Captures the gap since the last full pull.
+  if (q.catchup === '1') {
+    const pages = Math.max(1, Math.min(10, parseInt(q.pages, 10) || 5));
+    let fetched = [], lastHttp = 0;
+    for (let page = 1; page <= pages; page++) {
+      const p = await hcpPage(apiKey, cfg, page); lastHttp = p.status;
+      if (p.status === 429) break;
+      if (p.status >= 400) return json(200, { ok: false, kind, page, http: p.status, error: 'HCP error' });
+      if (!p.list.length) break;
+      fetched = fetched.concat(p.list);
+      if (p.list.length < PAGE_SIZE) break;
+      await sleep(PACE_MS);
+    }
+    const ids = fetched.map((o) => String(o.id || o.uuid || '')).filter(Boolean);
+    const existing = new Set();
+    for (let i = 0; i < ids.length; i += 120) {
+      const chunk = ids.slice(i, i + 120).map((x) => '"' + x.replace(/"/g, '') + '"');
+      try { const rows = await sb.select('hcp_archive', { kind: 'eq.' + singular, hcp_id: 'in.(' + chunk.join(',') + ')', select: 'hcp_id', limit: '500' }); for (const r of rows || []) existing.add(String(r.hcp_id)); } catch (_) {}
+    }
+    const fresh = fetched.filter((o) => !existing.has(String(o.id || o.uuid || '')));
+    if (fresh.length) { const rows = fresh.map((o) => ({ kind: singular, hcp_id: String(o.id || o.uuid || ''), title: titleFor(kind, o), data: o })); try { await sb.insert('hcp_archive', rows); } catch (e) { return json(200, { ok: false, kind, error: 'insert failed: ' + String(e.message || e) }); } }
+    return json(200, { ok: true, mode: 'catchup', kind, newest_scanned: fetched.length, already_archived: existing.size, new_added: fresh.length, last_http: lastHttp });
+  }
+
   // GRIND — process N pages from the saved cursor
   const grind = Math.max(1, Math.min(8, parseInt(q.grind, 10) || 4));
   const cur = await readCursor();
