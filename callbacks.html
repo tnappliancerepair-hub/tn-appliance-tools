@@ -84,7 +84,11 @@
 
 <script>
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-let FILTER='open', ROWS=[], DROPPED=[];
+let FILTER='open', ROWS=[], DROPPED=[], TECHREC=[];
+// Our own techs + shop/office lines — these aren't customers to call back. A
+// field-assist call that timed out is a JOB RECORD (the summary is the tech's
+// diagnosis), so we archive it separately instead of cluttering the callback queue.
+const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115','6158291654','8133527686','7315049617','6154850713','6152802949','6155889500','6158578800','8662680111']);
 // Calls that died before the caller could leave info (dead air / drop). These
 // never reach list_callback_requests, so we mine them from the call log.
 const DROP_REASONS=['silence-timed-out','no-answer','customer-did-not-answer','customer-busy','transfer-fail','error-transfer','providerfault','pipeline-error'];
@@ -129,43 +133,60 @@ async function loadDropped(){
     });
     // drop anything the office cleared — UNLESS they've dropped again since (newer
     // call than the dismiss → it comes back so we don't miss a fresh attempt).
-    DROPPED=Object.values(by).filter(x=>{const dz=DISMISSED[p10(x.phone)];return !(dz&&x.last<=dz);}).sort((a,b)=>b.tries-a.tries||b.last-a.last);
-  }catch(_){DROPPED=[];}
+    const live=Object.values(by).filter(x=>{const dz=DISMISSED[p10(x.phone)];return !(dz&&x.last<=dz);}).sort((a,b)=>b.tries-a.tries||b.last-a.last);
+    // split: real customers to call back vs our own tech/shop calls (job records)
+    DROPPED=live.filter(x=>!TECH_INTERNAL.has(p10(x.phone)));
+    TECHREC=live.filter(x=>TECH_INTERNAL.has(p10(x.phone)));
+  }catch(_){DROPPED=[];TECHREC=[];}
   renderDropped();
+}
+const TECH_NAMES={'6154855795':'Teddy','6159671304':'Jimmy','5049099413':'Andre','6159693115':'Andre','6158291654':'Lee','8133527686':'John','7315049617':'Billy','6154850713':'Danielle'};
+function dropCard(x,isTech){
+  const tel=x.phone.replace(/[^0-9+]/g,'');
+  const disp=tel.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3');
+  const ph=p10(tel);
+  const hasCtx=!!(x.summary||x.transcript||x.rec);
+  const mins=x.dur?(' · '+Math.round(x.dur/60)+'m call'):'';
+  const techName=TECH_NAMES[ph]||'tech/office';
+  const mainLine=x.summary
+    ? '<div class="sum"><b>'+(isTech?'Job notes:':'What they said:')+'</b> '+esc(x.summary)+'</div>'
+    : (isTech?'<div class="sum" style="color:#777">No notes captured on this call.</div>'
+            :'<div class="sum">Call ended: '+esc(x.reason)+' — they couldn’t reach us. Call back.</div>');
+  const detail=hasCtx?('<div id="ctx-'+ph+'" style="display:none;margin-top:8px;padding:10px;background:#f6f7f9;border-radius:8px;font-size:13px;line-height:1.5">'+
+      (x.transcript?'<div style="white-space:pre-wrap;color:#333">'+esc(x.transcript)+'</div>':'<div style="color:#777">No transcript captured.</div>')+
+      (x.rec?'<div style="margin-top:8px"><audio controls preload="none" src="'+esc(x.rec)+'" style="width:100%"></audio></div>':'')+
+    '</div>'):'';
+  const toggle=hasCtx?'<button onclick="toggleCtx(\''+ph+'\',this)" style="margin-top:7px;padding:6px 10px;border:1px solid #cfd6e0;border-radius:7px;background:#fff;color:#2c6fb0;font-size:12px;font-weight:700;cursor:pointer">▾ Read the call</button>':'';
+  const accent=isTech?'#5b9bd5':'#c0392b';
+  const tag=isTech
+    ? '<span class="tag" style="background:#eaf2fb;color:#2c6fb0">🔧 '+esc(techName)+' — job record</span>'
+    : '<span class="tag t-other">dead air / dropped</span>';
+  const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a>';
+  return '<div class="card" id="drop-'+ph+'" style="border-left:4px solid '+accent+';position:relative">'+
+    '<button onclick="dismissDropped(\''+ph+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
+    '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+mins+'</div></div>'+
+    tag+
+    (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
+    (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
+    mainLine+
+    '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+callBtn+'</div>'+
+    detail+
+  '</div>';
 }
 function renderDropped(){
   const el=document.getElementById('dropped');
-  if(!DROPPED.length){el.innerHTML='';return;}
-  const cards=DROPPED.map(x=>{
-    const tel=x.phone.replace(/[^0-9+]/g,'');
-    const disp=tel.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3');
-    const ph=p10(tel);
-    const hasCtx=!!(x.summary||x.transcript||x.rec);
-    const mins=x.dur?(' · '+Math.round(x.dur/60)+'m call'):'';
-    // Main line = the REAL summary of what they said (so you can read it + decide),
-    // falling back to the generic note when Ant captured nothing.
-    const mainLine=x.summary
-      ? '<div class="sum"><b>What they said:</b> '+esc(x.summary)+'</div>'
-      : '<div class="sum">Call ended: '+esc(x.reason)+' — they couldn’t reach us. Call back.</div>';
-    // Expandable detail: full transcript preview + play the recording.
-    const detail=hasCtx?('<div id="ctx-'+ph+'" style="display:none;margin-top:8px;padding:10px;background:#f6f7f9;border-radius:8px;font-size:13px;line-height:1.5">'+
-        (x.transcript?'<div style="white-space:pre-wrap;color:#333">'+esc(x.transcript)+'</div>':'<div style="color:#777">No transcript captured.</div>')+
-        (x.rec?'<div style="margin-top:8px"><audio controls preload="none" src="'+esc(x.rec)+'" style="width:100%"></audio></div>':'')+
-      '</div>'):'';
-    const toggle=hasCtx?'<button onclick="toggleCtx(\''+ph+'\',this)" style="margin-top:7px;padding:6px 10px;border:1px solid #cfd6e0;border-radius:7px;background:#fff;color:#2c6fb0;font-size:12px;font-weight:700;cursor:pointer">▾ Read the call</button>':'';
-    return '<div class="card" id="drop-'+ph+'" style="border-left:4px solid #c0392b;position:relative">'+
-      '<button onclick="dismissDropped(\''+ph+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
-      '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+mins+'</div></div>'+
-      '<span class="tag t-other">dead air / dropped</span>'+
-      (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
-      (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
-      mainLine+
-      '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a></div>'+
-      detail+
-    '</div>';
-  }).join('');
-  el.innerHTML='<div class="sub" style="margin:18px 0 8px;color:#c0392b;font-weight:700">🔴 Dropped / dead-air calls (last 2 days) — '+DROPPED.length+' to call back</div>'+cards;
+  let html='';
+  if(DROPPED.length){
+    html+='<div class="sub" style="margin:18px 0 8px;color:#c0392b;font-weight:700">🔴 Dropped / dead-air calls (last 2 days) — '+DROPPED.length+' to call back</div>'+
+      DROPPED.map(x=>dropCard(x,false)).join('');
+  }
+  if(TECHREC.length){
+    html+='<div class="sub" style="margin:22px 0 8px;color:#2c6fb0;font-weight:700;cursor:pointer" onclick="toggleArchive(this)">🔧 Tech call records — '+TECHREC.length+' <span style="font-weight:500;color:#888">(job notes from tech calls, not callbacks) ▾</span></div>'+
+      '<div id="techArchive" style="display:none">'+TECHREC.map(x=>dropCard(x,true)).join('')+'</div>';
+  }
+  el.innerHTML=html;
 }
+function toggleArchive(h){const a=document.getElementById('techArchive');if(!a)return;const open=a.style.display==='none';a.style.display=open?'block':'none';h.innerHTML=h.innerHTML.replace(open?'▾':'▴',open?'▴':'▾');}
 // Expand/collapse the call context (transcript + recording) so the office can
 // read what was going on and decide whether it's worth a callback.
 function toggleCtx(ph,btn){
@@ -179,6 +200,7 @@ function toggleCtx(ph,btn){
 async function dismissDropped(ph){
   const card=document.getElementById('drop-'+ph); if(card){card.style.transition='opacity .15s';card.style.opacity='0.4';card.style.pointerEvents='none';}
   DROPPED=DROPPED.filter(x=>p10(x.phone)!==ph);
+  TECHREC=TECHREC.filter(x=>p10(x.phone)!==ph);
   try{await fetch('/.netlify/functions/dismiss-dropped-call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:ph})});}catch(_){}
   renderDropped();
 }
