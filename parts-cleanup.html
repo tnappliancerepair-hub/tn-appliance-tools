@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Clean up Waiting Parts</title>
+<style>
+  :root{--bg:#0f1115;--card:#1a1d24;--line:#2a2e38;--ink:#e8eaed;--mut:#9aa0aa;--grn:#2e7d32;--red:#c62828;--amb:#b26a00;--blu:#1565c0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;background:#141720;border-bottom:1px solid var(--line);padding:14px 16px;z-index:5}
+  h1{font-size:18px;margin:0}
+  .sub{color:var(--mut);font-size:13px;margin-top:3px}
+  .wrap{padding:14px 16px 60px;max-width:680px;margin:0 auto}
+  .gate input{font-size:16px;padding:12px;width:100%;border:1px solid var(--line);border-radius:10px;background:#0c0e13;color:var(--ink)}
+  button{font-size:15px;border:0;border-radius:10px;padding:11px 14px;color:#fff;font-weight:600;cursor:pointer}
+  .btn-go{background:var(--blu);width:100%;margin-top:10px}
+  .stat{display:flex;gap:10px;margin:6px 0 14px;flex-wrap:wrap}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px}
+  .pill b{font-size:16px}
+  .sec{margin:18px 0 8px;font-size:14px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--mut)}
+  .sec.clutter{color:#ff8a80}.sec.misl{color:#ffcc80}.sec.good{color:#a5d6a7}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:9px}
+  .card.clutter{border-left:4px solid var(--red)}.card.misl{border-left:4px solid var(--amb)}.card.good{border-left:4px solid var(--grn)}
+  .nm{font-weight:700}
+  .meta{color:var(--mut);font-size:13px;margin-top:2px}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;margin-right:5px;background:#262a33}
+  .tag.bad{background:#3a1414;color:#ff8a80}.tag.warn{background:#3a2a10;color:#ffcc80}.tag.od{background:#3a1414;color:#ff8a80}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px}
+  .act{padding:8px 12px;font-size:13px}
+  .act.clr{background:#37474f}.act.sch{background:var(--amb)}
+  .bulk{background:var(--red);width:100%;margin:6px 0 4px;padding:13px}
+  .empty{color:var(--mut);font-size:14px;padding:6px 0}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;z-index:9}
+  .toast.show{opacity:1}
+  .gone{opacity:.35;pointer-events:none}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧹 Clean up Waiting Parts</h1>
+  <div class="sub" id="sub">Pull the closed-out & mislabeled jobs out in one pass.</div>
+</header>
+<div class="wrap">
+  <div id="gate" class="gate">
+    <input id="pw" type="password" placeholder="Office password" autocomplete="current-password">
+    <button class="btn-go" onclick="unlock()">Open</button>
+    <div class="empty" id="gerr"></div>
+  </div>
+  <div id="app" style="display:none"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var PW='';
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1800)}
+function esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+async function unlock(){
+  PW=document.getElementById('pw').value.trim();
+  if(!PW){document.getElementById('gerr').textContent='Enter the password.';return}
+  document.getElementById('gerr').textContent='Loading…';
+  try{await load()}catch(e){document.getElementById('gerr').textContent='Could not load — check the password.'}
+}
+async function api(payload){
+  var r=await fetch('/.netlify/functions/parts-cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({password:PW},payload))});
+  return r.json();
+}
+async function load(){
+  var r=await fetch('/.netlify/functions/parts-cleanup?password='+encodeURIComponent(PW),{cache:'no-store'});
+  var d=await r.json();
+  if(!d.ok){document.getElementById('gerr').textContent=d.error||'Unauthorized.';return}
+  document.getElementById('gate').style.display='none';
+  var app=document.getElementById('app');app.style.display='block';
+  render(d);
+}
+function jobCard(jbObj,kind){
+  var od=jbObj.eta_overdue?'<span class="tag od">ETA passed</span>':'';
+  var tags='';
+  if(kind==='clutter'){tags='<span class="tag bad">'+esc(jbObj.scheduling_status||jbObj.current_status)+'</span>'}
+  else if(kind==='misl'){tags='<span class="tag warn">parts: not_needed</span>'}
+  else{tags='<span class="tag">'+(jbObj.eta?('ETA '+esc(jbObj.eta)):'no ETA')+'</span>'+od}
+  var actions='';
+  if(kind==='clutter'){actions='<button class="act clr" onclick="clr('+jbObj.job_id+',this)">Clear out</button>'}
+  else if(kind==='misl'){actions='<button class="act sch" onclick="unpark('+jbObj.job_id+',this)">→ Back to scheduling</button>'}
+  return '<div class="card '+(kind==='good'?'good':kind==='misl'?'misl':'clutter')+'" id="jc'+jbObj.job_id+'">'+
+    '<div class="nm">'+esc(jbObj.customer)+' · #'+jbObj.job_id+'</div>'+
+    '<div class="meta">'+esc(jbObj.appliance||'—')+(jbObj.warranty?(' · '+esc(jbObj.warranty)):'')+' · '+jbObj.age_days+'d old</div>'+
+    '<div style="margin-top:6px">'+tags+'</div>'+
+    (actions?('<div class="row"><span></span>'+actions+'</div>'):'')+
+    '</div>';
+}
+function render(d){
+  var g=d.groups,app=document.getElementById('app');
+  document.getElementById('sub').textContent=d.note;
+  var clutter=g.stray_canceled.concat(g.stray_completed);
+  var html='<div class="stat">'+
+    '<span class="pill">In folder <b>'+d.total_in_waiting_parts+'</b></span>'+
+    '<span class="pill">Truly waiting <b>'+d.truly_waiting+'</b></span>'+
+    '<span class="pill">Clutter <b>'+d.strays_to_clear+'</b></span>'+
+    '<span class="pill">Mislabeled <b>'+d.mislabeled_schedulable+'</b></span></div>';
+  // Clutter (canceled/completed)
+  html+='<div class="sec clutter">Closed / canceled — just clutter ('+clutter.length+')</div>';
+  if(clutter.length){
+    html+='<button class="bulk" onclick="clrAll()">Clear all '+clutter.length+' out of Waiting Parts</button>';
+    html+=clutter.map(function(x){return jobCard(x,'clutter')}).join('');
+  } else html+='<div class="empty">None — nothing closed is stuck here. 🎉</div>';
+  // Mislabeled
+  html+='<div class="sec misl">Mislabeled — schedulable now ('+g.mislabeled.length+')</div>';
+  html+=g.mislabeled.length?g.mislabeled.map(function(x){return jobCard(x,'misl')}).join(''):'<div class="empty">None.</div>';
+  // Genuine
+  html+='<div class="sec good">Really waiting on a part ('+g.genuine.length+')</div>';
+  html+=g.genuine.length?g.genuine.map(function(x){return jobCard(x,'good')}).join(''):'<div class="empty">None.</div>';
+  app.innerHTML=html;
+  window.__clutterIds=clutter.map(function(x){return x.job_id});
+}
+async function clr(id,btn){
+  btn.disabled=true;btn.textContent='…';
+  var d=await api({action:'clear',job_id:id});
+  if(d.ok){document.getElementById('jc'+id).classList.add('gone');toast('Cleared #'+id)}
+  else{btn.disabled=false;btn.textContent='Clear out';toast('⚠ '+(d.error||'failed'))}
+}
+async function unpark(id,btn){
+  btn.disabled=true;btn.textContent='…';
+  var d=await api({action:'unpark',job_id:id});
+  if(d.ok){document.getElementById('jc'+id).classList.add('gone');toast('#'+id+' → scheduling')}
+  else{btn.disabled=false;btn.textContent='→ Back to scheduling';toast('⚠ '+(d.error||'failed'))}
+}
+async function clrAll(){
+  var ids=window.__clutterIds||[];if(!ids.length)return;
+  if(!confirm('Clear all '+ids.length+' closed/canceled jobs out of Waiting Parts?'))return;
+  toast('Clearing '+ids.length+'…');
+  var d=await api({action:'clear_bulk',ids:ids});
+  if(d.ok){toast('Cleared '+d.cleared_count);setTimeout(load,600)}
+  else toast('⚠ '+(d.error||'failed'));
+}
+document.getElementById('pw').addEventListener('keydown',function(e){if(e.key==='Enter')unlock()});
+</script>
+</body>
+</html>
