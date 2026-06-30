@@ -994,11 +994,12 @@ async function submitReschedule() {
     try {
       await doReschedule();
     } catch (e1) {
-      // Canceled/terminal jobs bounce with "terminal_locked" (the state machine
-      // locks terminal states). Auto-recover the documented way: lift the lock
-      // via the status override, then retry — so Danielle never gets bounced to
-      // the board to do it manually.
-      if (/terminal/i.test(String((e1 && e1.message) || ''))) {
+      // The state machine refuses some status jumps: canceled/terminal jobs
+      // ("terminal_locked") AND in-progress jobs that need a return visit
+      // ("illegal_transition" — tech was out, coming back with the part). Both
+      // are legit reschedules, so auto-recover the documented way: lift the lock
+      // via the status override, then retry — Danielle never sees the error.
+      if (/terminal|illegal_transition|illegal|in_progress/i.test(String((e1 && e1.message) || ''))) {
         btn.textContent = 'Reopening…';
         try { await fetchProxy('office_set_job_status', { job_id: jobIdNum, scheduling_status: 'scheduled', actor: 'Danielle' }); } catch (_) {}
         await doReschedule();
