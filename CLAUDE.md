@@ -1,5 +1,56 @@
 # Appliance Ant
 
+## 🗓️🐜 2026-06-30 (Mon→Tue, 17-HR DAY) — WARRANTY 3-OPTION PARTS + CALENDAR FIX + PAYMENTS EVERYWHERE + GOOGLE ADS LIVE + CASH-TDR CLOSE LOOP + API STATUS (READ FIRST)
+
+Marathon 17-hr day with Teddy. All committed/pushed to `main` (branch `claude/shop-automation-setup-r9wzpm`; Netlify auto-deploys front-end; **cash_tdr XS deploys via Mac `xano workspace push` only**).
+
+### 🎯 HEADLINE: cash-TDR close loop wired end-to-end (Nathan Mosakowski, the live test)
+- **`add_tdr_failure` IS NOW DEPLOYED on the Mac** (Teddy pushed it) — the long-standing 404 blocker is GONE. Failure rows save properly; `tdr-failure-write.js` (Metadata-API workaround) is now backup only.
+- **Job 19985 — Nathan, Whirlpool GI6FARXXF05 ice maker, part WPW10300024.** TDR 248 built + the 4-option customer quote SENT to him (+16153060832). Prices (Teddy's "original"): **OEM-ship $240.50 · Amazon-ship $187.20 · OEM-install $380.50 · Amazon-install $327.20** (labor $140, OEM cost $185, Amazon-eq $144, ×1.30 markup). Cleaned 5 dup failure rows → 1.
+- **He skipped ALL intake** (no customer record, no phone, no consent on the job). To send I: `find_or_merge_customer` (got cust 5827) → linked to job 19985 (`customer_id`+`bill_to_customer_id`+`sms_consent=true` via metadata PUT) → fixed phone to E.164 `+16153060832` → `send_qc_diagnosis_to_customer` succeeded.
+- **🆓 $50 Quick Check credit REMOVED for Nathan** (we comped his QC — our mistake, no intake existed). Made the credit **per-TDR**: `cash-tdr-customer.html` + `qc_create_checkout_session` now honor `labor_credit_cents` (was hardcoded $5000) instead of always subtracting $50; set TDR 248 `labor_credit_cents=0`. **`qc_create_checkout_session` change needs a Mac push to match Stripe to the display.**
+
+### 💳 PAY-IN-FULL GATE + AUTO-COVER ON PAYMENT (Teddy: "doesn't send back to us unless paid in full" + "cover him the moment he pays")
+- **Pay-in-full gate (`stripe_checkout_session_completed`):** added explicit `payment_status == "paid"` guard before any parts_order/route — async Stripe methods can't fulfill before paid. **Needs Mac push.** (Normal card payments already only routed on the paid `completed` webhook.)
+- **NEW `cash-paid-cover.js`** (scheduled every 3 min + manual `?secret=&job_id=`): the moment a cash-TDR customer pays (`stripe_webhook_processed`), it (1) texts the **availability question**, (2) sends the **waiver link** (`waiver.html?job_id=`), (3) **holds scheduling 2-3 days for the part** — stamps `parts_eta_date = today+3` + `parts_status=awaiting_parts` so the scheduler won't book before it lands. Idempotent per job (`cash_paid_covered` marker). Fires off the PAID webhook (won't fire until Nathan pays).
+
+### 📞 PHONE HEALTH — measurably better, not perfect
+- Pulled last 50 real Vapi calls: **customer-ended 60% · silence-timed-out 30% · assistant-ended 3 · forwarded 2.** Silence-timeouts were **66-74%** in the old crisis → now **~30%**, and most of those aren't true failures (callers stepping away mid-call; outbound confirmation/interview calls hitting voicemail). Inbound customers ARE being handled (account pulls, tools, callbacks). **One real call worth noting:** a customer was asked for a credit card when their fee was supposed to be **waived** → confusion → Ant took a callback. Same free/waived-QC gap we're working — recovered OK but confirms the waived-fee path needs the cleanup we did.
+
+### 🥊 GOOGLE ADS — LIVE, conversion-tracked, brand-new (no data yet)
+- **2 Ant campaigns ENABLED:** Dryer (23985730202) + Refrigerator (23990301052), Smyrna/Murfreesboro, **$20/day each = $40/day.** Both **$0 / 0 clicks / 0 impressions** — created today, still in Google review/learning (24-48h before serving). Nothing spent/wasted.
+- **Conversion tracking wired:** BOOKED (7666726517) + PAID (7666726520) actions created/vaulted; `record-gclid.js` + AD_CLICK capture in `appliance-ai.html` + `google-ads-conversion-sweep.js` (click→job→`uploadClickConversion`) + `google-ads-upload-conversion.js`.
+- **The validating finding:** old PAUSED "$50 Quick Check" campaign burned **$465.69 / 936 clicks / 0 tracked conversions** in 30d — the exact black-hole leak the new conversion-tracked campaigns close. **Builders:** `google-ads-create-campaign.js` (full Search builder, KITS for dryer/fridge), `google-ads-enable.js`, `google-ads-performance.js`, `google-ads-test.js` (account 9267688121, mgr 1605099162, v21). **Junk still ENABLED at $0: "search $50"** — pause it. **DON'T run any LA/Baton Rouge ads this week** (Andre on vacation Jul 1-6, only John in LA).
+
+### 🔑 API STATUS — what MUST move this week (Teddy asked)
+1. **🥇 Amazon Business Ordering API → PRODUCTION AUTH.** `amazon-business-test` = **still `sandbox`** (auth works, token acquired); `amazon-api-watch` = **0 approval emails**. Our side is proven/ready; only Amazon's production app authorization is missing. **The approval lives in the Solution Provider Portal (SPP) developer console — NOT AWS, NOT the buyer-account App Center (that's the public marketplace, dead end).** Teddy was clicking through the Amazon Business **buyer** settings (Business ID A22ATN0J52WQXH / A-22A7N0U5ZWQ5H) + App Center — wrong place. **ACTION: Teddy sends the production nudge from tnappliance@gmail** (full draft in `docs/api-followup-drafts-2026-06-28.md` §1, re-pasted in chat) — reply on the June 20 thread or SPP "Contact support." When approved → vault `GROUP_ID`/`BUYER_EMAIL`/`PAYMENT_REF` (+ prod LWA creds) → I flip `AMAZON_BUSINESS_ENV=production` → Amazon-equivalent tier flips estimate→real auto-ship (one move). `amazon-api-watch` will ping when the email lands.
+2. **🥈 Google Ads → close the conversion loop (mine):** verify the click→job→upload sweep fires on a real booking, pause junk "search $50", watch first impressions 24-48h.
+3. **🥉 Frontdoor/AHS Status API (slowest, BD-gated) → start the clock:** Teddy emails `partnerapiadmin@frontdoorhome.com` + Ben to (1) authorize the sandbox key (clears the 403), (2) production. Biggest Danielle-replacement lever. Draft in `docs/api-followup-drafts-2026-06-28.md` §2.
+
+### 🔧 NEW/CHANGED FILES TODAY
+- `netlify/functions/cash-paid-cover.js` (NEW, scheduled */3) — pay→availability+waiver+2-3day hold.
+- `netlify/functions/tdr-failure-write.js` — Metadata-API helper: create/delete tdr_failure rows + `?tdr_credit=` (set labor_credit_cents) + `?link_job=&customer_id=&consent=1` (attach customer). **Uses PUT not PATCH** for metadata content. Admin-gated (`VAPI_ADMIN_SECRET`).
+- `cash-tdr-customer.html` — `CREDIT_CENTS` now reads server `labor_credit_cents` (per-TDR).
+- `api/cash_tdr/stripe_checkout_session_completed_POST.xs` — **PAY-IN-FULL guard** (needs Mac push).
+- `api/cash_tdr/qc_create_checkout_session_POST.xs` — per-TDR credit (needs Mac push).
+- `netlify.toml` — scheduled `cash-paid-cover` every 3 min.
+- Google Ads suite (created earlier today, all live): create-campaign/enable/performance/test/setup-conversions/upload-conversion/conversion-sweep, `record-gclid.js`.
+
+### ⏭️ TOMORROW — PICK UP HERE
+- **Mac pushes pending:** `xano workspace push -i "api/**/{stripe_checkout_session_completed,qc_create_checkout_session}*" --force` (pay-in-full guard + per-TDR credit). Verify a paid session matches the displayed total.
+- **Watch Nathan:** if he pays → confirm pay-gate + `cash-paid-cover` fires (availability ask + waiver + 2-3 day hold) + auto-schedule. Can manually test the cover text via `cash-paid-cover?secret=&job_id=19985&force=1` if Teddy wants to eyeball it.
+- **Send the 2 API emails** (Amazon prod from tnappliance@gmail; Frontdoor partnerapiadmin/Ben). Both gated on them — start the clocks.
+- **Google Ads:** pause "search $50"; verify conversion sweep end-to-end; check first impressions on the 2 new campaigns (~24-48h).
+- **Self-scheduling 5-day goal:** tech profiles still **0/4 saved** (interview calls didn't persist) — re-fire `vapi-admin?action=interview_call` to the crew + confirm `get-tech-profile` saves before wiring profiles into the scheduler.
+- **Carryover (still open):** John's field bugs (close/reopen app for SW cache; set `HCP_PUSH_DISABLED=true` in Xano so reports stop double-posting to HCP); SquareTrade AM/PM cap (3/3) live-verify; Reece dup resolved (job to Lee). Pull aftermarket Amazon price for WPW10300024 when ready.
+
+### ⚠️ FOOTGUNS / RULES (today)
+- **Metadata content API = PUT, not PATCH** (PATCH → 404 NOT_FOUND). PUT with partial body preserves other fields.
+- **`qc_diagnosis_view` needs a token** — calling it without one returns "token required" (looks like 0 failures but isn't). Mint via `preview-qc-token` (owner) for review.
+- **cash_tdr endpoints deploy via Mac only** — front-end + Netlify fns auto-deploy from main, but XS changes (pay-gate, per-TDR credit) need `xano workspace push`.
+- **Amazon production approval is in the SPP developer console, NOT AWS and NOT the buyer App Center marketplace.**
+- Standing: never send Teddy's cell; warranty NEVER hits a payment screen; never gate must-have media behind payment; never share part numbers with customers; secrets to the vault only; no LA/Baton Rouge ads this week.
+
 ## 🗓️🐜 2026-06-28 (Sun) — SELF-SCHEDULING AUTOPILOT (5-DAY GOAL) + MEISTERTASK 8-YR HISTORY MINED + FLAT-RATE MENU (READ FIRST)
 
 Big day with Teddy. Two arcs: (1) mined 8 years of MeisterTask history → flat-rate repair menu + national benchmark; (2) **THE headline — self-scheduling autopilot, Teddy set a hard 5-DAY GOAL.** All committed/pushed to `main` (branch `claude/shop-automation-setup-r9wzpm`). Plan docs: `docs/self-scheduling-5day-2026-06-28.md` (the live plan + principle + why), `docs/tech-profile-interview-2026-06-28.md`, `docs/flaw-fix-gameplan-2026-06-28.md`, `docs/national-price-benchmark-2026-06-28.md`, `docs/job-history-wide-view-and-flaws-2026-06-28.md`, `docs/flat-rate-repair-menu-2026-06-28.md`, `docs/api-followup-drafts-2026-06-28.md`.
