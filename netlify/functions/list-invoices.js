@@ -14,19 +14,23 @@ function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m
 const num = (v) => { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; };
 const ms = (x) => x ? new Date(x).getTime() : 0;
 
+// The metadata content/search endpoint is intermittent ("fetch failed" under
+// load) — retry once before giving up so the list doesn't silently come back empty.
+async function metaSearch(tableId, body) {
+  for (let a = 0; a < 2; a++) {
+    try {
+      const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+      if (!r.ok) { if (a === 0) continue; return []; }
+      return ((await r.json()).items) || [];
+    } catch (_) { if (a === 0) continue; return []; }
+  }
+  return [];
+}
 async function searchAction(tableId, action, perPage) {
-  try {
-    const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action }, per_page: Math.min(perPage || 400, 500), page: 1, sort: { id: 'desc' } }), signal: AbortSignal.timeout(12000) });
-    if (!r.ok) return [];
-    return ((await r.json()).items) || [];
-  } catch (_) { return []; }
+  return metaSearch(tableId, { search: { action }, per_page: Math.min(perPage || 400, 500), page: 1, sort: { id: 'desc' } });
 }
 async function listPage(tableId, perPage, page) {
-  try {
-    const r = await fetch(`${META}/table/${tableId}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ per_page: Math.min(perPage, 500), page: page || 1, sort: { id: 'desc' } }), signal: AbortSignal.timeout(12000) });
-    if (!r.ok) return [];
-    return ((await r.json()).items) || [];
-  } catch (_) { return []; }
+  return metaSearch(tableId, { per_page: Math.min(perPage, 500), page: page || 1, sort: { id: 'desc' } });
 }
 // Resolve customer + jobs tables by field shape (ids conflict across the repo).
 let _ids = null;
@@ -69,7 +73,7 @@ exports.handler = async function (event) {
 
   // Paid set: any job with a payment record.
   const paidBy = {};
-  for (const r of [...payRows, ...qcRows]) { const m = meta(r); const jid = Number(m.job_id || 0); if (jid) paidBy[jid] = paidBy[jid] || { method: m.pay_method || m.method || (r.action === 'quick_check_paid' ? 'quick check' : 'card'), at: ms(m.at_ms || r.created_at) }; }
+  for (const r of [...payRows, ...qcRows]) { const m = meta(r); const jid = Number(m.job_id || 0); if (jid) paidBy[jid] = paidBy[jid] || { method: m.pay_method || m.method || (r.action === 'quick_check_paid' ? 'quick check' : 'card'), at: ms(m.logged_at_ms || m.at_ms || r.created_at) }; }
 
   // Latest invoice per job within the window.
   const seen = new Set(); const invoices = [];
@@ -77,7 +81,7 @@ exports.handler = async function (event) {
     const m = meta(r);
     const jid = Number(m.job_id || 0);
     if (!jid || seen.has(jid)) continue;
-    const at = ms(m.at_ms || r.created_at);
+    const at = ms(m.logged_at_ms || m.at_ms || r.created_at);
     if (at && at < cutoff) continue;
     seen.add(jid);
     invoices.push({ job_id: jid, amount: num(m.amount_invoiced), labor: num(m.labor), parts: num(m.parts_charge || m.parts), tax: num(m.tax), tech_id: Number(m.technician_id || 0), logged_by: m.logged_by || '', when_ms: at });
