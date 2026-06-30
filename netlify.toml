@@ -111,6 +111,12 @@
 # [functions."tech-interview-cron"]
 #   schedule = "0 13,14 * * *"
 
+# Tech-interview transcript SWEEP — builds a tech's profile from the call transcript
+# the moment an interview call completes (no in-call tool needed), texts Teddy when
+# one lands. READ-ONLY on finished calls — never dials anyone. Every 5 min.
+[functions."tech-interview-sweep"]
+  schedule = "*/5 * * * *"
+
 # Review-reply engine — when a Google review posts (GBP notification email),
 # Ant drafts an on-brand reply + texts Teddy to post it. Negative reviews are
 # flagged URGENT, never auto. Every 2 hours.
