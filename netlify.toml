@@ -101,6 +101,11 @@
 [functions."cash-ready-notify"]
   schedule = "20 * * * *"
 
+# Cash-paid cover — the moment a cash-TDR customer pays, ask availability + send
+# the waiver + hold scheduling 2-3 days for the part. Every 3 min, idempotent.
+[functions."cash-paid-cover"]
+  schedule = "*/3 * * * *"
+
 # Review-reply engine — when a Google review posts (GBP notification email),
 # Ant drafts an on-brand reply + texts Teddy to post it. Negative reviews are
 # flagged URGENT, never auto. Every 2 hours.
