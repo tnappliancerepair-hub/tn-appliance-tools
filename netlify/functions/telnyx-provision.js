@@ -435,6 +435,23 @@ exports.handler = async function (event) {
       } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
     }
 
+    if (action === 'customermsg') {
+      // Send an arbitrary custom message to a customer FROM the customer line
+      // (588-9500) so any reply threads back to Ant. ?action=customermsg&to=+1...&msg=<url-encoded>
+      const from = '+16155889500';
+      const to = String(q.to || '').replace(/[^\d+]/g, '');
+      if (to.replace(/\D/g, '').length < 10) return json(400, { ok: false, error: 'pass &to=<customer phone>' });
+      const dest = to.startsWith('+') ? to : ('+1' + to.replace(/^1/, ''));
+      let msg = ''; try { msg = q.msg ? decodeURIComponent(q.msg) : ''; } catch (_) { msg = q.msg || ''; }
+      msg = String(msg || '').trim();
+      if (!msg) return json(400, { ok: false, error: 'pass &msg=<url-encoded text>' });
+      try {
+        const send = await fetch(`${TELNYX}/messages`, { method: 'POST', headers: H, body: JSON.stringify({ from, to: dest, text: msg }), signal: AbortSignal.timeout(12000) });
+        const sd = await send.json().catch(() => ({}));
+        return json(200, { ok: send.ok, from, to: dest, id: (sd.data && sd.data.id) || null, error: send.ok ? null : JSON.stringify(sd.errors || sd).slice(0, 300) });
+      } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    }
+
     if (action === 'list') {
       const r = await fetch(`${TELNYX}/telephony_credentials?filter[connection_id]=${connId}&page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
