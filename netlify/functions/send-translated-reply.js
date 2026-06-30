@@ -54,12 +54,17 @@ exports.handler = async function (event) {
   let sent = false;
   try { sent = !!(await sendSms(phone, translated, 'customer', 'translated_reply')); } catch (_) { sent = false; }
 
-  // audit (best-effort) so the office thread + history reflect it
+  // Record the reply as a `customer_sms_reply` (the action the office Messages
+  // page + list_sms_conversations already recognize as an OUTBOUND reply) so the
+  // thread flips out of "waiting" and the red REPLY badge clears. It was being
+  // logged as `translated_reply_sent`, which NEITHER surface counts — so Danielle
+  // replied and the threads kept showing as unanswered (2026-06-30). Carry `body`
+  // for the snippet + the translation detail for the record.
   try {
     const tok = process.env.XANO_METADATA_TOKEN;
     if (tok) await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
       method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'translated_reply_sent', metadata: { phone, language, english: replyEnglish.slice(0, 400), translated: translated.slice(0, 400), sent, at_ms: Date.now() } }),
+      body: JSON.stringify({ action: 'customer_sms_reply', metadata: { phone, body: translated.slice(0, 400), message: translated.slice(0, 400), language, english: replyEnglish.slice(0, 400), translated: translated.slice(0, 400), sent, source: 'office_translated_reply', at_ms: Date.now() } }),
     });
   } catch (_) {}
 
