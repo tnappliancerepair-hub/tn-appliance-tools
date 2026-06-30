@@ -56,6 +56,20 @@ exports.handler = async function (event) {
     return json(200, { ok: r.ok, tdr_table: tdrTable, tdr_id: tid, labor_credit_cents: cents, error: r.ok ? null : d });
   }
 
+  // ?link_job=<jobId>&customer_id=<n>[&consent=1]  attach a customer to a job +
+  // set bill_to + sms_consent so the cash-TDR send can text them. jobs table = 7.
+  if (q.link_job) {
+    const jid = String(q.link_job).replace(/\D/g, '');
+    const cidv = String(q.customer_id || '').replace(/\D/g, '');
+    const patch = {};
+    if (cidv) { patch.customer_id = Number(cidv); patch.bill_to_customer_id = Number(cidv); }
+    if (q.consent === '1') patch.sms_consent = true;
+    let r, d;
+    try { r = await fetch(`${META}/table/7/content/${jid}`, { method: 'PUT', headers: H(), body: JSON.stringify(patch) }); d = await r.json().catch(() => ({})); }
+    catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+    return json(200, { ok: r.ok, job_id: jid, patched: patch, error: r.ok ? null : d });
+  }
+
   const t = await findTable();
   if (!t) return json(200, { ok: false, error: 'could not locate tdr_failure table' });
 
