@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Send Teddy Tool to techs</title>
+<style>
+  :root{--bg:#0f1115;--card:#1a1d24;--line:#2a2e38;--ink:#e8eaed;--mut:#9aa0aa;--grn:#2e7d32;--blu:#1565c0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;background:#141720;border-bottom:1px solid var(--line);padding:14px 16px;z-index:5}
+  h1{font-size:18px;margin:0}.sub{color:var(--mut);font-size:13px;margin-top:3px}
+  .wrap{padding:14px 16px 70px;max-width:680px;margin:0 auto}
+  input{font-size:16px;padding:12px;width:100%;border:1px solid var(--line);border-radius:10px;background:#0c0e13;color:var(--ink)}
+  button{font-size:15px;border:0;border-radius:10px;padding:11px 14px;color:#fff;font-weight:600;cursor:pointer}
+  .btn-go{background:var(--blu);width:100%;margin-top:10px}
+  .days{display:flex;gap:8px;margin:8px 0 14px}
+  .days button{flex:1;background:var(--card);border:1px solid var(--line)}
+  .days button.on{background:var(--blu);border-color:var(--blu)}
+  .techsec{margin:16px 0 6px;display:flex;justify-content:space-between;align-items:center}
+  .techsec h2{font-size:16px;margin:0}
+  .sendall{background:var(--grn);padding:8px 12px;font-size:13px}
+  .sendall:disabled{background:#37474f;opacity:.6}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .nm{font-weight:700}.meta{color:var(--mut);font-size:13px;margin-top:2px}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;background:#262a33;margin-top:5px}
+  .send{background:var(--blu);padding:9px 13px;font-size:13px;white-space:nowrap}
+  .sent{color:#a5d6a7;font-size:13px;font-weight:600;white-space:nowrap}
+  .empty{color:var(--mut);font-size:14px;padding:6px 0}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;border:1px solid var(--line);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;z-index:9}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>📲 Send Teddy Tool to techs</h1>
+  <div class="sub" id="sub">One link per job — the tech's loaded Teddy Tool.</div>
+</header>
+<div class="wrap">
+  <div id="gate">
+    <input id="pw" type="password" placeholder="Office password" autocomplete="current-password">
+    <button class="btn-go" onclick="unlock()">Open</button>
+    <div class="empty" id="gerr"></div>
+  </div>
+  <div id="app" style="display:none"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var PW='',DAYS=2;
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},1800)}
+function esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+async function unlock(){PW=document.getElementById('pw').value.trim();if(!PW){document.getElementById('gerr').textContent='Enter the password.';return}document.getElementById('gerr').textContent='Loading…';try{await load()}catch(e){document.getElementById('gerr').textContent='Could not load — check the password.'}}
+async function api(p){var r=await fetch('/.netlify/functions/tech-tool-dispatch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({password:PW},p))});return r.json()}
+async function load(){
+  var r=await fetch('/.netlify/functions/tech-tool-dispatch?days='+DAYS+'&password='+encodeURIComponent(PW),{cache:'no-store'});
+  var d=await r.json();
+  if(!d.ok){document.getElementById('gerr').textContent=d.error||'Unauthorized.';return}
+  document.getElementById('gate').style.display='none';
+  var app=document.getElementById('app');app.style.display='block';render(d);
+}
+function dayBar(){return '<div class="days">'+[['Today',1],['+2 days',2],['+3 days',3],['Week',7]].map(function(o){return '<button class="'+(DAYS===o[1]?'on':'')+'" onclick="DAYS='+o[1]+';load()">'+o[0]+'</button>'}).join('')+'</div>'}
+function jobCard(x){
+  var right=x.already_sent?'<span class="sent">✓ sent</span>':'<button class="send" id="sb'+x.job_id+'" onclick="sendOne('+x.job_id+')">Send</button>';
+  return '<div class="card" id="jc'+x.job_id+'"><div><div class="nm">'+esc(x.customer)+' · #'+x.job_id+'</div>'+
+    '<div class="meta">'+esc(x.appliance||'—')+(x.city?(' · '+esc(x.city)):'')+'</div>'+
+    '<span class="tag">'+esc(x.day||'')+(x.warranty?(' · '+esc(x.warranty)):'')+'</span></div>'+right+'</div>';
+}
+function render(d){
+  document.getElementById('sub').textContent=d.total_jobs+' jobs · '+d.unsent+' not sent yet';
+  var html=dayBar();
+  if(!d.groups.length){html+='<div class="empty">No assigned jobs in this window.</div>';document.getElementById('app').innerHTML=html;return}
+  d.groups.forEach(function(g){
+    html+='<div class="techsec"><h2>'+esc(g.tech)+' <span style="color:#9aa0aa;font-weight:400;font-size:13px">('+g.jobs.length+' job'+(g.jobs.length>1?'s':'')+')</span></h2>'+
+      (g.unsent?'<button class="sendall" onclick="sendTech('+g.tech_id+')">Send all '+g.unsent+'</button>':'<span class="sent">all sent ✓</span>')+'</div>';
+    html+=g.jobs.map(jobCard).join('');
+  });
+  document.getElementById('app').innerHTML=html;
+  window.__groups=d.groups;
+}
+async function sendOne(id){
+  var b=document.getElementById('sb'+id);if(b){b.disabled=true;b.textContent='…'}
+  var d=await api({action:'send',job_id:id});
+  if(d.ok){var c=document.getElementById('jc'+id);c.querySelector('.send').outerHTML='<span class="sent">✓ sent</span>';toast('Sent #'+id)}
+  else{if(b){b.disabled=false;b.textContent='Send'}toast('⚠ '+((d.result&&d.result.error)||d.error||'failed'))}
+}
+async function sendTech(tid){
+  var g=(window.__groups||[]).find(function(x){return x.tech_id===tid});if(!g)return;
+  var ids=g.jobs.filter(function(x){return !x.already_sent}).map(function(x){return x.job_id});
+  if(!ids.length)return;
+  if(!confirm('Send the Teddy Tool to '+g.tech+' for '+ids.length+' job'+(ids.length>1?'s':'')+'?'))return;
+  toast('Sending '+ids.length+'…');
+  var d=await api({action:'send_bulk',ids:ids});
+  if(d.ok){toast('Sent '+d.sent);setTimeout(load,700)}else toast('⚠ '+(d.error||'failed'));
+}
+document.getElementById('pw').addEventListener('keydown',function(e){if(e.key==='Enter')unlock()});
+</script>
+</body>
+</html>
