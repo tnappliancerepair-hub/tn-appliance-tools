@@ -123,6 +123,10 @@
 [functions."frontdoor-zoom-reminder"]
   schedule = "0 13 * * *"
 
+# Date-keyed morning reminders to Teddy (8 AM CT). No-ops on dates with no entry.
+[functions."morning-reminder"]
+  schedule = "0 13 * * *"
+
 # TDR-gap safety net — catches reports that landed as notes-only or left the job
 # open after a tech actually went out (the Detrich case). Nudges the tech, digests
 # to Teddy. Self-gates to 8a-8p CT. Every 30 min.
