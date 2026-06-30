@@ -123,6 +123,12 @@
 [functions."review-reply-watch"]
   schedule = "15 */2 * * *"
 
+# Google Ads optimizer + daily scoreboard digest — SAFE levers only (block junk
+# search terms, flag zero-converting spend), texts Teddy the scoreboard. Shadow by
+# default; vault GOOGLE_ADS_AUTOPILOT=true to let it act. Daily 9am CT (14:00 UTC).
+[functions."google-ads-optimizer"]
+  schedule = "0 14 * * *"
+
 # Ad-spend auto-log — logs the monthly Google Ads cost as a Books expense (once
 # per month) so the P&L always reflects ad spend. Runs on the 17th (after the
 # US Bank cycle closes ~16th). Amount = vault AD_SPEND_MONTHLY (default $500).
