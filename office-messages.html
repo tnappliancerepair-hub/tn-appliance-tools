@@ -106,6 +106,15 @@ function toggleWaitingOnly(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
+// Clear/dismiss a thread (Teddy 2026-06-30). Courtesy replies — "thank you",
+// 👍, photo, and iMessage "Liked" tapbacks — kept re-flagging threads Danielle
+// had already handled ("same ones keep pulling up"). ✕ hides a thread; if the
+// customer texts AGAIN (any newer message), it pops back up with the FULL thread.
+// localStorage keyed by conversation, storing the last-message ts at dismissal.
+let DISMISS={}; try{ DISMISS=JSON.parse(localStorage.getItem('tn_msg_dismissed')||'{}'); }catch(_){ DISMISS={}; }
+function isDismissed(c){ const d=DISMISS[c.key]; return d && c.last && c.last.ts<=d; }
+function dismissThread(ev,key,ts){ ev.stopPropagation(); ev.preventDefault(); DISMISS[key]=ts; try{localStorage.setItem('tn_msg_dismissed',JSON.stringify(DISMISS));}catch(_){}
+  const el=document.getElementById('conv-'+key); if(el) el.style.display='none'; load(); }
 async function load(){
   document.getElementById('refresh').textContent='refreshing…';
   let rows=[];
@@ -140,7 +149,7 @@ async function load(){
   }
   // WAITING-FIRST, then newest. The ones where the customer wrote last (need a
   // reply) float to the very top so Danielle never has to hunt for what's owed.
-  const list=Object.values(conv).filter(c=>c.last).sort((a,b)=>{
+  const list=Object.values(conv).filter(c=>c.last).filter(c=>!isDismissed(c)).sort((a,b)=>{
     const aw=a.last.dir==='in'?1:0, bw=b.last.dir==='in'?1:0;
     if(aw!==bw) return bw-aw;            // waiting first
     return b.last.ts-a.last.ts;          // then newest
@@ -180,8 +189,8 @@ async function load(){
           </div></div>`;
       }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
       const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${openLink}${textLink}</div></div>`;
-      return `<div class="conv ${c.last.dir==='in'?'waiting':''}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
-        <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <span style="opacity:.6">›</span></div></div>
+      return `<div class="conv ${c.last.dir==='in'?'waiting':''}" id="conv-${c.key}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
+        <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <button onclick="dismissThread(event,'${c.key}',${c.last.ts})" title="Clear — comes back if they text again" style="background:transparent;border:0;color:#8a96a8;font-size:17px;font-weight:800;cursor:pointer;padding:0 2px 0 9px;line-height:1">✕</button> <span style="opacity:.6">›</span></div></div>
         <div class="ctx" id="ctx-${c.key}" data-ph="${c.phone||''}" style="display:none;font-size:11.5px;color:#8a96a8;margin-top:3px"></div>
         <div class="snippet">${dirLbl}${snip}</div>
         ${thread}
