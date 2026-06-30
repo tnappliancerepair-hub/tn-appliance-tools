@@ -12,7 +12,7 @@ function ctDate() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America
 
 // date (CT, YYYY-MM-DD) -> reminder text
 const REMINDERS = {
-  '2026-07-01': "Tomorrow project 🐜: the duplicate-job auto-merge is built and shadow-running (every 15 min, NOT canceling yet). Review the 'dupe_auto_merge_shadow' log entries to confirm it's only flagging real dupes, then flip DUPE_AUTO_MERGE_ENABLED=true in admin-secrets.html to go live — that ends Danielle's ~22/day delete chore. Also still open: Lee/Jimmy profiles → auto-assign, and the per-completion earnings display for the techs.",
+  '2026-07-01': "Good morning 🐜 — today's list:\n1) ⏰ Cancel RINGCENTRAL before the 2nd to dodge next month's charge (acct 31671095) — saves $300/mo. Then watch the card to confirm it drops.\n2) 🧾 Have Danielle TEST the invoice loop end-to-end: log an invoice on a job → confirm it shows on the board tile AND the tech's app (his cut + paid/waiting status) → send a Stripe pay link to herself. Proves it before HCP shuts off the 18th.\n3) 🗑️ Dupe auto-merge is shadow-running — review the 'dupe_auto_merge_shadow' log, then flip DUPE_AUTO_MERGE_ENABLED=true to end Danielle's ~22/day delete chore.\n4) Still open: Lee/Jimmy profiles → auto-assign.",
 };
 
 exports.handler = async function (event) {
