@@ -319,6 +319,7 @@
     border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle;
   }
   .ready { color: #16a34a; font-weight: 600; }
+  .hold { color: #fff; background:#c62828; font-weight:800; padding:2px 8px; border-radius:6px; }
   .parts-badge {
     display: inline-block; font-size: 10px; font-weight: 600;
     background: rgba(234,88,12,0.14); color: #c2410c;
@@ -806,6 +807,20 @@ function __initCalendar() {
   let currentWeekStart = params.get('week') || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
   let serverTodayCT = null;
   let dashboardData = null;
+  // CASH-ONLY payment hold: which self-pay jobs are PAID. Warranty jobs are NEVER
+  // in this map and NEVER held — a warranty customer must never see a payment flag.
+  let CASH_PAID = {};
+  async function loadCashPaid(unscheduled) {
+    const cashIds = (unscheduled || [])
+      .filter((j) => { const ct = String(j.customer_type || '').toLowerCase(); return ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay'; })
+      .map((j) => j.id);
+    if (!cashIds.length) { CASH_PAID = {}; return; }
+    try {
+      const r = await fetch('/.netlify/functions/cash-payment-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: cashIds }) });
+      const d = await r.json();
+      CASH_PAID = (d && d.paid) || {};
+    } catch (_) { CASH_PAID = {}; }  // on failure, self-pay defaults to held (safe)
+  }
   let lastTechs = [];
   let lastJobsById = {};
 
@@ -912,6 +927,7 @@ function __initCalendar() {
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentWeekStart = data.week_start_ct;
+      await loadCashPaid(data.unscheduled || []);   // cash-only payment hold
       render(data);
     } catch (err) {
       console.error(err);
@@ -1146,7 +1162,13 @@ function __initCalendar() {
       const ct = (j.customer_type || '').toLowerCase();
       const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
       const pb = partsBadge(j);
-      const meta = pb || '<span class="ready">✓ ready to schedule</span>';
+      // CASH-ONLY hold: a self-pay job that hasn't paid is NOT ready to schedule.
+      // Strictly customer_type self_pay/cash/customer_pay — warranty is never touched.
+      const isCash = ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay';
+      const cashUnpaid = isCash && CASH_PAID[j.id] !== true;
+      const meta = pb || (cashUnpaid
+        ? '<span class="hold">💵 Awaiting payment — collect first</span>'
+        : '<span class="ready">✓ ready to schedule</span>');
       // What the customer needs — front and center, right under the name. The
       // time window is the #1 scheduling variable. Splits AVAIL/UNAVAIL markers,
       // flags vendor-locked (SquareTrade/ServicePower) jobs as pre-scheduled, and
