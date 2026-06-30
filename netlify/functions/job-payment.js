@@ -45,10 +45,14 @@ exports.handler = async function (event) {
   for (const r of qc) { const m = meta(r); if (!mine(m)) continue; paid += amtOf(m); lastMethod = lastMethod || 'card'; }
 
   // ---- AMOUNT DUE (latest logged invoice; else quick-check amount on the job) ----
+  // A WARRANTY invoice is billed to the vendor, NOT owed by the homeowner — so it
+  // never counts as customer "due" (only out-of-pocket add-ons do). Otherwise the
+  // tech app / board would say "$X due" on a covered job and tell the tech to
+  // collect from a warranty customer (which we never do).
   let due = 0;
   const inv = invoices.filter((r) => mine(meta(r)));
-  if (inv.length) due = num(meta(inv[0]).amount_invoiced);
-  if (!due) {
+  if (inv.length && !warranty) due = num(meta(inv[0]).amount_invoiced);
+  if (!due && !warranty) {
     // quick-check job with no invoice yet — the QC fee is the expectation
     const qm = qc.find((r) => mine(meta(r))); if (qm) due = amtOf(meta(qm));
   }
