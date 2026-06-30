@@ -313,6 +313,7 @@ async function loadBoard(){
     renderBoard();
     loadAddons();
     loadPaid();
+    loadInvoices();
     loadMessages();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
@@ -471,6 +472,15 @@ async function loadPaid(){
     if(d&&d.ok){ PAID_JOBS=new Set((d.paid_jobs||[]).map(String)); renderBoard(); }
   }catch(_){}
 }
+// Invoice amount + paid/due per job, so the tile shows the money status (Teddy
+// 2026-06-30: "the job tile will have this information as well").
+let INVOICES={};
+async function loadInvoices(){
+  try{
+    const d=await (await fetch('/.netlify/functions/list-invoices?days=120',{cache:'no-store'})).json();
+    if(d&&d.ok){ const m={}; (d.invoices||[]).forEach(i=>{m[String(i.job_id)]={amount:i.amount,paid:i.paid,warranty:i.warranty};}); INVOICES=m; renderBoard(); }
+  }catch(_){}
+}
 // refOf — the reference number Danielle works EVERY job by. Picks the best
 // external number (warranty claim / dispatch), and ALWAYS falls back to the Ant
 // job # so there is never a blank. (Danielle 2026-06-30: "those numbers need to
@@ -497,7 +507,13 @@ function cardHtml(j){
   // a warranty job whose vendor just isn't filled in yet. (Danielle 2026-06-16)
   else if(/self|cash|customer.?pay/i.test(String(j.customer_type||''))) tags.push('<span class="tag cash">cash</span>');
   else tags.push('<span class="tag warr">warranty</span>');
-  if(PAID_JOBS.has(String(j.id)))tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 paid</span>');
+  const _inv=INVOICES[String(j.id)];
+  if(_inv){
+    const _amt='$'+(Number(_inv.amount)||0).toFixed(0);
+    if(_inv.warranty) tags.push('<span class="tag" style="background:#fbf3df;color:#8a6d1a;border:1px solid #ecd9a3" title="invoiced — billed to warranty vendor">💵 '+_amt+'</span>');
+    else if(_inv.paid) tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 '+_amt+' paid ✅</span>');
+    else tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="invoiced — customer still owes">💵 '+_amt+' due</span>');
+  } else if(PAID_JOBS.has(String(j.id)))tags.push('<span class="tag" style="background:#e9f9f0;color:#127a4a;border:1px solid #9fe0bd">💵 paid</span>');
   const _g=phoneGaps(j);
   if(_g>0)tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="missing info Ant needs to answer calls">⚠ needs info</span>');
   const _over=overdue(j);
