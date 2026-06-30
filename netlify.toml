@@ -129,6 +129,12 @@
 [functions."tdr-gap-watch"]
   schedule = "*/30 * * * *"
 
+# Duplicate-job auto-merge — cancels fresh, unassigned duplicate stubs so Danielle
+# stops deleting ~22/day by hand. SHADOW-logs until DUPE_AUTO_MERGE_ENABLED=true,
+# then acts (reversible). Every 15 min.
+[functions."dupe-auto-merge"]
+  schedule = "*/15 * * * *"
+
 # Tech-interview calls — DISABLED 2026-06-30 per Teddy: do not call techs again
 # until transcript->profile extraction is proven. Re-enable by uncommenting.
 # [functions."tech-interview-cron"]

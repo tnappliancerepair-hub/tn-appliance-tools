@@ -161,7 +161,15 @@ exports.handler = async function (event) {
   }
 
   const out = { ok: true, mode: live ? 'LIVE' : 'shadow', fresh_hours: freshHours, live_jobs: live_jobs.length, dupes_found: planned.length, plan: planned.map((p) => ({ cancel_dupe: p.dupe, keep: p.keeper, matched_by: p.by, appliance: p.appliance })) };
-  if (!live) { out.note = isCron ? 'shadow — set DUPE_AUTO_MERGE_ENABLED=true to act' : 'DRY RUN — add &confirm=1 to act'; return j(200, out); }
+  if (!live) {
+    out.note = isCron ? 'shadow — set DUPE_AUTO_MERGE_ENABLED=true to act' : 'DRY RUN — add &confirm=1 to act';
+    // On the scheduled shadow run, log what it WOULD have merged so we can review
+    // accuracy over a day before flipping it live.
+    if (isCron && planned.length) {
+      try { await fetch(`${META}/table/3/content`, { method: 'POST', headers: authH(), body: JSON.stringify({ action: 'dupe_auto_merge_shadow', metadata: { count: planned.length, plan: out.plan, at_ms: Date.now() } }) }); } catch (_) {}
+    }
+    return j(200, out);
+  }
 
   // Act: preserve claim to keeper if missing, then cancel the dupe.
   let merged = 0; const fails = [];
