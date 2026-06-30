@@ -22,7 +22,7 @@ exports.handler = async function (event) {
 
   const days = Math.max(1, Math.min(60, parseInt(q.days, 10) || 14));
   let rows = [];
-  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'web_funnel' }, { id: 'desc' }, 5000); } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'web_funnel' }, { id: 'desc' }, 1000); } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
 
   const cutoff = Date.now() - days * 86400000;
   // per day -> per step -> Set of unique keys (conv_id, or row id when conv_id blank)
