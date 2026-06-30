@@ -892,6 +892,7 @@ function renderDrawer(d){
           <option>SquareTrade</option><option>FrontDoor</option><option>NSA</option><option>Other</option>
         </select>
         <select id="wp-status" style="flex:1 1 110px;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+          <option value="requested">📨 Requested (in portal)</option>
           <option value="to_return">↩ Unused / to return</option>
           <option value="used">Used (keep)</option>
         </select>
@@ -1069,11 +1070,12 @@ async function loadWarrantyParts(jid, claim){
     if(!parts.length){ el.innerHTML='No warranty parts yet — they appear automatically when the vendor emails a return label or ServicePower note, or add one below.'; return; }
     const head=(d.unchecked? `<div style="font-size:11px;font-weight:800;color:#b3690a;margin-bottom:6px">⏳ ${d.unchecked} part${d.unchecked>1?'s':''} the tech hasn't checked yet${d.missing?` · ⚠️ ${d.missing} missing`:''}</div>`:(d.missing?`<div style="font-size:11px;font-weight:800;color:#c0392b;margin-bottom:6px">⚠️ ${d.missing} missing — follow up</div>`:'<div style="font-size:11px;font-weight:800;color:#0a7d33;margin-bottom:6px">✓ all parts checked by the tech</div>'));
     el.innerHTML=head+parts.map(p=>{
-      const st=p.status, ret=st==='returned', miss=st==='missing', tr=st==='to_return', used=st==='used';
+      const st=p.status, ret=st==='returned', miss=st==='missing', tr=st==='to_return', used=st==='used', req=st==='requested';
       // Badge reflects a CONFIRMED state — an unchecked supply default (often "used")
       // shows "to check" so it never reads done next to the waiting-on-tech flag.
       const badge=ret?'<span style="color:#0a7d33;font-weight:800">✓ returned</span>'
         : miss?'<span style="color:#c0392b;font-weight:800">⚠️ missing</span>'
+        : req?'<span style="color:#2c6fb0;font-weight:800">📨 requested · awaiting part</span>'
         : !p.checked?'<span style="color:#b3690a;font-weight:800">• to check</span>'
         : used?'<span style="color:#0a7d33;font-weight:800">✓ used</span>'
         : '<span style="color:#b3690a;font-weight:800">↩ unused · return it</span>';
@@ -1085,6 +1087,7 @@ async function loadWarrantyParts(jid, claim){
       const ch=(w)=> (p.checked && st===w) || (w==='missing' && miss); // only light a confirmed choice
       let btns='';
       if(!ret){
+        btns+=ovBtn('📨 Requested','requested',ch('requested')?'#2c6fb0':'#fff',ch('requested')?'#2c6fb0':'var(--line)',ch('requested')?'#fff':'inherit');
         btns+=ovBtn('Used','used',ch('used')?'#0a7d33':'#fff',ch('used')?'#0a7d33':'var(--line)',ch('used')?'#fff':'inherit');
         btns+=ovBtn('Unused','unused',ch('to_return')?'#c2691c':'#fff',ch('to_return')?'#c2691c':'var(--line)',ch('to_return')?'#fff':'inherit');
         btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'#f3c0b7',ch('missing')?'#fff':'#c0392b');
@@ -1100,7 +1103,7 @@ async function addWarrantyPart(jid){
   try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add',job_id:jid,claim:window.__drawerClaim||'',part:part,distributor:(de&&de.value.trim())||'',vendor:(ve&&ve.value)||'',status:(se&&se.value)||'to_return'})}); if(pe)pe.value='';if(de)de.value=''; toast('Added ✓'); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
 }
 async function markWarrantyPart(jid,part,status){
-  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status,by:'office'})}); toast(status==='returned'?'Marked returned ✓':(status==='missing'?'Flagged missing ⚠️':'Updated ✓')); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status,by:'office'})}); toast(status==='returned'?'Marked returned ✓':(status==='missing'?'Flagged missing ⚠️':(status==='requested'?'Marked requested 📨':'Updated ✓'))); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
 }
 
 async function saveJobInfo(id){

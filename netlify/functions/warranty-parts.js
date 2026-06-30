@@ -42,6 +42,8 @@ function normStatus(s) {
   if (x === 'unused' || x === 'to_return' || x === 'return') return 'to_return';
   if (x === 'missing' || x === 'not_here' || x === 'not-here' || x === 'discrepancy') return 'missing';
   if (x === 'returned' || x === 'shipped') return 'returned';
+  // requested = we've asked the warranty co to ship this part; awaiting their ETA.
+  if (x === 'requested' || x === 'ordered' || x === 'request') return 'requested';
   return 'to_return';
 }
 
