@@ -32,15 +32,23 @@ export async function run(signal, ctx) {
   // ── Auto-route the finished report (Danielle's ask) ──────────────
   // The moment a tech finishes a TDR, drop the job into the right board folder
   // by its disposition — Waiting Parts (a part must be ordered) or Follow Up
-  // (a second visit is needed) — so she stops hand-routing every report. Runs
-  // BEFORE the no-part early-return below, because a follow-up with no part
-  // still needs routing. Best-effort; never blocks the rest of the chain.
-  let autoRoute = 'not_attempted';
-  try {
-    autoRoute = (await routeFinishedReport(jobId, payload, ctx)).outcome;
-    log('tdr_auto_route', { job_id: jobId, tdr_id: tdrId, outcome: autoRoute });
-  } catch (err) {
-    autoRoute = `error:${String(err.message || err).slice(0, 60)}`;
+  // (a second visit is needed) — so she stops hand-routing every report.
+  //
+  // KILL SWITCH — default OFF (2026-06-30). Auto-routing was sending jobs to the
+  // wrong folders (Danielle's "wrong-folders" report) while the app data is still
+  // less trustworthy than MeisterTask. Until the data is clean enough to trust,
+  // NOTHING auto-moves — her manual placement on the board is the single source
+  // of truth. Flip on only when ready: vault/env TDR_AUTO_ROUTE_ENABLED=true.
+  let autoRoute = 'disabled';
+  const autoRouteOn = String(process.env.TDR_AUTO_ROUTE_ENABLED || '').toLowerCase() === 'true';
+  if (autoRouteOn) {
+    autoRoute = 'not_attempted';
+    try {
+      autoRoute = (await routeFinishedReport(jobId, payload, ctx)).outcome;
+      log('tdr_auto_route', { job_id: jobId, tdr_id: tdrId, outcome: autoRoute });
+    } catch (err) {
+      autoRoute = `error:${String(err.message || err).slice(0, 60)}`;
+    }
   }
 
   const failedComponent = String(payload.failed_component || '').trim();
