@@ -219,9 +219,14 @@ async function routeFinishedReport(jobId, payload, ctx) {
   // Complete action; don't move it.
   if (repairDone && !needsFollowup) return { outcome: 'repair_completed_no_route' };
 
-  // A part still needs ordering → Waiting Parts. Set the real state
-  // (awaiting_parts) AND the folder placement, exactly like dragging the card.
-  if (hasPart && !repairDone) {
+  // A part still needs ORDERING (and the tech is coming back to install it) →
+  // Waiting Parts. CRITICAL: naming the failed component is a DIAGNOSIS, not a
+  // parts order — so we require an explicit return/second-visit signal alongside
+  // the part. Without it, a tech who just diagnosed the part (repair maybe done,
+  // status left blank) was getting wrongly parked in Waiting Parts. Only move to
+  // awaiting_parts when there's a part AND a second visit is needed AND it isn't
+  // already done on-site.
+  if (hasPart && needsFollowup && !repairDone) {
     if (schedulingStatus !== 'awaiting_parts') {
       await xano.officeSetJobStatus(jobId, 'awaiting_parts', ACTOR).catch(() => {});
     }
