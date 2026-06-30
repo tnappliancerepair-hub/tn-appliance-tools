@@ -106,8 +106,12 @@ async function load(){
 }
 // Dropped / dead-air calls — people who hung up before leaving info (system
 // overload, slow lookup). Deduped by phone, most-persistent first.
+let DISMISSED={};
+const p10=(p)=>String(p||'').replace(/\D/g,'').slice(-10);
 async function loadDropped(){
   try{
+    // who's already been cleared off the board (per phone, timestamped)
+    try{const dr=await fetch('/.netlify/functions/dismiss-dropped-call',{cache:'no-store'});const dd=await dr.json();DISMISSED=(dd&&dd.dismissed)||{};}catch(_){DISMISSED={};}
     const r=await fetch(XANO+'/list_recent_calls_for_office?days=2&limit=200');
     const d=await r.json(); const calls=(d&&d.calls)||[];
     const by={};
@@ -122,7 +126,9 @@ async function loadDropped(){
       if(!by[phone]) by[phone]={phone,tries:0,last:0,reason,job:m.job_id};
       by[phone].tries++; if(t>=by[phone].last){by[phone].last=t;by[phone].reason=reason;}
     });
-    DROPPED=Object.values(by).sort((a,b)=>b.tries-a.tries||b.last-a.last);
+    // drop anything the office cleared — UNLESS they've dropped again since (newer
+    // call than the dismiss → it comes back so we don't miss a fresh attempt).
+    DROPPED=Object.values(by).filter(x=>{const dz=DISMISSED[p10(x.phone)];return !(dz&&x.last<=dz);}).sort((a,b)=>b.tries-a.tries||b.last-a.last);
   }catch(_){DROPPED=[];}
   renderDropped();
 }
@@ -132,8 +138,9 @@ function renderDropped(){
   const cards=DROPPED.map(x=>{
     const tel=x.phone.replace(/[^0-9+]/g,'');
     const disp=tel.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3');
-    return '<div class="card" style="border-left:4px solid #c0392b">'+
-      '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age">'+ago(x.last)+'</div></div>'+
+    return '<div class="card" id="drop-'+p10(tel)+'" style="border-left:4px solid #c0392b;position:relative">'+
+      '<button onclick="dismissDropped(\''+p10(tel)+'\')" title="Clear from board" aria-label="Clear" style="position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:8px;border:1px solid #e3c4be;background:#fbeeec;color:#c0392b;font-size:16px;font-weight:800;line-height:1;cursor:pointer">✕</button>'+
+      '<div class="top"><div class="who">'+esc(disp)+'</div><div class="age" style="margin-right:34px">'+ago(x.last)+'</div></div>'+
       '<span class="tag t-other">dead air / dropped</span>'+
       (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
       (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
@@ -142,6 +149,14 @@ function renderDropped(){
     '</div>';
   }).join('');
   el.innerHTML='<div class="sub" style="margin:18px 0 8px;color:#c0392b;font-weight:700">🔴 Dropped / dead-air calls (last 2 days) — '+DROPPED.length+' to call back</div>'+cards;
+}
+// Clear a resolved dropped call off the board. Optimistic remove + persist so it
+// stays gone (until that number drops again). Keeps the board clean.
+async function dismissDropped(ph){
+  const card=document.getElementById('drop-'+ph); if(card){card.style.transition='opacity .15s';card.style.opacity='0.4';card.style.pointerEvents='none';}
+  DROPPED=DROPPED.filter(x=>p10(x.phone)!==ph);
+  try{await fetch('/.netlify/functions/dismiss-dropped-call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:ph})});}catch(_){}
+  renderDropped();
 }
 function render(){
   let rows=ROWS.slice();
