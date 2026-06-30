@@ -364,9 +364,9 @@ function askProblemTyped(){ antMsg('Okay — I\'ve got the gist. One quick thing
 // ── STEP: warranty vs cash ──
 function askPayer(){
   setHead('Quick question.','This decides the fastest path for you.');
-  antMsg('Is this repair covered by a <b>home warranty</b> (AHS, ServicePower, Frontdoor, etc.) — or are you <b>paying out of pocket</b>?');
+  antMsg('Do you have a <b>home warranty</b> on this appliance (AHS, ServicePower, Frontdoor, Choice, 2-10, etc.)? If so your repair is <b>100% FREE — you pay nothing.</b> Or are you paying out of pocket (no warranty)?');
   choices([{emo:'🛡️',label:'I have a warranty'},{emo:'💵',label:'I\'m paying myself'}], it=>{
-    state.payer = it.label.indexOf('warranty')>-1 ? 'warranty':'cash';
+    state.payer = it.emo==='🛡️' ? 'warranty':'cash';
     youMsg(it.label); clearFlow();
     think(700, state.payer==='cash' ? pitchQuickCheck : warrantyPath);
   }, 'grid2');
@@ -646,6 +646,23 @@ function submitFree(){
   };
 }
 function payStep(){
+  // 🛡️ HARD GUARD: a warranty payer NEVER sees a payment screen — straight to the
+  // free finish, no matter how they got here.
+  if(state.payer==='warranty'){ state.serviceType='warranty_prediag'; return warrantyFinish(); }
+  // 🛡️ WARRANTY SAFETY NET (Teddy 2026-06-30): a warranty customer must NEVER see a
+  // payment screen. If someone reached here but actually has a home warranty (e.g.
+  // mis-tapped "I'm paying myself", like Irene), give them a FREE off-ramp before any
+  // charge. Shown once; a real cash customer taps "continue" and pays as normal.
+  if(!state._payConfirmed){
+    setHead('One quick check first.','If this is a warranty repair, it\'s FREE — no payment.');
+    antMsg('Before any payment — do you have a <b>home warranty</b> on this appliance (AHS, ServicePower, Frontdoor, Choice, 2-10, etc.)? Warranty repairs are <b>100% free — you pay nothing.</b>');
+    choices([{emo:'🛡️',label:'Yes — it\'s a warranty repair (free)'},{emo:'💵',label:'No warranty — continue'}], it=>{
+      youMsg(it.label); clearFlow();
+      if(it.emo==='🛡️'){ state.payer='warranty'; state.serviceType='warranty_prediag'; think(500, ()=>{ antMsg('Perfect — since it\'s under warranty there\'s <b>no charge at all.</b> Last thing and you\'re set.'); think(400, warrantyFinish); }); }
+      else { state._payConfirmed=true; think(300, payStep); }
+    }, 'grid2');
+    return;
+  }
   // Amount + service by path: $50 phone Quick Check vs $100 in-home visit. The
   // test token (?qc=) makes either $1 server-side. Payment happens BEFORE the job
   // lands on the schedule (Teddy 2026-06-27) — media was already captured above.
