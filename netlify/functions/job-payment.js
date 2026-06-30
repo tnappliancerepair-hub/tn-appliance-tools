@@ -62,15 +62,19 @@ exports.handler = async function (event) {
   for (const r of addonRows) { const m = meta(r); if (!mine(m)) continue; if (m.paid) continue; addonUnpaid += num(m.net_price || m.price); }
 
   paid = Number(paid.toFixed(2));
-  due = Number((due + addonUnpaid).toFixed(2));
+  due = Number((due + addonUnpaid).toFixed(2)); // self-pay: invoice+addons · warranty: add-ons only (customer out-of-pocket)
   const collectedFlag = job.payment_collected === true || String(job.payment_status || '').toLowerCase() === 'paid';
+  // What the WARRANTY VENDOR owes us (the logged invoice on a warranty job) — shown
+  // muted/"awaiting payment", separate from anything the customer owes.
+  const warrantyBilled = (warranty && inv.length) ? num(meta(inv[0]).amount_invoiced) : 0;
 
-  // ---- STATUS ----
+  // ---- STATUS ----  customer-owed (red) vs waiting-on-warranty (amber) vs paid (green)
   let status, label, balance = 0;
   if (paid > 0 && (due === 0 || paid >= due)) { status = 'paid'; label = 'Paid' + (paid ? ` ($${paid.toFixed(2)})` : ''); }
   else if (paid > 0 && paid < due) { status = 'partial'; balance = Number((due - paid).toFixed(2)); label = `Partial — $${balance.toFixed(2)} due`; }
-  else if (collectedFlag && due === 0) { status = 'paid'; label = 'Paid'; }
-  else if (due > 0) { status = 'unpaid'; balance = due; label = `Unpaid — $${due.toFixed(2)} due`; }
+  else if (collectedFlag && due === 0 && !warrantyBilled) { status = 'paid'; label = 'Paid'; }
+  else if (due > 0) { status = 'unpaid'; balance = due; label = warranty ? `Add-on $${due.toFixed(2)} due` : `Unpaid — $${due.toFixed(2)} due`; }
+  else if (warrantyBilled > 0) { status = collectedFlag ? 'paid' : 'warranty_pending'; label = collectedFlag ? `Paid by warranty ($${warrantyBilled.toFixed(2)})` : `Billed to warranty — $${warrantyBilled.toFixed(2)} · awaiting payment`; }
   else if (warranty) { status = 'covered'; label = 'Covered by warranty — nothing due'; }
   else { status = 'none'; label = 'No payment due yet'; }
 
@@ -78,5 +82,5 @@ exports.handler = async function (event) {
   // the field app shows "you made $X" the moment the office logs it (Teddy
   // 2026-06-30: one input on the office tile flows to the tech's app).
   const im = inv.length ? meta(inv[0]) : {};
-  return j(200, { ok: true, job_id: jobId, status, label, paid, due, balance, warranty, method: lastMethod, collected_flag: collectedFlag, tech_pay: num(im.tech_pay), invoice_amount: num(im.amount_invoiced) });
+  return j(200, { ok: true, job_id: jobId, status, label, paid, due, balance, warranty, warranty_billed: warrantyBilled, method: lastMethod, collected_flag: collectedFlag, tech_pay: num(im.tech_pay), invoice_amount: num(im.amount_invoiced) });
 };
