@@ -50,8 +50,22 @@ const INTERNAL_NUMBERS = new Set([
   '7315049617', // Billy
   '8133527686', // John
 ]);
+// Caller number -> technician_id, so a tech who calls Ant on the regular line
+// (not a dispatched field-assist call) still gets his TDR scribed from the call.
+// Andre has two numbers on file (504 system-of-record + an old 615) — map both.
+const TECH_PHONE_TO_ID = {
+  '6154855795': 1, // Teddy
+  '6159671304': 2, // Jimmy
+  '5049099413': 3, // Andre (504, system-of-record)
+  '6159693115': 3, // Andre (old 615)
+  '6158291654': 4, // Lee
+  '8133527686': 6, // John
+};
 function last10Digits(p) {
   return String(p || '').replace(/\D/g, '').slice(-10);
+}
+function techIdForNumber(p) {
+  return TECH_PHONE_TO_ID[last10Digits(p)] || 0;
 }
 function isInternalNumber(p) {
   const d = last10Digits(p);
@@ -482,6 +496,25 @@ exports.handler = async function (event) {
       }
       if (writeJobId > 0 && (transcript || summary)) {
         await extractAndWriteTdrFromCall(writeJobId, numericTechId, transcript, summary, callId);
+      }
+    }
+
+    // 4a-ter. TECH CALLED ANT ON THE REGULAR LINE (not a dispatched field-assist
+    //     call) and gave his report — run the SAME scribe so the TDR still fills.
+    //     This is the Detrich hole: Andre's report landed notes-only because the
+    //     dispatched-call scribe above never ran. The extractor only writes what
+    //     the tech actually said (incl. the failure_cause dropdown), so a non-
+    //     report call yields little/nothing. "Nothing left behind."
+    const callerTechId = techIdForNumber(callerNumber);
+    if (!isFieldAssist && callerTechId && !isVoicemailish && (transcript || summary)) {
+      let techJobId = Number(callMeta.job_id) || Number(resolvedJobId) || 0;
+      if (techJobId <= 0) techJobId = await resolveTechActiveJob(callerTechId);
+      if (techJobId > 0) {
+        await extractAndWriteTdrFromCall(techJobId, callerTechId, transcript, summary, callId);
+        await safePost(XANO_RECORD_EVENT, {
+          action: 'tech_inbound_tdr_scribed',
+          metadata_json: JSON.stringify({ tech_id: callerTechId, job_id: techJobId, vapi_call_id: callId, at_ms: Date.now() }),
+        });
       }
     }
 
