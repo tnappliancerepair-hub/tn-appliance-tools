@@ -1281,7 +1281,27 @@ async function findParts(){
     const d=await fetch('/.netlify/functions/parts-finder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,brand:appliance.brand||'',appliance_type:appliance.type||'',symptom})}).then(r=>r.json());
     if(!d.success) throw new Error(d.error||'lookup failed');
     let html='';
-    const topPN=(d.from_history&&d.from_history[0]&&d.from_history[0].part_number)||(d.candidates&&d.candidates[0]&&d.candidates[0].part_number)||'';
+    const topPN=(d.best_pick&&d.best_pick.part_number)||(d.from_history&&d.from_history[0]&&d.from_history[0].part_number)||(d.candidates&&d.candidates[0]&&d.candidates[0].part_number)||'';
+    // 🐜 ANT'S BEST CALL — the single trusted answer, cross-checked across our
+    // history + Marcone + AI, so the tech can put it on his TDR with confidence.
+    if(d.best_pick){
+      const bp=d.best_pick, verified=bp.confidence==='verified';
+      const col=verified?'#127a4a':'#b6791f', bg=verified?'#eafaf0':'#fdf6e9', bd=verified?'#9fe0bd':'#f0d9a8';
+      const tag=verified?'🟢 VERIFIED — safe to put on your TDR':'🟡 LIKELY — confirm on the diagram, then order';
+      const mc=bp.marcone||{};
+      const mcLine=mc.found?('🔧 Marcone $'+(mc.cost!=null?Number(mc.cost).toFixed(2):'—')+' · '+(bp.in_stock?((mc.total_qty!=null?mc.total_qty+' ':'')+'in stock'):'out of stock')):'';
+      html+='<div style="border:1px solid '+bd+';background:'+bg+';border-radius:12px;padding:13px 14px;margin-bottom:12px">'
+        +'<div style="font-size:11px;font-weight:800;letter-spacing:.04em;color:'+col+'">🐜 ANT\'S BEST CALL</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin:5px 0 3px;flex-wrap:wrap">'
+          +'<span style="font-size:21px;font-weight:900;color:#12203a;letter-spacing:.02em">'+esc(bp.part_number)+'</span>'
+          +'<button type="button" onclick="copyPN(this,\''+esc(bp.part_number)+'\')" style="border:1px solid '+bd+';background:#fff;color:'+col+';border-radius:7px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer">📋 Copy</button>'
+        +'</div>'
+        +(bp.name?('<div style="font-size:12.5px;color:#5a6a85;margin-bottom:4px">'+esc(bp.name)+'</div>'):'')
+        +'<div style="font-size:12.5px;font-weight:700;color:'+col+'">'+tag+'</div>'
+        +'<div style="font-size:12px;color:#5a6a85;margin-top:3px">Why: '+esc(bp.reason)+'</div>'
+        +(mcLine?('<div style="font-size:12.5px;font-weight:700;color:'+(bp.in_stock?'#127a4a':'#c0392b')+';margin-top:5px">'+mcLine+'</div>'):'')
+      +'</div>';
+    }
     if(d.from_history&&d.from_history.length){
       html+='<div style="font-size:12px;font-weight:800;color:#127a4a;margin-bottom:6px">✅ WE\'VE USED THESE BEFORE — highest trust</div>';
       html+=d.from_history.map(h=>`<div class="cand" style="border-left:3px solid #2ecc71;background:#f1faf4"><span class="pn">${esc(h.part_number)}</span><span class="conf high" style="background:#d6f5e3;color:#127a4a">${esc(h.match)}</span><div class="cn">${esc(h.failed_component||'')}</div>${mcBadge(h.marcone)}</div>`).join('');
@@ -1311,6 +1331,12 @@ async function findParts(){
     const mcPn=document.getElementById('mc-pn'); if(mcPn) mcPn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); marconeCheck(); } });
   }catch(e){ out.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
   finally{ btn.disabled=false; btn.textContent='Find the part'; }
+}
+
+// Copy the trusted part # so the tech can paste it straight onto his TDR.
+function copyPN(btn, pn){
+  try{ navigator.clipboard.writeText(pn); }catch(_){}
+  if(btn){ const t=btn.textContent; btn.textContent='✓ Copied'; setTimeout(()=>{ btn.textContent=t; }, 1400); }
 }
 
 // 🔧 Marcone live price + stock for a known part # (our API, account net cost).

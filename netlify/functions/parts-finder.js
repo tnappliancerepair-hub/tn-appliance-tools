@@ -139,6 +139,64 @@ async function aiCandidates({ model, brand, appliance_type, symptom }) {
   }
 }
 
+// ── Confidence engine ──────────────────────────────────────────────────────
+// Fuse the trust signals into ONE verdict so a tech can confidently put the
+// number on his TDR. The more INDEPENDENT sources agree, the higher the trust:
+//   • used on this exact model before (our TDR corpus)  ← strongest
+//   • confirmed in Marcone (real OEM catalog part) + in stock
+//   • our history AND the AI independently landed on the same number
+// verified 🟢 = safe to order · likely 🟡 = confirm on the diagram · unconfirmed ⚪.
+function partKey(pn) { return String(pn || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+function buildConfidence(from_history, candidates) {
+  const map = new Map();
+  const rec = (pn) => {
+    const key = partKey(pn); if (!key) return null;
+    let r = map.get(key);
+    if (!r) { r = { part_number: pn, key, sources: new Set(), used_before: false, used_rank: 0, marcone: null, ai_confidence: null, name: '', note: '', match: null }; map.set(key, r); }
+    return r;
+  };
+  for (const h of (from_history || [])) {
+    const r = rec(h.part_number); if (!r) continue;
+    r.sources.add('history'); r.used_before = true; r.used_rank = Math.max(r.used_rank, h.rank || 1);
+    if (h.marcone) r.marcone = h.marcone; r.match = h.match || r.match; if (h.failed_component) r.name = r.name || h.failed_component;
+  }
+  for (const c of (candidates || [])) {
+    const r = rec(c.part_number); if (!r) continue;
+    r.sources.add('ai'); r.ai_confidence = c.confidence || 'low';
+    if (c.marcone && !r.marcone) r.marcone = c.marcone; if (c.name) r.name = r.name || c.name; if (c.note) r.note = c.note;
+  }
+  const ranked = [];
+  for (const r of map.values()) {
+    const mc = r.marcone || {};
+    const marconeFound = !!mc.found;
+    const inStock = !!(mc.in_stock && (mc.total_qty == null || mc.total_qty > 0));
+    const aiHigh = r.ai_confidence === 'high';
+    const exactModel = r.used_before && r.used_rank >= 3;
+    const cross = r.sources.has('history') && r.sources.has('ai');
+    let score = 0; const why = [];
+    if (exactModel) { score += 5; why.push('used on this exact model before'); }
+    else if (r.used_before) { score += 3; why.push('used on ' + (r.used_rank >= 2 ? 'this brand' : 'this appliance') + ' before'); }
+    if (marconeFound) { score += 3; why.push('confirmed in Marcone' + (mc.cost != null ? (' ($' + Number(mc.cost).toFixed(2) + ')') : '')); }
+    if (inStock) { score += 1; why.push(((mc.total_qty != null) ? (mc.total_qty + ' ') : '') + 'in stock'); }
+    if (cross) { score += 2; why.push('our history + AI agree'); }
+    if (aiHigh) { score += 1; }
+    if (r.ai_confidence === 'low' && !r.used_before && !marconeFound) { score -= 1; }
+    let confidence = 'unconfirmed';
+    if (exactModel || (marconeFound && r.used_before) || (marconeFound && aiHigh) || cross) confidence = 'verified';
+    else if (marconeFound || aiHigh || r.used_before) confidence = 'likely';
+    ranked.push({ part_number: r.part_number, confidence, score, in_stock: inStock, marcone: r.marcone, used_before: r.used_before, match: r.match, name: r.name, note: r.note, reasons: why, sources: [...r.sources] });
+  }
+  ranked.sort((a, b) => (b.score - a.score) || (b.in_stock - a.in_stock));
+  const top = ranked[0] || null;
+  const best_pick = (top && top.confidence !== 'unconfirmed') ? {
+    part_number: top.part_number, confidence: top.confidence, name: top.name || '',
+    reason: top.reasons.join(' · ') || 'best match for the symptom',
+    in_stock: top.in_stock, marcone: top.marcone || null,
+  } : null;
+  return { ranked, best_pick };
+}
+
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
@@ -159,6 +217,8 @@ exports.handler = async function (event) {
     ]);
     // Enrich both lists with live Marcone cost + stock (best-effort, parallel).
     await Promise.all([enrichMarcone(from_history), enrichMarcone(ai.candidates)]);
+    // Fuse everything into a single trust verdict + best pick for the TDR.
+    const confidence = buildConfidence(from_history, ai.candidates);
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -168,6 +228,8 @@ exports.handler = async function (event) {
         catalogs,
         candidates: ai.candidates,
         ai_note: ai.ai_note,
+        best_pick: confidence.best_pick,
+        ranked: confidence.ranked,
       }),
     };
   } catch (err) {

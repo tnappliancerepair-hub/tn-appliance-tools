@@ -896,10 +896,16 @@ function renderReview() {
           '<div class="field"><label>Part #</label><input type="text" id="oemPartInput" placeholder="e.g. WPW10295370" value="' + escapeAttr(state.oemPartNumber) + '" oninput="state.oemPartNumber=this.value" /></div>' +
           '<div class="field"><label>Our Cost</label><input type="text" id="oemPriceInput" placeholder="$85" value="' + escapeAttr(state.oemPrice) + '" oninput="state.oemPrice=this.value; updateOemHint()" /></div>' +
         '</div>' +
-        '<button type="button" onclick="marconePrice()" ' +
-          'style="margin-top:8px;padding:8px 12px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);font-size:12.5px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
-          '🔧 Live Marcone price + stock</button>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">' +
+          '<button type="button" onclick="marconePrice()" ' +
+            'style="flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);font-size:12.5px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
+            '🔧 Marcone price + stock</button>' +
+          '<button type="button" onclick="reliablePrice()" ' +
+            'style="flex:1;min-width:150px;padding:8px 12px;border:1px solid var(--border2);border-radius:7px;background:var(--bg);color:var(--text);font-size:12.5px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
+            '🔧 Reliable price + stock</button>' +
+        '</div>' +
         '<div id="marconeOut" style="font-size:12px;margin:5px 0 0;"></div>' +
+        '<div id="reliableOut" style="font-size:12px;margin:3px 0 0;"></div>' +
         '<button type="button" onclick="orderFromMarcone()" ' +
           'style="margin-top:8px;width:100%;padding:10px 12px;border:none;border-radius:8px;background:#1f7a3f;color:#fff;font-size:13px;font-weight:700;font-family:var(--sans);cursor:pointer;">' +
           '📦 Order from Marcone → drop-ship to customer</button>' +
@@ -1085,6 +1091,25 @@ async function marconePrice(){
     if(r.cost!=null){ const el=document.getElementById('oemPriceInput'); el.value='$'+Number(r.cost).toFixed(2); state.oemPrice=el.value; if(typeof updateOemHint==='function') updateOemHint(); }
     const inStock=r.in_stock&&r.total_qty>0;
     out.innerHTML='<span style="color:'+(inStock?'#127a4a':'#c2691c')+';font-weight:700">🔧 Marcone $'+Number(r.cost).toFixed(2)+' · '+(inStock?(r.total_qty+' in stock'+((r.eta_days!=null&&r.eta_days<=1)?' · ships now':'')):'out of stock')+'</span>'+(r.description?(' <span style="color:var(--muted)">— '+escapeHtml(r.description)+'</span>'):'');
+  }catch(e){ out.innerHTML='<span style="color:#c2691c">Lookup failed — try again.</span>'; }
+}
+
+// Live Reliable Parts price + stock — our 2nd OEM source (catches Samsung /
+// superseded #s Marcone misses). Only fills Our Cost if it's still empty, so it
+// never clobbers a Marcone price you already pulled. Internal only.
+async function reliablePrice(){
+  const pn=(document.getElementById('oemPartInput').value||'').trim();
+  const out=document.getElementById('reliableOut');
+  if(!pn){ out.innerHTML='<span style="color:#c2691c">Enter the OEM part # first.</span>'; return; }
+  out.innerHTML='Checking Reliable…';
+  try{
+    const d=await fetch('/.netlify/functions/reliable-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({part_number:pn})}).then(r=>r.json());
+    if(d&&d.configured===false){ out.innerHTML='<span style="color:#9aa3af">Reliable not connected yet — vault the RELIABLE_* creds to turn this on.</span>'; return; }
+    const r=d&&d.results&&d.results[0];
+    if(!r||!r.found){ out.innerHTML='<span style="color:#9aa3af">Not found in Reliable — double-check the part #.</span>'; return; }
+    if(r.cost!=null){ const el=document.getElementById('oemPriceInput'); if(!(el.value||'').trim()){ el.value='$'+Number(r.cost).toFixed(2); state.oemPrice=el.value; if(typeof updateOemHint==='function') updateOemHint(); } }
+    const inStock=r.in_stock&&(r.total_qty==null||r.total_qty>0);
+    out.innerHTML='<span style="color:'+(inStock?'#127a4a':'#c2691c')+';font-weight:700">🔧 Reliable '+(r.cost!=null?'$'+Number(r.cost).toFixed(2):'—')+(r.total_qty!=null?(' · '+(inStock?(r.total_qty+' in stock'):'out of stock')):(inStock?' · in stock':''))+'</span>'+(r.description?(' <span style="color:var(--muted)">— '+escapeHtml(r.description)+'</span>'):'');
   }catch(e){ out.innerHTML='<span style="color:#c2691c">Lookup failed — try again.</span>'; }
 }
 
