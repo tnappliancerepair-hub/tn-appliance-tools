@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,follow">
+<title>Ant Assist — Session Review</title>
+<style>
+  :root{--bg:#0e1524;--panel:#16203400;--card:#172236;--line:#25324a;--text:#e7edf6;--muted:#8fa0b8;--teal:#4cc9c0;--amber:#ffce8a;--red:#ff8a8a}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0e1524;color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0e1524;z-index:5}
+  h1{margin:0;font-size:18px;letter-spacing:.02em}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .wrap{max-width:820px;margin:0 auto;padding:16px}
+  .gate{max-width:360px;margin:60px auto;text-align:center}
+  input,button,select{font:inherit}
+  .pw{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0c1220;color:var(--text);font-size:16px}
+  .btn{background:var(--teal);color:#06241f;border:0;border-radius:10px;padding:11px 16px;font-weight:800;cursor:pointer}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .chip{font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:#0c1220;color:var(--muted);cursor:pointer}
+  .chip.on{border-color:var(--teal);color:var(--teal)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:11px}
+  .card.flagged{border-color:#7a4b2a;background:#1e1a14}
+  .meta{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .flags{margin-top:7px;display:flex;flex-wrap:wrap;gap:6px}
+  .flag{font-size:11.5px;font-weight:700;color:#ffcf9a;background:rgba(255,180,84,.14);border:1px solid rgba(255,180,84,.4);border-radius:6px;padding:2px 8px}
+  .summary{font-size:13px;color:var(--text);margin-top:7px}
+  .tx{display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px;white-space:pre-wrap;font-size:13px;line-height:1.55;max-height:420px;overflow:auto;color:#d4deec}
+  .tx mark{background:rgba(255,120,120,.28);color:#ffd7d7;border-radius:3px;padding:0 2px}
+  .open .tx{display:block}
+  .toggle{font-size:12px;color:var(--teal);cursor:pointer;font-weight:700;margin-top:8px;display:inline-block}
+  .empty{color:var(--muted);text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🐜 Ant Assist — Session Review</h1>
+  <div class="sub">Tech ↔ Ant voice sessions. Flagged ones may have gone sideways — read them, and each bad one becomes a fix.</div>
+</header>
+
+<div id="gate" class="gate">
+  <p class="sub">Office password</p>
+  <input id="pw" class="pw" type="password" placeholder="password" autofocus>
+  <div style="height:10px"></div>
+  <button class="btn" id="go" style="width:100%">Open</button>
+  <div id="gerr" style="color:var(--red);font-size:13px;margin-top:8px"></div>
+</div>
+
+<div id="app" class="wrap" style="display:none">
+  <div class="row">
+    <span class="chip on" id="fAll" data-f="all">All sessions</span>
+    <span class="chip" id="fFlag" data-f="flag">⚠️ Flagged only</span>
+    <button class="btn" id="refresh" style="margin-left:auto;background:#22314c;color:#cfe0f5">↻ Refresh</button>
+  </div>
+  <div id="list"></div>
+</div>
+
+<script>
+  var PW = '';
+  var CALLS = [];
+  var filter = 'all';
+  var $ = function(id){ return document.getElementById(id); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function hl(t){ // highlight the terms our flags key on, so the eye jumps to them
+    return esc(t).replace(/(compressor|refrigerant|sealed system|evaporator|condenser)/gi, '<mark>$1</mark>');
+  }
+
+  async function load(){
+    $('list').innerHTML = '<div class="empty">Loading sessions…</div>';
+    try{
+      var r = await fetch('/.netlify/functions/tech-call-review', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,limit:40})});
+      var d = await r.json();
+      if(!d.ok){ $('list').innerHTML = '<div class="empty">'+esc(d.error||'could not load')+'</div>'; return; }
+      CALLS = d.calls||[];
+      render();
+    }catch(e){ $('list').innerHTML = '<div class="empty">load failed — try Refresh</div>'; }
+  }
+
+  function render(){
+    var rows = CALLS.filter(function(c){ return filter==='all' || (c.flags&&c.flags.length); });
+    if(!rows.length){ $('list').innerHTML = '<div class="empty">'+(CALLS.length?'No flagged sessions — nice.':'No tech voice sessions found yet.')+'</div>'; return; }
+    $('list').innerHTML = rows.map(function(c){
+      var flagged = c.flags&&c.flags.length;
+      var dur = c.duration_s!=null ? (Math.floor(c.duration_s/60)+'m '+(c.duration_s%60)+'s') : '—';
+      return '<div class="card'+(flagged?' flagged':'')+'" data-id="'+esc(c.id)+'">'
+        + '<div class="meta"><span>🕒 '+esc(c.started_ct||'')+'</span><span>⏱ '+dur+'</span>'
+        + (c.phone?'<span>📞 '+esc(c.phone)+'</span>':'')
+        + (c.ended_reason?'<span>· '+esc(c.ended_reason)+'</span>':'')+'</div>'
+        + (flagged?'<div class="flags">'+c.flags.map(function(f){return '<span class="flag">⚠️ '+esc(f)+'</span>';}).join('')+'</div>':'')
+        + (c.summary?'<div class="summary">'+esc(c.summary)+'</div>':'')
+        + (c.transcript?'<span class="toggle" data-t="'+esc(c.id)+'">▸ Read transcript</span><div class="tx">'+hl(c.transcript)+'</div>':'<div class="summary" style="color:var(--muted)">(no transcript captured)</div>')
+        + '</div>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('.toggle'), function(el){
+      el.onclick = function(){ var card = el.closest('.card'); card.classList.toggle('open'); el.textContent = card.classList.contains('open')?'▾ Hide transcript':'▸ Read transcript'; };
+    });
+  }
+
+  $('go').onclick = async function(){
+    PW = $('pw').value;
+    $('gerr').textContent = '';
+    try{
+      var r = await fetch('/.netlify/functions/tech-call-review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,limit:1})});
+      var d = await r.json();
+      if(!d.ok){ $('gerr').textContent = d.error==='unauthorized'?'Wrong password.':(d.error||'error'); return; }
+      $('gate').style.display='none'; $('app').style.display='block'; load();
+    }catch(e){ $('gerr').textContent='connection error'; }
+  };
+  $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') $('go').click(); });
+  $('refresh').onclick = load;
+  $('fAll').onclick = function(){ filter='all'; $('fAll').classList.add('on'); $('fFlag').classList.remove('on'); render(); };
+  $('fFlag').onclick = function(){ filter='flag'; $('fFlag').classList.add('on'); $('fAll').classList.remove('on'); render(); };
+</script>
+</body>
+</html>
