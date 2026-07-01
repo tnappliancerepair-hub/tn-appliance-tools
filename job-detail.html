@@ -86,14 +86,33 @@
   .header .refresh-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .header .refresh-btn.spinning { animation: spin 0.7s linear infinite; }
 
+  .action-wrap { background: #131720; border-bottom: 1px solid #2a3040; }
+  .action-toggle {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    color: #8a93aa;
+    padding: 9px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    -webkit-appearance: none;
+  }
+  .action-toggle:active { background: rgba(255,255,255,0.03); }
+  .action-caret { transition: transform 0.18s; font-size: 11px; }
+  .action-wrap.open .action-caret { transform: rotate(180deg); }
   .action-bar {
-    background: #131720;
-    border-bottom: 1px solid #2a3040;
-    padding: 8px 12px;
+    padding: 0 12px 10px;
     display: none;
     gap: 6px;
     flex-wrap: wrap;
   }
+  .action-wrap.open .action-bar { display: flex; }
   .action-bar.show { display: flex; }
   .action-bar button, .action-bar a {
     flex: 1 1 calc(33.33% - 4px);
@@ -469,7 +488,12 @@
   <button class="refresh-btn" id="refresh-btn" onclick="loadJob()" title="Refresh" aria-label="Refresh">↻</button>
 </div>
 
-<div class="action-bar" id="action-bar"></div>
+<div class="action-wrap" id="action-wrap">
+  <button class="action-toggle" id="action-toggle" onclick="toggleActions()" aria-expanded="false">
+    <span>⚡ Actions</span><span class="action-caret" id="action-caret">▾</span>
+  </button>
+  <div class="action-bar" id="action-bar"></div>
+</div>
 
 <div class="content" id="content">
   <div class="loading">
@@ -782,8 +806,8 @@ function render() {
 
   const sections = [];
   sections.push(buildJobHead(job, cust));
+  sections.push(buildCustomerSection(cust));   // customer info first — never buried
   sections.push(buildEditPill());
-  sections.push(buildCustomerSection(cust));
   sections.push(buildApplianceSection(appliance));
   sections.push(buildWarrantySection(job));
   sections.push(buildTechSection(tech, job));
@@ -854,7 +878,30 @@ function renderActionBar(job, cust, tech) {
     buttons.push('<button class="danger" onclick="openCancel()">🚫 Cancel Job</button>');
   }
   bar.innerHTML = buttons.join('');
-  bar.classList.add('show');
+  // Actions collapse behind the ⚡ toggle so the customer's info is visible first.
+  // Remember the operator's choice; default collapsed.
+  const wrap = document.getElementById('action-wrap');
+  const tog = document.getElementById('action-toggle');
+  if (wrap && tog) {
+    const open = localStorage.getItem('jd_actions_open') === '1';
+    wrap.classList.toggle('open', open);
+    tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+    tog.querySelector('span').textContent = open ? '⚡ Actions' : `⚡ Actions (${buttons.length})`;
+  }
+}
+
+function toggleActions() {
+  const wrap = document.getElementById('action-wrap');
+  const tog = document.getElementById('action-toggle');
+  if (!wrap) return;
+  const open = !wrap.classList.contains('open');
+  wrap.classList.toggle('open', open);
+  localStorage.setItem('jd_actions_open', open ? '1' : '0');
+  if (tog) {
+    tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const label = tog.querySelector('span');
+    if (label) label.textContent = open ? '⚡ Actions' : label.textContent;
+  }
 }
 
 // ── Office-only action modals ─────────────────────────────────────
