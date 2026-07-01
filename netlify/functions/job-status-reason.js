@@ -98,8 +98,8 @@ exports.handler = async function (event) {
     const d = await jfetch(`${XANO}/lookup_customer_by_phone?phone=${phone}`);
     if (d && d.found) { cust = d.customer; job = (d.jobs && d.jobs[0]) || d.job || null; tech = d.tech; }
   } else if (jobId) {
-    const d = await jfetch(`${XANO}/get_job_for_dashboard?job_id=${jobId}`);
-    job = (d && (d.job || d)) || null; cust = d && d.customer; tech = d && d.tech;
+    const d = await jfetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }) });
+    job = (d && d.job) || null; cust = d && d.customer; tech = d && d.tech;
   }
 
   if (!job) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, found: false, reason: "I don't see that one in our system yet — it may be a brand-new dispatch we haven't received. I can take the details and have someone confirm." }) };
