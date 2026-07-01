@@ -84,6 +84,28 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Human handoff: there is NO live transfer / no live rep right now. If a caller
+  // asks for a person, don't imply a transfer — say so cleanly and take a message.
+  if (action === 'human_handoff') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- HUMAN-HANDOFF -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## NO LIVE TRANSFER — TAKE A MESSAGE (highest priority; overrides any "transfer" instruction)\n`
+      + `There is NO live human representative and NO live call transfer available right now. If a caller asks to speak to a person, a representative, a manager, or "a human," do NOT try to transfer and do NOT imply someone is about to pick up. Say it warmly and simply, like: "I'm sorry, we don't have anyone available for a live transfer right now — but I can take care of this for you. Just tell me what you need and I'll record it and get it straight to our office, and someone will reach back out to you as soon as they can." Then capture their name, number, and exactly what they need with capture_callback so the office follows up. Keep it clean and reassuring — never leave them waiting on a transfer that will not happen.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Date guard: never read back a scheduled date that has already passed as if
   // it is upcoming (Ant told a customer "you're scheduled for June 24" a week
   // after June 24). Idempotent, prepended to Ant Inbound.
