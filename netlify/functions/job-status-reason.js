@@ -110,7 +110,13 @@ exports.handler = async function (event) {
   // on parts) — a customer checking in must NEVER hear "your job is canceled."
   const _st0 = String((job.current_status || job.scheduling_status || '')).toLowerCase();
   if (/cancel/.test(_st0)) {
-    const claimNo = job.claim_number || claim;
+    let claimNo = job.claim_number || claim;
+    // Dedup duplicates often don't carry the claim on their own row — pull it
+    // from the event stream so we can still find the active sibling.
+    if (!claimNo && (job.id || jobId)) {
+      const es = await jfetch(`${XANO}/get_job_event_stream?job_id=${job.id || jobId}`);
+      claimNo = (es && es.current_state && es.current_state.job && es.current_state.job.claim_number) || '';
+    }
     if (claimNo) {
       const cl = await jfetch(`${XANO}/lookup_by_claim_number`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claim_or_dispatch_number: claimNo }) });
       const active = ((cl && cl.matches) || []).find((m) => !/cancel|complete|no_fix/i.test(String(m.current_status || m.scheduling_status || '')));
