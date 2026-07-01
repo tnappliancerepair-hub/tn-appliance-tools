@@ -261,6 +261,14 @@ query get_office_calendar_week verb=GET {
             customer_phone     : $u_phone
             customer_preference_text  : ($u.customer_preference_text ?? "")
             customer_availability_grid: ($u.customer_availability_grid ?? "")
+            // Vendor pre-scheduled slot info so the board can show what the
+            // customer already agreed to (SquareTrade/ServicePower). scheduled_start
+            // = the agreed time; service_eta_window / notes_internal "Schedule
+            // Period:" = the requested window; vendor_locked = a real locked slot.
+            scheduled_start    : ($u.scheduled_start ?? null)
+            service_eta_window : ($u.service_eta_window ?? "")
+            vendor_locked      : ($u.vendor_locked ?? false)
+            notes_internal     : ($u.notes_internal ?? "")
           }
         }
 

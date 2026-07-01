@@ -1178,12 +1178,33 @@ function __initCalendar() {
       // time window is the #1 scheduling variable. Splits AVAIL/UNAVAIL markers,
       // flags vendor-locked (SquareTrade/ServicePower) jobs as pre-scheduled, and
       // shows a muted "gather at intake" prompt when we have nothing yet.
-      const isLocked = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
+      const isVendor = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
+      // What time the vendor/customer already agreed to (so we know what they
+      // expect). Prefer the vendor's stated window, then any service window, then
+      // the parsed scheduled_start. Empty when nothing was captured.
+      const vendorExpect = (() => {
+        const notesInt = (j.notes_internal || '');
+        const pM = notesInt.match(/Schedule Period:\s*([^\n]*)/i);
+        const dM = notesInt.match(/Schedule Date:\s*([^\n]*)/i);
+        const win = ((pM && pM[1]) || '').trim() || (j.service_eta_window || '').trim();
+        const sMs = Number(j.scheduled_start || 0);
+        if (win && sMs > 0) return `${fmtDayShort(sMs)} · ${escapeHtml(win)}`;
+        if (win) return escapeHtml(win);
+        if (dM && dM[1].trim()) return escapeHtml(dM[1].trim());
+        if (sMs > 0) return `${fmtDayShort(sMs)}${fmtTime(sMs) ? ' · ' + fmtTime(sMs) : ''}`;
+        return '';
+      })();
+      // "locked" = a real vendor slot exists (agreed time captured). A vendor job
+      // with NO agreed time isn't locked — it still needs scheduling.
+      const isLocked = isVendor && !!vendorExpect;
       let hasAvail = false;
       const constraintLine = (() => {
         const pref = (j.customer_preference_text || '').trim();
         const base = 'font-size:12px;font-weight:700;margin-top:3px;padding:4px 7px;border-radius:6px;line-height:1.4';
-        if (isLocked) return `<div style="${base};background:rgba(91,155,213,0.16);color:#9db8e0">📌 vendor pre-scheduled — locked slot</div>`;
+        // Vendor pre-scheduled: show the exact time the customer expects.
+        if (isVendor && vendorExpect) return `<div style="${base};background:rgba(91,155,213,0.22);color:#c3d8f7">📅 Customer expects: ${vendorExpect}</div>`;
+        // Vendor job with no captured time — be honest, it needs scheduling.
+        if (isVendor) return `<div style="${base};background:rgba(138,150,168,0.12);color:#9aa6b6">🏢 ${escapeHtml(j.warranty_company || 'warranty')} — no appt time on file · needs scheduling</div>`;
         const bits = [];
         if (pref) {
           const a = pref.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
@@ -1226,7 +1247,7 @@ function __initCalendar() {
       // sooner it schedules. Stops propagation so it doesn't open the modal.
       const custPhone = String(j.customer_phone || '').replace(/\D/g, '');
       const custFirst = (j.customer_first_name || '').trim();
-      const intakeBtn = (!hasAvail && !isLocked)
+      const intakeBtn = (!hasAvail && !isVendor)
         ? `<button class="send-intake" data-jobid="${j.id}" data-phone="${custPhone}" data-first="${escapeHtml(custFirst)}" data-appl="${escapeHtml(appl)}" title="Text the customer a 2-minute intake link now"
              style="margin-top:6px;font:700 12px/1 system-ui;padding:6px 10px;border-radius:7px;border:1px solid rgba(232,116,59,0.55);background:rgba(232,116,59,0.14);color:#f0a074;cursor:pointer">📲 Text intake link</button>`
         : '';
