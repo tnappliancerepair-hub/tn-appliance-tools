@@ -35,9 +35,15 @@ async function jget(url, ms = 9000) { const r = await fetch(url, { signal: Abort
 async function jpost(url, body, ms = 9000) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) }); return r.json().catch(() => ({})); }
 function ok(b) { return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
 
-exports.handler = async function () {
+function maskPhone(p) { const d = String(p || '').replace(/\D/g, ''); return d.length >= 4 ? '•••' + d.slice(-4) : d; }
+
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
+  const dryrun = q.dryrun === '1' || q.dryrun === 'true';
+  const onlyJob = q.only_job ? String(q.only_job).replace(/\D/g, '') : '';
+  const force = q.force === '1' || q.force === 'true';   // bypass quiet hours for a test
   const h = ctHour();
-  if (h < 8 || h >= 20) return ok({ status: 'skipped_quiet_hours', ct_hour: h });
+  if (!force && !dryrun && (h < 8 || h >= 20)) return ok({ status: 'skipped_quiet_hours', ct_hour: h });
 
   let items = [];
   try {
@@ -60,8 +66,24 @@ exports.handler = async function () {
       if (created && (Date.now() - created) > MAX_AGE_MS) return false;
     }
     const hasAvail = !!((j.customer_preference_text || '').trim() || (j.customer_availability_grid || '').trim());
-    return !hasAvail;
+    if (hasAvail) return false;
+    if (onlyJob && String(j.id || j.job_id) !== onlyJob) return false; // target one job for a test
+    return true;
   });
+
+  // Dry run: show exactly who WOULD be texted + a message preview. No sends, no
+  // dedup markers written. Safe to hit anytime to verify the logic.
+  if (dryrun) {
+    return ok({
+      status: 'dryrun', ct_hour: h, total_needs_scheduled: items.length, candidates: cands.length,
+      would_text: cands.slice(0, 10).map((j) => {
+        const id = j.id || j.job_id;
+        const cust = first(j.customer_first);
+        const appl = (j.appliance || 'appliance');
+        return { job_id: id, to: maskPhone(j.customer_phone || j.phone), first: cust, appliance: appl, portal: `${SITE}/customer-portal.html?job_id=${id}&last4=`, message_preview: `Hi ${cust} — TN Appliance Exchange 🐜. Two quick things to get your ${appl} fixed fast: 1) send a short video + model sticker photo  2) reply with the days that work…` };
+      }),
+    });
+  }
 
   let sent = 0, skipped_dupe = 0, failed = 0;
   const done = [];
