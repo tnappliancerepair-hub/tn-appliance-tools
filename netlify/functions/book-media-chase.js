@@ -56,6 +56,8 @@ exports.handler = async function (event) {
     let hasAvail = false;
     try { const av = await crud.searchPage(EVENT_LOG, { action: 'availability_captured_' + jobId }, { id: 'desc' }, 1); hasAvail = !!(av && av.length); } catch (_) {}
     if (hasMedia && hasAvail) { skipped.push({ job: jobId, why: 'has availability + media' }); continue; }
+    // Shared intake cap: never let a job's total intake/outreach texts exceed 2.
+    try { if (await require('./_lib/intake-cap').overCap(jobId)) { skipped.push({ job: jobId, why: 'intake cap (2) reached' }); continue; } } catch (_) {}
     const phone = e164(m.phone); if (!phone) { skipped.push({ job: jobId, why: 'no phone' }); continue; }
     const first = m.first_name || 'there';
     const apl = m.appliance ? (' ' + String(m.appliance).toLowerCase()) : ' appliance';
@@ -74,6 +76,7 @@ exports.handler = async function (event) {
     if (dry) { sent.push({ job: jobId, want, preview: msg.slice(0, 90) }); continue; }
     // claim BEFORE sending (so a double-run can't double-text), then send
     try { await crud.logEvent('book_media_chase_sent', { job_id: jobId, phone: m.phone || '', want, at_ms: Date.now() }); } catch (_) {}
+    try { await require('./_lib/intake-cap').mark(jobId, 'book_media_chase'); } catch (_) {}
     chasedJobs.add(jobId);
     try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: phone, message: msg, customer_first_name: first, context_tag: 'book_media_chase' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
     sent.push({ job: jobId });

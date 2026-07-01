@@ -158,7 +158,8 @@ export async function toCustomer(phone, body, context = {}) {
   // guards this, so this is belt-and-suspenders for the outreach path only.
   const OUTREACH_ACTIONS = ['new_job_greeting', 'availability_nudge', 'availability_request', 'resume_nudge'];
   const _act = String((context && (context.action || context.outcome)) || '');
-  if (config.customerOutreachSinceMs > 0 && context && context.job_id && OUTREACH_ACTIONS.includes(_act)) {
+  const _isOutreach = context && context.job_id && OUTREACH_ACTIONS.includes(_act);
+  if (config.customerOutreachSinceMs > 0 && _isOutreach) {
     try {
       const jd = await xano.getJobForDashboard(Number(context.job_id));
       const c = jd && jd.job && jd.job.created_at;
@@ -169,9 +170,33 @@ export async function toCustomer(phone, body, context = {}) {
       }
     } catch (_) { /* lookup failed → fall through (greeting dedup + job_created guard still protect) */ }
   }
-  return dispatchSms(e164, body, {
+  // 2026-07-01 per Teddy: "limit the intake text to just twice. We can't spam
+  // them." Hard cap of 2 intake/outreach texts per job, shared across every
+  // sender (loop + Netlify) via the 'intake_outreach_sent' event_log marker.
+  if (_isOutreach) {
+    const CAP = Number(process.env.INTAKE_OUTREACH_CAP || 2);
+    try {
+      const rows = await xano.getEventLogByAction('intake_outreach_sent');
+      const items = (rows && (rows.items || rows)) || [];
+      const jid = Number(context.job_id);
+      const count = (Array.isArray(items) ? items : []).filter((r) => {
+        let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+        return Number((m || {}).job_id) === jid;
+      }).length;
+      if (count >= CAP) {
+        xano.logLocal('intake_outreach_capped', { job_id: jid, action: _act, count });
+        return { success: false, intake_capped: true, job_id: jid, count };
+      }
+    } catch (_) { /* fail-open on read error — per-agent dedup still guards */ }
+  }
+  const res = await dispatchSms(e164, body, {
     ...context, recipient_role: 'customer', company_id: config.companyId,
   });
+  // Count a successful outreach send toward the shared cap.
+  if (_isOutreach && res && res.success !== false) {
+    try { await xano.recordEventLog('intake_outreach_sent', { job_id: Number(context.job_id), via: _act, at_ms: Date.now() }); } catch (_) {}
+  }
+  return res;
 }
 
 // 2026-06-04: HARDLINE per Teddy after Jimmy reported 30 texts/day

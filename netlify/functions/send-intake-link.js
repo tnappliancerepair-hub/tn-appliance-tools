@@ -78,6 +78,9 @@ exports.handler = async function (event) {
       metadata_json: JSON.stringify({ job_id: jobId, source: 'office_calendar_button', at_ms: Date.now() }),
     }, 8000);
   } catch (_) {}
+  // Count this toward the shared intake-outreach cap (2/job) so the auto senders
+  // (loop greeting/availability/nudge) back off after this manual send.
+  try { await require('./_lib/intake-cap').mark(jobId, 'office_intake_link'); } catch (_) {}
 
   return json(200, { ok: true, sent: true, to_last4: last4, job_id: jobId });
 };
