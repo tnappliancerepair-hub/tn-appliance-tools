@@ -90,6 +90,15 @@ exports.handler = async function (event) {
         const prev = await latestProfile(techId);
         const merged = mergeProfile(prev, buildProfile(a));
         const truthy = (v, fb) => ('' + v).toLowerCase() === 'true' || ('' + v).toLowerCase() === 'yes' ? true : (v === false || ('' + v).toLowerCase() === 'no' ? false : fb);
+        // The model reliably fires save_tech_profile but often with EMPTY args
+        // ("{}") — a known Vapi/LLM tool-use miss on big optional schemas. Do NOT
+        // write a blank row: it clutters the log and makes get-tech-profile show
+        // an empty profile. The transcript sweep (tech-interview-transcript, */5)
+        // is the reliable populator — it reads the finished call and extracts the
+        // full profile. So skip empty saves and let the sweep do its job.
+        const hasContent = Object.values(merged).some((v) => !isEmpty(v))
+          || ('wants_more_work' in a) || ('wants_area_pings' in a);
+        if (!hasContent) { result = "Got it — keep going. I'll build your full profile from our conversation."; results.push({ toolCallId: c.id, result }); continue; }
         await crud.logEvent('tech_profile_v1', {
           technician_id: techId,
           name: a.name || a.tech_first_name || (prev && prev.name) || vars.tech_first_name || vars.name || '',
