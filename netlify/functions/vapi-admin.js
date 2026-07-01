@@ -939,7 +939,23 @@ ${END}`;
       const props = (fn.parameters && fn.parameters.properties) || {};
       return { name: fn.name || t.name, url: (t.server && t.server.url) || '', param_count: Object.keys(props).length, params: Object.keys(props), required: (fn.parameters && fn.parameters.required) || [] };
     });
-    return { statusCode: 200, body: JSON.stringify({ ok: true, assistant: got.json.name, maxDurationSeconds: got.json.maxDurationSeconds, tool_count: tools.length, tools: dump }, null, 2) };
+    const a2 = got.json || {};
+    const v = a2.voice || {};
+    const tr = a2.transcriber || {};
+    const cfg = {
+      backgroundSound: a2.backgroundSound,
+      voice: { provider: v.provider, voiceId: v.voiceId, model: v.model, speed: v.speed },
+      transcriber: { provider: tr.provider, model: tr.model, language: tr.language, endpointing: tr.endpointing },
+      model: (a2.model || {}).model,
+      responseDelaySeconds: a2.responseDelaySeconds,
+      llmRequestDelaySeconds: a2.llmRequestDelaySeconds,
+      numWordsToInterruptAssistant: a2.numWordsToInterruptAssistant,
+      startSpeakingPlan: a2.startSpeakingPlan,
+      stopSpeakingPlan: a2.stopSpeakingPlan,
+      silenceTimeoutSeconds: a2.silenceTimeoutSeconds,
+      tool_fillers: tools.map((t) => ({ name: (t.function && t.function.name) || t.name, request_start: (Array.isArray(t.messages) ? (t.messages.find((m) => m.type === 'request-start') || {}).content : undefined) })),
+    };
+    return { statusCode: 200, body: JSON.stringify({ ok: true, assistant: a2.name, maxDurationSeconds: a2.maxDurationSeconds, tool_count: tools.length, config: cfg, tools: dump }, null, 2) };
   }
 
   if (action === 'apply') {
