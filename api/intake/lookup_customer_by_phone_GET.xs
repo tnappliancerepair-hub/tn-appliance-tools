@@ -210,6 +210,72 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
+    // ALSO return the customer's most recent jobs regardless of status (incl.
+    // canceled / completed), so when there is no OPEN job Ant can still say
+    // "I see your Frigidaire fridge job from last week that shows canceled"
+    // instead of asking the homeowner for a work-order number they do not have.
+    db.query jobs {
+      where = $db.jobs.customer_id == $customer.id
+      sort = {jobs.created_at: "desc"}
+      return = {type: "list", paging: {page: 1, per_page: 5}}
+    } as $recent_jobs_q
+
+    var $recent_jobs_out {
+      value = []
+    }
+
+    foreach ($recent_jobs_q.items) {
+      each as $rj {
+        var $rj_tech_first {
+          value = ""
+        }
+
+        conditional {
+          if ($rj.technician_id != null && $rj.technician_id > 0) {
+            db.get technicians {
+              field_name = "id"
+              field_value = $rj.technician_id
+            } as $rj_tech_row
+
+            var.update $rj_tech_first {
+              value = (($rj_tech_row.first_name ?? "")|trim)
+            }
+          }
+        }
+
+        var $rj_scheduled_ct {
+          value = ""
+        }
+
+        conditional {
+          if ($rj.scheduled_start != null && $rj.scheduled_start > 0) {
+            var.update $rj_scheduled_ct {
+              value = $rj.scheduled_start|transform_timestamp:"-5 hours"|format_timestamp:"D M j, g:i A"
+            }
+          }
+        }
+
+        var $rj_row {
+          value = {
+            id                  : $rj.id
+            appliance_type      : (($rj.appliance_type ?? "")|trim)
+            brand               : (($rj.brand ?? "")|trim)
+            scheduling_status   : (($rj.scheduling_status ?? "")|trim)
+            scheduled_start_ct  : $rj_scheduled_ct
+            tech_first_name     : $rj_tech_first
+            parts_status        : (($rj.parts_status ?? "")|trim)
+            warranty_company    : (($rj.warranty_company ?? "")|trim)
+            claim_number        : (($rj.claim_number ?? "")|trim)
+            problem_summary     : (($rj.problem_summary ?? "")|trim)
+          }
+        }
+
+        var.update $recent_jobs_out {
+          value = $recent_jobs_out|push:$rj_row
+        }
+      }
+    }
+
     // last_call_summary - pre-call context engine. Pull the most
     // recent phone_call_summary event_log row matching this customer
     // by substring search on the metadata JSON. Ant uses this to
@@ -264,6 +330,7 @@ query lookup_customer_by_phone verb=GET {
     customer          : $customer
     technician        : $internal_tech
     open_jobs         : $open_jobs_out
+    recent_jobs       : $recent_jobs_out
     last_call_summary : $last_call_text
     last_call_at_ms   : $last_call_ms
   }

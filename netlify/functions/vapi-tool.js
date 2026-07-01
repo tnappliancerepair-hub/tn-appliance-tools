@@ -115,6 +115,7 @@ function shapeResult(name, data) {
       hint: data.hint || '',
       customer_first_name: c.first_name || '',
       open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(stripInternal) : [],
+      recent_jobs: Array.isArray(data.recent_jobs) ? data.recent_jobs.map(stripInternal) : [],
       last_call_summary: data.last_call_summary || '',
     };
   }
