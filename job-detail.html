@@ -837,6 +837,7 @@ function render() {
   }
 
   document.getElementById('content').innerHTML = sections.join('');
+  maybeDuplicateBanner(job);
 
   // Auto-open the edit modal if URL has ?edit=1 (from email intake "Fill in info" button)
   if (new URLSearchParams(location.search).get('edit') === '1' && typeof openEditJobModal === 'function') {
@@ -1160,6 +1161,35 @@ const KNOWN_STATUSES = [
   'awaiting_parts', 'parts_ordered', 'broadcasting', 'pending_auth',
   'submitted', 'ready', 'pending', 'closed', 'prediagnosis_pending'
 ];
+
+// A canceled job is usually a deduped DUPLICATE, not a real cancellation. Resolve
+// to the customer's ACTIVE job on the same claim and show a banner with its REAL
+// status + a link — so nobody reads "canceled" as the customer's actual state.
+async function maybeDuplicateBanner(job) {
+  const st = String((job && (job.scheduling_status || job.current_status)) || '').toLowerCase();
+  if (!/cancel/.test(st)) return;
+  const claim = (job && job.claim_number) || '';
+  if (!claim) return;
+  let active = null;
+  try {
+    const cl = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/lookup_by_claim_number', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ claim_or_dispatch_number: claim }),
+    }).then(r => r.json());
+    active = ((cl && cl.matches) || []).find(m => String(m.id) !== String(job.id) && !/cancel|complete|no_fix/i.test(String(m.scheduling_status || m.current_status || '')));
+  } catch (_) {}
+  if (!active) return;
+  const stt = String(active.scheduling_status || active.current_status || 'active').replace(/_/g, ' ');
+  const content = document.getElementById('content');
+  if (!content) return;
+  const banner = document.createElement('div');
+  banner.className = 'section';
+  banner.style.cssText = 'border:2px solid #4a9eff;background:rgba(74,158,255,0.10);margin-bottom:10px';
+  banner.innerHTML = `<div style="font-size:14px;font-weight:800;color:#4a9eff;margin-bottom:4px">🔁 Duplicate — the active job is #${active.id}</div>
+    <div style="font-size:13px;color:#cbd5e0;margin-bottom:8px">This canceled record is just a duplicate. The customer's real job is <b>${escapeHtml(stt)}</b> on #${active.id} — check on that one, not this.</div>
+    <a href="/job-detail.html?job_id=${active.id}" style="display:inline-block;background:#4a9eff;color:#fff;padding:9px 16px;border-radius:8px;font-weight:800;text-decoration:none">Open the active job #${active.id} →</a>`;
+  content.insertBefore(banner, content.firstChild);
+}
 
 function buildJobHead(job, cust) {
   const status = job.scheduling_status || job.current_status || 'default';

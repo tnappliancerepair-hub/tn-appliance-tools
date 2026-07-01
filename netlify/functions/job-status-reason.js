@@ -104,6 +104,20 @@ exports.handler = async function (event) {
 
   if (!job) return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, found: false, reason: "I don't see that one in our system yet — it may be a brand-new dispatch we haven't received. I can take the details and have someone confirm." }) };
 
+  // DUPLICATE → REAL JOB (Teddy 2026-07-01): dedup marks duplicate jobs
+  // "canceled." If the job we landed on is canceled, resolve to the customer's
+  // ACTIVE job on the same claim and report ITS real status (scheduled / waiting
+  // on parts) — a customer checking in must NEVER hear "your job is canceled."
+  const _st0 = String((job.current_status || job.scheduling_status || '')).toLowerCase();
+  if (/cancel/.test(_st0)) {
+    const claimNo = job.claim_number || claim;
+    if (claimNo) {
+      const cl = await jfetch(`${XANO}/lookup_by_claim_number`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claim_or_dispatch_number: claimNo }) });
+      const active = ((cl && cl.matches) || []).find((m) => !/cancel|complete|no_fix/i.test(String(m.current_status || m.scheduling_status || '')));
+      if (active) { job = active; if (cl && cl.tech) tech = cl.tech; if (cl && cl.customer && !cust) cust = cl.customer; }
+    }
+  }
+
   const youVoice = String(q.voice || '').toLowerCase() === 'customer';
   const { headline, reason } = compose(job, tech, cust, youVoice);
 
