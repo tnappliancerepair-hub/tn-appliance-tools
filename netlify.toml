@@ -234,10 +234,11 @@
 # jobs skipped. A runtime CT-hour guard inside the function backs up the cron.
 # RE-ENABLED 2026-07-01 (Teddy: "any job that needs a day+time should be sent a
 # text link for availability"). Dedup is hardened (fail-closed + claim-before-
-# send → one text, a second only after 4h no reply, then never). Forward-only:
-# the function skips jobs older than INTAKE_COLLECTOR_MAX_AGE_DAYS (default 14)
-# so it never blasts the stale backlog. Quiet-hours 8am-8pm CT, 15/run, vendor
-# jobs skipped. Runs hourly 9am-6pm CT.
+# send → one text, a second only after 4h no reply, then never). Covers ANY
+# unscheduled job incl. the backlog (age cap is opt-in via
+# INTAKE_COLLECTOR_MAX_AGE_DAYS, off by default); the 15/run limit + one-text
+# dedup drain it steadily, not in a burst. Quiet-hours 8am-8pm CT, vendor jobs
+# skipped. Runs hourly 9am-6pm CT.
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
