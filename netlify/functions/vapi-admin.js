@@ -200,6 +200,59 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, voice_rules_applied: applied, fillers_softened: fillersFixed, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Fix the tech-interview assistant "pausing a lot" (Jimmy, 7/1: she pauses,
+  // he has to bring her back). Causes found: nova-3/"multi" transcriber (slow
+  // endpointing), no latency/interrupt tuning, no filler on save_tech_profile
+  // (dead air during saves), and long monologues. This makes her snappy + short.
+  // ?action=smooth_interview[&id=<assistant>]  (defaults to Ant — Tech Setup)
+  if (action === 'smooth_interview') {
+    const id = String(q.id || 'ec2be4b8-c1c4-4c68-a7ea-d44f7d63a3e6').trim();
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load assistant', status: got.status }) };
+    const a2 = got.json || {};
+    const model = a2.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- SMOOTH-INTERVIEW -->';
+    let promptChanged = false;
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## 🎙️ KEEP IT SNAPPY — HIGHEST PRIORITY (live phone call; overrides anything below about read-backs or walkthroughs)\n`
+        + `1. SHORT turns. One or two sentences, then STOP and let him talk. Ask ONE thing at a time. Long turns leave dead air and make it feel like the call froze.\n`
+        + `2. NO long monologues. Do NOT recite the whole capabilities list or a full profile read-back in one breath. If you recap, keep it to a quick line ("So — 8 to 6, off weekends, Murfreesboro-to-Antioch, that right?"), not a paragraph.\n`
+        + `3. NEVER go silent. If you need a moment to save or think, SAY a quick "one sec" and keep it moving — dead air makes him think you glitched and start talking to get you back.\n`
+        + `4. When you save, say something short like "locking that in" out loud, then continue — never a silent pause.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      promptChanged = true;
+    }
+    // Add a spoken filler to the save tool so saves aren't dead air.
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    let toolFixed = 0;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'function') return t;
+      const nm = (t.function && t.function.name) || t.name;
+      if (nm !== 'save_tech_profile') return t;
+      const hasStart = Array.isArray(t.messages) && t.messages.some((m) => m.type === 'request-start');
+      if (hasStart) return t;
+      toolFixed++;
+      return Object.assign({}, t, { messages: [{ type: 'request-start', content: 'One sec — locking that in.' }] });
+    });
+    const patch = {
+      model: Object.assign({}, model, { messages: msgs, tools: newTools }),
+      transcriber: { provider: 'deepgram', model: 'nova-2-phonecall', language: 'en-US' },
+      responseDelaySeconds: 0.2,
+      numWordsToInterruptAssistant: 2,
+      startSpeakingPlan: { waitSeconds: 0.3 },
+    };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, patch);
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vj = verify.json || {};
+    const sysNow = ((vj.model || {}).messages || []).find((m) => m.role === 'system');
+    const promptApplied = String((sysNow && sysNow.content) || '').includes(MARK);
+    const trNow = vj.transcriber || {};
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && promptApplied, assistant: a2.name, prompt_applied: promptApplied, save_filler_added: toolFixed, transcriber_now: { model: trNow.model, language: trNow.language }, responseDelaySeconds: vj.responseDelaySeconds, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Second voice pass on Ant Inbound, from real call review (Marcel, 7/1):
   //  (a) "Let me check" was firing over and over — the per-tool request-start
   //      filler plays once PER tool call, so chained lookups stacked it 3-5x
