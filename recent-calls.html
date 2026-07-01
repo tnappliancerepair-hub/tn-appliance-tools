@@ -97,6 +97,21 @@
 </div>
 </div>
 
+<!-- Text compose: sends through the office (Telnyx), so it works on desktop.
+     A device sms: link opens Chrome on a laptop and never sends. -->
+<div id="textModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;padding:20px">
+  <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:420px;width:100%">
+    <div style="font-size:16px;font-weight:800;margin-bottom:2px">📱 Text customer</div>
+    <div id="textTo" style="font-family:var(--mono);color:var(--info);font-size:13px;margin-bottom:12px"></div>
+    <textarea id="textBody" placeholder="Type your message…" style="width:100%;min-height:96px;padding:11px;background:#0e1118;border:1px solid var(--line);border-radius:8px;color:var(--text);font-size:14px;font-family:inherit;resize:vertical"></textarea>
+    <div id="textErr" style="color:var(--danger);font-size:12px;min-height:15px;margin-top:6px"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="closeTextCompose()" style="flex:1;padding:11px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-weight:700;cursor:pointer">Cancel</button>
+      <button id="textSend" onclick="sendText()" style="flex:2;padding:11px;background:var(--accent);border:0;border-radius:8px;color:#062;font-weight:800;cursor:pointer">Send text</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
@@ -256,7 +271,7 @@ function paintList() {
           ${m.recording_url ? `<a href="${m.recording_url}" target="_blank" class="transcript-toggle" style="text-decoration:none;background:rgba(180,140,255,0.10);border-color:rgba(180,140,255,0.4);color:#b48cff">🔊 Listen</a>` : ''}
           ${m.transcript_preview ? `<button class="transcript-toggle" onclick="toggleTranscript('${transcriptId}')">📜 Transcript</button>` : ''}
           ${callerJsSafe ? `<a href="tel:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ca7ff;border-color:rgba(76,167,255,0.4)">📞 Call back</a>` : ''}
-          ${callerJsSafe ? `<a href="sms:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ad991;border-color:rgba(74,217,145,0.4)">📱 Text</a>` : ''}
+          ${callerJsSafe ? `<button class="transcript-toggle" onclick="openTextCompose('${callerJsSafe}')" style="color:#4ad991;border-color:rgba(74,217,145,0.4)">📱 Text</button>` : ''}
           ${customerId ? `<a href="/customer-search.html?q=${callerEnc}" class="transcript-toggle" style="text-decoration:none">👤 Customer</a>` : ''}
           ${jobId ? `<a href="/job-detail.html?job_id=${jobId}" class="transcript-toggle" style="text-decoration:none">🧾 Job #${jobId}</a>` : ''}
           ${!c._isReviewed ? `<button class="transcript-toggle" data-mark-reviewed="${m.vapi_call_id || ''}" style="background:rgba(74,217,145,0.10);border-color:rgba(74,217,145,0.4);color:#4ad991">✓ Mark reviewed</button>` : ''}
@@ -312,6 +327,36 @@ function toggleTranscript(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
+let _textTarget = '';
+function openTextCompose(phone) {
+  _textTarget = phone || '';
+  document.getElementById('textTo').textContent = 'To: ' + _textTarget;
+  document.getElementById('textBody').value = '';
+  document.getElementById('textErr').textContent = '';
+  const m = document.getElementById('textModal');
+  m.style.display = 'flex';
+  setTimeout(() => document.getElementById('textBody').focus(), 50);
+}
+function closeTextCompose() { document.getElementById('textModal').style.display = 'none'; }
+async function sendText() {
+  const body = document.getElementById('textBody').value.trim();
+  const err = document.getElementById('textErr');
+  if (!body) { err.textContent = 'Type a message first.'; return; }
+  if (!_textTarget) { err.textContent = 'No number.'; return; }
+  const btn = document.getElementById('textSend');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await fetch('/.netlify/functions/message-reply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: _textTarget, message: body })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!d.ok && !d.sent) throw new Error(d.error || 'send failed');
+    closeTextCompose();
+  } catch (e) { err.textContent = String(e.message || 'failed'); }
+  finally { btn.disabled = false; btn.textContent = 'Send text'; }
+}
+document.getElementById('textModal').addEventListener('click', (e) => { if (e.target.id === 'textModal') closeTextCompose(); });
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
