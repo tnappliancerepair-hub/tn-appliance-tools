@@ -79,6 +79,12 @@
 [functions."parts-vendor-gmail-poller"]
   schedule = "*/30 * * * *"
 
+# MeisterTask sync — drop a NEEDS SCHEDULED card (TN/LA) into Danielle's board for
+# each new job, every 10 min. Forward-only + idempotent so it never dupes or
+# floods the backlog.
+[functions."meistertask-sync"]
+  schedule = "*/10 * * * *"
+
 # Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
 # warranty-email intake outages are caught SAME-DAY (not when the office runs
 # short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or

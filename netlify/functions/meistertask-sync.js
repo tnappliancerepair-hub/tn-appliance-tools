@@ -85,9 +85,11 @@ async function run({ dryrun }) {
     for (const r of rows) { const m = metaOf(r); if (m.job_id != null) carded.add(Number(m.job_id)); }
   } catch (_) {}
 
+  const hasInfo = (it) => !!((it.customer_first || it.customer_last || '').trim() || (it.appliance || '').trim() || (it.service_address || '').trim());
   const fresh = items
     .filter((it) => Number(it.created_at || 0) >= cutoff)
     .filter((it) => !carded.has(Number(it.id)))
+    .filter(hasInfo)  // skip truly-empty shells (no name/appliance/address)
     .sort((a, b) => Number(a.created_at) - Number(b.created_at));
 
   const todo = fresh.slice(0, CAP);
