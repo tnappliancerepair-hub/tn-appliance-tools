@@ -29,22 +29,29 @@ exports.handler = async function (event) {
   const jobId = Number(b.job_id || b.jobId || 0);
   if (!jobId) return json(200, { ok: false, reason: 'missing job_id' });
 
-  // Pull the job from the needs-scheduled list (carries customer phone / first /
-  // appliance — the same source the auto-collector reads).
-  let job = null;
-  try {
-    const d = await jget(`${XANO}/list_needs_scheduled_parallel?limit=1000`, 14000);
-    const items = d.items || d.jobs || d.rows || (Array.isArray(d) ? d : []);
-    job = items.find((j) => Number(j.id || j.job_id) === jobId) || null;
-  } catch (e) { return json(200, { ok: false, reason: 'could not load job' }); }
-  if (!job) return json(200, { ok: false, reason: 'job not in the scheduling queue' });
+  // Fast path: the office-calendar board already has the customer phone / first /
+  // appliance, so it passes them straight through (no heavy list fetch). Only if
+  // they're missing do we fall back to loading the needs-scheduled list.
+  let phoneRaw = String(b.phone || '').replace(/\D/g, '');
+  let cust = first(b.first);
+  let appl = String(b.appliance || '').toLowerCase();
 
-  const phoneRaw = String(job.customer_phone || job.phone || job.customer_cell || '').replace(/\D/g, '');
+  if (phoneRaw.length < 10) {
+    try {
+      const d = await jget(`${XANO}/list_needs_scheduled_parallel?limit=1000`, 20000);
+      const items = d.items || d.jobs || d.rows || (Array.isArray(d) ? d : []);
+      const job = items.find((j) => Number(j.id || j.job_id) === jobId) || null;
+      if (job) {
+        phoneRaw = String(job.customer_phone || job.phone || job.customer_cell || '').replace(/\D/g, '');
+        cust = first(job.customer_first || job.customer_first_name);
+        appl = String(job.appliance || job.appliance_type || appl).toLowerCase();
+      }
+    } catch (_) { return json(200, { ok: false, reason: 'could not load job — try again' }); }
+  }
+
   if (phoneRaw.length < 10) return json(200, { ok: false, reason: 'no phone on file — add one first' });
   const last4 = phoneRaw.slice(-4);
-
-  const cust = first(job.customer_first || job.customer_first_name);
-  const appl = String(job.appliance || job.appliance_type || 'appliance').toLowerCase();
+  if (!appl) appl = 'appliance';
   const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
   const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} scheduled fast. It takes about 2 minutes — just 3 easy steps:\n\n` +
     `1) Tap your link: ${portal}\n` +

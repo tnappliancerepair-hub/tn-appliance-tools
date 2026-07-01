@@ -1213,8 +1213,10 @@ function __initCalendar() {
       // Immediate-intake action: no availability + not vendor-locked = text the
       // customer a guided intake link this second. The sooner the intake, the
       // sooner it schedules. Stops propagation so it doesn't open the modal.
+      const custPhone = String(j.customer_phone || '').replace(/\D/g, '');
+      const custFirst = (j.customer_first_name || '').trim();
       const intakeBtn = (!hasAvail && !isLocked)
-        ? `<button class="send-intake" data-jobid="${j.id}" title="Text the customer a 2-minute intake link now"
+        ? `<button class="send-intake" data-jobid="${j.id}" data-phone="${custPhone}" data-first="${escapeHtml(custFirst)}" data-appl="${escapeHtml(appl)}" title="Text the customer a 2-minute intake link now"
              style="margin-top:6px;font:700 12px/1 system-ui;padding:6px 10px;border-radius:7px;border:1px solid rgba(232,116,59,0.55);background:rgba(232,116,59,0.14);color:#f0a074;cursor:pointer">📲 Text intake link</button>`
         : '';
       return `
@@ -1360,10 +1362,22 @@ function __initCalendar() {
   const SUGG_OK  = 'font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.5);background:rgba(76,201,192,0.11);color:#7fd8d0';
   const SUGG_AMB = 'font-size:12.5px;font-weight:700;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(255,180,84,0.5);background:rgba(255,180,84,0.12);color:#ffce8a';
   const SUGG_MUT = 'font-size:12px;font-weight:600;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;background:rgba(138,150,168,0.1);color:#8a96a8';
+  // Fast fallback: at least the AREA TECH from check_service_zone (one quick
+  // read) when the full day-suggestion is slow/unavailable — so a tech name
+  // ALWAYS shows on the tile.
+  async function areaTechFallback(zip) {
+    try {
+      const r = await fetch(`${XANO_BASE}/check_service_zone?zip_code=${encodeURIComponent(zip)}`, { signal: AbortSignal.timeout(8000) });
+      const z = await r.json();
+      if (z && z.suggested_tech_name) return { html: `🔧 <strong>${escapeHtml(z.suggested_tech_name)}</strong>'s area${z.cluster ? ' · ' + escapeHtml(z.cluster) : ''} — tap to place`, style: SUGG_AMB };
+      if (z && z.covered === false) return { html: '⚠️ area not mapped — pick a tech', style: SUGG_AMB };
+    } catch (_) {}
+    return null;
+  }
   async function hydrateSuggestions() {
     const nodes = Array.from(document.querySelectorAll('.ant-suggest[data-jobid]:not([data-done])'));
     if (!nodes.length) return;
-    const BATCH = 4; // gentle on Xano — suggest-schedule fans out a few reads per job
+    const BATCH = 3; // gentle on Xano — suggest-schedule fans out a few reads per job
     for (let i = 0; i < nodes.length; i += BATCH) {
       await Promise.all(nodes.slice(i, i + BATCH).map(async (n) => {
         const jobId = n.dataset.jobid;
@@ -1373,7 +1387,7 @@ function __initCalendar() {
         if (!zip || zip.length < 5) { const s = { html: '🔧 add a zip to route this', style: SUGG_MUT }; SUGG_CACHE[jobId] = s; paintSuggest(n, s); return; }
         try {
           const qs = new URLSearchParams({ service_zip: zip, job_id: jobId, appliance_type: n.dataset.appl || '', brand: n.dataset.brand || '' });
-          const r = await fetch(`/.netlify/functions/suggest-schedule?${qs.toString()}`, { signal: AbortSignal.timeout(13000) });
+          const r = await fetch(`/.netlify/functions/suggest-schedule?${qs.toString()}`, { signal: AbortSignal.timeout(20000) });
           const d = await r.json();
           const sug = d && d.suggestion;
           let s;
@@ -1382,12 +1396,15 @@ function __initCalendar() {
           } else if (sug && sug.suggested_tech_name) {
             s = { html: `🔧 <strong>${escapeHtml(sug.suggested_tech_name)}</strong>'s area — ${escapeHtml(d.reason || 'pick a day')}`, style: SUGG_AMB };
           } else {
-            s = { html: `⚠️ ${escapeHtml((d && d.reason) || 'area not mapped — pick a tech')}`, style: SUGG_AMB };
+            // suggest-schedule couldn't route a day — still show the area tech.
+            s = (await areaTechFallback(zip)) || { html: `⚠️ ${escapeHtml((d && d.reason) || 'area not mapped — pick a tech')}`, style: SUGG_AMB };
           }
           SUGG_CACHE[jobId] = s; paintSuggest(n, s);
         } catch (_) {
-          const s = { html: '🔧 tap to place manually', style: SUGG_MUT };
-          paintSuggest(n, s); // don't cache errors — allow a retry on next render
+          // day-suggestion timed out — fall back to the fast area-tech lookup so a
+          // tech name still shows (don't cache, so a later render can get the full pick).
+          const s = (await areaTechFallback(zip)) || { html: '🔧 tap to place manually', style: SUGG_MUT };
+          paintSuggest(n, s);
         }
       }));
     }
@@ -1400,8 +1417,8 @@ function __initCalendar() {
     try {
       const r = await fetch('/.netlify/functions/send-intake-link', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId }),
-        signal: AbortSignal.timeout(15000),
+        body: JSON.stringify({ job_id: jobId, phone: btn.dataset.phone || '', first: btn.dataset.first || '', appliance: btn.dataset.appl || '' }),
+        signal: AbortSignal.timeout(20000),
       });
       const d = await r.json().catch(() => ({}));
       if (d && d.ok && d.sent) {
