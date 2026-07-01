@@ -62,6 +62,32 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Inject the appliance-boundary rule into a tech diagnostic assistant's system
+  // prompt (idempotent). Default = Ant Field Assist. Belt-and-suspenders for the
+  // "Ant told the washer it has a compressor" fix — enforced at the assistant
+  // level too, not only inside the diagnose_appliance tool.
+  if (action === 'guard_appliance') {
+    const id = String(q.assistant_id || 'a22edcd1-495a-4d77-a66a-fb167997c70a').trim();
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load assistant', status: got.status, detail: got.json }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message on this assistant' }) };
+    const MARK = '<!-- APPLIANCE-GUARD -->';
+    if (String(msgs[si].content || '').includes(MARK)) {
+      return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    }
+    const BLOCK = `\n\n${MARK}\n## STAY IN BOUNDS — fit the appliance you're on (hard rule)\n`
+      + `Everything you tell the tech must fit the appliance in front of him. A washer, dryer, dishwasher, oven/range, or microwave has NO compressor, refrigerant, sealed system, condenser, or evaporator — NEVER name those unless the unit is a refrigerator, freezer, or ice maker. If a diagnostic tool or a past job comes back about a DIFFERENT appliance, ignore it — never put a wrong-appliance part on the job. Telling a tech his washer has a compressor instantly kills his trust. If the symptom is unclear, ask ONE quick question instead of guessing.\n${MARK}`;
+    msgs[si].content = String(msgs[si].content || '') + BLOCK;
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const nowHas = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && nowHas, assistant: got.json.name, applied: nowHas, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'env') {
     return { statusCode: 200, body: JSON.stringify({
       ok: true,
