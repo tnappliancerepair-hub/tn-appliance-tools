@@ -18,7 +18,12 @@ exports.handler = async function (event) {
   const token = await ads.accessToken(c);
   const cid = (await getSecret('GOOGLE_ADS_CONV_CID')) || '9267688121';
   const url = `https://googleads.googleapis.com/${c.version}/customers/${cid}/campaigns:mutate`;
-  const body = JSON.stringify({ operations: [{ update: { resourceName: `customers/${cid}/campaigns/${id}`, status }, updateMask: 'status' }] });
+  const resourceName = `customers/${cid}/campaigns/${id}`;
+  // Deleting uses a `remove` operation (resourceName string); ON/OFF uses `update`.
+  const op = status === 'REMOVED'
+    ? { remove: resourceName }
+    : { update: { resourceName, status }, updateMask: 'status' };
+  const body = JSON.stringify({ operations: [op] });
   let r, d;
   try { r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c, cid), body }); d = await r.json().catch(() => ({})); }
   catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
