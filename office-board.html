@@ -642,7 +642,7 @@ async function openDrawer(id){
   document.getElementById('d-sub').textContent='';
   document.getElementById('d-body').innerHTML='<div class="loading"><div class="spinner"></div>Loading job file…</div>';
   try{
-    const r=await fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10)})});
+    const r=await fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),include_events:1})});
     const d=await r.json();
     if(!d.success)throw new Error(d.error||'not found');
     renderDrawer(d);
@@ -763,6 +763,14 @@ function renderDrawer(d){
       .then(r=>r.json()).then(d2=>{ if(d2&&d2.found&&d2.reason){ sTx.textContent=d2.reason; sEl.style.display='block'; } }).catch(()=>{});
   })();
   const techNote=(tdrs.filter(x=>x.technician_notes).map(x=>x.technician_notes).pop())||tdr.technician_notes||'';
+  // Office notes = office-authored notes (part ETAs, warranty-co updates, etc.),
+  // separate from tech notes. Stored in the DB as event_log 'office_note' rows so
+  // they persist + can be surfaced to Ant on a customer call.
+  const officeNotes=(d.recent_events||[]).map(function(e){
+    if(!e||e.action!=='office_note')return null; let m=e.metadata;
+    if(typeof m==='string'){try{m=JSON.parse(m);}catch(_){m={};}}
+    return {text:(m&&m.text)||'',by:(m&&m.by)||'office',at:Number((m&&m.at_ms)||e.created_at||0)};
+  }).filter(function(x){return x&&x.text;}).sort(function(a,b){return b.at-a.at;});
   const addr=[c.address,c.city,c.state,c.zip].filter(Boolean).join(', ');
 
   // checklist (auto-derived from job state)
@@ -927,6 +935,14 @@ function renderDrawer(d){
     <div class="dcard">
       <h4>📝 Tech notes</h4>
       <div class="notes-box ${techNote?'':'muted'}">${techNote?esc(techNote):'No tech notes yet — they flow here automatically once the tech writes them.'}</div>
+    </div>
+
+    <div class="dcard">
+      <h4>🏢 Office notes</h4>
+      <div style="font-size:12px;color:var(--ink2);margin:-2px 0 8px">Office-side notes (part ETAs, warranty-co updates). Saved to the job so anyone — and Ant on a call — sees the latest. Keep tech notes for the field.</div>
+      ${officeNotes.length?officeNotes.map(function(n){return '<div class="notes-box" style="margin-bottom:6px"><div style="font-size:11px;color:var(--ink2);margin-bottom:3px">'+esc(fmtWhen(n.at))+' · '+esc(n.by)+'</div>'+esc(n.text)+'</div>';}).join(''):'<div class="notes-box muted">No office notes yet.</div>'}
+      <textarea id="office-note-input" placeholder="e.g. Frontdoor: part ordered on eBay, 5–7 days ETA (per CSC Leah 7/1)" style="width:100%;min-height:64px;margin-top:8px;padding:10px;border:1px solid var(--line,#2a3040);border-radius:8px;background:var(--bg2,#0e1118);color:var(--ink,#e8edf5);font-family:inherit;font-size:14px;resize:vertical"></textarea>
+      <button onclick="saveOfficeNote(${jid})" style="width:100%;margin-top:6px;padding:11px;border:0;border-radius:9px;background:var(--ok,#39d98a);color:#062;font-weight:800;font-size:14px;cursor:pointer">＋ Add office note</button>
     </div>
 
     <div class="dcard" id="pay-card">
@@ -1473,6 +1489,21 @@ async function fulfillAddon(jobId,key,name,techCut){
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtWhen(ms){ if(!ms)return ''; try{ return new Date(Number(ms)).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' CT'; }catch(_){return '';} }
+// Office note: office-authored, DB-persisted, timestamped. Saved via the shared
+// save-office-note fn (writes the event_log 'office_note' row AND stamps the job
+// so Ant can read the latest note to a caller). Then reload the drawer.
+async function saveOfficeNote(jid){
+  const ta=document.getElementById('office-note-input'); if(!ta)return;
+  const text=(ta.value||'').trim(); if(!text){ ta.focus(); return; }
+  const btn=ta.nextElementSibling; if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  try{
+    const r=await fetch('/.netlify/functions/save-office-note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),text:text,by:'office'})});
+    const d=await r.json().catch(()=>({}));
+    if(!d.ok&&!d.success)throw new Error(d.error||'save failed');
+    ta.value=''; toast('Office note saved ✓'); openDrawer(parseInt(jid,10));
+  }catch(e){ if(btn){ btn.disabled=false; btn.textContent='＋ Add office note'; } toast('⚠ '+(e.message||'save failed')); }
+}
 // One-tap "confirm the add-on with the customer" — prewritten, leak-kit-aware.
 // Danielle opens the job, clicks once, previews the text, and it sends.
 async function textCustomerAddon(jid){

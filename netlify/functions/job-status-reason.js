@@ -83,9 +83,32 @@ exports.handler = async function (event) {
 
   const youVoice = String(q.voice || '').toLowerCase() === 'customer';
   const { headline, reason } = compose(job, tech, cust, youVoice);
+
+  // Latest OFFICE NOTE (Danielle's manual update — part ETAs, warranty-co news).
+  // It's the freshest human truth, so append it so Ant relays it to the caller:
+  // "…the part's expected 5-7 days, per the office note from Jul 1."
+  let officeNote = null;
+  const jid = Number(job.id || jobId) || 0;
+  if (jid) {
+    const el = await jfetch(`${XANO}/get_event_log_by_action?action=office_note`);
+    const rows = (el && (el.items || el)) || [];
+    const mine = (Array.isArray(rows) ? rows : []).map((r) => {
+      let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      return { text: (m && m.text) || '', jid: Number((m && m.job_id) || 0), at: Number((m && m.at_ms) || r.created_at || 0) };
+    }).filter((x) => x.jid === jid && x.text).sort((a, b) => b.at - a.at);
+    if (mine.length) officeNote = mine[0];
+  }
+  let fullReason = reason;
+  if (officeNote) {
+    const when = dayCT(officeNote.at);
+    fullReason = `${reason} Latest office update${when ? ' (' + when + ')' : ''}: ${officeNote.text}`;
+  }
+
   return { statusCode: 200, headers: CORS, body: JSON.stringify({
     ok: true, found: true,
-    headline, reason,
+    headline, reason: fullReason,
+    office_note: officeNote ? officeNote.text : '',
+    office_note_at: officeNote ? officeNote.at : 0,
     customer: cust ? `${(cust.first_name || '').trim()} ${(cust.last_name || '').trim()}`.trim() : '',
     appliance: [job.brand, job.appliance_type].filter(Boolean).join(' '),
     status: job.current_status || job.scheduling_status || '',
