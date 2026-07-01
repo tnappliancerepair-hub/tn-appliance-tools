@@ -244,10 +244,14 @@ function paintList() {
       if (!callId) return;
       btn.disabled = true; btn.textContent = '…';
       try {
-        await fetch(`${XANO_BASE}/mark_call_reviewed`, {
+        // Netlify path — the XanoScript mark_call_reviewed throws a parse error,
+        // so writing the marker directly is the reliable path.
+        const r = await fetch('/.netlify/functions/mark-call-reviewed', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vapi_call_id: callId, reviewed_by: 'office' })
         });
+        const d = await r.json().catch(() => ({}));
+        if (!d.success) throw new Error(d.error || 'failed');
         loadCalls();
       } catch (e) { btn.disabled = false; btn.textContent = '✓ Mark reviewed'; }
     });
