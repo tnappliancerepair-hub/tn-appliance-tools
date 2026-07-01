@@ -69,7 +69,9 @@ async function run({ dryrun }) {
   // created in the last N days; going forward every new job gets one.
   const sinceDays = Number(process.env.MEISTERTASK_SYNC_DAYS) > 0 ? Number(process.env.MEISTERTASK_SYNC_DAYS) : 2;
   const cutoff = Date.now() - sinceDays * DAY;
-  const CAP = 25;
+  // Cap per run so we stay inside the function time budget (MeisterTask paces
+  // ~1.1s/call). The 10-min schedule catches up any burst over a few runs.
+  const CAP = Number(process.env.MEISTERTASK_SYNC_CAP) > 0 ? Number(process.env.MEISTERTASK_SYNC_CAP) : 5;
 
   // Candidate jobs (need scheduling) + already-carded markers.
   let items = [];
@@ -116,6 +118,8 @@ async function run({ dryrun }) {
   result.created_count = result.created.filter((c) => !c.error).length;
   return result;
 }
+
+exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
