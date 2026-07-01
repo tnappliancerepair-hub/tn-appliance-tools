@@ -79,16 +79,18 @@
 <div id="app" style="display:none">
 <div class="wrap">
   <h1>📞 Recent Calls</h1>
-  <p class="tag">Every Vapi call — inbound + outbound. Tap any call to see the transcript.</p>
+  <p class="tag">Toggle Customer vs Tech calls. Tap ✕ to clear one once you've read it — cleared calls drop off (find them under 🗂 Cleared).</p>
 
   <div class="filter-bar">
-    <button class="filter-btn" data-filter="needs_review" style="background:rgba(240,180,80,0.15);border-color:rgba(240,180,80,0.45);color:#f0b450">⚠️ Needs review <span class="count" id="cNR">0</span></button>
-    <button class="filter-btn active" data-filter="all">All <span class="count" id="cAll">0</span></button>
-    <button class="filter-btn" data-filter="inbound">Inbound <span class="count" id="cIn">0</span></button>
-    <button class="filter-btn" data-filter="outbound">Outbound <span class="count" id="cOut">0</span></button>
-    <button class="filter-btn" data-filter="voicemail">Voicemail / no answer <span class="count" id="cVm">0</span></button>
-    <button class="filter-btn" data-filter="2">Last 48h <span class="count" id="c2"></span></button>
-    <button class="filter-btn" data-filter="7">Last 7d <span class="count" id="c7"></span></button>
+    <button class="filter-btn active" data-filter="customer" data-group="who" style="background:rgba(74,217,145,0.15);border-color:rgba(74,217,145,0.45);color:#4ad991">👤 Customer calls <span class="count" id="cCust">0</span></button>
+    <button class="filter-btn" data-filter="tech" data-group="who" style="background:rgba(180,140,255,0.12);border-color:rgba(180,140,255,0.4);color:#b48cff">🔧 Tech calls <span class="count" id="cTech">0</span></button>
+    <button class="filter-btn" data-filter="all" data-group="who">All <span class="count" id="cAll">0</span></button>
+    <button class="filter-btn" data-filter="needs_review" data-group="who" style="background:rgba(240,180,80,0.15);border-color:rgba(240,180,80,0.45);color:#f0b450">⚠️ Needs review <span class="count" id="cNR">0</span></button>
+    <button class="filter-btn" data-filter="voicemail" data-group="who">Voicemail / no answer <span class="count" id="cVm">0</span></button>
+    <span style="flex:1"></span>
+    <button class="filter-btn" data-filter="cleared" data-group="who">🗂 Cleared <span class="count" id="cClr">0</span></button>
+    <button class="filter-btn" data-filter="2" data-group="days">48h</button>
+    <button class="filter-btn active" data-filter="7" data-group="days">7d</button>
   </div>
 
   <div id="callsList"><div class="loading">Loading calls…</div></div>
@@ -130,8 +132,18 @@ document.getElementById('authSubmit').addEventListener('click', async () => {
 authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('authSubmit').click(); });
 
 let allCalls = [];
-let currentFilter = 'all';
+let currentFilter = 'customer';
 let currentDays = 7;
+// Crew phone numbers (last-10) — a call to/from one of these is a tech-side
+// Field Assist / TDR call, not a customer call.
+const TECH_PHONES = new Set([
+  '6154855795', // Teddy
+  '6159671304', // Jimmy
+  '6159693115', '5049099413', // Andre (both)
+  '6158291654', // Lee
+  '7315049617', // Billy
+  '8133527686', // John
+]);
 
 async function loadCalls() {
   try {
@@ -160,6 +172,15 @@ async function loadCalls() {
       c._endedReason = String(c._meta.ended_reason || '').toLowerCase();
       c._isVoicemail = c._endedReason.includes('voicemail') || c._endedReason.includes('no-answer') || c._endedReason.includes('silence-timed-out');
       c._isReviewed = reviewed.has(c._meta.vapi_call_id);
+      // Tech-side (Field Assist / TDR) call vs a customer call. Primary signal:
+      // the caller/called number belongs to the crew. Fallback: field-assist
+      // transcript markers (Ant greets a tech, talks labor hours/TDR).
+      const last10 = (p) => String(p || '').replace(/\D/g, '').slice(-10);
+      const cp = last10(c._meta.caller_phone), dp = last10(c._meta.called_phone);
+      const byPhone = TECH_PHONES.has(cp) || TECH_PHONES.has(dp);
+      const tsum = String(c._meta.transcript_preview || c._meta.summary || '').toLowerCase();
+      const byTranscript = /back at it|labor hours|let'?s get it\.? .*talk to me|talk to me\.|this is (anne'?s|ant'?s) assistant\.? (let'?s|yo)/.test(tsum);
+      c._isTech = byPhone || byTranscript;
       // Needs review heuristic: inbound calls that ended in voicemail OR
       // transferCall OR contain complaint keywords AND not yet reviewed.
       const sum = String(c._meta.summary || c._meta.transcript_preview || '').toLowerCase();
@@ -178,20 +199,25 @@ async function loadCalls() {
   }
 }
 function paintCounts() {
-  document.getElementById('cAll').textContent = allCalls.length;
-  document.getElementById('cIn').textContent = allCalls.filter(c => c._isInbound).length;
-  document.getElementById('cOut').textContent = allCalls.filter(c => !c._isInbound).length;
-  document.getElementById('cVm').textContent = allCalls.filter(c => c._isVoicemail).length;
-  document.getElementById('cNR').textContent = allCalls.filter(c => c._needsReview).length;
+  const active = allCalls.filter(c => !c._isReviewed); // not-yet-cleared
+  document.getElementById('cCust').textContent = active.filter(c => !c._isTech).length;
+  document.getElementById('cTech').textContent = active.filter(c => c._isTech).length;
+  document.getElementById('cAll').textContent = active.length;
+  document.getElementById('cVm').textContent = active.filter(c => c._isVoicemail).length;
+  document.getElementById('cNR').textContent = active.filter(c => c._needsReview).length;
+  document.getElementById('cClr').textContent = allCalls.filter(c => c._isReviewed).length;
 }
 function paintList() {
   const filtered = allCalls.filter(c => {
-    if (currentFilter === 'all') return true;
-    if (currentFilter === 'inbound') return c._isInbound;
-    if (currentFilter === 'outbound') return !c._isInbound;
+    // "Cleared" is the only view that shows already-reviewed calls; every other
+    // view hides them so the inbox shrinks as you clear (the × / ✓).
+    if (currentFilter === 'cleared') return c._isReviewed;
+    if (c._isReviewed) return false;
+    if (currentFilter === 'customer') return !c._isTech;
+    if (currentFilter === 'tech') return c._isTech;
     if (currentFilter === 'voicemail') return c._isVoicemail;
     if (currentFilter === 'needs_review') return c._needsReview;
-    return true;
+    return true; // 'all'
   });
   if (filtered.length === 0) {
     document.getElementById('callsList').innerHTML = `<div class="empty">No calls match this filter.</div>`;
@@ -220,7 +246,10 @@ function paintList() {
             ${dirBadge} ${endedBadge} ${reviewBadge}
             <span class="phone">${caller}</span>
           </div>
-          <div class="meta">${tsStr} CT · ${dur}min</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="meta">${tsStr} CT · ${dur}min</div>
+            ${(!c._isReviewed && m.vapi_call_id) ? `<button title="Clear — I've read this" data-clear="${m.vapi_call_id}" style="background:transparent;border:1px solid var(--line);color:var(--muted);width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;padding:0;flex-shrink:0">✕</button>` : ''}
+          </div>
         </div>
         <div class="summary">${escapeHtml(summary)}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center">
@@ -236,6 +265,28 @@ function paintList() {
       </div>
     `;
   }).join('');
+
+  // Wire the × clear buttons — mark reviewed + drop the card immediately.
+  document.querySelectorAll('[data-clear]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const callId = btn.dataset.clear;
+      if (!callId) return;
+      const card = btn.closest('.call-card');
+      if (card) { card.style.opacity = '0.35'; card.style.pointerEvents = 'none'; }
+      try {
+        const r = await fetch('/.netlify/functions/mark-call-reviewed', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vapi_call_id: callId, reviewed_by: 'office' })
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!d.success) throw new Error(d.error || 'failed');
+        // reflect locally so it drops without a full reload flicker
+        const hit = allCalls.find(c => (c._meta || {}).vapi_call_id === callId);
+        if (hit) hit._isReviewed = true;
+        paintCounts(); paintList();
+      } catch (e) { if (card) { card.style.opacity = '1'; card.style.pointerEvents = 'auto'; } }
+    });
+  });
 
   // Wire mark-reviewed buttons
   document.querySelectorAll('[data-mark-reviewed]').forEach(btn => {
@@ -267,14 +318,14 @@ function escapeHtml(s) {
 document.querySelectorAll('.filter-bar .filter-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const f = btn.dataset.filter;
-    if (f === '2' || f === '7') {
+    const group = btn.dataset.group;
+    // set active within this button's group
+    document.querySelectorAll(`.filter-bar .filter-btn[data-group="${group}"]`).forEach(b => b.classList.toggle('active', b === btn));
+    if (group === 'days') {
       currentDays = parseInt(f, 10);
       loadCalls();
     } else {
       currentFilter = f;
-      document.querySelectorAll('.filter-bar .filter-btn').forEach(b => {
-        if (['inbound','outbound','voicemail','all'].includes(b.dataset.filter)) b.classList.toggle('active', b === btn);
-      });
       paintList();
     }
   });
