@@ -238,6 +238,40 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, per_tool_fillers_removed: fillersRemoved, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // From call review (7/1): (a) endCall is OFF, so completed calls linger in
+  // silence until they time out — inflating "silence-timeout" with successful
+  // calls that just never hung up (e.g. Daniel Wang's flawless intake). Enable
+  // endCall + end phrases. (b) Ant still sometimes PROMISES a transfer it can't
+  // do ("let me get you to the office") then dead-airs — there IS no transfer
+  // tool. Ban those phrases; go straight to take-a-message.
+  if (action === 'endcall_notransfer') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- ENDCALL-NOTRANSFER -->';
+    let promptChanged = false;
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## HANG UP WHEN DONE · NO TRANSFERS (highest priority; overrides anything below)\n`
+        + `1. There is NO live transfer and NO transfer tool. NEVER say "let me get you to the office," "let me transfer you," "connecting you," "let me get someone on the line," or anything that implies a handoff — you cannot do it and the caller drops into dead air. If they want a person: immediately take their name + best callback number and log it with capture_callback — "we don't have anyone for a live transfer right now, but give me your name and number and I'll have the office call you right back."\n`
+        + `2. END THE CALL when you're done. Once you've helped them (or logged a callback), give a short goodbye ("have a good day" / "talk to you soon") and HANG UP. Do NOT sit in silence after the goodbye — a lingering call dies on a timeout. If the caller goes quiet mid-call, check in once ("you still there?"); if still nothing, wrap up and end the call.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      promptChanged = true;
+    }
+    const endPhrases = ['have a good day', 'have a great day', 'talk to you soon', 'take care', 'goodbye', 'bye now', 'thanks for calling us'];
+    const patch = { model: Object.assign({}, model, { messages: msgs }), endCallFunctionEnabled: true, endCallPhrases: endPhrases };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, patch);
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vj = verify.json || {};
+    const sysNow = ((vj.model || {}).messages || []).find((m) => m.role === 'system');
+    const promptApplied = String((sysNow && sysNow.content) || '').includes(MARK);
+    const endcallApplied = vj.endCallFunctionEnabled === true && Array.isArray(vj.endCallPhrases) && vj.endCallPhrases.length > 0;
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && promptApplied && endcallApplied, assistant: got.json.name, no_transfer_prompt: promptApplied, endcall_enabled: endcallApplied, end_phrases: vj.endCallPhrases, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Lee's rule: at wrap-up, ask the tech for any parts he brought but didn't
   // need, so the office can return/restock them (warranty returns + inventory).
   // Idempotent, prepended to Ant Field Assist.
