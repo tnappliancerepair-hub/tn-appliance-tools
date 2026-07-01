@@ -920,6 +920,7 @@
     loadInbox();
     setInterval(loadInbox, 45000);
     loadPickup();
+    loadVisitOverrides();
     wireFieldSearch();
   }
 
@@ -1302,7 +1303,28 @@
   }
 
   // ── Render ─────────────────────────────────────────────────────
+  // Visit-type overrides (tech/office marked completion vs diagnosis). Loaded
+  // once; re-renders the day when it lands so the badges reflect human calls.
+  window.VISIT_OVERRIDES = window.VISIT_OVERRIDES || {};
+  var LAST_RENDER = null;
+  async function loadVisitOverrides() {
+    try {
+      var r = await fetch('/.netlify/functions/get-visit-types');
+      var d = await r.json();
+      if (d && d.ok) { window.VISIT_OVERRIDES = d.overrides || {}; if (LAST_RENDER) renderJobs(LAST_RENDER.jobs || []); }
+    } catch (e) {}
+  }
+  async function toggleVisit(jobId, type) {
+    window.VISIT_OVERRIDES[jobId] = type;           // optimistic
+    if (LAST_RENDER) renderJobs(LAST_RENDER.jobs || []);
+    try {
+      await fetch('/.netlify/functions/set-visit-type', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: Number(jobId), type: type, by: 'tech-' + TECH_ID }) });
+    } catch (e) {}
+  }
+
   function render(data) {
+    LAST_RENDER = data;
     // Strip practice placements so techs see ONLY their real scheduled work
     // (the morning links should show the real day, not test/practice jobs).
     if (data && Array.isArray(data.jobs)) {
@@ -1483,9 +1505,12 @@
     // blank vendor defaults to warranty, since ~all jobs are warranty).
     const ctype = (j.customer_type || '').trim().toLowerCase();
     const isCash = ctype === 'self_pay' || ctype === 'cash' || ctype === 'customer_pay';
+    // Name the warranty company on the badge (Jimmy 7/1: "does not say what
+    // warranty"). Fall back to generic "Warranty" only when the vendor is blank.
+    const wc = (j.warranty_company || '').trim();
     const partsTag = isCash
       ? `<div class="status-pill" style="background:rgba(245,166,35,0.16); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">💵 Our parts</div>`
-      : `<div class="status-pill" style="background:rgba(116,160,255,0.16); border:1px solid rgba(116,160,255,0.5); color:#8ab4ff; font-weight:700">🛡️ Warranty</div>`;
+      : `<div class="status-pill" style="background:rgba(116,160,255,0.16); border:1px solid rgba(116,160,255,0.5); color:#8ab4ff; font-weight:700">🛡️ ${wc ? escapeHtml(wc) : 'Warranty'}</div>`;
 
     // Visit type at a glance (Jimmy's ask): is this stop a first-look DIAGNOSIS or
     // a COMPLETION (going back to install/finish, parts involved)? Parts-in-play is
@@ -1500,12 +1525,20 @@
     const fieldDiagnosed = !!(lt && (String(lt.diagnosis || '').trim() || String(lt.failed_component || '').trim()) && Number(lt.technician_id) !== 1);
     const alreadyEngaged = status === 'in_progress' || status === 'awaiting_parts';
     const isCompletion = partsPending || partsReady || fieldDiagnosed || alreadyEngaged;
+    // A tech/office override wins over auto-detection — during the HCP cutover, a
+    // job already diagnosed in HCP comes in as a shell, so Ant can't tell it's a
+    // completion. The tech knows: TAP the badge to switch. (Jimmy 7/1.)
+    const _ov = (window.VISIT_OVERRIDES || {})[j.id];
+    const _isCompl = _ov ? (_ov === 'completion') : isCompletion;
+    const _nextType = _isCompl ? 'diagnosis' : 'completion';
+    const _ovMark = _ov ? ' ✎' : '';
     // Where are the parts (Teddy: "completion — parts at customer, whatever")?
     const partsWhere = isCash ? 'at customer' : (partsReady ? 'ready' : (partsPending ? 'coming' : ''));
     const terminalStatus = ['completed','canceled','cancelled','no_fix_possible'].includes(status);
-    const visitPill = terminalStatus ? '' : (isCompletion
-      ? `<div class="status-pill" style="background:rgba(0,214,143,0.20); border:1px solid rgba(0,214,143,0.6); color:#25e3a4; font-weight:800; letter-spacing:.02em">🔧 COMPLETION${partsWhere ? ` · parts ${partsWhere}` : ''}</div>`
-      : `<div class="status-pill" style="background:rgba(74,245,255,0.16); border:1px solid rgba(74,245,255,0.55); color:#4af5ff; font-weight:800; letter-spacing:.02em">🔍 DIAGNOSIS</div>`);
+    const _vTitle = 'Tap to switch — Completion vs Diagnosis (you know best)';
+    const visitPill = terminalStatus ? '' : (_isCompl
+      ? `<div class="status-pill" onclick="event.stopPropagation();toggleVisit(${j.id},'${_nextType}')" title="${_vTitle}" style="cursor:pointer;background:rgba(0,214,143,0.20); border:1px solid rgba(0,214,143,0.6); color:#25e3a4; font-weight:800; letter-spacing:.02em">🔧 COMPLETION${partsWhere ? ` · parts ${partsWhere}` : ''}${_ovMark}</div>`
+      : `<div class="status-pill" onclick="event.stopPropagation();toggleVisit(${j.id},'${_nextType}')" title="${_vTitle}" style="cursor:pointer;background:rgba(74,245,255,0.16); border:1px solid rgba(74,245,255,0.55); color:#4af5ff; font-weight:800; letter-spacing:.02em">🔍 DIAGNOSIS${_ovMark}</div>`);
 
     const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
