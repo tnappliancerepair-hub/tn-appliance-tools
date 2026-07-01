@@ -18,17 +18,12 @@
     { id: 'messages',  label: '💬 Messages', href: '/office-messages.html',  color: '#5aa9ff' },
     { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
     { id: 'cashleads', label: '💵 Cash Leads', href: '/cash-leads.html', color: '#39d98a' },
-    { id: 'media',     label: '📸 Media',     href: '/media-board.html', color: '#4ca7ff' },
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
-    { id: 'search',    label: '🔍 Search',   href: '/customer-search.html',  color: '#74e3c4' },
-    { id: 'reach',     label: '🟢 Reach Me', href: '/office-reach.html',     color: '#39d98a' },
     { id: 'phone',     label: '📲 Phone',   href: '/office-phone.html',     color: '#5aa9ff' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
     { id: 'templates', label: '💬 Texts',    href: '/office-templates.html',  color: '#ffb86b' },
     { id: 'calls',     label: '📞 Calls',    href: '/recent-calls.html',     color: '#4ca7ff' },
-    { id: 'vacation',  label: '🏖 Status',   href: '/vacation-status.html',  color: '#ff8cbc' },
-    { id: 'dashboard', label: '📊 All Jobs', href: '/office-dashboard.html', color: '#f5a623' },
     { id: 'parts',     label: '📦 Parts $',  href: '/parts-ledger.html',     color: '#5aa9ff' },
   ];
 
