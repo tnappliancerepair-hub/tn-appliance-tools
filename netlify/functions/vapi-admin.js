@@ -171,6 +171,29 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, voice_rules_applied: applied, fillers_softened: fillersFixed, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Lee's rule: at wrap-up, ask the tech for any parts he brought but didn't
+  // need, so the office can return/restock them (warranty returns + inventory).
+  // Idempotent, prepended to Ant Field Assist.
+  if (action === 'unused_parts') {
+    const id = String(q.assistant_id || 'a22edcd1-495a-4d77-a66a-fb167997c70a').trim();
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load assistant', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- UNUSED-PARTS -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## WRAP-UP — ASK FOR PARTS NOT NEEDED (Lee's rule)\n`
+      + `Before you finish the report, ask the tech ONE quick question: "Any parts you brought but didn't end up needing? Give me those part numbers so the office can get them returned or back on the shelf." Capture the part numbers he gives and put them in the report clearly marked as RETURN / not used, so the office processes them — this matters for warranty part returns and inventory. If he says none, move on; don't push.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Tighten Ant Field Assist for VOICE: stop reciting option-lists, stop
   // stalling, keep turns short, get names/numbers right, pull part #s live.
   // Prepends a highest-priority block (idempotent) so it wins over the long
