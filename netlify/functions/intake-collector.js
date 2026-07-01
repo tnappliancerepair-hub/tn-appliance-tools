@@ -19,6 +19,8 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = 15;
 const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with no reply
+// Forward-only: don't blast the stale backlog. Only ask jobs created recently.
+const MAX_AGE_MS = (Number(process.env.INTAKE_COLLECTOR_MAX_AGE_DAYS) || 14) * 86400000;
 
 function ctHour() {
   return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
@@ -48,6 +50,10 @@ exports.handler = async function () {
     if (j.vendor_locked === true || j.vendor_locked === 1 || String(j.vendor_locked).toLowerCase() === 'true') return false;
     const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     if (ph.length < 10) return false;
+    // Forward-only: skip jobs older than the age window so re-enabling this can't
+    // surprise-text the long-standing backlog. New jobs needing a day/time flow.
+    const created = new Date(j.created_at || 0).getTime();
+    if (created && (Date.now() - created) > MAX_AGE_MS) return false;
     const hasAvail = !!((j.customer_preference_text || '').trim() || (j.customer_availability_grid || '').trim());
     return !hasAvail;
   });
