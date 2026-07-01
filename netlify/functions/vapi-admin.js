@@ -62,6 +62,47 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Tighten Ant INBOUND (customer line) for VOICE: kill the repeated "one
+  // moment / let me pull that up" stalls that drive the silence-timeouts, keep
+  // it warm + short, handle "I want a person" without looping, and NEVER babble
+  // when a caller has an accent / speaks another language (the gibberish bug).
+  if (action === 'tighten_inbound') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status, detail: got.json }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- VOICE-DELIVERY-CX -->';
+    let promptChanged = false;
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## 🎙️ VOICE DELIVERY — HIGHEST PRIORITY (live call with a customer; overrides anything below)\n`
+        + `Be warm, quick, and human. Hard rules:\n`
+        + `1. NEVER repeat "one moment" or "let me pull that up." Say a short "let me check" ONCE while you look, then give the answer. Never say the same filler two turns in a row, and never leave dead air — if a lookup runs long, stay with them ("still pulling it up, hang with me one sec").\n`
+        + `2. Keep every turn to a sentence or two. One question at a time. Don't over-explain.\n`
+        + `3. If they ask for a person/representative, DON'T loop them with fillers — connect/transfer per your rules, or immediately offer to take their name + number for a fast callback. Help on the first ask.\n`
+        + `4. LANGUAGE: if the caller has a heavy accent, speaks another language, or you're not sure what they said, SLOW DOWN and keep it simple. NEVER speak nonsense or made-up words. If you didn't understand, say "I want to get this right — can you say that once more?" or offer a callback from someone who can help. Babbling loses the customer.\n`
+        + `5. Read names, claim numbers, and dates back once to confirm — accurately — then move on.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      promptChanged = true;
+    }
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    let fillersFixed = 0;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'function' || !Array.isArray(t.messages)) return t;
+      const msgs2 = t.messages.map((m) => (m.type === 'request-start' ? { type: 'request-start', content: 'Let me check…' } : m));
+      if (JSON.stringify(msgs2) !== JSON.stringify(t.messages)) fillersFixed++;
+      return Object.assign({}, t, { messages: msgs2 });
+    });
+    if (!promptChanged && !fillersFixed) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs, tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, voice_rules_applied: applied, fillers_softened: fillersFixed, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Tighten Ant Field Assist for VOICE: stop reciting option-lists, stop
   // stalling, keep turns short, get names/numbers right, pull part #s live.
   // Prepends a highest-priority block (idempotent) so it wins over the long
