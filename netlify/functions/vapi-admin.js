@@ -917,6 +917,24 @@ ${END}`;
     }, null, 2) };
   }
 
+  // Dump ANY assistant's live tools + their full parameter schemas, so we can
+  // see whether a tool on the live assistant matches the code (e.g. the tech
+  // interview save_tech_profile that saved blank). ?action=tooldump&id=<assistantId>
+  if (action === 'tooldump') {
+    const id = String(q.id || '').trim();
+    if (!id) return { statusCode: 400, body: JSON.stringify({ ok: false, error: '?id=<assistantId> required' }) };
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, status: got.status, error: got.json }) };
+    const m = (got.json && got.json.model) || {};
+    const tools = Array.isArray(m.tools) ? m.tools : [];
+    const dump = tools.map((t) => {
+      const fn = t.function || t;
+      const props = (fn.parameters && fn.parameters.properties) || {};
+      return { name: fn.name || t.name, url: (t.server && t.server.url) || '', param_count: Object.keys(props).length, params: Object.keys(props), required: (fn.parameters && fn.parameters.required) || [] };
+    });
+    return { statusCode: 200, body: JSON.stringify({ ok: true, assistant: got.json.name, maxDurationSeconds: got.json.maxDurationSeconds, tool_count: tools.length, tools: dump }, null, 2) };
+  }
+
   if (action === 'apply') {
     // 1. detach
     await vapi('PATCH', `/assistant/${inbound.id}`, key, { model: Object.assign({}, model, { toolIds: [] }) });
