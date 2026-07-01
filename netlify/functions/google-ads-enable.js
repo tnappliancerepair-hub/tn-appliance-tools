@@ -1,5 +1,5 @@
-// google-ads-enable — turn a campaign ON or OFF (the kill switch + go switch).
-//   GET ?secret=&campaign=<id>&status=ENABLED|PAUSED[&cid=]
+// google-ads-enable — turn a campaign ON or OFF, or REMOVE it (delete).
+//   GET ?secret=&campaign=<id>&status=ENABLED|PAUSED|REMOVED[&cid=]
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const ads = require('./_lib/google-ads');
@@ -10,7 +10,8 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   const id = String(q.campaign || '').replace(/\D/g, '');
-  const status = String(q.status || 'ENABLED').toUpperCase() === 'PAUSED' ? 'PAUSED' : 'ENABLED';
+  const st = String(q.status || 'ENABLED').toUpperCase();
+  const status = (st === 'PAUSED' || st === 'REMOVED') ? st : 'ENABLED';
   if (!id) return json(400, { ok: false, error: 'pass &campaign=<id>' });
 
   const c = await ads.creds();
