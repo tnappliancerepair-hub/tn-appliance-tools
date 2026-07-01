@@ -704,6 +704,11 @@
        Auto-polls every 45s. Tap a message to expand + mark read. -->
   <div id="inboxHost" style="padding:10px 12px 0;display:none"></div>
 
+  <!-- Parts to grab — rolling next-5-days pickup list (storage + Marcone/Tribles
+       will-call) so a guy heading into town/into a distributor grabs everything
+       at once. Populated by loadPickup(). -->
+  <div id="pickupHost" style="padding:10px 12px 0;display:none"></div>
+
   <div id="mapHost"></div>
 
   <div class="summary" id="summary"></div>
@@ -914,7 +919,82 @@
     loadDashboard();
     loadInbox();
     setInterval(loadInbox, 45000);
+    loadPickup();
     wireFieldSearch();
+  }
+
+  // ── Parts to grab (rolling 5-day pickup list) ──────────────────────
+  // Storage parts (vendor-shipped to us, tied to upcoming jobs) + distributor
+  // will-call (Marcone/Tribles). Tech taps "✓ Grabbed" per part so the office
+  // sees what left and he's got a packing list before he heads out.
+  var PICKUP = null;
+  function pkEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  async function loadPickup() {
+    var host = document.getElementById('pickupHost');
+    if (!host) return;
+    try {
+      var r = await fetch(`/.netlify/functions/parts-pickup?tech_id=${encodeURIComponent(TECH_ID)}&days=5`);
+      var d = await r.json();
+      if (!d || !d.ok) { host.style.display = 'none'; return; }
+      PICKUP = d;
+      renderPickup();
+    } catch (e) { host.style.display = 'none'; }
+  }
+  function pickupItem(it) {
+    var done = it.picked_up;
+    var arrival = it.source === 'willcall'
+      ? '<span style="background:rgba(180,140,255,0.14);border:1px solid rgba(180,140,255,0.4);color:#c9a9ff;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">' + pkEsc((it.supplier||'').toUpperCase()) + (it.branch?(' · '+pkEsc(it.branch)):'') + '</span>'
+      : (it.arrival === 'incoming'
+          ? '<span style="background:rgba(240,180,80,0.12);border:1px solid rgba(240,180,80,0.35);color:#f0b450;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">🚚 ' + (it.eta_text?('arrives '+pkEsc(it.eta_text)):'incoming') + '</span>'
+          : '<span style="background:rgba(0,214,143,0.12);border:1px solid rgba(0,214,143,0.35);color:#00d68f;border-radius:6px;padding:1px 7px;font-size:11px;font-weight:800">✅ in storage</span>');
+    var sub = [it.appliance, it.customer, it.city].filter(Boolean).map(pkEsc).join(' · ');
+    var btn = it.arrival === 'incoming' && it.source !== 'willcall'
+      ? '<span style="flex:0 0 auto;color:#7c8aa5;font-size:12px">not in yet</span>'
+      : '<button class="pk-grab" data-key="' + pkEsc(it.key) + '" data-job="' + (it.job_id||'') + '" data-part="' + pkEsc(it.part) + '" data-src="' + pkEsc(it.source) + '" data-done="' + (done?'1':'0') + '" style="flex:0 0 auto;padding:8px 12px;border-radius:9px;font-weight:800;font-size:13px;cursor:pointer;border:1px solid ' + (done?'rgba(0,214,143,0.5);background:rgba(0,214,143,0.16);color:#00d68f':'rgba(74,245,255,0.4);background:rgba(74,245,255,0.12);color:#4af5ff') + '">' + (done?'✓ Grabbed':'Grab it') + '</button>';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #26314a;border-radius:11px;margin-bottom:7px;background:' + (done?'#0d1a14':'#0e1320') + (done?';opacity:.75':'') + '">'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-family:var(--mono);font-weight:800;color:#e8eefc;font-size:15px">' + (pkEsc(it.part) || '<span style=\'color:#7c8aa5\'>(no part #)</span>') + '</span>' + arrival + '</div>'
+      + (sub ? '<div style="color:#9fb0cc;font-size:12.5px;margin-top:3px">' + sub + '</div>' : '')
+      + (it.note ? '<div style="color:#7c8aa5;font-size:12px;margin-top:2px">' + pkEsc(it.note) + '</div>' : '')
+      + '</div>' + btn + '</div>';
+  }
+  function renderPickup() {
+    var host = document.getElementById('pickupHost');
+    var d = PICKUP; if (!d) { host.style.display = 'none'; return; }
+    var groups = d.storage_by_day || [];
+    var wc = d.willcall || [];
+    var c = d.counts || {};
+    if (!groups.length && !wc.length) { host.style.display = 'none'; return; } // nothing to grab — stay quiet
+    var readyN = (c.storage_here || 0) + (c.willcall_total || 0);
+    var head = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'
+      + '<span style="font-size:18px">🧰</span>'
+      + '<span style="font-weight:800;color:#e8eefc;font-size:15px">Parts to grab</span>'
+      + '<span style="color:#7c8aa5;font-size:12px">next 5 days</span>'
+      + (readyN ? '<span style="margin-left:auto;background:rgba(0,214,143,0.14);border:1px solid rgba(0,214,143,0.4);color:#00d68f;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:800">' + readyN + ' ready</span>' : '')
+      + '</div>';
+    var body = '';
+    groups.forEach(function (g) {
+      body += '<div style="color:#8fa0b8;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin:8px 2px 6px">' + pkEsc(g.day_label) + '</div>';
+      body += g.items.map(pickupItem).join('');
+    });
+    if (wc.length) {
+      body += '<div style="color:#8fa0b8;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin:10px 2px 6px">🔧 Will-call — grab on your next distributor run</div>';
+      body += wc.map(pickupItem).join('');
+    }
+    host.innerHTML = '<div style="background:#111826;border:1px solid #26314a;border-radius:14px;padding:13px 13px 9px">' + head + body + '</div>';
+    host.style.display = 'block';
+    Array.prototype.forEach.call(host.querySelectorAll('.pk-grab'), function (b) {
+      b.addEventListener('click', function () { grabPart(b); });
+    });
+  }
+  async function grabPart(btn) {
+    var done = btn.dataset.done === '1';
+    btn.disabled = true; var prev = btn.textContent; btn.textContent = '…';
+    try {
+      await fetch('/.netlify/functions/parts-pickup', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tech_id: parseInt(TECH_ID, 10), key: btn.dataset.key, job_id: btn.dataset.job ? parseInt(btn.dataset.job, 10) : null, part: btn.dataset.part, source: btn.dataset.src, action: done ? 'undo' : 'pickup' }) });
+      loadPickup(); // recompute
+    } catch (e) { btn.disabled = false; btn.textContent = prev; }
   }
 
   // ── Field search ───────────────────────────────────────────────

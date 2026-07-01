@@ -71,14 +71,22 @@ async function buildList(techId, days) {
   }
   const inWindowJobIds = new Set(Object.keys(stopByJob).map(Number));
 
-  // 2. Pull recent supplied-parts + will-call + already-picked-up events.
-  const [supplied, willCall, pickedUpRows] = await Promise.all([
+  // 2. Pull recent supplied-parts + will-call + pickup/undo events.
+  const [supplied, willCall, pickedUpRows, undoRows] = await Promise.all([
     rows('warranty_part_supplied', 400),
     rows('part_pickup_ready', 400),
     rows('part_picked_up', 400),
+    rows('part_pickup_undo', 200),
   ]);
-  const pickedUp = new Set();
-  for (const r of pickedUpRows) { const m = metaOf(r); pickedUp.add(keyOf(m.job_id, m.part)); }
+  // Net pickup state per key: newest event (by row id) wins, so an "undo" after a
+  // "grab" un-checks it. Merge both streams and take the first (newest) per key.
+  const merged = []
+    .concat(pickedUpRows.map((r) => ({ id: Number(r.id) || 0, on: true, m: metaOf(r) })))
+    .concat(undoRows.map((r) => ({ id: Number(r.id) || 0, on: false, m: metaOf(r) })))
+    .sort((a, b) => b.id - a.id);
+  const pickState = {};
+  for (const e of merged) { const k = e.m.key || keyOf(e.m.job_id, e.m.part); if (pickState[k] === undefined) pickState[k] = e.on; }
+  const pickedUp = new Set(Object.keys(pickState).filter((k) => pickState[k]));
 
   // 3. STORAGE items: newest supplied row per (job, part) for this tech's in-window jobs.
   const seen = new Set();
