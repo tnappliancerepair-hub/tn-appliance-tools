@@ -15,6 +15,7 @@
 'use strict';
 const { runBrainTurn } = require('./_lib/ant/brain-core');
 const faultCodes = require('./fault-code-lookup');
+const playbook = require('./_lib/ant/playbook-lookup');
 const modelIntel = require('./get-model-intel');
 
 const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -94,6 +95,9 @@ exports.handler = async function (event) {
   ]);
 
   const faultMatch = fcRes.match || null;
+  // Owner-curated playbook (repair-playbook.json) — matched on the customer's own
+  // words. Highest-trust source; the brain is told to LEAD with it when present.
+  const pbMatches = playbook.match({ brand, appliance, symptom }, 3);
   let intel = intelHit ? intelHit.md : null;
 
   // Cache miss + we have a model: pull LIVE off the daemon via the fast tunnel
@@ -114,10 +118,20 @@ exports.handler = async function (event) {
   const recalls = (intel && intel.recalls) || [];
   const bulletins = (intel && intel.bulletins) || [];
 
-  const grounded = !!(faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length);
+  const grounded = !!(pbMatches.length || faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length);
 
   // ── build the grounded context block for Claude ─────────────────────────────
   const ctxParts = [];
+  if (pbMatches.length) {
+    const isCust = role === 'customer';
+    const lines = pbMatches.map((m) => {
+      const e = m.entry; const sym = m.matched.join(' / ');
+      if (isCust) return `- "${sym}" is usually ${e.likely_cause}. What the tech does: ${e.fix}`;
+      const flags = [e.easy ? 'easy/affordable' : '', e.smarthq ? 'GE SmartHQ readable' : ''].filter(Boolean).join(', ');
+      return `- ${e.brand} ${e.appliance}${e.config ? ' (' + e.config + ')' : ''} — "${sym}": ${e.likely_cause}. Fix: ${e.fix}${flags ? ' [' + flags + ']' : ''}${e.note ? ' NOTE: ' + e.note : ''}`;
+    });
+    ctxParts.push("[playbook] TN Appliance owner's proven fixes for this exact symptom — LEAD WITH THIS, it's our most-trusted source:\n" + lines.join('\n'));
+  }
   if (recalls.length || bulletins.length) {
     const lines = [];
     for (const r of recalls.slice(0, 6)) lines.push('RECALL: ' + (typeof r === 'string' ? r : r.text));
@@ -142,8 +156,9 @@ exports.handler = async function (event) {
   const isCustomer = role === 'customer';
   const systemPrompt = [
     'You are Ant, a grounded appliance-repair diagnostician for TN Appliance Exchange.',
-    'Answer ONLY from the CONTEXT provided (fault-code DB, this shop\'s past jobs, common failures).',
-    'Cite every claim inline with the bracket tag it came from: [fault-code], [common-failures], or [job #N].',
+    'Answer ONLY from the CONTEXT provided (owner playbook, fault-code DB, this shop\'s past jobs, common failures).',
+    'When [playbook] is present, LEAD WITH IT — it is the shop owner\'s proven diagnosis for this exact symptom; trust it above the other sources.',
+    'Cite every claim inline with the bracket tag it came from: [playbook], [fault-code], [common-failures], or [job #N].',
     'If the context is thin or empty, SAY SO plainly and give the best general next diagnostic step — do not fabricate specifics.',
     'NEVER invent a part number. If a part is implicated, name the component and say "confirm exact part via the parts lookup". Real part numbers come from the live Marcone/Amazon lookup + the cited TDRs only.',
     isCustomer
@@ -175,6 +190,7 @@ exports.handler = async function (event) {
 
   // citations the UI can render as chips
   const citations = [];
+  if (pbMatches.length) citations.push({ type: 'playbook', label: 'shop playbook' });
   if (recalls.length) citations.push({ type: 'recall', label: 'recall' });
   if (bulletins.length) citations.push({ type: 'bulletin', label: 'bulletin/TSB' });
   if (faultMatch) citations.push({ type: 'fault-code', label: `${brand} ${faultMatch.code}` });
@@ -187,6 +203,7 @@ exports.handler = async function (event) {
       ok: true,
       grounded,
       answer_md: answer,
+      playbook_matches: pbMatches.map((m) => ({ brand: m.entry.brand, appliance: m.entry.appliance, likely_cause: m.entry.likely_cause, fix: m.entry.fix, easy: !!m.entry.easy, smarthq: !!m.entry.smarthq, matched: m.matched })),
       fault_code: faultMatch,
       recalls,
       bulletins,
