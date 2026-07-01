@@ -71,6 +71,26 @@ async function resolveIds() {
 
 function uniqByIdPush(map, rows) { for (const r of rows) if (r && r.id != null && !map.has(r.id)) map.set(r.id, r); }
 
+// Bounded Levenshtein — for fuzzy name matching against voice mis-transcriptions
+// ("Minge" heard as "Menge", "Cailin" as "Kaylin"). Caps at maxD for speed.
+function lev(a, b, maxD) {
+  a = String(a); b = String(b);
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > maxD) return maxD + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (cur[j] < rowMin) rowMin = cur[j];
+    }
+    if (rowMin > maxD) return maxD + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
 function nameVariants(tok) {
   const lower = tok.toLowerCase();
   const title = lower.charAt(0).toUpperCase() + lower.slice(1);
@@ -142,10 +162,33 @@ async function run(query) {
       recentCustomers(ids.customer),
     ]);
     exactResults.forEach((rows) => uniqByIdPush(map, rows));
-    const toks = tokens.map((t) => t.toLowerCase());
-    for (const c of pool) {
-      const hay = ((c.first_name || '') + ' ' + (c.last_name || '')).toLowerCase();
-      if (toks.length && toks.every((t) => hay.includes(t))) uniqByIdPush(map, [c]);
+    // Scored fuzzy pass — robust to voice mis-hears and one-name-right cases.
+    // Each query token scores its BEST match against the customer's first/last
+    // name AND city words: exact=3, substring=2, fuzzy(edit-distance)=1. Keep a
+    // customer if it has a strong hit OR two soft hits, then rank by score. This
+    // fixes the "couldn't find them by name" misses (e.g. Phil Minge / Nolensville).
+    const toks = tokens.map((t) => t.toLowerCase()).filter((t) => t.length >= 2);
+    if (toks.length) {
+      const scored = [];
+      for (const c of pool) {
+        const words = ((c.first_name || '') + ' ' + (c.last_name || '') + ' ' + (c.city || ''))
+          .toLowerCase().split(/\s+/).filter((w) => w.length >= 2);
+        let score = 0, strong = 0;
+        for (const t of toks) {
+          let best = 0;
+          for (const w of words) {
+            if (w === t) best = Math.max(best, 3);
+            else if (w.includes(t) || t.includes(w)) best = Math.max(best, 2);
+            else if (lev(w, t, t.length >= 5 ? 2 : 1) <= (t.length >= 5 ? 2 : 1)) best = Math.max(best, 1);
+            if (best === 3) break;
+          }
+          score += best;
+          if (best >= 2) strong++;
+        }
+        if (strong >= 1 || score >= 2) scored.push({ c, score });
+      }
+      scored.sort((a, b) => b.score - a.score || (Number(b.c.id) - Number(a.c.id)));
+      for (const s of scored.slice(0, 20)) uniqByIdPush(map, [s.c]);
     }
   }
 
