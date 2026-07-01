@@ -1115,13 +1115,16 @@ async function executeTool(toolName, toolInput, ctx) {
           preview: `Would mark tech ${ti.tech_id} off on ${ti.date}. Reason: ${ti.reason || '(none given)'}. Existing jobs on that day will need reassignment.${gatedNotice} Set dry_run=false (with confidence_pct ≥ 75) to commit.`,
         };
       }
+      // NOTE: tech_set_day_off requires technician_id (int) + off (bool).
+      // Sending tech_id / full_day_off (the old names) makes Xano 400 on the
+      // missing required technician_id — that was Danielle's "HTTP 400" birthday bug.
       const writeRes = await timedFetch(`${XANO_BASE}/tech_set_day_off`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tech_id: ti.tech_id,
+          technician_id: Number(ti.tech_id),
           date: ti.date,
-          full_day_off: true,
+          off: true,
           reason: ti.reason || 'set_via_ant',
         }),
       });
