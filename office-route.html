@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Crew Today · Ant Office</title>
+<meta name="robots" content="noindex,follow">
+<style>
+  :root { --bg:#0b0d10; --card:#161a1f; --line:#2a2f37; --text:#e6e8eb; --muted:#8b919c; --mono:'SF Mono',Menlo,Consolas,monospace;
+    --grey:#8b919c; --blue:#4ca7ff; --amber:#f0b450; --green:#4ad991; --purple:#b48cff; --red:#ef6a6a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif; min-height:100vh; }
+  .wrap { max-width:1500px; margin:0 auto; padding:18px 16px 70px; }
+  .top { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:6px; }
+  h1 { font-size:22px; margin:0; }
+  .clock { font-family:var(--mono); color:var(--muted); font-size:13px; }
+  .upd { font-size:12px; color:var(--muted); }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; margin:12px 0 18px; padding:10px 12px; background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  .legend .item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:14px; }
+  .col { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  .col h2 { font-size:16px; margin:0 0 2px; display:flex; align-items:center; gap:8px; }
+  .col .sub { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .prog { height:6px; background:#0e1118; border-radius:4px; overflow:hidden; margin:6px 0 12px; }
+  .prog > span { display:block; height:100%; background:var(--green); }
+  .stop { border-left:4px solid var(--grey); background:#0e1118; border-radius:8px; padding:9px 11px; margin-bottom:8px; }
+  .stop .r1 { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .stop .who { font-weight:700; font-size:13px; }
+  .stop .stat { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; }
+  .stop .meta { font-size:12px; color:var(--muted); margin-top:2px; }
+  .stop .when { font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:3px; }
+  .stop.notstarted { border-left-color:var(--grey); }
+  .stop.enroute { border-left-color:var(--blue); }   .stop.enroute .stat { color:var(--blue); }
+  .stop.onsite { border-left-color:var(--amber); }    .stop.onsite .stat { color:var(--amber); }
+  .stop.done { border-left-color:var(--green); }       .stop.done .stat { color:var(--green); }
+  .stop.parts { border-left-color:var(--purple); }     .stop.parts .stat { color:var(--purple); }
+  .stop.behind { box-shadow:inset 3px 0 0 var(--red); }
+  .behindtag { color:var(--red); font-weight:800; font-size:10px; margin-left:6px; }
+  .empty { color:var(--muted); font-size:12px; font-style:italic; padding:6px 0; }
+  .loading { color:var(--muted); padding:40px; text-align:center; }
+  a.jl { color:inherit; text-decoration:none; }
+  .auth-gate { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px; }
+  .auth-card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:30px; max-width:340px; width:100%; text-align:center; }
+  .auth-card input { margin-top:14px; width:100%; padding:11px 14px; background:#0e1118; border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:15px; }
+  .auth-card button { margin-top:12px; width:100%; padding:11px; background:var(--blue); border:0; border-radius:8px; color:#fff; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<script src="/office-nav.js?v=20260701-crew"></script>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div style="font-size:32px;margin-bottom:6px">🗺️</div>
+    <div style="font-size:20px;font-weight:700">Crew Today</div>
+    <input id="authInput" type="password" placeholder="Office password" autocomplete="off">
+    <button id="authSubmit">Unlock</button>
+    <div id="authErr" style="color:var(--red);font-size:12px;margin-top:8px;min-height:14px"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+<div class="wrap">
+  <div class="top">
+    <h1>🗺️ Crew Today</h1>
+    <span class="clock" id="clock"></span>
+    <span class="upd" id="upd"></span>
+  </div>
+  <div class="legend">
+    <div class="item"><span class="dot" style="background:var(--grey)"></span>Not started</div>
+    <div class="item"><span class="dot" style="background:var(--blue)"></span>On the way</div>
+    <div class="item"><span class="dot" style="background:var(--amber)"></span>On site / working</div>
+    <div class="item"><span class="dot" style="background:var(--green)"></span>Completed</div>
+    <div class="item"><span class="dot" style="background:var(--purple)"></span>Visited · waiting on parts</div>
+    <div class="item"><span class="dot" style="background:var(--red)"></span>Behind (past window, not started)</div>
+  </div>
+  <div class="cols" id="cols"><div class="loading">Loading the day…</div></div>
+</div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const OFFICE_AUTH_KEY='tn_office_auth_v1';
+const TECHS=[{id:1,name:'Teddy'},{id:2,name:'Jimmy'},{id:3,name:'Andre'},{id:4,name:'Lee'},{id:6,name:'John'}];
+
+// auth
+const authGate=document.getElementById('authGate'),authInput=document.getElementById('authInput'),app=document.getElementById('app');
+async function tryAuth(p){try{const r=await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});const d=await r.json();return d&&d.success===true;}catch(e){return false;}}
+function unlock(){authGate.style.display='none';app.style.display='block';load();}
+const cached=localStorage.getItem(OFFICE_AUTH_KEY);
+if(cached&&Date.now()-parseInt(cached,10)<12*3600*1000)unlock();
+document.getElementById('authSubmit').addEventListener('click',async()=>{if(await tryAuth(authInput.value)){localStorage.setItem(OFFICE_AUTH_KEY,String(Date.now()));unlock();}else document.getElementById('authErr').textContent='Wrong password.';});
+authInput.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('authSubmit').click();});
+
+function todayCT(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
+function isToday(ms){ if(!ms)return false; try{ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/Chicago',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Number(ms)))===todayCT(); }catch(_){return false;} }
+function clockStr(ms){ if(!ms)return ''; try{ return new Date(Number(ms)).toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',hour12:true}).replace(' ',''); }catch(_){return '';} }
+function ago(ms){ if(!ms)return ''; const m=Math.round((Date.now()-Number(ms))/60000); if(m<1)return 'just now'; if(m<60)return m+'m'; const h=Math.floor(m/60); return h+'h'+(m%60)+'m'; }
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',hour12:true})+' CT'; }
+setInterval(tick,1000);tick();
+
+// Derive a stop's state from the freshest lifecycle timestamp + status. Stale
+// completed_at (from a prior visit on another day) is ignored via isToday().
+function stateOf(j){
+  const cs=String(j.current_status||j.scheduling_status||'').toLowerCase();
+  const enr=isToday(j.tech_en_route_at)?Number(j.tech_en_route_at):0;
+  const st=isToday(j.job_started_at)?Number(j.job_started_at):0;
+  const cp=isToday(j.job_completed_at)?Number(j.job_completed_at):0;
+  let state,label,when;
+  if(/complete|done/.test(cs) && !/await|part/.test(cs)){ state='done'; label='Completed'; when=cp?('done '+clockStr(cp)):''; }
+  else if(cp && cp>=st && cp>=enr && !/await|part/.test(cs)){ state='done'; label='Completed'; when='done '+clockStr(cp); }
+  else if(/await|part/.test(cs) && (st||enr||cp)){ state='parts'; label='Waiting parts'; when='visited '+clockStr(cp||st||enr); }
+  else if(st){ state='onsite'; label='On site'; when='arrived '+clockStr(st)+' · '+ago(st); }
+  else if(enr){ state='enroute'; label='On the way'; when='left '+clockStr(enr)+' · '+ago(enr); }
+  else { state='notstarted'; label='Not started'; when=''; }
+  // behind: not started yet and the scheduled window is well past
+  let behind=false;
+  if(state==='notstarted' && j.scheduled_start){ const sched=Number(j.scheduled_start); if(sched && isToday(sched) && (Date.now()-sched)>75*60000) behind=true; }
+  return {state,label,when,behind};
+}
+
+async function techDay(t){
+  try{
+    const r=await fetch(`${XANO}/get_tech_daily_dashboard?tech_id=${t.id}&date=${todayCT()}`,{cache:'no-store'});
+    const d=await r.json();
+    return {t, jobs:(d&&d.jobs)||[]};
+  }catch(e){ return {t, jobs:[], err:true}; }
+}
+
+async function load(){
+  const results=await Promise.all(TECHS.map(techDay));
+  const host=document.getElementById('cols');
+  host.innerHTML=results.map(({t,jobs,err})=>{
+    const stops=jobs.map(jj=>({j:jj.job||jj, c:jj.customer||{}}))
+      .sort((a,b)=>Number(a.j.scheduled_start||0)-Number(b.j.scheduled_start||0));
+    const done=stops.filter(s=>{const st=stateOf(s.j).state;return st==='done';}).length;
+    const pct=stops.length?Math.round(done/stops.length*100):0;
+    const body = err ? '<div class="empty">Couldn\'t load.</div>'
+      : (stops.length? stops.map((s,i)=>{
+          const st=stateOf(s.j);
+          const name=s.c.name||((s.c.first_name||'')+' '+(s.c.last_name||'')).trim()||'Customer';
+          const city=s.c.city||'';
+          const appl=[s.j.brand,s.j.appliance,s.j.appliance_type].filter(Boolean).join(' ')||'appliance';
+          return `<a class="jl" href="/job-detail.html?job_id=${s.j.id}"><div class="stop ${st.state}${st.behind?' behind':''}">
+            <div class="r1"><span class="who">${i+1}. ${esc(name)}${st.behind?'<span class="behindtag">BEHIND</span>':''}</span><span class="stat">${st.label}</span></div>
+            <div class="meta">${esc(appl)}${city?' · '+esc(city):''}</div>
+            ${st.when?`<div class="when">${esc(st.when)}</div>`:''}
+          </div></a>`;
+        }).join('') : '<div class="empty">No stops scheduled today.</div>');
+    return `<div class="col">
+      <h2>${esc(t.name)}</h2>
+      <div class="sub">${stops.length?`${done}/${stops.length} done`:'no stops'}</div>
+      <div class="prog"><span style="width:${pct}%"></span></div>
+      ${body}
+    </div>`;
+  }).join('');
+  document.getElementById('upd').textContent='updated '+new Date().toLocaleTimeString('en-US',{timeZone:'America/Chicago',hour:'numeric',minute:'2-digit',hour12:true});
+}
+setInterval(()=>{ if(app.style.display!=='none') load(); },45000);
+</script>
+</body>
+</html>

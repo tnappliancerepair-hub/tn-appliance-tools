@@ -19,6 +19,7 @@
     { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
     { id: 'cashleads', label: '💵 Cash Leads', href: '/cash-leads.html', color: '#39d98a' },
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
+    { id: 'route',     label: '🗺️ Crew Today', href: '/office-route.html',  color: '#4ad991' },
     { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'phone',     label: '📲 Phone',   href: '/office-phone.html',     color: '#5aa9ff' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
