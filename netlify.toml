@@ -156,6 +156,13 @@
 [functions."review-reply-watch"]
   schedule = "15 */2 * * *"
 
+# Google Ads conversion sweep — maps ad clicks (gclid) -> booked/paid jobs and
+# uploads them to Google as conversions, so the autopilot has real cost-per-
+# booked-job to govern on (without this it flies blind on 0 conversions). Every
+# 6h; the optimizer at 14:00 UTC then reads fresh conversion data.
+[functions."google-ads-conversion-sweep"]
+  schedule = "0 */6 * * *"
+
 # Google Ads optimizer + daily scoreboard digest — SAFE levers only (block junk
 # search terms, flag zero-converting spend), texts Teddy the scoreboard. Shadow by
 # default; vault GOOGLE_ADS_AUTOPILOT=true to let it act. Daily 9am CT (14:00 UTC).
