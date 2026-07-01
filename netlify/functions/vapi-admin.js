@@ -136,6 +136,34 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
+  // caller and the call died searching. The search is now forgiving (fuzzy +
+  // city). Tell Ant to USE it: search name + CITY together, don't demand exact
+  // spelling, and take a callback fast instead of grinding.
+  if (action === 'lookup_guidance') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- LOOKUP-GUIDANCE -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## FINDING THEIR ACCOUNT — be resourceful, don't grind (highest priority)\n`
+      + `Our customer search is forgiving — it tolerates spelling and mis-hearings and can match on partial names + city. Use it well:\n`
+      + `1. If the phone lookup doesn't match (common for warranty customers), ask for their NAME and their CITY, then search with BOTH together (e.g. "Temple Mandeville"). City greatly narrows it and fixes name mis-hears.\n`
+      + `2. You do NOT need exact spelling. If you're unsure how a name is spelled, search it anyway with the city — the search is fuzzy. Don't ask them to spell it letter-by-letter more than once.\n`
+      + `3. If a claim number returns multiple records, ask for city AND appliance type to narrow — don't just re-read the number.\n`
+      + `4. Don't grind. If name+city hasn't found them after a couple tries, STOP searching, apologize once, and take a callback (name + number + what they need) so the office can pull it manually. A quick callback beats a long dead-end search that times out.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Caller-ID first: the customer is calling from their own phone and we've
   // looked them up by it — greet by name, don't demand a work-order/claim number
   // most people don't have. Idempotent, prepended to Ant Inbound.
