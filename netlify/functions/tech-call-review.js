@@ -26,12 +26,16 @@ const REFRIG_RE = /\b(compressor|refrigerant|freon|sealed system|evaporator|cond
 const LAUNDRY_COOK_RE = /\b(washer|dryer|dishwasher|oven|range|stove|cooktop|microwave)\b/i;
 const FRUSTRATION_RE = /\b(no,? that'?s not|you'?re not (getting|understanding)|i (already )?(said|told you)|that'?s wrong|not what i|listen|are you (even )?listening|forget it|never ?mind|ugh)\b/i;
 const CONFUSION_RE = /\b(i (don'?t|do not) (know|understand|recognize)|i'?m not sure|can'?t tell|no grounding|not sure what)\b/i;
-function flagsFor(transcript) {
+function flagsFor(transcript, endedReason) {
   const t = String(transcript || '');
   const out = [];
   // wrong-appliance: refrigeration part named while the unit is laundry/cooking
   if (REFRIG_RE.test(t) && LAUNDRY_COOK_RE.test(t) && !/\b(refrigerat|fridge|freezer)\b/i.test(t)) out.push('possible wrong-appliance part (refrigeration term on a non-fridge)');
-  if (FRUSTRATION_RE.test(t)) out.push('tech sounds frustrated');
+  // repeated stalls — the "one moment / let me pull that up" dead-air pattern
+  const stalls = (t.match(/one moment|let me pull that up|pull that up for you|\bhold on\b|give me a sec/gi) || []).length;
+  if (stalls >= 3) out.push('repeated stalls (' + stalls + '× "one moment / pull that up")');
+  if (endedReason === 'silence-timed-out') out.push('call died on silence-timeout');
+  if (FRUSTRATION_RE.test(t)) out.push('caller frustrated');
   if (CONFUSION_RE.test(t)) out.push('Ant unsure / thin grounding');
   return out;
 }
@@ -69,7 +73,7 @@ exports.handler = async function (event) {
       ended_reason: c.endedReason || '',
       summary: (c.analysis && c.analysis.summary) || c.summary || '',
       transcript,
-      flags: flagsFor(transcript),
+      flags: flagsFor(transcript, c.endedReason),
     };
   }).sort((a, b2) => b2.started_ms - a.started_ms);
 

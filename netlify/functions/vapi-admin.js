@@ -62,6 +62,28 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Dump a single call's structured turns + transcriber/voice config, so we can
+  // tell whether Ant GENERATED gibberish (model issue) or the transcript just
+  // garbled his audio (STT/voice issue) — e.g. the Hindi-speaker call.
+  if (action === 'calldetail') {
+    const cid = String(q.call_id || '').trim();
+    if (!cid) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &call_id=' }) };
+    const got = await vapi('GET', `/call/${cid}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, status: got.status, error: got.json }) };
+    const c = got.json || {};
+    const a = c.assistantOverrides || c.assistant || {};
+    const model = (a.model || (c.assistant && c.assistant.model)) || {};
+    const msgs = (c.messages || (c.artifact && c.artifact.messages) || []).map((m) => ({
+      role: m.role, t: (typeof m.secondsFromStart === 'number' ? Math.round(m.secondsFromStart) + 's' : ''), text: String(m.message || m.content || '').slice(0, 300),
+    }));
+    return { statusCode: 200, body: JSON.stringify({
+      ok: true, id: c.id, ended_reason: c.endedReason,
+      transcriber: (a.transcriber || (c.assistant && c.assistant.transcriber)) || null,
+      voice_provider: ((a.voice || (c.assistant && c.assistant.voice)) || {}).provider || null,
+      turns: msgs,
+    }, null, 2) };
+  }
+
   // Tighten Ant INBOUND (customer line) for VOICE: kill the repeated "one
   // moment / let me pull that up" stalls that drive the silence-timeouts, keep
   // it warm + short, handle "I want a person" without looping, and NEVER babble
