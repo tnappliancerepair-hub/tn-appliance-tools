@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,follow">
-<title>Ant Assist — Session Review</title>
+<title>Ant Call Review</title>
 <style>
   :root{--bg:#0e1524;--panel:#16203400;--card:#172236;--line:#25324a;--text:#e7edf6;--muted:#8fa0b8;--teal:#4cc9c0;--amber:#ffce8a;--red:#ff8a8a}
   *{box-sizing:border-box}
@@ -35,8 +35,8 @@
 </head>
 <body>
 <header>
-  <h1>🐜 Ant Assist — Session Review</h1>
-  <div class="sub">Tech ↔ Ant voice sessions. Flagged ones may have gone sideways — read them, and each bad one becomes a fix.</div>
+  <h1>🐜 Ant Call Review</h1>
+  <div class="sub">Vapi voice calls — our #1 line to customers + techs. Flagged ones may have gone sideways; read them, and each bad one becomes a fix.</div>
 </header>
 
 <div id="gate" class="gate">
@@ -49,9 +49,14 @@
 
 <div id="app" class="wrap" style="display:none">
   <div class="row">
-    <span class="chip on" id="fAll" data-f="all">All sessions</span>
-    <span class="chip" id="fFlag" data-f="flag">⚠️ Flagged only</span>
+    <span class="chip on" id="sCust" data-s="customer">📞 Customer line</span>
+    <span class="chip" id="sTech" data-s="tech">🔧 Techs (Field Assist)</span>
     <button class="btn" id="refresh" style="margin-left:auto;background:#22314c;color:#cfe0f5">↻ Refresh</button>
+  </div>
+  <div id="stats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+  <div class="row">
+    <span class="chip on" id="fAll" data-f="all">All calls</span>
+    <span class="chip" id="fFlag" data-f="flag">⚠️ Flagged only</span>
   </div>
   <div id="list"></div>
 </div>
@@ -60,6 +65,8 @@
   var PW = '';
   var CALLS = [];
   var filter = 'all';
+  var SRC = 'customer';
+  var ASSISTANT = { customer: '7cc98b0c-54a7-4d19-bd48-6dfac606e55d', tech: 'a22edcd1-495a-4d77-a66a-fb167997c70a' };
   var $ = function(id){ return document.getElementById(id); };
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function hl(t){ // highlight the terms our flags key on, so the eye jumps to them
@@ -69,11 +76,11 @@
   async function load(){
     $('list').innerHTML = '<div class="empty">Loading sessions…</div>';
     try{
-      var r = await fetch('/.netlify/functions/tech-call-review', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,limit:40})});
+      var r = await fetch('/.netlify/functions/tech-call-review', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,limit:50,assistant_id:ASSISTANT[SRC]})});
       var d = await r.json();
       if(!d.ok){ $('list').innerHTML = '<div class="empty">'+esc(d.error||'could not load')+'</div>'; return; }
       CALLS = d.calls||[];
-      render();
+      renderStats(); render();
     }catch(e){ $('list').innerHTML = '<div class="empty">load failed — try Refresh</div>'; }
   }
 
@@ -108,9 +115,25 @@
     }catch(e){ $('gerr').textContent='connection error'; }
   };
   $('pw').addEventListener('keydown', function(e){ if(e.key==='Enter') $('go').click(); });
+  function pill(label, val, tone){
+    var col = tone==='bad'?'#ff8a8a':(tone==='warn'?'#ffce8a':'#8fecd6');
+    return '<span style="font-size:12.5px;font-weight:700;border:1px solid var(--line);border-radius:10px;padding:7px 11px;background:#0c1220;color:'+col+'">'+label+': <b>'+val+'</b></span>';
+  }
+  function renderStats(){
+    var n = CALLS.length;
+    var sil = CALLS.filter(function(c){ return c.ended_reason==='silence-timed-out'; }).length;
+    var flg = CALLS.filter(function(c){ return c.flags&&c.flags.length; }).length;
+    var pct = n? Math.round(sil*100/n) : 0;
+    var tone = pct>=20?'bad':(pct>=10?'warn':'good');
+    $('stats').innerHTML = pill('Calls', n, 'good')
+      + pill('⏳ Silence-timeout', pct+'% ('+sil+')', tone)
+      + pill('⚠️ Flagged', flg, flg?'warn':'good');
+  }
   $('refresh').onclick = load;
   $('fAll').onclick = function(){ filter='all'; $('fAll').classList.add('on'); $('fFlag').classList.remove('on'); render(); };
   $('fFlag').onclick = function(){ filter='flag'; $('fFlag').classList.add('on'); $('fAll').classList.remove('on'); render(); };
+  $('sCust').onclick = function(){ SRC='customer'; $('sCust').classList.add('on'); $('sTech').classList.remove('on'); load(); };
+  $('sTech').onclick = function(){ SRC='tech'; $('sTech').classList.add('on'); $('sCust').classList.remove('on'); load(); };
 </script>
 </body>
 </html>
