@@ -500,6 +500,16 @@ function cardHtml(j){
   const _ref=refOf(j);
   const _refHtml='<div class="jc-ref" onclick="copyRef(event,\''+esc(_ref.num).replace(/'/g,"\\'")+'\')" title="Tap to copy" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:2px 8px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;font-weight:800;cursor:pointer;'+(_ref.ant?'background:#eef1f5;color:#5b6675;border:1px solid #d7dde6':'background:#eaf2ff;color:#0a4ea8;border:1px solid #b9d4f5')+'">'+esc(_ref.label)+' '+esc(_ref.num)+' <span style="opacity:.5;font-size:10px">⧉</span></div>';
   const tags=[];
+  // Visit type at a glance — so the office can tell a first-look DIAGNOSIS from a
+  // COMPLETION (return visit), and see when a job is DONE. (Jimmy + Danielle,
+  // 7/1: "need to distinguish completions from diags" / "no way for me to tell
+  // when a job is complete.") Mirrors the tech dashboard badge.
+  const _vss=String(j.scheduling_status||'').toLowerCase(), _vcs=String(j.current_status||'').toLowerCase();
+  const _vDone=(_vss==='completed'||_vcs==='completed');
+  const _vCompl=!_vDone && (PARTS_WAIT.test(j.parts_status||'')||_vss==='awaiting_parts'||_vss==='in_progress'||_vcs==='in_progress');
+  if(_vDone) tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #7fd3a3;font-weight:800">✅ DONE</span>');
+  else if(_vCompl) tags.push('<span class="tag" style="background:#e6f7ef;color:#0a7d4a;border:1px solid #7fd3a3;font-weight:800">🔧 COMPLETION</span>');
+  else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 DIAGNOSIS</span>');
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
   // Only label "cash" for an actual self-pay job. A blank warranty_company does
