@@ -18,7 +18,7 @@
 const { toE164 } = require('./_lib/sms');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
-const MAX_PER_RUN = 15;
+const MAX_PER_RUN = Number(process.env.INTAKE_COLLECTOR_MAX_PER_RUN) || 30;
 const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with no reply
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained
@@ -54,11 +54,10 @@ exports.handler = async function (event) {
 
   // Candidates: non-vendor, has a phone, no availability captured yet.
   const cands = items.filter((j) => {
-    // SquareTrade/ServicePower jobs are scheduled BY the vendor — never text them
-    // about scheduling (Danielle, 2026-06-23: "it all gets done from ST"). Check
-    // every vendor signal, not just warranty_company.
-    if (isVendor(j.warranty_company) || isVendor(j.intake_source) || isVendor(j.source_type) || isVendor(j.dispatch_source) || isVendor(j.dispatch_source_id)) return false;
-    if (j.vendor_locked === true || j.vendor_locked === 1 || String(j.vendor_locked).toLowerCase() === 'true') return false;
+    // Teddy 2026-07-01: send to EVERYBODY — warranty (AHS + SquareTrade) and
+    // non-warranty. Vendor jobs get a LIGHTER message (below), but they're no
+    // longer skipped — availability + "tell us if your part comes sooner" is
+    // hugely helpful across the board.
     const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     if (ph.length < 10) return false;
     // Optional age cap (off by default → ANY unscheduled job gets one ask).
@@ -116,7 +115,9 @@ exports.handler = async function (event) {
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
     const portal = `${SITE}/customer-portal.html?job_id=${id}&last4=`;
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Two quick things to get your ${appl} fixed fast:\n\n1) Tap here to send a short video of the problem + a photo of the model sticker: ${portal}\n\n2) Reply with the days that work for you, and any days you can't do.\n\nThat's all we need — thanks!`;
+    // One message for everybody (Teddy 2026-07-01): if they already have a time
+    // that's fine, but the more open they are the sooner we may get to them.
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. We've got your ${appl} repair. If you already have a time set, that's totally fine! But if you're more open, let us know — we may be able to get to you sooner. Just take a couple minutes to reply here with the days/times that work for you, and any days you can't do (or tap: ${portal}). It really helps us — thank you!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
