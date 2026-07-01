@@ -378,6 +378,10 @@ function placeOf(j){
   if(ov) return ov;
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
+  // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
+  // Needs Scheduled. SquareTrade/AHS jobs often land scheduled-with-a-date but
+  // tech-less; without this they got stuck in Needs Scheduled after scheduling.
+  if(ss==='scheduled'||(Number(j.scheduled_start)>0&&ss!=='not_ready'&&cs!=='not_ready')) return 'scheduled';
   return 'schedule';                                           // accepted/untimed/callback
 }
 
