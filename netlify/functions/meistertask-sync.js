@@ -122,6 +122,35 @@ async function run({ dryrun }) {
   return result;
 }
 
+// Read-only: list any cards in the TN/LA sections that carry OUR signature
+// ("Ant job #"), so we can spot orphans (a card created before its marker was
+// written). ?scan=1&secret=
+async function scan() {
+  const out = { ok: true, sections: {} };
+  for (const [label, sid] of [['tn', TN_SECTION.id], ['la', LA_SECTION.id]]) {
+    try {
+      const tasks = await mt.listSectionTasks(sid);
+      const ours = (tasks || []).filter((t) => /Ant job #/.test(String(t.notes || '')));
+      out.sections[label] = { section_id: sid, total: (tasks || []).length, ours: ours.map((t) => ({ id: t.id, name: String(t.name || '').slice(0, 70) })) };
+    } catch (e) { out.sections[label] = { section_id: sid, error: String(e.message || e) }; }
+  }
+  return out;
+}
+
+// Delete our-signature cards directly from the sections (belt-and-suspenders for
+// orphans with no marker). ?scandelete=1&secret=
+async function scanDelete() {
+  const found = await scan();
+  const deleted = [];
+  for (const label of ['tn', 'la']) {
+    for (const c of (found.sections[label] && found.sections[label].ours) || []) {
+      try { await mt.deleteTask(c.id); await crud.logEvent('meistertask_card_deleted', { task_id: c.id, via: 'scan', at_ms: Date.now() }); deleted.push({ id: c.id }); }
+      catch (e) { deleted.push({ id: c.id, error: String(e.message || e) }); }
+    }
+  }
+  return { ok: true, deleted, count: deleted.filter((d) => !d.error).length };
+}
+
 // Delete the cards created by earlier (timed-out test) runs, via their markers,
 // so Danielle's board is clean. One-time: ?cleanup=1&secret=
 async function cleanup() {
@@ -144,6 +173,14 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const dryrun = q.dryrun === '1';
   const admin0 = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (q.scan === '1') {
+    if (q.secret !== admin0) return j(401, { ok: false, error: 'secret required' });
+    try { return j(200, await scan()); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  }
+  if (q.scandelete === '1') {
+    if (q.secret !== admin0) return j(401, { ok: false, error: 'secret required' });
+    try { return j(200, await scanDelete()); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  }
   if (q.cleanup === '1') {
     if (q.secret !== admin0) return j(401, { ok: false, error: 'secret required' });
     try { return j(200, await cleanup()); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
