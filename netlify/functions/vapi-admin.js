@@ -193,6 +193,51 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, voice_rules_applied: applied, fillers_softened: fillersFixed, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Second voice pass on Ant Inbound, from real call review (Marcel, 7/1):
+  //  (a) "Let me check" was firing over and over — the per-tool request-start
+  //      filler plays once PER tool call, so chained lookups stacked it 3-5x
+  //      of dead-airy repetition. Strip those per-tool fillers + add an
+  //      anti-repetition rule (the prompt already forbids true dead air).
+  //  (b) Date read-back bug — Ant called TODAY "tomorrow" ("scheduled with
+  //      John for tomorrow, July 1" on July 1). Force absolute calendar
+  //      phrasing; ban guessed relative words.
+  if (action === 'voice_polish2') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- VOICE-POLISH-2 -->';
+    let promptChanged = false;
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## 🎙️ VOICE POLISH — HIGHEST PRIORITY (live customer call; overrides anything below)\n`
+        + `1. DON'T repeat a filler. Say "let me check" (or similar) AT MOST once, then stop with the filler and just give the answer. Never say "let me check" two turns in a row, and never stack it while looking up several things — to the caller it should feel like ONE quick check, not five. If a lookup genuinely runs long, say something real ("still pulling your job up, one sec"), not the same filler again.\n`
+        + `2. DATES — say the ACTUAL calendar day, never a guessed relative word. State an appointment as the weekday + month + day (e.g. "Wednesday, July 1"). Do NOT say "today," "tomorrow," or "yesterday" unless you are certain of the real current date — when unsure, just say the calendar date. NEVER call a date "tomorrow" unless it is literally the day after today. If you're not sure whether a date is upcoming or already passed, ask the caller instead of guessing.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      promptChanged = true;
+    }
+    // Strip the per-tool request-start fillers so they stop stacking on chained
+    // lookups. The prompt (VOICE-DELIVERY-CX + this block) forbids real dead air,
+    // and one model-spoken "let me check" reads far better than a robotic string
+    // replayed once per tool call.
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    let fillersRemoved = 0;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'function' || !Array.isArray(t.messages)) return t;
+      const kept = t.messages.filter((m) => m.type !== 'request-start');
+      if (kept.length !== t.messages.length) fillersRemoved++;
+      return Object.assign({}, t, { messages: kept });
+    });
+    if (!promptChanged && !fillersRemoved) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs, tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, per_tool_fillers_removed: fillersRemoved, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Lee's rule: at wrap-up, ask the tech for any parts he brought but didn't
   // need, so the office can return/restock them (warranty returns + inventory).
   // Idempotent, prepended to Ant Field Assist.
