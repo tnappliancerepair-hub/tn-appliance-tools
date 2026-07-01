@@ -18,6 +18,7 @@ const { sendSms } = require('./_lib/sms');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
 function first(s) { return String(s || '').trim().split(/\s+/)[0] || 'there'; }
+function ctHour() { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10); }
 async function jget(url, ms = 10000) { const r = await fetch(url, { signal: AbortSignal.timeout(ms) }); return r.json().catch(() => ({})); }
 async function jpost(url, body, ms = 10000) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) }); return r.json().catch(() => ({})); }
 
@@ -28,6 +29,14 @@ exports.handler = async function (event) {
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { b = {}; }
   const jobId = Number(b.job_id || b.jobId || 0);
   if (!jobId) return json(200, { ok: false, reason: 'missing job_id' });
+
+  // Don't text customers too early / too late. Reasonable hours = 8am–8pm CT
+  // (matches the nightly intake-collector). Office can override with force:true.
+  if (b.force !== true) {
+    const h = ctHour();
+    if (h < 8) return json(200, { ok: false, reason: 'too early — texts go out after 8am CT' });
+    if (h >= 20) return json(200, { ok: false, reason: 'too late — texts resume at 8am CT' });
+  }
 
   // Fast path: the office-calendar board already has the customer phone / first /
   // appliance, so it passes them straight through (no heavy list fetch). Only if
