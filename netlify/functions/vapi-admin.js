@@ -164,6 +164,34 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Already-completed warranty repair → the customer must open a RECALL with
+  // their warranty company. We CANNOT reschedule / send a tech / promise a
+  // callback until that recall is opened. (Teddy 2026-07-01.) Idempotent.
+  if (action === 'recall_policy') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- RECALL-POLICY -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## ALREADY-COMPLETED WARRANTY REPAIR = RECALL THROUGH THEIR WARRANTY COMPANY (hard rule)\n`
+      + `If a WARRANTY customer calls saying the SAME appliance still isn't working (or broke again) AFTER we already finished it — i.e. the job you find is marked COMPLETED and has been invoiced/closed — you CANNOT schedule a return visit and you CANNOT promise a callback or a tech. Do NOT say "we'll call you right back" or "we'll get someone out there." That is the wrong answer here and we can't honor it.\n`
+      + `Instead, tell them warmly but clearly:\n`
+      + `- "I see we already completed that repair and the job is closed on our end."\n`
+      + `- "Because it's a warranty job, once it's closed any follow-up has to go back through your warranty company as a RECALL. Please call your warranty company (for example American Home Shield, SquareTrade, or Frontdoor) and open a recall on this claim."\n`
+      + `- "The moment they open the recall, they dispatch us back out and we'll come take care of it — but we're not able to send a tech or reschedule until that recall is opened on their side."\n`
+      + `Be kind but firm — we genuinely cannot help until the recall is opened with the warranty company. If you know their warranty company from the claim, name it. This applies ONLY to warranty jobs that are already completed/invoiced. Cash / self-pay customers are different — help them directly. And if the original job is NOT completed yet, this rule does not apply — handle it normally.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Caller-ID first: the customer is calling from their own phone and we've
   // looked them up by it — greet by name, don't demand a work-order/claim number
   // most people don't have. Idempotent, prepended to Ant Inbound.

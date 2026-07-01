@@ -37,7 +37,19 @@ function compose(j, tech, cust, you) {
   const ap = you ? ('your ' + appl) : ('the ' + appl);              // appliance phrase
   const tech1 = techName || (you ? 'your tech' : 'a tech');
 
-  if (/complete|done/.test(status)) return { headline: 'Completed', reason: you ? `Your repair is complete — thank you!` : `That repair is complete${j.repair_completed ? ' — ' + j.repair_completed : '.'}` };
+  if (/complete|done/.test(status)) {
+    // Already-completed WARRANTY job → any further trouble must go back through
+    // the warranty company as a RECALL. We can't reschedule until they open it.
+    const ct = String(j.customer_type || '').toLowerCase();
+    const isWarranty = !!(j.warranty_company || (ct && !/self|cash|customer_pay/.test(ct)));
+    const wc = (j.warranty_company || '').trim();
+    if (isWarranty) {
+      return { headline: 'Completed — recall via warranty co', reason: you
+        ? `Our records show this repair was completed and the job is closed. If ${ap} is having trouble again, it has to go back through your warranty company as a recall — please contact ${wc || 'your warranty company (e.g. AHS, SquareTrade, or Frontdoor)'} and open a recall on this claim. As soon as they open it they'll dispatch us back out. We're not able to schedule a return visit until that recall is opened on their side.`
+        : `This repair is completed and closed. If ${ap} is acting up again, ${first} must open a RECALL with ${wc || 'their warranty company'} — we cannot reschedule or send a tech until the warranty company dispatches it back as a recall.` };
+    }
+    return { headline: 'Completed', reason: you ? `Your repair is complete — thank you!` : `That repair is complete${j.repair_completed ? ' — ' + j.repair_completed : '.'}` };
+  }
   if (/cancel/.test(status)) return { headline: 'Canceled', reason: you ? `This job has been canceled — reply if you'd like to reschedule.` : `That job was canceled.` };
   if (/await|part|order/.test(status)) {
     return { headline: 'Waiting on a part', reason: partEta
