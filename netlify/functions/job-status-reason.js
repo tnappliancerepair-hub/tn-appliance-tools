@@ -28,7 +28,14 @@ async function jfetch(url, opts) { try { const r = await fetch(url, opts); retur
 // day") for the customer's own portal; you=false → 3rd-person for relaying to a
 // warranty-company rep or the office.
 function compose(j, tech, cust, you) {
-  const status = String(j.current_status || j.scheduling_status || '').toLowerCase();
+  // Never let a STALE 'canceled' flag override an active scheduling_status. When
+  // a job is un-canceled, the legacy current_status column can stay 'canceled'
+  // even though scheduling_status is active again — we must NOT tell a live
+  // customer their job is canceled (Teddy 2026-07-01: that kills the business).
+  const rawCur = String(j.current_status || '').toLowerCase();
+  const rawSched = String(j.scheduling_status || '').toLowerCase();
+  let status = rawCur || rawSched;
+  if (rawCur === 'canceled' && rawSched && rawSched !== 'canceled') status = rawSched;
   const appl = [j.brand, j.appliance_type].filter(Boolean).join(' ') || 'appliance';
   const first = (cust && cust.first_name) ? cust.first_name : 'the customer';
   const techName = (tech && tech.first_name) ? tech.first_name : (TECHS[j.technician_id] || '');
@@ -50,7 +57,11 @@ function compose(j, tech, cust, you) {
     }
     return { headline: 'Completed', reason: you ? `Your repair is complete — thank you!` : `That repair is complete${j.repair_completed ? ' — ' + j.repair_completed : '.'}` };
   }
-  if (/cancel/.test(status)) return { headline: 'Canceled', reason: you ? `This job has been canceled — reply if you'd like to reschedule.` : `That job was canceled.` };
+  // Even for a genuinely-canceled job, NEVER flatly tell a caller "your job is
+  // canceled" — that kills the sale. Route to a human to confirm/recover instead.
+  if (/cancel/.test(status)) return { headline: 'Office to confirm', reason: you
+    ? `Let me get you taken care of — I'll have our office confirm your appointment and reach right back out to you.`
+    : `This one needs the office to confirm before we tell the customer anything — take their name + number and have someone follow up right away. Do NOT tell them it's canceled.` };
   if (/await|part|order/.test(status)) {
     return { headline: 'Waiting on a part', reason: partEta
       ? (you

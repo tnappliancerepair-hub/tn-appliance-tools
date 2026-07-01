@@ -164,6 +164,29 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // NEVER tell a caller their job is canceled — it kills the sale, and jobs get
+  // canceled in our system by mistake / vendor updates while we still intend to
+  // serve them. (Teddy 2026-07-01.) Idempotent, prepended to Ant Inbound.
+  if (action === 'no_canceled') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- NO-CANCELED-TALK -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## NEVER TELL A CALLER THEIR JOB IS CANCELED (hard rule)\n`
+      + `If a lookup shows a job as "canceled," do NOT say "your job is canceled," "it was canceled," or anything that tells the customer we're not coming. A job can be marked canceled in our system by mistake or by a warranty-company/vendor update while we still fully intend to serve the customer — only the office decides a real cancellation. Instead: stay warm, say you'll have the office confirm their appointment and reach right back out, and take their name + number + what they need (use capture_callback) so a human follows up. Losing a customer over a stray "canceled" status is exactly what we must avoid.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Already-completed warranty repair → the customer must open a RECALL with
   // their warranty company. We CANNOT reschedule / send a tech / promise a
   // callback until that recall is opened. (Teddy 2026-07-01.) Idempotent.
