@@ -14,6 +14,7 @@
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const msupply = require('./_lib/msupply');
 const { getSecret } = require('./_lib/secrets');
+const crud = require('./_lib/xano/metadata-crud');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
 
@@ -46,6 +47,13 @@ function pickShipping(methods) {
   const ground = list.find((m) => /ground|standard|economy|best way/i.test(`${m.shippingMethodName || ''} ${m.description || ''}`));
   return ground || list[0];
 }
+
+// WILL CALL = pick it up at the branch (no shipping charge). Marcone exposes it
+// as a shipping method (id 4, name "WILL CALL"). Used when fulfillment=will_call.
+function pickWillCall(methods) {
+  return (methods || []).find((m) => m && m.shippingMethodId != null && /will.?call/i.test(`${m.shippingMethodName || ''} ${m.description || ''}`)) || null;
+}
+const keyOf = (jobId, part) => `${jobId || 0}::${String(part || '').trim().toLowerCase()}`;
 
 exports.config = { timeout: 26 };
 
@@ -90,15 +98,30 @@ exports.handler = async function (event) {
       return (ta - tb) || (Number(b2.qty) - Number(a.qty));
     });
     const best = stocked[0] || null;
-    const wh = best ? best.warehouse_number : undefined;
-    const whName = best ? best.warehouse : undefined;
+    // WILL CALL support: the office can force a specific branch to pick up from
+    // (b.branch_warehouse) — e.g. grab it in New Orleans vs Nashville. Otherwise
+    // use the nearest in-stock branch. b.pickup_city is just the human label.
+    const wantWillCall = b.fulfillment === 'will_call' || b.pickup === true;
+    let wh, whName;
+    if (b.branch_warehouse) {
+      wh = String(b.branch_warehouse);
+      const match = stocked.find((w) => String(w.warehouse_number) === String(b.branch_warehouse));
+      whName = (match && match.warehouse) || b.pickup_city || ('Branch ' + b.branch_warehouse);
+    } else {
+      wh = best ? best.warehouse_number : undefined;
+      whName = best ? best.warehouse : undefined;
+    }
     const transitDays = best ? best.transit_days : null;
     const items = [{ make, partNumber, quantity, warehouseNumber: wh, reference: b.reference || undefined }];
 
     // shipping method (required by cartorder) — for that warehouse
     const sm = await msupply.shippingMethods(custNo, wh);
     const methods = (sm && sm.ok && sm.data && (sm.data.shippingMethods || sm.data)) || [];
-    const chosen = pickShipping(methods);
+    let chosen = pickShipping(methods);
+    if (wantWillCall) {
+      chosen = pickWillCall(methods);
+      if (!chosen) return json(200, { ok: false, error: 'WILL CALL not offered at this branch', warehouse: wh, methods });
+    }
     if (!chosen) return json(200, { ok: false, error: 'no shipping methods returned', warehouse: wh, detail: sm && sm.raw && sm.raw.slice(0, 200) });
 
     if (action === 'debug') {
@@ -153,7 +176,25 @@ exports.handler = async function (event) {
           if (o) real = { status: o.status, ships_from: (o.warehouse && o.warehouse.name) || whName, shipping_method: o.shippingMethod, delivery_charge: o.deliveryCharge, total: o.totalCharge };
         } catch (_) {}
       }
+      // WILL CALL → drop it onto the tech's "Parts to grab" pickup list so he
+      // knows to grab it on his next Marcone run (which city/branch + who's it for).
+      let staged = null;
+      if (placed && wantWillCall) {
+        const branchLabel = b.pickup_city || whName || 'Marcone';
+        staged = keyOf(b.job_id, partNumber);
+        try {
+          await crud.logEvent('part_pickup_ready', {
+            key: staged, supplier: 'marcone', branch: branchLabel,
+            part: partNumber, tech_id: b.tech_id != null ? Number(b.tech_id) : null,
+            area: b.pickup_city || '', job_id: b.job_id || null,
+            customer: String(b.customer || ''), appliance: String(b.appliance || ''),
+            note: 'Marcone will-call' + (orderNo ? ' · order ' + orderNo : ''),
+            by: 'marcone_order', at_ms: Date.now(),
+          });
+        } catch (_) { staged = null; }
+      }
       return json(200, {
+        will_call: wantWillCall || undefined, pickup_at: wantWillCall ? (b.pickup_city || whName) : undefined, staged_pickup: staged,
         ok: placed, order_numbers: d.orderNumbers || [], substitutions: d.substitutions || [], ship_to: shipTo,
         item_cost: part.cost, part_description: part.description, transit_days: transitDays,
         ships_from: real.ships_from || whName, status: real.status || d.status, shipping_method: real.shipping_method,
