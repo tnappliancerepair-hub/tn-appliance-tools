@@ -267,6 +267,10 @@ exports.handler = async function (event) {
     // send_parts_link: text the diagram link to the tech she's ON THE PHONE with,
     // so the assistant never has to know his number — just his model + brand.
     if (c.name === 'send_parts_link' && !a.phone && !a.tech_phone && !a.to && callerPhone) a.tech_phone = callerPhone;
+    // We KNOW the caller's number — they're calling us. Always look them up by the
+    // REAL caller ID, never by whatever the model mis-heard or left blank. (The
+    // lookup itself flags a masked/shop number, so this is safe.)
+    if (c.name === 'lookup_customer_by_phone' && callerPhone) a.phone = callerPhone;
     let data;
     try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }

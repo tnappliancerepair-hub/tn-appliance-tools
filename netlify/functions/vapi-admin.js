@@ -84,6 +84,29 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Caller-ID first: the customer is calling from their own phone and we've
+  // looked them up by it — greet by name, don't demand a work-order/claim number
+  // most people don't have. Idempotent, prepended to Ant Inbound.
+  if (action === 'phone_first') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- PHONE-FIRST -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## CALLER ID — YOU ALREADY KNOW WHO THEY ARE (highest priority)\n`
+      + `The customer is calling from their OWN phone, and you look them up by that number automatically at the start of the call. As soon as you've matched them, greet them by NAME. Do NOT ask a homeowner for a claim, work-order, or dispatch number as your first move — most people don't have it in front of them and it makes us look like we don't know them. Instead, confirm who they are and ask what appliance or issue they're calling about, and find their job from their account (their recent jobs, even a canceled/completed one). Only ask for a claim number as a LAST resort, if you truly can't find them by phone OR name. (Warranty-company CSC reps ARE expected to have a claim/dispatch number — that's a different caller; this rule is for homeowners.)\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Tighten Ant INBOUND (customer line) for VOICE: kill the repeated "one
   // moment / let me pull that up" stalls that drive the silence-timeouts, keep
   // it warm + short, handle "I want a person" without looping, and NEVER babble
