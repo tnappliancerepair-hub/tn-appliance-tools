@@ -443,6 +443,39 @@
     );
   }
 
+  /* One-tap Day Off toggle — sits in the top-right corner of every cell.
+     Office taps it to mark a tech off (or clear it) without asking anyone. */
+  .dayoff-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 3;
+    font-size: 9.5px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 4px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-soft);
+    background: rgba(255,255,255,0.7);
+    color: var(--muted);
+    cursor: pointer;
+    opacity: 0.35;
+    transition: opacity 0.12s, background 0.12s, color 0.12s;
+  }
+  .cell:hover .dayoff-btn { opacity: 0.9; }
+  .dayoff-btn:hover { background: #fff; color: var(--red); border-color: var(--red); opacity: 1; }
+  .dayoff-btn.on {
+    opacity: 1;
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+  }
+  .dayoff-btn.on:hover { background: #fff; color: var(--green,#2ea36b); border-color: var(--green,#2ea36b); }
+  .dayoff-btn:disabled { opacity: 0.5; cursor: default; }
+  @media (hover: none) { .dayoff-btn { opacity: 0.85; } }
+
   .cap {
     display: flex;
     align-items: baseline;
@@ -1276,9 +1309,22 @@ function __initCalendar() {
   }
 
   function renderCell(tech, day, jobs, isOff) {
+    const techName = ((tech.first_name || '') + ' ' + (tech.last_name || '')).trim() || ('Tech ' + tech.id);
+    const count = jobs.length;
+    // One-tap Day Off toggle (present on every cell).
+    const offBtn = `<button class="dayoff-btn${isOff ? ' on' : ''}"
+        data-tech-id="${tech.id}"
+        data-tech-name="${escapeHtml(techName)}"
+        data-date="${day.dateStr}"
+        data-day-label="${escapeHtml(day.dowShort + ' ' + day.monthShort + ' ' + day.dayNum)}"
+        data-off="${isOff ? '1' : '0'}"
+        data-jobs="${count}"
+        title="${isOff ? 'Clear day off — mark ' + escapeHtml(techName) + ' working' : 'Mark ' + escapeHtml(techName) + ' off this day'}"
+      >${isOff ? '✓ off' : '🌴 off'}</button>`;
     if (isOff) {
       return `
         <div class="cell cap-off" data-tech-id="${tech.id}" data-date="${day.dateStr}">
+          ${offBtn}
           <div class="cap">
             <span class="num">⛔</span>
             <span class="label">day off</span>
@@ -1287,13 +1333,11 @@ function __initCalendar() {
         </div>
       `;
     }
-    const count = jobs.length;
     const remaining = Math.max(0, CAPACITY_MAX - count);
     let tier = 'green';
     if (count >= 5) tier = 'red';
     else if (count >= 3) tier = 'yellow';
     const blocks = jobs.map((j) => renderBlock(j)).join('');
-    const techName = ((tech.first_name || '') + ' ' + (tech.last_name || '')).trim() || ('Tech ' + tech.id);
     return `
       <div class="cell cap-${tier} book-cell"
            data-tech-id="${tech.id}"
@@ -1301,6 +1345,7 @@ function __initCalendar() {
            data-date="${day.dateStr}"
            data-day-label="${escapeHtml(day.dowShort + ' ' + day.monthShort + ' ' + day.dayNum)}"
            title="Click empty space to book on this day">
+        ${offBtn}
         <div class="cap">
           <span class="num">${remaining}</span>
           <span class="denom">/${CAPACITY_MAX}</span>
@@ -1342,6 +1387,54 @@ function __initCalendar() {
   }
 
   function attachClickHandlers() {
+    // One-tap Day Off toggle — mark a tech off (or clear it) right on the cell.
+    // No approval needed; the office owns this. (Fires tech_set_day_off.)
+    document.querySelectorAll('.dayoff-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (btn.disabled) return;
+        const isOff = btn.dataset.off === '1';
+        const name = btn.dataset.techName || 'this tech';
+        const dayLabel = btn.dataset.dayLabel || btn.dataset.date;
+        const jobs = parseInt(btn.dataset.jobs || '0', 10);
+        let msg;
+        if (isOff) {
+          msg = `Clear ${name}'s day off on ${dayLabel} — put them back to working?`;
+        } else {
+          msg = `Mark ${name} OFF on ${dayLabel}?`;
+          if (jobs > 0) msg += `\n\n⚠️ There ${jobs === 1 ? 'is' : 'are'} ${jobs} job${jobs === 1 ? '' : 's'} on that day — you'll still need to reassign ${jobs === 1 ? 'it' : 'them'}.`;
+        }
+        if (!confirm(msg)) return;
+        btn.disabled = true;
+        const prevText = btn.textContent;
+        btn.textContent = '…';
+        try {
+          const res = await fetch(`${XANO_BASE}/tech_set_day_off`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              technician_id: parseInt(btn.dataset.techId, 10),
+              date: btn.dataset.date,
+              off: !isOff,
+              reason: isOff ? '' : 'day off (office)',
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.success) {
+            alert((data && (data.error || data.message)) || `Could not update (${res.status}). Try again.`);
+            btn.disabled = false;
+            btn.textContent = prevText;
+            return;
+          }
+          loadWeek(); // re-render so the cell flips off/on
+        } catch (err) {
+          alert('Network problem — try again.');
+          btn.disabled = false;
+          btn.textContent = prevText;
+        }
+      });
+    });
     // Click on any empty cell space (NOT on a job block) opens the booking modal.
     document.querySelectorAll('.book-cell').forEach((cell) => {
       cell.addEventListener('click', (e) => {
