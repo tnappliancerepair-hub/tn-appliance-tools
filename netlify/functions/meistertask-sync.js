@@ -16,6 +16,9 @@ const { getSecret } = require('./_lib/secrets');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
+// Go-live moment (2026-07-01 ~2:49pm CT). Only jobs created at/after this get a
+// card — everything before is already in MeisterTask.
+const SYNC_SINCE_MS = 1782935338546;
 const SCHEDULING_PROJECT = 1964382;   // Danielle's SCHEDULING board
 const NOLA_PROJECT = 8806934;         // fallback for a LA needs-scheduled section
 const DAY = 86400000;
@@ -23,20 +26,19 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/
 function j(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
-// Resolve the "needs scheduled" section id for TN and LA by NAME (the debug view
-// caps the list, so match live instead of hardcoding). Falls back to the known
-// TN section if nothing better is found.
-async function resolveSections() {
-  let secs = [];
-  try { secs = await mt.listSections(SCHEDULING_PROJECT) || []; } catch (_) {}
-  let nola = [];
-  try { nola = await mt.listSections(NOLA_PROJECT) || []; } catch (_) {}
-  const all = secs.map((s) => ({ id: s.id, name: String(s.name || ''), project: SCHEDULING_PROJECT }))
-    .concat(nola.map((s) => ({ id: s.id, name: String(s.name || ''), project: NOLA_PROJECT })));
-  const needs = (kw) => all.find((s) => /needs?\s*sched/i.test(s.name) && kw.test(s.name));
-  const tn = needs(/\b(tn|tenn)/i) || all.find((s) => s.id === 6405438) || all.find((s) => /needs?\s*sched/i.test(s.name));
-  const la = needs(/\b(la|nola|louisiana)/i) || tn;
-  return { tn, la, all };
+// The NEEDS SCHEDULED sections (verified live 7/1). Hardcoded so the live path
+// spends ZERO MeisterTask read calls at startup — the rate-limit pace is tight,
+// so we save the whole budget for the card creates.
+const TN_SECTION = { id: 6405438, name: 'TN NEEDS SCHEDULED', project: SCHEDULING_PROJECT };
+const LA_SECTION = { id: 29303912, name: 'NOLA NEED SCHEDULED', project: SCHEDULING_PROJECT };
+
+// dryrun only: pull the live section list so we can eyeball routing.
+async function listAllSections() {
+  const out = [];
+  for (const pid of [SCHEDULING_PROJECT, NOLA_PROJECT]) {
+    try { const s = await mt.listSections(pid) || []; out.push(...s.map((x) => ({ id: x.id, name: String(x.name || ''), project: pid }))); } catch (_) {}
+  }
+  return out;
 }
 
 function isLA(st) { return /^(la|louisiana)$/i.test(String(st || '').trim()); }
@@ -62,13 +64,14 @@ function cardFor(job) {
 
 async function run({ dryrun }) {
   if (!(await mt.isConfigured())) return { ok: false, error: 'MEISTERTASK_TOKEN not in vault' };
-  const sec = await resolveSections();
-  if (!sec.tn) return { ok: false, error: 'could not resolve a NEEDS SCHEDULED section', sections: sec.all };
+  // Sections are hardcoded (verified live 7/1) so the live path spends zero
+  // MeisterTask read calls at startup.
+  const sec = { tn: TN_SECTION, la: LA_SECTION };
 
-  // Forward-only cutoff so we never card the whole backlog. Cards only jobs
-  // created in the last N days; going forward every new job gets one.
-  const sinceDays = Number(process.env.MEISTERTASK_SYNC_DAYS) > 0 ? Number(process.env.MEISTERTASK_SYNC_DAYS) : 2;
-  const cutoff = Date.now() - sinceDays * DAY;
+  // FORWARD-ONLY from go-live (Teddy 7/1: "we already have all the other jobs in
+  // MeisterTask — only NEW jobs from now forward"). Every existing job was created
+  // before this instant, so only jobs created AFTER it get a card. No backlog.
+  const cutoff = Number(process.env.MEISTERTASK_SYNC_SINCE_MS) || SYNC_SINCE_MS;
   // Cap per run so we stay inside the function time budget (MeisterTask paces
   // ~1.1s/call). The 10-min schedule catches up any burst over a few runs.
   const CAP = Number(process.env.MEISTERTASK_SYNC_CAP) > 0 ? Number(process.env.MEISTERTASK_SYNC_CAP) : 5;
@@ -99,7 +102,7 @@ async function run({ dryrun }) {
 
   if (dryrun) {
     result.preview = todo.map((it) => ({ job_id: it.id, state: it.service_state, section: (isLA(it.service_state) ? sec.la : sec.tn).name, title: cardFor(it).name }));
-    result.all_sections = sec.all;
+    try { result.all_sections = await listAllSections(); } catch (_) {}
     return result;
   }
 
@@ -119,11 +122,32 @@ async function run({ dryrun }) {
   return result;
 }
 
+// Delete the cards created by earlier (timed-out test) runs, via their markers,
+// so Danielle's board is clean. One-time: ?cleanup=1&secret=
+async function cleanup() {
+  let rows = [];
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'meistertask_card_created' }, { id: 'desc' }, 800); } catch (_) {}
+  const out = { ok: true, deleted: [], count: 0 };
+  for (const r of rows) {
+    const m = metaOf(r);
+    if (m.task_id == null) continue;
+    try { await mt.deleteTask(m.task_id); await crud.logEvent('meistertask_card_deleted', { job_id: m.job_id, task_id: m.task_id, at_ms: Date.now() }); out.deleted.push({ job_id: m.job_id, task_id: m.task_id }); }
+    catch (e) { out.deleted.push({ task_id: m.task_id, error: String(e.message || e) }); }
+  }
+  out.count = out.deleted.filter((d) => !d.error).length;
+  return out;
+}
+
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const dryrun = q.dryrun === '1';
+  const admin0 = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (q.cleanup === '1') {
+    if (q.secret !== admin0) return j(401, { ok: false, error: 'secret required' });
+    try { return j(200, await cleanup()); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  }
   if (!dryrun) {
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
     // scheduled invocations have no query string; allow them. Manual needs the secret.

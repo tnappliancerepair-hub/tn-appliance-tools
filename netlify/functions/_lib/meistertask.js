@@ -119,6 +119,20 @@ async function mtPost(path, body, { retries = 3 } = {}) {
 // Create a task (card) in a section. name = title, notes = markdown body.
 const createTask = (sectionId, { name, notes }) => mtPost(`/sections/${sectionId}/tasks`, { name, notes });
 
+// Delete (trash) a task by id.
+async function deleteTask(taskId) {
+  const tok = await token();
+  if (!tok) throw new Error('meistertask_not_configured');
+  await pace();
+  const r = await fetch(`${BASE}/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json' },
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!r.ok && r.status !== 404) { const b = await r.text().catch(() => ''); throw new Error(`meistertask DELETE /tasks/${taskId} -> ${r.status}: ${b.slice(0, 120)}`); }
+  return { ok: true, status: r.status };
+}
+
 // ---- domain helpers -------------------------------------------------------
 // NOTE: do NOT pass status=all — MeisterTask 400s on it ("Invalid value for
 // status parameter"). The default (no status) already returns EVERY task,
@@ -130,6 +144,6 @@ const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
 
 module.exports = {
-  isConfigured, token, mtGet, mtList, mtPost, createTask,
+  isConfigured, token, mtGet, mtList, mtPost, createTask, deleteTask,
   listProjects, listSections, listSectionTasks, listProjectTasks, listTaskComments,
 };
