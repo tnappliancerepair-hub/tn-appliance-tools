@@ -84,6 +84,29 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Date guard: never read back a scheduled date that has already passed as if
+  // it is upcoming (Ant told a customer "you're scheduled for June 24" a week
+  // after June 24). Idempotent, prepended to Ant Inbound.
+  if (action === 'date_guard') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- DATE-GUARD -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## DATES — NEVER READ BACK A PAST DATE AS UPCOMING (highest priority)\n`
+      + `A job's scheduled date can be stale. Each job comes with "scheduled_is_past": if that is true (or the date is clearly before today), the appointment date has ALREADY PASSED — do NOT say "you're scheduled for [that date]." Instead say it looks like that date has passed, and ask whether the visit already happened or if they need to get rescheduled, then help with that. Only present a date as upcoming when it is genuinely in the future. When you do confirm a real upcoming appointment, we schedule by DAY (not a clock time) — say the day and that we text a live arrival window that morning.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Caller-ID first: the customer is calling from their own phone and we've
   // looked them up by it — greet by name, don't demand a work-order/claim number
   // most people don't have. Idempotent, prepended to Ant Inbound.

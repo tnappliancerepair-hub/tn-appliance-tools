@@ -148,6 +148,12 @@ query lookup_customer_by_phone verb=GET {
       }
     }
 
+    // "now" in ms so we can flag a scheduled date that has already PASSED - Ant
+    // must never read back a past date as if it is upcoming.
+    var $now_ms {
+      value = (now|to_ms)
+    }
+
     db.query jobs {
       where = $db.jobs.customer_id == $customer.id && $db.jobs.scheduling_status != "completed" && $db.jobs.scheduling_status != "canceled" && $db.jobs.scheduling_status != "no_fix_possible"
       sort = {jobs.created_at: "desc"}
@@ -189,6 +195,18 @@ query lookup_customer_by_phone verb=GET {
           }
         }
 
+        var $j_is_past {
+          value = false
+        }
+
+        conditional {
+          if ($j.scheduled_start != null && $j.scheduled_start > 0 && $j.scheduled_start < $now_ms) {
+            var.update $j_is_past {
+              value = true
+            }
+          }
+        }
+
         var $job_row {
           value = {
             id                  : $j.id
@@ -196,6 +214,8 @@ query lookup_customer_by_phone verb=GET {
             brand               : (($j.brand ?? "")|trim)
             scheduling_status   : (($j.scheduling_status ?? "")|trim)
             scheduled_start_ct  : $scheduled_ct
+            scheduled_start_ms  : ($j.scheduled_start ?? 0)
+            scheduled_is_past   : $j_is_past
             tech_first_name     : $tech_first
             parts_status        : (($j.parts_status ?? "")|trim)
             parts_eta_date      : (($j.parts_eta_date ?? "")|trim)
@@ -255,6 +275,18 @@ query lookup_customer_by_phone verb=GET {
           }
         }
 
+        var $rj_is_past {
+          value = false
+        }
+
+        conditional {
+          if ($rj.scheduled_start != null && $rj.scheduled_start > 0 && $rj.scheduled_start < $now_ms) {
+            var.update $rj_is_past {
+              value = true
+            }
+          }
+        }
+
         var $rj_row {
           value = {
             id                  : $rj.id
@@ -262,6 +294,8 @@ query lookup_customer_by_phone verb=GET {
             brand               : (($rj.brand ?? "")|trim)
             scheduling_status   : (($rj.scheduling_status ?? "")|trim)
             scheduled_start_ct  : $rj_scheduled_ct
+            scheduled_start_ms  : ($rj.scheduled_start ?? 0)
+            scheduled_is_past   : $rj_is_past
             tech_first_name     : $rj_tech_first
             parts_status        : (($rj.parts_status ?? "")|trim)
             warranty_company    : (($rj.warranty_company ?? "")|trim)
