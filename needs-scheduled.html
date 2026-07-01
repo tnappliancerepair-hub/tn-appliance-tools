@@ -214,6 +214,21 @@
     <button class="add-manual" id="addManualBtn">+ Add</button>
   </div>
 
+  <!-- Days off — obvious so nobody schedules a tech on a day they're out. -->
+  <div id="daysOffBar" style="margin:10px 14px 0;background:#fff4f0;border:1px solid #ffcbb3;border-radius:12px;padding:11px 14px;font-size:14px;line-height:1.6;color:#7a3b18;display:none">
+    <b>🌴 Days off:</b> <span id="daysOffList">loading…</span>
+  </div>
+
+  <!-- Auto-schedule proposals: Ant proposes tech + day for every job below
+       (respecting days off + customer availability). Danielle approves each ✓
+       or adjusts. This bar approves all proposals at once. -->
+  <div id="autoScheduleBar" style="margin:10px 14px 0;background:linear-gradient(135deg,#0f9d58,#12b866);color:#fff;border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.5">
+    <div style="font-weight:800;margin-bottom:6px">🐜 Ant has proposed a schedule for each job below</div>
+    <div style="font-size:13px;opacity:0.95;margin-bottom:9px">Each card shows <b>Ant suggests: day · tech</b> (days off + customer availability already factored in). Approve them one at a time with ✓, or approve them all here. Wrong one? Tap <b>Schedule</b> on that card to move it.</div>
+    <button id="approveAllBtn" style="background:#fff;color:#0f7c43;border:0;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✅ Approve all Ant suggestions</button>
+    <span id="approveAllStatus" style="margin-left:10px;font-size:13px;font-weight:700"></span>
+  </div>
+
   <div id="easiestBar" style="margin:10px 14px 0;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.5;font-weight:700">
     💬 <b>Easiest way:</b> tap <b>"Talk to Ant"</b> (bottom-right) and just say what you need — like <i>"schedule the Carson job with Jimmy Thursday"</i> or <i>"auto-schedule the Smith job."</i> Ant does it for you.
   </div>
@@ -428,6 +443,7 @@
   authInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('authBtn').click(); });
 
   $('refreshBtn').addEventListener('click', load);
+  $('approveAllBtn').addEventListener('click', approveAll);
   $('addManualBtn').addEventListener('click', () => addModal.classList.add('show'));
   $('addCancelBtn').addEventListener('click', () => addModal.classList.remove('show'));
   $('schedCancelBtn').addEventListener('click', () => schedModal.classList.remove('show'));
@@ -441,9 +457,54 @@
       render(d.items || []);
       count.textContent = (d.count || 0);
       loadScore();
+      loadDaysOff();
     } catch (e) {
       list.innerHTML = '<div class="empty"><h3>Load failed</h3><p>' + escapeHtml(e.message) + '</p></div>';
     }
+  }
+
+  const TECH_NAMES = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+  // Show each tech's upcoming days off (next 14 days) so nobody schedules onto
+  // a day a tech is out. Reads the same tech_availability the scheduler honors.
+  async function loadDaysOff() {
+    try {
+      const rows = await (await fetch(XANO_BASE + '/tech_availability')).json();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today.getTime() + 14 * 86400000);
+      const byTech = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => {
+        if (!r.full_day_off) return;
+        const d = new Date((r.blocked_date || '') + 'T12:00:00');
+        if (isNaN(d) || d < today || d > horizon) return;
+        (byTech[Number(r.technician_id)] = byTech[Number(r.technician_id)] || []).push(d);
+      });
+      const parts = Object.keys(byTech).map(t => {
+        const ds = byTech[t].sort((a, b) => a - b).map(d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }));
+        const label = ds.length >= 3 ? (ds[0] + ' – ' + ds[ds.length - 1]) : ds.join(', ');
+        return `<b>${TECH_NAMES[t] || ('Tech ' + t)}</b>: ${label}`;
+      });
+      const bar = document.getElementById('daysOffBar'), listEl = document.getElementById('daysOffList');
+      if (parts.length) { listEl.innerHTML = parts.join(' &nbsp;·&nbsp; '); bar.style.display = 'block'; }
+      else { bar.style.display = 'none'; }
+    } catch (_) {}
+  }
+
+  // Approve every Ant proposal at once — books each proposed tech + day. Danielle
+  // can still move any afterward (each still lands with a ✓ before booking).
+  async function approveAll() {
+    const btn = document.getElementById('approveAllBtn'), st = document.getElementById('approveAllStatus');
+    const yes = Array.from(document.querySelectorAll('.ghost-yes'));
+    if (!yes.length) { st.textContent = 'No proposals ready yet — give it a few seconds and try again.'; return; }
+    if (!confirm('Approve all ' + yes.length + ' Ant suggestions? Each books the proposed tech + day. You can still move any afterward.')) return;
+    btn.disabled = true; let done = 0;
+    for (const b of yes) {
+      if (!document.body.contains(b)) { continue; }
+      st.textContent = 'Booking ' + (done + 1) + ' of ' + yes.length + '…';
+      try { await acceptSuggestion(b); } catch (_) {}
+      done++; await new Promise(r => setTimeout(r, 400));
+    }
+    st.textContent = '✅ Booked ' + done + '. Refreshing…';
+    setTimeout(load, 900);
   }
 
   function render(items) {
