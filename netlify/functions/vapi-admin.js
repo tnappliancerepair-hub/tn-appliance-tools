@@ -164,6 +164,33 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // WE TEXT BACK — stop over-promising phone callbacks (too many to call).
+  // (Teddy 2026-07-01.) Idempotent, prepended to Ant Inbound.
+  if (action === 'text_first') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- TEXT-FIRST -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## WE TEXT PEOPLE BACK — DON'T PROMISE PHONE CALLBACKS (hard rule, top priority)\n`
+      + `We have far too many callers to call everyone back. Whenever you can't fully handle a caller and the office needs to follow up, tell them we'll TEXT them back — do NOT say "the office will call you back." Steps:\n`
+      + `1) Get the best CELL number and confirm: "Are you able to receive text messages at that number?"\n`
+      + `2) If YES: "Perfect — we'll text you back shortly, and you can text us anytime at this number." Capture the callback and put "TEXT OK" in the summary/notes.\n`
+      + `3) If NO (landline / can't text): that's fine — put "CALL ONLY — cannot receive texts" in the callback summary. Those are the only callers we phone back.\n`
+      + `4) Encourage them to text us or leave a message with what they need so we can help by text.\n`
+      + `Never promise a phone call to someone who can receive texts — texting is how we keep up. (This governs the callback/confirm/handoff situations too: "we'll text you," not "we'll call you.")\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // NEVER tell a caller their job is canceled — it kills the sale, and jobs get
   // canceled in our system by mistake / vendor updates while we still intend to
   // serve them. (Teddy 2026-07-01.) Idempotent, prepended to Ant Inbound.
