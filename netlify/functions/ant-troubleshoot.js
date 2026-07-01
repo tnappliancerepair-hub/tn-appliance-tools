@@ -69,6 +69,20 @@ async function getSimilarJobs(query, jobId) {
   } catch (_) { return []; }
 }
 
+// Keep grounding ON the appliance. The semantic store returns the most similar
+// TDRs regardless of appliance, so a washer symptom ("loud, won't spin") can pull
+// back a FRIDGE job that mentions "compressor" — which is how Ant started telling
+// Lee his washer had a compressor. A washer/dryer/dishwasher/oven has no
+// compressor, refrigerant, sealed system, or evaporator, so drop any retrieved
+// job that reads like a refrigeration job when the unit isn't refrigeration.
+const REFRIG_RE = /\b(compressor|refrigerant|freon|sealed[ -]?system|evaporator|condenser coil|defrost|ice[ -]?maker|freezer|fridge|refrigerat)/i;
+function isRefrigeration(appl) { return /fridge|refriger|freezer|\bice\b|cooler|wine/i.test(String(appl || '')); }
+function dropForeignAppliance(rows, appliance) {
+  const a = String(appliance || '').trim();
+  if (!a || isRefrigeration(a)) return rows; // unknown or actually a fridge → keep
+  return (rows || []).filter((x) => !REFRIG_RE.test(String((x && (x.preview || x.text || x.failed_component)) || '')));
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
@@ -88,11 +102,15 @@ exports.handler = async function (event) {
 
   // ── gather context (parallel) ──────────────────────────────────────────────
   const fcRes = code ? faultCodes.lookup(brand, code, appliance) : { match: null };
-  const [commonFailures, similarJobs, intelHit] = await Promise.all([
+  let [commonFailures, similarJobs, intelHit] = await Promise.all([
     getCommonFailures(brand, appliance, model),
     getSimilarJobs([brand, appliance, model, symptom].filter(Boolean).join(' '), jobId),
     (model || brand) ? modelIntel.readModelIntel({ brand, model }).catch(() => null) : Promise.resolve(null),
   ]);
+  // Strip cross-appliance grounding so a fridge TDR never bleeds into a washer
+  // (or vice-versa handled by the appliance check inside).
+  similarJobs = dropForeignAppliance(similarJobs, appliance);
+  commonFailures = dropForeignAppliance(commonFailures, appliance);
 
   const faultMatch = fcRes.match || null;
   // Owner-curated playbook (repair-playbook.json) — matched on the customer's own
@@ -156,6 +174,7 @@ exports.handler = async function (event) {
   const isCustomer = role === 'customer';
   const systemPrompt = [
     'You are Ant, a grounded appliance-repair diagnostician for TN Appliance Exchange.',
+    `THE UNIT IS A ${(appliance || 'appliance').toUpperCase()}. Stay strictly within THIS appliance. A washer, dryer, dishwasher, oven, range, or microwave has NO compressor, refrigerant, sealed system, condenser, or evaporator — NEVER name those for a non-refrigeration appliance. If any CONTEXT item is clearly a different appliance, IGNORE it and say the grounding is thin rather than forcing a wrong-appliance part.`,
     'Answer ONLY from the CONTEXT provided (owner playbook, fault-code DB, this shop\'s past jobs, common failures).',
     'When [playbook] is present, LEAD WITH IT — it is the shop owner\'s proven diagnosis for this exact symptom; trust it above the other sources.',
     'Cite every claim inline with the bracket tag it came from: [playbook], [fault-code], [common-failures], or [job #N].',
