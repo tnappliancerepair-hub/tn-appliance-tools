@@ -230,11 +230,17 @@
     font-family: 'IBM Plex Mono', monospace;
   }
 
-  .content {
+  /* .scroll is the single scroll region (grid row 3). The job detail fills it;
+     the SMS thread + activity accordions live inside it, collapsed, so they
+     never squeeze the detail. */
+  .scroll {
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 12px;
     -webkit-overflow-scrolling: touch;
+  }
+  .scroll::-webkit-scrollbar { width: 8px; }
+  .content {
+    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -495,6 +501,7 @@
   <div class="action-bar" id="action-bar"></div>
 </div>
 
+<main class="scroll" id="scroll">
 <div class="content" id="content">
   <div class="loading">
     <div class="spinner"></div>
@@ -505,18 +512,20 @@
 <!-- Unified SMS thread (Phase 3b). Office lens — shows every SMS for
      this job in chronological order (customer + tech + owner directions).
      ant-spine.js auto-mounts when this div is present and the page reads
-     job_id from the URL. filterFor='office' shows the full thread. -->
-<details open style="max-width: 860px; margin: 16px auto; padding: 0 12px;">
+     job_id from the URL. filterFor='office' shows the full thread.
+     Collapsed by default so it never squeezes the job detail. -->
+<details style="max-width: 860px; margin: 0 auto; padding: 12px;">
   <summary style="cursor: pointer; padding: 10px 14px; background: #1a1f2c; border: 1px solid #2a3040; border-radius: 10px; font-size: 14px; color: #cbd5e0; font-weight: 600;">💬 SMS thread for this job</summary>
   <div id="ant-sms-thread" data-filter="office" style="margin-top: 8px; border: 1px solid #2a3040; border-radius: 10px; background: #131720; min-height: 80px;"></div>
 </details>
 
 <!-- Unified Job Timeline — central brain feed. ant-spine.js auto-mounts
-     when this sentinel is present. Office sees everything. -->
-<details open style="max-width: 860px; margin: 16px auto; padding: 0 12px;">
+     when this sentinel is present. Collapsed by default. -->
+<details style="max-width: 860px; margin: 0 auto 16px; padding: 0 12px;">
   <summary style="cursor: pointer; padding: 10px 14px; background: rgba(180,140,255,0.10); border: 1px solid rgba(180,140,255,0.30); border-radius: 10px; font-size: 14px; color: #b48cff; font-weight: 600;">🧠 Job activity — everything that's happened</summary>
   <div id="ant-job-timeline" data-filter="office" style="margin-top: 8px; border: 1px solid #2a3040; border-radius: 10px; background: #131720; min-height: 80px; max-height: 480px; overflow-y: auto;"></div>
 </details>
+</main>
 
 <!-- Edit job info modal — Danielle fills/corrects customer + appliance + warranty -->
 <div class="modal-overlay" id="modal-edit">
