@@ -140,7 +140,13 @@ async function load(){
   const conv={};
   for(const raw of rows){
     const s=shape(raw); if(!s.key)continue;
-    const c=conv[s.key]||(conv[s.key]={key:s.key,jobId:s.jobId,name:'',phone:'',last:null,count:0,msgs:[]});
+    const c=conv[s.key]||(conv[s.key]={key:s.key,jobId:s.jobId,name:'',phone:'',last:null,count:0,msgs:[],_sigs:new Set()});
+    // DEDUP: one Ant reply logs BOTH an sms_sent AND a customer_sms_reply row
+    // (~same instant), so the SAME text was showing twice. The customer only
+    // gets one text — collapse near-identical rows (dir + body + ~8s bucket).
+    const sig=s.dir+'|'+s.body.slice(0,80)+'|'+Math.round(s.ts/8000);
+    if(s.body && c._sigs.has(sig)) continue;
+    if(s.body) c._sigs.add(sig);
     c.count++;
     c.msgs.push(s);
     if(!c.jobId&&s.jobId)c.jobId=s.jobId;
