@@ -62,6 +62,51 @@ exports.handler = async function (event) {
 
   const action = q.action || 'inspect';
 
+  // Tighten Ant Field Assist for VOICE: stop reciting option-lists, stop
+  // stalling, keep turns short, get names/numbers right, pull part #s live.
+  // Prepends a highest-priority block (idempotent) so it wins over the long
+  // prompt below. Also softens the tool "one moment" filler that added dead air.
+  if (action === 'tighten_field') {
+    const id = String(q.assistant_id || 'a22edcd1-495a-4d77-a66a-fb167997c70a').trim();
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load assistant', status: got.status, detail: got.json }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- VOICE-DELIVERY -->';
+    let promptChanged = false;
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## 🎙️ VOICE DELIVERY — HIGHEST PRIORITY (this is a phone call; it overrides anything below about listing or confirming things)\n`
+        + `The tech is busy, hands full, customer watching. Talk like a sharp senior tech who respects his time.\n`
+        + `1. NEVER read a list of choices out loud. To capture the failure cause, INFER the most likely one from what he said and confirm in ONE short line — "Sounds like normal wear, that right?" If he says no, ask "what caused it then?" Never recite the menu of options.\n`
+        + `2. NO STALLING. Never say "one moment," "hold on," or "give me a sec," and never go silent. If you must look something up, say what you're doing in a few words and keep going — then give the answer.\n`
+        + `3. ONE question at a time. Keep every turn to a sentence or two — long turns get cut off and waste his time.\n`
+        + `4. Use his NAME from the job context and don't rename him mid-call.\n`
+        + `5. Numbers: labor is in HOURS ("point five" = 0.5 hours, not dollars). Read a model number back ONCE to confirm, then move on.\n`
+        + `6. PART NUMBERS — do it LIVE. When he gives a model + the failed part, look it up right then and text him the parts link with the model loaded. Don't punt the part number to the office unless the lookup truly fails.\n`
+        + `7. If he sounds rushed ("I gotta go"), wrap up immediately — confirm what you've got and let him go.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      promptChanged = true;
+    }
+    // Soften the tool request-start filler ("One moment…") that added dead air —
+    // shorter + less robotic, only where a filler already exists.
+    const tools = Array.isArray(model.tools) ? model.tools : [];
+    let fillersFixed = 0;
+    const newTools = tools.map((t) => {
+      if (t.type !== 'function' || !Array.isArray(t.messages)) return t;
+      const msgs2 = t.messages.map((m) => (m.type === 'request-start' ? { type: 'request-start', content: 'Checking…' } : m));
+      if (JSON.stringify(msgs2) !== JSON.stringify(t.messages)) fillersFixed++;
+      return Object.assign({}, t, { messages: msgs2 });
+    });
+    if (!promptChanged && !fillersFixed) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs, tools: newTools }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, voice_rules_applied: applied, fillers_softened: fillersFixed, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Inject the appliance-boundary rule into a tech diagnostic assistant's system
   // prompt (idempotent). Default = Ant Field Assist. Belt-and-suspenders for the
   // "Ant told the washer it has a compressor" fix — enforced at the assistant
