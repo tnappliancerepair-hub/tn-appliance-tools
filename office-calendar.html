@@ -1186,7 +1186,7 @@ function __initCalendar() {
         if (isLocked) return `<div style="${base};background:rgba(91,155,213,0.16);color:#9db8e0">📌 vendor pre-scheduled — locked slot</div>`;
         const bits = [];
         if (pref) {
-          const a = pref.match(/AVAIL:\s*([^\n]*)/i);
+          const a = pref.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
           const u = pref.match(/UNAVAIL:\s*([^\n]*)/i);
           if (a && a[1].trim()) bits.push(`✅ ${escapeHtml(a[1].trim())}`);
           if (u && u[1].trim()) bits.push(`⛔ ${escapeHtml(u[1].trim())}`);
@@ -1206,8 +1206,16 @@ function __initCalendar() {
       })();
       // Ant's suggested day + tech — FRONT AND CENTER on every tile. Placeholder
       // now, hydrated right after render via suggest-schedule (see hydrateSuggestions).
+      // Pass the customer's availability along so the suggested DAY honors it:
+      // parse AVAIL/UNAVAIL cleanly here (single-line, attribute-safe) + the grid.
+      const prefRaw = (j.customer_preference_text || '');
+      const availM = prefRaw.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
+      const unavailM = prefRaw.match(/UNAVAIL:\s*([^\n]*)/i);
+      const availTxt = availM ? availM[1].trim() : (unavailM ? '' : prefRaw.replace(/\s+/g, ' ').trim());
+      const unavailTxt = unavailM ? unavailM[1].trim() : '';
+      const gridTxt = (j.customer_availability_grid || '');
       const suggestLine = (!isLocked && zip5.length >= 5)
-        ? `<div class="ant-suggest" data-jobid="${j.id}" data-zip="${zip5}" data-appl="${escapeHtml(appl)}" data-brand="${escapeHtml(brand)}"
+        ? `<div class="ant-suggest" data-jobid="${j.id}" data-zip="${zip5}" data-appl="${escapeHtml(appl)}" data-brand="${escapeHtml(brand)}" data-avail="${escapeHtml(availTxt)}" data-unavail="${escapeHtml(unavailTxt)}" data-grid="${escapeHtml(gridTxt)}"
              style="font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.45);background:rgba(76,201,192,0.09);color:#6fd3ca">🐜 finding best day…</div>`
         : '';
       // Immediate-intake action: no availability + not vendor-locked = text the
@@ -1386,7 +1394,7 @@ function __initCalendar() {
         const zip = n.dataset.zip || '';
         if (!zip || zip.length < 5) { const s = { html: '🔧 add a zip to route this', style: SUGG_MUT }; SUGG_CACHE[jobId] = s; paintSuggest(n, s); return; }
         try {
-          const qs = new URLSearchParams({ service_zip: zip, job_id: jobId, appliance_type: n.dataset.appl || '', brand: n.dataset.brand || '' });
+          const qs = new URLSearchParams({ service_zip: zip, job_id: jobId, appliance_type: n.dataset.appl || '', brand: n.dataset.brand || '', avail_text: n.dataset.avail || '', unavail_text: n.dataset.unavail || '', grid: n.dataset.grid || '' });
           const r = await fetch(`/.netlify/functions/suggest-schedule?${qs.toString()}`, { signal: AbortSignal.timeout(20000) });
           const d = await r.json();
           const sug = d && d.suggestion;

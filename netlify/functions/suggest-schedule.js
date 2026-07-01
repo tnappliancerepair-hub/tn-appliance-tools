@@ -32,8 +32,19 @@ function availabilityConstraints(pref, unavail, gridJson) {
   const anyDay = isAnyDay(pref);
   const availDows = dowsFromText(pref);
   const unavailDows = dowsFromText(unavail);
-  try { const g = JSON.parse(gridJson || '[]'); if (Array.isArray(g)) g.forEach((e) => dowsFromText(e && e.day).forEach((x) => availDows.add(x))); } catch (_) {}
+  try { const g = JSON.parse(gridJson || '[]'); if (Array.isArray(g)) g.forEach((e) => dowsFromText(e && (e.day || e.date)).forEach((x) => availDows.add(x))); } catch (_) {}
   return { anyDay, availDows, unavailDows, hasAvail: availDows.size > 0 };
+}
+// customer_preference_text arrives as free text that may carry explicit
+// "AVAIL: ... / UNAVAIL: ..." markers (how intake stores it). Split them so the
+// UNAVAIL days become hard blocks and the AVAIL days become the allowed set. No
+// markers → the whole line is treated as their availability.
+function splitPref(pref) {
+  const s = String(pref || '');
+  const a = s.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
+  const u = s.match(/UNAVAIL:\s*([^\n]*)/i);
+  if (a || u) return { availText: (a && a[1]) || '', unavailText: (u && u[1]) || '' };
+  return { availText: s, unavailText: '' };
 }
 
 exports.handler = async function (event) {
@@ -53,15 +64,18 @@ exports.handler = async function (event) {
   const techId = zone.suggested_technician_id;
   const cluster = zone.cluster || '';
 
-  // 1b) honor the customer's availability (if we've collected it)
+  // 1b) honor the customer's availability. Preferred path: the caller (the
+  // office board) passes the job's preference text + availability grid straight
+  // in — it already has them, and that avoids a heavy per-job fetch. (The old
+  // get_job_for_dashboard lookup is a dead route, so params are the real source.)
   let av = { anyDay: false, availDows: new Set(), unavailDows: new Set(), hasAvail: false };
   const jobId = parseInt(String(p.job_id || '').replace(/\D/g, ''), 10) || 0;
-  if (jobId) {
-    try {
-      const jd = await (await fetch(`${XANO}/get_job_for_dashboard?job_id=${jobId}`)).json();
-      const j = (jd && (jd.job || jd)) || {};
-      av = availabilityConstraints(j.customer_preference_text, j.customer_unavailability_text, j.customer_availability_grid);
-    } catch (_) {}
+  const prefParam = p.pref || p.preference_text || p.avail_text || '';
+  const unavailParam = p.unavail || p.unavail_text || '';
+  const gridParam = p.grid || p.availability_grid || '';
+  if (prefParam || unavailParam || gridParam) {
+    const sp = splitPref(prefParam);
+    av = availabilityConstraints(sp.availText, unavailParam || sp.unavailText, gridParam);
   }
 
   // 2) tech route + profile
