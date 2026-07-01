@@ -1159,9 +1159,11 @@ function __initCalendar() {
       const cust = `${(j.customer_first_name || '').trim()} ${(j.customer_last_name || '').trim()}`.trim() || '(no customer)';
       const appl = (j.appliance_type || 'appliance').toLowerCase();
       const loc = (j.service_city || j.service_zip || '').trim();
-      // Zip drives the "who covers this area" lookup (check_service_zone → rank-1
-      // ACTIVE non-owner tech; if he can't, the office just taps a different tech).
+      // Zip + brand drive Ant's placement suggestion (suggest-schedule → best
+      // DAY + the rank-1 ACTIVE non-owner tech for that area, honoring the
+      // customer's availability/route/capacity; office can override on tap).
       const zip5 = String(j.service_zip || '').replace(/\D/g, '').slice(0, 5);
+      const brand = String(j.brand || '').trim();
       const ct = (j.customer_type || '').toLowerCase();
       const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
       const pb = partsBadge(j);
@@ -1202,10 +1204,11 @@ function __initCalendar() {
         if (bits.length) { hasAvail = true; return `<div style="${base};background:rgba(255,180,84,0.18);color:#ffce8a">🕒 ${bits.join(' · ')}</div>`; }
         return `<div style="${base};background:rgba(138,150,168,0.1);color:#8a96a8;font-weight:600">🕒 no time info — send intake link now 👇</div>`;
       })();
-      // "who covers this area" line — hydrated after render from the zip via
-      // check_service_zone (rank-1 active non-owner; office can override on tap).
-      const areaLine = zip5.length >= 5
-        ? `<div class="area-tech" data-zip="${zip5}" style="font-size:11px;color:#6f7c8c;margin-top:4px">🔧 …</div>`
+      // Ant's suggested day + tech — FRONT AND CENTER on every tile. Placeholder
+      // now, hydrated right after render via suggest-schedule (see hydrateSuggestions).
+      const suggestLine = (!isLocked && zip5.length >= 5)
+        ? `<div class="ant-suggest" data-jobid="${j.id}" data-zip="${zip5}" data-appl="${escapeHtml(appl)}" data-brand="${escapeHtml(brand)}"
+             style="font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.45);background:rgba(76,201,192,0.09);color:#6fd3ca">🐜 finding best day…</div>`
         : '';
       // Immediate-intake action: no availability + not vendor-locked = text the
       // customer a guided intake link this second. The sooner the intake, the
@@ -1217,9 +1220,9 @@ function __initCalendar() {
       return `
         <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule this job">
           <div class="cust">${escapeHtml(cust)} ${tag}</div>
+          ${suggestLine}
           ${constraintLine}
           <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
-          ${areaLine}
           <div class="meta">${meta}</div>
           ${intakeBtn}
           <div class="intake-result" data-jobid="${j.id}" style="font-size:12px;margin-top:4px"></div>
@@ -1343,39 +1346,50 @@ function __initCalendar() {
     document.querySelectorAll('.send-intake[data-jobid]').forEach((btn) => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); sendIntakeLink(btn); });
     });
-    hydrateAreaTechs();   // fill "🔧 {tech}'s area" on the unscheduled cards
+    hydrateSuggestions();   // fill "🐜 Ant suggests: {day} · {tech}" on the cards
     attachDragHandlers();
   }
 
-  // ── Area tech + immediate intake ─────────────────────────────────
-  // Which tech covers each unscheduled job's zip. check_service_zone returns the
-  // rank-1 ACTIVE, NON-OWNER tech for that cluster (owner is last resort), so if
-  // the primary can't take it the office just taps a different tech in the modal.
-  const ZONE_CACHE = {}; // zip5 -> { name, cluster } (or { name:'' } when unknown)
-  async function hydrateAreaTechs() {
-    const nodes = Array.from(document.querySelectorAll('.area-tech[data-zip]:not([data-done])'));
+  // ── Ant's suggested day + tech (front-and-center on every Needs-Scheduling
+  // tile) + immediate intake. suggest-schedule returns the best DAY plus the
+  // rank-1 ACTIVE non-owner tech for the area (owner is last resort), honoring
+  // the customer's availability / route / capacity. If the pick can't take it,
+  // the office just taps a different tech in the schedule modal.
+  const SUGG_CACHE = {}; // jobId -> { html, style }
+  function paintSuggest(n, s) { n.innerHTML = s.html; n.style.cssText = s.style; n.dataset.done = '1'; }
+  const SUGG_OK  = 'font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.5);background:rgba(76,201,192,0.11);color:#7fd8d0';
+  const SUGG_AMB = 'font-size:12.5px;font-weight:700;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(255,180,84,0.5);background:rgba(255,180,84,0.12);color:#ffce8a';
+  const SUGG_MUT = 'font-size:12px;font-weight:600;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;background:rgba(138,150,168,0.1);color:#8a96a8';
+  async function hydrateSuggestions() {
+    const nodes = Array.from(document.querySelectorAll('.ant-suggest[data-jobid]:not([data-done])'));
     if (!nodes.length) return;
-    const zips = [...new Set(nodes.map((n) => n.dataset.zip).filter((z) => z && z.length >= 5))];
-    await Promise.all(zips.map(async (zip) => {
-      if (zip in ZONE_CACHE) return;
-      try {
-        const r = await fetch(`${XANO_BASE}/check_service_zone?zip_code=${encodeURIComponent(zip)}`, { signal: AbortSignal.timeout(8000) });
-        const z = await r.json();
-        ZONE_CACHE[zip] = (z && z.suggested_technician_id)
-          ? { name: z.suggested_tech_name || ('tech ' + z.suggested_technician_id), cluster: z.cluster || '', covered: !!z.covered }
-          : { name: '', cluster: (z && z.cluster) || '', covered: !!(z && z.covered) };
-      } catch (_) { ZONE_CACHE[zip] = { name: '', cluster: '' }; }
-    }));
-    for (const n of nodes) {
-      n.dataset.done = '1';
-      const info = ZONE_CACHE[n.dataset.zip] || {};
-      if (info.name) {
-        n.innerHTML = `🔧 <strong style="color:#7fd8d0">${escapeHtml(info.name)}</strong>'s area${info.cluster ? ' · ' + escapeHtml(info.cluster) : ''}`;
-      } else if (info.covered === false) {
-        n.innerHTML = `<span style="color:#c78">⚠️ area not mapped — pick a tech</span>`;
-      } else {
-        n.remove(); // covered but no assigned tech, or lookup failed — stay clean
-      }
+    const BATCH = 4; // gentle on Xano — suggest-schedule fans out a few reads per job
+    for (let i = 0; i < nodes.length; i += BATCH) {
+      await Promise.all(nodes.slice(i, i + BATCH).map(async (n) => {
+        const jobId = n.dataset.jobid;
+        if (SUGG_CACHE[jobId]) { paintSuggest(n, SUGG_CACHE[jobId]); return; }
+        n.dataset.done = '1';
+        const zip = n.dataset.zip || '';
+        if (!zip || zip.length < 5) { const s = { html: '🔧 add a zip to route this', style: SUGG_MUT }; SUGG_CACHE[jobId] = s; paintSuggest(n, s); return; }
+        try {
+          const qs = new URLSearchParams({ service_zip: zip, job_id: jobId, appliance_type: n.dataset.appl || '', brand: n.dataset.brand || '' });
+          const r = await fetch(`/.netlify/functions/suggest-schedule?${qs.toString()}`, { signal: AbortSignal.timeout(13000) });
+          const d = await r.json();
+          const sug = d && d.suggestion;
+          let s;
+          if (sug && sug.suggested_tech_name && sug.suggested_day_label) {
+            s = { html: `🐜 Ant suggests: <strong>${escapeHtml(sug.suggested_day_label)}</strong> · <strong>${escapeHtml(sug.suggested_tech_name)}</strong>${sug.honored_availability ? ' ✅' : ''}${sug.brand_conflict ? ' ⚠️' : ''}`, style: SUGG_OK };
+          } else if (sug && sug.suggested_tech_name) {
+            s = { html: `🔧 <strong>${escapeHtml(sug.suggested_tech_name)}</strong>'s area — ${escapeHtml(d.reason || 'pick a day')}`, style: SUGG_AMB };
+          } else {
+            s = { html: `⚠️ ${escapeHtml((d && d.reason) || 'area not mapped — pick a tech')}`, style: SUGG_AMB };
+          }
+          SUGG_CACHE[jobId] = s; paintSuggest(n, s);
+        } catch (_) {
+          const s = { html: '🔧 tap to place manually', style: SUGG_MUT };
+          paintSuggest(n, s); // don't cache errors — allow a retry on next render
+        }
+      }));
     }
   }
 
