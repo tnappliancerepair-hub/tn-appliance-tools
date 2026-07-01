@@ -73,14 +73,21 @@ exports.handler = async function (event) {
     const c = got.json || {};
     const a = c.assistantOverrides || c.assistant || {};
     const model = (a.model || (c.assistant && c.assistant.model)) || {};
+    const argsOf = (m) => {
+      const tcs = m.toolCalls || m.tool_calls || (m.toolWithToolCallList) || [];
+      const list = Array.isArray(tcs) ? tcs : [];
+      const out = list.map((tc) => ({ name: (tc.function && tc.function.name) || tc.name, args: (tc.function && tc.function.arguments) != null ? (tc.function.arguments) : tc.arguments }));
+      return out.length ? out : undefined;
+    };
     const msgs = (c.messages || (c.artifact && c.artifact.messages) || []).map((m) => ({
       role: m.role, t: (typeof m.secondsFromStart === 'number' ? Math.round(m.secondsFromStart) + 's' : ''), text: String(m.message || m.content || '').slice(0, 300),
+      tool_calls: (q.args === '1') ? argsOf(m) : undefined,
     }));
     return { statusCode: 200, body: JSON.stringify({
       ok: true, id: c.id, ended_reason: c.endedReason,
       transcriber: (a.transcriber || (c.assistant && c.assistant.transcriber)) || null,
       voice_provider: ((a.voice || (c.assistant && c.assistant.voice)) || {}).provider || null,
-      turns: msgs,
+      turns: (q.args === '1') ? msgs.filter((x) => x.tool_calls) : msgs,
     }, null, 2) };
   }
 
