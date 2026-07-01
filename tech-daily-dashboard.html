@@ -1494,7 +1494,12 @@
     const psRaw = (j.parts_status || '').toLowerCase();
     const partsPending = ['awaiting_parts','ordered','on_order','pending','parts_needed','to_order'].includes(psRaw) || status === 'awaiting_parts';
     const partsReady = ['arrived','ready','received','in_storage','delivered','picked_up'].includes(psRaw);
-    const isCompletion = partsPending || partsReady;
+    // A completion is a RETURN visit — he's already been on it. Signals (any):
+    //  parts in play · already started (in_progress) · awaiting parts · a field
+    //  tech already filed a diagnosis TDR (technician_id != 1 = not Teddy's pre-diag).
+    const fieldDiagnosed = !!(lt && (String(lt.diagnosis || '').trim() || String(lt.failed_component || '').trim()) && Number(lt.technician_id) !== 1);
+    const alreadyEngaged = status === 'in_progress' || status === 'awaiting_parts';
+    const isCompletion = partsPending || partsReady || fieldDiagnosed || alreadyEngaged;
     // Where are the parts (Teddy: "completion — parts at customer, whatever")?
     const partsWhere = isCash ? 'at customer' : (partsReady ? 'ready' : (partsPending ? 'coming' : ''));
     const terminalStatus = ['completed','canceled','cancelled','no_fix_possible'].includes(status);
