@@ -87,6 +87,38 @@ async function mtList(path, { perPage = 50, maxPages = 2000, params = {} } = {})
   return out;
 }
 
+// POST with bearer auth (+ 429 backoff), for creating tasks/cards.
+async function mtPost(path, body, { retries = 3 } = {}) {
+  const tok = await token();
+  if (!tok) throw new Error('meistertask_not_configured (set MEISTERTASK_TOKEN)');
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    await pace();
+    let r;
+    try {
+      r = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + tok, Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+        signal: AbortSignal.timeout(25000),
+      });
+    } catch (e) { lastErr = e; await sleep(1500 * (attempt + 1)); continue; }
+    if (r.status === 429) {
+      const ra = Number(r.headers.get('retry-after'));
+      const waitMs = ra > 0 ? (ra * 1000 + 500) : Math.min(30000, 2000 * Math.pow(2, attempt));
+      lastErr = new Error(`meistertask POST ${path} -> 429`); lastErr.status = 429;
+      if (attempt < retries) { await sleep(waitMs); continue; }
+      throw lastErr;
+    }
+    if (!r.ok) { const b = await r.text().catch(() => ''); const e = new Error(`meistertask POST ${path} -> ${r.status}: ${b.slice(0, 180)}`); e.status = r.status; throw e; }
+    return r.json().catch(() => ({}));
+  }
+  throw lastErr || new Error('meistertask POST ' + path + ' failed');
+}
+
+// Create a task (card) in a section. name = title, notes = markdown body.
+const createTask = (sectionId, { name, notes }) => mtPost(`/sections/${sectionId}/tasks`, { name, notes });
+
 // ---- domain helpers -------------------------------------------------------
 // NOTE: do NOT pass status=all — MeisterTask 400s on it ("Invalid value for
 // status parameter"). The default (no status) already returns EVERY task,
@@ -98,6 +130,6 @@ const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
 
 module.exports = {
-  isConfigured, token, mtGet, mtList,
+  isConfigured, token, mtGet, mtList, mtPost, createTask,
   listProjects, listSections, listSectionTasks, listProjectTasks, listTaskComments,
 };
