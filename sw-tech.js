@@ -8,7 +8,7 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v7-2026-07-01-visittoggle';
+const CACHE_VERSION = 'ant-field-v8-2026-07-01-snappier';
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
@@ -67,7 +67,15 @@ self.addEventListener('fetch', (event) => {
       const net = fetch(req)
         .then((res) => { if (res && res.ok) cache.put(req, res.clone()); return res; })
         .catch(() => null);
-      const timeout = new Promise((r) => setTimeout(() => r('__TIMEOUT__'), 2500));
+      // On a navigation (opening a job) serve the cached page INSTANTLY if we
+      // have it, and refresh the cache in the background — techs in the field
+      // need the job to open on the first tap, not wait on a slow network.
+      if (isHTML) {
+        const cachedNow = await cache.match(req);
+        if (cachedNow) { net.catch(() => {}); return cachedNow; }  // instant, revalidates in bg
+      }
+      // Shell assets (JS/CSS): short network race, fast fallback to cache.
+      const timeout = new Promise((r) => setTimeout(() => r('__TIMEOUT__'), 1200));
       const first = await Promise.race([net, timeout]);
       if (first && first !== '__TIMEOUT__') return first;     // network won → fresh
       const cached = await cache.match(req);                  // slow/offline → cache

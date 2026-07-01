@@ -1312,7 +1312,16 @@
     try {
       var r = await fetch('/.netlify/functions/get-visit-types');
       var d = await r.json();
-      if (d && d.ok) { window.VISIT_OVERRIDES = d.overrides || {}; if (LAST_RENDER) renderJobs(LAST_RENDER.jobs || []); }
+      if (d && d.ok) {
+        var ov = d.overrides || {};
+        // Only re-render if there are ACTUAL overrides that changed. Re-rendering
+        // the whole list on every load rebuilt the cards while the tech was
+        // tapping — eating taps ("took several times to open this job"). Most
+        // days have no overrides, so skip the rebuild entirely.
+        var changed = JSON.stringify(ov) !== JSON.stringify(window.VISIT_OVERRIDES || {});
+        window.VISIT_OVERRIDES = ov;
+        if (changed && Object.keys(ov).length && LAST_RENDER && typeof renderJobs === 'function') renderJobs(LAST_RENDER.jobs || []);
+      }
     } catch (e) {}
   }
   async function toggleVisit(jobId, type) {
