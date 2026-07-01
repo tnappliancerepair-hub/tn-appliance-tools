@@ -833,7 +833,18 @@ function renderDrawer(d){
   // tech to whoever's already assigned. This is the place to put the schedule
   // date IN Ant (kills double-entry into the old tool).
   const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
+  // Part # gate (Teddy 2026-07-01): a filed report with NO part number can't be
+  // closed out. Flag it loud so the office chases the tech for the part #.
+  const _hasPartNum = tdrs.some(x=>String((x&&(x.verified_part_number||x.oem_part_number||x.part_number))||'').trim()!=='')
+    || String((j.oem_part_number||j.verified_part_number||j.part_number||'')).trim()!=='';
+  const partFlag = techReport && !_hasPartNum;
+  const _techFirst = esc((t.name||'the tech').split(' ')[0]||'the tech');
   document.getElementById('d-body').innerHTML=`
+    ${partFlag ? `<div class="dcard" style="border:2px solid #e74c3c;background:#fdecea">
+      <h4 style="color:#c0392b">⚠️ No part # on this report</h4>
+      <p style="font-size:13px;color:#7a2018;margin:4px 0 8px">The report's in but no part number was saved. Get the part # from ${_techFirst} and add it under 📦 Warranty parts below — we can't close this out without it.</p>
+      <button onclick="reqTechReport(${jid})" style="width:100%;padding:10px;border:0;border-radius:9px;background:#e74c3c;color:#fff;font-weight:800;cursor:pointer">📲 Ask ${_techFirst} for the part #</button>
+    </div>` : ''}
     <div class="dcard" style="border-color:#f5a623">
       <h4>📋 ${techReport ? 'Tech report — need more?' : 'Report not filed'}</h4>
       <p style="color:var(--dim,#8a93a1);font-size:13px;margin:4px 0 10px">${techReport ? 'A report\'s been started. Need '+esc(t.name||'the tech')+' to finish it or add detail? Ping them — Ant texts what\'s missing + calls to wrap it up.' : 'No tech report yet. Ping '+esc(t.name||'the tech')+' — Ant texts them what\'s missing + calls to finish it by voice.'}</p>
