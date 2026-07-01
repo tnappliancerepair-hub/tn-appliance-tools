@@ -15,6 +15,7 @@
 // - Records availability_requested_<job> so (a) we never re-ask, and (b) the
 //   customer's reply routes to the availability parser (sms_response_availability).
 'use strict';
+const { toE164 } = require('./_lib/sms');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = 15;
@@ -111,7 +112,7 @@ exports.handler = async function (event) {
     try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', send_no: asks.length + 1, at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
     if (!claimed) { skipped_dupe++; continue; }
 
-    const phone = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
+    const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
     const portal = `${SITE}/customer-portal.html?job_id=${id}&last4=`;
