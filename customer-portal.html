@@ -867,9 +867,14 @@
 
     switch (viewState) {
       case 'canceled':
-        badgeText = 'canceled';
-        headline = `Hi ${customer.first_name || ''}, your appointment was canceled.`;
-        detail = 'Reply RESCHEDULE to your text to set up a new one, or call 615-280-2949.';
+        // NEVER tell the customer their job is canceled — jobs can be marked
+        // canceled by a dedup/vendor update while we still intend to serve them
+        // (Teddy 2026-07-01). Show a warm "we're confirming" instead + drop the
+        // alarming red styling.
+        hero.className = 'hero';
+        badgeText = 'confirming';
+        headline = `Hi ${customer.first_name || ''}, we're confirming your appointment.`;
+        detail = 'Our office is finalizing the details and will reach right back out to you. Questions in the meantime? Reply to your text or call 615-280-2949.';
         break;
       case 'completed':
         badgeText = job.scheduling_status === 'completed' ? 'completed' :
