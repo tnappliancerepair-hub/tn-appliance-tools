@@ -1487,6 +1487,21 @@
       ? `<div class="status-pill" style="background:rgba(245,166,35,0.16); border:1px solid rgba(245,166,35,0.45); color:#f5a623; font-weight:700">💵 Our parts</div>`
       : `<div class="status-pill" style="background:rgba(116,160,255,0.16); border:1px solid rgba(116,160,255,0.5); color:#8ab4ff; font-weight:700">🛡️ Warranty</div>`;
 
+    // Visit type at a glance (Jimmy's ask): is this stop a first-look DIAGNOSIS or
+    // a COMPLETION (going back to install/finish, parts involved)? Parts-in-play is
+    // the high-confidence "completion" signal — awaiting_parts/ordered means we
+    // already diagnosed and a part is on the way; arrived/ready means grab-and-go.
+    const psRaw = (j.parts_status || '').toLowerCase();
+    const partsPending = ['awaiting_parts','ordered','on_order','pending','parts_needed','to_order'].includes(psRaw) || status === 'awaiting_parts';
+    const partsReady = ['arrived','ready','received','in_storage','delivered','picked_up'].includes(psRaw);
+    const isCompletion = partsPending || partsReady;
+    // Where are the parts (Teddy: "completion — parts at customer, whatever")?
+    const partsWhere = isCash ? 'at customer' : (partsReady ? 'ready' : (partsPending ? 'coming' : ''));
+    const terminalStatus = ['completed','canceled','cancelled','no_fix_possible'].includes(status);
+    const visitPill = terminalStatus ? '' : (isCompletion
+      ? `<div class="status-pill" style="background:rgba(0,214,143,0.20); border:1px solid rgba(0,214,143,0.6); color:#25e3a4; font-weight:800; letter-spacing:.02em">🔧 COMPLETION${partsWhere ? ` · parts ${partsWhere}` : ''}</div>`
+      : `<div class="status-pill" style="background:rgba(74,245,255,0.16); border:1px solid rgba(74,245,255,0.55); color:#4af5ff; font-weight:800; letter-spacing:.02em">🔍 DIAGNOSIS</div>`);
+
     const custName = `${(c.first_name||'').trim()} ${(c.last_name||'').trim()}`.trim() || '(no customer name)';
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
     const brand = (j.brand || '').trim();
@@ -1594,6 +1609,7 @@
         <div class="card-top">
           <div class="stop-num">${num}</div>
           <div class="time-window">${timeStr}</div>
+          ${visitPill}
           <div class="status-pill ${statusClass}">${escapeHtml(statusLabel)}</div>
           ${partsTag}
           ${practicePill}
