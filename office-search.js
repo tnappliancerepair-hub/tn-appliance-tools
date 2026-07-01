@@ -130,7 +130,16 @@
         resultsEl.innerHTML = `<div class="ofc-search-status">No matches.</div>`;
         return;
       }
-      resultsEl.innerHTML = d.items.map(it => {
+      // The search returns the customer's NEWEST job — which can be a canceled
+      // duplicate (e.g. a web-chat re-submission after an AHS dispatch). Resolve
+      // any canceled hit to the customer's ACTIVE job so we never surface a
+      // "canceled" that isn't the real story. (Teddy 2026-07-01.)
+      let items = d.items.slice(0, 10);
+      items = await Promise.all(items.map(resolveActive));
+      // dedupe by resolved job_id (multiple dupes can resolve to the same job)
+      const seenJ = new Set();
+      items = items.filter(it => { const k = String(it.job_id); if (seenJ.has(k)) return false; seenJ.add(k); return true; });
+      resultsEl.innerHTML = items.map(it => {
         const name = ((it.customer_first || '') + ' ' + (it.customer_last || '')).trim() || '(no name)';
         const meta = [it.customer_phone, it.address, it.city].filter(Boolean).join(' · ');
         const right = [it.appliance, it.warranty_company, it.scheduling_status].filter(Boolean).join(' · ');
@@ -156,6 +165,25 @@
       const msg = e && e.name === 'AbortError' ? 'Server timeout — try again.' : 'Search error.';
       resultsEl.innerHTML = `<div class="ofc-search-status">${msg}</div>`;
     }
+  }
+
+  // Given a search hit, if it's canceled, find the customer's ACTIVE job on the
+  // same claim and return that instead (so we surface the real job, not a
+  // canceled duplicate). Best-effort + fast; falls back to the original hit.
+  async function resolveActive(it) {
+    if (!it || !/cancel/i.test(String(it.scheduling_status || ''))) return it;
+    try {
+      const es = await fetch(`${XANO_BASE}/get_job_event_stream?job_id=${it.job_id}`).then(r => r.json());
+      const claim = es && es.current_state && es.current_state.job && es.current_state.job.claim_number;
+      if (!claim) return it;
+      const cl = await fetch(`${XANO_BASE}/lookup_by_claim_number`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claim_or_dispatch_number: claim }),
+      }).then(r => r.json());
+      const active = (cl.matches || []).find(m => !/cancel|complete/i.test(String(m.scheduling_status || m.current_status || '')));
+      if (active) return Object.assign({}, it, { job_id: active.id, scheduling_status: active.scheduling_status || 'scheduled' });
+    } catch (_) {}
+    return it;
   }
 
   function escapeHtml(s) {
