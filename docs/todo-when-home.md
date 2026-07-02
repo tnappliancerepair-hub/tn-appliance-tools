@@ -4,8 +4,12 @@ Newest at top. Check off + delete once done.
 
 ## 2026-07-02
 
-### 🛠️ Two systemic fixes queued (Mac XS + loop — do on the pull)
-- **Claim-# dedup on `create_job_from_chat`** — Cynthia Prugh came in twice (AHS dispatch #20088 + web intake #20089, same claim 60322459) because the web intake dedupes on phone/customer but NOT the claim number. Fix: if an incoming web intake carries a claim# already on a job, attach to that job instead of creating a new one. (XS push.) *(The dupe itself is already cleaned — #20089 soft-canceled.)*
+### 🛠️ Systemic "don't duplicate — match & attach" fix (Mac XS + loop — do on the pull)
+The #1 recurring problem all day. Intake/new-lead matches ONLY on phone, so it creates duplicate (often mis-labeled CASH) tickets for people who are already in the system. Teddy's rule: **on a no-match, DON'T auto-create a ticket — collect the info, match it, and if it pulls up, ADD them to the existing job. Only make a new ticket if truly new.**
+- **Claim-# dedup on `create_job_from_chat`** — Cynthia Prugh: AHS dispatch #20088 + web intake #20089, same claim 60322459. Fix: incoming claim# already on a job → attach, don't create. *(Dupe cleaned — #20089 soft-canceled.)*
+- **Household / alt-contact matching** — Ashley Bordelon texted about the oven; the warranty job is under her wife **Toby Dennis**; different phone → AI made a 2nd CASH claim for Ashley. Fix: before creating, match on **address + name + claim#**, not just phone. On a match, link the person as an alternate contact on the existing job (use the existing `related_customer_id` / add-phone), inherit warranty, and route their future texts to that job. Don't auto-label cash on a no-match — collect address/claim first, then match. *(Immediate Ashley↔Toby merge: pending — Claude can link/cancel the dup on request.)*
+- **When the agent can't find them, ASK whose it's under (both Vapi phone + SMS)** — instead of creating a new ticket: *"I don't see you in our system yet — it may be under a family member. Whose name is the account under — a spouse, parent, or sibling? Or what phone number is it under? — so I can find you."* Then look up by that name/number and attach. This is a Vapi Ant Inbound prompt block + the SMS new-lead flow. (Vapi = prompt change via vapi-admin; SMS = the loop/intake matching above.)
+- Ties into the conversation-memory + close-the-deal direction. See `docs/customer-comms-direction-2026-07-02.md`.
 - **Conversation memory for Ant's replies** — before Ant sends ANY customer text, feed it the full thread INCLUDING Danielle's human replies (via `get_sms_thread_for_job`), so it answers with context or stays quiet. The human-vs-AI reply flag shipped today is the signal it reads. This is the "remember the conversation" ask + the close-the-deal-via-tech loop. See `docs/customer-comms-direction-2026-07-02.md`. (Loop build — deploys on the pull.)
 
 ### 🖥️ Run the Mac Mini pull + loop restart (needs you at the Mac) — TOP
