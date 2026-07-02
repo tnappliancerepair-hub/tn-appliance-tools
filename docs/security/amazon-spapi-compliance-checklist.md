@@ -23,17 +23,22 @@ Controls #1, #2, #4 are satisfied by adopting the two policy documents (done —
 
 **Do these so control #3 and the endpoint parts of #2 are truthful, not aspirational:**
 
-1. **Turn on MFA everywhere** — on every account that touches our data/infrastructure:
-   - [ ] Amazon (Business buyer account, Seller Central, Solution Provider Portal)
-   - [ ] Google / Gmail (all connected inboxes)
-   - [ ] Xano
-   - [ ] Netlify
-   - [ ] Supabase
-   - [ ] Cloudflare
-   - [ ] Stripe
-   - [ ] Telnyx
-   - [ ] Vapi
-   - [ ] GitHub
+1. **Turn on MFA everywhere** — on every account that touches our data/infrastructure. Status + which authenticator holds the 2FA seed (record the method so it's recoverable):
+
+   | Account | MFA status | Method |
+   |---|---|---|
+   | Amazon (Business buyer + Seller Central + Solution Provider Portal — one login) | ✅ Enabled | SMS to +1 615-485-5795 |
+   | Google / Gmail (all 3 inboxes) | ✅ Enabled | Google 2-Step (prompt + phone) |
+   | Xano (database) | ✅ Enabled | **Authy** |
+   | Netlify | ☐ | — |
+   | Supabase (backups) | ☐ | — |
+   | GitHub (code) | ☐ | — |
+   | Stripe | ☐ | — |
+   | Cloudflare | ☐ | — |
+   | Telnyx | ☐ | — |
+   | Vapi | ☐ | — |
+
+   > **Authenticator app of record: Authy** — prefer Authy for TOTP-based 2FA on the remaining services (Netlify, Supabase, GitHub, etc.) so all seeds live in one recoverable app.
 2. **Adopt a password standard** — 12+ characters with special characters, unique per service, stored in a password manager (e.g., 1Password/Bitwarden). Update any that don't meet it. Set a yearly reminder to rotate.
 3. **Confirm endpoint protection on company Macs** — System Settings → Network → **Firewall = On**; macOS keeps XProtect/Gatekeeper malware protection on automatically (leave it on, keep the OS updated).
 4. **Adopt the two policies** — you (Owner) have reviewed and adopted `incident-response-plan.md` and `information-security-policy.md` as of their effective date. (The signed/adopted date in each doc is the record.)
