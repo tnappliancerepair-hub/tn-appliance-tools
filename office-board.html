@@ -396,8 +396,16 @@ function placeOf(j){
   return 'schedule';                                           // accepted/untimed/callback
 }
 
+// Per-tech "solo" filter (Teddy 7/3): office picks a tech chip → the board shows
+// ONLY that tech's schedule (their Report/Invoice folders + only their jobs in
+// the shared columns). "All techs" resets. Persisted so it sticks across reloads.
+let soloTech='';
+try{soloTech=localStorage.getItem('tn_board_solo_tech')||'';}catch(_){}
+function chipStyle(a){return 'font:700 12px/1 system-ui;padding:7px 12px;border-radius:999px;cursor:pointer;border:1px solid #c8d2e0;'+(a?'background:#1f6feb;color:#fff;border-color:#1f6feb':'background:#fff;color:#33415c');}
+function setBoardSolo(t){soloTech=String(t||'');try{localStorage.setItem('tn_board_solo_tech',soloTech);}catch(_){}renderBoard();}
 function renderBoard(){
-  const techs=REGION_TECHS[region];
+  const allRegTechs=REGION_TECHS[region];
+  const techs=soloTech?allRegTechs.filter(t=>Number(t)===Number(soloTech)):allRegTechs;
   const cols=[{id:'schedule',label:'Needs Scheduled',cls:''},{id:'scheduled',label:'Scheduled',cls:''}];
   // Each tech gets two folders: Report (active work) and Invoice (done, ready
   // to bill). Cards flow Report -> Invoice as the job completes.
@@ -411,13 +419,19 @@ function renderBoard(){
   cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
   cols.push({id:'paid',label:'💰 Paid · Closed (archive)',cls:'done'});
 
-  const items=allItems.filter(j=>jobRegion(j)===region);
+  let items=allItems.filter(j=>jobRegion(j)===region);
+  if(soloTech) items=items.filter(j=>Number(j.technician_id)===Number(soloTech));
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
   items.forEach(j=>{const p=placeOf(j); if(p==='__hide__') return; (byCol[p]||byCol['schedule']).push(j);});
   // Oldest-first within every column so the stalest jobs float to the top.
   cols.forEach(c=>byCol[c.id].sort((a,b)=>(Number(a.created_at)||0)-(Number(b.created_at)||0)));
 
-  const html='<div class="board">'+cols.map(c=>{
+  const chipBar='<div class="tech-solo" style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 4px 12px;align-items:center">'
+    +'<span style="font-size:12px;font-weight:700;color:#8a96a8;margin-right:2px">View tech:</span>'
+    +`<button onclick="setBoardSolo('')" style="${chipStyle(!soloTech)}">All techs</button>`
+    +allRegTechs.map(t=>`<button onclick="setBoardSolo('${t}')" style="${chipStyle(Number(soloTech)===Number(t))}">${esc(TECH_NAME[t]||('Tech '+t))}</button>`).join('')
+    +'</div>';
+  const html=chipBar+'<div class="board">'+cols.map(c=>{
     const list=byCol[c.id]||[];
     const stale=list.filter(j=>{const cc=Number(j.created_at||0);return cc&&j.scheduling_status!=='completed'&&(Date.now()-cc)>7*86400000;}).length;
     const staleBadge=stale>0?`<span class="ct" style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7" title="${stale} job${stale===1?'':'s'} waiting 7+ days">⏳ ${stale}</span>`:'';
