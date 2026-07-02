@@ -126,10 +126,11 @@ exports.handler = async function (event) {
     const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    const portal = `${SITE}/customer-portal.html?job_id=${id}&last4=`;
-    // One message for everybody (Teddy 2026-07-01): if they already have a time
-    // that's fine, but the more open they are the sooner we may get to them.
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. We've got your ${appl} repair. If you already have a time set, that's totally fine! But if you're more open, let us know — we may be able to get to you sooner. Just take a couple minutes to reply here with the days/times that work for you, and any days you can't do (or tap: ${portal}). It really helps us — thank you!`;
+    const vlink = `${SITE}/finish-upload.html?job_id=${id}`;
+    // Teddy's pitch (2026-07-02): lead with WHY — nobody wants a tech showing up
+    // blind — then the easy video ask, then availability. A message that converts
+    // (the old "reply with days that work" got few replies → collection dried up).
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. The last thing you want is your tech showing up not knowing what he's walking into. Two quick things get your ${appl} fixed on the first trip: 1) shoot a 10-second video + a photo of the model sticker (takes 2 min — tap here: ${vlink}) 2) reply with the days/times that work for you. Thanks so much!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
