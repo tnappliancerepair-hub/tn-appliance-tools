@@ -1,5 +1,33 @@
 # Appliance Ant
 
+## 🗓️🐜 2026-07-02 (Wed) — OFFICE-BOARD FOLDER FIX + MAC DEPLOY FLUSHED LIVE (READ FIRST)
+
+Shorter live-ops day. All committed/pushed to `main` (Netlify auto-deploys front-end). **The pending Mac backlog is now DEPLOYED** (Teddy ran it end-to-end at the Mac Mini).
+
+### ✅ SHIPPED + LIVE
+- **Office board — manual folder placement now WINS for completed jobs** (`office-board.html`, commit `57f2dce`, front-end auto-deployed). Bug: `placeOf()` settled completed jobs (`inv-<tech>` / Completion) BEFORE reading Danielle's manual move, so a completed job with **no `technician_id`** (e.g. **Raquel Reed #19865**, and **Andrea Hughes #19544** which is awaiting_parts/in_progress) kept snapping from **Lee·Invoice → Completion** every render — ignoring her drag. Fix: read `office_stage` FIRST; for completed jobs honor a manual move into any done-appropriate folder (`inv-*`, `needinv`, `paid`, `done`, `followup`); a completed job merely stale-pinned to Waiting Parts / a Report column still settles to the default (preserves the count-inflation fix). **Both jobs pinned server-side to `inv-4` (Lee·Invoice)** via `/.netlify/functions/office-stage` so they sit right on refresh. Danielle: hard-refresh the board once.
+  - **ROOT DATA GAP (offered, not done):** 19865 + 19544 both have **`technician_id: None`** even though they're Lee's jobs (tech name comes from the report author, not the tech field). Offered a **silent backfill** (set tech from report author, suppress the "new job assigned" SMS) so this class auto-files to the right tech's Invoice folder with zero dragging. Teddy hasn't greenlit — ask before running (assigning a tech can fire a tech SMS; must suppress).
+
+### 🚀 MAC DEPLOY — DONE (Teddy ran it, all verified)
+Flushed the whole pending backlog at the Mac Mini. Verified live:
+- `git pull origin main` → fast-forward `fa653c37..5772dce8`, **83 files** (loop-side code refreshed).
+- `launchctl kickstart` → **loop ALIVE** (heartbeat confirmed ~25s fresh after).
+- `xano workspace push -i "api/**/qc_create_checkout_session*" --force` → **Pushed 1 documents** (per-TDR labor credit / correct checkout total).
+- `xano workspace push -i "api/**/stripe_checkout_session_completed*" --force` → **Pushed 1 documents** (pay-in-full gate).
+- **Now LIVE loop-side:** complaint-agent warranty **recall rule** + **intake-text cap** (max 2/job).
+
+### ⚠️ FOOTGUNS (today)
+- **zsh `quote>` jam from pasting PROSE with an apostrophe.** Teddy pasted a chunk of my message that included "**Today's** commits" — the `'` in `Today's` opened a single-quote in zsh and swallowed all following lines as one quoted string (`quote>` continuation), so his XS pushes never ran. **Fix: Ctrl-C, then paste command lines ONE AT A TIME, never the explanation text around them.** When giving Mac commands, keep each on its own short line (long `&&` chains also truncate off the right edge of his phone).
+- **`get_office_calendar_week` push 400 "Syntax error: unexpected 'id'"** surfaced during his pushes — that was a DIFFERENT push (not one I gave); a failed push is a **no-op** (server keeps the working version, calendar unaffected). But the LOCAL `get_office_calendar_week` XS file has a syntax issue that blocks pushing it — fix that file first if it ever needs to deploy.
+- **The scary red SMS-breaker-tripped / healthcheck-failed texts Teddy saw were OLD scrollback** (1,318-msg thread) from the June meltdowns — verified ZERO breaker/health events in the last 24h, loop healthy. Not active.
+- **`list_needs_scheduled_parallel` shows 328/386 jobs with NO phone** — SquareTrade dispatch emails carry only the claim #, not the customer phone. The phones Teddy sees are in the ST portal, not extracted into Ant. Open lever: pull phones from the ST portal (automation) so those warranty jobs can be texted.
+
+### ⏭️ STATE AT SIGN-OFF
+- Auto-scheduler is intentionally **HELD** (Teddy) until availability replies come in — re-enable via localStorage `autosched_live=1` / `AUTOSCHED_HOLD` in `needs-scheduled.html`.
+- Availability collection is running (intake-collector hourly; sent 33 live earlier).
+- **Duke morning reminder** (`duke-morning-reminder.js`) fires ~7:12am CT 7/2 to Jimmy (30-min-ahead text for his 9am fridge job).
+- Nothing pending on the Mac. Teddy called it a night; may be back for late-night brainstorming.
+
 ## 🗓️🐜 2026-06-30 (Mon→Tue, 17-HR DAY) — WARRANTY 3-OPTION PARTS + CALENDAR FIX + PAYMENTS EVERYWHERE + GOOGLE ADS LIVE + CASH-TDR CLOSE LOOP + API STATUS (READ FIRST)
 
 Marathon 17-hr day with Teddy. All committed/pushed to `main` (branch `claude/shop-automation-setup-r9wzpm`; Netlify auto-deploys front-end; **cash_tdr XS deploys via Mac `xano workspace push` only**).
