@@ -432,8 +432,8 @@ function captureStatus(barEl, txtEl){
   };
 }
 function capVideo(){
-  setHead('Show me what’s <span class="accent">going on.</span>','A video tells me more than anything else.');
-  antMsg('Take a video of your '+esc(state.appliance.toLowerCase())+' and <b>talk me through it</b> — tell me what it <b>is and isn’t doing</b>, what you’re seeing or hearing, and what you need help with. The more detail the better. <b>Take as long as you need</b> — walk me through exactly what you’re going through.');
+  setHead('The last thing you want is a tech showing up <span class="accent">not knowing what you have.</span>','Shoot a quick 10-second video and give your tech the heads-up.');
+  antMsg('The last thing you want is a technician showing up <b>not knowing what you have or the situation you’re in.</b> So do this one easy thing: shoot a quick <b>10-second video</b> of your '+esc(state.appliance.toLowerCase())+' and give your tech a heads-up — talk me through what it <b>is and isn’t doing</b> and what you’re seeing or hearing. That way he rolls up <b>better prepared</b>, with the right part and the right tools. (Want to say more? Take as long as you like — the more I know, the more ready he is.) 🐜');
   const w=document.createElement('div'); w.className='capture';
   w.innerHTML='<div class="cap-row">'
     +'<label class="cap-btn" id="vbtn"><span class="emo">🎥</span><span>Record a video</span><input type="file" accept="video/*" capture="environment" class="hidden" id="vfile-cam"></label>'
@@ -768,7 +768,7 @@ function warrantyPath(){
   if(!state.convId) state.convId = Date.now();
   state.serviceType='warranty_prediag';
   setHead('You\'re <span class="accent">covered.</span>','No charge — let\'s get your tech showing up ready to fix it.');
-  antMsg('Perfect — since it\'s under warranty there\'s <b>no fee</b>. Quickest way to get this fixed right the first time: show me a quick <b>video</b> + a photo of the <b>model sticker</b>, and your tech rolls up already knowing the problem and the part. Takes about 60 seconds. 🐜');
+  antMsg('Perfect — since it\'s under warranty there\'s <b>no fee</b>. The last thing you want is your tech showing up <b>not knowing what he\'s walking into.</b> Two quick things and he rolls up ready: a <b>10-second video</b> + a photo of the <b>model sticker</b>. Takes about 2 minutes. 🐜');
   think(800, capVideo);
 }
 // WARRANTY finish — the bare minimum: just a phone (prefilled when we know it).
