@@ -130,7 +130,7 @@ exports.handler = async function (event) {
     // Teddy's pitch (2026-07-02): warm + non-aggressive — "help us help you," and a
     // 2-minute intake can save days of waiting. Then the easy video + availability
     // ask. (The old bland "reply with days" got few replies → collection dried up.)
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you. Thanks so much!`;
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you — and any days you absolutely can't do. Thanks so much!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
