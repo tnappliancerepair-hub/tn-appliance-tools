@@ -31,6 +31,32 @@ exports.handler = async function (event) {
   const cid = String(q.cid || '9267688121').replace(/\D/g, '');   // the account running ads
   const apply = q.apply === '1';
 
+  // LINK mode: the actions already exist (created earlier) but their IDs were
+  // never vaulted, so uploads had no target. Look them up by name + vault them.
+  if (q.link === '1') {
+    const surl = `https://googleads.googleapis.com/${ver}/customers/${cid}/googleAds:search`;
+    const gaql = 'SELECT conversion_action.resource_name, conversion_action.name, conversion_action.id FROM conversion_action';
+    let r, d;
+    try { r = await fetch(surl, { method: 'POST', headers: ads.apiHeaders(token, c, cid), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); }
+    catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+    if (!r.ok && r.status === 403 && c.managerId) {
+      try { r = await fetch(surl, { method: 'POST', headers: ads.apiHeaders(token, c, c.managerId), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); } catch (_) {}
+    }
+    if (!r.ok) return json(200, { ok: false, http: r.status, error: (d.error && (d.error.message || d.error.status)) || d });
+    const rows = d.results || [];
+    const linked = {};
+    for (const a of ACTIONS) {
+      const hit = rows.find((x) => x.conversionAction && x.conversionAction.name === a.name);
+      if (hit && hit.conversionAction.resourceName) {
+        linked[a.key] = hit.conversionAction.resourceName;
+        try { await setSecret(a.vault, hit.conversionAction.resourceName); } catch (_) {}
+        try { await setSecret(a.vault + '_ID', String(hit.conversionAction.id)); } catch (_) {}
+      }
+    }
+    try { await setSecret('GOOGLE_ADS_CONV_CID', cid); } catch (_) {}
+    return json(200, { ok: Object.keys(linked).length === ACTIONS.length, mode: 'linked', cid, linked, actions_in_account: rows.length });
+  }
+
   // each conversion action: UPLOAD_CLICKS (offline import) + value-based (use the $ we send)
   const plan = ACTIONS.map((a) => ({
     create: {
