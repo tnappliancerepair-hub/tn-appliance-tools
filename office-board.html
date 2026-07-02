@@ -369,12 +369,23 @@ function placeOf(j){
   // count (Danielle's 27-vs-13). Check BOTH status fields so a job closed via
   // either one leaves the board.
   if(/cancel/i.test(ss)||/cancel/i.test(cs)) return '__hide__';
-  if(ss==='completed'||cs==='completed'){ return hasTech?('inv-'+t):'done'; }   // done -> Invoice/Completion
-  // Non-terminal: honor her manual placement so a dragged card STAYS where she
-  // dropped it (MeisterTask behavior). Truth order: job.office_stage -> server
-  // STAGE_MAP -> localStorage (optimistic move not yet synced).
+  // Manual placement is the boss (Teddy 7/2: the OFFICE controls folders, not
+  // the system). Read it FIRST so a card Danielle dragged STAYS put. Truth
+  // order: job.office_stage -> server STAGE_MAP -> localStorage (optimistic).
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
   const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
+  if(ss==='completed'||cs==='completed'){
+    // A finished job Danielle filed into a done-appropriate folder (a tech's
+    // Invoice, Needs Invoice, Paid, Follow Up, Completion) STAYS there — this
+    // was the Raquel Reed / 19865 bug: no technician_id, so it kept snapping
+    // back to Completion and ignoring her Lee·Invoice move. But a completed job
+    // stale-pinned to an ACTIVE folder (Waiting Parts / a Report column) still
+    // settles to the sensible default, preserving the count-inflation fix.
+    if(ov && /^(inv-|needinv|paid|done|followup)/.test(ov)) return ov;
+    return hasTech?('inv-'+t):'done';                          // done -> Invoice/Completion
+  }
+  // Non-terminal: honor her manual placement so a dragged card STAYS where she
+  // dropped it (MeisterTask behavior).
   if(ov) return ov;
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
