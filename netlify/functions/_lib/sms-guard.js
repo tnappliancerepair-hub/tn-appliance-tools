@@ -78,13 +78,13 @@ async function clearOptOut(phone, source) { try { await crud.logEvent('sms_opt_i
 async function sentSince(phone, sinceMs) {
   const e = toE164(phone); if (!e) return 0;
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 1000);
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
     return (rows || []).filter((r) => toE164(metaOf(r).phone) === e && tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
 async function globalSentSince(sinceMs) {
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 1000);
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
     return (rows || []).filter((r) => tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }

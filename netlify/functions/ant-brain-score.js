@@ -14,8 +14,8 @@ function tsOf(r) { return Number(metaOf(r).at_ms) || Date.parse(r && r.created_a
 exports.handler = async function () {
   let outcomes = [], preds = [];
   try {
-    outcomes = await crud.searchPage(crud.TABLES.event_log, { action: 'ant_brain_outcome' }, { id: 'desc' }, 1000);
-    preds = await crud.searchPage(crud.TABLES.event_log, { action: 'ant_brain_prediction' }, { id: 'desc' }, 1000);
+    outcomes = await crud.searchPage(crud.TABLES.event_log, { action: 'ant_brain_outcome' }, { id: 'desc' }, 500);
+    preds = await crud.searchPage(crud.TABLES.event_log, { action: 'ant_brain_prediction' }, { id: 'desc' }, 500);
   } catch (e) { return ok({ ok: false, error: String(e.message || e) }); }
 
   const rows = (outcomes || []).map(metaOf);
