@@ -94,7 +94,7 @@ const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const APPLIANCES=['washer','dryer','refrigerator','range','dishwasher','microwave','hvac','ice_maker','dryer_vent'];
 let TECHS=[], cur=null, pw='';
 
-function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
+function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
 function initAuth(){ if(authValid()){document.getElementById('auth').classList.add('hidden');load();return;} document.getElementById('pw').focus(); }
 async function submitAuth(){
   const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');

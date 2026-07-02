@@ -268,7 +268,7 @@ function jobRegion(j){
 }
 
 // ── auth ──
-function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
+function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
 function initAuth(){
   if(authValid()){document.getElementById('auth').classList.add('hidden');loadBoard();return;}
   document.getElementById('pw').focus();

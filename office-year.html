@@ -183,7 +183,7 @@ let techId=TECHS[0].id;
 let offDays={};        // 'YYYY-MM-DD' -> {reason, note}
 let modalDate=null;
 
-function authValid(){return localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
+function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1';}
 function initAuth(){ if(authValid()){document.getElementById('auth').classList.add('hidden');boot();return;} document.getElementById('pw').focus(); }
 async function submitAuth(){
   const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
