@@ -35,7 +35,15 @@ exports.handler = async function (event) {
         ]);
         const readAt = {};
         for (const r of receipts) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } if (m && m.message_id != null && !readAt[m.message_id]) readAt[m.message_id] = m.at_ms || r.created_at || 0; }
-        const out = sent.map((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; const mid = m.message_id; return { message_id: mid, tech_id: Number(m.tech_id) || 0, sender_name: m.sender_name || 'Office', body: m.body || m.body_preview || '', at_ms: m.at_ms || r.created_at || 0, read: !!readAt[mid], read_at: readAt[mid] || 0 }; });
+        const mapped = sent.map((r) => { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; const mid = m.message_id; return { message_id: mid, tech_id: Number(m.tech_id) || 0, sender_name: m.sender_name || 'Office', body: m.body || m.body_preview || '', at_ms: m.at_ms || r.created_at || 0, read: !!readAt[mid], read_at: readAt[mid] || 0 }; });
+        // Danielle's Messages was drowning in automated Ant->tech posts (nudges/
+        // briefings) that are expected-unread and not hers to track. This read-
+        // receipt view is only useful for messages a HUMAN at the office actually
+        // sent (did the tech read MY message?) -- so drop the automation ("Ant..."
+        // sender) and anything older than ~4 days. View-only filter: no data is
+        // deleted, the techs' own inboxes are untouched.
+        const CUT = Date.now() - 4 * 86400000;
+        const out = mapped.filter((x) => !/^\s*ant\b/i.test(String(x.sender_name || '')) && (!(x.at_ms > 1e12) || x.at_ms >= CUT));
         return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, messages: out }) };
       }
       const techId = parseInt(q.technician_id, 10);
