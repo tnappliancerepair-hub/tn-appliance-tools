@@ -127,10 +127,10 @@ exports.handler = async function (event) {
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
     const vlink = `${SITE}/finish-upload.html?job_id=${id}`;
-    // Teddy's pitch (2026-07-02): lead with WHY — nobody wants a tech showing up
-    // blind — then the easy video ask, then availability. A message that converts
-    // (the old "reply with days that work" got few replies → collection dried up).
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. The last thing you want is your tech showing up not knowing what he's walking into. Two quick things get your ${appl} fixed on the first trip: 1) shoot a 10-second video + a photo of the model sticker (takes 2 min — tap here: ${vlink}) 2) reply with the days/times that work for you. Thanks so much!`;
+    // Teddy's pitch (2026-07-02): warm + non-aggressive — "help us help you," and a
+    // 2-minute intake can save days of waiting. Then the easy video + availability
+    // ask. (The old bland "reply with days" got few replies → collection dried up.)
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you. Thanks so much!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}

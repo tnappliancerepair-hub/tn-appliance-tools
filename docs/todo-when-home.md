@@ -4,6 +4,9 @@ Newest at top. Check off + delete once done.
 
 ## 2026-07-02
 
+### 📱 Pull SquareTrade customer phones from the ST portal (biggest warranty-reach unlock)
+294 of 327 SquareTrade needs-scheduled jobs have NO phone in Ant — dispatch emails carry only the claim#, phones live in the ST portal. Can't text ~290 warranty customers for pre-diagnosis/availability without them. Automate pulling phones from the ST portal → they flow into the intake ask. (AHS jobs all have phones; this is ST-specific.)
+
 ### 🛠️ Systemic "don't duplicate — match & attach" fix (Mac XS + loop — do on the pull)
 The #1 recurring problem all day. Intake/new-lead matches ONLY on phone, so it creates duplicate (often mis-labeled CASH) tickets for people who are already in the system. Teddy's rule: **on a no-match, DON'T auto-create a ticket — collect the info, match it, and if it pulls up, ADD them to the existing job. Only make a new ticket if truly new.**
 - **Claim-# dedup on `create_job_from_chat`** — Cynthia Prugh: AHS dispatch #20088 + web intake #20089, same claim 60322459. Fix: incoming claim# already on a job → attach, don't create. *(Dupe cleaned — #20089 soft-canceled.)*
