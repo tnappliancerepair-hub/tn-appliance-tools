@@ -1,6 +1,17 @@
 # 📦 Parts Resale Plan — turning dead parts inventory into revenue (idea captured 2026-07-02)
 
-Brainstormed with Teddy. **Parked for later — revisit after the Amazon seller account + FBA are live.** This is a real line of business, not just a cleanup. Captured here so it isn't lost.
+Brainstormed with Teddy. This is a real line of business, not just a cleanup. Captured here so it isn't lost.
+
+## ✅ UPDATE 2026-07-02 (PM) — SELLER ACCOUNT IS LIVE + HEALTHY (the unlock)
+Teddy logged into the **Amazon Seller app** and it's fully functional: **"Your store is healthy" ✅**, Account Health green, and every FBA tool present — **Add a Product, Manage Inventory, Manage FBA Shipments, Manage FBA Removals, Manage Orders, Payments**. Product sales $0.00 / 0 open orders (dormant, not damaged); Payments shows -$0.63 (leftover fee, harmless — confirm plan: Individual vs $39.99/mo Professional).
+
+**Why this matters:** the **FBA SELLING side needs NO developer/SP-API approval** — it's the Seller Central UI + app, and it's OPEN RIGHT NOW. The SP-API denial (and the buyer/Ordering drop-ship API) only block **automation**, which is a *later* layer. So the parts-resale plan's **Phase 1 (liquidate the storage unit via FBA) is unblocked today** — Danielle can start listing + building FBA shipments immediately.
+
+**Two independent tracks, don't conflate:**
+- **Track A — FBA selling (parts resale): OPEN NOW.** No approval needed. This is the money-maker + the storage-unit bleed fix.
+- **Track B — SP-API automation + Amazon Business Ordering (drop-ship) API: still gated** on the seller-account reactivation → developer reapply → approval chain (watcher armed). Build when we want the automation layer.
+
+**Immediate next step:** send Claude the storage-unit Google Sheet → brand-gating breakdown + ASIN-match worksheet (see "First concrete step" below). Then Danielle lists a first small batch to prove the pipe.
 
 ## The core problem it solves
 - **Storage unit = $600+/month bleed.** Danielle has it all inventoried in a Google Sheet ("storage parts"). Parts are mostly **obscure, brand-new, that TN doesn't use** for its own jobs. Teddy wants to KILL the unit and stop the rent.
