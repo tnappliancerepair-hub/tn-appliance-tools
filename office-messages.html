@@ -65,6 +65,7 @@
       oninput="onSearchInput()">
     <div id="custResults" style="margin-top:8px"></div>
   </div>
+  <a id="cbBanner" href="/callbacks.html" style="display:none;text-decoration:none"></a>
   <div class="summary" id="summary">Loading…</div>
   <div id="techMsgs"></div>
   <div id="sentToTechs"></div>
@@ -421,7 +422,27 @@ async function loadSentToTechs(){
       return '<div style="background:#161c26;border:1px solid #2a3040;border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:13px"><b>'+esc(who)+'</b> · '+status+'<div style="color:#8a93aa;margin-top:3px">from '+esc(m.sender_name||'Office')+esc(snip)+'</div></div>';
     }).join('');
 }
-load(); loadTechMsgs(); loadSentToTechs();
+// 📞 Callback queue — Ant captures a callback_request every time it can't fully
+// finish a caller (e.g. "part arrived, ready for install") and texts the customer,
+// but the follow-up ACTION (schedule it) lives in callbacks.html — a page Danielle
+// wasn't checking, so those slipped. Surface the open count right here where she
+// lives so nothing sits unworked. (2026-07-02)
+async function loadCallbacks(){
+  try{
+    const r=await fetch(XANO+'/list_callback_requests?days=7',{cache:'no-store'});
+    const d=await r.json();
+    const open=(d&&d.open_count)||0;
+    const b=document.getElementById('cbBanner');
+    if(!b)return;
+    if(open>0){
+      b.style.display='block';
+      b.innerHTML='<div style="background:#7a1f1f;border:1px solid #b3392f;border-radius:11px;padding:11px 13px;margin:0 0 10px;color:#ffe;font-weight:800;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>📞 '+open+' callback'+(open===1?'':'s')+' to work — Ant took the info, someone needs to follow up</span>'
+        +'<span style="opacity:.85;font-weight:700">open ›</span></div>';
+    } else { b.style.display='none'; }
+  }catch(_){}
+}
+load(); loadTechMsgs(); loadSentToTechs(); loadCallbacks();
 
 // Danielle's ask: the 30s auto-refresh was wiping the page while she read/replied.
 // Now it NEVER refreshes while she's busy — a thread open, the compose panel open,
@@ -439,7 +460,7 @@ function userBusy(){
   if(Date.now()-LAST_ACTIVITY < 60000) return true;                           // active in last 60s
   return false;
 }
-setInterval(()=>{ if(userBusy())return; load();loadTechMsgs();loadSentToTechs(); },30000);
+setInterval(()=>{ if(userBusy())return; load();loadTechMsgs();loadSentToTechs();loadCallbacks(); },30000);
 // manual refresh — tap the footer line anytime
 (function(){ const r=document.getElementById('refresh'); if(r){ r.style.cursor='pointer'; r.title='Tap to refresh now'; r.addEventListener('click',()=>{load();loadTechMsgs();loadSentToTechs();}); } })();
 </script>
