@@ -52,6 +52,26 @@ function hasSpecificIntent(body) {
     || /\b(where(?:'?s| is) my|status|any update|update on)\b/i.test(t);
 }
 
+// Guard: only fire the instant new-lead greeting for a message that actually
+// READS like a fresh repair inquiry. A short courtesy/closing/tapback ("thank
+// you", "ok", "that will be fine", 👍, iMessage "Liked …") is NEVER a new lead —
+// auto-replying to it (a) sends the wrong setup link to an existing customer and
+// (b) flips the thread to "answered" so it drops off Danielle's "waiting" list
+// and she never sees it. Err toward silence: if it's not clearly a new repair
+// inquiry, stay quiet and let a human read it. (Danielle bug, 2026-07-02.)
+function looksLikeNewRepairLead(body) {
+  const t = String(body || '').trim().toLowerCase();
+  if (!t) return false;
+  // courtesy / acknowledgement / closing — never a lead
+  if (/^(ok(ay)?|k|kk|yes|yeah|yep|yup|no|nope|thanks?|thank you|ty|thx|sounds good|sounds great|great|perfect|awesome|excellent|got it|will do|that('?s| is| will be)? fine|fine|good|cool|nice|appreciate it|no problem|np|done|see you|👍|👌|🙏|❤️|❤|😊|🤝|🙂)[\s.!]*$/i.test(t)) return false;
+  // iMessage tapbacks arrive as literal text: Liked "…", Loved "…", Emphasized "…"
+  if (/^(liked|loved|laughed at|emphasized|disliked|questioned)\s+["“]/i.test(t)) return false;
+  // real new-inquiry signal: an appliance, or a repair/need verb, or "quote/estimate"
+  if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker|washer|washing machine|laundry|dryer|dishwasher|oven|range|stove|cooktop|stovetop|microwave|hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c|appliance)\b/i.test(t)) return true;
+  if (/\b(broke|broken|not working|won'?t|wont|isn'?t|stopped|leak|leaking|noise|repair|fix|service|quote|estimate|come out|need (a|some)?\s*(repair|help|service|tech)|need someone)\b/i.test(t)) return true;
+  return false;
+}
+
 // Same warm new-lead reply the loop composes (sms_response_new_lead) — replicated
 // so we can send it INSTANTLY inline for a cold lead, then write the loop's dedup
 // marker so it doesn't re-send. Template only (no Claude) = sub-second.
@@ -380,9 +400,15 @@ exports.handler = async function (event) {
   // reply inline in ~1s + mark it so the loop doesn't double-send. Known
   // customers + specific intents still flow through the loop with full context.
   try {
-    if (recordData && recordData.customer_known === false && !hasSpecificIntent(parsed.body)) {
+    const isColdLead = recordData && recordData.customer_known === false
+      && !(Number(recordData.job_id) > 0)        // matched to a job => not a cold lead
+      && !hasSpecificIntent(parsed.body)
+      && looksLikeNewRepairLead(parsed.body);    // must READ like a fresh repair inquiry
+    if (isColdLead) {
       const sent = await instantNewLeadReply(parsed.from, parsed.body);
       console.log('[customer-sms-inbound] instant new-lead reply:', { sent, from: parsed.from });
+    } else if (recordData && recordData.customer_known === false) {
+      console.log('[customer-sms-inbound] cold number but not a clear new lead — staying silent for a human:', { from: parsed.from, job_id: recordData.job_id || 0, body: String(parsed.body).slice(0, 60) });
     }
   } catch (e) {
     console.warn('[customer-sms-inbound] instant reply error:', String((e && e.message) || e));
