@@ -938,6 +938,16 @@ function renderDrawer(d){
       <div style="display:flex;flex-direction:column;gap:8px">
         <input id="pt-num" placeholder="Part # (required to order)" value="${esc(tdr.verified_part_number||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
         <input id="pt-name" placeholder="Part name (optional)" value="${esc(tdr.failed_component||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <select id="pt-source" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff">
+          <option value="">Where from / pickup…</option>
+          <option value="Marcone — delivered">Marcone — delivered</option>
+          <option value="Marcone — pick up">Marcone — pick up</option>
+          <option value="Tribles">Tribles</option>
+          <option value="Ideal">Ideal</option>
+          <option value="Amazon">Amazon</option>
+          <option value="Reliable">Reliable</option>
+          <option value="Other">Other</option>
+        </select>
         <div style="display:flex;gap:8px">
           <input id="pt-cost" inputmode="decimal" placeholder="Our cost $" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
           <input id="pt-charge" inputmode="decimal" placeholder="Charge $" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
@@ -1220,10 +1230,12 @@ async function orderParts(id){
   const pn=((document.getElementById('pt-num')||{}).value||'').trim();
   const nm=((document.getElementById('pt-name')||{}).value||'').trim();
   const eta=(document.getElementById('pt-eta')||{}).value||'';
+  const src=((document.getElementById('pt-source')||{}).value||'').trim();
   const cost=parseFloat((document.getElementById('pt-cost')||{}).value);
   const charge=parseFloat((document.getElementById('pt-charge')||{}).value);
   if(!pn){toast('Enter the part # to order');return;}
   const body={job_id:parseInt(id,10),part_number:pn,part_name:nm,parts_eta_date:eta,order_status:'ordered',source:'office'};
+  if(src)body.supplier=src;   // where it's coming from / pickup (Danielle's dropdown) -> parts_orders.supplier
   if(!isNaN(cost))body.cost_cents=Math.round(cost*100);
   if(!isNaN(charge))body.sold_to_customer_cents=Math.round(charge*100);
   toast('Ordering parts…');
