@@ -16,6 +16,7 @@
 //   customer's reply routes to the availability parser (sms_response_availability).
 'use strict';
 const { toE164 } = require('./_lib/sms');
+const { isOptedOut } = require('./_lib/sms-guard');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = Number(process.env.INTAKE_COLLECTOR_MAX_PER_RUN) || 30;
@@ -60,6 +61,12 @@ exports.handler = async function (event) {
     // hugely helpful across the board.
     const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
     if (ph.length < 10) return false;
+    // Never chase a job flagged for a human to look at — "Email captured — needs
+    // review" is a stale warranty claim-update, not a live intake. Auto-texting
+    // these is exactly how a completed customer (Kurt #19475) kept getting
+    // "let's get you scheduled" texts weeks later. (Teddy 2026-07-02)
+    const fs = String(j.friendly_status || '').toLowerCase();
+    if (/needs review|email captured/.test(fs)) return false;
     // Optional age cap (off by default → ANY unscheduled job gets one ask).
     if (MAX_AGE_MS > 0) {
       const created = new Date(j.created_at || 0).getTime();
@@ -94,12 +101,17 @@ exports.handler = async function (event) {
     // never again (Teddy 2026-06-23: "send it once, maybe twice if no answer").
     // The candidate filter already drops jobs that have availability, so a reply
     // stops the resend. FAIL CLOSED: if we can't verify history, skip.
+    // Honor STOP on THIS path too (the loop/Xano send_sms aren't all behind the
+    // guard yet). A customer who opted out never gets a chase text. (Teddy 2026-07-02)
+    try { if (await isOptedOut(toE164(j.customer_phone || j.phone))) { skipped_dupe++; continue; } } catch (_) {}
     let asks = [];
     try {
-      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=30&limit=5`, 7000);
+      // LIFETIME dedup window (was 30d — after a month it rolled and re-sent 2 more,
+      // which is why Kurt got texts for weeks). 2 asks is now the true lifetime max.
+      const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=3650&limit=5`, 7000);
       asks = dd.items || [];
     } catch (_) { skipped_dupe++; continue; }
-    if (asks.length >= 2) { skipped_dupe++; continue; }            // already sent the max (2)
+    if (asks.length >= 2) { skipped_dupe++; continue; }            // already sent the max (2), ever
     if (asks.length === 1) {
       const lastMs = Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0));
       if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; } // too soon to resend
