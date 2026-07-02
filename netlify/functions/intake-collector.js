@@ -27,6 +27,9 @@ const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with n
 // needed (e.g. 14 = only jobs created in the last 14 days).
 const MAX_AGE_DAYS = Number(process.env.INTAKE_COLLECTOR_MAX_AGE_DAYS) || 0;
 const MAX_AGE_MS = MAX_AGE_DAYS * 86400000;
+// A/B link styles — measure which one gets the most videos + availability back.
+// 'video' = quick no-form upload page · 'ai' = guided AI intake · 'portal' = portal.
+const AB_VARIANTS = ['video', 'ai', 'portal'];
 
 function ctHour() {
   return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
@@ -126,15 +129,25 @@ exports.handler = async function (event) {
     const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    const vlink = `${SITE}/finish-upload.html?job_id=${id}`;
-    // Teddy's pitch (2026-07-02): warm + non-aggressive — "help us help you," and a
-    // 2-minute intake can save days of waiting. Then the easy video + availability
-    // ask. (The old bland "reply with days" got few replies → collection dried up.)
+    // ── A/B test: which link style gets the most videos + availability back?
+    // Deterministic per job (job_id % 3) so a re-ask keeps the same variant.
+    // All three attach to the EXISTING job (no dupes). (Teddy 2026-07-02)
+    const variant = AB_VARIANTS[id % AB_VARIANTS.length];
+    const vlink =
+      variant === 'ai'     ? `${SITE}/appliance-ai.html?job_id=${id}&mode=resume` :
+      variant === 'portal' ? `${SITE}/customer-portal.html?job_id=${id}&last4=` :
+                             `${SITE}/finish-upload.html?job_id=${id}`;   // 'video' (default)
+    // Teddy's pitch: warm + non-aggressive — "help us help you," a 2-minute intake
+    // can save days. Video + BOTH available and unavailable days.
     const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you — and any days you absolutely can't do. Thanks so much!`;
 
     let okSend = false;
-    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect' }); okSend = !!(r && r.success); } catch (_) {}
-    if (okSend) { sent++; done.push(id); } else failed++;
+    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_' + variant }); okSend = !!(r && r.success); } catch (_) {}
+    if (okSend) {
+      sent++; done.push(id);
+      // Log the variant so the scoreboard can measure which link converts best.
+      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_ab_sent', metadata_json: JSON.stringify({ job_id: id, variant, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
+    } else failed++;
   }
 
   return ok({ status: 'ran', ct_hour: h, candidates: cands.length, sent, skipped_dupe, failed, job_ids: done });
