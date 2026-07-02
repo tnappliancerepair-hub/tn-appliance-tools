@@ -76,12 +76,33 @@ function qs(a) {
   return parts.length ? `?${parts.join('&')}` : '';
 }
 
+// Status tools answer from job-truth (the ONE job brain) so the phone speaks the
+// EXACT same line as the portal / text / office / warranty lookup. Warranty rep
+// gets the warranty lens; a homeowner gets the customer lens (already sanitized —
+// no part numbers, dates only). This is the phone half of "one truth, every seat".
+const STATUS_LENS = { get_job_status_for_warranty: 'warranty', get_job_arrival_status: 'customer', get_parts_status: 'customer' };
+async function jobTruthAnswer(name, a) {
+  const lens = STATUS_LENS[name];
+  const q = { lens };
+  const claim = a.claim_or_dispatch_number || a.claim_number || a.claim || a.dispatch_number || '';
+  const phone = a.phone || a.phone_number || a.phone_e164 || a.customer_phone || '';
+  if (claim) q.claim = claim; else if (a.job_id) q.job_id = a.job_id; else if (phone) q.phone = phone;
+  const d = await getJson(`${NETLIFY}/job-truth${qs(q)}`);
+  if (d && d.found) {
+    const f = d.facts || {};
+    // Only safe fields (part_eta is a DATE, never a part #). No internal notes.
+    return { found: true, answer: (d.lenses && d.lenses[lens]) || '', status: f.status, scheduled_day: f.scheduled_day, part_eta: f.part_eta, tech: f.tech_name };
+  }
+  return { found: false, answer: (d && d.reason) || "I don't see that one in our system yet — I can take the details and have someone confirm." };
+}
+
 // Route a tool name + args to the right backend. Generic by default: unwrap the
 // Vapi envelope and call Xano flat (POST), so EVERY tool the assistant has works
 // without per-tool code. GET tools use query params; a couple have overrides.
 async function callBackend(name, a) {
   a = a || {};
   if (!name) return { error: 'no tool name' };
+  if (STATUS_LENS[name]) return jobTruthAnswer(name, a);
   if (NETLIFY_TOOLS[name]) return postJson(`${NETLIFY}/${NETLIFY_TOOLS[name]}`, a);
   const path = ENDPOINT_OVERRIDE[name] || name;
   if (GET_TOOLS.has(name)) return getJson(`${XANO}/${path}${qs(a)}`);

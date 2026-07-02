@@ -30,6 +30,25 @@ Teddy asked to "kick this system's ass" on the audit — built the hard chokepoi
 - **`guarded-send-sms.js`** (NEW) — canonical send endpoint (`POST {phone,message,tag,kind,allowQuiet}`) for all future senders + the loop to migrate to. `GET ?audit=1` (opt-out count, blocks/would-blocks 24h, enforce mode), `?check=+1…` (per-phone status), `?optout=/?optin=+1…&secret=VAPI_ADMIN_SECRET` (manual).
 - **NOT YET the absolute chokepoint:** Xano `send_sms` (XS, Mac-only) + colony-loop `sms.js` (Mac) still send some paths directly — they honor the opt-out list only once migrated to call `guarded-send-sms`/the guard. **NEXT: route the loop + Xano send_sms through the guard, then flip `SMS_GUARD_ENFORCE=1` after eyeballing `?audit=1` shadow data.** Also: register STOP/HELP keywords on the Telnyx messaging profiles (carrier-level backstop) if not already.
 
+### 🧠🏗️ LATE-NIGHT — THE MOAT + THE UNIFIED SPINE (audit → build, all live on Netlify)
+Teddy: "kick this system's ass." Ran an ideas audit, then built the three things that actually matter. All auto-deployed, verified live.
+
+**1. 🧠 ANT BRAIN — predict-the-part engine + self-grading accuracy loop (the moat).** Turns our repair history into a prediction BEFORE the truck rolls, and grades itself against what actually fixed the job so accuracy compounds with every completed TDR. A copycat with ChatGPT can clone a screen; they can't clone the outcomes.
+- **`ant-brain-predict.js`** (POST `{job_id}` or `{brand,model,appliance_type,symptom}`): pulls similar historical failures (`get_common_failures`, TDR-derived — no OpenAI dep), aggregates by part, ranks by how often each part actually FIXED a similar machine, returns top-3 + confidence + a pre-order rec. Fault-code layer via `fault-code-lookup`. Logs `ant_brain_prediction`. **Verified: Maytag MOED6027LZ00 → blower W11397930, honest "thin data" note.**
+- **`ant-brain-grade.js`** (GET, `?job_id=` optional): compares each prediction to the job's real TDR outcome (`tdr.verified_part_number`/`failed_component`) once complete → logs `ant_brain_outcome` (hit/miss). Idempotent per job.
+- **`ant-brain-score.js`** (GET): live first-guess accuracy overall + by appliance + last-20 trend. The number Teddy watches climb.
+- **`ant-brain.html`**: cockpit — big accuracy %, recent predictions vs reality, try-it box.
+- **Thin today** (~21 real TDR failures — warranty flow just started). **NEXT to make it roar: (a) auto-fire `predict` on every new job so the loop fills; (b) pour the 8-yr MeisterTask + HCP Supabase archives into the failure corpus.**
+
+**2. 🧩 job-truth — THE ONE JOB BRAIN (the unified spine).** Teddy's frustration: three views built separately, every rule (canceled→active, status, recall, part-ETA) patched in N files. Fix = ONE endpoint resolves a job ONCE and composes the exact sentence per seat; every surface + agent reads it.
+- **`job-truth.js`** (GET/POST `job_id`|`claim`|`phone`, `lens=customer|warranty|tech|office|all`): resolves canceled-dupe→active sibling, loads full detail, returns `facts` + 4 `lenses`. Customer (2nd person + warranty-recall rule), warranty (rep summary + office note), tech (customer+pre-diag+part+availability+access+day+note), office (status + blockers: NO TECH / report-in-but-no-part#). **Verified on #19760 — all 4 lenses from one call; office lens auto-caught "NO TECH".**
+- **`job-status-reason.js` → now a THIN DELEGATOR** over job-truth (kept its response contract). So EVERY existing caller flows through the one brain with zero reconfig: **customer-portal, office-board drawer, office-messages, the colony-loop text status agent** (`sms_response_status_inquiry` fetches the URL → live WITHOUT a Mac pull), and the Vapi phone status tools.
+- **Views migrated to their lens:** `office-board.html` drawer now shows the **office lens** (status + blockers baked in); `tech-job.html` added a **🧠 Ant brief** card (the **tech lens** in one line) — additive, existing panels untouched.
+- **Vapi phone unified:** `vapi-tool.js` now routes the status tools (`get_job_status_for_warranty`→warranty lens, `get_job_arrival_status`+`get_parts_status`→customer lens) through job-truth. Homeowner lens is sanitized (dates, never a part #); warranty rep gets the rep summary. **5→6 surfaces now speak one truth.**
+- **NEXT (the other half): write-once INPUTS** — make every write land once on the event spine (tech enters part # once → office/warranty/customer all see it) so nobody re-keys. job-truth unified READS; the WRITE side is the next frontier.
+
+**3. 🛡️ SMS SAFETY GUARD** — see the section above (weakness #1: TCPA/flood). Opt-out enforces now; quiet-hours/caps shadow until `SMS_GUARD_ENFORCE=1`.
+
 ### ⏭️ STATE AT SIGN-OFF
 - Auto-scheduler is intentionally **HELD** (Teddy) until availability replies come in — re-enable via localStorage `autosched_live=1` / `AUTOSCHED_HOLD` in `needs-scheduled.html`.
 - Availability collection is running (intake-collector hourly; sent 33 live earlier).
