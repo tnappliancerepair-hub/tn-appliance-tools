@@ -30,13 +30,15 @@ Controls #1, #2, #4 are satisfied by adopting the two policy documents (done —
    | Amazon (Business buyer + Seller Central + Solution Provider Portal — one login) | ✅ Enabled | SMS to +1 615-485-5795 |
    | Google / Gmail (all 3 inboxes) | ✅ Enabled | Google 2-Step (prompt + phone) |
    | Xano (database) | ✅ Enabled | **Authy** |
-   | Netlify | ☐ | — |
-   | Supabase (backups) | ☐ | — |
-   | GitHub (code) | ☐ | — |
+   | Netlify | ✅ Enabled | authenticator app |
+   | Supabase (backups) | ✅ Enabled | **Authy** ("TN Authy") |
+   | GitHub (code) | ✅ Enabled | **Authy** (authenticator app; SMS backup) |
    | Stripe | ☐ | — |
    | Cloudflare | ☐ | — |
    | Telnyx | ☐ | — |
    | Vapi | ☐ | — |
+
+   **Core data-bearing systems all MFA-enabled ✅** (Amazon, Google, Xano, Netlify, GitHub, Supabase). Tier-2 service accounts (Stripe/Cloudflare/Telnyx/Vapi) in progress.
 
    > **Authenticator app of record: Authy** — prefer Authy for TOTP-based 2FA on the remaining services (Netlify, Supabase, GitHub, etc.) so all seeds live in one recoverable app.
 2. **Adopt a password standard** — 12+ characters with special characters, unique per service, stored in a password manager (e.g., 1Password/Bitwarden). Update any that don't meet it. Set a yearly reminder to rotate.
