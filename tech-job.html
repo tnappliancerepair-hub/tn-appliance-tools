@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="light">
 <head>
+<script src="/ant-theme.js"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
@@ -39,6 +40,21 @@
     --bg:#eef1f5; --card:#ffffff; --line:#e4e8ee;
     --ok:#1faa6b; --warn:#e8821e; --bad:#e24d4d;
   }
+  /* 🌙 DARK MODE (opt-in per device via the 🌙 toggle; default stays light) */
+  [data-theme="dark"]{
+    color-scheme:dark;
+    --blue:#4d8bff;--blue-d:#3f78e6;--ink:#e7edf5;--ink2:#9aa6b8;--dim:#6f7d94;
+    --bg:#0e1118;--card:#161b26;--line:#28303e;
+  }
+  [data-theme="dark"] .topbar{background:#161b26;}
+  [data-theme="dark"] .tb-btn{background:#1e2431;color:var(--ink);}
+  [data-theme="dark"] .tb-btn:active{background:#242e3e;}
+  [data-theme="dark"] .search-wrap{background:#161b26;}
+  [data-theme="dark"] .sr{background:#161b26;color:var(--ink);}
+  [data-theme="dark"] .pill.default,[data-theme="dark"] .pill.not_ready,[data-theme="dark"] .pill.prediagnosis_pending{background:#242c3a;color:var(--ink2);}
+  [data-theme="dark"] .btn.ghost{background:#1c2330;color:var(--ink);border-color:var(--line);}
+  [data-theme="dark"] .gallery .up{background:#1c2330;color:var(--ink2);}
+  [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#12161f;color:var(--ink);border-color:var(--line);}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
     -webkit-font-smoothing:antialiased;padding-bottom:90px;}

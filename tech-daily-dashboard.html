@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="dark">
 <head>
+<script src="/ant-theme.js"></script>
 <script src="/office-auth.js?v=20260701-1"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -70,6 +71,23 @@
     --blue: #5aa9ff;
     --red: #ff6b6b;
     --violet: #b48cff;
+  }
+  /* ☀️ LIGHT MODE (opt-in per device via the ☀️ toggle; default stays dark) */
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #eef1f5;
+    --panel: #ffffff;
+    --panel-2: #f5f7fa;
+    --border: #e4e8ee;
+    --border-soft: #eef1f5;
+    --text: #1d2530;
+    --muted: #5b6573;
+    /* darken the neon accents so they stay readable on white */
+    --green: #0f9d63;
+    --orange: #c47a12;
+    --blue: #1f6fed;
+    --red: #d84a4a;
+    --violet: #7a5cf0;
   }
 
   /* ── PIN gate overlay ───────────────────────────────────────────── */
