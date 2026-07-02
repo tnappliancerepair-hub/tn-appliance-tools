@@ -195,8 +195,11 @@ async function load(){
       const dirLbl = (showMsg.dir==='in') ? '<span class="dir in">They wrote:</span> ' : '<span class="dir out">'+(showMsg.blocked?'(held) ':'')+'You:</span> ';
       const snip = showMsg.body ? esc(showMsg.body.slice(0,140)) : (showMsg.blocked?'(message held by gate)':'(no text)');
       const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1" onclick="event.stopPropagation()">Open job →</a>` : '';
-      // 🗂 Jump straight to the job TILE (the office-board drawer with parts/invoice/etc.)
-      const tileBtn = c.jobId ? `<a class="a-open" href="office-board.html?job=${c.jobId}" onclick="event.stopPropagation()" style="background:#37414f;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none">🗂 Job tile</a>` : '';
+      // 🗂 Jump straight to the job TILE. Every thread gets one — if we don't have the
+      // job id yet, it resolves by phone so Danielle can always see WHO this is. (Teddy 2026-07-02)
+      const tileBtn = c.jobId
+        ? `<a class="a-open" href="office-board.html?job=${c.jobId}" onclick="event.stopPropagation()" style="background:#37414f;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none">🗂 Job tile</a>`
+        : (c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();openJob('${c.phone}',0)" style="background:#37414f;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">🗂 Who is this? →</button>` : '');
       // 🎄 Holiday / no-coverage apology + pre-diagnosis offer (Teddy 2026-07-02)
       const noCovBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();sendNoCoverage('${c.phone}',${c.jobId||0})" style="background:#7a5cf0;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">🎄 No coverage</button>` : '';
       const textLink = c.phone ? `<a class="a-text" href="sms:+1${c.phone}" onclick="event.stopPropagation()">📱 Text now</a>` : '';
@@ -354,6 +357,22 @@ async function sendStatus(phone){
     if(res&&(res.ok||res.success||res.sent)){ alert('✅ Status sent'); load(); }
     else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
+}
+// 🗂 Open the customer's job tile from any thread. Uses the job id if we have one,
+// otherwise resolves it by phone (or falls back to a customer search) so Danielle can
+// always see WHO a number is. (Teddy 2026-07-02)
+async function openJob(phone, jobId){
+  if(jobId && Number(jobId)>0){ location.href='/office-board.html?job='+Number(jobId); return; }
+  const p=String(phone||'').replace(/\D/g,'').slice(-10);
+  if(p.length===10){
+    try{
+      const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(p))).json();
+      if(d&&d.found&&d.job_id){ location.href='/office-board.html?job='+d.job_id; return; }
+    }catch(_){}
+    location.href='/customer-search.html?phone='+encodeURIComponent(p);
+    return;
+  }
+  alert('No number on this thread to look up the job.');
 }
 // 🎄 No-coverage apology + pre-diagnosis offer. For jobs we can't cover this week
 // (techs off for the holiday). One tap: apologize, explain the coverage gap, and

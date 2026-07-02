@@ -186,6 +186,7 @@ function dropCard(x,isTech){
   const nm=(x.name||'').trim();
   const textBtn=isTech?'':'<button class="call" style="background:#0a7d33" onclick="textDrop(\''+ph+'\',\''+esc((nm.split(/\s+/)[0]||'')).replace(/'/g,"\\'")+'\')">💬 Text</button>';
   const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a>';
+  const openJobBtn='<button class="call" style="background:#37414f" onclick="openJob(\''+esc(tel)+'\','+(x.job||0)+')">🗂 Open job</button>';
   // Header: customer NAME front + center (phone underneath) when we know them.
   const who=nm?('<div class="who">'+esc(nm)+'</div><div style="font-size:13px;color:#667">'+esc(disp)+'</div>'):('<div class="who">'+esc(disp)+'</div>');
   return '<div class="card" id="drop-'+ph+'" style="border-left:4px solid '+accent+';position:relative">'+
@@ -195,7 +196,7 @@ function dropCard(x,isTech){
     (x.tries>1?' <span class="ref">tried '+x.tries+'×</span>':'')+
     (x.job?' <span class="ref">job #'+esc(String(x.job))+'</span>':' <span class="ref">new — no job</span>')+
     mainLine+
-    '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+textBtn+callBtn+'</div>'+
+    '<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+toggle+openJobBtn+textBtn+callBtn+'</div>'+
     detail+
   '</div>';
 }
@@ -254,18 +255,37 @@ function render(){
   document.getElementById('list').innerHTML=rows.map(r=>{
     const tcls=r.caller_type==='warranty'?'t-warr':(r.caller_type==='other'?'t-other':'t-cust');
     const tel=(r.phone||'').replace(/[^0-9+]/g,'');
+    // Pull a job # from the summary/ref if one's mentioned ("...job 20025..."), else 0 → resolve by phone.
+    const jm=(String(r.summary||'')+' '+String(r.ref||'')).match(/\bjob\s*#?\s*(\d{4,6})\b/i);
+    const jid=jm?jm[1]:0;
     return '<div class="card '+(r.handled?'done':'')+'">'+
       '<div class="top"><div class="who">'+esc(r.name||'(no name)')+'</div><div class="age">'+ago(r.created_at)+'</div></div>'+
       '<span class="tag '+tcls+'">'+esc(r.caller_type||'customer')+'</span>'+
       (r.ref?' <span class="ref">claim/WO '+esc(r.ref)+'</span>':'')+
       '<div class="sum">'+esc(r.summary||'(no summary)')+'</div>'+
       '<div class="acts">'+
+        '<button class="openjob" onclick="openJob(\''+esc(tel)+'\','+jid+')" style="background:#37414f;color:#fff;border:0;border-radius:8px;padding:11px 13px;font-weight:800;font-size:13px;cursor:pointer">🗂 Open job</button>'+
         (tel?'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(r.phone)+'</a>':'<span style="flex:1;color:#c0392b;font-weight:700;text-align:center;padding:11px">no number</span>')+
         (tel?'<button class="tb-btn" onclick="textBack('+r.id+',this)">📲 Text back</button>':'')+
         (r.handled?'':'<button class="done-btn" onclick="handled('+r.id+',this)">✓ Handled</button>')+
       '</div>'+
     '</div>';
   }).join('');
+}
+// 🗂 Jump straight into the customer's job tile. Uses a known job # if we have one,
+// otherwise resolves the job by phone. Falls back to a customer search. (Teddy 2026-07-02)
+async function openJob(phone, jobId){
+  if(jobId && Number(jobId)>0){ location.href='/office-board.html?job='+Number(jobId); return; }
+  const p=String(phone||'').replace(/\D/g,'').slice(-10);
+  if(p.length===10){
+    try{
+      const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(p))).json();
+      if(d&&d.found&&d.job_id){ location.href='/office-board.html?job='+d.job_id; return; }
+    }catch(_){}
+    location.href='/customer-search.html?phone='+encodeURIComponent(p);
+    return;
+  }
+  toast('No number to look up the job.');
 }
 // One-tap "we got your message, getting you scheduled" reply. Optional day.
 async function textBack(id,btn){
