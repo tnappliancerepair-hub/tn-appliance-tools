@@ -72,6 +72,27 @@ const KEYWORD_ROUTES = [
 
 const FALLBACK_TYPE = 'SMS_RESPONSE_SMS_INTENT_GAP_AGENT';
 
+// A short courtesy / closing / acknowledgement / iMessage tapback is never a lead
+// and never needs an auto-reply. Auto-replying to it (a) can fire the wrong setup
+// link at an existing customer and (b) flips the office thread to "answered" so
+// Danielle stops seeing it (messages go "missing"). Stay silent — a human handles
+// it and the thread stays flagged as waiting. (Danielle bug 2026-07-02.)
+function isCourtesyClosing(body) {
+  const t = String(body || '').trim().toLowerCase();
+  if (!t) return false;
+  if (/^(ok(ay)?|k|kk|thanks?|thank you|ty|thx|sounds good|sounds great|great|perfect|awesome|excellent|got it|will do|that('?s| is| will be)? fine|fine|good|cool|nice|appreciate it|no problem|np|done|see you|👍|👌|🙏|❤️|❤|😊|🤝|🙂)[\s.!]*$/i.test(t)) return true;
+  if (/^(liked|loved|laughed at|emphasized|disliked|questioned)\s+["“]/i.test(t)) return true;
+  return false;
+}
+// Does the message actually read like a fresh repair inquiry? (gate for new-lead route)
+function looksLikeNewRepairLead(body) {
+  const t = String(body || '').trim().toLowerCase();
+  if (!t) return false;
+  if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker|washer|washing machine|laundry|dryer|dishwasher|oven|range|stove|cooktop|stovetop|microwave|hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c|appliance)\b/i.test(t)) return true;
+  if (/\b(broke|broken|not working|won'?t|wont|isn'?t|stopped|leak|leaking|noise|repair|fix|service|quote|estimate|come out|need (a|some)?\s*(repair|help|service|tech)|need someone)\b/i.test(t)) return true;
+  return false;
+}
+
 function classify(body) {
   const text = String(body || '').trim();
   if (!text) return { type: FALLBACK_TYPE, matched: 'empty_body' };
@@ -101,6 +122,15 @@ export async function run(signal, ctx) {
     await xano.markSignalProcessed(signal.id, 'inbound_customer_sms_handled', meta);
     log('inbound_customer_sms_handled', meta);
     return { success: true, action: 'skipped_office_handling' };
+  }
+
+  // Courtesy / closing / tapback ("thank you", "that will be fine", 👍, "Liked …")
+  // → never auto-reply. Leave the thread flagged for the office so Danielle sees it.
+  if (isCourtesyClosing(body)) {
+    const meta = { outcome: 'skipped_courtesy_closing', phone: inboundPhone, body_preview: body.slice(0, 48) };
+    await xano.markSignalProcessed(signal.id, 'inbound_customer_sms_handled', meta);
+    log('inbound_customer_sms_handled', meta);
+    return { success: true, action: 'skipped_courtesy_closing' };
   }
 
   let route = classify(body);
@@ -133,7 +163,17 @@ export async function run(signal, ctx) {
   // website chat instead of the generic intent-gap path.
   const customerIdNum = Number(payload.customer_id || 0);
   if ((!customerIdNum || customerIdNum === 0) && route.type === FALLBACK_TYPE) {
-    route = { type: 'SMS_RESPONSE_NEW_LEAD', matched: 'no_customer_record' };
+    if (looksLikeNewRepairLead(body)) {
+      route = { type: 'SMS_RESPONSE_NEW_LEAD', matched: 'no_customer_record' };
+    } else {
+      // Cold number but the message doesn't read like a repair inquiry — likely an
+      // existing customer whose number just didn't match. Don't fire the setup link;
+      // stay silent so the office handles it (thread stays flagged as waiting).
+      const meta = { outcome: 'skipped_cold_but_not_a_lead', phone: inboundPhone, body_preview: body.slice(0, 48) };
+      await xano.markSignalProcessed(signal.id, 'inbound_customer_sms_handled', meta);
+      log('inbound_customer_sms_handled', meta);
+      return { success: true, action: 'skipped_cold_but_not_a_lead' };
+    }
   }
 
   // RESCHEDULE keyword (or intent match) fires an additional owner alert
