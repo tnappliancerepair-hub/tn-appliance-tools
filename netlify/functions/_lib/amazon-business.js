@@ -21,7 +21,10 @@
 //   AMAZON_BUSINESS_REGION        (default "US")
 
 'use strict';
-const { getSecret } = require('./secrets');
+// FRESH reads (not cached getSecret): these creds are vaulted interactively and
+// must be picked up the moment they're saved — a warm container caching the old
+// empty value would falsely report {configured:false} right after you vault them.
+const { getSecretFresh: getSecret } = require('./secrets');
 
 const ORDER_PATH = '/ordering/2022-10-30/orders';
 const BASE = { sandbox: 'https://sandbox.na.business-api.amazon.com', production: 'https://na.business-api.amazon.com' };
