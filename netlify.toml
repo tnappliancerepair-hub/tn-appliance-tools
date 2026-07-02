@@ -85,6 +85,12 @@
 [functions."meistertask-sync"]
   schedule = "*/10 * * * *"
 
+# Ant Brain sweep — auto-fire a diagnostic prediction on every new job so the
+# accuracy loop fills. Idempotent (skips already-predicted/seen jobs), bounded
+# per run. Every 20 min.
+[functions."ant-brain-sweep"]
+  schedule = "*/20 * * * *"
+
 # Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
 # warranty-email intake outages are caught SAME-DAY (not when the office runs
 # short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or
