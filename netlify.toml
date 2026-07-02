@@ -124,6 +124,12 @@
 [functions."cash-paid-cover"]
   schedule = "*/3 * * * *"
 
+# Tech missed-stop nudge — late afternoon, text a tech about any stop still OPEN on
+# today's schedule (not started/done) so a scrolled-past stop gets caught while
+# there's still time. Once per job/day. ~4pm + 6pm CT (21:00 + 23:00 UTC / CDT).
+[functions."tech-missed-stop-check"]
+  schedule = "0 21,23 * * *"
+
 # Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
 # schedule until you pay — fastest path is the $50 Quick Check" + their link.
 # CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.
