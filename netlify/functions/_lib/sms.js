@@ -20,17 +20,40 @@ function toE164(p) {
 // send_sms input contract: `to` (phone) + `body`/`message`. Gating is by phone
 // (techs/owner/Danielle are auto-detected as internal and bypass the customer
 // gate). recipient_role is accepted for readability but send_sms ignores it.
+//
+// 2026-07-02: routed through sms-guard. Internal roles (owner/tech/Danielle) send
+// straight through — those alerts must never be quiet-hour'd or rate-capped.
+// Customer-direction sends go through guardedSend: OPT-OUT is enforced NOW (a
+// STOP'd number is never texted again — zero risk to good sends), while quiet
+// hours / frequency / global-rate are shadow-logged until SMS_GUARD_ENFORCE=1.
+// allowQuiet is auto-set for same-day en-route/ETA texts the customer expects.
+const guard = require('./sms-guard');
+const INTERNAL_ROLES = new Set(['owner', 'technician', 'tech', 'warranty_handler', 'danielle', 'office']);
+const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up/i;
+
 async function sendSms(recipient, body, role, tag) {
   const to = toE164(recipient);
   if (!to || to.length < 12 || !body) return false;
-  try {
-    const r = await fetch(`${XANO}/send_sms`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, body, message: body, context_tag: tag || ('ant_' + (role || 'sms')) }),
-    });
-    const d = await r.json().catch(() => ({}));
-    return !!(d && d.success);
-  } catch (_) { return false; }
+  const r = String(role || '').toLowerCase();
+
+  if (INTERNAL_ROLES.has(r)) {
+    // Internal alert — send directly, but STILL honor a hard opt-out just in case
+    // an internal number ever landed on the list (it won't, but it's free safety).
+    try { if (await guard.isOptedOut(to)) return false; } catch (_) {}
+    try {
+      const resp = await fetch(`${XANO}/send_sms`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, body, message: body, context_tag: tag || ('ant_' + (role || 'sms')) }),
+      });
+      const d = await resp.json().catch(() => ({}));
+      return !!(d && d.success);
+    } catch (_) { return false; }
+  }
+
+  // Customer-direction — full guard (opt-out enforced now; rest shadow until flag).
+  const allowQuiet = QUIET_OK_RE.test(String(tag || '') + ' ' + String(role || ''));
+  const res = await guard.guardedSend({ phone: to, message: body, tag: tag || ('ant_' + (role || 'sms')), kind: role || 'customer', allowQuiet });
+  return res.sent;
 }
 
 module.exports = { sendSms, toE164 };

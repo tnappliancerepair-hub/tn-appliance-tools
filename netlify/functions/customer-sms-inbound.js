@@ -261,6 +261,38 @@ exports.handler = async function (event) {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
 
+  // ─── TCPA OPT-OUT / OPT-IN (must run FIRST, before any other handling) ──
+  // STOP is absolute: record it, send the single legally-allowed confirmation,
+  // and STOP processing (no classifier, no greeting, no booking). START re-opts.
+  // sms-guard.isOptedOut() is what every outbound path now checks, so this is
+  // the switch that actually turns a customer's texts off/on.
+  try {
+    const smsGuard = require('./_lib/sms-guard');
+    if (smsGuard.isStop(parsed.body)) {
+      await smsGuard.recordOptOut(parsed.from, 'sms_stop');
+      // The opt-out confirmation is the ONE message allowed to a STOP'd number.
+      try {
+        await fetch(`${XANO_BASE}/send_sms`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: parsed.from, body: "You're unsubscribed from TN Appliance Exchange texts and won't get any more. Reply START anytime to opt back in.", message: "You're unsubscribed from TN Appliance Exchange texts and won't get any more. Reply START anytime to opt back in.", context_tag: 'opt_out_confirm' }),
+        });
+      } catch (_) {}
+      console.log('[customer-sms-inbound] OPT-OUT recorded:', parsed.from);
+      return providerAck(provider);
+    }
+    if (smsGuard.isStart(parsed.body)) {
+      await smsGuard.clearOptOut(parsed.from, 'sms_start');
+      try {
+        await fetch(`${XANO_BASE}/send_sms`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: parsed.from, body: "You're re-subscribed to TN Appliance Exchange texts 🐜. Reply STOP anytime to opt out.", message: "You're re-subscribed to TN Appliance Exchange texts 🐜. Reply STOP anytime to opt out.", context_tag: 'opt_in_confirm' }),
+        });
+      } catch (_) {}
+      console.log('[customer-sms-inbound] OPT-IN (re-subscribe):', parsed.from);
+      return providerAck(provider);
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] opt-out check threw:', e.message); }
+
   // ─── EXTRA/BLAST YES/NO interceptor (Phase 2d) ─────────────────────
   // Check if this is a response to an active extra-work offer. If so,
   // the handler sends the customer reply itself + books/loser-routes
