@@ -198,7 +198,7 @@ async function load(){
       // 🗂 Jump straight to the job TILE. Every thread gets one — if we don't have the
       // job id yet, it resolves by phone so Danielle can always see WHO this is. (Teddy 2026-07-02)
       const tileBtn = c.jobId
-        ? `<a class="a-open" href="office-board.html?job=${c.jobId}" onclick="event.stopPropagation()" style="background:#37414f;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none">🗂 Job tile</a>`
+        ? `<a class="a-open" href="office-board.html?job=${c.jobId}&from=messages" onclick="event.stopPropagation()" style="background:#37414f;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none">🗂 Job tile</a>`
         : (c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();openJob('${c.phone}',0)" style="background:#37414f;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">🗂 Who is this? →</button>` : '');
       // 🎄 Holiday / no-coverage apology + pre-diagnosis offer (Teddy 2026-07-02)
       const noCovBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();sendNoCoverage('${c.phone}',${c.jobId||0})" style="background:#7a5cf0;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">🎄 No coverage</button>` : '';
@@ -362,12 +362,12 @@ async function sendStatus(phone){
 // otherwise resolves it by phone (or falls back to a customer search) so Danielle can
 // always see WHO a number is. (Teddy 2026-07-02)
 async function openJob(phone, jobId){
-  if(jobId && Number(jobId)>0){ location.href='/office-board.html?job='+Number(jobId); return; }
+  if(jobId && Number(jobId)>0){ location.href='/office-board.html?job='+Number(jobId)+'&from=messages'; return; }
   const p=String(phone||'').replace(/\D/g,'').slice(-10);
   if(p.length===10){
     try{
       const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(p))).json();
-      if(d&&d.found&&d.job_id){ location.href='/office-board.html?job='+d.job_id; return; }
+      if(d&&d.found&&d.job_id){ location.href='/office-board.html?job='+d.job_id+'&from=messages'; return; }
     }catch(_){}
     location.href='/customer-search.html?phone='+encodeURIComponent(p);
     return;
@@ -382,7 +382,18 @@ async function sendNoCoverage(phone, jobId){
   try{ const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(phone))).json(); if(d&&d.found){ first=(d.customer||'').trim().split(/\s+/)[0]||''; appl=d.appliance||''; } }catch(_){}
   const link = (jobId>0) ? ('https://tnapplianceexchange.net/finish-upload.html?job_id='+jobId) : 'https://tnapplianceexchange.net';
   const msg='Hi'+(first?(' '+first):'')+' — so sorry for the inconvenience. Our technicians are off for the holiday, so we\'re short on coverage in your area this week. If no one has been able to help you yet, we\'d be glad to come take care of it. Want us to get a head start? Tap this link and shoot a quick 10-second video'+(appl?(' of your '+appl):'')+' — we\'ll pre-diagnose it and pre-order your parts so we can fix it fast: '+link+'  Thanks so much! — TN Appliance Exchange';
-  if(!confirm('Send this no-coverage note?\n\n'+msg)) return;
+  // Guard: don't turn away a customer in an area we actually cover (Keith Johnson
+  // is in Clarksville = Lee's area — a no-coverage note there is wrong). (Teddy 2026-07-02)
+  let covWarn='';
+  try{
+    const cu=await (await fetch(XANO+'/lookup_customer_by_phone?phone='+encodeURIComponent('+1'+String(phone).replace(/\D/g,'').slice(-10)))).json();
+    const zip=(cu&&cu.customer&&cu.customer.zip)||'';
+    if(zip){
+      const z=await (await fetch(XANO+'/check_service_zone?zip_code='+encodeURIComponent(zip))).json();
+      if(z&&z.covered){ covWarn='⚠️ WE SERVICE THIS AREA — '+(z.market||z.cluster||zip)+(z.suggested_tech_name?(' · '+z.suggested_tech_name+' covers it'):'')+'.\nThey should be SCHEDULED, not sent a no-coverage note.\n\n'; }
+    }
+  }catch(_){}
+  if(!confirm(covWarn+'Send this no-coverage note?\n\n'+msg)) return;
   try{
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
     const res=await r.json();
