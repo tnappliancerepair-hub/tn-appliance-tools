@@ -33,6 +33,23 @@ function dayCT(v) {
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 const term = (s) => /cancel|complete|no_fix/i.test(String(s || ''));
 
+// Latest office note for a job. This is the slow call (~4s, scans all notes) so
+// it's fired in PARALLEL with the main lookup and hard-capped — if it's slow, we
+// return the status answer without it rather than make the whole thing crawl.
+async function fetchOfficeNote(jid, timeoutMs) {
+  if (!jid) return '';
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs || 4000);
+    const el = await (await fetch(`${XANO}/get_event_log_by_action?action=office_note`, { signal: ctl.signal })).json().catch(() => null);
+    clearTimeout(timer);
+    const rows = (el && (el.items || el)) || [];
+    const mine = (Array.isArray(rows) ? rows : []).map((x) => { const m = metaOf(x); return { text: m.text || '', jid: Number(m.job_id || 0), at: Number(m.at_ms || 0) || Date.parse(x.created_at) || 0 }; })
+      .filter((x) => x.jid === Number(jid) && x.text).sort((a, b) => b.at - a.at);
+    return mine.length ? mine[0].text : '';
+  } catch (_) { return ''; }
+}
+
 // ── resolve to the ONE real job (job_id / claim / phone), canceled→active ──
 async function resolve(q) {
   let job = null, tech = null, cust = null, dash = null, claim = q.claim || '';
@@ -73,7 +90,7 @@ async function resolve(q) {
 }
 
 // ── the resolved facts every lens is built from ──
-async function buildFacts(r) {
+async function buildFacts(r, officeNote) {
   const { job, tech, cust, dash } = r;
   const rawCur = String(job.current_status || '').toLowerCase();
   const rawSched = String(job.scheduling_status || '').toLowerCase();
@@ -87,16 +104,8 @@ async function buildFacts(r) {
   const ct = String(job.customer_type || '').toLowerCase();
   const isWarranty = !!(job.warranty_company || (ct && !/self|cash|customer_pay/.test(ct)));
 
-  // latest office note
-  let officeNote = '';
   const jid = Number(job.id) || 0;
-  if (jid) {
-    const el = await jfetch(`${XANO}/get_event_log_by_action?action=office_note`);
-    const rows = (el && (el.items || el)) || [];
-    const mine = (Array.isArray(rows) ? rows : []).map((x) => { const m = metaOf(x); return { text: m.text || '', jid: Number(m.job_id || 0), at: Number(m.at_ms || 0) || Date.parse(x.created_at) || 0 }; })
-      .filter((x) => x.jid === jid && x.text).sort((a, b) => b.at - a.at);
-    if (mine.length) officeNote = mine[0].text;
-  }
+  officeNote = officeNote || '';   // fetched in PARALLEL by the handler
 
   return {
     job_id: jid, claim_number: job.claim_number || r.claim || '',
@@ -173,10 +182,17 @@ exports.handler = async function (event) {
 
   if (!q.job_id && !q.claim && !q.phone) return ok({ ok: false, error: 'need job_id, claim, or phone' });
 
+  // Fire the slow office-note fetch in PARALLEL with the main lookup when we know
+  // the job_id up front (the common path — board/tech/portal). Cuts ~4s off.
+  const jid0 = Number(q.job_id) || 0;
+  const notePromise = jid0 ? fetchOfficeNote(jid0) : null;
+
   const r = await resolve(q);
   if (!r.job) return ok({ ok: true, found: false, reason: "I don't see that one yet — it may be a brand-new dispatch we haven't received. I can take the details and have someone confirm." });
 
-  const facts = await buildFacts(r);
+  const jid = Number(r.job.id) || 0;
+  const officeNote = (notePromise && jid === jid0) ? await notePromise : await fetchOfficeNote(jid);
+  const facts = await buildFacts(r, officeNote);
   const all = { customer: lensCustomer(facts), warranty: lensWarranty(facts), tech: lensTech(facts), office: lensOffice(facts) };
   const lenses = (lens === 'all') ? all : { [lens]: all[lens] || all.customer };
 

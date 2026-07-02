@@ -81,13 +81,17 @@ function qs(a) {
 // gets the warranty lens; a homeowner gets the customer lens (already sanitized —
 // no part numbers, dates only). This is the phone half of "one truth, every seat".
 const STATUS_LENS = { get_job_status_for_warranty: 'warranty', get_job_arrival_status: 'customer', get_parts_status: 'customer' };
+const jobTruth = require('./job-truth');
 async function jobTruthAnswer(name, a) {
   const lens = STATUS_LENS[name];
   const q = { lens };
   const claim = a.claim_or_dispatch_number || a.claim_number || a.claim || a.dispatch_number || '';
   const phone = a.phone || a.phone_number || a.phone_e164 || a.customer_phone || '';
   if (claim) q.claim = claim; else if (a.job_id) q.job_id = a.job_id; else if (phone) q.phone = phone;
-  const d = await getJson(`${NETLIFY}/job-truth${qs(q)}`);
+  // In-process (no function->function HTTP hop / second cold start) — fast enough
+  // for the phone's budget.
+  let d = {};
+  try { const res = await jobTruth.handler({ httpMethod: 'GET', queryStringParameters: q }); d = JSON.parse(res.body || '{}'); } catch (_) {}
   if (d && d.found) {
     const f = d.facts || {};
     // Only safe fields (part_eta is a DATE, never a part #). No internal notes.
