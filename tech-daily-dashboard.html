@@ -1740,10 +1740,7 @@
     const coords = [];
     for (let i = 0; i < jobs.length; i++) {
       const j = jobs[i].job || {};
-      const parts = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean);
-      if (parts.length === 0) continue;
-      const addr = parts.join(', ');
-      const ll = await geocodeWithCache(addr);
+      const ll = await geocodeJob(j);
       if (!ll) continue;
       const num = i + 1;
       const icon = L.divIcon({
@@ -1772,7 +1769,27 @@
   }
 
   // ── Geocoding ──────────────────────────────────────────────────
+  // Try the full address, then progressively looser fallbacks so EVERY stop with
+  // a ZIP gets at least an area pin (warranty jobs often have partial addresses
+  // that Nominatim can't resolve — that's why only a few pins were showing).
+  async function geocodeJob(j) {
+    const zip = String(j.service_zip || '').trim();
+    const city = String(j.service_city || '').trim();
+    const st = String(j.service_state || '').trim();
+    const variants = [];
+    const full = [j.service_address, city, st, zip].filter(Boolean).join(', ');
+    if (full) variants.push(full);
+    if (city && st) variants.push([city, st, zip].filter(Boolean).join(', '));
+    if (zip) variants.push(zip + ', USA');
+    for (const v of variants) {
+      const ll = await geocodeWithCache(v);
+      if (ll) return ll;
+    }
+    return null;
+  }
+
   async function geocodeWithCache(address) {
+    if (!address) return null;
     const key = GEO_PREFIX + simpleHash(address);
     try {
       const raw = localStorage.getItem(key);

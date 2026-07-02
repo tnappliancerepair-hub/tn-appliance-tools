@@ -38,7 +38,7 @@ exports.handler = async function (event) {
 
   // 1. recent jobs
   let jobs = [];
-  try { const d = await (await fetch(`${XANO}/check_recent_jobs?limit=60`, { signal: AbortSignal.timeout(9000) })).json(); jobs = (d && d.jobs) || []; }
+  try { const d = await (await fetch(`${XANO}/check_recent_jobs?limit=60`, { signal: AbortSignal.timeout(15000) })).json(); jobs = (d && d.jobs) || []; }
   catch (e) { return ok({ status: 'recent_jobs_failed', error: String(e.message || e) }); }
 
   // 2. who's already predicted or already swept (skip them)
