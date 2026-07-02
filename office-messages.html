@@ -180,6 +180,10 @@ async function load(){
       const dirLbl = c.last.dir==='in' ? '<span class="dir in">They wrote:</span> ' : '<span class="dir out">'+(c.last.blocked?'(held) ':'')+'You:</span> ';
       const snip = c.last.body ? esc(c.last.body.slice(0,140)) : (c.last.blocked?'(message held by gate)':'(no text)');
       const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1" onclick="event.stopPropagation()">Open job →</a>` : '';
+      // 🗂 Jump straight to the job TILE (the office-board drawer with parts/invoice/etc.)
+      const tileBtn = c.jobId ? `<a class="a-open" href="office-board.html?job=${c.jobId}" onclick="event.stopPropagation()" style="background:#37414f;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none">🗂 Job tile</a>` : '';
+      // 🎄 Holiday / no-coverage apology + pre-diagnosis offer (Teddy 2026-07-02)
+      const noCovBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();sendNoCoverage('${c.phone}',${c.jobId||0})" style="background:#7a5cf0;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">🎄 No coverage</button>` : '';
       const textLink = c.phone ? `<a class="a-text" href="sms:+1${c.phone}" onclick="event.stopPropagation()">📱 Text now</a>` : '';
       if(c.phone) LAST_TEXT[c.phone] = (c.last.dir==='in' ? (c.last.body||'') : '');
       const replyBtn = c.phone ? `<button onclick="event.preventDefault();event.stopPropagation();replyTo('${c.phone}')" style="background:#0a7d33;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer">✍️ Reply (auto-translate)</button>` : '';
@@ -198,7 +202,7 @@ async function load(){
             <div style="font-size:14px;color:#e7edf5;line-height:1.4;white-space:pre-wrap">${txt}</div>
           </div></div>`;
       }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
-      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${openLink}${textLink}</div></div>`;
+      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${noCovBtn}${tileBtn}${openLink}${textLink}</div></div>`;
       return `<div class="conv ${c.last.dir==='in'?'waiting':''}" id="conv-${c.key}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
         <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <button onclick="dismissThread(event,'${c.key}',${c.last.ts})" title="Clear — comes back if they text again" style="background:transparent;border:0;color:#8a96a8;font-size:17px;font-weight:800;cursor:pointer;padding:0 2px 0 9px;line-height:1">✕</button> <span style="opacity:.6">›</span></div></div>
         <div class="ctx" id="ctx-${c.key}" data-ph="${c.phone||''}" style="display:none;font-size:11.5px;color:#8a96a8;margin-top:3px"></div>
@@ -333,6 +337,22 @@ async function sendStatus(phone){
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
     const res=await r.json();
     if(res&&(res.ok||res.success||res.sent)){ alert('✅ Status sent'); load(); }
+    else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
+  }catch(e){ alert('⚠ Send failed: '+e.message); }
+}
+// 🎄 No-coverage apology + pre-diagnosis offer. For jobs we can't cover this week
+// (techs off for the holiday). One tap: apologize, explain the coverage gap, and
+// offer to pre-diagnose + pre-order parts via a 10-sec video link. (Teddy 2026-07-02)
+async function sendNoCoverage(phone, jobId){
+  let first='', appl='';
+  try{ const d=await (await fetch('/.netlify/functions/job-status-reason?phone='+encodeURIComponent(phone))).json(); if(d&&d.found){ first=(d.customer||'').trim().split(/\s+/)[0]||''; appl=d.appliance||''; } }catch(_){}
+  const link = (jobId>0) ? ('https://tnapplianceexchange.net/finish-upload.html?job_id='+jobId) : 'https://tnapplianceexchange.net';
+  const msg='Hi'+(first?(' '+first):'')+' — so sorry for the inconvenience. Our technicians are off for the holiday, so we\'re short on coverage in your area this week. If no one has been able to help you yet, we\'d be glad to come take care of it. Want us to get a head start? Tap this link and shoot a quick 10-second video'+(appl?(' of your '+appl):'')+' — we\'ll pre-diagnose it and pre-order your parts so we can fix it fast: '+link+'  Thanks so much! — TN Appliance Exchange';
+  if(!confirm('Send this no-coverage note?\n\n'+msg)) return;
+  try{
+    const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
+    const res=await r.json();
+    if(res&&(res.ok||res.success||res.sent)){ alert('✅ No-coverage note sent'); load(); }
     else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
 }
