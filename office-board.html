@@ -958,13 +958,18 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
-      <h4>🔧 TDR — diagnosis &amp; parts</h4>
-      <div class="kv">
-        <div class="k">Diagnosis</div><div class="v">${esc(tdr.diagnosis||'—')}</div>
-        <div class="k">Failed part</div><div class="v">${esc(tdr.failed_component||'—')}</div>
-        <div class="k">Part #</div><div class="v mono">${esc(tdr.verified_part_number||'—')}</div>
-        <div class="k">Labor</div><div class="v">${tdr.labor_time_hours!=null?esc(String(tdr.labor_time_hours)+' hr'):'—'}</div>
-        <div class="k">Parts status</div><div class="v">${esc((j.parts_status||'—').replace(/_/g,' '))}</div>
+      <h4>🔧 TDR — diagnosis &amp; parts <span style="font-weight:400;font-size:11px;color:var(--ink2)">${tdr.id?'· edit + save':'· no report filed yet'}</span></h4>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Diagnosis</label>
+        <textarea id="td-diag" rows="2" placeholder="what's wrong" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.diagnosis||'')}</textarea>
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Failed part</label>
+        <input id="td-comp" value="${esc(tdr.failed_component||'')}" placeholder="e.g. bake element, control board" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Part #</label>
+        <input id="td-part" value="${esc(tdr.verified_part_number||'')}" placeholder="OEM part number" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">Tech notes</label>
+        <textarea id="td-notes" rows="2" placeholder="notes" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.technician_notes||'')}</textarea>
+        <div style="font-size:12px;color:var(--ink2)">Parts status: <b>${esc((j.parts_status||'—').replace(/_/g,' '))}</b>${tdr.labor_time_hours!=null?(' · Labor '+esc(String(tdr.labor_time_hours))+' hr'):''}</div>
+        ${tdr.id?`<button onclick="saveTdr(${tdr.id},${jid})" style="margin-top:2px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">💾 Save TDR</button>`:'<div style="font-size:12px;color:var(--ink2)">No report filed yet — once the tech submits one it becomes editable here.</div>'}
       </div>
     </div>
 
@@ -1261,6 +1266,21 @@ async function saveJobInfo(id){
   toast(ok?'Saved ✓':'⚠ some fields did not save');
   openDrawer(String(id)); // reload the job file with the new values
   loadBoard();
+}
+// Office edits the TDR (diagnosis / failed part / part # / notes) — free-flowing so
+// a mistake (like a report on the wrong tile, or a missing part #) gets fixed fast.
+// Saves each field via set-tdr-field (Netlify, no Mac deploy). (Teddy 2026-07-02)
+async function saveTdr(tdrId, jid){
+  if(!tdrId){ toast('No report to edit yet'); return; }
+  const g=(x)=>{const el=document.getElementById(x);return el?el.value:'';};
+  const fields={diagnosis:g('td-diag'),failed_component:g('td-comp'),verified_part_number:g('td-part'),technician_notes:g('td-notes')};
+  toast('Saving TDR…');
+  let ok=true;
+  for(const f of Object.keys(fields)){
+    try{ const r=await fetch('/.netlify/functions/set-tdr-field',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tdr_id:tdrId,field:f,value:fields[f]})}); const d=await r.json(); if(!(d&&d.ok))ok=false; }catch(_){ok=false;}
+  }
+  toast(ok?'TDR saved ✓':'⚠ some fields did not save');
+  openDrawer(String(jid));
 }
 async function orderParts(id){
   const pn=((document.getElementById('pt-num')||{}).value||'').trim();
