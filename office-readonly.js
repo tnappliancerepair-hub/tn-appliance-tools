@@ -61,9 +61,21 @@
       if (document.getElementById('__ro_banner')) return;
       var b = document.createElement('div');
       b.id = '__ro_banner';
-      b.textContent = '👀 View-only (tech) — look around all you want. To make changes, use your tech job page.';
       b.style.cssText = 'position:sticky;top:0;z-index:99998;background:#1f6feb;color:#fff;padding:9px 12px;font:700 13px/1.35 system-ui;text-align:center';
+      // Escape hatch: an OFFICE user (Danielle) can get caught here if this browser
+      // has a lingering tech session and she isn't office-logged-in — then every save
+      // silently blocks and it just looks broken. This button clears the tech session
+      // and reloads, so the office login prompts and she gets full edit access.
+      // (Teddy 2026-07-03: office + techs both need to fix mistakes.)
+      b.innerHTML = '👀 View-only (tech). Office? '
+        + '<button id="__ro_office" style="margin-left:6px;background:#fff;color:#1f6feb;border:0;border-radius:7px;padding:5px 11px;font:800 13px system-ui;cursor:pointer">🔓 Log in as office to edit</button>';
       document.body.insertBefore(b, document.body.firstChild);
+      var ob = document.getElementById('__ro_office');
+      if (ob) ob.onclick = function () {
+        try { if (window.TechAuth && window.TechAuth.clearAll) window.TechAuth.clearAll(); } catch (e) {}
+        try { localStorage.removeItem('tn_tech_session_v1'); localStorage.removeItem('tn_tech_id'); } catch (e) {}
+        location.reload();
+      };
       // Soft-dim obvious action buttons (the fetch guard is the real safety).
       var st = document.createElement('style');
       st.textContent = '.__ro_dim{opacity:.55 !important;}';
