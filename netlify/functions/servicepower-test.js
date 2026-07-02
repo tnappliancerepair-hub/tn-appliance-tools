@@ -46,6 +46,10 @@ exports.handler = async function (event) {
     window: { from, to },
     likely_auth_issue: !r.ok && looksAuth,
     detail: raw.slice(0, 400),
+    // one full CallInfo block (owner-gated) so we can see EVERY field ServicePower
+    // sends — specifically whether a customer phone tag is in there. (Teddy 2026-07-02)
+    first_callinfo: q.block === '1' ? (((raw.match(/<CallInfo[\s\S]*?<\/CallInfo>/i) || [''])[0]) || '').slice(0, 2500) : undefined,
+    phone_tags_found: q.block === '1' ? (raw.match(/<[A-Za-z]*(?:Phone|Telephone|Tele|Contact|Mobile|Cell)[A-Za-z]*\b/gi) || []).filter((v, i, a) => a.indexOf(v) === i) : undefined,
     note: r.ok ? 'AUTH OK — getCallInfo returned. Real status codes in call_statuses_seen.'
                : (looksAuth ? 'Looks like a credentials problem — reset/verify the password.' : 'Inspect detail (could be no jobs in window, or a request-shape tweak).'),
   });
