@@ -5,7 +5,7 @@
 //   GET ?secret=<admin>&gclid=...&action=booked|paid&value=150&when_ms=...   manual test
 //   (also called internally by google-ads-conversion-sweep)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const ads = require('./_lib/google-ads');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -23,9 +23,11 @@ function ctDateTime(ms) {
 async function uploadConversion({ gclid, gbraid, wbraid, action, value, when_ms }) {
   const c = await ads.creds();
   if (!c.clientId || !c.refresh || !c.devToken) return { ok: false, error: 'not_configured' };
-  const cid = (await getSecret('GOOGLE_ADS_CONV_CID')) || '9267688121';
+  // FRESH reads (not cached getSecret) — these IDs were vaulted after warm
+  // containers had already cached the empty value, which silently no-op'd uploads.
+  const cid = (await getSecretFresh('GOOGLE_ADS_CONV_CID')) || '9267688121';
   const vaultKey = action === 'paid' ? 'GOOGLE_ADS_CONV_PAID' : 'GOOGLE_ADS_CONV_BOOKED';
-  const conversionAction = await getSecret(vaultKey);
+  const conversionAction = await getSecretFresh(vaultKey);
   if (!conversionAction) return { ok: false, error: 'conversion action not set up — run google-ads-setup-conversions?apply=1' };
   if (!gclid && !gbraid && !wbraid) return { ok: false, error: 'no click id' };
 
