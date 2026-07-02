@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <script src="/office-auth.js?v=20260701-1"></script>
+<script src="/tech-auth.js?v=20260703-1"></script>
+<script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
 <script>
@@ -643,7 +645,7 @@ function initAuth() {
     inputEl.type = 'password';
     inputEl.className = '';
     inputEl.placeholder = '';
-    if (localStorage.getItem(OFFICE_AUTH_KEY) === '1') {
+    if (localStorage.getItem(OFFICE_AUTH_KEY) === '1' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) {
       document.getElementById('auth-overlay').classList.add('hidden');
       loadJob();
       return;

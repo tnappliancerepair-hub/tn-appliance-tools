@@ -17,6 +17,8 @@
   function isOffice() { try { return !!(window.OfficeAuth && window.OfficeAuth.isLoggedIn && window.OfficeAuth.isLoggedIn()); } catch (e) { return false; } }
   function techSession() { try { return (window.TechAuth && window.TechAuth.session && window.TechAuth.session()) || null; } catch (e) { return null; } }
 
+  // Never engage on a TECH page (their own tools stay fully interactive).
+  try { if (/tech[\w-]*\.html/i.test(location.pathname)) return; } catch (e) {}
   // Only engage for a tech who is NOT an office user. Office users = full control.
   if (isOffice() || !techSession()) return;
   window.OFFICE_READONLY = true;

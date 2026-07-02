@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <script src="/office-auth.js?v=20260701-1"></script>
+<script src="/tech-auth.js?v=20260703-1"></script>
+<script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
 <script>
@@ -151,7 +153,7 @@ const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 let JOBS=[], FILTER='gaps', TECHF='';
 
-function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1';}catch(_){return false;}}
+function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
 async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
 document.getElementById('pwBtn').onclick=async function(){
   const e=document.getElementById('autherr');const v=document.getElementById('pw').value.trim();
