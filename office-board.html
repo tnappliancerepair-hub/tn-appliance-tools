@@ -770,13 +770,15 @@ function renderDrawer(d){
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
-  // Same honest status engine the phone relays to AHS + the customer sees — so
-  // Danielle answers callers with the exact same line. Office (3rd-person) voice.
+  // ONE job brain (job-truth): the OFFICE lens — same truth the phone relays to
+  // AHS + the customer sees, but phrased for the office with the blockers baked
+  // in (NO TECH / report-in-but-no-part# / part ETA). Danielle sees the status
+  // AND what's stopping it in one line, computed in one place.
   (function(){
     const sEl=document.getElementById('d-status'), sTx=document.getElementById('d-status-text');
     if(!sEl||!j.id) return; sEl.style.display='none';
-    fetch('/.netlify/functions/job-status-reason?job_id='+encodeURIComponent(j.id))
-      .then(r=>r.json()).then(d2=>{ if(d2&&d2.found&&d2.reason){ sTx.textContent=d2.reason; sEl.style.display='block'; } }).catch(()=>{});
+    fetch('/.netlify/functions/job-truth?lens=office&job_id='+encodeURIComponent(j.id))
+      .then(r=>r.json()).then(d2=>{ const s=d2&&d2.found&&d2.lenses&&d2.lenses.office; if(s){ sTx.textContent=s; sEl.style.display='block'; } }).catch(()=>{});
   })();
   const techNote=(tdrs.filter(x=>x.technician_notes).map(x=>x.technician_notes).pop())||tdr.technician_notes||'';
   // Office notes = office-authored notes (part ETAs, warranty-co updates, etc.),

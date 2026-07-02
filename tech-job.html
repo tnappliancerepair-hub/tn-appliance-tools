@@ -398,6 +398,11 @@ function render(){
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
       </div>
 
+      <div class="card" id="ant-brief" style="display:none;border:1px solid #d9c7f0;background:#faf5ff">
+        <h3>🧠 Ant brief <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">the whole job in one line</span></h3>
+        <div class="briefing" id="ant-brief-text" style="background:#f3e8ff;border-color:#e2cdf5;color:#4a2d6b"></div>
+      </div>
+
       ${(avail||access)?`<div class="card" style="border:1px solid rgba(116,227,196,0.3);background:rgba(116,227,196,0.06)">
         <h3>🗓 Customer availability</h3>
         ${avail?`<div class="briefing">${esc(avail)}</div>`:'<div class="briefing" style="opacity:.6">No availability collected yet.</div>'}
@@ -533,6 +538,17 @@ function render(){
     </div>
   `;
   wireActions();
+  loadAntBrief();
+}
+
+// The tech's lens from job-truth (the one job brain): customer + appliance +
+// pre-diag + part + availability + access + day + office note, consolidated into
+// one authoritative line — same truth the office/customer/warranty see.
+function loadAntBrief(){
+  const el=document.getElementById('ant-brief'), tx=document.getElementById('ant-brief-text');
+  if(!el||!tx||!JOB_ID) return;
+  fetch('/.netlify/functions/job-truth?lens=tech&job_id='+encodeURIComponent(JOB_ID))
+    .then(r=>r.json()).then(d=>{ const s=d&&d.found&&d.lenses&&d.lenses.tech; if(s){ tx.textContent=s; el.style.display='block'; } }).catch(()=>{});
 }
 
 function lifecycleStamp(){
