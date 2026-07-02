@@ -8,6 +8,7 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', 'G-0EF3THNXLE');
+  gtag('config', 'AW-11509905666');  // Google Ads — sets the _gcl cookie from the gclid so conversions attribute
 </script>
 
 <meta charset="UTF-8">
@@ -226,6 +227,13 @@ function recordAdClick(jobId){
   if(!AD_CLICK) return;
   try{ fetch(FN+'/record-gclid',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
     body:JSON.stringify({job_id:jobId||0,gclid:AD_CLICK.gclid||'',gbraid:AD_CLICK.gbraid||'',wbraid:AD_CLICK.wbraid||'',conv_id:String(state.convId||'')})}); }catch(_){}
+}
+// Client-side Google Ads conversion (gtag). Google attributes it to the ad click
+// automatically via the _gcl cookie set when this page loaded — no gclid needed here.
+// The offline UploadClickConversions API is blocked for new accounts, so this is the path.
+const ADS_BOOKED_SENDTO='AW-11509905666/AdQjCO3K3skcEILyrPAq';
+function fireAdsBooked(jobId, value){
+  try{ if(window.gtag) gtag('event','conversion',{ send_to:ADS_BOOKED_SENDTO, value:Number(value)||0, currency:'USD', transaction_id:String(jobId||state.convId||'') }); }catch(_){}
 }
 
 // ── FAIL-PROOF MEDIA UPLOAD (built for low / spotty signal) ───────────────────
@@ -640,7 +648,7 @@ function submitFree(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); done(); }
+      if(d&&d.ok){ recordAdClick(d.job_id); fireAdsBooked(d.job_id, FREE_MODE?0:50); clearFlow(); done(); }
       else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -740,7 +748,7 @@ function submitInHome(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); doneInHome(); }
+      if(d&&d.ok){ recordAdClick(d.job_id); fireAdsBooked(d.job_id, 100); clearFlow(); doneInHome(); }
       else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
