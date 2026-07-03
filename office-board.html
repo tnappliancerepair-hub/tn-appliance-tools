@@ -371,10 +371,19 @@ async function loadOfficeNoteFlags(){
     OFFICE_NOTE_JOBS=new Set(Object.keys(byJob).map(Number));
   }catch(_){ OFFICE_NOTE_JOBS=new Set(); }
 }
+// Tentative "hold" placeholders (shared with the scheduling calendar). A held job
+// shows a ⏳ HELD badge + a confirm/release control in the drawer. (Teddy 2026-07-03)
+let HOLD_MAP={};
+async function loadHoldMap(){
+  try{
+    const d=await fetch('/.netlify/functions/schedule-hold',{cache:'no-store'}).then(r=>r.json());
+    HOLD_MAP={}; ((d&&d.holds)||[]).forEach(h=>{ HOLD_MAP[Number(h.job_id)]=h; });
+  }catch(_){ HOLD_MAP={}; }
+}
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages(),loadOfficeNoteFlags()]);
+    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
@@ -606,6 +615,7 @@ function cardHtml(j){
   else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 DIAGNOSIS</span>');
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
+  if(HOLD_MAP[j.id])tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — waiting on the customer to confirm">⏳ HELD</span>');
   if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
   // Only label "cash" for an actual self-pay job. A blank warranty_company does
   // NOT mean cash — we're a warranty shop (no cash jobs), so a missing vendor is
@@ -1253,7 +1263,17 @@ function renderDrawer(d){
           <input type="date" id="schDay" value="${schDayVal}" style="flex:2;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
           <input type="time" id="schTime" value="${schTimeVal}" title="optional time" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
         </div>
-        <button onclick="scheduleFromDrawer(${jid})" style="padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule</button>
+        <div style="display:flex;gap:8px">
+          <button onclick="scheduleFromDrawer(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule</button>
+          <button onclick="holdFromDrawer(${jid})" title="Hold this day tentatively while you wait on the customer" style="flex:1;padding:11px;border-radius:9px;background:rgba(224,178,42,0.15);color:#a67c10;border:1px solid #e0b22a;font-weight:800;cursor:pointer">⏳ Hold</button>
+        </div>
+        ${HOLD_MAP[jid]?`<div style="margin-top:4px;padding:9px 11px;border:1px dashed #e0b22a;border-radius:9px;background:rgba(224,178,42,0.10)">
+          <div style="font-size:12.5px;font-weight:800;color:#8a6410">⏳ Held for ${esc(TECH_NAME[HOLD_MAP[jid].tech_id]||('tech '+HOLD_MAP[jid].tech_id))} on ${esc(HOLD_MAP[jid].date)} — waiting on the customer</div>
+          <div style="display:flex;gap:8px;margin-top:7px">
+            <button onclick="confirmHoldFromDrawer(${jid})" style="flex:1;padding:9px;border-radius:8px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">✓ Confirm — book it</button>
+            <button onclick="releaseHoldFromDrawer(${jid})" style="flex:1;padding:9px;border-radius:8px;background:#fff;color:#b04a3a;border:1px solid #d9a99f;font-weight:800;cursor:pointer">✕ Release</button>
+          </div>
+        </div>`:''}
       </div>
     </div>
 
@@ -1502,6 +1522,40 @@ async function partsArrived(id){
     if(d&&!d.error){toast('Parts arrived ✓ — ready to schedule');closeDrawer();loadBoard();}
     else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ connection error');}
+}
+// ⏳ Hold the picked tech+day tentatively (for a completion customer who says
+// "get us in Thursday, we'll confirm"). Ghosted on the calendar, office-only.
+// Confirm books it for real; Release frees it. No auto-expire. (Teddy 2026-07-03)
+async function holdFromDrawer(id){
+  const tech=parseInt((document.getElementById('schTech')||{}).value||'0',10);
+  const day=(document.getElementById('schDay')||{}).value||'';
+  if(!tech){toast('Pick a tech');return;}
+  if(!day){toast('Pick a day');return;}
+  const c=window.__drawerCust||{}, j=window.__drawerJob||{};
+  const cust=((c.first_name||'')+' '+(c.last_name||'')).trim();
+  const appl=j.appliance_type||j.appliance||'';
+  toast('Holding…');
+  try{
+    await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'hold',job_id:parseInt(id,10),tech_id:tech,date:day,customer:cust,appliance:appl})});
+    toast('Held ⏳ — waiting on the customer'); await loadHoldMap(); renderBoard(); openDrawer(String(id));
+  }catch(_){toast('⚠ could not hold');}
+}
+async function confirmHoldFromDrawer(id){
+  const h=HOLD_MAP[id]; if(!h){toast('No hold on this job');return;}
+  if(!confirm('Confirm this hold into a real appointment? The customer said yes.'))return;
+  const startMs=new Date(h.date+'T08:00:00').getTime();
+  toast('Booking…');
+  try{
+    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:h.tech_id,scheduled_start_ms:startMs,service_eta_window:''});
+    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){ try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});}catch(_){} d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:h.tech_id,scheduled_start_ms:startMs,service_eta_window:''}); }
+    if(d&&d.success){
+      try{await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release',job_id:parseInt(id,10)})});}catch(_){}
+      persistStage(id,'scheduled'); toast('Confirmed ✓ — booked'); closeDrawer(); loadBoard();
+    } else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ connection error');}
+}
+async function releaseHoldFromDrawer(id){
+  try{ await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release',job_id:parseInt(id,10)})}); toast('Hold released'); await loadHoldMap(); renderBoard(); openDrawer(String(id)); }catch(_){toast('⚠ failed');}
 }
 async function scheduleFromDrawer(id){
   const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay'), timeEl=document.getElementById('schTime');
