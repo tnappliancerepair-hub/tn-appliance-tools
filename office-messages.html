@@ -235,6 +235,32 @@ async function load(){
   document.getElementById('refresh').textContent='updated '+new Date().toLocaleTimeString()+' · pauses while you read/reply · tap to refresh now';
   resolveNames();
   enrichStatus();
+  autoOpenDeepLink();
+}
+
+// Deep-link from a job tile / TDR: office-board sends ?job=&phone= so we jump
+// straight to THAT customer's text thread (open it, scroll to it, flash it) —
+// not the generic list. Fires once. Threads key by job first, else phone.
+// (Teddy 2026-07-03)
+function autoOpenDeepLink(){
+  if(window.__deepLinked) return;
+  let job='',ph='';
+  try{ const p=new URLSearchParams(location.search); job=(p.get('job')||'').replace(/\D/g,''); ph=(p.get('phone')||'').replace(/\D/g,'').slice(-10); }catch(_){}
+  if(!job && !ph) return;
+  window.__deepLinked=true;
+  const keys=[]; if(job)keys.push('j'+job); if(ph)keys.push('p'+ph);
+  let conv=null,key=null;
+  for(const k of keys){ const el=document.getElementById('conv-'+k); if(el){ conv=el; key=k; break; } }
+  if(!conv){
+    // No thread in the last 14 days — tell her clearly instead of dumping her on the list.
+    const box=document.getElementById('summary');
+    if(box) box.innerHTML='<div style="background:#3a2a14;color:#f0d9a8;border-radius:8px;padding:8px 11px;font-size:13px;font-weight:700">No text history with this customer in the last 14 days. Use “✏️ New message” above to reach them.</div>';
+    return;
+  }
+  const thr=document.getElementById('thr-'+key); if(thr) thr.style.display='block';
+  conv.scrollIntoView({behavior:'smooth',block:'center'});
+  const o=conv.style.boxShadow; conv.style.boxShadow='0 0 0 3px #1f6df0';
+  setTimeout(()=>{ conv.style.boxShadow=o; },1800);
 }
 
 // Danielle's ask #4: show the job context (appliance · tech · status) right in each

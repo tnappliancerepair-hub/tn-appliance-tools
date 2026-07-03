@@ -243,7 +243,7 @@
   <div class="dh">
     <button class="x" onclick="closeDrawer()">✕</button>
     <div class="dt"><div class="n" id="d-name">Job</div><div class="s" id="d-sub"></div></div>
-    <a href="/office-messages.html" onclick="event.preventDefault();backToMessages()" title="Back to Messages" style="margin-left:auto;background:#1f6df0;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0">💬 Messages</a>
+    <a href="/office-messages.html" onclick="event.preventDefault();openCustomerThread()" title="Open this customer's text thread" style="margin-left:auto;background:#1f6df0;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0">💬 Messages</a>
   </div>
   <div id="d-status" style="display:none;margin:0 16px;background:#f0f6ff;border:1px solid #cfe0f5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:#26405e"><b>📍 Where it stands: </b><span id="d-status-text"></span></div>
   <div style="margin:6px 16px;display:flex;gap:6px">
@@ -731,6 +731,19 @@ function backToMessages(){
   try{ const from=new URLSearchParams(location.search).get('from');
     if(from==='messages' && history.length>1){ history.back(); return; } }catch(_){}
   location.href='/office-messages.html';
+}
+// The drawer's 💬 Messages button opens THIS customer's text thread (with full
+// history) so Danielle can respond right there — not the generic list. It carries
+// both the job id and the phone so Messages can auto-open the thread however the
+// texts were keyed. (Teddy 2026-07-03)
+function openCustomerThread(){
+  const j=window.__drawerJob||{}, c=window.__drawerCust||{};
+  const jid=Number(j.id)||0;
+  const ph=String(c.phone||j.customer_phone||'').replace(/\D/g,'').slice(-10);
+  let url='/office-messages.html?from=board';
+  if(jid)url+='&job='+jid;
+  if(ph)url+='&phone='+ph;
+  location.href=url;
 }
 // 📷 Load the job's photos + video into the drawer so the office sees what the tech
 // AND the customer uploaded (shared between all sides; office-only view). Danielle
