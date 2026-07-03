@@ -32,7 +32,12 @@ exports.handler = async function (event) {
   }
   if (!cids.length) return json(200, { ok: false, error: 'no client accounts found' });
 
-  const gaql = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc FROM campaign WHERE segments.date DURING LAST_${days}_DAYS ORDER BY metrics.cost_micros DESC`;
+  // ?diag=1 adds the throttling diagnostics: bid strategy, daily budget, and
+  // impression-share loss (budget-lost vs rank-lost = the definitive "why aren't
+  // my ads serving" answer). Default query unchanged so existing callers are safe.
+  const diag = q.diag === '1';
+  const diagFields = diag ? ', campaign.bidding_strategy_type, campaign_budget.amount_micros, metrics.search_impression_share, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share' : '';
+  const gaql = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc${diagFields} FROM campaign WHERE segments.date DURING LAST_${days}_DAYS ORDER BY metrics.cost_micros DESC`;
 
   const out = [];
   for (const cid of cids) {
@@ -45,14 +50,25 @@ exports.handler = async function (event) {
       try { r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c, c.managerId), body: JSON.stringify({ query: gaql }) }); d = await r.json().catch(() => ({})); } catch (_) {}
     }
     if (!r.ok) { out.push({ cid, http: r.status, error: (d.error && (d.error.message || d.error.status)) || d, detail: (d.error && d.error.details && d.error.details[0] && d.error.details[0].errors) || null }); continue; }
-    const rows = (d.results || []).map((x) => ({
-      id: x.campaign && x.campaign.id, campaign: x.campaign && x.campaign.name, status: x.campaign && x.campaign.status,
-      cost: x.metrics ? Math.round((Number(x.metrics.costMicros || 0) / 1e6) * 100) / 100 : 0,
-      clicks: x.metrics ? Number(x.metrics.clicks || 0) : 0,
-      impressions: x.metrics ? Number(x.metrics.impressions || 0) : 0,
-      conversions: x.metrics ? Number(x.metrics.conversions || 0) : 0,
-      avg_cpc: x.metrics ? Math.round((Number(x.metrics.averageCpc || 0) / 1e6) * 100) / 100 : 0,
-    }));
+    const pct = (v) => (v == null ? null : Math.round(Number(v) * 1000) / 10); // impression-share comes back 0..1
+    const rows = (d.results || []).map((x) => {
+      const row = {
+        id: x.campaign && x.campaign.id, campaign: x.campaign && x.campaign.name, status: x.campaign && x.campaign.status,
+        cost: x.metrics ? Math.round((Number(x.metrics.costMicros || 0) / 1e6) * 100) / 100 : 0,
+        clicks: x.metrics ? Number(x.metrics.clicks || 0) : 0,
+        impressions: x.metrics ? Number(x.metrics.impressions || 0) : 0,
+        conversions: x.metrics ? Number(x.metrics.conversions || 0) : 0,
+        avg_cpc: x.metrics ? Math.round((Number(x.metrics.averageCpc || 0) / 1e6) * 100) / 100 : 0,
+      };
+      if (diag) {
+        row.bid_strategy = x.campaign && x.campaign.biddingStrategyType;
+        row.daily_budget = x.campaignBudget ? Math.round((Number(x.campaignBudget.amountMicros || 0) / 1e6) * 100) / 100 : null;
+        row.impr_share_pct = x.metrics ? pct(x.metrics.searchImpressionShare) : null;
+        row.lost_to_budget_pct = x.metrics ? pct(x.metrics.searchBudgetLostImpressionShare) : null;
+        row.lost_to_rank_pct = x.metrics ? pct(x.metrics.searchRankLostImpressionShare) : null;
+      }
+      return row;
+    });
     const totCost = rows.reduce((a, b) => a + b.cost, 0);
     const totConv = rows.reduce((a, b) => a + b.conversions, 0);
     out.push({ cid, days, campaigns: rows.length, total_cost: Math.round(totCost * 100) / 100, total_clicks: rows.reduce((a, b) => a + b.clicks, 0), total_conversions: Math.round(totConv * 100) / 100, cost_per_conversion: totConv > 0 ? Math.round((totCost / totConv) * 100) / 100 : null, rows });
