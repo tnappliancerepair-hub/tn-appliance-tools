@@ -214,6 +214,35 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // WARRANTY-REP handling — reps (esp. AHS) call to check status; answer the
+  // whole picture in one breath, and if they ask to close out for a recall,
+  // redirect the customer to text us instead. (Teddy 2026-07-03.) Idempotent.
+  if (action === 'warranty_rep') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- WARRANTY-REP -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## WARRANTY-COMPANY REPS (e.g. American Home Shield) — answer status in one breath (high priority)\n`
+      + `If the call is from a recognized warranty-company number (American Home Shield / AHS, 1-800-776-4663, or any warranty company), assume it's LIKELY a rep — but ALWAYS confirm first, because they sometimes transfer the actual homeowner from that line: "Happy to help — are you calling from the warranty company, or are you the homeowner?"\n`
+      + `IF IT'S A REP:\n`
+      + `1) Ask for the dispatch, claim, or WO number, then call get_job_status_for_warranty with it.\n`
+      + `2) Give them the WHOLE status in ONE breath — whether the tech has been out, what we found, the part and its ETA, and when we're going back — so they get everything they need in one turn. Don't make them ask five separate questions. Reps may hear part numbers and diagnosis (unlike homeowners).\n`
+      + `3) If the tool returns a recall_redirect line, that's the exact wording to use for the next rule.\n`
+      + `IF THE REP ASKS TO CLOSE OUT THE CLAIM SO THEY CAN ISSUE A RECALL: do NOT agree. Say: "No need to close it out and open a recall — we're happy to come back out on the original claim. The fastest way is to have the customer text us at 615-588-9500 with their info and we'll get them right back on our schedule. Saves everyone the time and paperwork." Never give out any personal cell number — the customer text line is 615-588-9500.\n`
+      + `IF IT'S ACTUALLY THE HOMEOWNER (transferred): drop the rep flow and help them like any customer — and NEVER read them a part number.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Already-completed warranty repair → the customer must open a RECALL with
   // their warranty company. We CANNOT reschedule / send a tech / promise a
   // callback until that recall is opened. (Teddy 2026-07-01.) Idempotent.
