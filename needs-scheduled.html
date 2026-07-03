@@ -689,6 +689,71 @@
     });
 
     hydrateGhosts();
+    groupRowsByTech();
+  }
+
+  // ── Group the waiting jobs UNDER the tech who covers their area ───────
+  // Teddy 2026-07-03: "line the needs-scheduled jobs above the tech they match
+  // best — North Shore → John, South Shore → Andre, Clarksville → Lee, Jimmy's
+  // area → Jimmy — so it's simple." We resolve each job's zip → cluster → tech
+  // (check_service_zone, the same map the scheduler uses), then reorder the
+  // already-rendered rows into a section per tech with a header. Additive +
+  // low-risk: it MOVES existing rows (listeners + ghost cards ride along) and
+  // drops in headers — it never re-renders a card.
+  let _groupRunToken = 0;
+  async function groupRowsByTech() {
+    const token = ++_groupRunToken;
+    const rows = Array.from(list.querySelectorAll('div.row[data-id]'));
+    if (rows.length < 2) return;
+    const info = rows.map(row => {
+      const sb = row.querySelector('button.schedule');
+      const zip = String((sb && sb.dataset.zip) || '').replace(/\D/g, '').slice(0, 5);
+      return { row, zip };
+    });
+    const zips = Array.from(new Set(info.map(r => r.zip).filter(Boolean)));
+    const zipTech = {};
+    await Promise.all(zips.map(async z => {
+      try {
+        const zo = await (await fetch(XANO_BASE + '/check_service_zone?zip_code=' + z)).json();
+        if (zo && zo.suggested_technician_id) {
+          zipTech[z] = {
+            id: zo.suggested_technician_id,
+            name: zo.suggested_tech_name || TECH_NAMES[zo.suggested_technician_id] || ('Tech ' + zo.suggested_technician_id),
+            cluster: zo.cluster || '',
+          };
+        }
+      } catch (_) {}
+    }));
+    if (token !== _groupRunToken) return;   // a newer load()/group started — bail
+    const groups = new Map();               // key techId (or _none) -> {tech, rows[]}
+    info.forEach(({ row, zip }) => {
+      const t = zipTech[zip];
+      const key = t ? String(t.id) : '_none';
+      if (!groups.has(key)) groups.set(key, { tech: t, rows: [] });
+      groups.get(key).rows.push(row);
+    });
+    // Nothing to gain if every job maps to the same tech (or none did).
+    const realKeys = Array.from(groups.keys()).filter(k => k !== '_none');
+    if (realKeys.length === 0) return;
+    realKeys.sort((a, b) => Number(a) - Number(b));
+    const keys = realKeys.concat(groups.has('_none') ? ['_none'] : []);
+    list.querySelectorAll('.tech-group-head').forEach(h => h.remove());
+    const frag = document.createDocumentFragment();
+    keys.forEach(k => {
+      const g = groups.get(k);
+      const head = document.createElement('div');
+      head.className = 'tech-group-head';
+      if (k === '_none') {
+        head.style.cssText = 'margin:18px 4px 8px;padding:9px 13px;border-radius:10px;font-weight:800;font-size:14px;background:rgba(255,180,84,.14);border:1px solid rgba(255,180,84,.5);color:#8a5a12';
+        head.textContent = `⚠️ Area not mapped — pick a tech (${g.rows.length})`;
+      } else {
+        head.style.cssText = 'margin:18px 4px 8px;padding:9px 13px;border-radius:10px;font-weight:800;font-size:15px;background:rgba(76,201,192,.13);border:1px solid rgba(76,201,192,.45);color:#178f7d';
+        head.textContent = `🔧 ${g.tech.name}${g.tech.cluster ? ' · ' + g.tech.cluster : ''} — ${g.rows.length} job${g.rows.length > 1 ? 's' : ''}`;
+      }
+      frag.appendChild(head);
+      g.rows.forEach(r => frag.appendChild(r));
+    });
+    list.appendChild(frag);   // moves the existing rows into grouped order
   }
 
   // ── Ant ghost suggestions (shadow mode) ──────────────────────────────
