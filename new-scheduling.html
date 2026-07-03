@@ -335,14 +335,15 @@
      width, as large as possible. Re-homed by the script at the page bottom. */
   #cal-rail { display: flex; flex-direction: column; gap: 12px; }
   #cal-rail #miniCal { width: 100%; position: static; flex: 0 0 auto; }
-  /* Map GROWS to fill the rail (no thin squished strip / empty gap). */
-  #cal-rail #railMap { flex: 1 1 auto; min-height: 260px; display: flex; }
+  /* Map AS LARGE AS POSSIBLE. A big FIXED height (not flex-grow) so the tiles
+     fully render — a container that resizes after Leaflet inits leaves black
+     gaps. The rail itself SCROLLS for the month calendar + customers below. */
+  #cal-rail #railMap { flex: 0 0 auto; height: 60vh; min-height: 380px; }
   #cal-rail #railMap #antmap-panel.antmap-inline { height: 100%; width: 100%; }
-  /* Customers keep their own capped scroll so the map can take the rest. */
-  #cal-rail #railQueue { flex: 0 0 auto; max-height: 30vh; overflow-y: auto; }
+  #cal-rail #railQueue { flex: 0 0 auto; }
   @media (min-width: 900px) {
     .scroll { display: flex; gap: 12px; overflow: hidden; align-items: stretch; }
-    #cal-rail { flex: 0 0 300px; width: 300px; height: 100%; overflow: hidden; padding: 2px 4px 4px 0; }
+    #cal-rail { flex: 0 0 300px; width: 300px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 20px 0; }
     #content { flex: 1 1 auto; min-width: 0; height: 100%; overflow: auto; }
   }
   /* KEEP TECH NAMES VISIBLE while scrolling the grid: the header row sticks to
@@ -2677,7 +2678,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260703i"></script>
 <script src="/office-map.js?v=20260703b"></script>
-<script src="/office-jobs-map.js?v=20260703-5"></script>
+<script src="/office-jobs-map.js?v=20260703-6"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
 <script>window.AntTalkReload=function(){ try{ location.reload(); }catch(_){} };</script>
