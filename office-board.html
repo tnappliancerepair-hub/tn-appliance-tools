@@ -601,11 +601,24 @@ function cardHtml(j){
   const _reportBtn=_showReportBtn?`<button onclick="event.stopPropagation();reqTechReport(${j.id})" title="Ant texts + calls the tech to finish the report" style="margin-top:7px;width:100%;padding:7px;border:0;border-radius:7px;background:#fff4e0;color:#b3690a;border:1px solid #f3d49a;font-size:12px;font-weight:700;cursor:pointer">📋 Request report</button>`:'';
   // Universal tile: the ONE live status pill, shared across every board (ant-job-tile.js).
   const _statusPill=(window.AntJobTile?window.AntJobTile.statusPill(j):'');
+  // 🗓 Availability FRONT AND CENTER on the tile (Teddy/Daniel 2026-07-03): when
+  // the customer has texted back days/times (the loop writes them onto
+  // customer_preference_text), show it right on the card so the office + the Ant
+  // suggestions can schedule around it. Hidden when we don't have it yet.
+  const _prefC=String(j.customer_preference_text||'').trim();
+  let _availCard='';
+  if(_prefC){
+    const _am=_prefC.match(/AVAIL:\s*([^\n]*)/i), _um=_prefC.match(/UNAVAIL:\s*([^\n]*)/i);
+    const _a=((_am&&_am[1])||'').trim(), _u=((_um&&_um[1])||'').trim();
+    const _txt=(_a||_u)?[_a?('✅ '+_a):'',_u?('⛔ '+_u):''].filter(Boolean).join('  ·  '):_prefC;
+    _availCard='<div class="jc-avail" title="Customer availability" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(31,143,58,.08);border:1px solid rgba(31,143,58,.35);color:#1d7a44;font-size:12px;font-weight:700;line-height:1.4">🗓 '+esc(_txt.slice(0,140))+'</div>';
+  }
   return `<div class="jcard${_over?' over':''}" draggable="true" data-id="${j.id}">
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div></div>
     <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
     ${_refHtml}
+    ${_availCard}
     <div class="jc-tags">${tags.join('')}</div>
     ${_reportBtn}
   </div>`;
@@ -755,6 +768,23 @@ async function sendOptions(){
     toast((d&&d.success)?'✓ Options sent to the customer':('⚠ '+((d&&d.error)||'needs a diagnosis first')));
   }catch(_){ toast('⚠ connection error'); }
 }
+// 🗓 Ask the customer when they're available — Teddy/Daniel's availability-first
+// approach. Sends the "when CAN you / when CAN'T you, the more open the sooner we
+// come" text; the loop parses their reply back into customer_preference_text so it
+// shows in this same card next time. (2026-07-03)
+async function askAvailability(jobId, phone, name){
+  const first=(String(name||'').split(/\s+/)[0])||'there';
+  const body='Hi '+first+", this is TN Appliance Repair about your service. To get you booked as fast as possible — what days and times work best for you this week, and are there any days that DON'T work? The more available you can be, the sooner we can get a tech out to you. Just reply here with your availability and we'll lock it in. Thank you!";
+  if(!confirm('Text '+name+' to ask their availability?\n\n'+body)) return;
+  const msg=document.getElementById('avail-ask-msg'); if(msg) msg.textContent='Sending…';
+  const to='+1'+String(phone||'').replace(/\D/g,'').slice(-10);
+  if(to.length<12){ if(msg) msg.textContent='⚠ no valid phone on file'; return; }
+  try{
+    const r=await fetch(XANO+'/send_sms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to,body,message:body,context_tag:'availability_request'})});
+    const d=await r.json();
+    if(msg) msg.textContent=(d&&d.success)?"✓ Sent. Their reply will show up here as their availability.":('⚠ '+((d&&d.error)||'did not send'));
+  }catch(_){ if(msg) msg.textContent='⚠ send failed — check signal and retry'; }
+}
 // 📦 Where's my part? — drafts a ready-to-send vendor chase email (part #, model,
 // claim) so the office stops writing each one from scratch. Add the vendor + send.
 function chasePart(){
@@ -842,6 +872,33 @@ function renderDrawer(d){
   }).filter(function(x){return x&&x.text;}).sort(function(a,b){return b.at-a.at;});
   const addr=[c.address,c.city,c.state,c.zip].filter(Boolean).join(', ');
 
+  // 🗓 CUSTOMER AVAILABILITY — the single most useful scheduling fact. It comes
+  // from intake AND, increasingly, the customer's own text replies (the loop
+  // parses their SMS into AVAIL:/UNAVAIL: on customer_preference_text). Daniel's
+  // point (2026-07-03): the intake links get a weak response, but people DO text
+  // back days/times — so surface that right on the job tile, and give a one-tap
+  // "ask them" that leans into it ("the more available you are, the sooner we
+  // get you done"). Their reply flows back here automatically.
+  const prefRaw=String(j.customer_preference_text||c.customer_preference_text||'').trim();
+  let _availLine='',_unavailLine='';
+  { const am=prefRaw.match(/AVAIL:\s*([^\n]*)/i), um=prefRaw.match(/UNAVAIL:\s*([^\n]*)/i);
+    if(am||um){ _availLine=((am&&am[1])||'').trim(); _unavailLine=((um&&um[1])||'').trim(); }
+    else if(prefRaw){ _availLine=prefRaw; } }
+  const _custPhone=String(c.phone||'');
+  const availHtml=(_availLine||_unavailLine)
+    ? `<div class="dcard" style="border:1px solid rgba(31,143,58,.4);background:rgba(31,143,58,.06)">
+         <h4 style="color:#1f8f3a">🗓 When they're available</h4>
+         ${_availLine?`<div style="font-size:14px;margin:2px 0;color:var(--ink)"><b>Available:</b> ${esc(_availLine)}</div>`:''}
+         ${_unavailLine?`<div style="font-size:14px;margin:2px 0;color:#b0473a"><b>Not available:</b> ${esc(_unavailLine)}</div>`:''}
+         <div style="font-size:11px;color:var(--ink2);margin-top:6px">Schedule them inside these windows. The more days they give, the sooner we can slot them.</div>
+         ${_custPhone?`<button onclick='askAvailability(${j.id}, ${JSON.stringify(_custPhone)}, ${JSON.stringify(name)})' style="width:100%;margin-top:9px;padding:9px;border:1px solid #1f8f3a;border-radius:9px;background:transparent;color:#1f8f3a;font-weight:800;font-size:13px;cursor:pointer">📲 Ask again / update availability</button><div id="avail-ask-msg" style="font-size:12px;color:var(--ink2);margin-top:6px"></div>`:''}
+       </div>`
+    : `<div class="dcard" style="border:1px dashed var(--line)">
+         <h4>🗓 When they're available</h4>
+         <div style="font-size:13px;color:var(--ink2);margin:2px 0 9px">No days/times on file yet. Ask them straight up — <b>the more available they are, the faster we get them done</b>. Their reply lands right back here.</div>
+         ${_custPhone?`<button onclick='askAvailability(${j.id}, ${JSON.stringify(_custPhone)}, ${JSON.stringify(name)})' style="width:100%;padding:11px;border:0;border-radius:9px;background:#1f8f3a;color:#fff;font-weight:800;font-size:14px;cursor:pointer">📲 Ask when they're available</button><div id="avail-ask-msg" style="font-size:12px;color:var(--ink2);margin-top:6px"></div>`:'<div style="font-size:12px;color:var(--ink2)">No phone on file to text.</div>'}
+       </div>`;
+
   // checklist (auto-derived from job state)
   const has=(v)=>v!=null&&String(v).trim()!=='';
   const teddyDiag=tdrs.some(x=>Number(x.technician_id)===1 && has(x.diagnosis));
@@ -919,6 +976,7 @@ function renderDrawer(d){
       <button onclick="reqTechReport(${jid})" style="width:100%;padding:11px;border:0;border-radius:9px;background:#f5a623;color:#fff;font-weight:800;font-size:14px;cursor:pointer">📋 Request report from tech</button>
       <div id="reqrep-msg" style="font-size:12px;color:var(--dim,#8a93a1);margin-top:6px"></div>
     </div>
+    ${availHtml}
     <div class="dcard">
       <h4>📋 Job file</h4>
       <div class="kv">
