@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-default-theme="dark">
+<html lang="en" data-default-theme="light" data-self-theme>
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
@@ -16,11 +16,11 @@
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>New Scheduling · Ant</title>
+<title>Needs Scheduled (old) — Danielle</title>
 <meta name="robots" content="noindex,follow">
 <link rel="canonical" href="https://tnapplianceexchange.net/new-scheduling.html">
 <!-- ANT-SOCIAL -->
-<meta property="og:title" content="New Scheduling · Ant">
+<meta property="og:title" content="Needs Scheduled (old) — Danielle">
 <meta property="og:description" content="Honest appliance help from TN Appliance Exchange.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://tnapplianceexchange.net/new-scheduling.html">
@@ -29,2651 +29,922 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="New Scheduling · Ant">
+<meta name="twitter:title" content="Needs Scheduled (old) — Danielle">
 <meta name="twitter:description" content="Honest appliance help from TN Appliance Exchange.">
 <meta name="twitter:image" content="https://tnapplianceexchange.net/og-image.jpg">
 <!-- /ANT-SOCIAL -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0e1118;
-    color: #e8edf5;
-    overflow: hidden;
-  }
-
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  body { padding-bottom: env(safe-area-inset-bottom); }
   :root {
-    --bg: #0e1118;
-    --bg-2: #131720;
-    --panel: #131720;
-    --panel-2: #1a1f2c;
-    --border: #2a3040;
-    --border-soft: #1f2533;
-    --text: #e8edf5;
-    --muted: #8a93aa;
-    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --green: #00d68f;
-    --green-bg: rgba(0,214,143,0.10);
-    --green-bg-strong: rgba(0,214,143,0.16);
-    --orange: #f5a623;
-    --orange-bg: rgba(245,166,35,0.12);
-    --orange-bg-strong: rgba(245,166,35,0.20);
-    --red: #ff6b6b;
-    --red-bg: rgba(255,107,107,0.10);
-    --red-bg-strong: rgba(255,107,107,0.18);
-    --blue: #5aa9ff;
-    --violet: #b48cff;
-    --gray: rgba(138,147,170,0.04);
+    --bg: #f4f6fa;
+    --ink: #1a1a1a;
+    --blue: #1e6fdb;
+    --green: #1aa05c;
+    --orange: #e67e22;
+    --red: #d93025;
+    --muted: #6b7280;
+    --border: #e1e5eb;
+    --card: #ffffff;
+  }
+  /* dark mode — redefining tokens flips every token-driven surface;
+     the rest are targeted overrides of the few hardcoded surfaces. */
+  :root[data-theme="dark"]{
+    --bg:#0e1118; --ink:#e7edf5; --card:#161b26; --border:#28303e; --muted:#9aa6b8;
+  }
+  :root[data-theme="dark"] .topbar{ background:#161b26; }
+  :root[data-theme="dark"] .auth-gate{ background:rgba(10,13,18,0.98); }
+  :root[data-theme="dark"] .auth-card{ background:#161b26; }
+  :root[data-theme="dark"] .auth-card input,
+  :root[data-theme="dark"] .modal-card input,
+  :root[data-theme="dark"] .modal-card select,
+  :root[data-theme="dark"] .modal-card textarea{ background:#0e1320; color:var(--ink); border-color:#28303e; }
+  :root[data-theme="dark"] .row .who{ color:var(--ink); }
+  :root[data-theme="dark"] .row .badge{ background:#1e2634; color:#c3ccd8; }
+  :root[data-theme="dark"] .row .badge.source{ background:#16233a; }
+  :root[data-theme="dark"] .row .badge.warranty{ background:#2a2113; }
+  :root[data-theme="dark"] .row .actions .edit{ background:#1e2634; color:#c3ccd8; }
+  :root[data-theme="dark"] .row .actions .del{ background:#2c1815; }
+  :root[data-theme="dark"] .empty h3{ color:#c3ccd8; }
+  :root[data-theme="dark"] .modal-card{ background:#161b26; }
+  :root[data-theme="dark"] .modal-actions .cancel{ background:#1e2634; color:#c3ccd8; }
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; flex: 1; }
+  .topbar .count {
+    background: var(--blue); color: #fff;
+    font-family: ui-monospace, Menlo, monospace;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+  }
+  .topbar button.refresh {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 6px 12px; border-radius: 8px;
+    font-size: 13px; cursor: pointer;
+  }
+  .topbar button.add-manual {
+    background: var(--green); color: #fff; border: none;
+    padding: 6px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
   }
 
-  /* ── Office password gate ───────────────────────────────────────── */
   .auth-gate {
-    position: fixed; inset: 0;
-    background: rgba(14,17,24,0.97);
-    backdrop-filter: blur(6px);
-    z-index: 1000;
-    display: none;
-    align-items: center;
-    justify-content: center;
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(255,255,255,0.98);
+    display: none; align-items: center; justify-content: center;
     padding: 20px;
   }
   .auth-gate.show { display: flex; }
   .auth-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 30px 26px;
-    max-width: 380px; width: 100%;
+    background: #fff; border-radius: 14px; padding: 30px 26px;
+    max-width: 360px; width: 100%; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  }
+  .auth-card h2 { font-size: 20px; margin-bottom: 6px; }
+  .auth-card p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .auth-card input {
+    width: 100%; padding: 14px; border: 1px solid var(--border);
+    border-radius: 10px; font-size: 16px; outline: none;
+    margin-bottom: 12px; font-family: ui-monospace, Menlo, monospace;
     text-align: center;
   }
-  .auth-card .ant { font-size: 36px; margin-bottom: 8px; }
-  .auth-card .title { font-size: 18px; font-weight: 700; }
-  .auth-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; margin-bottom: 22px; font-family: var(--mono); }
-  .auth-input {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    color: var(--text);
-    font-size: 16px;
+  .auth-card button {
+    width: 100%; padding: 14px; background: var(--blue); color: #fff;
+    border: none; border-radius: 10px; font-size: 14px;
+    font-weight: 600; cursor: pointer; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .auth-err { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 16px; }
+
+  .list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+  .row {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
+  }
+  .row .top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .row .who {
+    font-size: 16px; font-weight: 600; color: #111;
+  }
+  .row .age {
+    font-size: 12px; color: var(--muted);
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .row .what {
+    font-size: 14px; color: var(--muted); margin-bottom: 4px;
+  }
+  .row .addr {
+    font-size: 13px; color: var(--muted); margin-bottom: 6px;
+  }
+  .row .meta {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .row .badge {
+    background: #eef2f7; color: #4b5563;
+    font-size: 11px; padding: 2px 8px; border-radius: 6px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .row .badge.source { background: #e1efff; color: var(--blue); }
+  .row .badge.warranty { background: #fef3e2; color: var(--orange); }
+  .row .actions { display: flex; gap: 8px; }
+  .row .actions button {
+    flex: 1; padding: 10px; border-radius: 8px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .row .actions .schedule { background: var(--green); color: #fff; }
+  .row .actions .edit { background: #f3f4f6; color: #374151; }
+  .row .actions .del { background: #fee2e2; color: var(--red); }
+
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--muted);
+  }
+  .empty h3 { font-size: 17px; margin-bottom: 6px; color: #374151; }
+  .empty p { font-size: 13px; }
+
+  .modal {
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(0,0,0,0.4);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #fff; border-radius: 14px; padding: 22px;
+    width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-card h2 { font-size: 18px; margin-bottom: 4px; }
+  .modal-card p.sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .modal-card label {
+    display: block; font-size: 12px; color: var(--muted);
+    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 4px; margin-top: 10px;
+  }
+  .modal-card input, .modal-card select, .modal-card textarea {
+    width: 100%; padding: 10px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 15px; font-family: inherit;
     outline: none;
-    transition: border-color 0.15s;
-    font-family: var(--mono);
-    text-align: center;
-    letter-spacing: 2px;
   }
-  .auth-input:focus { border-color: var(--orange); }
-  .auth-submit {
-    margin-top: 14px;
-    width: 100%;
-    background: var(--orange);
-    color: #1a1208;
-    border: none;
-    border-radius: 10px;
-    padding: 14px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: var(--mono);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    transition: opacity 0.15s, transform 0.05s;
+  .modal-card textarea { min-height: 70px; resize: vertical; }
+  .modal-card .row-2col { display: flex; gap: 8px; }
+  .modal-card .row-2col > div { flex: 1; }
+  .modal-actions {
+    display: flex; gap: 8px; margin-top: 18px;
   }
-  .auth-submit:active { transform: scale(0.98); }
-  .auth-err {
-    margin-top: 12px;
-    font-size: 12px;
-    color: var(--red);
-    min-height: 16px;
+  .modal-actions button {
+    flex: 1; padding: 12px; border-radius: 8px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer;
   }
+  .modal-actions .submit { background: var(--blue); color: #fff; }
+  .modal-actions .cancel { background: #f3f4f6; color: #374151; }
+  .modal-actions .submit:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* ── Header ────────────────────────────────────────────────────── */
-  .topbar {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    min-height: 60px;
-    background: linear-gradient(180deg, #0e1118, #131720);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    padding: 8px 18px;
-    gap: 14px;
-    z-index: 90;
-  }
-  .topbar .brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .topbar .ant { font-size: 22px; }
-  .topbar .title {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
-  .topbar .title-sub {
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-top: 1px;
-  }
-
-  .topbar .week-display {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 8px;
-  }
-  .week-range {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    font-family: var(--mono);
-    letter-spacing: -0.01em;
-    min-width: 200px;
-  }
-  .nav-btn {
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    width: 36px; height: 36px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 14px;
-    transition: border-color 0.15s, background 0.15s, transform 0.05s;
-  }
-  .nav-btn:hover { border-color: var(--orange); }
-  .nav-btn:active { transform: scale(0.97); }
-  .nav-btn.today-btn {
-    width: auto;
-    padding: 0 14px;
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .nav-btn.today-btn.active {
-    background: transparent;
-    color: var(--orange);
-    border-color: rgba(245,166,35,0.3);
-    pointer-events: none;
-  }
-
-  .topbar .spacer { flex: 1; }
-
-  /* Teddy 2026-07-03: the whole top toolbar (month/week nav, Week/Today/List,
-     date jump) is redundant with the side mini-calendar, so it's removed. Hiding
-     it (rather than deleting the markup) keeps the elements around so the JS that
-     references them never null-crashes; fitBelowNav() measures its height as 0
-     and slides the schedule up under the pills. The one worth keeping — "+ New
-     Job" — is re-added as a pill in the nav row (script at page bottom). */
-  .topbar { display: none !important; }
-
-  .new-job-btn {
-    background: var(--green);
-    color: #082018;
-    border: none;
-    border-radius: 8px;
-    padding: 0 18px;
-    height: 36px;
-    font-size: 12px;
-    font-weight: 700;
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: opacity 0.15s, transform 0.05s;
-  }
-  .new-job-btn:hover { opacity: 0.92; }
-  .new-job-btn:active { transform: scale(0.98); }
-  .new-job-btn .plus { font-size: 16px; line-height: 1; }
-
-  /* ── Main scroll container ─────────────────────────────────────── */
-  .scroll {
-    position: fixed;
-    top: 60px;
-    left: 0; right: 0; bottom: 0;
-    overflow: auto;
-    padding: 14px;
-    background: var(--bg);
-  }
-
-  /* ── Unassigned banner ─────────────────────────────────────────── */
-  .unassigned {
-    background: rgba(180,140,255,0.06);
-    border: 1px solid rgba(180,140,255,0.25);
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 14px;
-    display: none;
-  }
-  .unassigned.show { display: block; }
-  .unassigned .head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .unassigned .head .icon { font-size: 18px; }
-  .unassigned .head .label {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--violet);
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .unassigned .head .count {
-    background: var(--violet);
-    color: #1a0e2e;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 800;
-    font-family: var(--mono);
-  }
-  .unassigned .list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 8px;
-  }
-  .unassigned .item {
-    background: var(--panel);
-    border: 1px solid var(--border-soft);
-    border-radius: 8px;
-    padding: 10px 12px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, transform 0.05s;
-  }
-  /* hover tint is semi-transparent so the (dark) name stays readable on both a
-     light and a dark card — var(--panel-2) went solid dark in light mode and
-     hid the name. (Teddy 2026-07-03) */
-  .unassigned .item:hover { border-color: var(--violet); background: rgba(122,92,240,0.14); }
-  .unassigned .item:active { transform: scale(0.99); }
-  .unassigned .item .when {
-    font-size: 10px;
-    font-family: var(--mono);
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .unassigned .item .cust {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    margin-top: 2px;
-  }
-  .unassigned .item .what {
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 2px;
-  }
-
-  /* Unscheduled (needs-scheduling) tray — distinct violet head from the
-     amber Needs-Assignment tray. */
-  .unscheduled-tray .head { background: rgba(139,92,246,0.12); }
-  .unscheduled-tray .item .meta { font-size: 11px; margin-top: 3px; }
-  .unsched-item { cursor: pointer; }
-
-  /* ── HCP-style board (Teddy/Danielle 2026-07-03) ────────────────────
-     A narrow LEFT RAIL, out of the way: MAP on top → MONTH calendar under it →
-     the scrolling needs-scheduling CUSTOMERS. The WEEK GRID gets the rest of the
-     width, as large as possible. Re-homed by the script at the page bottom. */
-  #cal-rail { display: flex; flex-direction: column; gap: 12px; }
-  #cal-rail #miniCal { width: 100%; position: static; flex: 0 0 auto; }
-  /* Map AS LARGE AS POSSIBLE. A big FIXED height (not flex-grow) so the tiles
-     fully render — a container that resizes after Leaflet inits leaves black
-     gaps. The rail itself SCROLLS for the month calendar + customers below. */
-  #cal-rail #railMap { flex: 0 0 auto; height: 60vh; min-height: 380px; }
-  #cal-rail #railMap #antmap-panel.antmap-inline { height: 100%; width: 100%; }
-  #cal-rail #railQueue { flex: 0 0 auto; }
-  @media (min-width: 900px) {
-    .scroll { display: flex; gap: 12px; overflow: hidden; align-items: stretch; }
-    #cal-rail { flex: 0 0 280px; width: 280px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 20px 0; }
-    #content { flex: 1 1 auto; min-width: 0; height: 100%; overflow: auto; }
-  }
-  /* KEEP TECH NAMES VISIBLE while scrolling the grid: the header row sticks to
-     the top of the scrolling #content (works now that .calendar isn't clipping). */
-  #content .cal-header { position: sticky; top: 0; z-index: 25; }
-  /* Customers: tight single-column list that scrolls; hover a tile to blow it
-     up (full detail hidden until hover). */
-  #cal-rail .unscheduled-tray { margin: 0; }
-  #cal-rail .unscheduled-tray .list { grid-template-columns: 1fr; gap: 6px; }
-  #cal-rail .unscheduled-tray .item { padding: 7px 9px; }
-  #cal-rail .unscheduled-tray .item .cust { font-size: 12.5px; margin-top: 0; }
-  #cal-rail .unscheduled-tray .item .what { font-size: 11px; }
-  #cal-rail .unscheduled-tray .item .udetail { display: none; }
-  #cal-rail .unscheduled-tray .item:hover { position: relative; z-index: 6; border-color: var(--violet); background: rgba(122,92,240,0.16); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
-  #cal-rail .unscheduled-tray .item:hover .udetail { display: block; }
-  .wtag {
-    display: inline-block; font-size: 9px; text-transform: uppercase;
-    letter-spacing: 0.04em; background: rgba(37,99,235,0.15); color: var(--blue);
-    border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle;
-  }
-  .ready { color: #16a34a; font-weight: 600; }
-  .hold { color: #fff; background:#c62828; font-weight:800; padding:2px 8px; border-radius:6px; }
-  .parts-badge {
-    display: inline-block; font-size: 10px; font-weight: 600;
-    background: rgba(234,88,12,0.14); color: #c2410c;
-    border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap;
-  }
-
-  /* ── Calendar grid ─────────────────────────────────────────────── */
-  .calendar {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    /* was overflow:hidden — that trapped the sticky tech-name header so it
-       couldn't stick to the scrolling #content. Let #content own the scroll. */
-    overflow: visible;
-  }
-
-  .cal-header,
-  .cal-row {
-    display: grid;
-    grid-template-columns: 78px repeat(var(--tech-count, 6), minmax(132px, 1fr));
-  }
-
-  .cal-header {
-    background: var(--panel-2);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .cal-header .corner {
-    padding: 12px;
-    border-right: 1px solid var(--border-soft);
-  }
-  .cal-header .tech-cell {
-    padding: 12px 10px;
-    border-right: 1px solid var(--border-soft);
-    text-align: center;
-  }
-  .cal-header .tech-cell:last-child { border-right: 0; }
-  .cal-header .tech-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.01em;
-  }
-  .cal-header .tech-id {
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-top: 2px;
-  }
-
-  .cal-row {
-    border-top: 1px solid var(--border-soft);
-    min-height: 168px;
-  }
-  .cal-row.today {
-    background: linear-gradient(90deg, rgba(245,166,35,0.04), transparent 6%);
-    box-shadow: inset 4px 0 0 var(--orange);
-  }
-
-  .cal-day-label {
-    padding: 12px 10px;
-    border-right: 1px solid var(--border-soft);
-    background: var(--bg-2);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-  .cal-row.today .cal-day-label {
-    background: rgba(245,166,35,0.06);
-  }
-  .cal-day-label .dow {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-family: var(--mono);
-    font-weight: 700;
-  }
-  .cal-row.today .cal-day-label .dow { color: var(--orange); }
-  .cal-day-label .date {
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--text);
-    line-height: 1.1;
-    margin-top: 4px;
-    letter-spacing: -0.02em;
-  }
-  .cal-day-label .month {
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--mono);
-    margin-top: 2px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  /* ── Cells ─────────────────────────────────────────────────────── */
-  .cell {
-    border-right: 1px solid var(--border-soft);
-    padding: 10px 8px 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    position: relative;
-    overflow: hidden;
-    transition: background 0.15s;
-  }
-  .cell:last-child { border-right: 0; }
-
-  .cell.cap-green  { background: var(--green-bg); }
-  .cell.cap-yellow { background: var(--orange-bg); }
-  .cell.cap-red    { background: var(--red-bg); }
-  .cell.cap-off {
-    background: var(--gray);
-    background-image: repeating-linear-gradient(
-      135deg,
-      transparent 0 12px,
-      rgba(138,147,170,0.05) 12px 13px
-    );
-  }
-
-  /* One-tap Day Off toggle — sits in the top-right corner of every cell.
-     Office taps it to mark a tech off (or clear it) without asking anyone. */
-  .dayoff-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 3;
-    font-size: 9.5px;
-    font-weight: 800;
-    line-height: 1;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding: 4px 7px;
-    border-radius: 999px;
-    border: 1px solid var(--border-soft);
-    background: rgba(255,255,255,0.7);
-    color: var(--muted);
-    cursor: pointer;
-    opacity: 0.35;
-    transition: opacity 0.12s, background 0.12s, color 0.12s;
-  }
-  .cell:hover .dayoff-btn { opacity: 0.9; }
-  .dayoff-btn:hover { background: #fff; color: var(--red); border-color: var(--red); opacity: 1; }
-  .dayoff-btn.on {
-    opacity: 1;
-    background: var(--red);
-    color: #fff;
-    border-color: var(--red);
-  }
-  .dayoff-btn.on:hover { background: #fff; color: var(--green,#2ea36b); border-color: var(--green,#2ea36b); }
-  .dayoff-btn:disabled { opacity: 0.5; cursor: default; }
-  @media (hover: none) { .dayoff-btn { opacity: 0.85; } }
-
-  .cap {
-    display: flex;
-    align-items: baseline;
-    gap: 3px;
-    line-height: 1;
-    user-select: none;
-    margin-bottom: 4px;
-  }
-  .cap .num {
-    font-size: 32px;
-    font-weight: 800;
-    font-family: var(--mono);
-    letter-spacing: -0.04em;
-    line-height: 1;
-  }
-  .cell.cap-green  .cap .num { color: var(--green); }
-  .cell.cap-yellow .cap .num { color: var(--orange); }
-  .cell.cap-red    .cap .num { color: var(--red); }
-  .cell.cap-off    .cap .num { color: var(--muted); }
-
-  .cap .denom {
-    font-size: 14px;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-weight: 600;
-  }
-  .cap .label {
-    margin-left: auto;
-    font-size: 9px;
-    color: var(--muted);
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-weight: 700;
-  }
-  .cell.cap-off .cap .label { color: var(--muted); }
-
-  .blocks {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-height: 0;
-  }
-
-  .blk {
-    background: var(--panel);
-    border: 1px solid var(--border-soft);
-    border-left: 3px solid var(--blue);
-    border-radius: 6px;
-    padding: 5px 8px;
-    cursor: pointer;
-    text-decoration: none;
-    color: var(--text);
-    transition: background 0.12s, border-color 0.12s, transform 0.05s;
-    display: block;
-    min-height: 32px;
-  }
-  .blk:hover { background: rgba(245,166,35,0.14); border-left-color: var(--orange); }
-  .blk:active { transform: scale(0.99); }
-  .blk.bk-warranty { border-left-color: var(--violet); }
-  .blk.bk-self_pay { border-left-color: var(--green); }
-  .blk.bk-completed { opacity: 0.6; border-left-color: var(--muted); }
-  .blk .row1 {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-  }
-  .blk .row1 .time {
-    color: var(--muted);
-    font-family: var(--mono);
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-  .blk .row1 .name {
-    color: var(--text);
-    font-weight: 700;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
-  }
-  .blk .row2 {
-    display: flex;
-    gap: 6px;
-    margin-top: 2px;
-    font-size: 10px;
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .blk .row2 .app { color: var(--muted); }
-  .blk .row2 .city { color: var(--muted); opacity: 0.7; }
-  .blk .row2 .city::before { content: "·"; margin-right: 4px; }
-
-  .off-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-weight: 700;
-    opacity: 0.7;
-  }
-
-  /* ── Footer totals row ─────────────────────────────────────────── */
-  .cal-totals {
-    display: grid;
-    grid-template-columns: 78px repeat(var(--tech-count, 6), minmax(132px, 1fr));
-    border-top: 2px solid var(--border);
-    background: var(--bg-2);
-    position: sticky;
-    bottom: 0;
-  }
-  .cal-totals .tot-label {
-    padding: 14px 10px;
-    border-right: 1px solid var(--border-soft);
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 700;
-    text-align: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .cal-totals .tot-cell {
-    padding: 12px 10px;
-    border-right: 1px solid var(--border-soft);
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: center;
-    justify-content: center;
-  }
-  .cal-totals .tot-cell:last-child { border-right: 0; }
-  .cal-totals .tot-num {
-    font-size: 22px;
-    font-weight: 800;
-    font-family: var(--mono);
-    color: var(--text);
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }
-  .cal-totals .tot-sub {
-    font-size: 9px;
-    color: var(--muted);
-    font-family: var(--mono);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  /* ── States ────────────────────────────────────────────────────── */
-  .loading {
-    padding: 60px 24px;
-    text-align: center;
-  }
-  .loading .ant {
-    font-size: 36px;
-    animation: bob 1.2s ease-in-out infinite;
-  }
-  @keyframes bob {
-    0%,100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
-  .loading .msg {
-    margin-top: 12px;
-    color: var(--muted);
-    font-size: 13px;
-    font-family: var(--mono);
-  }
-
-  .err-banner {
-    margin: 12px 0;
-    padding: 14px 16px;
-    background: rgba(255,107,107,0.08);
-    border: 1px solid rgba(255,107,107,0.3);
-    border-radius: 10px;
-    font-size: 13px;
-    color: var(--red);
-  }
-  .err-banner button {
-    margin-top: 8px;
-    background: var(--red);
-    color: #200a0a;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: var(--mono);
-    cursor: pointer;
-  }
-
-  /* ── Responsive ────────────────────────────────────────────────── */
-  @media (max-width: 1100px) {
-    .cal-header,
-    .cal-row,
-    .cal-totals {
-      grid-template-columns: 68px repeat(var(--tech-count, 6), minmax(120px, 1fr));
-    }
-    .calendar { overflow-x: visible; }
-    .cal-header, .cal-row, .cal-totals { min-width: 0; }
-    .cap .num { font-size: 26px; }
-  }
-  @media (max-width: 700px) {
-    .topbar { padding: 0 10px; gap: 8px; }
-    .topbar .title-sub { display: none; }
-    .week-range { min-width: 140px; font-size: 12px; }
-    .new-job-btn { padding: 0 12px; font-size: 11px; }
-    .cap .num { font-size: 22px; }
-    .blk .row1 { font-size: 10px; }
-    .blk .row2 { display: none; }
-    .cal-header,
-    .cal-row,
-    .cal-totals {
-      grid-template-columns: 60px repeat(var(--tech-count, 6), minmax(120px, 1fr));
-    }
-  }
-  /* ── HCP-style mini month calendar (side picker) ── */
-  /* #scroll is position:fixed (the page's scroll region) — make IT the flex row so
-     the mini-cal sits beside the schedule instead of being covered by it. */
-  #scroll { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 0; }
-  #scroll > #content { flex: 1 1 340px; min-width: 0; }
-  .mini-cal {
-    flex: 0 0 232px; width: 232px; position: sticky; top: 0;
-    padding: 12px; margin: 150px 12px 8px 0;
-    background: var(--surface, #fff); border: 1px solid var(--border-soft, #e6e6ea);
-    border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.05); user-select: none; z-index: 2;
-  }
-  .mc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 6px; }
-  .mc-title { font-weight: 800; font-size: 15.5px; text-align: center; flex: 1; color: var(--ink,#1a1a2e); }
-  .mc-nav { border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 20px; line-height: 1; color: var(--ink,#222); flex: 0 0 auto; font-weight: 700; }
-  .mc-nav:hover { background: #f3f4f8; }
-  .mc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-  .mc-dow { margin-bottom: 2px; }
-  .mc-dowcell { text-align: center; font-size: 10px; font-weight: 700; color: var(--dim,#9aa); padding: 2px 0; }
-  .mc-cell { aspect-ratio: 1/1; border: 0; background: transparent; border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--ink,#222); display: flex; align-items: center; justify-content: center; }
-  .mc-cell:hover { background: #eef1f6; }
-  .mc-empty { background: transparent; cursor: default; }
-  .mc-inrange { background: #e7f0ff; }
-  .mc-sel { background: var(--blue,#2563eb) !important; color: #fff !important; font-weight: 800; }
-  .mc-today { box-shadow: inset 0 0 0 2px var(--ok,#16a34a); font-weight: 800; }
-  .mc-today-btn { width: 100%; margin-top: 10px; padding: 8px; border: 1px solid var(--border-soft,#e2e2e8); background: #fff; border-radius: 9px; font-weight: 800; font-size: 12.5px; cursor: pointer; color: var(--ink,#222); }
-  .mc-today-btn:hover { background: #f3f4f8; }
-  .mc-hint { font-size: 10.5px; color: var(--dim,#9aa); margin-top: 8px; line-height: 1.4; text-align: center; }
-  /* Narrow screens: don't hide it — stack the mini-cal full-width above the schedule. */
-  @media (max-width: 860px) { .mini-cal { flex-basis: 100%; width: auto; position: static; margin: 150px 0 10px 0; } }
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #1a1a1a; color: #fff;
+    padding: 12px 18px; border-radius: 10px; font-size: 13px;
+    z-index: 200; opacity: 0; transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { background: var(--red); }
+  .toast.ok { background: var(--green); }
 </style>
   <script src="/office-ask.js?v=20260603-1"></script>
+  <script src="/ant-constraints.js"></script>
 </head>
 <body>
 
-<!-- Error net: turn a silent black screen into a visible, screenshot-able error. -->
-<script>
-(function(){
-  function showErr(msg){
-    try{
-      var b=document.getElementById('__ant_err');
-      if(!b){b=document.createElement('div');b.id='__ant_err';
-        b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:#fff;padding:12px 14px;font:14px/1.4 system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-        (document.body||document.documentElement).appendChild(b);}
-      b.innerHTML='⚠ Page error: '+String(msg).slice(0,300)+' <button onclick="location.reload()" style="margin-left:8px;padding:4px 10px;border:0;border-radius:6px;background:#fff;color:#c0392b;font-weight:700;cursor:pointer">reload</button> <span style="opacity:.85">— screenshot this & send to Teddy</span>';
-    }catch(_){}
-  }
-  window.addEventListener('error',function(e){var loc=(e&&e.filename)?(' ['+String(e.filename).split('/').pop()+':'+e.lineno+']'):'';showErr(((e&&e.message)||'script error')+loc);});
-  window.addEventListener('unhandledrejection',function(e){showErr((e&&e.reason&&e.reason.message)||(e&&e.reason)||'promise error');});
-})();
-</script>
-
-<!-- Office password gate -->
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
-    <div class="ant">🐜</div>
-    <div class="title">Ant Office</div>
-    <div class="sub">enter office password</div>
-    <input type="password" class="auth-input" id="authInput" placeholder="••••••••" autocomplete="off">
-    <button class="auth-submit" id="authSubmit">Unlock</button>
+    <h2>🐜 Ant Office</h2>
+    <p>Needs Scheduled — password</p>
+    <input type="password" id="authInput" placeholder="••••••••" autocomplete="off">
+    <button id="authBtn">Unlock</button>
     <div class="auth-err" id="authErr"></div>
   </div>
 </div>
 
-<!-- App -->
-<div id="app" style="display: none;">
+<div id="app" style="display:none;">
   <div class="topbar">
-    <div class="brand">
-      <div class="ant">🐜</div>
+    <h1>Needs Scheduled (old — being retired)</h1>
+    <span class="count" id="count">—</span>
+    <button class="refresh" id="refreshBtn">↻</button>
+    <button class="add-manual" id="addManualBtn">+ Add</button>
+  </div>
+
+  <!-- Days off — obvious so nobody schedules a tech on a day they're out. -->
+  <div id="daysOffBar" style="margin:10px 14px 0;background:#fff4f0;border:1px solid #ffcbb3;border-radius:12px;padding:11px 14px;font-size:14px;line-height:1.6;color:#7a3b18;display:none">
+    <b>🌴 Days off:</b> <span id="daysOffList">loading…</span>
+  </div>
+
+  <!-- Auto-schedule proposals: Ant proposes tech + day for every job below
+       (respecting days off + customer availability). Danielle approves each ✓
+       or adjusts. This bar approves all proposals at once. -->
+  <!-- AUTO-SCHEDULE HELD (Teddy 2026-07-01): we're texting everyone for their
+       availability first — hold the batch auto-schedule until responses come in
+       (a few hours). Flip AUTOSCHED_HOLD=false to re-enable Approve-all. -->
+  <div id="autoScheduleBar" style="margin:10px 14px 0;background:linear-gradient(135deg,#c9820f,#e0a11a);color:#fff;border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.5">
+    <div id="autoSchedHeld">
+      <div style="font-weight:800;margin-bottom:6px">⏸ Auto-schedule is on hold</div>
+      <div style="font-size:13px;opacity:0.97">We're texting every unscheduled customer for their availability first. Once replies come in (a few hours), the batch auto-schedule turns back on so we can place everyone around the real windows + days off. You can still schedule any single job by hand with its <b>Schedule</b> button.</div>
+    </div>
+    <div id="autoSchedLive" style="display:none">
+      <div style="font-weight:800;margin-bottom:6px">🐜 Ant has proposed a schedule for each job below</div>
+      <div style="font-size:13px;opacity:0.95;margin-bottom:9px">Each card shows <b>Ant suggests: day · tech</b> (days off + customer availability factored in). Approve one at a time with ✓, or approve them all here. Wrong one? Tap <b>Schedule</b> on that card to move it.</div>
+      <button id="approveAllBtn" style="background:#fff;color:#0f7c43;border:0;border-radius:9px;padding:10px 16px;font-size:14px;font-weight:800;cursor:pointer">✅ Approve all Ant suggestions</button>
+      <span id="approveAllStatus" style="margin-left:10px;font-size:13px;font-weight:700"></span>
+    </div>
+  </div>
+
+  <div id="easiestBar" style="margin:10px 14px 0;background:linear-gradient(135deg,#1f6fed,#3b86ff);color:#fff;border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.5;font-weight:700">
+    💬 <b>Easiest way:</b> tap <b>"Talk to Ant"</b> (bottom-right) and just say what you need — like <i>"schedule the Carson job with Jimmy Thursday"</i> or <i>"auto-schedule the Smith job."</i> Ant does it for you.
+  </div>
+
+  <div id="helpCard" style="margin:10px 14px;background:#eef4ff;border:1px solid #cfe0ff;border-radius:12px;padding:13px 15px;font-size:14px;line-height:1.55;color:#10243e">
+    <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px">
+      <span>📋 Or do it by hand</span>
+      <button id="helpHide" style="margin-left:auto;background:none;border:0;color:#5a6b80;font-size:13px;font-weight:700;cursor:pointer">hide</button>
+    </div>
+    <ol style="margin:8px 0 0;padding-left:20px">
+      <li>Find the job below and tap <b>Schedule</b>.</li>
+      <li>Pick the <b>tech</b>, then pick the <b>day</b> (time/window optional).</li>
+      <li>Tap <b>Schedule</b> — that's it.</li>
+    </ol>
+    <div style="margin-top:8px;color:#3a5680">Either way, it lands on the tech's calendar, the customer gets a confirmation text, and the tech is notified — all automatic. A job not listed here? Tap <b>+ Add</b> up top (or just tell Ant), then schedule it.</div>
+    <div style="margin-top:7px;font-size:13px;color:#5a6b80">Stuck on one? Text Teddy — he can get you an answer fast. 🙏</div>
+    <div style="margin-top:9px"><a href="/office-ready.html" style="font-size:13px;font-weight:700;color:#1f6fed;text-decoration:none">📞 See which jobs are missing info for the phones →</a></div>
+  </div>
+
+  <div id="ant-score" style="margin:0 0 10px;padding:9px 13px;border:1px solid rgba(76,201,192,0.35);background:rgba(76,201,192,0.08);border-radius:10px;font-size:13px;font-weight:700;color:#4cc9c0"></div>
+  <div class="list" id="list"></div>
+</div>
+
+<!-- Schedule modal -->
+<div class="modal" id="schedModal">
+  <div class="modal-card">
+    <h2>Schedule job</h2>
+    <p class="sub" id="schedJobDesc"></p>
+
+    <label for="schedTech">Tech</label>
+    <select id="schedTech">
+      <option value="">— pick a tech —</option>
+      <option value="1">Teddy</option>
+      <option value="2">Jimmy</option>
+      <option value="3">Andre</option>
+      <option value="4">Lee</option>
+      <option value="6">John</option>
+    </select>
+    <div id="schedSuggest" style="font-size:12px;color:#4cc9c0;min-height:16px;margin:-4px 0 6px"></div>
+
+    <div class="row-2col">
       <div>
-        <div class="title">Calendar</div>
-        <div class="title-sub">Ant Office</div>
+        <label for="schedDate">Date</label>
+        <input type="date" id="schedDate">
+      </div>
+      <div>
+        <label for="schedTime">Time</label>
+        <input type="time" id="schedTime" value="09:00">
       </div>
     </div>
-    <div class="month-display" style="display:flex;align-items:center;gap:6px;margin-right:6px">
-      <button class="nav-btn" id="prevMonth" title="previous month">‹</button>
-      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:#d9770a">—</span>
-      <button class="nav-btn" id="nextMonth" title="next month">›</button>
-    </div>
-    <div class="week-display">
-      <button class="nav-btn" id="prevWeek" title="previous week">‹</button>
-      <button class="nav-btn today-btn" id="todayBtn">Today</button>
-      <button class="nav-btn" id="nextWeek" title="next week">›</button>
-      <span class="week-range" id="weekRange">—</span>
-      <input type="date" class="nav-btn" id="jumpDate" title="Jump to any date — past history or future schedule" style="padding:5px 8px;font:inherit;cursor:pointer" />
-    </div>
-    <div class="view-toggle" style="display:flex; gap:6px; margin-left:10px;">
-      <button class="nav-btn view-btn active" id="viewWeekBtn" title="Week grid view" data-view="week">Week</button>
-      <button class="nav-btn view-btn" id="viewTodayBtn" title="Today list view" data-view="today">Today</button>
-      <button class="nav-btn view-btn" id="viewListBtn" title="List view — every job this range, chronological" data-view="list">List</button>
-    </div>
-    <div class="spacer"></div>
-    <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
-  </div>
 
-  <div class="cal-legend" id="calLegend">
-    <span class="lg"><i class="sw sw-warranty"></i> Warranty</span>
-    <span class="lg"><i class="sw sw-self"></i> Self-pay (cash)</span>
-    <span class="lg"><i class="sw sw-done"></i> Completed</span>
-    <span class="lg-note">Drag a job to another tech or day to move it · click it to reschedule / unschedule / cancel</span>
-  </div>
-  <div class="cal-summary" id="calSummary"></div>
-  <div class="tech-filter" id="techFilter" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--border-soft)"></div>
-  <div class="scroll" id="scroll">
-    <aside class="mini-cal" id="miniCal"></aside>
-    <div id="content"></div>
+    <label for="schedWindow">Arrival window (optional)</label>
+    <input type="text" id="schedWindow" placeholder="9-12am / 1-4pm">
+
+    <div class="modal-actions">
+      <button class="cancel" id="schedCancelBtn">Cancel</button>
+      <button class="submit" id="schedSubmitBtn">Schedule</button>
+    </div>
   </div>
 </div>
 
-<!-- Initial loading state -->
-<div class="loading" id="loading" style="position: fixed; inset: 60px 0 0 0; display: none;">
-  <div class="ant">🐜</div>
-  <div class="msg">loading the week…</div>
+<!-- Add manual job modal -->
+<div class="modal" id="addModal">
+  <div class="modal-card">
+    <h2>Add job manually</h2>
+    <p class="sub">When an email didn't auto-parse, add the job here.</p>
+
+    <div class="row-2col">
+      <div>
+        <label for="addFirst">First name</label>
+        <input type="text" id="addFirst" autocapitalize="words">
+      </div>
+      <div>
+        <label for="addLast">Last name</label>
+        <input type="text" id="addLast" autocapitalize="words">
+      </div>
+    </div>
+
+    <label for="addPhone">Phone</label>
+    <input type="tel" id="addPhone" placeholder="+1...">
+
+    <label for="addAddress">Service address</label>
+    <input type="text" id="addAddress" autocapitalize="words">
+
+    <div class="row-2col">
+      <div>
+        <label for="addCity">City</label>
+        <input type="text" id="addCity" autocapitalize="words">
+      </div>
+      <div>
+        <label for="addZip">Zip</label>
+        <input type="text" id="addZip" inputmode="numeric">
+      </div>
+    </div>
+
+    <label for="addAppliance">Appliance</label>
+    <input type="text" id="addAppliance" placeholder="refrigerator / washer / dryer ...">
+
+    <div class="row-2col">
+      <div>
+        <label for="addBrand">Brand</label>
+        <input type="text" id="addBrand">
+      </div>
+      <div>
+        <label for="addModel">Model #</label>
+        <input type="text" id="addModel">
+      </div>
+    </div>
+
+    <label for="addProblem">Problem</label>
+    <textarea id="addProblem"></textarea>
+
+    <div class="row-2col">
+      <div>
+        <label for="addWarranty">Warranty company</label>
+        <input type="text" id="addWarranty" placeholder="AHS / SP / Allstate">
+      </div>
+      <div>
+        <label for="addClaim">Claim #</label>
+        <input type="text" id="addClaim">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="cancel" id="addCancelBtn">Cancel</button>
+      <button class="submit" id="addSubmitBtn">Add to queue</button>
+    </div>
+  </div>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <script>
-// Run after the DOM is parsed — the booking/manage modal elements are defined
-// BELOW this script, so binding them at parse time threw (null addEventListener)
-// and blanked the page. DOMContentLoaded guarantees they exist.
-function __initCalendar() {
+(function() {
   'use strict';
 
-  // ── Config ─────────────────────────────────────────────────────
-  const OFFICE_AUTH_KEY = 'tn_office_auth_v1';
+  const AUTH_KEY = 'tn_office_auth_v1';
   const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const CAPACITY_MAX = 6;
-  const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // ── URL params ─────────────────────────────────────────────────
-  const params = new URLSearchParams(window.location.search);
-  // Default to TODAY (CT) so the grid opens today-forward (the upcoming work),
-  // not the Mon-Sun week that's mostly in the past. The endpoint renders 7 days
-  // from whatever week_start we send (it only snaps to Monday when none given).
-  let currentWeekStart = params.get('week') || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-  let serverTodayCT = null;
-  let dashboardData = null;
-  // CASH-ONLY payment hold: which self-pay jobs are PAID. Warranty jobs are NEVER
-  // in this map and NEVER held — a warranty customer must never see a payment flag.
-  let CASH_PAID = {};
-  async function loadCashPaid(unscheduled) {
-    const cashIds = (unscheduled || [])
-      .filter((j) => { const ct = String(j.customer_type || '').toLowerCase(); return ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay'; })
-      .map((j) => j.id);
-    if (!cashIds.length) { CASH_PAID = {}; return; }
+  async function verifyOfficePassword(pw) {
+    if (!pw) return false;
+    // 10s timeout — prevents the infinite-spinner bug Danielle hit on
+    // weak networks (cell-tower handoff, Wi-Fi flap). Throws AbortError
+    // on timeout; caught below to surface a clear retry message.
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
     try {
-      const r = await fetch('/.netlify/functions/cash-payment-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: cashIds }) });
+      const r = await fetch(XANO_BASE + '/verify_office_password', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({password: pw}),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) throw new Error('server ' + r.status);
       const d = await r.json();
-      CASH_PAID = (d && d.paid) || {};
-    } catch (_) { CASH_PAID = {}; }  // on failure, self-pay defaults to held (safe)
+      return d && d.success === true;
+    } catch (e) {
+      clearTimeout(t);
+      if (e && e.name === 'AbortError') throw new Error('timeout');
+      throw e;
+    }
   }
-  let lastTechs = [];
-  let lastJobsById = {};
 
-  // ── DOM refs ───────────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
-  const authGate = $('authGate');
-  const authInput = $('authInput');
-  const authSubmit = $('authSubmit');
-  const authErr = $('authErr');
-  const app = $('app');
-  const loading = $('loading');
-  const content = $('content');
-  const weekRange = $('weekRange');
-  const prevWeek = $('prevWeek');
-  const nextWeek = $('nextWeek');
-  const todayBtn = $('todayBtn');
-  const newJobBtn = $('newJobBtn');
-  const viewWeekBtn = $('viewWeekBtn');
-  const viewTodayBtn = $('viewTodayBtn');
-  const viewListBtn = $('viewListBtn');
-  // Phones default to the list ("today") view — the wide week grid is desktop-
-  // only. Explicit ?view= always wins.
-  let currentView = params.get('view') === 'today' ? 'today'
-    : params.get('view') === 'list' ? 'list'
-    : params.get('view') === 'week' ? 'week'
-    : (window.innerWidth < 760 ? 'today' : 'week');
+  const authGate = $('authGate'), authInput = $('authInput');
+  const app = $('app'), list = $('list'), count = $('count');
+  const schedModal = $('schedModal'), addModal = $('addModal'), toast = $('toast');
 
-  // Per-tech show/hide filter (HCP-style). hiddenTechs holds tech ids to HIDE
-  // (0 = Unassigned). Persisted so the office's view sticks across reloads.
-  let hiddenTechs = new Set();
-  try { const raw = localStorage.getItem('tn_cal_hidden_techs'); if (raw) hiddenTechs = new Set(JSON.parse(raw).map(Number)); } catch (_) {}
-  function saveHidden() { try { localStorage.setItem('tn_cal_hidden_techs', JSON.stringify([...hiddenTechs])); } catch (_) {} }
+  function showToast(msg, kind) {
+    toast.textContent = msg; toast.className = 'toast show ' + (kind || '');
+    setTimeout(() => { toast.className = 'toast ' + (kind || ''); }, 2400);
+  }
+  function fmtAge(createdMs) {
+    if (!createdMs) return '';
+    const hrs = (Date.now() - createdMs) / 3600000;
+    if (hrs < 1) return Math.round(hrs * 60) + 'm ago';
+    if (hrs < 24) return hrs.toFixed(1) + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+  function escapeHtml(s) {
+    return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
 
-  // ── Auth ───────────────────────────────────────────────────────
+  let currentJob = null;
+
   function unlock() {
     authGate.classList.remove('show');
     app.style.display = 'block';
-    loading.style.display = 'block';
-    loadWeek();
+    load();
   }
+  if ((window.OfficeAuth&&window.OfficeAuth.isLoggedIn()) || localStorage.getItem(AUTH_KEY) === 'ok' || localStorage.getItem(AUTH_KEY) === '1' || (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
+  else authGate.classList.add('show');
 
-  function tryUnlock() {
-    // Accept EITHER office auth key so a login on any office page unlocks the
-    // calendar too (the rest of the office uses tn_office_auth='1'; this page
-    // historically used tn_office_auth_v1='ok' — that split was the "black
-    // screen": logged in elsewhere, calendar didn't recognize it).
-    if (localStorage.getItem(OFFICE_AUTH_KEY) === 'ok' || localStorage.getItem('tn_office_auth') === '1' || (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) {
-      unlock();
-    } else {
-      authGate.classList.add('show');
-      authInput.focus();
-    }
-  }
-
-  authSubmit.addEventListener('click', submitAuth);
-  authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
-
-  // Self-contained password verify — this page does NOT define it inline
-  // elsewhere and office-search.js?v=20260703i doesn't provide it, so without this the
-  // unlock threw and the page stayed blank.
-  async function __verifyOfficePassword(pw) {
+  $('authBtn').addEventListener('click', async () => {
+    const btn = $('authBtn');
+    btn.disabled = true;
+    btn.textContent = 'Authenticating…';
+    $('authErr').textContent = '';
     try {
-      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
-      });
-      const d = await r.json().catch(() => ({}));
-      return d && d.success === true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  async function submitAuth() {
-    const val = authInput.value;
-    if ((await __verifyOfficePassword(val))) {
-      localStorage.setItem(OFFICE_AUTH_KEY, 'ok');
-      try { localStorage.setItem('tn_office_auth', '1'); } catch (_) {}
-      authErr.textContent = '';
-      unlock();
-    } else {
-      authErr.textContent = 'wrong password.';
-      authInput.value = '';
-      authInput.focus();
-    }
-  }
-
-  // ── Data load ──────────────────────────────────────────────────
-  async function loadWeek() {
-    loading.style.display = 'block';
-    content.innerHTML = '';
-
-    let url = `${XANO_BASE}/get_office_calendar_week`;
-    if (currentWeekStart) url += `?week_start=${encodeURIComponent(currentWeekStart)}`;
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!data || data.success !== true) {
-        showError(data && data.error ? data.error : 'failed to load week');
-        return;
-      }
-      dashboardData = data;
-      serverTodayCT = data.today_ct;
-      currentWeekStart = data.week_start_ct;
-      await loadCashPaid(data.unscheduled || []);   // cash-only payment hold
-      render(data);
-    } catch (err) {
-      console.error(err);
-      showError('network error: ' + err.message);
+      const ok = await verifyOfficePassword(authInput.value);
+      if (ok) { localStorage.setItem(AUTH_KEY, 'ok'); unlock(); }
+      else { $('authErr').textContent = 'Wrong password.'; authInput.value = ''; }
+    } catch (e) {
+      const msg = e && e.message === 'timeout' ? 'Server timeout — try again, or text Teddy at 615-485-5795 if it keeps happening.' : ('Error: ' + (e && e.message || 'unknown'));
+      $('authErr').textContent = msg;
     } finally {
-      loading.style.display = 'none';
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
+    }
+  });
+  authInput.addEventListener('keydown', e => { if (e.key === 'Enter') $('authBtn').click(); });
+
+  $('refreshBtn').addEventListener('click', load);
+  // Auto-schedule HOLD — Teddy 7/1: gathering availability first. Flip to false
+  // (or set localStorage 'autosched_live'='1') to turn the batch approve back on.
+  const AUTOSCHED_HOLD = localStorage.getItem('autosched_live') !== '1';
+  (function () {
+    const held = document.getElementById('autoSchedHeld'), live = document.getElementById('autoSchedLive');
+    if (held && live) { held.style.display = AUTOSCHED_HOLD ? 'block' : 'none'; live.style.display = AUTOSCHED_HOLD ? 'none' : 'block'; }
+  })();
+  $('approveAllBtn').addEventListener('click', approveAll);
+  $('addManualBtn').addEventListener('click', () => addModal.classList.add('show'));
+  $('addCancelBtn').addEventListener('click', () => addModal.classList.remove('show'));
+  $('schedCancelBtn').addEventListener('click', () => schedModal.classList.remove('show'));
+
+  async function load() {
+    list.innerHTML = '<div class="empty"><p>Loading…</p></div>';
+    try {
+      const r = await fetch(XANO_BASE + '/list_needs_scheduled_parallel?limit=1000');
+      const d = await r.json();
+      if (!d.success) throw new Error('failed');
+      render(d.items || []);
+      count.textContent = (d.count || 0);
+      loadScore();
+      loadDaysOff();
+    } catch (e) {
+      list.innerHTML = '<div class="empty"><h3>Load failed</h3><p>' + escapeHtml(e.message) + '</p></div>';
     }
   }
 
-  function showError(msg) {
-    content.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button onclick="location.reload()">retry</button></div>`;
-  }
-
-  // Bird's-eye health bar: how many jobs are placed, across how many techs, and
-  // how many still need scheduling — so the office can verify "is everyone in
-  // and correct" in one glance.
-  function renderSummaryBar(data) {
-    const el = document.getElementById('calSummary');
-    if (!el) return;
-    const jobs = data.jobs || [];
-    const unscheduled = data.unscheduled || [];
-    let scheduled = 0, unassigned = 0;
-    const techSet = {};
-    for (const j of jobs) {
-      if (j.technician_id && j.technician_id !== 0) { scheduled++; techSet[j.technician_id] = 1; }
-      else { unassigned++; }
-    }
-    const needs = unassigned + unscheduled.length;
-    const nTechs = Object.keys(techSet).length;
-    const needsCls = needs > 0 ? 'cs-strong cs-warn' : 'cs-strong';
-    el.innerHTML =
-      `<span class="cs-label">📋 this week:</span> `
-      + `<span class="cs-strong">${scheduled}</span> scheduled across <span class="cs-strong">${nTechs}</span> ${nTechs === 1 ? 'tech' : 'techs'}`
-      + `<span class="cs-sep">·</span>`
-      + `<span class="${needsCls}">${needs}</span> still need scheduling`;
-  }
-
-  // ── Render ─────────────────────────────────────────────────────
-  function render(data) {
-    renderHeader(data);
-    renderSummaryBar(data);
-
-    const allTechs = data.technicians || [];
-    const allJobs = data.jobs || [];
-    renderTechFilter(allTechs);                          // HCP-style show/hide-by-tech checklist
-    const showUnassigned = !hiddenTechs.has(0);
-    const techs = allTechs.filter((t) => !hiddenTechs.has(Number(t.id)));
-    const jobs = allJobs.filter((j) => { const tid = Number(j.technician_id) || 0; return tid === 0 ? showUnassigned : !hiddenTechs.has(tid); });
-    const unscheduled = data.unscheduled || [];
-    const availability = data.availability || [];
-    const techCount = Math.max(techs.length, 1);
-
-    lastTechs = techs;
-    lastJobsById = {};
-    for (const j of allJobs) lastJobsById[j.id] = j;
-    // Include unscheduled jobs so the tray can open them in the same
-    // schedule/reschedule modal as everything else.
-    for (const j of unscheduled) lastJobsById[j.id] = j;
-
-    // Branch on view mode.
-    if (currentView === 'today') { renderTodayView(data, techs, jobs); return; }
-    if (currentView === 'list') { renderListView(data, techs, jobs); return; }
-
-    // Index data
-    // assigned[techId][dateStr] -> [jobs]
-    // unassigned -> jobs
-    const assigned = {};
-    const unassigned = [];
-    for (const t of techs) assigned[t.id] = {};
-    for (const j of jobs) {
-      const dateStr = ctDateForMs(j.scheduled_start);
-      if (!j.technician_id || j.technician_id === 0) {
-        unassigned.push(j);
-        continue;
-      }
-      if (!assigned[j.technician_id]) assigned[j.technician_id] = {};
-      if (!assigned[j.technician_id][dateStr]) assigned[j.technician_id][dateStr] = [];
-      assigned[j.technician_id][dateStr].push(j);
-    }
-
-    // dayOff[techId][dateStr] -> true
-    const dayOff = {};
-    // workWindow[techId][dateStr] -> {start, end}
-    const workWindow = {};
-    for (const a of availability) {
-      const tid = a.technician_id;
-      const date = a.blocked_date;
-      if (!tid || !date) continue;
-      if (a.full_day_off) {
-        if (!dayOff[tid]) dayOff[tid] = {};
-        dayOff[tid][date] = true;
-      } else if (a.start_time || a.end_time) {
-        if (!workWindow[tid]) workWindow[tid] = {};
-        workWindow[tid][date] = { start: a.start_time, end: a.end_time };
-      }
-    }
-
-    // Build the 7 day strings
-    const days = [];
-    const weekStart = parseYMD(data.week_start_ct);
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + i);
-      days.push({
-        dateStr: ymd(d),
-        d,
-        dowShort: DOW[d.getDay()],
-        monthShort: MONTHS[d.getMonth()],
-        dayNum: d.getDate(),
-        isToday: ymd(d) === serverTodayCT,
+  const TECH_NAMES = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+  // Show each tech's upcoming days off (next 14 days) so nobody schedules onto
+  // a day a tech is out. Reads the same tech_availability the scheduler honors.
+  async function loadDaysOff() {
+    try {
+      const rows = await (await fetch(XANO_BASE + '/tech_availability')).json();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const horizon = new Date(today.getTime() + 14 * 86400000);
+      const byTech = {};
+      (Array.isArray(rows) ? rows : []).forEach(r => {
+        if (!r.full_day_off) return;
+        const d = new Date((r.blocked_date || '') + 'T12:00:00');
+        if (isNaN(d) || d < today || d > horizon) return;
+        (byTech[Number(r.technician_id)] = byTech[Number(r.technician_id)] || []).push(d);
       });
-    }
-
-    // Build markup
-    const parts = [];
-
-    if (unassigned.length > 0) {
-      parts.push(renderUnassigned(unassigned));
-    }
-
-    if (unscheduled.length > 0) {
-      parts.push(renderUnscheduled(unscheduled));
-    }
-
-    parts.push(`<div class="calendar" style="--tech-count:${techCount}">`);
-
-    // Tech header row
-    parts.push(`<div class="cal-header">`);
-    parts.push(`<div class="corner"></div>`);
-    for (const t of techs) {
-      parts.push(`
-        <div class="tech-cell">
-          <div class="tech-name">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim().slice(0,1) + (t.last_name ? '.' : ''))}</div>
-          <div class="tech-id">#${t.id}</div>
-        </div>
-      `);
-    }
-    parts.push(`</div>`);
-
-    // Day rows
-    for (const day of days) {
-      const todayClass = day.isToday ? ' today' : '';
-      parts.push(`<div class="cal-row${todayClass}">`);
-      parts.push(`
-        <div class="cal-day-label">
-          <div class="dow">${day.dowShort}</div>
-          <div class="date">${day.dayNum}</div>
-          <div class="month">${day.monthShort}</div>
-        </div>
-      `);
-
-      for (const t of techs) {
-        const cellJobs = (assigned[t.id] && assigned[t.id][day.dateStr]) || [];
-        const isOff = !!(dayOff[t.id] && dayOff[t.id][day.dateStr]);
-        parts.push(renderCell(t, day, cellJobs, isOff));
-      }
-
-      parts.push(`</div>`);
-    }
-
-    // Totals footer
-    parts.push(`<div class="cal-totals">`);
-    parts.push(`<div class="tot-label">Week</div>`);
-    for (const t of techs) {
-      let total = 0;
-      for (const dateStr in (assigned[t.id] || {})) {
-        total += assigned[t.id][dateStr].length;
-      }
-      parts.push(`
-        <div class="tot-cell">
-          <div class="tot-num">${total}</div>
-          <div class="tot-sub">${total === 1 ? 'job' : 'jobs'}</div>
-        </div>
-      `);
-    }
-    parts.push(`</div>`);
-
-    parts.push(`</div>`);  // close .calendar
-
-    content.innerHTML = parts.join('');
-    attachClickHandlers();
+      const parts = Object.keys(byTech).map(t => {
+        const ds = byTech[t].sort((a, b) => a - b).map(d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }));
+        const label = ds.length >= 3 ? (ds[0] + ' – ' + ds[ds.length - 1]) : ds.join(', ');
+        return `<b>${TECH_NAMES[t] || ('Tech ' + t)}</b>: ${label}`;
+      });
+      const bar = document.getElementById('daysOffBar'), listEl = document.getElementById('daysOffList');
+      if (parts.length) { listEl.innerHTML = parts.join(' &nbsp;·&nbsp; '); bar.style.display = 'block'; }
+      else { bar.style.display = 'none'; }
+    } catch (_) {}
   }
 
-  function renderUnassigned(list) {
-    const items = list.map((j) => {
-      const time = fmtTime(j.scheduled_start);
-      const date = fmtDayShort(j.scheduled_start);
-      const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no customer)';
-      const appl = (j.appliance_type || 'appliance').toLowerCase();
-      return `
-        <a class="item" href="office-board.html?job=${j.id}">
-          <div class="when">${date} · ${time}</div>
-          <div class="cust">${escapeHtml(cust)}</div>
-          <div class="what">${escapeHtml(appl)} · ${escapeHtml(j.service_city || '')}</div>
-        </a>
-      `;
-    }).join('');
-    return `
-      <div class="unassigned show">
-        <div class="head">
-          <div class="icon">⚠️</div>
-          <div class="label">Needs Assignment</div>
-          <div class="count">${list.length}</div>
-        </div>
-        <div class="list">${items}</div>
-      </div>
-    `;
-  }
-
-  // Parts badge — the "are the parts in or not" signal. Shows on any job
-  // (scheduled or unscheduled) that's waiting on parts, with the ETA date.
-  function partsBadge(j) {
-    const ps = (j.parts_status || '').toLowerCase();
-    const waiting = ['awaiting_parts', 'ordered', 'on_order', 'pending', 'parts_needed'].includes(ps);
-    if (!waiting) return '';
-    let eta = '';
-    if (j.parts_eta_date) {
-      const s = String(j.parts_eta_date);
-      eta = ' · ETA ' + (s.length >= 10 ? s.slice(5, 10) : s);
+  // Approve every Ant proposal at once — books each proposed tech + day. Danielle
+  // can still move any afterward (each still lands with a ✓ before booking).
+  async function approveAll() {
+    const btn = document.getElementById('approveAllBtn'), st = document.getElementById('approveAllStatus');
+    const yes = Array.from(document.querySelectorAll('.ghost-yes'));
+    if (!yes.length) { st.textContent = 'No proposals ready yet — give it a few seconds and try again.'; return; }
+    if (!confirm('Approve all ' + yes.length + ' Ant suggestions? Each books the proposed tech + day. You can still move any afterward.')) return;
+    btn.disabled = true; let done = 0;
+    for (const b of yes) {
+      if (!document.body.contains(b)) { continue; }
+      st.textContent = 'Booking ' + (done + 1) + ' of ' + yes.length + '…';
+      try { await acceptSuggestion(b); } catch (_) {}
+      done++; await new Promise(r => setTimeout(r, 400));
     }
-    return `<span class="parts-badge" title="waiting on parts (${escapeHtml(ps)})">⏳ parts${eta}</span>`;
+    st.textContent = '✅ Booked ' + done + '. Refreshing…';
+    setTimeout(load, 900);
   }
 
-  // Unscheduled queue tray — who HASN'T been scheduled (incl. anything the
-  // auto-scheduler couldn't route). Tap an item to open the same schedule/
-  // reschedule modal and place it onto a tech.
-  function renderUnscheduled(list) {
-    const items = list.map((j) => {
-      const cust = `${(j.customer_first_name || '').trim()} ${(j.customer_last_name || '').trim()}`.trim() || '(no customer)';
-      const appl = (j.appliance_type || 'appliance').toLowerCase();
-      const loc = (j.service_city || j.service_zip || '').trim();
-      // Zip + brand drive Ant's placement suggestion (suggest-schedule → best
-      // DAY + the rank-1 ACTIVE non-owner tech for that area, honoring the
-      // customer's availability/route/capacity; office can override on tap).
-      const zip5 = String(j.service_zip || '').replace(/\D/g, '').slice(0, 5);
-      const brand = String(j.brand || '').trim();
-      const ct = (j.customer_type || '').toLowerCase();
-      const tag = ct === 'warranty' ? `<span class="wtag">${escapeHtml(j.warranty_company || 'warranty')}</span>` : '';
-      const pb = partsBadge(j);
-      // CASH-ONLY hold: a self-pay job that hasn't paid is NOT ready to schedule.
-      // Strictly customer_type self_pay/cash/customer_pay — warranty is never touched.
-      const isCash = ct === 'self_pay' || ct === 'cash' || ct === 'customer_pay';
-      const cashUnpaid = isCash && CASH_PAID[j.id] !== true;
-      const meta = pb || (cashUnpaid
-        ? '<span class="hold">💵 Awaiting payment — collect first</span>'
-        : '<span class="ready">✓ ready to schedule</span>');
-      // What the customer needs — front and center, right under the name. The
-      // time window is the #1 scheduling variable. Splits AVAIL/UNAVAIL markers,
-      // flags vendor-locked (SquareTrade/ServicePower) jobs as pre-scheduled, and
-      // shows a muted "gather at intake" prompt when we have nothing yet.
-      const isVendor = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
-      // What time the vendor/customer already agreed to (so we know what they
-      // expect). Prefer the vendor's stated window, then any service window, then
-      // the parsed scheduled_start. Empty when nothing was captured.
-      const vendorExpect = (() => {
-        const notesInt = (j.notes_internal || '');
-        const pM = notesInt.match(/Schedule Period:\s*([^\n]*)/i);
-        const dM = notesInt.match(/Schedule Date:\s*([^\n]*)/i);
-        const win = ((pM && pM[1]) || '').trim() || (j.service_eta_window || '').trim();
-        const sMs = Number(j.scheduled_start || 0);
-        if (win && sMs > 0) return `${fmtDayShort(sMs)} · ${escapeHtml(win)}`;
-        if (win) return escapeHtml(win);
-        if (dM && dM[1].trim()) return escapeHtml(dM[1].trim());
-        if (sMs > 0) return `${fmtDayShort(sMs)}${fmtTime(sMs) ? ' · ' + fmtTime(sMs) : ''}`;
-        return '';
-      })();
-      // "locked" = a real vendor slot exists (agreed time captured). A vendor job
-      // with NO agreed time isn't locked — it still needs scheduling.
-      const isLocked = isVendor && !!vendorExpect;
-      let hasAvail = false;
-      const constraintLine = (() => {
+  function render(items) {
+    if (items.length === 0) {
+      list.innerHTML = '<div class="empty"><h3>Nothing waiting</h3><p>You\'re all caught up. New emails will land here automatically.</p></div>';
+      return;
+    }
+    list.innerHTML = items.map(j => {
+      const rawName = ((j.customer_first || '') + ' ' + (j.customer_last || '')).trim();
+      const name = rawName || (j.warranty_company ? (j.warranty_company + (j.claim_number ? ' #' + j.claim_number : '') + ' — accept for details') : '(no name)');
+      const what = [j.appliance, j.brand].filter(Boolean).join(' • ') || (j.warranty_company ? 'details load after you accept' : '(no appliance)');
+      const addr = [j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', ');
+      const flex = Number(j.flex_score || 0);
+      const flexColor = flex >= 71 ? '#4cc9c0' : flex >= 31 ? '#5b9bd5' : flex > 0 ? '#ffb454' : '#8a96a8';
+      const flexBg = flex >= 71 ? 'rgba(76,201,192,0.15)' : flex >= 31 ? 'rgba(91,155,213,0.15)' : flex > 0 ? 'rgba(255,180,84,0.15)' : 'rgba(138,150,168,0.12)';
+      let availSnippet = '';
+      try {
+        if (j.customer_availability_grid) {
+          const parsed = JSON.parse(j.customer_availability_grid);
+          if (Array.isArray(parsed) && parsed.length) {
+            const dayCount = parsed.length;
+            const blockCount = parsed.reduce((s, e) => s + (Array.isArray(e.blocks) ? e.blocks.length : 0), 0);
+            availSnippet = `<span class="badge" style="background:${flexBg};color:${flexColor};border-color:${flexColor}">📅 ${blockCount} blocks across ${dayCount} day${dayCount === 1 ? '' : 's'}</span>`;
+          }
+        }
+      } catch (_) {}
+      const flexBadge = flex > 0
+        ? `<span class="badge" style="background:${flexBg};color:${flexColor};border-color:${flexColor};font-weight:600">⚡ flex ${flex}</span>`
+        : '';
+      // Scheduling constraints — FRONT AND CENTER. The customer's time window is
+      // the #1 scheduling variable, so show it prominently (not a tiny badge).
+      // Splits the AVAIL/UNAVAIL markers, renders the grid, and flags vendor-locked
+      // (SquareTrade/ServicePower) jobs as pre-scheduled. Empty state surfaces the
+      // gap so we know which jobs still need their constraints gathered at intake.
+      const constraintsPanel = (() => {
         const pref = (j.customer_preference_text || '').trim();
-        const base = 'font-size:12px;font-weight:700;margin-top:3px;padding:4px 7px;border-radius:6px;line-height:1.4';
-        // Vendor pre-scheduled: show the exact time the customer expects.
-        if (isVendor && vendorExpect) return `<div style="${base};background:rgba(91,155,213,0.22);color:#c3d8f7">📅 Customer expects: ${vendorExpect}</div>`;
-        // Vendor job with no captured time — be honest, it needs scheduling.
-        if (isVendor) return `<div style="${base};background:rgba(138,150,168,0.12);color:#9aa6b6">🏢 ${escapeHtml(j.warranty_company || 'warranty')} — no appt time on file · needs scheduling</div>`;
-        const bits = [];
+        const isLocked = /squaretrade|servicepower|service power/i.test(j.warranty_company || '');
+        const rows = [];
         if (pref) {
-          const a = pref.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
+          const a = pref.match(/AVAIL:\s*([^\n]*)/i);
           const u = pref.match(/UNAVAIL:\s*([^\n]*)/i);
-          if (a && a[1].trim()) bits.push(`✅ ${escapeHtml(a[1].trim())}`);
-          if (u && u[1].trim()) bits.push(`⛔ ${escapeHtml(u[1].trim())}`);
-          if (!a && !u) bits.push(escapeHtml(pref));
+          if (a && a[1].trim()) rows.push(`<div style="color:#1d7a44">✅ <b>Available:</b> ${escapeHtml(a[1].trim())}</div>`);
+          if (u && u[1].trim()) rows.push(`<div style="color:#c0392b">⛔ <b>Can't do:</b> ${escapeHtml(u[1].trim())}</div>`);
+          if (!a && !u) rows.push(`<div>${escapeHtml(pref)}</div>`);
         }
         try {
           if (j.customer_availability_grid) {
             const g = JSON.parse(j.customer_availability_grid);
             if (Array.isArray(g) && g.length) {
               const parts = g.map(e => `${escapeHtml(e.day || e.date || '')}${Array.isArray(e.blocks) && e.blocks.length ? ' (' + escapeHtml(e.blocks.join(', ')) + ')' : ''}`).filter(Boolean);
-              if (parts.length) bits.push('📅 ' + parts.join(' · '));
+              if (parts.length) rows.push(`<div>📅 <b>Windows:</b> ${parts.join(' · ')}</div>`);
             }
           }
         } catch (_) {}
-        if (bits.length) { hasAvail = true; return `<div style="${base};background:rgba(255,180,84,0.18);color:#ffce8a">🕒 ${bits.join(' · ')}</div>`; }
-        return `<div style="${base};background:rgba(138,150,168,0.1);color:#8a96a8;font-weight:600">🕒 no time info — send intake link now 👇</div>`;
+        const base = 'margin:8px 0;padding:9px 11px;border-radius:9px;font-size:13px;line-height:1.55';
+        if (isLocked) return `<div style="${base};background:rgba(91,155,213,0.13);border:1px solid rgba(91,155,213,0.5);color:#2c5777">📌 <b>${escapeHtml(j.warranty_company)}</b> — vendor pre-scheduled slot (locked). ${rows.length ? rows.join('') : 'No availability needed.'}</div>`;
+        if (rows.length) return `<div style="${base};background:rgba(255,180,84,0.14);border:1px solid rgba(255,180,84,0.55);color:#7a5212">🕒 <b>Scheduling constraints</b>${rows.join('')}</div>`;
+        return `<div style="${base};background:rgba(138,150,168,0.08);border:1px dashed rgba(138,150,168,0.4);color:#8a96a8">🕒 No time constraints captured yet — gather at intake</div>`;
       })();
-      // Ant's suggested day + tech — FRONT AND CENTER on every tile. Placeholder
-      // now, hydrated right after render via suggest-schedule (see hydrateSuggestions).
-      // Pass the customer's availability along so the suggested DAY honors it:
-      // parse AVAIL/UNAVAIL cleanly here (single-line, attribute-safe) + the grid.
-      const prefRaw = (j.customer_preference_text || '');
-      const availM = prefRaw.match(/\bAVAIL:\s*([^\n]*)/i);   // \b so it never matches inside "UNAVAIL:"
-      const unavailM = prefRaw.match(/UNAVAIL:\s*([^\n]*)/i);
-      const availTxt = availM ? availM[1].trim() : (unavailM ? '' : prefRaw.replace(/\s+/g, ' ').trim());
-      const unavailTxt = unavailM ? unavailM[1].trim() : '';
-      const gridTxt = (j.customer_availability_grid || '');
-      // Show the suggestion line on EVERY routable job — including vendor-locked
-      // (SquareTrade/ServicePower) ones. For locked jobs the vendor set the day, so
-      // we skip the day pick and just surface WHICH TECH covers the area to assign.
-      const suggestLine = (zip5.length >= 5)
-        ? `<div class="ant-suggest" data-jobid="${j.id}" data-zip="${zip5}" data-appl="${escapeHtml(appl)}" data-brand="${escapeHtml(brand)}" data-avail="${escapeHtml(availTxt)}" data-unavail="${escapeHtml(unavailTxt)}" data-grid="${escapeHtml(gridTxt)}" data-locked="${isLocked ? '1' : ''}"
-             style="font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.45);background:rgba(76,201,192,0.09);color:#6fd3ca">🐜 finding best…</div>`
+      const reviewFlag = (j.friendly_status && j.friendly_status.indexOf('REVIEW') !== -1)
+        ? `<div style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7;border-radius:8px;padding:7px 10px;margin-bottom:8px;font-size:13px;font-weight:800">${escapeHtml(j.friendly_status)} — Schedule if real, 🗑 Delete if junk</div>`
         : '';
-      // Immediate-intake action: no availability + not vendor-locked = text the
-      // customer a guided intake link this second. The sooner the intake, the
-      // sooner it schedules. Stops propagation so it doesn't open the modal.
-      const custPhone = String(j.customer_phone || '').replace(/\D/g, '');
-      const custFirst = (j.customer_first_name || '').trim();
-      const intakeBtn = (!hasAvail && !isVendor)
-        ? `<button class="send-intake" data-jobid="${j.id}" data-phone="${custPhone}" data-first="${escapeHtml(custFirst)}" data-appl="${escapeHtml(appl)}" title="Text the customer a 2-minute intake link now"
-             style="margin-top:6px;font:700 12px/1 system-ui;padding:6px 10px;border-radius:7px;border:1px solid rgba(232,116,59,0.55);background:rgba(232,116,59,0.14);color:#f0a074;cursor:pointer">📲 Text intake link</button>`
-        : '';
-      return `
-        <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule — opens the full job">
-          <div class="cust">${escapeHtml(cust)} ${tag}</div>
-          <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
-          ${suggestLine}
-          <div class="udetail">
-            ${constraintLine}
-            <div class="meta">${meta}</div>
-            ${intakeBtn}
-            <div class="intake-result" data-jobid="${j.id}" style="font-size:12px;margin-top:4px"></div>
-          </div>
+      return `<div class="row" data-id="${j.id}" style="cursor:pointer">
+        ${reviewFlag}
+        <div class="top">
+          <div class="who">${escapeHtml(name)}</div>
+          <div class="age">${fmtAge(j.created_at)}</div>
         </div>
-      `;
+        <div class="what">${escapeHtml(what)}</div>
+        <div class="addr">${escapeHtml(addr)}</div>
+        <div onclick="event.stopPropagation();if(window.AntConstraints)AntConstraints.edit(${j.id})" style="cursor:pointer" title="Tap to add or edit the customer's availability">${constraintsPanel}</div>
+        <div class="meta">
+          ${j.intake_source ? `<span class="badge source">${escapeHtml(j.intake_source)}</span>` : ''}
+          ${j.warranty_company ? `<span class="badge warranty">${escapeHtml(j.warranty_company)}</span>` : ''}
+          ${j.claim_number ? `<span class="badge">${escapeHtml(j.claim_number)}</span>` : ''}
+          ${j.customer_phone ? `<span class="badge">${escapeHtml(j.customer_phone)}</span>` : ''}
+          ${flexBadge}
+          ${availSnippet}
+        </div>
+        ${prefBadge ? `<div class="meta" style="margin-top:4px">${prefBadge}</div>` : ''}
+        ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
+        <div class="ant-ghost" data-id="${j.id}" data-zip="${escapeHtml(j.service_zip || '')}" data-brand="${escapeHtml(j.brand || '')}" data-appl="${escapeHtml(j.appliance || '')}"></div>
+        <div class="actions">
+          <a class="btn-open-job" href="/office-board.html?job=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
+          <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}" data-zip="${escapeHtml(j.service_zip || '')}">Schedule</button>
+          <button class="btn-complete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">✓ Done/Archive</button>
+          <button class="btn-delete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(255,107,107,0.45);color:#ff6b6b;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">🗑 Delete</button>
+        </div>
+      </div>`;
     }).join('');
-    return `
-      <div class="unassigned unscheduled-tray show">
-        <div class="head">
-          <div class="icon">🗓️</div>
-          <div class="label">Needs Scheduling — tap to place</div>
-          <div class="count">${list.length}</div>
-        </div>
-        <div class="list">${items}</div>
-      </div>
-    `;
-  }
 
-  function renderCell(tech, day, jobs, isOff) {
-    const techName = ((tech.first_name || '') + ' ' + (tech.last_name || '')).trim() || ('Tech ' + tech.id);
-    const count = jobs.length;
-    // One-tap Day Off toggle (present on every cell).
-    const offBtn = `<button class="dayoff-btn${isOff ? ' on' : ''}"
-        data-tech-id="${tech.id}"
-        data-tech-name="${escapeHtml(techName)}"
-        data-date="${day.dateStr}"
-        data-day-label="${escapeHtml(day.dowShort + ' ' + day.monthShort + ' ' + day.dayNum)}"
-        data-off="${isOff ? '1' : '0'}"
-        data-jobs="${count}"
-        title="${isOff ? 'Clear day off — mark ' + escapeHtml(techName) + ' working' : 'Mark ' + escapeHtml(techName) + ' off this day'}"
-      >${isOff ? '✓ off' : '🌴 off'}</button>`;
-    if (isOff) {
-      return `
-        <div class="cell cap-off" data-tech-id="${tech.id}" data-date="${day.dateStr}">
-          ${offBtn}
-          <div class="cap">
-            <span class="num">⛔</span>
-            <span class="label">day off</span>
-          </div>
-          <div class="off-label">off</div>
-        </div>
-      `;
-    }
-    const remaining = Math.max(0, CAPACITY_MAX - count);
-    let tier = 'green';
-    if (count >= 5) tier = 'red';
-    else if (count >= 3) tier = 'yellow';
-    const blocks = jobs.map((j) => renderBlock(j)).join('');
-    return `
-      <div class="cell cap-${tier} book-cell"
-           data-tech-id="${tech.id}"
-           data-tech-name="${escapeHtml(techName)}"
-           data-date="${day.dateStr}"
-           data-day-label="${escapeHtml(day.dowShort + ' ' + day.monthShort + ' ' + day.dayNum)}"
-           title="Click empty space to book on this day">
-        ${offBtn}
-        <div class="cap">
-          <span class="num">${remaining}</span>
-          <span class="denom">/${CAPACITY_MAX}</span>
-          <span class="label">${remaining === 1 ? 'slot' : 'slots'}</span>
-        </div>
-        <div class="blocks">${blocks}</div>
-      </div>
-    `;
-  }
+    // Make whole row clickable → open the REAL job-board job drawer (not a
+    // separate detail page) so adjustments happen right there. (Teddy 2026-07-03:
+    // "open the actual job board job, we don't need it to open something new.")
+    list.querySelectorAll('div.row[data-id]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t.closest('button.schedule') || t.closest('a.btn-open-job') || t.closest('button.btn-complete') || t.closest('button.btn-delete')) return;
+        const id = row.dataset.id;
+        if (id) window.location.href = `/office-board.html?job=${id}`;
+      });
+    });
 
-  function renderBlock(j) {
-    const time = fmtTimeShort(j.scheduled_start);
-    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim().slice(0,1)}${j.customer_last_name ? '.' : ''}`.trim() || '(no name)';
-    const appl = (j.appliance_type || '').toLowerCase();
-    const brand = (j.brand || '').trim();
-    const city = (j.service_city || '').trim();
-    const status = (j.scheduling_status || '').toLowerCase();
-    const ct = (j.customer_type || '').toLowerCase();
+    list.querySelectorAll('button.btn-complete').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); removeJob(b, 'complete', b.dataset.name); });
+    });
+    list.querySelectorAll('button.btn-delete').forEach(b => {
+      b.addEventListener('click', (e) => { e.stopPropagation(); removeJob(b, 'delete', b.dataset.name); });
+    });
 
-    let bk = 'self_pay';
-    if (ct === 'warranty') bk = 'warranty';
-    if (status === 'completed') bk = 'completed';
-
-    const applLine = brand ? `${appl} · ${brand}` : appl;
-    return `
-      <div class="blk bk-${bk}" data-job-id="${j.id}" draggable="true" role="button" tabindex="0"
-           title="Drag to another tech/day, or click to reschedule, reassign, or cancel">
-        <div class="row1">
-          <span class="time">${time}</span>
-          <span class="name">${escapeHtml(cust)}</span>
-        </div>
-        <div class="row2">
-          <span class="app">${escapeHtml(applLine)}</span>
-          ${city ? `<span class="city">${escapeHtml(city)}</span>` : ''}
-          ${partsBadge(j)}
-        </div>
-      </div>
-    `;
-  }
-
-  function attachClickHandlers() {
-    // One-tap Day Off toggle — mark a tech off (or clear it) right on the cell.
-    // No approval needed; the office owns this. (Fires tech_set_day_off.)
-    document.querySelectorAll('.dayoff-btn').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+    list.querySelectorAll('button.schedule').forEach(b => {
+      b.addEventListener('click', (e) => {
         e.stopPropagation();
-        e.preventDefault();
-        if (btn.disabled) return;
-        const isOff = btn.dataset.off === '1';
-        const name = btn.dataset.techName || 'this tech';
-        const dayLabel = btn.dataset.dayLabel || btn.dataset.date;
-        const jobs = parseInt(btn.dataset.jobs || '0', 10);
-        let msg;
-        if (isOff) {
-          msg = `Clear ${name}'s day off on ${dayLabel} — put them back to working?`;
-        } else {
-          msg = `Mark ${name} OFF on ${dayLabel}?`;
-          if (jobs > 0) msg += `\n\n⚠️ There ${jobs === 1 ? 'is' : 'are'} ${jobs} job${jobs === 1 ? '' : 's'} on that day — you'll still need to reassign ${jobs === 1 ? 'it' : 'them'}.`;
-        }
-        if (!confirm(msg)) return;
-        btn.disabled = true;
-        const prevText = btn.textContent;
-        btn.textContent = '…';
-        try {
-          const res = await fetch(`${XANO_BASE}/tech_set_day_off`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              technician_id: parseInt(btn.dataset.techId, 10),
-              date: btn.dataset.date,
-              off: !isOff,
-              reason: isOff ? '' : 'day off (office)',
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok || !data.success) {
-            alert((data && (data.error || data.message)) || `Could not update (${res.status}). Try again.`);
-            btn.disabled = false;
-            btn.textContent = prevText;
-            return;
-          }
-          loadWeek(); // re-render so the cell flips off/on
-        } catch (err) {
-          alert('Network problem — try again.');
-          btn.disabled = false;
-          btn.textContent = prevText;
+        currentJob = { id: parseInt(b.dataset.id, 10), name: b.dataset.name, appl: b.dataset.appl };
+        $('schedJobDesc').textContent = `${currentJob.name} — ${currentJob.appl}`;
+        $('schedDate').value = ''; // no auto next-day default — office picks the day (spreads the load)
+        $('schedTech').value = '';
+        const hintEl = $('schedSuggest'); if (hintEl) hintEl.textContent = '';
+        schedModal.classList.add('show');
+        // Cluster-suggest: pre-pick the tech who covers this zip so it's one tap.
+        // GUARD (fixes the "random wrong tech" bug): this lookup resolves a moment
+        // later. Only apply it if (a) THIS job's popup is still the one open, and
+        // (b) Danielle hasn't already picked a tech — never clobber her choice or
+        // stamp a stale job's suggestion onto the one she's looking at now.
+        const zip = b.dataset.zip || '';
+        const suggestForJob = currentJob.id;
+        if (zip) {
+          fetch(`${XANO_BASE}/check_service_zone?zip_code=${encodeURIComponent(zip)}`)
+            .then(r => r.json()).then(z => {
+              if (!currentJob || currentJob.id !== suggestForJob) return; // different job open now
+              if ($('schedTech').value) return;                          // she already picked — don't override
+              if (z && z.suggested_technician_id) {
+                $('schedTech').value = String(z.suggested_technician_id);
+                if (hintEl) hintEl.textContent = `💡 Suggested: ${z.suggested_tech_name || ('tech ' + z.suggested_technician_id)}${z.cluster ? ' · ' + z.cluster : ''} — change if needed`;
+              }
+            }).catch(() => {});
         }
       });
     });
-    // Click on any empty cell space (NOT on a job block) opens the booking modal.
-    document.querySelectorAll('.book-cell').forEach((cell) => {
-      cell.addEventListener('click', (e) => {
-        if (e.target.closest('.blk')) return; // job block click — handled below
-        if (cell.classList.contains('cap-off')) return; // tech off — can't book
-        openBookingModal({
-          tech_id: cell.dataset.techId,
-          tech_name: cell.dataset.techName,
-          date: cell.dataset.date,
-          day_label: cell.dataset.dayLabel,
-        });
-      });
-    });
-    // Click on a job block opens the manage modal (Reschedule / Reassign / Cancel).
-    document.querySelectorAll('.blk[data-job-id]').forEach((blk) => {
-      blk.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openManageJobModal(Number(blk.dataset.jobId));
-      });
-      blk.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          openManageJobModal(Number(blk.dataset.jobId));
-        }
-      });
-    });
-    // Tap an unscheduled-tray item to open the same modal and place it.
-    document.querySelectorAll('.unsched-item[data-job-id]').forEach((it) => {
-      const open = () => openManageJobModal(Number(it.dataset.jobId));
-      it.addEventListener('click', open);
-      it.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-      });
-    });
-    // "Text intake link" — fire the guided-intake SMS without opening the modal.
-    document.querySelectorAll('.send-intake[data-jobid]').forEach((btn) => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); sendIntakeLink(btn); });
-    });
-    hydrateSuggestions();   // fill "🐜 Ant suggests: {day} · {tech}" on the cards
-    attachDragHandlers();
+
+    hydrateGhosts();
+    groupRowsByTech();
   }
 
-  // ── Ant's suggested day + tech (front-and-center on every Needs-Scheduling
-  // tile) + immediate intake. suggest-schedule returns the best DAY plus the
-  // rank-1 ACTIVE non-owner tech for the area (owner is last resort), honoring
-  // the customer's availability / route / capacity. If the pick can't take it,
-  // the office just taps a different tech in the schedule modal.
-  const SUGG_CACHE = {}; // jobId -> { html, style }
-  function paintSuggest(n, s) { n.innerHTML = s.html; n.style.cssText = s.style; n.dataset.done = '1'; }
-  const SUGG_OK  = 'font-size:12.5px;font-weight:800;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(76,201,192,0.5);background:rgba(76,201,192,0.11);color:#7fd8d0';
-  const SUGG_AMB = 'font-size:12.5px;font-weight:700;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;border:1px dashed rgba(255,180,84,0.5);background:rgba(255,180,84,0.12);color:#ffce8a';
-  const SUGG_MUT = 'font-size:12px;font-weight:600;margin-top:4px;padding:5px 8px;border-radius:7px;line-height:1.4;background:rgba(138,150,168,0.1);color:#8a96a8';
-  // Fast fallback: at least the AREA TECH from check_service_zone (one quick
-  // read) when the full day-suggestion is slow/unavailable — so a tech name
-  // ALWAYS shows on the tile.
-  async function areaTechFallback(zip, opts) {
-    opts = opts || {};
-    const suffix = opts.suffix != null ? opts.suffix : ' — tap to place';
-    const style = opts.style || SUGG_AMB;
-    try {
-      const r = await fetch(`${XANO_BASE}/check_service_zone?zip_code=${encodeURIComponent(zip)}`, { signal: AbortSignal.timeout(8000) });
-      const z = await r.json();
-      if (z && z.suggested_tech_name) return { html: `🔧 <strong>${escapeHtml(z.suggested_tech_name)}</strong>'s area${z.cluster ? ' · ' + escapeHtml(z.cluster) : ''}${suffix}`, style };
-      if (z && z.covered === false) return { html: '⚠️ area not mapped — pick a tech', style: SUGG_AMB };
-    } catch (_) {}
-    return null;
-  }
-  async function hydrateSuggestions() {
-    const nodes = Array.from(document.querySelectorAll('.ant-suggest[data-jobid]:not([data-done])'));
-    if (!nodes.length) return;
-    const BATCH = 3; // gentle on Xano — suggest-schedule fans out a few reads per job
-    for (let i = 0; i < nodes.length; i += BATCH) {
-      await Promise.all(nodes.slice(i, i + BATCH).map(async (n) => {
-        const jobId = n.dataset.jobid;
-        if (SUGG_CACHE[jobId]) { paintSuggest(n, SUGG_CACHE[jobId]); return; }
-        n.dataset.done = '1';
-        const zip = n.dataset.zip || '';
-        if (!zip || zip.length < 5) { const s = { html: '🔧 add a zip to route this', style: SUGG_MUT }; SUGG_CACHE[jobId] = s; paintSuggest(n, s); return; }
-        // Vendor-locked (SquareTrade/ServicePower): day is already set — just show
-        // which tech covers the area so the office knows who to assign.
-        if (n.dataset.locked === '1') {
-          const s = (await areaTechFallback(zip, { suffix: ' — assign this tech', style: SUGG_OK })) || { html: '🔧 tap to assign a tech', style: SUGG_MUT };
-          SUGG_CACHE[jobId] = s; paintSuggest(n, s); return;
+  // ── Group the waiting jobs UNDER the tech who covers their area ───────
+  // Teddy 2026-07-03: "line the needs-scheduled jobs above the tech they match
+  // best — North Shore → John, South Shore → Andre, Clarksville → Lee, Jimmy's
+  // area → Jimmy — so it's simple." We resolve each job's zip → cluster → tech
+  // (check_service_zone, the same map the scheduler uses), then reorder the
+  // already-rendered rows into a section per tech with a header. Additive +
+  // low-risk: it MOVES existing rows (listeners + ghost cards ride along) and
+  // drops in headers — it never re-renders a card.
+  let _groupRunToken = 0;
+  async function groupRowsByTech() {
+    const token = ++_groupRunToken;
+    const rows = Array.from(list.querySelectorAll('div.row[data-id]'));
+    if (rows.length < 2) return;
+    const info = rows.map(row => {
+      const sb = row.querySelector('button.schedule');
+      const zip = String((sb && sb.dataset.zip) || '').replace(/\D/g, '').slice(0, 5);
+      return { row, zip };
+    });
+    const zips = Array.from(new Set(info.map(r => r.zip).filter(Boolean)));
+    const zipTech = {};
+    await Promise.all(zips.map(async z => {
+      try {
+        const zo = await (await fetch(XANO_BASE + '/check_service_zone?zip_code=' + z)).json();
+        if (zo && zo.suggested_technician_id) {
+          zipTech[z] = {
+            id: zo.suggested_technician_id,
+            name: zo.suggested_tech_name || TECH_NAMES[zo.suggested_technician_id] || ('Tech ' + zo.suggested_technician_id),
+            cluster: zo.cluster || '',
+          };
         }
-        try {
-          const qs = new URLSearchParams({ service_zip: zip, job_id: jobId, appliance_type: n.dataset.appl || '', brand: n.dataset.brand || '', avail_text: n.dataset.avail || '', unavail_text: n.dataset.unavail || '', grid: n.dataset.grid || '' });
-          const r = await fetch(`/.netlify/functions/suggest-schedule?${qs.toString()}`, { signal: AbortSignal.timeout(20000) });
-          const d = await r.json();
-          const sug = d && d.suggestion;
-          let s;
-          if (sug && sug.suggested_tech_name && sug.suggested_day_label) {
-            s = { html: `🐜 Ant suggests: <strong>${escapeHtml(sug.suggested_day_label)}</strong> · <strong>${escapeHtml(sug.suggested_tech_name)}</strong>${sug.honored_availability ? ' ✅' : ''}${sug.brand_conflict ? ' ⚠️' : ''}`, style: SUGG_OK };
-          } else if (sug && sug.suggested_tech_name) {
-            s = { html: `🔧 <strong>${escapeHtml(sug.suggested_tech_name)}</strong>'s area — ${escapeHtml(d.reason || 'pick a day')}`, style: SUGG_AMB };
-          } else {
-            // suggest-schedule couldn't route a day — still show the area tech.
-            s = (await areaTechFallback(zip)) || { html: `⚠️ ${escapeHtml((d && d.reason) || 'area not mapped — pick a tech')}`, style: SUGG_AMB };
-          }
-          SUGG_CACHE[jobId] = s; paintSuggest(n, s);
-        } catch (_) {
-          // day-suggestion timed out — fall back to the fast area-tech lookup so a
-          // tech name still shows (don't cache, so a later render can get the full pick).
-          const s = (await areaTechFallback(zip)) || { html: '🔧 tap to place manually', style: SUGG_MUT };
-          paintSuggest(n, s);
-        }
-      }));
-    }
-  }
-
-  async function sendIntakeLink(btn) {
-    const jobId = Number(btn.dataset.jobid);
-    const res = document.querySelector(`.intake-result[data-jobid="${jobId}"]`);
-    btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳ sending…';
-    try {
-      const r = await fetch('/.netlify/functions/send-intake-link', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, phone: btn.dataset.phone || '', first: btn.dataset.first || '', appliance: btn.dataset.appl || '' }),
-        signal: AbortSignal.timeout(20000),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (d && d.ok && d.sent) {
-        if (res) res.innerHTML = `<span style="color:#7fd8a0">✅ intake link texted${d.to_last4 ? ' to •••' + d.to_last4 : ''}</span>`;
-        btn.textContent = '✓ sent';
+      } catch (_) {}
+    }));
+    if (token !== _groupRunToken) return;   // a newer load()/group started — bail
+    const groups = new Map();               // key techId (or _none) -> {tech, rows[]}
+    info.forEach(({ row, zip }) => {
+      const t = zipTech[zip];
+      const key = t ? String(t.id) : '_none';
+      if (!groups.has(key)) groups.set(key, { tech: t, rows: [] });
+      groups.get(key).rows.push(row);
+    });
+    // Nothing to gain if every job maps to the same tech (or none did).
+    const realKeys = Array.from(groups.keys()).filter(k => k !== '_none');
+    if (realKeys.length === 0) return;
+    realKeys.sort((a, b) => Number(a) - Number(b));
+    const keys = realKeys.concat(groups.has('_none') ? ['_none'] : []);
+    list.querySelectorAll('.tech-group-head').forEach(h => h.remove());
+    const frag = document.createDocumentFragment();
+    keys.forEach(k => {
+      const g = groups.get(k);
+      const head = document.createElement('div');
+      head.className = 'tech-group-head';
+      if (k === '_none') {
+        head.style.cssText = 'margin:18px 4px 8px;padding:9px 13px;border-radius:10px;font-weight:800;font-size:14px;background:rgba(255,180,84,.14);border:1px solid rgba(255,180,84,.5);color:#8a5a12';
+        head.textContent = `⚠️ Area not mapped — pick a tech (${g.rows.length})`;
       } else {
-        const why = (d && d.reason) || 'no phone on file';
-        if (res) res.innerHTML = `<span style="color:#e6a35a">⚠️ ${escapeHtml(why)}</span>`;
-        btn.disabled = false; btn.textContent = orig;
+        head.style.cssText = 'margin:18px 4px 8px;padding:9px 13px;border-radius:10px;font-weight:800;font-size:15px;background:rgba(76,201,192,.13);border:1px solid rgba(76,201,192,.45);color:#178f7d';
+        head.textContent = `🔧 ${g.tech.name}${g.tech.cluster ? ' · ' + g.tech.cluster : ''} — ${g.rows.length} job${g.rows.length > 1 ? 's' : ''}`;
+      }
+      frag.appendChild(head);
+      g.rows.forEach(r => frag.appendChild(r));
+    });
+    list.appendChild(frag);   // moves the existing rows into grouped order
+  }
+
+  // ── Ant ghost suggestions (shadow mode) ──────────────────────────────
+  function hydrateGhosts() {
+    document.querySelectorAll('.ant-ghost[data-zip]').forEach(async (el) => {
+      const zip = el.dataset.zip; if (!zip) { el.innerHTML = ''; return; }
+      try {
+        const d = await (await fetch('/.netlify/functions/suggest-schedule?service_zip=' + encodeURIComponent(zip) + '&brand=' + encodeURIComponent(el.dataset.brand || '') + '&appliance_type=' + encodeURIComponent(el.dataset.appl || '') + '&job_id=' + encodeURIComponent(el.dataset.id || ''))).json();
+        const s = d && d.suggestion;
+        if (!s || !s.suggested_date) {
+          el.innerHTML = (d && d.reason) ? `<div style="font-size:12px;color:#8a96a8;margin-top:6px">🐜 ${escapeHtml(d.reason)}</div>` : '';
+          return;
+        }
+        const id = el.dataset.id;
+        el.innerHTML = `<div style="margin-top:8px;padding:9px 11px;border:1px dashed rgba(76,201,192,0.5);border-radius:9px;background:rgba(76,201,192,0.08)">
+          <div style="font-size:13px;color:#4cc9c0;font-weight:800">🐜 Ant suggests: ${escapeHtml(s.suggested_day_label || s.suggested_date)} · ${escapeHtml(s.suggested_tech_name)}</div>
+          <div style="font-size:12px;color:#8a96a8;margin:2px 0 8px">${escapeHtml(d.reason || '')}</div>
+          <button class="ghost-yes" data-id="${id}" data-tech="${s.suggested_technician_id}" data-date="${s.suggested_date}" style="background:#4cc9c0;color:#06241f;border:0;padding:7px 13px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">✓ Use this</button>
+          <button class="ghost-no" data-id="${id}" data-tech="${s.suggested_technician_id}" data-date="${s.suggested_date}" style="background:transparent;border:1px solid rgba(255,180,84,0.5);color:#ffb454;padding:7px 13px;border-radius:8px;font-weight:700;font-size:13px;margin-left:6px;cursor:pointer">✗ Not quite</button>
+        </div>`;
+        el.querySelector('.ghost-yes').addEventListener('click', (ev) => { ev.stopPropagation(); acceptSuggestion(ev.currentTarget); });
+        el.querySelector('.ghost-no').addEventListener('click', (ev) => { ev.stopPropagation(); rejectSuggestion(ev.currentTarget); });
+      } catch (_) { el.innerHTML = ''; }
+    });
+  }
+  // When a job gets scheduled onto a tech, wipe any stale board placement so the
+  // card flows to that tech's Report folder. The board's placeOf() honors a saved
+  // office_stage BEFORE the tech folder, so without this a scheduled job stays stuck
+  // in its old column (Danielle: "won't go to the correct job board folder").
+  function clearPlacement(id) {
+    try { localStorage.removeItem('tn_stage_' + id); } catch (_) {}
+    try { fetch('/.netlify/functions/office-stage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, stage: '', actor: 'Danielle' }) }); } catch (_) {}
+  }
+
+  async function acceptSuggestion(btn) {
+    const id = parseInt(btn.dataset.id, 10), tech = parseInt(btn.dataset.tech, 10), date = btn.dataset.date;
+    const startMs = new Date(date + 'T08:00:00').getTime();
+    btn.disabled = true; btn.textContent = 'Scheduling…';
+    try {
+      let d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
+      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
+      }
+      if (d && d.success) { clearPlacement(id); logFeedback(id, 'accepted', tech, date); load(); }
+      else { alert('Could not schedule: ' + ((d && d.error) || 'failed')); btn.disabled = false; btn.textContent = '✓ Use this'; }
+    } catch (_) { btn.disabled = false; btn.textContent = '✓ Use this'; }
+  }
+  function rejectSuggestion(btn) {
+    logFeedback(parseInt(btn.dataset.id, 10), 'rejected', parseInt(btn.dataset.tech, 10), btn.dataset.date);
+    const g = btn.closest('.ant-ghost'); if (g) g.innerHTML = '<div style="font-size:12px;color:#8a96a8;margin-top:6px">👍 Noted — schedule it your way below.</div>';
+  }
+  function logFeedback(jobId, outcome, tech, date) {
+    try { fetch('/.netlify/functions/suggestion-feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, outcome, suggested_tech_id: tech, suggested_date: date }) }); } catch (_) {}
+    setTimeout(loadScore, 600);
+  }
+  async function loadScore() {
+    const el = document.getElementById('ant-score'); if (!el) return;
+    try {
+      const d = await (await fetch('/.netlify/functions/suggestion-feedback', { cache: 'no-store' })).json();
+      if (d && d.total) el.textContent = `🐜 Ant accuracy so far: ${d.rate_pct}% (${d.accepted}/${d.total} suggestions accepted)`;
+      else el.textContent = '🐜 Shadow mode on — accept or reject Ant\'s suggestions to train it.';
+    } catch (_) {}
+  }
+
+  async function removeJob(btn, action, name) {
+    const id = parseInt(btn.dataset.id, 10);
+    const verb = action === 'delete' ? 'Delete' : 'Mark done / archive';
+    const msg = action === 'delete'
+      ? `Delete "${name}"? Use this for junk or canceled-email jobs. It drops off this list (kept for records, no customer is texted).`
+      : `Mark "${name}" done / archived? It drops off this list. Use this when the job is already handled.`;
+    if (!confirm(msg)) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const r = await fetch(XANO_BASE + '/office_remove_job', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ job_id: id, action, actor: 'office' })
+      });
+      const d = await r.json();
+      if (d && d.success) {
+        showToast(action === 'delete' ? 'Deleted ✓' : 'Archived ✓', 'ok');
+        const row = btn.closest('div.row'); if (row) row.remove();
+      } else {
+        btn.disabled = false; btn.textContent = action === 'delete' ? '🗑 Delete' : '✓ Done/Archive';
+        showToast((d && d.error) || 'Failed', 'err');
       }
     } catch (e) {
-      if (res) res.innerHTML = `<span style="color:#e6a35a">⚠️ send failed — try again</span>`;
-      btn.disabled = false; btn.textContent = orig;
+      btn.disabled = false; btn.textContent = action === 'delete' ? '🗑 Delete' : '✓ Done/Archive';
+      showToast('Network error', 'err');
     }
   }
 
-  // ── Drag-and-drop: move a job to another tech / day with an INSTANT optimistic
-  // move (no full reload — that's what was freezing). API fires in the background;
-  // on failure we reload to revert. Same-day tech change = reassign; day change =
-  // reschedule (keeps the time of day).
-  let draggingJobId = null;
-  function attachDragHandlers() {
-    document.querySelectorAll('.blk[data-job-id]').forEach((blk) => {
-      blk.addEventListener('dragstart', (e) => {
-        draggingJobId = Number(blk.dataset.jobId);
-        try { e.dataTransfer.setData('text/plain', String(draggingJobId)); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
-        blk.classList.add('dragging');
-      });
-      blk.addEventListener('dragend', () => { blk.classList.remove('dragging'); document.querySelectorAll('.cell.drag-over').forEach((c) => c.classList.remove('drag-over')); });
-    });
-    document.querySelectorAll('.book-cell[data-tech-id]').forEach((cell) => {
-      cell.addEventListener('dragover', (e) => { e.preventDefault(); try { e.dataTransfer.dropEffect = 'move'; } catch (_) {} cell.classList.add('drag-over'); });
-      cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
-      cell.addEventListener('drop', (e) => {
-        e.preventDefault(); cell.classList.remove('drag-over');
-        const jobId = draggingJobId || Number((e.dataTransfer && e.dataTransfer.getData('text/plain')) || 0);
-        if (jobId) handleDrop(jobId, cell);
-        draggingJobId = null;
-      });
-    });
-  }
-
-  function jobDateStrCT(ms) {
-    if (!ms) return '';
-    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
-    const g = (t) => (parts.find((p) => p.type === t) || {}).value || '';
-    return `${g('year')}-${g('month')}-${g('day')}`;
-  }
-  function jobTimeHHMM_CT(ms) {
-    if (!ms) return '08:00';
-    const parts = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms));
-    const g = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
-    return `${g('hour')}:${g('minute')}`;
-  }
-
-  async function handleDrop(jobId, cell) {
-    const j = lastJobsById[jobId];
-    if (!j) { loadWeek(); return; }
-    const newTechId = Number(cell.dataset.techId);
-    const newDateStr = cell.dataset.date;
-    const curDateStr = jobDateStrCT(j.scheduled_start);
-    const dayChanged = newDateStr && newDateStr !== curDateStr;
-    const techChanged = newTechId && newTechId !== j.technician_id;
-    if (!dayChanged && !techChanged) return; // dropped where it already was
-
-    // optimistic move: relocate the DOM node now so it feels instant
-    const blk = document.querySelector(`.blk[data-job-id="${jobId}"]`);
-    const targetBlocks = cell.querySelector('.blocks');
-    if (blk && targetBlocks) targetBlocks.appendChild(blk);
-    j.technician_id = newTechId;
-    if (dayChanged) { const ms = localDatetimeToMs(`${newDateStr}T${jobTimeHHMM_CT(j.scheduled_start)}`); if (ms) j.scheduled_start = ms; }
-
+  $('schedSubmitBtn').addEventListener('click', async () => {
+    if (!currentJob) return;
+    const techId = parseInt($('schedTech').value, 10);
+    if (!techId) { showToast('Pick a tech', 'err'); return; }
+    const dateStr = $('schedDate').value;
+    const timeStr = $('schedTime').value;
+    if (!dateStr || !timeStr) { showToast('Pick date + time', 'err'); return; }
+    const startMs = new Date(dateStr + 'T' + timeStr + ':00').getTime();
+    const window = $('schedWindow').value.trim();
+    // Stop limit: don't overload a tech's day. Cap = the tech's own preference
+    // (max_stops_per_day) or 6. Count their existing stops that day.
     try {
-      let res;
-      if (dayChanged) {
-        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId, scheduled_start_ms: j.scheduled_start }) });
-      } else {
-        res = await fetch(`${XANO_BASE}/reassign_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId }) });
+      const rd = await fetch(`${XANO_BASE}/get_tech_route_days?technician_id=${techId}`).then(r => r.json());
+      const cap = (rd && Number(rd.max_stops_per_day)) || 6;
+      const sameDay = ((rd && rd.stops) || []).filter(s =>
+        new Date(s.scheduled_start_ms || 0).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === dateStr
+      ).length;
+      if (sameDay >= cap) {
+        const techName = $('schedTech').options[$('schedTech').selectedIndex].text;
+        if (!confirm(`${techName} already has ${sameDay} stops on ${dateStr} (their limit is ${cap}). Pick another day or tech — or OK to schedule anyway.`)) return;
       }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
-      // success: leave the optimistic move in place (no full reload = no freeze)
-    } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
-  }
-
-  function renderHeader(data) {
-    weekRange.textContent = fmtWeekRange(data.week_start_ct, data.week_end_ct);
-    // Month label in the top toolbar (always visible, even if the side mini-cal is off-screen).
-    const ml = $('monthLabel');
-    if (ml) { try { const d = parseYMD(currentWeekStart); ml.textContent = d.toLocaleString('en-US', { month: 'long', year: 'numeric' }); } catch (_) {} }
-    const isCurrent = data.week_start_ct === currentWeekOfDateStr(data.today_ct);
-    todayBtn.classList.toggle('active', isCurrent);
-    todayBtn.textContent = isCurrent ? 'this week' : 'jump to today';
-    // View toggle active state.
-    viewWeekBtn?.classList.toggle('active', currentView === 'week');
-    viewTodayBtn?.classList.toggle('active', currentView === 'today');
-    viewListBtn?.classList.toggle('active', currentView === 'list');
-    // Snap the mini-calendar to the selected day's month + repaint it.
-    miniCalView = startOfMonthOf(currentWeekStart);
-    renderMiniCal();
-  }
-
-  function renderTodayView(data, techs, jobs) {
-    const todayStr = data.today_ct;
-    // Today's jobs across all techs, sorted by scheduled_start ascending.
-    const todayJobs = jobs
-      .filter((j) => ctDateForMs(j.scheduled_start) === todayStr || (!j.scheduled_start && (j.unassigned || !j.technician_id)))
-      .sort((a, b) => {
-        const aMs = a.scheduled_start || 0;
-        const bMs = b.scheduled_start || 0;
-        if (!aMs && !bMs) return 0;
-        if (!aMs) return 1;
-        if (!bMs) return -1;
-        return aMs - bMs;
+    } catch (_) {}
+    $('schedSubmitBtn').disabled = true;
+    try {
+      const schedBody = JSON.stringify({
+        job_id: currentJob.id,
+        technician_id: techId,
+        scheduled_start_ms: startMs,
+        service_eta_window: window
       });
-
-    const techById = {};
-    for (const t of techs) techById[t.id] = t;
-
-    // The unscheduled queue shows in the mobile list view too, so Danielle can
-    // schedule from her phone without switching to the desktop week grid.
-    const trayHtml = (data.unscheduled && data.unscheduled.length)
-      ? renderUnscheduled(data.unscheduled) : '';
-
-    if (todayJobs.length === 0) {
-      content.innerHTML = trayHtml + `
-        <div class="today-empty" style="padding:48px 20px;text-align:center;color:var(--muted);font-family:var(--mono)">
-          <div style="font-size:48px;margin-bottom:12px">🐜</div>
-          <div style="font-size:16px">No jobs scheduled today (${todayStr}).</div>
-          <div style="margin-top:8px;font-size:13px">Tap a job in "Needs Scheduling" above to place it, or "Week" for the full week.</div>
-        </div>
-      `;
-      attachClickHandlers();
-      return;
+      const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody
+      });
+      let d = await r.json();
+      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
+      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+        showToast('Reopening canceled job…', 'ok');
+        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: currentJob.id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody })).json();
+      }
+      if (d.success) {
+        clearPlacement(currentJob.id);
+        showToast('Scheduled ✓', 'ok');
+        schedModal.classList.remove('show');
+        currentJob = null;
+        load();
+      } else {
+        showToast(d.error || 'Failed', 'err');
+      }
+    } catch (e) {
+      showToast('Network error', 'err');
+    } finally {
+      $('schedSubmitBtn').disabled = false;
     }
+  });
 
-    const parts = [];
-    if (trayHtml) parts.push(trayHtml);
-    parts.push(`<div class="today-header" style="padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)">
-      <div style="font-family:var(--display);letter-spacing:0.06em;font-size:18px;color:var(--text)">Today — ${todayStr}</div>
-      <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${todayJobs.length} ${todayJobs.length === 1 ? 'job' : 'jobs'} across ${techs.length} techs</div>
-    </div>`);
-    parts.push(`<div class="today-list" style="padding:8px 12px">`);
-
-    for (const j of todayJobs) parts.push(jobRowHtml(j, techById));
-    parts.push(`</div>`);
-    content.innerHTML = parts.join('');
-    attachClickHandlers();
-  }
-
-  // One job row, shared by Today + List views.
-  function jobRowHtml(j, techById) {
-    const time = j.scheduled_start ? fmtTimeShort(j.scheduled_start) : '—';
-    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
-    const appl = (j.appliance_type || '').toLowerCase();
-    const brand = (j.brand || '').trim();
-    const city = (j.service_city || '').trim();
-    const status = (j.scheduling_status || '').toLowerCase();
-    const ct = (j.customer_type || '').toLowerCase();
-    const tech = techById[j.technician_id];
-    const techLabel = tech
-      ? `${(tech.first_name || '').trim()} ${(tech.last_name || '').trim().slice(0,1)}${tech.last_name ? '.' : ''}`.trim()
-      : 'unassigned';
-    let bk = 'self_pay';
-    if (ct === 'warranty') bk = 'warranty';
-    if (status === 'completed') bk = 'completed';
-    return `
-      <div class="today-row blk bk-${bk}" data-job-id="${j.id}" role="button" tabindex="0"
-           style="display:grid;grid-template-columns:80px 1fr auto;gap:12px;align-items:center;padding:12px 14px;margin:8px 0;border-radius:8px;cursor:pointer;min-height:48px">
-        <div style="font-family:var(--mono);font-weight:700;color:var(--text);font-size:14px">${escapeHtml(time)}</div>
-        <div>
-          <div style="font-weight:700;color:var(--text);font-size:14px">${escapeHtml(cust)}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:2px">
-            ${escapeHtml(appl)}${brand ? ' · ' + escapeHtml(brand) : ''}${city ? ' · ' + escapeHtml(city) : ''}
-          </div>
-          <div style="margin-top:3px">${partsBadge(j)}</div>
-        </div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">${escapeHtml(techLabel)}</div>
-      </div>`;
-  }
-
-  // HCP-style per-tech show/hide checklist. Renders "Select all" + Unassigned +
-  // every tech; tapping toggles that tech's jobs in EVERY view (week/today/list).
-  function renderTechFilter(allTechs) {
-    const el = document.getElementById('techFilter');
-    if (!el) return;
-    const chip = (id, label) => {
-      const off = hiddenTechs.has(id);
-      return `<button class="tfchip" data-tf="${id}" style="font:600 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid ${off ? 'var(--border-soft)' : 'var(--orange,#e8743b)'};background:${off ? 'transparent' : 'var(--orange,#e8743b)'};color:${off ? 'var(--muted)' : '#fff'}">${off ? '☐' : '☑'} ${escapeHtml(label)}</button>`;
+  $('addSubmitBtn').addEventListener('click', async () => {
+    const payload = {
+      intake_source: 'manual',
+      received_at_ms: Date.now(),
+      customer_first_name: $('addFirst').value.trim(),
+      customer_last_name: $('addLast').value.trim(),
+      customer_phone: $('addPhone').value.trim(),
+      service_address: $('addAddress').value.trim(),
+      service_city: $('addCity').value.trim(),
+      service_zip: $('addZip').value.trim(),
+      appliance_type: $('addAppliance').value.trim(),
+      brand: $('addBrand').value.trim(),
+      model_number: $('addModel').value.trim(),
+      problem_summary: $('addProblem').value.trim(),
+      warranty_company: $('addWarranty').value.trim(),
+      claim_number: $('addClaim').value.trim()
     };
-    const parts = [`<span style="font:700 12px/1 system-ui;color:var(--muted);align-self:center;margin-right:2px">Techs (tap one):</span>`,
-      `<button class="tfchip" data-tf="__all__" style="font:700 12px/1 system-ui;padding:6px 11px;border-radius:999px;cursor:pointer;border:1px solid var(--text);background:${hiddenTechs.size === 0 ? 'var(--text)' : 'transparent'};color:${hiddenTechs.size === 0 ? '#fff' : 'var(--text)'}">All techs</button>`];
-    parts.push(chip(0, 'Unassigned'));
-    for (const t of allTechs) { const nm = ((t.first_name || '') + ' ' + (t.last_name || '')).trim() || ('Tech ' + t.id); parts.push(chip(Number(t.id), nm)); }
-    el.innerHTML = parts.join(' ');
-    const allIds = [0, ...allTechs.map((t) => Number(t.id))];
-    el.querySelectorAll('.tfchip').forEach((b) => b.onclick = () => {
-      const v = b.dataset.tf;
-      if (v === '__all__') { hiddenTechs.clear(); }
-      else {
-        const id = Number(v);
-        // SOLO on click: show only this tech (see their schedule). Click the
-        // already-soloed tech again → back to all. "All techs" also restores.
-        const soloedToThis = !hiddenTechs.has(id) && hiddenTechs.size === (allIds.length - 1);
-        if (soloedToThis) hiddenTechs.clear();
-        else hiddenTechs = new Set(allIds.filter((x) => x !== id));
-      }
-      saveHidden();
-      if (dashboardData) render(dashboardData);
-    });
-  }
-
-  // List view: every job in the loaded range, grouped by day, chronological —
-  // honors the per-tech filter. The "List view" Danielle asked for.
-  function renderListView(data, techs, jobs) {
-    const techById = {}; for (const t of techs) techById[t.id] = t;
-    const trayHtml = (data.unscheduled && data.unscheduled.length && !hiddenTechs.has(0)) ? renderUnscheduled(data.unscheduled) : '';
-    const byDay = {};
-    for (const j of jobs) { const d = j.scheduled_start ? ctDateForMs(j.scheduled_start) : '~'; (byDay[d] = byDay[d] || []).push(j); }
-    const days = Object.keys(byDay).sort((a, b) => (a === '~' ? 1 : b === '~' ? -1 : a.localeCompare(b)));
-    if (!days.length) {
-      content.innerHTML = trayHtml + `<div class="today-empty" style="padding:48px 20px;text-align:center;color:var(--muted)"><div style="font-size:40px">🐜</div>No jobs in this range for the selected techs.</div>`;
-      attachClickHandlers(); return;
-    }
-    const parts = []; if (trayHtml) parts.push(trayHtml);
-    for (const d of days) {
-      const list = byDay[d].sort((a, b) => (a.scheduled_start || 0) - (b.scheduled_start || 0));
-      parts.push(`<div class="today-header" style="padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--border-soft)"><div style="font-family:var(--display);letter-spacing:0.05em;font-size:16px;color:var(--text)">${d === '~' ? 'No date set' : dayLabel(d)}</div><div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px">${list.length} ${list.length === 1 ? 'job' : 'jobs'}</div></div>`);
-      parts.push(`<div class="today-list" style="padding:8px 12px">`);
-      for (const j of list) parts.push(jobRowHtml(j, techById));
-      parts.push(`</div>`);
-    }
-    content.innerHTML = parts.join('');
-    attachClickHandlers();
-  }
-
-  function dayLabel(ymdStr) {
-    try { return parseYMD(ymdStr).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); } catch (_) { return ymdStr; }
-  }
-
-  // ── Nav ────────────────────────────────────────────────────────
-  prevWeek.addEventListener('click', () => stepWeek(-7));
-  nextWeek.addEventListener('click', () => stepWeek(7));
-
-  // Month arrows (top toolbar, HCP-style): jump the schedule a whole month.
-  // Lands on the 1st of that month so she sees that month forward.
-  function stepMonth(delta) {
-    const d = parseYMD(currentWeekStart);
-    const nd = new Date(d.getFullYear(), d.getMonth() + delta, 1);
-    currentWeekStart = ymd(nd);
-    updateUrl(); loadWeek();
-  }
-  $('prevMonth')?.addEventListener('click', () => stepMonth(-1));
-  $('nextMonth')?.addEventListener('click', () => stepMonth(1));
-
-  // View toggle. Today view re-renders the same loaded data — no extra fetch.
-  function setView(view) {
-    if (view !== 'week' && view !== 'today' && view !== 'list') return;
-    if (currentView === view) return;
-    currentView = view;
-    updateUrl();
-    if (dashboardData) render(dashboardData);
-    else loadWeek();
-  }
-  viewWeekBtn?.addEventListener('click', () => setView('week'));
-  viewTodayBtn?.addEventListener('click', () => setView('today'));
-  viewListBtn?.addEventListener('click', () => setView('list'));
-  todayBtn.addEventListener('click', () => {
-    if (!serverTodayCT) return;
-    currentWeekStart = serverTodayCT; // jump to today-forward, not the past week
-    updateUrl();
-    loadWeek();
-  });
-
-  // Jump-to-date: instantly go to ANY week — past (history) or future (scheduled).
-  // This is what makes past/present/future one tap instead of clicking ‹/› a dozen times.
-  const jumpDate = $('jumpDate');
-  jumpDate?.addEventListener('change', () => {
-    if (jumpDate.value) { currentWeekStart = jumpDate.value; updateUrl(); loadWeek(); }
-  });
-
-  function stepWeek(deltaDays) {
-    const d = parseYMD(currentWeekStart);
-    d.setDate(d.getDate() + deltaDays);
-    currentWeekStart = ymd(d);
-    updateUrl();
-    loadWeek();
-  }
-
-  // ── HCP-style mini month calendar (side picker) ────────────────
-  // Pick any day → the schedule shows that day forward. Browse months with ‹ ›
-  // without reloading; picking a day loads it. Today ring + selected-range fill.
-  let miniCalView = null; // Date = first of the displayed month
-  function startOfMonthOf(ymdStr) { const d = parseYMD(ymdStr); return new Date(d.getFullYear(), d.getMonth(), 1); }
-  function renderMiniCal() {
-    const host = $('miniCal'); if (!host) return;
-    if (!miniCalView) miniCalView = startOfMonthOf(currentWeekStart);
-    const y = miniCalView.getFullYear(), m = miniCalView.getMonth();
-    const startDow = new Date(y, m, 1).getDay();
-    const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const selStart = parseYMD(currentWeekStart);
-    const selStartStr = ymd(selStart);
-    const range = new Set();
-    for (let i = 0; i < 7; i++) { const d = new Date(selStart); d.setDate(d.getDate() + i); range.add(ymd(d)); }
-    const todayStr = serverTodayCT || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
-    const monthFull = new Date(y, m, 1).toLocaleString('en-US', { month: 'long' });
-    // Month header — INLINE-styled (no CSS-class dependency) so the month name + ‹ ›
-    // arrows always render, even if a class is overridden/stale on a given device.
-    const navBtn = 'border:1px solid #cfcfd8;background:#fff;border-radius:8px;width:36px;height:36px;font-size:22px;font-weight:800;line-height:1;cursor:pointer;color:#1a1a2e;flex:0 0 auto';
-    let h = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px">'
-      + '<button id="mcPrev" title="previous month" style="' + navBtn + '">‹</button>'
-      + '<div style="font-weight:800;font-size:17px;text-align:center;flex:1;color:#1a1a2e">' + monthFull + ' ' + y + '</div>'
-      + '<button id="mcNext" title="next month" style="' + navBtn + '">›</button>'
-      + '</div>'
-      + '<div class="mc-grid mc-dow">' + ['S','M','T','W','T','F','S'].map(d => '<div class="mc-dowcell">' + d + '</div>').join('') + '</div>'
-      + '<div class="mc-grid mc-days">';
-    for (let i = 0; i < startDow; i++) h += '<div class="mc-cell mc-empty"></div>';
-    for (let day = 1; day <= daysInMonth; day++) {
-      const ds = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-      const cls = ['mc-cell'];
-      if (range.has(ds)) cls.push('mc-inrange');
-      if (ds === selStartStr) cls.push('mc-sel');
-      if (ds === todayStr) cls.push('mc-today');
-      h += '<button class="' + cls.join(' ') + '" data-d="' + ds + '">' + day + '</button>';
-    }
-    h += '</div><button class="mc-today-btn" id="mcToday">Today</button>'
-      + '<div class="mc-hint">Tap a day to jump the schedule there · use ‹ › above to change month.</div>';
-    host.innerHTML = h;
-    $('mcPrev').onclick = () => { miniCalView = new Date(y, m - 1, 1); renderMiniCal(); };
-    $('mcNext').onclick = () => { miniCalView = new Date(y, m + 1, 1); renderMiniCal(); };
-    const tb = $('mcToday'); if (tb) tb.onclick = () => { if (serverTodayCT) { currentWeekStart = serverTodayCT; updateUrl(); loadWeek(); } };
-    host.querySelectorAll('.mc-cell[data-d]').forEach((b) => { b.onclick = () => { currentWeekStart = b.dataset.d; updateUrl(); loadWeek(); }; });
-  }
-
-  function updateUrl() {
-    const jd = document.getElementById('jumpDate');
-    if (jd && currentWeekStart) jd.value = currentWeekStart;   // keep the picker showing where we are
-    const url = new URL(window.location.href);
-    if (currentWeekStart && currentWeekStart === currentWeekOfDateStr(serverTodayCT)) {
-      url.searchParams.delete('week');
-    } else if (currentWeekStart) {
-      url.searchParams.set('week', currentWeekStart);
-    }
-    if (currentView === 'today' || currentView === 'list') url.searchParams.set('view', currentView);
-    else url.searchParams.delete('view');
-    window.history.replaceState({}, '', url.toString());
-  }
-
-  function currentWeekOfDateStr(dateStr) {
-    if (!dateStr) return null;
-    const d = parseYMD(dateStr);
-    // Walk back to Monday (ISO: Mon=1..Sun=7)
-    const dow = d.getDay();  // 0=Sun..6=Sat
-    const daysBack = dow === 0 ? 6 : dow - 1;
-    d.setDate(d.getDate() - daysBack);
-    return ymd(d);
-  }
-
-  // ── Utilities ──────────────────────────────────────────────────
-  function ymd(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
-  function parseYMD(s) {
-    if (!s) return new Date();
-    const [y, m, d] = s.split('-').map(Number);
-    return new Date(y, m - 1, d);
-  }
-
-  function ctDateForMs(ms) {
-    if (!ms) return null;
-    // Format the UTC ms in America/Chicago and extract Y-M-D
-    const f = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Chicago',
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    });
-    const parts = f.formatToParts(new Date(Number(ms)));
-    const m = {};
-    for (const p of parts) m[p.type] = p.value;
-    return `${m.year}-${m.month}-${m.day}`;
-  }
-
-  function fmtTime(ms) {
-    if (!ms) return '—';
-    return new Date(Number(ms)).toLocaleTimeString('en-US', {
-      timeZone: 'America/Chicago',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-  }
-
-  function fmtTimeShort(ms) {
-    if (!ms) return '';
-    // CT "HH:MM" (24h). 08:00 is the day-of routing placeholder (no real
-    // appointment time) -> show nothing so the grid doesn't imply a fake 8am.
-    const hm = new Date(Number(ms)).toLocaleTimeString('en-GB', { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit' });
-    if (hm === '08:00') return '';
-    const parts = hm.split(':');
-    const h = Number(parts[0]), m = Number(parts[1]);
-    const ap = h >= 12 ? 'pm' : 'am';
-    const h12 = ((h + 11) % 12) + 1;
-    return m === 0 ? (h12 + ap) : (h12 + ':' + String(m).padStart(2, '0') + ap);
-  }
-
-  function fmtDayShort(ms) {
-    if (!ms) return '—';
-    return new Date(Number(ms)).toLocaleDateString('en-US', {
-      timeZone: 'America/Chicago',
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
-
-  function fmtWeekRange(startStr, endStr) {
-    const s = parseYMD(startStr);
-    const e = parseYMD(endStr);
-    const sm = MONTHS[s.getMonth()];
-    const em = MONTHS[e.getMonth()];
-    if (sm === em) return `${sm} ${s.getDate()} – ${e.getDate()}, ${e.getFullYear()}`;
-    return `${sm} ${s.getDate()} – ${em} ${e.getDate()}, ${e.getFullYear()}`;
-  }
-
-  function escapeHtml(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  // ── Booking modal ──────────────────────────────────────────────
-  const bookingModal = document.getElementById('bookingModal');
-  const bookingForm = document.getElementById('bookingForm');
-  const bookingHeader = document.getElementById('bookingHeader');
-  const bookingError = document.getElementById('bookingError');
-  const bookingSubmit = document.getElementById('bookingSubmit');
-  const bookingCancel = document.getElementById('bookingCancel');
-
-  let bookingCtx = null;
-
-  function openBookingModal(ctx) {
-    bookingCtx = ctx;
-    bookingHeader.textContent = `Book — ${ctx.tech_name} · ${ctx.day_label}`;
-    bookingError.textContent = '';
-    bookingForm.reset();
-    bookingSubmit.disabled = false;
-    bookingSubmit.textContent = 'Book it';
-    bookingModal.classList.add('open');
-    setTimeout(() => document.getElementById('bookPhone').focus(), 40);
-  }
-
-  function closeBookingModal() {
-    bookingModal.classList.remove('open');
-    bookingCtx = null;
-  }
-
-  bookingCancel.addEventListener('click', closeBookingModal);
-  bookingModal.addEventListener('click', (e) => {
-    if (e.target === bookingModal) closeBookingModal();
-  });
-
-  function ctMs(dateStr, ctHour) {
-    // dateStr "YYYY-MM-DD"; ctHour 0-23 in America/Chicago.
-    // Use a UTC probe to find CT's current offset on that date (handles DST).
-    const probe = new Date(`${dateStr}T12:00:00Z`);
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Chicago',
-      timeZoneName: 'shortOffset',
-    }).formatToParts(probe);
-    const offsetStr = (parts.find((p) => p.type === 'timeZoneName') || {}).value || 'GMT-5';
-    const m = offsetStr.match(/GMT([+-]\d+)/);
-    const offsetHrs = m ? parseInt(m[1], 10) : -5;
-    const [y, mo, d] = dateStr.split('-').map(Number);
-    return Date.UTC(y, mo - 1, d, ctHour - offsetHrs, 0, 0);
-  }
-
-  bookingForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!bookingCtx) return;
-    bookingError.textContent = '';
-
-    const fd = new FormData(bookingForm);
-    const window = fd.get('time_window') || '';
-    if (!window) {
-      bookingError.textContent = 'Pick a time window.';
-      return;
-    }
-    const windowHour = window === '8-11am' ? 8 : window === '11am-2pm' ? 11 : window === '2-5pm' ? 14 : 8;
-    const windowEndHour = window === '8-11am' ? 11 : window === '11am-2pm' ? 14 : 17;
-    const scheduled_start_ms = ctMs(bookingCtx.date, windowHour);
-    const scheduled_end_ms = ctMs(bookingCtx.date, windowEndHour);
-
-    const first_name = (fd.get('first_name') || '').toString().trim();
-    const last_name = (fd.get('last_name') || '').toString().trim();
-    const phone = (fd.get('phone') || '').toString().trim();
-    const zip = (fd.get('zip') || '').toString().trim();
-    const appliance_type = (fd.get('appliance_type') || '').toString().trim();
-    const brand = (fd.get('brand') || '').toString().trim();
-    const problem_summary = (fd.get('problem_summary') || '').toString().trim();
-    const service_address = (fd.get('service_address') || '').toString().trim();
-    const service_city = (fd.get('service_city') || '').toString().trim();
-    const service_state = (fd.get('service_state') || '').toString().trim();
-    const customer_type = (fd.get('customer_type') || 'self_pay').toString();
-    const warranty_company = (fd.get('warranty_company') || '').toString().trim();
-
-    if (!first_name || !phone) {
-      bookingError.textContent = 'First name + phone are required.';
-      return;
-    }
-    if (!appliance_type || !problem_summary) {
-      bookingError.textContent = 'Appliance type + problem summary are required.';
-      return;
-    }
-
-    bookingSubmit.disabled = true;
-    bookingSubmit.textContent = 'Booking...';
+    if (!payload.customer_first_name && !payload.customer_phone) { showToast('Name or phone required', 'err'); return; }
+    $('addSubmitBtn').disabled = true;
     try {
-      const res = await fetch(`${XANO_BASE}/book_appointment_from_office`, {
+      const r = await fetch(XANO_BASE + '/create_job_from_email', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          first_name,
-          last_name,
-          phone,
-          zip,
-          email: '',
-          service_address,
-          service_city,
-          service_state,
-          appliance_type,
-          brand,
-          model_number: '',
-          problem_summary,
-          technician_id: parseInt(bookingCtx.tech_id, 10),
-          scheduled_start_ms,
-          scheduled_end_ms,
-          service_eta_window: window,
-          customer_type,
-          warranty_company,
-        }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        bookingError.textContent = (data && (data.error || data.message)) || `book failed (${res.status})`;
-        bookingSubmit.disabled = false;
-        bookingSubmit.textContent = 'Book it';
-        return;
-      }
-      closeBookingModal();
-      loadWeek();
-    } catch (err) {
-      bookingError.textContent = 'Network problem. Try again.';
-      bookingSubmit.disabled = false;
-      bookingSubmit.textContent = 'Book it';
-    }
-  });
-
-  // ── Manage-job modal (Reschedule / Reassign / Cancel) ──────────
-  const manageModal = document.getElementById('manageModal');
-  const manageHeader = document.getElementById('manageHeader');
-  const manageSubhead = document.getElementById('manageSubhead');
-  const manageError = document.getElementById('manageError');
-  const manageActions = document.getElementById('manageActions');
-  const manageRescheduleForm = document.getElementById('manageRescheduleForm');
-  const manageReassignForm = document.getElementById('manageReassignForm');
-  const manageCancelForm = document.getElementById('manageCancelForm');
-  const manageOpenDetail = document.getElementById('manageOpenDetail');
-  const manageClose = document.getElementById('manageClose');
-  const manageBack = document.querySelectorAll('.manage-back');
-
-  let manageJobId = null;
-
-  function openManageJobModal(jobId) {
-    const j = lastJobsById[jobId];
-    if (!j) {
-      alert('Job not found in current calendar view.');
-      return;
-    }
-    manageJobId = jobId;
-    const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
-    const time = j.scheduled_start ? fmtTime(j.scheduled_start) : 'no time';
-    const day = j.scheduled_start ? fmtDayShort(j.scheduled_start) : '';
-    manageHeader.textContent = `Job #${jobId} — ${cust}`;
-    manageSubhead.textContent = `${(j.appliance_type||'').toLowerCase()} · ${day} ${time}`;
-    manageError.textContent = '';
-    // Reset the action buttons. On a successful action they close the modal and
-    // reload BEFORE re-enabling, so without this reset they stay disabled for
-    // every job opened afterward (the "can't cancel others" bug).
-    [['cancelSubmit', 'Cancel job'], ['rescheduleSubmit', 'Schedule'], ['reassignSubmit', 'Reassign'], ['manageBtnUnschedule', '📤 Unschedule (back to needs-scheduled)']].forEach(([id, label]) => {
-      const el = document.getElementById(id);
-      if (el) { el.disabled = false; el.textContent = label; }
-    });
-    showManageView('actions');
-    manageOpenDetail.href = `office-board.html?job=${jobId}`;
-    // Pre-fill reschedule with current scheduled_start (CT)
-    if (j.scheduled_start) {
-      const d = new Date(j.scheduled_start);
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'America/Chicago',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      }).formatToParts(d);
-      const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
-      const dtVal = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-      document.getElementById('rescheduleAt').value = dtVal;
-    }
-    // Populate the reassign tech selector
-    const sel = document.getElementById('reassignTech');
-    sel.innerHTML = lastTechs
-      .filter((t) => t.id !== j.technician_id)
-      .map((t) => `<option value="${t.id}">${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
-      .join('') || '<option value="">No other techs</option>';
-    // Populate the schedule/reschedule tech selector (ALL techs; preselect the
-    // job's current tech so a pure time-change keeps the same tech).
-    const rsel = document.getElementById('rescheduleTech');
-    rsel.innerHTML = lastTechs
-      .map((t) => `<option value="${t.id}"${t.id === j.technician_id ? ' selected' : ''}>${escapeHtml((t.first_name || '').trim() + ' ' + (t.last_name || '').trim())} (#${t.id})</option>`)
-      .join('') || '<option value="">No techs</option>';
-    // Label the primary action by whether the job is already scheduled.
-    const isUnsched = !j.scheduled_start || !j.technician_id;
-    const rbtn = document.getElementById('manageBtnReschedule');
-    if (rbtn) rbtn.textContent = isUnsched ? 'Schedule' : 'Reschedule';
-    const rsub = document.getElementById('rescheduleSubmit');
-    if (rsub) rsub.textContent = isUnsched ? 'Schedule' : 'Reschedule';
-    document.getElementById('cancelReason').value = '';
-    manageModal.classList.add('open');
-  }
-
-  function closeManageJobModal() {
-    manageModal.classList.remove('open');
-    manageJobId = null;
-  }
-
-  function showManageView(view) {
-    manageActions.style.display = view === 'actions' ? 'grid' : 'none';
-    manageRescheduleForm.style.display = view === 'reschedule' ? 'block' : 'none';
-    manageReassignForm.style.display = view === 'reassign' ? 'block' : 'none';
-    manageCancelForm.style.display = view === 'cancel' ? 'block' : 'none';
-    manageError.textContent = '';
-  }
-
-  manageClose.addEventListener('click', closeManageJobModal);
-  manageModal.addEventListener('click', (e) => {
-    if (e.target === manageModal) closeManageJobModal();
-  });
-  manageBack.forEach((btn) => btn.addEventListener('click', () => showManageView('actions')));
-
-  document.getElementById('manageBtnReschedule').addEventListener('click', () => showManageView('reschedule'));
-  document.getElementById('manageBtnReassign').addEventListener('click', () => showManageView('reassign'));
-  document.getElementById('manageBtnCancel').addEventListener('click', () => showManageView('cancel'));
-  document.getElementById('manageBtnUnschedule').addEventListener('click', async () => {
-    if (!manageJobId) return;
-    if (!confirm('Take this job off the schedule and send it back to Needs Scheduled? (It is NOT canceled — you can re-schedule it anytime.)')) return;
-    const btn = document.getElementById('manageBtnUnschedule');
-    btn.disabled = true; btn.textContent = 'Unscheduling…';
-    try {
-      const res = await fetch('/.netlify/functions/unschedule-job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: manageJobId }) });
-      const data = await res.json().catch(() => ({}));
-      if (data && data.ok) { closeManageJobModal(); loadWeek(); }
-      else { manageError.textContent = (data && data.error) || 'Could not unschedule.'; btn.disabled = false; btn.textContent = '📤 Unschedule (back to needs-scheduled)'; }
-    } catch (_) { manageError.textContent = 'Network problem. Try again.'; btn.disabled = false; btn.textContent = '📤 Unschedule (back to needs-scheduled)'; }
-  });
-
-  function localDatetimeToMs(value) {
-    // value like "2026-05-26T14:30" — interpret as America/Chicago wall time.
-    const [datePart, timePart] = value.split('T');
-    const [h, m] = timePart.split(':').map(Number);
-    // Convert CT wall-time to ms using ctMs (defined above for booking modal).
-    return ctMs(datePart, h) + m * 60000;
-  }
-
-  manageRescheduleForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!manageJobId) return;
-    const dtValue = document.getElementById('rescheduleAt').value;
-    if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
-    const newStartMs = localDatetimeToMs(dtValue);
-    const techId = Number(document.getElementById('rescheduleTech').value || 0);
-    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
-    // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
-    // before the parts are due to arrive.
-    const mj = lastJobsById[manageJobId];
-    if (mj && mj.parts_eta_date) {
-      let eta = mj.parts_eta_date;
-      if (typeof eta === 'number') eta = ctDateForMs(eta);
-      eta = String(eta).slice(0, 10);
-      const chosenDay = ctDateForMs(newStartMs);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(eta) && chosenDay < eta) {
-        manageError.textContent = `Parts aren't due until ${eta} — can't schedule before then. Pick ${eta} or later.`;
-        return;
-      }
-    }
-    const btn = e.submitter || document.getElementById('rescheduleSubmit');
-    btn.disabled = true; btn.textContent = 'Saving...';
-    try {
-      // danielle_schedule_parallel_job sets tech + time, transitions
-      // not_ready -> scheduled, and fires the tech confirmation — works for
-      // both first-time scheduling and rescheduling in one call.
-      const res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
+      const d = await r.json();
+      if (d.success) {
+        showToast('Added ✓', 'ok');
+        addModal.classList.remove('show');
+        ['addFirst','addLast','addPhone','addAddress','addCity','addZip','addAppliance','addBrand','addModel','addProblem','addWarranty','addClaim'].forEach(id => $(id).value = '');
+        load();
       } else {
-        closeManageJobModal(); loadWeek(); return;
+        showToast(d.error || 'Failed', 'err');
       }
-    } catch (err) {
-      manageError.textContent = 'Network problem. Try again.';
+    } catch (e) {
+      showToast('Network error', 'err');
+    } finally {
+      $('addSubmitBtn').disabled = false;
     }
-    btn.disabled = false; btn.textContent = 'Reschedule';
   });
-
-  manageReassignForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!manageJobId) return;
-    const techId = Number(document.getElementById('reassignTech').value);
-    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
-    const btn = e.submitter || document.getElementById('reassignSubmit');
-    btn.disabled = true; btn.textContent = 'Reassigning...';
-    try {
-      const res = await fetch(`${XANO_BASE}/reassign_job`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, technician_id: techId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        manageError.textContent = (data && (data.error || data.message)) || `Reassign failed (${res.status})`;
-      } else {
-        closeManageJobModal(); loadWeek(); return;
-      }
-    } catch (err) {
-      manageError.textContent = 'Network problem. Try again.';
-    }
-    btn.disabled = false; btn.textContent = 'Reassign';
-  });
-
-  manageCancelForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!manageJobId) return;
-    if (!confirm('Cancel this job? This cannot be undone from here.')) return;
-    const reason = (document.getElementById('cancelReason').value || '').trim();
-    const btn = e.submitter || document.getElementById('cancelSubmit');
-    btn.disabled = true; btn.textContent = 'Canceling...';
-    try {
-      const res = await fetch(`${XANO_BASE}/cancel_job`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, reason }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        manageError.textContent = (data && (data.error || data.message)) || `Cancel failed (${res.status})`;
-      } else {
-        closeManageJobModal(); loadWeek(); return;
-      }
-    } catch (err) {
-      manageError.textContent = 'Network problem. Try again.';
-    }
-    btn.disabled = false; btn.textContent = 'Cancel job';
-  });
-
-  // ── Boot ───────────────────────────────────────────────────────
-  tryUnlock();
-}
-if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', __initCalendar); } else { __initCalendar(); }
+})();
 </script>
-
-<style>
-  .book-cell { cursor: pointer; }
-  .book-cell.cap-off { cursor: not-allowed; }
-  .blk { cursor: grab; }
-  .blk.dragging { opacity: 0.45; cursor: grabbing; }
-  .cell.drag-over { outline: 2px dashed #39ff14; outline-offset: -2px; background: rgba(57,255,20,0.08); }
-  .cal-summary { display: flex; align-items: center; gap: 6px; padding: 9px 14px; font-family: 'Geist Mono', monospace; font-size: 13px; color: #cdd6e4; background: #11161d; border-bottom: 1px solid #1f2a37; }
-  .cal-summary .cs-strong { font-weight: 800; color: #fff; }
-  .cal-summary .cs-strong.cs-warn { color: #f5a623; }
-  .cal-summary .cs-sep { opacity: 0.4; margin: 0 4px; }
-  .cal-summary .cs-label { color: #8a94a6; }
-  .cal-summary:empty { display: none; }
-  .cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px; font-family: 'Geist Mono', monospace; font-size: 11px; color: #aaa; border-bottom: 1px solid #1f2a37; }
-  .cal-legend .lg { display: inline-flex; align-items: center; gap: 6px; }
-  .cal-legend .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-  .cal-legend .sw-warranty { background: var(--violet); }
-  .cal-legend .sw-self { background: var(--green); }
-  .cal-legend .sw-done { background: var(--muted); opacity: 0.6; }
-  .cal-legend .lg-note { color: #6b7785; margin-left: auto; }
-  #bookingModal {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-    display: none; align-items: flex-start; justify-content: center;
-    z-index: 9000; overflow-y: auto; padding: 30px 16px;
-  }
-  #bookingModal.open { display: flex; }
-  #bookingCard {
-    width: 100%; max-width: 480px;
-    background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 10px;
-    padding: 22px 20px; color: #f0f0f0; font-family: 'Geist Mono', monospace;
-  }
-  #bookingHeader {
-    font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em;
-    font-size: 18px; margin: 0 0 14px; color: #f6cf45;
-  }
-  #bookingForm label {
-    display: block; font-size: 10px; letter-spacing: 0.08em;
-    text-transform: uppercase; color: #999; margin: 10px 0 4px;
-  }
-  #bookingForm input, #bookingForm select, #bookingForm textarea {
-    width: 100%; box-sizing: border-box;
-    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
-    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
-  }
-  #bookingForm textarea { resize: vertical; min-height: 60px; }
-  #bookingForm input:focus, #bookingForm select:focus, #bookingForm textarea:focus {
-    outline: none; border-color: #f6cf45;
-  }
-  .book-row { display: flex; gap: 8px; }
-  .book-row > div { flex: 1; }
-  .book-windows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .book-windows label {
-    display: block; padding: 8px 0; text-align: center;
-    background: #050505; border: 1px solid #2a2a2a; border-radius: 6px;
-    cursor: pointer; font-size: 12px; letter-spacing: 0.04em;
-    text-transform: none; color: #f0f0f0; margin: 0;
-  }
-  .book-windows input[type="radio"] { display: none; }
-  .book-windows input[type="radio"]:checked + label {
-    background: #f6cf45; color: #050505; border-color: #f6cf45;
-  }
-  #bookingButtons {
-    display: flex; gap: 8px; margin-top: 18px;
-  }
-  #bookingSubmit, #bookingCancel {
-    flex: 1; padding: 10px; border: none; border-radius: 6px;
-    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
-    letter-spacing: 0.06em; cursor: pointer;
-  }
-  #bookingSubmit { background: #f6cf45; color: #050505; }
-  #bookingSubmit[disabled] { opacity: 0.5; cursor: wait; }
-  #bookingCancel { background: #2a2a2a; color: #f0f0f0; }
-  #bookingError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
-
-  /* Job blocks behave as buttons now (not anchors) */
-  .blk[role="button"] { cursor: pointer; }
-  .blk[role="button"]:hover { outline: 1px solid #f6cf45; }
-  .blk[role="button"]:focus-visible { outline: 2px solid #f6cf45; }
-
-  /* Manage-job modal */
-  #manageModal {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-    display: none; align-items: flex-start; justify-content: center;
-    z-index: 9000; overflow-y: auto; padding: 30px 16px;
-  }
-  #manageModal.open { display: flex; }
-  #manageCard {
-    width: 100%; max-width: 440px;
-    background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 10px;
-    padding: 22px 20px; color: #f0f0f0; font-family: 'Geist Mono', monospace;
-  }
-  #manageHeader {
-    font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.04em;
-    font-size: 18px; margin: 0 0 4px; color: #f6cf45;
-  }
-  #manageSubhead {
-    font-size: 12px; color: #999; margin: 0 0 16px;
-  }
-  #manageActions {
-    display: grid; gap: 8px;
-  }
-  .manage-action {
-    width: 100%; padding: 12px;
-    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
-    border-radius: 6px; cursor: pointer;
-    font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.06em;
-    text-align: left;
-  }
-  .manage-action:hover { border-color: #f6cf45; color: #f6cf45; }
-  .manage-action.danger:hover { border-color: #ff6b6b; color: #ff6b6b; }
-  #manageActions .open-detail {
-    display: block; padding: 12px;
-    background: transparent; color: #999; border: 1px dashed #2a2a2a;
-    border-radius: 6px; text-decoration: none;
-    font-family: 'Bebas Neue', sans-serif; font-size: 13px; letter-spacing: 0.06em;
-    text-align: center;
-  }
-  #manageActions .open-detail:hover { color: #f0f0f0; border-color: #555; }
-
-  #manageRescheduleForm, #manageReassignForm, #manageCancelForm { display: none; }
-  #manageCard label {
-    display: block; font-size: 10px; letter-spacing: 0.08em;
-    text-transform: uppercase; color: #999; margin: 10px 0 4px;
-  }
-  #manageCard input, #manageCard select, #manageCard textarea {
-    width: 100%; box-sizing: border-box;
-    background: #050505; color: #f0f0f0; border: 1px solid #2a2a2a;
-    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
-  }
-  #manageCard textarea { resize: vertical; min-height: 60px; }
-  #manageCard input:focus, #manageCard select:focus, #manageCard textarea:focus {
-    outline: none; border-color: #f6cf45;
-  }
-  .manage-buttons { display: flex; gap: 8px; margin-top: 14px; }
-  .manage-buttons button {
-    flex: 1; padding: 10px; border: none; border-radius: 6px;
-    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
-    letter-spacing: 0.06em; cursor: pointer;
-  }
-  .manage-buttons .primary { background: #f6cf45; color: #050505; }
-  .manage-buttons .primary[disabled] { opacity: 0.5; cursor: wait; }
-  .manage-buttons .primary.danger { background: #ff6b6b; color: #050505; }
-  .manage-buttons .back { background: #2a2a2a; color: #f0f0f0; }
-  #manageClose {
-    position: absolute; top: 36px; right: 28px;
-    background: transparent; color: #999; border: none; cursor: pointer;
-    font-size: 22px; line-height: 1;
-  }
-  #manageClose:hover { color: #f0f0f0; }
-  #manageCard { position: relative; }
-  #manageError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
-</style>
-
-<div id="manageModal" role="dialog" aria-modal="true">
-  <div id="manageCard">
-    <button id="manageClose" type="button" aria-label="close">×</button>
-    <h3 id="manageHeader">Job</h3>
-    <p id="manageSubhead"></p>
-
-    <div id="manageActions">
-      <button class="manage-action" id="manageBtnReschedule" type="button">Reschedule</button>
-      <button class="manage-action" id="manageBtnReassign" type="button">Reassign tech</button>
-      <button class="manage-action" id="manageBtnUnschedule" type="button">📤 Unschedule (back to needs-scheduled)</button>
-      <button class="manage-action danger" id="manageBtnCancel" type="button">Cancel job</button>
-      <a id="manageOpenDetail" class="open-detail" href="#">Open full detail ↗</a>
-    </div>
-
-    <form id="manageRescheduleForm">
-      <label>Tech</label>
-      <select id="rescheduleTech" required></select>
-      <label>Date + time (CT)</label>
-      <input type="datetime-local" id="rescheduleAt" required>
-      <div class="manage-buttons">
-        <button type="button" class="back manage-back">Back</button>
-        <button type="submit" class="primary" id="rescheduleSubmit">Schedule</button>
-      </div>
-    </form>
-
-    <form id="manageReassignForm">
-      <label>New tech</label>
-      <select id="reassignTech" required></select>
-      <div class="manage-buttons">
-        <button type="button" class="back manage-back">Back</button>
-        <button type="submit" class="primary" id="reassignSubmit">Reassign</button>
-      </div>
-    </form>
-
-    <form id="manageCancelForm">
-      <label>Reason (optional)</label>
-      <textarea id="cancelReason" placeholder="e.g. customer rescheduled, duplicate, AHS pulled it"></textarea>
-      <div class="manage-buttons">
-        <button type="button" class="back manage-back">Back</button>
-        <button type="submit" class="primary danger" id="cancelSubmit">Cancel job</button>
-      </div>
-    </form>
-
-    <p id="manageError"></p>
-  </div>
-</div>
-
-<div id="bookingModal" role="dialog" aria-modal="true">
-  <div id="bookingCard">
-    <h3 id="bookingHeader">Book</h3>
-    <form id="bookingForm">
-      <label>Time window</label>
-      <div class="book-windows">
-        <input type="radio" id="bw1" name="time_window" value="8-11am">
-        <label for="bw1">8-11am</label>
-        <input type="radio" id="bw2" name="time_window" value="11am-2pm">
-        <label for="bw2">11am-2pm</label>
-        <input type="radio" id="bw3" name="time_window" value="2-5pm">
-        <label for="bw3">2-5pm</label>
-      </div>
-
-      <label for="bookPhone">Customer phone</label>
-      <input type="tel" id="bookPhone" name="phone" autocomplete="off" placeholder="615-280-2949" required>
-
-      <div class="book-row">
-        <div>
-          <label for="bookFirst">First name</label>
-          <input type="text" id="bookFirst" name="first_name" autocomplete="off" required>
-        </div>
-        <div>
-          <label for="bookLast">Last name</label>
-          <input type="text" id="bookLast" name="last_name" autocomplete="off">
-        </div>
-      </div>
-
-      <div class="book-row">
-        <div>
-          <label for="bookAppliance">Appliance</label>
-          <select id="bookAppliance" name="appliance_type" required>
-            <option value="">— pick one —</option>
-            <option value="refrigerator">Refrigerator</option>
-            <option value="washer">Washer</option>
-            <option value="dryer">Dryer</option>
-            <option value="dishwasher">Dishwasher</option>
-            <option value="range">Range</option>
-            <option value="oven">Oven</option>
-            <option value="microwave">Microwave</option>
-          </select>
-        </div>
-        <div>
-          <label for="bookBrand">Brand</label>
-          <input type="text" id="bookBrand" name="brand" autocomplete="off" placeholder="Whirlpool, LG, ...">
-        </div>
-      </div>
-
-      <label for="bookProblem">Problem summary</label>
-      <textarea id="bookProblem" name="problem_summary" required placeholder="not cooling, leaking, etc."></textarea>
-
-      <div class="book-row">
-        <div>
-          <label for="bookAddr">Service address</label>
-          <input type="text" id="bookAddr" name="service_address" autocomplete="off">
-        </div>
-        <div>
-          <label for="bookZip">Zip</label>
-          <input type="text" id="bookZip" name="zip" autocomplete="off">
-        </div>
-      </div>
-
-      <div class="book-row">
-        <div>
-          <label for="bookCity">City</label>
-          <input type="text" id="bookCity" name="service_city" autocomplete="off">
-        </div>
-        <div>
-          <label for="bookState">State</label>
-          <input type="text" id="bookState" name="service_state" autocomplete="off" maxlength="2" placeholder="TN">
-        </div>
-      </div>
-
-      <div class="book-row">
-        <div>
-          <label for="bookCustType">Customer type</label>
-          <select id="bookCustType" name="customer_type">
-            <option value="self_pay">Self-pay</option>
-            <option value="warranty">Warranty</option>
-            <option value="cash">Cash</option>
-          </select>
-        </div>
-        <div>
-          <label for="bookWarranty">Warranty company</label>
-          <input type="text" id="bookWarranty" name="warranty_company" autocomplete="off" placeholder="AHS, SquareTrade, ...">
-        </div>
-      </div>
-
-      <div id="bookingError" role="alert"></div>
-
-      <div id="bookingButtons">
-        <button type="button" id="bookingCancel">Cancel</button>
-        <button type="submit" id="bookingSubmit">Book it</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script src="/office-nav.js?v=20260703e"></script>
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260703i"></script>
@@ -2681,111 +952,17 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <script src="/office-jobs-map.js?v=20260703-7"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
-<script>window.AntTalkReload=function(){ try{ location.reload(); }catch(_){} };</script>
-<script src="/ant-talk.js?v=1"></script>
-<script src="/ant-shell.js?v=20260612-1" defer></script>
 <script>
-/* Layout fix: the injected office nav (#office-topnav, z:9000) sits at the very top
-   and was covering the .topbar (week + month nav) and the top of the schedule/
-   mini-calendar (Teddy: "hidden under the search bar"). Stack everything BELOW the
-   nav at runtime by measuring its real height. Re-runs on resize. */
 (function(){
-  function fitBelowNav(){
-    var nav=document.getElementById('office-topnav');
-    var tb=document.querySelector('.topbar');
-    var sc=document.getElementById('scroll');
-    if(!nav) return false;
-    var navH=nav.offsetHeight||0;
-    if(tb){ tb.style.top=navH+'px'; }
-    var tbH=tb?tb.offsetHeight:60;
-    var below=(navH+tbH)+'px';
-    if(sc){ sc.style.top=below; }
-    var ld=document.getElementById('loading'); if(ld && ld.style.inset){ ld.style.inset=below+' 0 0 0'; }
-    return true;
-  }
-  function tryFit(n){ if(fitBelowNav()) { /* one more pass after fonts/wrap settle */ setTimeout(fitBelowNav,120); return; } if(n<60) setTimeout(function(){tryFit(n+1);},50); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){tryFit(0);});
-  else tryFit(0);
-  window.addEventListener('load',fitBelowNav);
-  window.addEventListener('resize',function(){ clearTimeout(window.__fitT); window.__fitT=setTimeout(fitBelowNav,80); });
-})();
-
-/* HCP-style board: a narrow LEFT RAIL — MAP on top, MONTH calendar under it,
-   then the scrolling needs-scheduling CUSTOMERS — beside a large week grid. The
-   grid re-renders #content on every load, so we re-run after each render
-   (guarded so our own DOM moves don't loop). (Teddy 2026-07-03) */
-(function(){
-  var relocating=false;
-  function relocate(){
-    if(relocating) return; relocating=true;
-    try{
-      var scroll=document.getElementById('scroll'); if(!scroll) return;
-      var content=document.getElementById('content'); if(!content) return;
-
-      // Left rail = first child of .scroll (the week grid #content stays to its right).
-      var rail=document.getElementById('cal-rail');
-      if(!rail){ rail=document.createElement('aside'); rail.id='cal-rail'; }
-      if(scroll.firstElementChild!==rail){ scroll.insertBefore(rail, scroll.firstChild); }
-
-      var mapc=document.getElementById('railMap');
-      if(!mapc){ mapc=document.createElement('div'); mapc.id='railMap'; }   // office-jobs-map docks in here
-      var mini=document.getElementById('miniCal');
-      var q=document.getElementById('railQueue');
-      if(!q){ q=document.createElement('div'); q.id='railQueue'; }
-
-      // Order the rail top→bottom: MAP, MONTH calendar, CUSTOMERS. appendChild
-      // moves an existing node to the end, so this sequence fixes the order.
-      rail.appendChild(mapc);
-      if(mini) rail.appendChild(mini);
-      rail.appendChild(q);
-
-      // Fill the customers list with the freshly-rendered tray.
-      var hasRender=!!content.querySelector('.calendar, .cal-row, .today-header, .empty');
-      var tray=content.querySelector('.unscheduled-tray');
-      if(tray){ q.innerHTML=''; q.appendChild(tray); }
-      else if(hasRender){ q.innerHTML=''; }
-
-      // Publish exactly which jobs the calendar considers "needs scheduling"
-      // (its tray) so the MAP only pins those — not the whole backlog. Reload
-      // the map only when the set actually changes. (Teddy 2026-07-03)
-      try{
-        var ids=new Set();
-        q.querySelectorAll('.unsched-item[data-job-id]').forEach(function(el){ ids.add(String(el.getAttribute('data-job-id'))); });
-        var sig=Array.from(ids).sort().join(',');
-        if(sig!==window.__antUnschedSig){
-          window.__antUnschedSig=sig; window.__antUnscheduledIds=ids;
-          if(window.AntJobsMap && window.AntJobsMap.reload) window.AntJobsMap.reload();
-        }
-      }catch(_){}
-    } finally { setTimeout(function(){ relocating=false; }, 0); }
-  }
-  function boot(){
-    var content=document.getElementById('content');
-    if(content){ try{ new MutationObserver(relocate).observe(content,{childList:true}); }catch(_){} }
-    relocate();
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
-  window.addEventListener('load', relocate);
-  setTimeout(relocate, 600);
-})();
-
-/* The top toolbar is gone (see .topbar display:none) — keep "+ New Job" by
-   dropping it into the office-nav pill row, up top with the rest. (Teddy
-   2026-07-03: "slide the New Job button up with the pills.") */
-(function(){
-  var t=0;
-  function addNewJobPill(){
-    var nav=document.getElementById('office-topnav');
-    if(!nav){ if(t++<80) setTimeout(addNewJobPill,40); return; }
-    if(document.getElementById('nav-newjob')) return;
-    var a=document.createElement('a');
-    a.id='nav-newjob'; a.href='book.html';
-    a.textContent='＋ New Job';
-    a.style.cssText='flex-shrink:0;white-space:nowrap;text-decoration:none;background:rgba(57,217,138,0.16);border:2px solid rgba(57,217,138,0.6);color:#39d98a;padding:10px 16px;border-radius:22px;font-size:14px;font-weight:800;line-height:1;';
-    nav.appendChild(a);
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addNewJobPill); else addNewJobPill();
+  var card=document.getElementById('helpCard'),btn=document.getElementById('helpHide');
+  try{ if(localStorage.getItem('tn_sched_help_hidden')==='1'&&card) card.style.display='none'; }catch(_){}
+  if(btn) btn.onclick=function(){ if(card)card.style.display='none'; try{localStorage.setItem('tn_sched_help_hidden','1');}catch(_){} };
+  // Let Talk-to-Ant refresh the list after it schedules/assigns something
+  // (clicks the refresh button, which is wired to the page's load()).
+  window.AntTalkReload=function(){ try{ var b=document.getElementById('refreshBtn'); if(b) b.click(); }catch(_){} };
 })();
 </script>
+<script src="/ant-talk.js?v=1"></script>
+<script src="/ant-shell.js?v=20260612-1" defer></script>
 </body>
 </html>
