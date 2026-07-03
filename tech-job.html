@@ -290,6 +290,9 @@ async function loadOfficeNotes(){
       return '<div style="padding:9px 0;border-top:1px solid rgba(0,0,0,0.06)"><div style="font-size:11px;color:#9a7b2e;font-weight:700;margin-bottom:2px">'+esc(when)+' · '+esc(n.by||'office')+'</div><div style="font-size:14.5px;color:#5a4410;line-height:1.45;white-space:pre-wrap">'+esc(n.text)+'</div></div>';
     }).join('');
     card.style.display='';
+    // Read receipt — tell the office he's seen these notes (so Danielle can prove
+    // it landed on his side). Fire-and-forget. (Teddy 2026-07-03)
+    try{ fetch('/.netlify/functions/office-note-seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(JOB_ID,10),tech_id:parseInt(TECH_ID,10)||0})}); }catch(_){}
   }catch(_){}
 }
 

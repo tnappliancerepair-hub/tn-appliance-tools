@@ -1369,35 +1369,54 @@
     renderDateHeader(data.date_ct, data.today_ct);
     renderDateNav(data.date_ct, data.today_ct);
     renderSummary(data);
-    renderOfficeNotesDigest(data.jobs || []);
     renderJobs(data.jobs || []);
     renderMap(data.jobs || []);
+    hydrateOfficeNotes(data.jobs || []);
   }
 
-  // All of the office's notes across the tech's jobs, in one place — so he can
-  // scan every "pick up the part here / offer the hose / etc." at a glance, and
-  // tap through to the job. (Teddy 2026-07-03)
-  async function renderOfficeNotesDigest(jobs) {
-    const host = $('officeNotesDigest'); if (!host) return;
+  // Office notes across the tech's day, fetched once, shown TWO ways (Teddy 7/3):
+  //  (1) a one-liner amber bar ON each job card, so scrolling his 6 jobs gives a
+  //      bird's-eye read ("1 vent hose · 2 washer fill hoses · special event"),
+  //  (2) a "Notes from the office" digest up top with tap-through per job.
+  async function hydrateOfficeNotes(jobs) {
     const list = (jobs || []).filter((it) => it && it.job && it.job.id);
+    const host = $('officeNotesDigest');
+    if (!list.length) { if (host) host.innerHTML = ''; return; }
     const ids = list.map((it) => it.job.id);
-    if (!ids.length) { host.innerHTML = ''; return; }
     let byJob = {};
-    try { const d = await fetch('/.netlify/functions/office-notes?job_ids=' + ids.join(','), { cache: 'no-store' }).then((r) => r.json()); byJob = (d && d.by_job) || {}; } catch (_) {}
-    const withNotes = list.filter((it) => Array.isArray(byJob[it.job.id]) && byJob[it.job.id].length);
-    if (!withNotes.length) { host.innerHTML = ''; return; }
-    const total = withNotes.reduce((s, it) => s + byJob[it.job.id].length, 0);
-    host.innerHTML = '<div style="background:#fff8e8;border:1px solid #f0c674;border-radius:12px;padding:12px 14px;margin:0 0 14px">'
-      + '<div style="font-weight:800;color:#8a6410;font-size:14px;margin-bottom:8px">📋 Notes from the office (' + total + ')</div>'
-      + withNotes.map(function (it) {
-          const nm = it.customer || ('Job #' + it.job.id);
-          const notes = byJob[it.job.id];
-          return '<div style="padding:8px 0;border-top:1px solid rgba(0,0,0,0.06)">'
-            + '<a href="tech-job.html?job_id=' + it.job.id + '&tech_id=' + encodeURIComponent(TECH_ID) + '" style="text-decoration:none;color:#8a6410;font-weight:700;font-size:13px">' + pkEsc(nm) + ' ›</a>'
-            + notes.map(function (n) { return '<div style="font-size:13.5px;color:#5a4410;line-height:1.45;margin-top:3px;white-space:pre-wrap">• ' + pkEsc(n.text) + '</div>'; }).join('')
-            + '</div>';
-        }).join('')
-      + '</div>';
+    try { const d = await fetch('/.netlify/functions/office-notes?job_ids=' + ids.join(','), { cache: 'no-store' }).then((r) => r.json()); byJob = (d && d.by_job) || {}; } catch (_) { return; }
+
+    // (1) one-liner ON each card
+    list.forEach(function (it, i) {
+      const notes = byJob[it.job.id];
+      if (!Array.isArray(notes) || !notes.length) return;
+      const card = $('card-' + i); if (!card) return;
+      if (card.querySelector('.office-note-line')) return; // don't double-inject on re-render
+      const line = notes.map(function (n) { return String(n.text || '').replace(/\s+/g, ' ').trim(); }).filter(Boolean).join(' · ');
+      const el = document.createElement('div');
+      el.className = 'office-note-line';
+      el.style.cssText = 'background:#fff3d0;border:1px solid #f0c674;border-radius:9px;padding:8px 11px;margin:9px 0 2px;font-size:13.5px;color:#7a5410;font-weight:700;line-height:1.4;white-space:pre-wrap';
+      el.innerHTML = '📋 Office: ' + escapeHtml(line);
+      card.appendChild(el);
+    });
+
+    // (2) the digest up top
+    if (host) {
+      const withNotes = list.filter((it) => Array.isArray(byJob[it.job.id]) && byJob[it.job.id].length);
+      if (!withNotes.length) { host.innerHTML = ''; return; }
+      const total = withNotes.reduce((s, it) => s + byJob[it.job.id].length, 0);
+      host.innerHTML = '<div style="background:#fff8e8;border:1px solid #f0c674;border-radius:12px;padding:12px 14px;margin:0 0 14px">'
+        + '<div style="font-weight:800;color:#8a6410;font-size:14px;margin-bottom:8px">📋 Notes from the office (' + total + ')</div>'
+        + withNotes.map(function (it) {
+            const nm = it.customer || ('Job #' + it.job.id);
+            const notes = byJob[it.job.id];
+            return '<div style="padding:8px 0;border-top:1px solid rgba(0,0,0,0.06)">'
+              + '<a href="tech-job.html?job_id=' + it.job.id + '&tech_id=' + encodeURIComponent(TECH_ID) + '" style="text-decoration:none;color:#8a6410;font-weight:700;font-size:13px">' + pkEsc(nm) + ' ›</a>'
+              + notes.map(function (n) { return '<div style="font-size:13.5px;color:#5a4410;line-height:1.45;margin-top:3px;white-space:pre-wrap">• ' + pkEsc(n.text) + '</div>'; }).join('')
+              + '</div>';
+          }).join('')
+        + '</div>';
+    }
   }
 
   function renderDateHeader(dateCT, todayCT) {

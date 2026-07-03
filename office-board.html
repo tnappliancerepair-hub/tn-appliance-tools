@@ -361,10 +361,20 @@ async function loadStages(){
     CHECK_MAP=(d&&d.checklists)||{};
   }catch(_){STAGE_MAP={};CHECK_MAP={};}
 }
+// Which jobs have an office note (so the tile shows a "📋 note" flag — Danielle's
+// proof she sent it, without opening the drawer). (Teddy 2026-07-03)
+let OFFICE_NOTE_JOBS=new Set();
+async function loadOfficeNoteFlags(){
+  try{
+    const d=await fetch('/.netlify/functions/office-notes',{cache:'no-store'}).then(r=>r.json());
+    const byJob=(d&&d.by_job)||{};
+    OFFICE_NOTE_JOBS=new Set(Object.keys(byJob).map(Number));
+  }catch(_){ OFFICE_NOTE_JOBS=new Set(); }
+}
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages()]);
+    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages(),loadOfficeNoteFlags()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
@@ -595,6 +605,7 @@ function cardHtml(j){
   else if(_vCompl) tags.push('<span class="tag" style="background:#e6f7ef;color:#0a7d4a;border:1px solid #7fd3a3;font-weight:800">🔧 COMPLETION</span>');
   else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 DIAGNOSIS</span>');
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
+  if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
   if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
   // Only label "cash" for an actual self-pay job. A blank warranty_company does
   // NOT mean cash — we're a warranty shop (no cash jobs), so a missing vendor is
@@ -1175,6 +1186,7 @@ function renderDrawer(d){
       <h4>🏢 Office notes</h4>
       <div style="font-size:12px;color:var(--ink2);margin:-2px 0 8px">Notes to the tech + office (part ETAs, where to pick up parts, upsells to offer like a hose, instructions). These show on the assigned tech's job <b>and</b> his daily dashboard, and Ant sees the latest on a call.</div>
       ${officeNotes.length?officeNotes.map(function(n){return '<div class="notes-box" style="margin-bottom:6px"><div style="font-size:11px;color:var(--ink2);margin-bottom:3px">'+esc(fmtWhen(n.at))+' · '+esc(n.by)+'</div>'+esc(n.text)+'</div>';}).join(''):'<div class="notes-box muted">No office notes yet.</div>'}
+      <div id="office-notes-status" style="font-size:12px;font-weight:700;margin-top:6px"></div>
       <textarea id="office-note-input" placeholder="e.g. Frontdoor: part ordered on eBay, 5–7 days ETA (per CSC Leah 7/1)" style="width:100%;min-height:64px;margin-top:8px;padding:10px;border:1px solid var(--line,#d5dae2);border-radius:8px;background:#fff;color:#1a2230;font-family:inherit;font-size:14px;resize:vertical"></textarea>
       <button onclick="saveOfficeNote(${jid})" style="width:100%;margin-top:6px;padding:11px;border:0;border-radius:9px;background:var(--ok,#39d98a);color:#062;font-weight:800;font-size:14px;cursor:pointer">＋ Add office note</button>
     </div>
@@ -1270,6 +1282,7 @@ function renderDrawer(d){
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
   loadWarrantyParts(jid, j.claim_number||'');
+  loadOfficeNoteStatus(jid);
   loadPartsLocation(jid);
   loadPayStatus(jid);
 }
@@ -1787,6 +1800,26 @@ async function fulfillAddon(jobId,key,name,techCut){
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtWhen(ms){ if(!ms)return ''; try{ return new Date(Number(ms)).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' CT'; }catch(_){return '';} }
+// Read-receipt line under the office notes: proof it was sent + whether the tech
+// has opened it since. So if a tech says "never got it," Danielle sees "✓ seen
+// by <tech>" right here. (Teddy 2026-07-03)
+async function loadOfficeNoteStatus(jid){
+  const el=document.getElementById('office-notes-status'); if(!el) return;
+  el.innerHTML='';
+  try{
+    const d=await fetch('/.netlify/functions/office-notes?job_id='+encodeURIComponent(jid),{cache:'no-store'}).then(r=>r.json());
+    const notes=(d&&d.notes)||[]; if(!notes.length){ el.innerHTML=''; return; }
+    const lastNote=notes[notes.length-1].ts||0;
+    const seen=d&&d.seen;
+    if(seen && seen.at>=lastNote){
+      el.innerHTML='<span style="color:#0a7d33">✓ Seen by '+esc(seen.by||'the tech')+' · '+esc(fmtWhen(seen.at))+'</span>';
+    } else if(seen && seen.at){
+      el.innerHTML='<span style="color:#b3690a">📤 Sent · '+esc(seen.by||'tech')+' last opened '+esc(fmtWhen(seen.at))+' (before the newest note)</span>';
+    } else {
+      el.innerHTML='<span style="color:#b3690a">📤 Sent — not opened by the tech yet</span>';
+    }
+  }catch(_){ el.innerHTML=''; }
+}
 // Office note: office-authored, DB-persisted, timestamped. Saved via the shared
 // save-office-note fn (writes the event_log 'office_note' row AND stamps the job
 // so Ant can read the latest note to a caller). Then reload the drawer.
