@@ -49,6 +49,7 @@
   .badge.outbound { background: rgba(76,167,255,0.15); color: var(--info); border: 1px solid rgba(76,167,255,0.35); }
   .badge.voicemail { background: rgba(240,180,80,0.15); color: var(--warn); border: 1px solid rgba(240,180,80,0.35); }
   .badge.completed { background: rgba(74,217,145,0.10); color: var(--accent); border: 1px solid rgba(74,217,145,0.25); }
+  .badge.failed { background: rgba(139,145,156,0.14); color: var(--muted); border: 1px solid rgba(139,145,156,0.35); }
   .meta { color: var(--muted); font-size: 12px; font-family: var(--mono); }
   .summary { margin-top: 8px; color: #cfd6e0; font-size: 13px; line-height: 1.45; }
   .transcript-toggle { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; letter-spacing: 0.05em; margin-top: 8px; }
@@ -188,6 +189,10 @@ async function loadCalls() {
       c._isInbound = !(c._meta.source && String(c._meta.source).includes('_auto') || String(c._meta.called_phone || '').startsWith('+1'));
       c._endedReason = String(c._meta.ended_reason || '').toLowerCase();
       c._isVoicemail = c._endedReason.includes('voicemail') || c._endedReason.includes('no-answer') || c._endedReason.includes('silence-timed-out');
+      // A call that never actually connected — carrier/transport/provider fault,
+      // usually a spam or robocaller that hit the line and dropped. NOT a real
+      // "completed" call; badge it neutrally + humanize the summary. (Teddy 2026-07-03)
+      c._isFailed = !c._isVoicemail && /never-connected|provider-?fault|transport|pipeline-error|assistant-error|dial.*fail|customer-busy/.test(c._endedReason);
       c._isReviewed = reviewed.has(c._meta.vapi_call_id);
       // Tech-side (Field Assist / TDR) call vs a customer call. Primary signal:
       // the caller/called number belongs to the crew. Fallback: field-assist
@@ -246,9 +251,14 @@ function paintList() {
     const tsStr = ts.toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
     const dur = Math.round((m.duration_sec || 0) / 60 * 10) / 10;
     const caller = m.caller_phone || m.to_phone || '?';
-    const summary = (m.summary || m.transcript_preview || '').slice(0, 280).replace(/\s+/g, ' ').trim() || '(no summary)';
+    let summary = (m.summary || m.transcript_preview || '').slice(0, 280).replace(/\s+/g, ' ').trim() || '(no summary)';
+    // Never-connected calls (or any row whose "summary" is just a raw Vapi status
+    // string like call.in-progress.error-providerfault-...) get a plain-English line
+    // instead of the scary dotted error. Nothing to action on these. (Teddy 2026-07-03)
+    const looksRaw = /^call\.(in-progress|ended|ringing|forwarding)|provider-?fault|never-connected|transport-never/i.test(summary);
+    if (c._isFailed || looksRaw) summary = '☎️ Call never connected — carrier/transport error (usually a spam or robocaller that dropped). Nothing to do.';
     const dirBadge = c._isInbound ? '<span class="badge inbound">inbound</span>' : '<span class="badge outbound">outbound</span>';
-    const endedBadge = c._isVoicemail ? '<span class="badge voicemail">voicemail</span>' : '<span class="badge completed">completed</span>';
+    const endedBadge = c._isFailed ? '<span class="badge failed">not connected</span>' : (c._isVoicemail ? '<span class="badge voicemail">voicemail</span>' : '<span class="badge completed">completed</span>');
     const reviewBadge = c._needsReview ? '<span class="badge" style="background:rgba(240,180,80,0.18);color:#f0b450;border:1px solid rgba(240,180,80,0.4)">⚠️ needs review</span>' : (c._isReviewed ? '<span class="badge" style="background:rgba(74,217,145,0.10);color:#4ad991;border:1px solid rgba(74,217,145,0.25)">✓ reviewed</span>' : '');
     const transcriptId = `t-${c.id}`;
     const callerEnc = encodeURIComponent(caller);
