@@ -184,6 +184,11 @@
       const ct = cls === 'internal' ? (recipient.endsWith('4855795') ? 'owner' : 'tech') : 'customer';
       return { direction: 'out', counterparty: ct };
     }
+    // The AI/office reply back to the customer — an outbound customer message
+    // (without this it classified 'unknown' and could drop from the thread).
+    if (a === 'customer_sms_reply') {
+      return { direction: 'out', counterparty: 'customer' };
+    }
     if (a === 'sms_gated' || a === 'dropped_customer_sms') {
       return { direction: 'out', counterparty: 'customer', blocked: true };
     }
@@ -210,7 +215,7 @@
       if (filterFor === 'tech' && c.counterparty === 'owner') continue;
       // Skip internal-to-internal noise on tech lens (owner alerts etc)
       const md = m.metadata || {};
-      const body = (md.body_preview || md.body || md.response || '').trim();
+      const body = (md.body_preview || md.body || md.response || md.message || md.text || md.reply || '').trim();
       if (!body && !c.blocked) continue;
       items.push({ row: m, cls: c, body });
     }
@@ -235,9 +240,21 @@
 
   async function fetchSmsThread(jobId, hoursBack) {
     const h = Number(hoursBack || 720);
-    const r = await fetch(`${XANO_BASE}/get_sms_thread_for_job?job_id=${jobId}&hours_back=${h}`, { cache: 'no-store' });
-    const d = await r.json();
-    return (d && d.messages) || [];
+    // Phone-keyed thread (Netlify): returns the WHOLE conversation — inbound +
+    // outbound + replies — not just rows tagged with this job_id. The old
+    // get_sms_thread_for_job matched by job_id, but outbound sms_sent rows carry
+    // no job_id, so it only showed a fragment. (Jimmy 2026-07-04.)
+    try {
+      const r = await fetch(`/.netlify/functions/sms-thread?job_id=${jobId}&hours_back=${h}`, { cache: 'no-store' });
+      const d = await r.json();
+      if (d && Array.isArray(d.messages)) return d.messages;
+    } catch (_) {}
+    // Fallback to the legacy XS endpoint if the function is unavailable.
+    try {
+      const r2 = await fetch(`${XANO_BASE}/get_sms_thread_for_job?job_id=${jobId}&hours_back=${h}`, { cache: 'no-store' });
+      const d2 = await r2.json();
+      return (d2 && d2.messages) || [];
+    } catch (_) { return []; }
   }
 
   async function mountSmsThread(jobId, mountElOrId, opts) {
