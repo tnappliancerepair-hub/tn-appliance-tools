@@ -104,6 +104,12 @@
     function reset() { input.value = ''; clearTimeout(debounceTimer); hide(); if (clearBtn) clearBtn.style.display = 'none'; }
     function syncClear() { if (clearBtn) clearBtn.style.display = input.value ? 'block' : 'none'; }
 
+    // Start EMPTY every load and after a back-nav — the browser likes to restore
+    // the last search ("ford") into the box, which made the dropdown feel like it
+    // "kept coming back." It now only appears when you actually type.
+    reset();
+    window.addEventListener('pageshow', reset);
+
     input.addEventListener('input', () => {
       const q = input.value.trim();
       syncClear();

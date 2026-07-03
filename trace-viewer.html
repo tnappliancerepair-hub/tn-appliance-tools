@@ -31,7 +31,7 @@
 <meta name="twitter:description" content="Honest appliance help from TN Appliance Exchange.">
 <meta name="twitter:image" content="https://tnapplianceexchange.net/og-image.jpg">
 <!-- /ANT-SOCIAL -->
-<script src="/office-search.js?v=20260701-resolve"></script>
+<script src="/office-search.js?v=20260703f"></script>
 <style>
   :root { --bg: #0d0e10; --fg: #d4d6dc; --muted: #7b7f8a; --accent: #74e3c4; --warn: #f5b150; --err: #f56e6e; --line: #1d1f24; --row: #14161b; }
   * { box-sizing: border-box; }
@@ -106,7 +106,7 @@ async function verifyGate() {
   finally { gateBtn.disabled = false; }
 }
 
-// office-search.js?v=20260701-resolve injects this function — fallback inline if not present
+// office-search.js?v=20260703f injects this function — fallback inline if not present
 async function __verifyOfficePassword(p) {
   try {
     const r = await fetch(XANO_BASE + '/verify_office_password', {
