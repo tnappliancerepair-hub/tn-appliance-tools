@@ -160,7 +160,10 @@
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
     markerLayer = L.layerGroup().addTo(map);
     leafletReady = true;
-    setTimeout(() => map.invalidateSize(), 60);
+    // Re-measure a few times as the flex layout settles so tiles fill the
+    // container (avoids the thin/black-strip look when it's docked in a rail).
+    [60, 250, 600, 1200].forEach(ms => setTimeout(() => { try { map.invalidateSize(); } catch (_) {} }, ms));
+    if (window.ResizeObserver && panel) { try { new ResizeObserver(() => { try { map.invalidateSize(); } catch (_) {} }).observe(panel); } catch (_) {} }
     loadJobs();
   }
 
