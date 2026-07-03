@@ -120,7 +120,12 @@ async function buildFacts(r, officeNote) {
     part_eta: dayCT(job.part_eta || job.parts_eta_date),
     part_number: (tdr && tdr.verified_part_number) || '',
     failed_component: (tdr && tdr.failed_component) || '',
+    diagnosis: (tdr && tdr.diagnosis) || '',
     pre_diagnosis: preDiag,
+    // Ready-to-say line for warranty reps who ask to close out the claim so they
+    // can issue a recall (Teddy 7/3): don't close it — we finish on the original
+    // claim; funnel the customer into a text to us so they land back on schedule.
+    recall_redirect: `No need to close this out for a recall — we're happy to come back out on the original claim. The fastest way: have ${(cust && cust.first_name) || 'the customer'} text us at 615-588-9500 with their info and we'll get them right back on our schedule. Saves everyone the time and paperwork.`,
     availability: (job.customer_preference_text || '').trim(),
     access_notes: (job.access_notes || '').trim(),
     address: [job.service_address, job.service_city, job.service_state, job.service_zip].filter(Boolean).join(', '),
@@ -144,16 +149,38 @@ function lensCustomer(f) {
   if (/scheduled/.test(f.status) || f.scheduled_day) return f.scheduled_day ? `You're scheduled with ${t} for ${f.scheduled_day}. We run day-of routing, so you'll get a live arrival window that morning.` : `You're scheduled with ${t} — you'll get a live window the morning of.`;
   return `We've got ${ap} and it's in our scheduling queue — we'll set a day shortly and text you to confirm.`;
 }
+// Warranty rep lens — answer the whole status in ONE breath (Teddy 7/3): reps
+// call to check the same 5-6 things, so volunteer everything we have to end the
+// call in one turn — has the tech been out, what we found, the part + ETA, and
+// the return/scheduled day. (The recall close-out redirect is f.recall_redirect,
+// used as a conversational branch when they ask to close out for a recall.)
 function lensWarranty(f) {
-  const who = f.customer_first || 'the customer', ap = 'the ' + f.appliance, t = f.tech_name || 'a tech';
-  let base;
-  if (/complete|done/.test(f.status)) base = `This repair is completed and closed${f.part_number ? ' (part ' + f.part_number + ')' : ''}. If ${ap} is acting up again it must come back as a RECALL from ${f.warranty_company || 'the warranty company'} — we can't reschedule until it's re-dispatched.`;
-  else if (/await|part|order/.test(f.status)) base = `Diagnosed; awaiting part${f.part_number ? ' ' + f.part_number : ''}${f.part_eta ? ' (ETA ' + f.part_eta + ')' : ''}. We schedule the install as soon as it lands.`;
-  else if (/in_progress|started/.test(f.status)) base = `${t} is on site now for ${who}.`;
-  else if (/scheduled/.test(f.status) || f.scheduled_day) base = `${who} is scheduled with ${t}${f.scheduled_day ? ' for ' + f.scheduled_day : ''} (day-of routing; live window the morning of).`;
-  else if (/cancel/.test(f.status)) base = `Status is being confirmed by our office — do not treat as canceled; we'll update the claim shortly.`;
-  else base = `Received and in our scheduling queue; a day is being set.`;
-  return base + (f.office_note ? ` Latest note: ${f.office_note}` : '');
+  const who = f.customer_first || 'the customer', t = f.tech_name || 'our tech';
+  const done = /complete|done/.test(f.status);
+  const awaiting = /await|part|order/.test(f.status);
+  const inprog = /in_progress|started/.test(f.status);
+  const scheduled = /scheduled/.test(f.status) || !!f.scheduled_day;
+  const canceled = /cancel/.test(f.status);
+  const finding = f.failed_component || f.diagnosis || '';
+  const beenOut = done || inprog || awaiting || !!finding;
+  const bits = [];
+
+  // 1) has the tech been out?
+  if (done) bits.push(`Yes — ${t} has been out and this repair is completed and closed${f.part_number ? ' (part ' + f.part_number + ')' : ''}.`);
+  else if (inprog) bits.push(`${t} is on site with ${who} right now.`);
+  else if (beenOut) bits.push(`Yes, ${t} has already been out and diagnosed it.`);
+  else if (scheduled) bits.push(`Not out yet — ${who} is scheduled with ${t}${f.scheduled_day ? ' for ' + f.scheduled_day : ''}; we run day-of routing, so they get a live arrival window that morning.`);
+  else if (canceled) bits.push(`Status is being confirmed by our office — please don't treat this as canceled; we'll update the claim shortly.`);
+  else bits.push(`Not out yet — it's in our scheduling queue and we're setting a day.`);
+
+  // 2) what we found (skip on completed — already implied)
+  if (finding && !done) bits.push(`We found ${finding}.`);
+
+  // 3) part + ETA + the return
+  if (awaiting) bits.push(`The part${f.part_number ? ' (' + f.part_number + ')' : ''} is on order${f.part_eta ? ', ETA ' + f.part_eta : ''}, and we go straight back to install the moment it lands.`);
+  else if (scheduled && !done && f.scheduled_day) bits.push(`We're set to return ${f.scheduled_day}.`);
+
+  return bits.join(' ') + (f.office_note ? ` Latest office note: ${f.office_note}.` : '');
 }
 function lensTech(f) {
   const bits = [];

@@ -95,7 +95,11 @@ async function jobTruthAnswer(name, a) {
   if (d && d.found) {
     const f = d.facts || {};
     // Only safe fields (part_eta is a DATE, never a part #). No internal notes.
-    return { found: true, answer: (d.lenses && d.lenses[lens]) || '', status: f.status, scheduled_day: f.scheduled_day, part_eta: f.part_eta, tech: f.tech_name };
+    // recall_redirect only for the warranty lens — the line to say if a rep asks
+    // to close out the claim for a recall (don't; customer texts us instead).
+    const out = { found: true, answer: (d.lenses && d.lenses[lens]) || '', status: f.status, scheduled_day: f.scheduled_day, part_eta: f.part_eta, tech: f.tech_name };
+    if (lens === 'warranty' && f.recall_redirect) out.recall_redirect = f.recall_redirect;
+    return out;
   }
   return { found: false, answer: (d && d.reason) || "I don't see that one in our system yet — I can take the details and have someone confirm." };
 }
