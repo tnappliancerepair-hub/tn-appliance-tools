@@ -1013,18 +1013,22 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
-      <h4>🔧 TDR — diagnosis &amp; parts <span style="font-weight:400;font-size:11px;color:var(--ink2)">${tdr.id?'· edit + save':'· no report filed yet'}</span></h4>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <label style="font-size:11px;color:var(--ink2);font-weight:700">Diagnosis</label>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h4 style="margin:0">🔧 TDR — diagnosis &amp; parts <span style="font-weight:400;font-size:11px;color:var(--ink2)">${tdr.id?'· edit any time':'· fill it in'}</span></h4>
+        <button type="button" onclick="copyTdrAll()" style="font-size:11px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card2,#eef2f7);color:var(--ink,#111);cursor:pointer;font-weight:800;white-space:nowrap">📋 Copy all</button>
+      </div>
+      ${tdr.id?'':'<div style="font-size:12px;color:var(--ink2);margin:6px 0 2px">No report filed yet — type what we know and hit Save to file it. You can always fix it later.</div>'}
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+        ${tdrLabel('Diagnosis','td-diag')}
         <textarea id="td-diag" rows="2" placeholder="what's wrong" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.diagnosis||'')}</textarea>
-        <label style="font-size:11px;color:var(--ink2);font-weight:700">Failed part</label>
+        ${tdrLabel('Failed part','td-comp')}
         <input id="td-comp" value="${esc(tdr.failed_component||'')}" placeholder="e.g. bake element, control board" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
-        <label style="font-size:11px;color:var(--ink2);font-weight:700">Part #</label>
+        ${tdrLabel('Part #','td-part')}
         <input id="td-part" value="${esc(tdr.verified_part_number||'')}" placeholder="OEM part number" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
-        <label style="font-size:11px;color:var(--ink2);font-weight:700">Tech notes</label>
+        ${tdrLabel('Tech notes','td-notes')}
         <textarea id="td-notes" rows="2" placeholder="notes" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.technician_notes||'')}</textarea>
         <div style="font-size:12px;color:var(--ink2)">Parts status: <b>${esc((j.parts_status||'—').replace(/_/g,' '))}</b>${tdr.labor_time_hours!=null?(' · Labor '+esc(String(tdr.labor_time_hours))+' hr'):''}</div>
-        ${tdr.id?`<button onclick="saveTdr(${tdr.id},${jid})" style="margin-top:2px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">💾 Save TDR</button>`:'<div style="font-size:12px;color:var(--ink2)">No report filed yet — once the tech submits one it becomes editable here.</div>'}
+        <button onclick="saveTdr(${tdr.id||0},${jid},${j.technician_id||0})" style="margin-top:2px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${tdr.id?'💾 Save TDR':'💾 File report'}</button>
       </div>
     </div>
 
@@ -1321,13 +1325,50 @@ async function saveJobInfo(id){
   openDrawer(String(id)); // reload the job file with the new values
   loadBoard();
 }
+// Label row with a one-tap copy button (Danielle pastes these into warranty
+// portals / vendor orders and shouldn't have to hand-select each box). Teddy 7/3.
+function tdrLabel(txt,id){
+  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+    + '<label style="font-size:11px;color:var(--ink2);font-weight:700">'+txt+'</label>'
+    + '<button type="button" onclick="copyField(\''+id+'\',this)" style="font-size:11px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);cursor:pointer;font-weight:700;white-space:nowrap">📋 Copy</button>'
+    + '</div>';
+}
+function copyField(id,btn){
+  const el=document.getElementById(id); if(!el) return;
+  const v=(el.value||'').trim();
+  if(!v){ toast('Nothing to copy'); return; }
+  const done=()=>{ if(btn){const o=btn.innerHTML;btn.innerHTML='✓ Copied';setTimeout(()=>{btn.innerHTML=o;},1000);} };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(v).then(done).catch(()=>{ el.focus();el.select();try{document.execCommand('copy');done();}catch(_){toast('Copy failed');} }); }
+  else { el.focus();el.select();try{document.execCommand('copy');done();}catch(_){toast('Copy failed');} }
+}
+function copyTdrAll(){
+  const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const parts=[]; if(g('td-diag'))parts.push('Diagnosis: '+g('td-diag')); if(g('td-comp'))parts.push('Failed part: '+g('td-comp')); if(g('td-part'))parts.push('Part #: '+g('td-part')); if(g('td-notes'))parts.push('Notes: '+g('td-notes'));
+  if(!parts.length){ toast('Nothing to copy yet'); return; }
+  const txt=parts.join('\n');
+  const done=()=>toast('Full TDR copied ✓');
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done).catch(()=>toast('Copy failed')); }
+  else { const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(_){toast('Copy failed');}document.body.removeChild(ta); }
+}
 // Office edits the TDR (diagnosis / failed part / part # / notes) — free-flowing so
 // a mistake (like a report on the wrong tile, or a missing part #) gets fixed fast.
-// Saves each field via set-tdr-field (Netlify, no Mac deploy). (Teddy 2026-07-02)
-async function saveTdr(tdrId, jid){
-  if(!tdrId){ toast('No report to edit yet'); return; }
-  const g=(x)=>{const el=document.getElementById(x);return el?el.value:'';};
+// Edits an existing report field-by-field via set-tdr-field; if none exists yet,
+// FILES one via create_tdr so a "no report" job isn't a dead end. (Teddy 7/3)
+async function saveTdr(tdrId, jid, techId){
+  const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
   const fields={diagnosis:g('td-diag'),failed_component:g('td-comp'),verified_part_number:g('td-part'),technician_notes:g('td-notes')};
+  if(!tdrId){
+    // No report on this job yet — create one from what Danielle typed.
+    if(!Object.values(fields).some(v=>v)){ toast('Type at least one field first'); return; }
+    toast('Filing report…');
+    try{
+      const body={job_id:parseInt(jid,10),diagnosis:fields.diagnosis,failed_component:fields.failed_component,verified_part_number:fields.verified_part_number,technician_notes:fields.technician_notes};
+      if(techId)body.technician_id=parseInt(techId,10);
+      const d=await postJSON('create_tdr',body);
+      toast(d&&d.tdr?'Report filed ✓':'⚠ could not file report');
+    }catch(_){ toast('⚠ could not file report'); }
+    openDrawer(String(jid)); return;
+  }
   toast('Saving TDR…');
   let ok=true;
   for(const f of Object.keys(fields)){
