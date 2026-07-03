@@ -16,7 +16,10 @@
   const NAV = [
     { id: 'today',     label: '🐜 Today',    href: '/office-today.html',     color: '#b48cff' },
     { id: 'messages',  label: '💬 Messages', href: '/office-messages.html',  color: '#5aa9ff' },
-    { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
+    // 'Schedule Check' (schedule-sanity) retired 2026-07-03 — its one signal
+    // (jobs past their time, not marked done) already shows as the ⏰ OVERDUE
+    // flag + status pill on the board tiles. (Teddy + Danielle: "not sure what
+    // it's for, we can remove it for now.") Page kept; revisit if needed.
     { id: 'cashleads', label: '💵 Cash Leads', href: '/cash-leads.html', color: '#39d98a' },
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
     // 'Crew Today' (office-route) retired 2026-07-03 — its live job status now
