@@ -254,6 +254,23 @@
   <div class="dwrap" id="d-body"></div>
 </div>
 
+<!-- Inline customer text thread — opens over the board when 💬 Messages is tapped.
+     Shows the full SMS history + a reply box, no navigation. (Teddy 2026-07-03) -->
+<div id="smsThread" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.35)" onclick="if(event.target===this)closeThread()">
+  <div style="position:absolute;right:0;top:0;bottom:0;width:min(460px,96vw);background:#fff;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(0,0,0,.25)">
+    <div style="padding:13px 15px;border-bottom:1px solid #e6e9ef;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0"><div id="st-name" style="font-weight:800;font-size:16px;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Customer</div><div id="st-phone" style="font-size:12px;color:#6b7280"></div></div>
+      <a id="st-native" href="#" style="font-size:12px;font-weight:700;color:#1f6df0;text-decoration:none;white-space:nowrap">📱 Phone app</a>
+      <button onclick="closeThread()" style="background:transparent;border:0;color:#6b7280;font-size:22px;cursor:pointer;padding:0 2px;line-height:1">✕</button>
+    </div>
+    <div id="st-body" style="flex:1;overflow-y:auto;padding:12px 14px;background:#f6f8fb"></div>
+    <div style="padding:10px;border-top:1px solid #e6e9ef;display:flex;gap:8px;align-items:flex-end">
+      <textarea id="st-reply" rows="2" placeholder="Type a reply — Ant translates &amp; sends" style="flex:1;padding:9px;border-radius:9px;border:1px solid #d5dae2;font-size:14px;resize:none;font-family:inherit"></textarea>
+      <button id="st-send" onclick="sendThreadReply()" style="background:#0a7d33;color:#fff;border:0;border-radius:9px;padding:0 16px;height:44px;font-weight:800;cursor:pointer;white-space:nowrap">Send</button>
+    </div>
+  </div>
+</div>
+
 <button id="ask-ant-fab" onclick="openAnt()" title="Talk to Ant">💬 Talk to Ant</button>
 
 <div class="scrim" id="ant-scrim" onclick="closeAnt()"></div>
@@ -732,19 +749,55 @@ function backToMessages(){
     if(from==='messages' && history.length>1){ history.back(); return; } }catch(_){}
   location.href='/office-messages.html';
 }
-// The drawer's 💬 Messages button opens THIS customer's text thread (with full
-// history) so Danielle can respond right there — not the generic list. It carries
-// both the job id and the phone so Messages can auto-open the thread however the
-// texts were keyed. (Teddy 2026-07-03)
+// The drawer's 💬 Messages button opens THIS customer's text thread RIGHT HERE —
+// an inline slide-over with the full SMS history + a reply box. No navigating to
+// another screen; she reads + responds in place. (Teddy 2026-07-03)
+function stFmtPh(p){ const d=String(p||'').replace(/\D/g,'').slice(-10); return d.length===10?d.replace(/(\d{3})(\d{3})(\d{4})/,'($1) $2-$3'):(p||''); }
+function stRel(ts){ if(!ts)return''; const d=new Date(ts); const t=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (Date.now()-ts<86400000)?t:(d.toLocaleDateString([], {month:'short',day:'numeric'})+' '+t); }
 function openCustomerThread(){
   const j=window.__drawerJob||{}, c=window.__drawerCust||{};
-  const jid=Number(j.id)||0;
-  const ph=String(c.phone||j.customer_phone||'').replace(/\D/g,'').slice(-10);
-  let url='/office-messages.html?from=board';
-  if(jid)url+='&job='+jid;
-  if(ph)url+='&phone='+ph;
-  location.href=url;
+  window.__threadJob=Number(j.id)||0;
+  window.__threadPhone=String(c.phone||j.customer_phone||'').replace(/\D/g,'').slice(-10);
+  const nm=((c.first_name||'')+' '+(c.last_name||'')).trim()||(document.getElementById('d-name')||{}).textContent||'Customer';
+  document.getElementById('st-name').textContent=nm;
+  document.getElementById('st-phone').textContent=window.__threadPhone?stFmtPh(window.__threadPhone):'no phone on file';
+  const nat=document.getElementById('st-native'); if(nat){ if(window.__threadPhone){nat.style.display='';nat.href='sms:+1'+window.__threadPhone;} else nat.style.display='none'; }
+  document.getElementById('st-body').innerHTML='<div style="color:#6b7280;text-align:center;padding:24px">Loading conversation…</div>';
+  document.getElementById('smsThread').style.display='block';
+  loadThread();
 }
+function renderThreadBubbles(msgs){
+  const IN=new Set(['inbound_customer_sms_received']); const HELD=new Set(['sms_gated','dropped_customer_sms']);
+  if(!msgs||!msgs.length) return '<div style="color:#6b7280;font-size:13px;text-align:center;padding:24px">No texts with this customer yet. Type below to start the conversation.</div>';
+  return msgs.map(m=>{
+    const md=m.metadata||{}; const inb=IN.has(m.action); const held=HELD.has(m.action);
+    const body=(md.body||md.message||md.text||md.reply||md.body_preview||md.translated||'').toString();
+    const txt=body?esc(body):(held?'(held by the customer-SMS gate)':'(no text)');
+    const bg=inb?'#eceff3':(held?'#fdf3df':'#daf3e4'); const lbl=inb?'Customer':(held?'Ant (held)':'Us / Ant');
+    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:82%;background:'+bg+';border-radius:13px;padding:8px 11px"><div style="font-size:10.5px;color:#8a93a1;margin-bottom:2px">'+lbl+' · '+stRel(m.ts_ms)+'</div><div style="font-size:14px;color:#1a2230;line-height:1.4;white-space:pre-wrap;word-break:break-word">'+txt+'</div></div></div>';
+  }).join('');
+}
+async function loadThread(){
+  const jid=window.__threadJob||0, ph=window.__threadPhone||''; const q=[];
+  if(jid)q.push('job_id='+jid); if(ph)q.push('phone='+ph);
+  if(!q.length){ document.getElementById('st-body').innerHTML='<div style="color:#6b7280;text-align:center;padding:24px">No job or phone to look up.</div>'; return; }
+  let msgs=[];
+  try{ const r=await fetch('/.netlify/functions/sms-thread?'+q.join('&'),{cache:'no-store'}); const d=await r.json(); msgs=(d&&d.messages)||[]; }catch(_){}
+  const body=document.getElementById('st-body'); if(!body)return; body.innerHTML=renderThreadBubbles(msgs); body.scrollTop=body.scrollHeight;
+}
+async function sendThreadReply(){
+  const ph=window.__threadPhone||''; if(!ph){toast('No phone on file to text');return;}
+  const ta=document.getElementById('st-reply'); const msg=(ta.value||'').trim(); if(!msg)return;
+  const btn=document.getElementById('st-send'); btn.disabled=true; const ob=btn.textContent; btn.textContent='…';
+  try{
+    const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+ph,reply_english:msg,customer_text:''})});
+    const d=await r.json();
+    if(d&&d.ok){ ta.value=''; toast('Sent ✓'); setTimeout(loadThread,700); }
+    else toast('⚠ '+((d&&d.error)||'could not send — check customer texting is on'));
+  }catch(_){ toast('⚠ connection error'); }
+  btn.disabled=false; btn.textContent=ob;
+}
+function closeThread(){ const el=document.getElementById('smsThread'); if(el)el.style.display='none'; }
 // 📷 Load the job's photos + video into the drawer so the office sees what the tech
 // AND the customer uploaded (shared between all sides; office-only view). Danielle
 // can open/download them to attach to an invoice. Source = qc_cockpit_load (signed
