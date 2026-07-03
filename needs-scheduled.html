@@ -630,7 +630,7 @@
         ${j.problem_summary ? `<div class="addr">${escapeHtml(j.problem_summary).slice(0, 200)}</div>` : ''}
         <div class="ant-ghost" data-id="${j.id}" data-zip="${escapeHtml(j.service_zip || '')}" data-brand="${escapeHtml(j.brand || '')}" data-appl="${escapeHtml(j.appliance || '')}"></div>
         <div class="actions">
-          <a class="btn-open-job" href="/job-detail.html?job_id=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
+          <a class="btn-open-job" href="/office-board.html?job=${j.id}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;display:inline-block;margin-right:6px">📋 Open job</a>
           <button class="schedule" data-id="${j.id}" data-name="${escapeHtml(name)}" data-appl="${escapeHtml(j.appliance)}" data-zip="${escapeHtml(j.service_zip || '')}">Schedule</button>
           <button class="btn-complete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(76,201,192,0.4);color:#4cc9c0;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">✓ Done/Archive</button>
           <button class="btn-delete" data-id="${j.id}" data-name="${escapeHtml(name)}" style="background:transparent;border:1px solid rgba(255,107,107,0.45);color:#ff6b6b;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;margin-left:6px">🗑 Delete</button>
@@ -638,14 +638,16 @@
       </div>`;
     }).join('');
 
-    // Make whole row clickable → open job detail (except when tapping the Schedule button or the Open job link)
+    // Make whole row clickable → open the REAL job-board job drawer (not a
+    // separate detail page) so adjustments happen right there. (Teddy 2026-07-03:
+    // "open the actual job board job, we don't need it to open something new.")
     list.querySelectorAll('div.row[data-id]').forEach(row => {
       row.addEventListener('click', (e) => {
         const t = e.target;
         if (!t) return;
         if (t.closest('button.schedule') || t.closest('a.btn-open-job') || t.closest('button.btn-complete') || t.closest('button.btn-delete')) return;
         const id = row.dataset.id;
-        if (id) window.location.href = `/job-detail.html?job_id=${id}`;
+        if (id) window.location.href = `/office-board.html?job=${id}`;
       });
     });
 
