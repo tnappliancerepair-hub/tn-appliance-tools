@@ -329,36 +329,32 @@
   .unscheduled-tray .item .meta { font-size: 11px; margin-top: 3px; }
   .unsched-item { cursor: pointer; }
 
-  /* ── HCP-style scheduling board (Teddy/Danielle 2026-07-03) ──────────
-     STACKED: the MAP sits on top (month calendar beside it), the WEEK GRID
-     right below it (full view of map + calendar together), and the scrolling
-     needs-scheduling customers underneath. Elements re-homed by the script at
-     the page bottom. */
-  #board-top { display: flex; gap: 12px; align-items: stretch; }
-  #board-top #miniCal { flex: 0 0 232px; width: 232px; position: static; }
-  #board-top #railMap { flex: 1 1 auto; min-width: 0; display: flex; }
-  #board-top #railMap #antmap-panel.antmap-inline { height: 224px; width: 100%; }
-  #board-queue { display: flex; flex-direction: column; }
+  /* ── HCP-style board (Teddy/Danielle 2026-07-03) ────────────────────
+     A narrow LEFT RAIL, out of the way: MAP on top → MONTH calendar under it →
+     the scrolling needs-scheduling CUSTOMERS. The WEEK GRID gets the rest of the
+     width, as large as possible. Re-homed by the script at the page bottom. */
+  #cal-rail { display: flex; flex-direction: column; gap: 12px; }
+  #cal-rail #miniCal { width: 100%; position: static; flex: 0 0 auto; }
+  #cal-rail #railMap { flex: 0 0 auto; }
+  #cal-rail #railMap #antmap-panel.antmap-inline { height: 210px; width: 100%; }
   @media (min-width: 900px) {
-    .scroll { display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
-    #board-top { flex: 0 0 auto; }
-    #content { flex: 1 1 auto; min-height: 140px; overflow: auto; }
-    #board-queue { flex: 0 0 172px; overflow-y: auto; }
+    .scroll { display: flex; gap: 12px; overflow: hidden; align-items: stretch; }
+    #cal-rail { flex: 0 0 300px; width: 300px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 20px 0; }
+    #content { flex: 1 1 auto; min-width: 0; height: 100%; overflow: auto; }
   }
-  /* KEEP THE TECH NAMES VISIBLE while scrolling the grid (Teddy 2026-07-03):
-     the header row sticks to the top of the scrolling calendar so you always
-     see whose column is whose. */
+  /* KEEP TECH NAMES VISIBLE while scrolling the grid: the header row sticks to
+     the top of the scrolling #content (works now that .calendar isn't clipping). */
   #content .cal-header { position: sticky; top: 0; z-index: 25; }
-  /* Tight scrolling customers underneath — hover a tile to blow it up (the full
-     detail is hidden until hover). */
-  #board-queue .unscheduled-tray { margin: 0; }
-  #board-queue .unscheduled-tray .list { grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); gap: 7px; }
-  #board-queue .unscheduled-tray .item { padding: 7px 9px; }
-  #board-queue .unscheduled-tray .item .cust { font-size: 12.5px; margin-top: 0; }
-  #board-queue .unscheduled-tray .item .what { font-size: 11px; }
-  #board-queue .unscheduled-tray .item .udetail { display: none; }
-  #board-queue .unscheduled-tray .item:hover { position: relative; z-index: 6; border-color: var(--violet); background: rgba(122,92,240,0.16); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
-  #board-queue .unscheduled-tray .item:hover .udetail { display: block; }
+  /* Customers: tight single-column list that scrolls; hover a tile to blow it
+     up (full detail hidden until hover). */
+  #cal-rail .unscheduled-tray { margin: 0; }
+  #cal-rail .unscheduled-tray .list { grid-template-columns: 1fr; gap: 6px; }
+  #cal-rail .unscheduled-tray .item { padding: 7px 9px; }
+  #cal-rail .unscheduled-tray .item .cust { font-size: 12.5px; margin-top: 0; }
+  #cal-rail .unscheduled-tray .item .what { font-size: 11px; }
+  #cal-rail .unscheduled-tray .item .udetail { display: none; }
+  #cal-rail .unscheduled-tray .item:hover { position: relative; z-index: 6; border-color: var(--violet); background: rgba(122,92,240,0.16); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
+  #cal-rail .unscheduled-tray .item:hover .udetail { display: block; }
   .wtag {
     display: inline-block; font-size: 9px; text-transform: uppercase;
     letter-spacing: 0.04em; background: rgba(37,99,235,0.15); color: var(--blue);
@@ -377,7 +373,9 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 14px;
-    overflow: hidden;
+    /* was overflow:hidden — that trapped the sticky tech-name header so it
+       couldn't stick to the scrolling #content. Let #content own the scroll. */
+    overflow: visible;
   }
 
   .cal-header,
@@ -2708,10 +2706,10 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   window.addEventListener('resize',function(){ clearTimeout(window.__fitT); window.__fitT=setTimeout(fitBelowNav,80); });
 })();
 
-/* HCP-style board (STACKED): a TOP band (month calendar + the two-region map)
-   sits above the WEEK GRID, and the scrolling needs-scheduling customers go
-   underneath. The grid re-renders #content on every load, so we re-run after
-   each render (guarded so our own DOM moves don't loop). (Teddy 2026-07-03) */
+/* HCP-style board: a narrow LEFT RAIL — MAP on top, MONTH calendar under it,
+   then the scrolling needs-scheduling CUSTOMERS — beside a large week grid. The
+   grid re-renders #content on every load, so we re-run after each render
+   (guarded so our own DOM moves don't loop). (Teddy 2026-07-03) */
 (function(){
   var relocating=false;
   function relocate(){
@@ -2720,24 +2718,28 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
       var scroll=document.getElementById('scroll'); if(!scroll) return;
       var content=document.getElementById('content'); if(!content) return;
 
-      // TOP band (month calendar + map), placed just BEFORE the calendar grid.
-      var top=document.getElementById('board-top');
-      if(!top){ top=document.createElement('div'); top.id='board-top'; }
-      if(top.nextSibling!==content || top.parentElement!==scroll){ scroll.insertBefore(top, content); }
-      var mini=document.getElementById('miniCal');
-      if(mini && mini.parentElement!==top){ top.insertBefore(mini, top.firstChild); }
-      var mapc=document.getElementById('railMap');
-      if(!mapc){ mapc=document.createElement('div'); mapc.id='railMap'; }
-      if(mapc.parentElement!==top){ top.appendChild(mapc); }
+      // Left rail = first child of .scroll (the week grid #content stays to its right).
+      var rail=document.getElementById('cal-rail');
+      if(!rail){ rail=document.createElement('aside'); rail.id='cal-rail'; }
+      if(scroll.firstElementChild!==rail){ scroll.insertBefore(rail, scroll.firstChild); }
 
-      // QUEUE (scrolling customers), placed AFTER the calendar grid (last child).
-      var q=document.getElementById('board-queue');
-      if(!q){ q=document.createElement('div'); q.id='board-queue'; }
-      if(q.parentElement!==scroll || scroll.lastElementChild!==q){ scroll.appendChild(q); }
+      var mapc=document.getElementById('railMap');
+      if(!mapc){ mapc=document.createElement('div'); mapc.id='railMap'; }   // office-jobs-map docks in here
+      var mini=document.getElementById('miniCal');
+      var q=document.getElementById('railQueue');
+      if(!q){ q=document.createElement('div'); q.id='railQueue'; }
+
+      // Order the rail top→bottom: MAP, MONTH calendar, CUSTOMERS. appendChild
+      // moves an existing node to the end, so this sequence fixes the order.
+      rail.appendChild(mapc);
+      if(mini) rail.appendChild(mini);
+      rail.appendChild(q);
+
+      // Fill the customers list with the freshly-rendered tray.
       var hasRender=!!content.querySelector('.calendar, .cal-row, .today-header, .empty');
       var tray=content.querySelector('.unscheduled-tray');
-      if(tray){ q.innerHTML=''; q.appendChild(tray); }        // fresh queue → underneath
-      else if(hasRender){ q.innerHTML=''; }                    // real render, nothing to schedule
+      if(tray){ q.innerHTML=''; q.appendChild(tray); }
+      else if(hasRender){ q.innerHTML=''; }
     } finally { setTimeout(function(){ relocating=false; }, 0); }
   }
   function boot(){
