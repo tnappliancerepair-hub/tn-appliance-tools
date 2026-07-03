@@ -291,7 +291,10 @@
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s, transform 0.05s;
   }
-  .unassigned .item:hover { border-color: var(--violet); background: var(--panel-2); }
+  /* hover tint is semi-transparent so the (dark) name stays readable on both a
+     light and a dark card — var(--panel-2) went solid dark in light mode and
+     hid the name. (Teddy 2026-07-03) */
+  .unassigned .item:hover { border-color: var(--violet); background: rgba(122,92,240,0.14); }
   .unassigned .item:active { transform: scale(0.99); }
   .unassigned .item .when {
     font-size: 10px;
@@ -537,7 +540,7 @@
     display: block;
     min-height: 32px;
   }
-  .blk:hover { background: var(--panel-2); border-left-color: var(--orange); }
+  .blk:hover { background: rgba(245,166,35,0.14); border-left-color: var(--orange); }
   .blk:active { transform: scale(0.99); }
   .blk.bk-warranty { border-left-color: var(--violet); }
   .blk.bk-self_pay { border-left-color: var(--green); }
