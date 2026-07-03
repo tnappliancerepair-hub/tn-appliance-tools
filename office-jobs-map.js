@@ -48,6 +48,11 @@
     .antmap-reg{flex:1;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid #2a3040;color:#9fb0c3;
       padding:9px 10px;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit}
     .antmap-reg.active{background:#1e6fdb;border-color:#1e6fdb;color:#fff}
+    /* Docked (inline) mode — lives inside a page rail (#railMap) instead of the
+       right-edge slide-out. Always visible, sized to the rail. */
+    #antmap-panel.antmap-inline{position:static;transform:none;width:100%;height:320px;
+      box-shadow:none;border-left:0;border:1px solid #2a3040;border-radius:12px;overflow:hidden}
+    #antmap-panel.antmap-inline #antmap-head{border-radius:12px 12px 0 0}
     .antmap-pin{background:#e67e22;color:#fff;font-weight:700;font-size:11px;width:26px;height:26px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
     .antmap-pin.sched{background:#1aa05c}
@@ -80,20 +85,43 @@
     </div>
   `;
 
+  function wireRegions() {
+    panel.querySelectorAll('.antmap-reg').forEach(b => { b.onclick = () => switchRegion(b.getAttribute('data-region')); });
+    markActiveRegion();
+  }
+
   function mount() {
     if (!document.body) return setTimeout(mount, 30);
+    // If the page has a rail dock (#railMap — the new scheduling board), mount
+    // INLINE inside it (always visible, no edge tab). The rail is built after the
+    // grid renders, so poll briefly for it before falling back to the slide-out.
+    let dt = 0;
+    (function tryDock() {
+      const dock = document.getElementById('railMap');
+      if (dock) return mountInline(dock);
+      if (dt++ < 50) return setTimeout(tryDock, 60);
+      mountSlideout();
+    })();
+  }
+
+  function mountInline(dock) {
+    panel.classList.add('antmap-inline', 'open');
+    dock.appendChild(panel);
+    const cb = document.getElementById('antmap-close'); if (cb) cb.style.display = 'none';
+    wireRegions();
+    wireHover();
+    ensureMap();
+  }
+
+  function mountSlideout() {
     document.body.appendChild(tab);
     document.body.appendChild(panel);
     document.getElementById('antmap-close').onclick = () => setOpen(false);
     tab.onclick = () => setOpen(true);
-    panel.querySelectorAll('.antmap-reg').forEach(b => { b.onclick = () => switchRegion(b.getAttribute('data-region')); });
-    markActiveRegion();
-    // Restore last state (default closed so it never surprises anyone).
+    wireRegions();
     if (localStorage.getItem(OPEN_KEY) === '1') setOpen(true);
     wireHover();
-    // On these schedule pages the docked hover map beats the fullscreen modal,
-    // so repoint the nav's 🗺 Map pill (office-map.js) at the docked panel too —
-    // one consistent Map whether they tap the pill or the edge tab.
+    // Repoint the nav's 🗺 Map pill (office-map.js) at the docked panel too.
     let t = 0;
     (function grabNavPill() {
       const btn = document.querySelector('.ofc-map-btn');
