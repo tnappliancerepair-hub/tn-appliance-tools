@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-default-theme="light" data-self-theme>
 <head>
+<script src="/ant-theme.js?v=20260704-1"></script>
 <script src="/office-auth.js?v=20260701-1"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -34,9 +35,11 @@
 <!-- /ANT-SOCIAL -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6fa; color: #1a1a1a; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
   body { padding-bottom: env(safe-area-inset-bottom); }
   :root {
+    --bg: #f4f6fa;
+    --ink: #1a1a1a;
     --blue: #1e6fdb;
     --green: #1aa05c;
     --orange: #e67e22;
@@ -45,6 +48,27 @@
     --border: #e1e5eb;
     --card: #ffffff;
   }
+  /* dark mode — redefining tokens flips every token-driven surface;
+     the rest are targeted overrides of the few hardcoded surfaces. */
+  :root[data-theme="dark"]{
+    --bg:#0e1118; --ink:#e7edf5; --card:#161b26; --border:#28303e; --muted:#9aa6b8;
+  }
+  :root[data-theme="dark"] .topbar{ background:#161b26; }
+  :root[data-theme="dark"] .auth-gate{ background:rgba(10,13,18,0.98); }
+  :root[data-theme="dark"] .auth-card{ background:#161b26; }
+  :root[data-theme="dark"] .auth-card input,
+  :root[data-theme="dark"] .modal-card input,
+  :root[data-theme="dark"] .modal-card select,
+  :root[data-theme="dark"] .modal-card textarea{ background:#0e1320; color:var(--ink); border-color:#28303e; }
+  :root[data-theme="dark"] .row .who{ color:var(--ink); }
+  :root[data-theme="dark"] .row .badge{ background:#1e2634; color:#c3ccd8; }
+  :root[data-theme="dark"] .row .badge.source{ background:#16233a; }
+  :root[data-theme="dark"] .row .badge.warranty{ background:#2a2113; }
+  :root[data-theme="dark"] .row .actions .edit{ background:#1e2634; color:#c3ccd8; }
+  :root[data-theme="dark"] .row .actions .del{ background:#2c1815; }
+  :root[data-theme="dark"] .empty h3{ color:#c3ccd8; }
+  :root[data-theme="dark"] .modal-card{ background:#161b26; }
+  :root[data-theme="dark"] .modal-actions .cancel{ background:#1e2634; color:#c3ccd8; }
   .topbar {
     position: sticky; top: 0; z-index: 50;
     background: #fff;
