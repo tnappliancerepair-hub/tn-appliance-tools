@@ -1,6 +1,12 @@
-// Universal office search widget. Auto-injects a search bar at the top
-// of any page that loads this file. One <script src="/office-search.js">
-// tag per page is all that's needed.
+// Universal office search widget. Auto-injects a small 🔍 button at the top
+// of any page that loads this file. One <script src="/office-search.js"> tag
+// per page is all that's needed.
+//
+// COLLAPSED BY DEFAULT (2026-07-03): the widget shows only a compact 🔍 button.
+// The full-width input + results dropdown are created ON DEMAND when you tap it,
+// and are DESTROYED when you close it. That means the search box can never sit
+// on a page covering content, and a stale query (the infamous "ford") can never
+// be restored — because the input doesn't exist in the DOM until you open it.
 //
 // Searches name / phone / address across all jobs via
 // /api:3e_TffpA/office_universal_search. Click a result → navigates to
@@ -16,19 +22,33 @@
   const css = `
     .ofc-search-bar {
       position: sticky; top: 0; z-index: 1000;
-      background: rgba(20, 24, 32, 0.95);
+      display: flex; justify-content: flex-end; align-items: center;
+      background: rgba(20, 24, 32, 0.92);
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 6px 12px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
-    .ofc-search-input {
-      width: 100%;
-      max-width: 720px;
-      margin: 0 auto;
-      display: block;
+    .ofc-search-toggle {
+      display: inline-flex; align-items: center; gap: 7px;
       background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      color: #cdd7e1; font-size: 13px; font-weight: 600;
+      padding: 7px 13px; cursor: pointer; line-height: 1;
+    }
+    .ofc-search-toggle:hover { background: rgba(90,169,255,0.12); border-color: #5aa9ff; color: #fff; }
+    .ofc-search-open {
+      position: relative; flex: 1; max-width: 720px;
+      display: none; align-items: center; gap: 8px;
+    }
+    .ofc-search-bar.expanded .ofc-search-toggle { display: none; }
+    .ofc-search-bar.expanded { justify-content: center; }
+    .ofc-search-bar.expanded .ofc-search-open { display: flex; }
+    .ofc-search-input {
+      flex: 1;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid #5aa9ff;
       border-radius: 10px;
       color: #fff;
       padding: 10px 14px;
@@ -36,18 +56,21 @@
       outline: none;
     }
     .ofc-search-input::placeholder { color: rgba(255,255,255,0.45); }
-    .ofc-search-input:focus { border-color: #5aa9ff; background: rgba(255,255,255,0.10); }
+    .ofc-search-close {
+      width: 30px; height: 30px; flex-shrink: 0;
+      border-radius: 50%; border: 0;
+      background: rgba(255,255,255,0.14); color: #fff;
+      font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
+    }
     .ofc-search-results {
       position: absolute;
-      left: 12px; right: 12px;
-      max-width: 720px;
-      margin: 6px auto 0;
+      left: 0; right: 42px; top: calc(100% + 6px);
       background: #1a1f2c;
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 10px;
       max-height: 60vh;
       overflow-y: auto;
-      box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.45);
       display: none;
       z-index: 1001;
     }
@@ -72,25 +95,19 @@
   style.textContent = css;
   document.head.appendChild(style);
 
-  // Inject bar at the top of <body>. (TN/LA region toggle retired
-  // 2026-06-01 along with office-tn.html / office-la.html — region split
-  // folded into the unified dashboard.)
   const bar = document.createElement('div');
   bar.className = 'ofc-search-bar';
   bar.innerHTML = `
-    <div style="max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; position: relative;">
-      <input class="ofc-search-input" id="ofcSearch" placeholder="Search name, phone, address…" autocomplete="off" inputmode="search" style="flex:1; max-width:none; margin:0;">
-      <button type="button" id="ofcSearchClear" aria-label="Clear search" title="Clear"
-        style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:0; background:rgba(255,255,255,0.14); color:#fff; font-size:15px; line-height:1; cursor:pointer; padding:0;">✕</button>
+    <button type="button" class="ofc-search-toggle" id="ofcSearchToggle" aria-label="Search jobs">🔍 <span>Search</span></button>
+    <div class="ofc-search-open" id="ofcSearchOpen">
+      <input class="ofc-search-input" id="ofcSearch" placeholder="Search name, phone, address…" autocomplete="off" inputmode="search">
+      <button type="button" class="ofc-search-close" id="ofcSearchClose" aria-label="Close search" title="Close">✕</button>
+      <div class="ofc-search-results" id="ofcSearchResults"></div>
     </div>
-    <div class="ofc-search-results" id="ofcSearchResults"></div>
   `;
-  // Declared BEFORE inject()/wire() run — wire() (called from inject below) uses
-  // debounceTimer at startup, so it must already be initialized (moving this line
-  // down caused a temporal-dead-zone crash that broke the page). 2026-07-03.
+
   let debounceTimer = null;
 
-  // Wait for body to exist
   function inject() {
     if (!document.body) { return setTimeout(inject, 20); }
     document.body.insertBefore(bar, document.body.firstChild);
@@ -99,45 +116,51 @@
   inject();
 
   function wire() {
+    const toggle = document.getElementById('ofcSearchToggle');
     const input = document.getElementById('ofcSearch');
     const results = document.getElementById('ofcSearchResults');
-    const clearBtn = document.getElementById('ofcSearchClear');
+    const closeBtn = document.getElementById('ofcSearchClose');
 
-    function hide() { results.classList.remove('show'); results.innerHTML = ''; }
-    function show() { results.classList.add('show'); }
-    function reset() { input.value = ''; clearTimeout(debounceTimer); hide(); if (clearBtn) clearBtn.style.display = 'none'; }
-    function syncClear() { if (clearBtn) clearBtn.style.display = input.value ? 'block' : 'none'; }
+    function hideResults() { results.classList.remove('show'); results.innerHTML = ''; }
 
-    // Start EMPTY every load and after a back-nav — the browser likes to restore
-    // the last search ("ford") into the box, which made the dropdown feel like it
-    // "kept coming back." It now only appears when you actually type.
-    reset();
-    window.addEventListener('pageshow', reset);
+    // OPEN: reveal the input, always start it empty, focus it.
+    function open() {
+      bar.classList.add('expanded');
+      input.value = '';
+      hideResults();
+      // focus on next frame so the slide-in doesn't eat the focus
+      requestAnimationFrame(() => input.focus());
+    }
+
+    // CLOSE: collapse back to the 🔍 button and wipe everything. Because the
+    // input is now hidden + emptied, nothing can linger or cover the page.
+    function close() {
+      clearTimeout(debounceTimer);
+      input.value = '';
+      hideResults();
+      bar.classList.remove('expanded');
+    }
+
+    // Always collapsed on every load / back-nav.
+    close();
+    window.addEventListener('pageshow', close);
+
+    toggle.addEventListener('click', open);
+    closeBtn.addEventListener('click', (e) => { e.preventDefault(); close(); });
 
     input.addEventListener('input', () => {
       const q = input.value.trim();
-      syncClear();
       clearTimeout(debounceTimer);
-      if (q.length < 2) { hide(); return; }        // clearing to <2 chars closes it
+      if (q.length < 2) { hideResults(); return; }
       debounceTimer = setTimeout(() => runSearch(q, results), 300);
     });
 
-    // Escape clears + closes.
-    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { reset(); input.blur(); } });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); } });
 
-    // The ✕ button wipes it (and re-focuses so you can type fresh).
-    if (clearBtn) clearBtn.addEventListener('click', (e) => { e.preventDefault(); reset(); input.focus(); });
-
-    // Click anywhere OUTSIDE the search bar closes the dropdown. This is the real
-    // fix for "it covers the content and won't go away" — blur alone wasn't
-    // reliably dismissing it. Result-row clicks are inside `bar`, so navigation
-    // still works before this hides anything.
-    document.addEventListener('mousedown', (e) => { if (!bar.contains(e.target)) hide(); });
-    document.addEventListener('touchstart', (e) => { if (!bar.contains(e.target)) hide(); }, { passive: true });
-
-    // No auto-reopen on focus: refocusing an input that still has old text must
-    // NOT re-pop the dropdown (that was the "keeps popping up after cleared"
-    // behavior). It only opens when you actually type.
+    // Click/tap anywhere outside the (expanded) bar collapses it. Result-row
+    // clicks live inside `bar`, so navigation still fires first.
+    document.addEventListener('mousedown', (e) => { if (bar.classList.contains('expanded') && !bar.contains(e.target)) close(); });
+    document.addEventListener('touchstart', (e) => { if (bar.classList.contains('expanded') && !bar.contains(e.target)) close(); }, { passive: true });
   }
 
   async function runSearch(q, resultsEl) {
