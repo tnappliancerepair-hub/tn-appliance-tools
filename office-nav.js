@@ -25,7 +25,7 @@
     // 'Crew Today' (office-route) retired 2026-07-03 — its live job status now
     // lives on the job tiles themselves (ant-job-tile.js) so it's no longer a
     // separate destination. (Teddy: "we can eliminate the Crew Today link.")
-    { id: 'calendar',  label: '📅 Schedule', href: '/office-calendar.html',  color: '#4a9eff' },
+    { id: 'calendar',  label: '📅 Schedule', href: '/new-scheduling.html',  color: '#4a9eff' },
     // Phone section consolidated 2026-07-03 (Teddy): the three phone pills —
     // Phone (office-phone), Ant Call (voice-dispatch), Calls (recent-calls) — are
     // now ONE. The call log is home; the dialer + the Ant-call scheduler are
