@@ -586,6 +586,17 @@
   .blk.bk-warranty { border-left-color: var(--violet); }
   .blk.bk-self_pay { border-left-color: var(--green); }
   .blk.bk-completed { opacity: 0.6; border-left-color: var(--muted); }
+  /* Tentative placeholder hold — ghosted so it never reads as a firm job. */
+  .blk.hold { opacity: 0.72; border: 1px dashed #c79a17; border-left: 3px dashed #c79a17;
+    background: repeating-linear-gradient(45deg, rgba(224,178,42,0.12), rgba(224,178,42,0.12) 6px, rgba(224,178,42,0.03) 6px, rgba(224,178,42,0.03) 12px); }
+  .blk.hold:hover { background: rgba(224,178,42,0.18); }
+  .blk.hold .row1 .time { color: #c79a17; }
+  .hold-actions { display: flex; gap: 4px; margin-top: 5px; }
+  .hold-actions button { flex: 1; font-size: 10px; font-weight: 800; padding: 4px 4px; border-radius: 5px; cursor: pointer; border: 1px solid; line-height: 1; }
+  .hold-confirm { background: var(--green, #0a7d33); color: #fff; border-color: var(--green, #0a7d33); }
+  .hold-release { background: transparent; color: #c0654f; border-color: #d9a99f; }
+  #holdSlotBtn { background: rgba(224,178,42,0.14); color: #a67c10; border: 1px solid #e0b22a; border-radius: 8px; padding: 8px 12px; font-weight: 800; cursor: pointer; }
+  #holdSlotBtn:hover { background: rgba(224,178,42,0.24); }
   .blk .row1 {
     display: flex;
     align-items: center;
@@ -990,6 +1001,31 @@ function __initCalendar() {
     }
   }
 
+  // Tentative "placeholder" holds — ghosted slots the office reserves while
+  // waiting on a customer's yes. Office-only (the tech never sees them). Loaded
+  // each week refresh; keyed onto cells by tech_id + date. (Teddy 2026-07-03)
+  let HOLDS = [];
+  async function loadHolds() {
+    try { const d = await fetch('/.netlify/functions/schedule-hold', { cache: 'no-store' }).then((r) => r.json()); HOLDS = (d && d.holds) || []; }
+    catch (_) { HOLDS = []; }
+  }
+  // Confirm a tentative hold into a real booked appointment (day-of routing, 8am
+  // CT default), then clear the hold. Release just frees the spot. Global so the
+  // ghosted block's inline buttons can call them. (Teddy 2026-07-03)
+  window.confirmHold = async function (jobId, techId, date) {
+    if (!confirm('Confirm this slot into a real appointment? The customer said yes.')) return;
+    try {
+      if (techId && date) {
+        await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, 8) }) });
+      }
+      await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
+      loadWeek();
+    } catch (_) { alert('Could not confirm — try again.'); }
+  };
+  window.releaseHold = async function (jobId) {
+    try { await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) }); loadWeek(); } catch (_) {}
+  };
+
   // ── Data load ──────────────────────────────────────────────────
   async function loadWeek() {
     loading.style.display = 'block';
@@ -1009,6 +1045,7 @@ function __initCalendar() {
       serverTodayCT = data.today_ct;
       currentWeekStart = data.week_start_ct;
       await loadCashPaid(data.unscheduled || []);   // cash-only payment hold
+      await loadHolds();                             // tentative placeholder slots
       render(data);
     } catch (err) {
       console.error(err);
@@ -1236,6 +1273,10 @@ function __initCalendar() {
   // auto-scheduler couldn't route). Tap an item to open the same schedule/
   // reschedule modal and place it onto a tech.
   function renderUnscheduled(list) {
+    // A job with an active tentative HOLD is already on the grid (ghosted) — keep
+    // it out of the tray so it isn't double-placed. Release brings it back.
+    const heldIds = new Set(HOLDS.map((h) => Number(h.job_id)));
+    list = (list || []).filter((j) => !heldIds.has(Number(j.id)));
     const items = list.map((j) => {
       const cust = `${(j.customer_first_name || '').trim()} ${(j.customer_last_name || '').trim()}`.trim() || '(no customer)';
       const appl = (j.appliance_type || 'appliance').toLowerCase();
@@ -1388,6 +1429,7 @@ function __initCalendar() {
     if (count >= 5) tier = 'red';
     else if (count >= 3) tier = 'yellow';
     const blocks = jobs.map((j) => renderBlock(j)).join('');
+    const holdBlocks = HOLDS.filter((h) => Number(h.tech_id) === Number(tech.id) && h.date === day.dateStr).map(renderHoldBlock).join('');
     return `
       <div class="cell cap-${tier} book-cell"
            data-tech-id="${tech.id}"
@@ -1401,7 +1443,24 @@ function __initCalendar() {
           <span class="denom">/${CAPACITY_MAX}</span>
           <span class="label">${remaining === 1 ? 'slot' : 'slots'}</span>
         </div>
-        <div class="blocks">${blocks}</div>
+        <div class="blocks">${blocks}${holdBlocks}</div>
+      </div>
+    `;
+  }
+
+  // A ghosted "tentative" placeholder block — dashed + faded so it never reads as
+  // a firm job. Confirm turns it real; release frees the spot. (Teddy 2026-07-03)
+  function renderHoldBlock(h) {
+    const cust = (h.customer || '').trim() || 'Customer';
+    const appl = (h.appliance || '').trim();
+    return `
+      <div class="blk hold" data-hold-job="${h.job_id}" title="Tentative hold — waiting on the customer">
+        <div class="row1"><span class="time">⏳</span><span class="name">${escapeHtml(cust)}</span></div>
+        <div class="row2"><span class="appl">TENTATIVE${appl ? ' · ' + escapeHtml(appl) : ''}</span></div>
+        <div class="hold-actions">
+          <button type="button" class="hold-confirm" onclick="event.stopPropagation();confirmHold(${h.job_id},${Number(h.tech_id) || 0},'${h.date}')">✓ Confirm</button>
+          <button type="button" class="hold-release" onclick="event.stopPropagation();releaseHold(${h.job_id})">✕ Release</button>
+        </div>
       </div>
     `;
   }
@@ -2323,6 +2382,26 @@ function __initCalendar() {
     btn.disabled = false; btn.textContent = 'Reschedule';
   });
 
+  // ⏳ Hold — reserve this tech+day as a tentative placeholder (ghosted on the
+  // grid, office-only) instead of firmly booking. Uses the day from the picker.
+  document.getElementById('holdSlotBtn').addEventListener('click', async () => {
+    if (!manageJobId) return;
+    const dtValue = document.getElementById('rescheduleAt').value;
+    if (!dtValue) { manageError.textContent = 'Pick a day first.'; return; }
+    const date = dtValue.split('T')[0];
+    const techId = Number(document.getElementById('rescheduleTech').value || 0);
+    if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
+    const mj = lastJobsById[manageJobId] || {};
+    const cust = ((mj.customer_first_name || '') + ' ' + (mj.customer_last_name || '')).trim();
+    const appl = mj.appliance_type || mj.appliance || '';
+    const btn = document.getElementById('holdSlotBtn'); btn.disabled = true; btn.textContent = '…';
+    try {
+      await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hold', job_id: manageJobId, tech_id: techId, date: date, customer: cust, appliance: appl }) });
+      closeManageJobModal(); loadWeek();
+    } catch (_) { manageError.textContent = 'Could not hold — try again.'; }
+    btn.disabled = false; btn.textContent = '⏳ Hold';
+  });
+
   manageReassignForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!manageJobId) return;
@@ -2550,6 +2629,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
       <input type="datetime-local" id="rescheduleAt" required>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
+        <button type="button" id="holdSlotBtn" title="Hold this spot while you wait on the customer — ghosted, tech won't see it">⏳ Hold</button>
         <button type="submit" class="primary" id="rescheduleSubmit">Schedule</button>
       </div>
     </form>
