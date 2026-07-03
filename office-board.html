@@ -2,6 +2,7 @@
 <html lang="en" data-default-theme="light" data-self-theme>
 <head>
 <script src="/ant-theme.js"></script>
+<script src="/ant-job-tile.js?v=20260703-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -598,8 +599,11 @@ function cardHtml(j){
   const _col=placeOf(j);
   const _showReportBtn=(_col==='done'||_col==='needinv'||(typeof _col==='string'&&_col.indexOf('rep-')===0));
   const _reportBtn=_showReportBtn?`<button onclick="event.stopPropagation();reqTechReport(${j.id})" title="Ant texts + calls the tech to finish the report" style="margin-top:7px;width:100%;padding:7px;border:0;border-radius:7px;background:#fff4e0;color:#b3690a;border:1px solid #f3d49a;font-size:12px;font-weight:700;cursor:pointer">📋 Request report</button>`:'';
+  // Universal tile: the ONE live status pill, shared across every board (ant-job-tile.js).
+  const _statusPill=(window.AntJobTile?window.AntJobTile.statusPill(j):'');
   return `<div class="jcard${_over?' over':''}" draggable="true" data-id="${j.id}">
-    <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div>${_wait}</div>
+    <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
+    <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div></div>
     <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
     ${_refHtml}
     <div class="jc-tags">${tags.join('')}</div>

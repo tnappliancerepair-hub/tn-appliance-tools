@@ -19,8 +19,10 @@
     { id: 'schedcheck',label: '🗓️ Schedule Check', href: '/schedule-sanity.html', color: '#ffb454' },
     { id: 'cashleads', label: '💵 Cash Leads', href: '/cash-leads.html', color: '#39d98a' },
     { id: 'frontdoor', label: '🧾 Frontdoor',href: '/frontdoor-invoices.html', color: '#4ad991' },
-    { id: 'route',     label: '🗺️ Crew Today', href: '/office-route.html',  color: '#4ad991' },
-    { id: 'calendar',  label: '📅 Calendar', href: '/office-calendar.html',  color: '#4a9eff' },
+    // 'Crew Today' (office-route) retired 2026-07-03 — its live job status now
+    // lives on the job tiles themselves (ant-job-tile.js) so it's no longer a
+    // separate destination. (Teddy: "we can eliminate the Crew Today link.")
+    { id: 'calendar',  label: '📅 Schedule', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'phone',     label: '📲 Phone',   href: '/office-phone.html',     color: '#5aa9ff' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
     { id: 'templates', label: '💬 Texts',    href: '/office-templates.html',  color: '#ffb86b' },
