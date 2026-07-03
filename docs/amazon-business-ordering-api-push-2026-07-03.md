@@ -26,9 +26,11 @@ Docs: `https://docs.business.amazon.com/docs/onboarding-overview` and
    Business Settings → **Add people** → add a generic email
    `TNApplianceExchange_abapi@…` (or tnappliance@gmail alias) with the **"Tech"**
    role → accept the invite.
-2. **Send the onboarding request email** to the Amazon Business API team (address is
-   printed on the onboarding-overview page above) with the required fields (below),
-   requesting the **Ordering API**.
+2. **Send the onboarding request email** to **`ab-api-access-approvals@amazon.com`**
+   (confirmed on the onboarding-overview page 2026-07-03) with the required fields
+   (below), requesting the **Ordering API**. THIS EMAIL IS THE GATE — Amazon reviews it,
+   then emails registration instructions and ASSIGNS the role (you cannot self-select).
+   Amazon Business ID (directID): **A22ATN0J52WQXH**.
 3. Amazon reviews (1–5 weeks) → provisions you → you finish the **developer profile
    in SPP** with **identity verification** (gov photo ID + proof of address + a short
    video call with an Amazon associate). The team **assigns** the OrderPlacement role.
