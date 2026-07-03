@@ -207,7 +207,16 @@
       items = Array.isArray(d) ? d : ((d && (d.jobs || d.items)) || []);
     } catch (_) { status.textContent = 'fetch failed'; return; }
     const reqRegion = currentRegion;            // guard against a region switch mid-load
-    items = items.filter(it => regionOf(it) === reqRegion);
+    // Only the jobs the calendar itself shows as "needs scheduling" (its tray),
+    // not the whole backlog. On the board, window.__antUnscheduledIds is the set
+    // of job ids in the tray; if present, restrict pins to it. (Teddy 2026-07-03:
+    // "the pins should only be the ones not added to the schedule yet.")
+    const okIds = window.__antUnscheduledIds;
+    items = items.filter(it => {
+      if (regionOf(it) !== reqRegion) return false;
+      if (okIds && okIds.size) return okIds.has(String(it.id != null ? it.id : it.job_id));
+      return true;
+    });
     status.textContent = `${items.length} to schedule — locating…`;
     let plotted = 0; const coords = [];
     for (let i = 0; i < items.length; i++) {
@@ -258,7 +267,7 @@
     if (dot) { dot.classList.remove('flash'); void dot.offsetWidth; dot.classList.add('flash'); }
   }
   // Public: let pages focus a pin directly if they want.
-  window.AntJobsMap = { focus: focusJob, open: () => setOpen(true) };
+  window.AntJobsMap = { focus: focusJob, open: () => setOpen(true), reload: function () { if (leafletReady) loadJobs(); } };
 
   // ── geocode (Nominatim, 30-day localStorage cache, rate-limited) ─
   let _lastGeo = 0;

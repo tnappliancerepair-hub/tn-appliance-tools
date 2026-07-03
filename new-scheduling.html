@@ -2678,7 +2678,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260703i"></script>
 <script src="/office-map.js?v=20260703b"></script>
-<script src="/office-jobs-map.js?v=20260703-6"></script>
+<script src="/office-jobs-map.js?v=20260703-7"></script>
   <script src="/office-ant.js?v=20260528-1"></script>
   <script src="/office-home-button.js?v=1"></script>
 <script>window.AntTalkReload=function(){ try{ location.reload(); }catch(_){} };</script>
@@ -2744,6 +2744,19 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
       var tray=content.querySelector('.unscheduled-tray');
       if(tray){ q.innerHTML=''; q.appendChild(tray); }
       else if(hasRender){ q.innerHTML=''; }
+
+      // Publish exactly which jobs the calendar considers "needs scheduling"
+      // (its tray) so the MAP only pins those — not the whole backlog. Reload
+      // the map only when the set actually changes. (Teddy 2026-07-03)
+      try{
+        var ids=new Set();
+        q.querySelectorAll('.unsched-item[data-job-id]').forEach(function(el){ ids.add(String(el.getAttribute('data-job-id'))); });
+        var sig=Array.from(ids).sort().join(',');
+        if(sig!==window.__antUnschedSig){
+          window.__antUnschedSig=sig; window.__antUnscheduledIds=ids;
+          if(window.AntJobsMap && window.AntJobsMap.reload) window.AntJobsMap.reload();
+        }
+      }catch(_){}
     } finally { setTimeout(function(){ relocating=false; }, 0); }
   }
   function boot(){
