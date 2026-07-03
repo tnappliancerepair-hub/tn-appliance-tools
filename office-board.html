@@ -1173,7 +1173,7 @@ function renderDrawer(d){
 
     <div class="dcard">
       <h4>🏢 Office notes</h4>
-      <div style="font-size:12px;color:var(--ink2);margin:-2px 0 8px">Office-side notes (part ETAs, warranty-co updates). Saved to the job so anyone — and Ant on a call — sees the latest. Keep tech notes for the field.</div>
+      <div style="font-size:12px;color:var(--ink2);margin:-2px 0 8px">Notes to the tech + office (part ETAs, where to pick up parts, upsells to offer like a hose, instructions). These show on the assigned tech's job <b>and</b> his daily dashboard, and Ant sees the latest on a call.</div>
       ${officeNotes.length?officeNotes.map(function(n){return '<div class="notes-box" style="margin-bottom:6px"><div style="font-size:11px;color:var(--ink2);margin-bottom:3px">'+esc(fmtWhen(n.at))+' · '+esc(n.by)+'</div>'+esc(n.text)+'</div>';}).join(''):'<div class="notes-box muted">No office notes yet.</div>'}
       <textarea id="office-note-input" placeholder="e.g. Frontdoor: part ordered on eBay, 5–7 days ETA (per CSC Leah 7/1)" style="width:100%;min-height:64px;margin-top:8px;padding:10px;border:1px solid var(--line,#d5dae2);border-radius:8px;background:#fff;color:#1a2230;font-family:inherit;font-size:14px;resize:vertical"></textarea>
       <button onclick="saveOfficeNote(${jid})" style="width:100%;margin-top:6px;padding:11px;border:0;border-radius:9px;background:var(--ok,#39d98a);color:#062;font-weight:800;font-size:14px;cursor:pointer">＋ Add office note</button>

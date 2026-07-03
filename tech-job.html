@@ -269,9 +269,28 @@ async function loadJob(){
     loadAttachments();
     loadWaiverStatus();
     loadDayJobs();
+    loadOfficeNotes();
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
   }
+}
+
+// Office notes for THIS job — Danielle's instructions to the tech (where to pick
+// up parts, upsells to offer like a hose, etc.). Shown prominently up top so it
+// pops when he opens the job. (Teddy 2026-07-03)
+async function loadOfficeNotes(){
+  try{
+    const d=await fetch('/.netlify/functions/office-notes?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
+    const notes=(d&&d.notes)||[];
+    const card=document.getElementById('office-notes-card'), body=document.getElementById('office-notes-body');
+    if(!card||!body) return;
+    if(!notes.length){ card.style.display='none'; return; }
+    body.innerHTML=notes.slice().reverse().map(function(n){
+      const when=n.ts?new Date(n.ts).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+      return '<div style="padding:9px 0;border-top:1px solid rgba(0,0,0,0.06)"><div style="font-size:11px;color:#9a7b2e;font-weight:700;margin-bottom:2px">'+esc(when)+' · '+esc(n.by||'office')+'</div><div style="font-size:14.5px;color:#5a4410;line-height:1.45;white-space:pre-wrap">'+esc(n.text)+'</div></div>';
+    }).join('');
+    card.style.display='';
+  }catch(_){}
 }
 
 // ── "From your Ant call" live panel ────────────────────────────
@@ -413,6 +432,11 @@ function render(){
         <div class="meta">${esc(appl)}${problem?(' — '+esc(problem)):''}</div>
         ${window.AntConstraints?AntConstraints.render(job,{dark:true}):''}
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
+      </div>
+
+      <div class="card" id="office-notes-card" style="display:none;border:1px solid #f0c674;background:#fff8e8">
+        <h3 style="color:#8a6410">📋 From the office <span style="font-size:10px;color:#b3924e;font-weight:600;margin-left:auto">parts pickup · upsells · instructions</span></h3>
+        <div id="office-notes-body"></div>
       </div>
 
       <div class="card" id="ant-brief" style="display:none;border:1px solid #d9c7f0;background:#faf5ff">
