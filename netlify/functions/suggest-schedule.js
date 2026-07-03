@@ -82,10 +82,11 @@ exports.handler = async function (event) {
   let rd = {};
   try { rd = await (await fetch(`${XANO}/get_tech_route_days?technician_id=${techId}`)).json(); } catch (_) {}
   const maxStops = Number(rd.max_stops_per_day) || 6;
-  // We run Mon–Fri — nobody works Saturday unless their profile EXPLICITLY opts in.
-  // (Was `!== false`, which treated a missing profile as "works Saturday" and made
-  // Ant suggest Saturday for everyone. Flip it to opt-in only.)
-  const worksSat = rd.works_saturdays === true;
+  // HARD RULE (Teddy 2026-07-03): NOBODY works Saturday or Sunday — not yet.
+  // We run Mon–Fri only. The day loop below skips both weekend days outright,
+  // ignoring any per-tech works_saturdays flag on purpose (a stale profile flag
+  // was making Ant suggest Saturday for Lee). Re-introduce an opt-in here when
+  // guys actually want weekends.
   const stops = Array.isArray(rd.stops) ? rd.stops : [];
   let personalCtx = '';
   try { const t = await crud.searchPage(TECH_TABLE, { id: techId }, null, 1); personalCtx = (t && t[0] && t[0].personal_context) || ''; } catch (_) {}
@@ -109,8 +110,7 @@ exports.handler = async function (event) {
     const wd = dt.getDay();
     const wdName = DOW[wd];
     const ds = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
-    if (wd === 0) continue;                       // Sunday off by default
-    if (wd === 6 && !worksSat) continue;          // Saturday if they work it
+    if (wd === 0 || wd === 6) continue;           // WEEKENDS OFF — nobody works Sat/Sun (Teddy 2026-07-03)
     if (offDays.includes(wdName)) continue;       // their recurring days off
     if (av.unavailDows.has(wd)) { availBlocked = true; continue; }                  // customer said NOT this day
     if (!av.anyDay && av.hasAvail && !av.availDows.has(wd)) { availBlocked = true; continue; } // not in their available days
