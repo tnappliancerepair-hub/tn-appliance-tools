@@ -18,7 +18,7 @@ const OWNER = '+16154855795';
 // decision (often references the support case # 4-9470000004382), or the Google Ads
 // API Basic Access decision (developer token). Sender is usually a google.com address.
 const QUERY = 'newer_than:30d (from:google.com OR from:googleapis.com OR from:googleadsapi-noreply@google.com OR "business profile" OR "google ads api") '
-  + '("business profile api" OR "api access" OR "basic access" OR "developer token" OR allowlist OR allowlisted OR approved OR "access request" OR "4-9470000004382" OR "your request")';
+  + '("business profile api" OR "api access" OR "basic access" OR "developer token" OR allowlist OR allowlisted OR approved OR "access request" OR "8-6445000041757" OR "4-9470000004382" OR "your request")';
 
 function hdr() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null; }
 
@@ -42,7 +42,7 @@ async function recordSeen(ids) {
 // Guess which key the email is about, for a more useful text.
 function classify(m) {
   const s = `${m.subject || ''} ${m.snippet || ''}`.toLowerCase();
-  if (/business profile|4-9470000004382|my business/.test(s)) return 'Business Profile API (reviews)';
+  if (/business profile|8-6445000041757|4-9470000004382|my business/.test(s)) return 'Business Profile API (reviews)';
   if (/google ads api|developer token|basic access/.test(s)) return 'Google Ads API';
   return 'a Google API request';
 }

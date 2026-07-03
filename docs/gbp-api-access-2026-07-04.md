@@ -6,6 +6,13 @@ hours/services/posts accurate). This upgrades the current **draft-and-tap** revi
 automation (auto-post the 4–5★ ones). It is an upgrade, NOT a blocker — the draft-and-tap
 engine already delivers the hard 90% (the good drafts).
 
+## ✅ SUBMITTED 2026-07-04 — NEW case ID **8-6445000041757** (review ~7–10 business days)
+Fresh Basic Access request submitted via support.google.com/business/contact/api_default from
+`tnappliancerepair@gmail.com`, project `1340849724014`, website tnapplianceexchange.net, first-party
+use case. (The old "case 4-9470000004382" from our notes had NO email in any inbox — it never left
+a durable thread, so we submitted fresh.) `google-api-watch` now watches for **8-6445000041757**.
+Reply lands in tnappliancerepair@gmail.com. Verify approval by re-checking the API quota (0 → 300).
+
 ## Where it actually stands (verified in Google Cloud Console 2026-07-04)
 - **Google Cloud project:** "My First Project" = `project-fb170b47-a89e-4176-9d1`, **project
   number `1340849724014`** (same project as Gmail + Google Ads). Org: tnappliancerepair-org.
