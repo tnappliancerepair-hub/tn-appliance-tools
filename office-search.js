@@ -85,6 +85,11 @@
     </div>
     <div class="ofc-search-results" id="ofcSearchResults"></div>
   `;
+  // Declared BEFORE inject()/wire() run — wire() (called from inject below) uses
+  // debounceTimer at startup, so it must already be initialized (moving this line
+  // down caused a temporal-dead-zone crash that broke the page). 2026-07-03.
+  let debounceTimer = null;
+
   // Wait for body to exist
   function inject() {
     if (!document.body) { return setTimeout(inject, 20); }
@@ -93,7 +98,6 @@
   }
   inject();
 
-  let debounceTimer = null;
   function wire() {
     const input = document.getElementById('ofcSearch');
     const results = document.getElementById('ofcSearchResults');
