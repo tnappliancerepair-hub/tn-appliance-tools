@@ -72,6 +72,16 @@ exports.handler = async function (event) {
     // region was passed, so a normal column-move never changes the region.
     const partial = { office_stage: stage };
     if (st) partial.service_state = st;
+    // Moving a card INTO Waiting Parts reopens the job (it's not done — it needs
+    // a part / return visit). Without this, a completed job kept snapping back to
+    // Invoice because placeOf still saw current_status/scheduling_status =
+    // 'completed'. Writing both status fields here (plain Metadata-API patch, same
+    // as unschedule-job) bypasses the XS terminal-lock that blocked the reopen.
+    // (Teddy 2026-07-03 — Keli Vince #19918 / Carroll Heiser #19894.)
+    if (stage === 'parts') {
+      partial.scheduling_status = 'awaiting_parts';
+      partial.current_status = 'awaiting_parts';
+    }
     await crud.update(JOBS_TABLE, jobId, partial);
 
     // Breadcrumb so the board can read everyone's placement in one GET.

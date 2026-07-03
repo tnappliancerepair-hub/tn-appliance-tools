@@ -406,6 +406,13 @@ function placeOf(j){
   // order: job.office_stage -> server STAGE_MAP -> localStorage (optimistic).
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
   const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
+  // Explicit Waiting-Parts placement WINS even over a completed stamp. Danielle
+  // filing a finished job into Waiting Parts means it isn't really done — it
+  // needs a part / return visit — so honor it (the move also reopens the job's
+  // status server-side via office-stage). This was the Keli Vince #19918 /
+  // Carroll Heiser #19894 bug: completed John Houk jobs snapped Waiting Parts ->
+  // Invoice on every render. (Teddy 2026-07-03)
+  if(ov==='parts') return 'parts';
   if(ss==='completed'||cs==='completed'){
     // A finished job Danielle filed into a done-appropriate folder (a tech's
     // Invoice, Needs Invoice, Paid, Follow Up, Completion) STAYS there — this
