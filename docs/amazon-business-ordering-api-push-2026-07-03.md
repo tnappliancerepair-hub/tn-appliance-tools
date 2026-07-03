@@ -7,6 +7,55 @@ aftermarket/Amazon-equivalent part → it auto-ships" half of the 4-option cash 
 **This is a DIFFERENT product from SP-API.** SP-API (the profile we're submitting today)
 is the seller/resale side. This one is `business-api.amazon.com` — the BUYER side.
 
+## 🎯 THE RIGHT DOOR (found 2026-07-03 via Amazon's own docs)
+Amazon runs TWO developer programs that BOTH live in the same Solution Provider
+Portal — and we registered in the wrong one:
+- **SP-API** (Selling Partner API) = SELLER side. What Teddy registered ("Build
+  applications that use SP APIs" → the "TN-Appliance-Ordering" SP-API app). It can
+  NEVER place a buyer order. This is why the sandbox sat for weeks doing nothing.
+- **Amazon Business API** = BUYER side = **#2**. A SEPARATE onboarding that is NOT
+  self-serve: it **starts with an email to the Amazon Business API team**, is
+  human-reviewed, and **the team ASSIGNS the role** — you cannot self-select it.
+  The role for placing orders is **`AmazonBusinessOrderPlacement`**.
+
+Docs: `https://docs.business.amazon.com/docs/onboarding-overview` and
+`https://docs.business.amazon.com/docs/ordering-api`.
+
+### The onboarding path (in order)
+1. **Add a developer user on the Amazon Business account.** business.amazon.com →
+   Business Settings → **Add people** → add a generic email
+   `TNApplianceExchange_abapi@…` (or tnappliance@gmail alias) with the **"Tech"**
+   role → accept the invite.
+2. **Send the onboarding request email** to the Amazon Business API team (address is
+   printed on the onboarding-overview page above) with the required fields (below),
+   requesting the **Ordering API**.
+3. Amazon reviews (1–5 weeks) → provisions you → you finish the **developer profile
+   in SPP** with **identity verification** (gov photo ID + proof of address + a short
+   video call with an Amazon associate). The team **assigns** the OrderPlacement role.
+4. **Account-side setup:** create a **group** in Business Settings → generate the
+   **group identifier** → set **order safeguards** → add a **payment method** → add
+   **users** to the group → switch **test mode → active**.
+5. Then our connector plugs in: LWA refresh token + `GROUP_ID` + `BUYER_EMAIL` +
+   `PAYMENT_REF` → flip `AMAZON_BUSINESS_ENV=production` → live.
+
+### The request email — required fields (send verbatim)
+- First name: James "Teddy" · Last name: Pivacek
+- Job title: Owner
+- Work email: (the `_abapi` developer email, or tnappliance@gmail.com)
+- Phone: 866-268-0111
+- Organisation name: TN Appliance Exchange LLC
+- Postal code: 37013
+- Industry: Appliance repair services
+- Number of employees: 6
+- Intended use case: "We are a residential appliance-repair company. We will use the
+  Amazon Business Ordering API to programmatically place our OWN procurement orders —
+  ordering repair parts on our own Amazon Business account and drop-shipping them
+  directly to our repair customers' addresses. We are a first-party buyer using our
+  own account only; we are not building a tool for any third party."
+- Specific APIs you want to access: **Ordering API** (role `AmazonBusinessOrderPlacement`)
+- Does your platform intend to use an Agent: No — internal automation on our own
+  account only.
+
 ## Where we actually stand
 - ✅ **LWA app + sandbox auth WORKS.** Connector `_lib/amazon-business.js` mints an LWA
   token against `sandbox.na.business-api.amazon.com` (`amazon-business-test?secret=` →
