@@ -878,7 +878,7 @@ function buildJobCard(it) {
   const problemFull = (job.problem_summary || '').length > 80 ? problem + '...' : problem;
 
   const ageClass = days > 7 ? 'aged' : '';
-  const openUrl = `job-detail.html?job_id=${job.id}`;
+  const openUrl = `office-board.html?job=${job.id}`;
   const callDisabled = !phoneE164;
   const isTerminal = ['completed', 'complete', 'canceled'].includes(String(status).toLowerCase());
   const schedLabel = job.scheduled_start ? '📅 Reschedule' : '📅 Schedule';
@@ -1214,7 +1214,7 @@ function renderTodayEscalation(e) {
     </div>
     <div style="color:#8a93aa; font-size:13px; margin-bottom:8px">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0,200) || '(see event log)')}</div>
     ${jobId ? `<div style="display:flex; gap:8px; flex-wrap:wrap">
-      <a class="btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      <a class="btn-primary" href="/office-board.html?job=${jobId}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
       ${todayCancelBtn(jobId)}
     </div>` : ''}
   </div>`;
@@ -1266,7 +1266,7 @@ function renderTodayWarranty(w) {
     <div style="margin-bottom:8px">${escapeHtml(name)} — ${escapeHtml([w.brand,w.appliance_type].filter(Boolean).join(' ') || 'appliance')}</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
       ${portalUrl ? `<a href="${portalUrl}" target="_blank" rel="noopener" style="background:#7c3aed; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open ${escapeHtml(w.warranty_company||'vendor')} portal ↗</a>` : ''}
-      <a href="/job-detail.html?job_id=${w.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      <a href="/office-board.html?job=${w.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
       ${todayCancelBtn(w.job_id)}
     </div>
   </div>`;
@@ -1296,7 +1296,7 @@ function renderTodayUnpaid(u) {
     </div>
     <div style="margin-bottom:8px">${escapeHtml(name)}</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap">
-      <a href="/job-detail.html?job_id=${u.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
+      <a href="/office-board.html?job=${u.job_id}" target="_blank" style="background:#4a9eff; color:#fff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:600">Open job ↗</a>
       ${todayCancelBtn(u.job_id)}
     </div>
   </div>`;
@@ -1312,7 +1312,7 @@ async function todayCreateJobFromVoicemail(srcId, btn) {
     });
     const d = await r.json();
     if (d && d.success) {
-      setTimeout(() => { window.open(d.job_detail_url || ('/job-detail.html?job_id='+d.job_id), '_blank'); loadOfficeToday(); }, 400);
+      setTimeout(() => { window.open('/office-board.html?job='+d.job_id, '_blank'); loadOfficeToday(); }, 400);
     } else {
       alert('Failed: ' + (d && d.message || d.error || 'unknown'));
       btn.disabled = false; btn.textContent = orig;

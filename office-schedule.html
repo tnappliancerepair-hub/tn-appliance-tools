@@ -598,7 +598,7 @@
       ? '<span class="job-tech unassigned">unassigned</span>'
       : '<span class="job-tech">' + escapeHtml(tname) + '</span>';
     const meta = [appliance, j.service_city, j.problem_summary && j.problem_summary.slice(0,60)].filter(Boolean).join(' · ');
-    return '<a class="job-card" href="/job-detail.html?job_id=' + j.id + '"'
+    return '<a class="job-card" href="/office-board.html?job=' + j.id + '"'
          +   ' style="--tech-color:' + c.fg + ';--tech-bg:' + c.bg + ';">'
          +   '<div class="job-line1">'
          +     '<span class="job-time">' + escapeHtml(time) + '</span>'

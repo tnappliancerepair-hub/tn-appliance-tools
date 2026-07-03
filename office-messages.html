@@ -194,7 +194,10 @@ async function load(){
       const waitB = c.needsReview ? '<span class="badge" style="background:#c0392b;color:#fff">🔴 REPLIED — needs you</span>' : '';
       const dirLbl = (showMsg.dir==='in') ? '<span class="dir in">They wrote:</span> ' : '<span class="dir out">'+(showMsg.blocked?'(held) ':'')+'You:</span> ';
       const snip = showMsg.body ? esc(showMsg.body.slice(0,140)) : (showMsg.blocked?'(message held by gate)':'(no text)');
-      const openLink = c.jobId ? `<a class="a-open" href="job-detail.html?job_id=${c.jobId}&office=1" onclick="event.stopPropagation()">Open job →</a>` : '';
+      // Killed the old "Open job → job-detail.html" link — it went to a read-only page
+      // you couldn't act from. Every job link on this page now opens the real board TILE
+      // (below) so Danielle can make the change right there. (Teddy 2026-07-03)
+      const openLink = '';
       // 🗂 Jump straight to the job TILE. Every thread gets one — if we don't have the
       // job id yet, it resolves by phone so Danielle can always see WHO this is. (Teddy 2026-07-02)
       const tileBtn = c.jobId

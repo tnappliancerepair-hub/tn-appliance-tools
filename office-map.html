@@ -131,7 +131,7 @@ async function render() {
     const start = Number(j.scheduled_start||0);
     const when = start ? new Date(start).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:'America/Chicago'}) : 'no date set';
     const m = L.marker([ll.lat,ll.lng],{icon}).addTo(MAP).bindPopup(
-      `<div class="pop"><b>${(j.customer_name||('Job #'+j.job_id))}</b><br><span class="s">${(j.appliance_type||'')} · ${when} · ${t.n}<br>${parts.join(', ')}<br>${(j.scheduling_status||'')}</span><br><a href="job-detail.html?job_id=${j.job_id}">Open job →</a></div>`);
+      `<div class="pop"><b>${(j.customer_name||('Job #'+j.job_id))}</b><br><span class="s">${(j.appliance_type||'')} · ${when} · ${t.n}<br>${parts.join(', ')}<br>${(j.scheduling_status||'')}</span><br><a href="office-board.html?job=${j.job_id}">Open job →</a></div>`);
     MARKERS.push(m); coords.push([ll.lat,ll.lng]);
     if (coords.length % 8 === 0) { $('status').textContent = `plotting ${coords.length}/${toPlot.length}…`; }
   }

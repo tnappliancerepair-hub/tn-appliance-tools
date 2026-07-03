@@ -511,7 +511,7 @@
         <div class="card ${s}" data-job-id="${r.job_id}">
           <div class="row1">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <a class="job-link" href="job-detail.html?job_id=${r.job_id}">Job #${r.job_id}</a>
+              <a class="job-link" href="office-board.html?job=${r.job_id}">Job #${r.job_id}</a>
               <span class="vendor">${escapeHtml(r.vendor || r.specialty || '?')}</span>
               ${pill}
               <span class="sub-badge-slot" data-sub-badge="${r.job_id}"></span>
@@ -717,7 +717,7 @@
         <div class="card" style="padding:14px 16px;margin-bottom:10px">
           <div class="row1" style="margin-bottom:6px">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <a class="job-link" href="job-detail.html?job_id=${r.id}">Job #${r.id}</a>
+              <a class="job-link" href="office-board.html?job=${r.id}">Job #${r.id}</a>
               <span class="vendor">${escapeHtml(r.warranty_company || '?')}</span>
               ${pipelineBadge(r.scheduling_status)}
               ${tdrBadge}
@@ -730,7 +730,7 @@
           ${partsBlock}
           <div class="actions" style="margin-top:10px">
             <a class="btn btn-secondary" href="teddy-tdr-tool.html?job_id=${r.id}">📋 Open TDR</a>
-            <a class="btn btn-secondary" href="job-detail.html?job_id=${r.id}">🗂 Job detail</a>
+            <a class="btn btn-secondary" href="office-board.html?job=${r.id}">🗂 Job tile</a>
             ${r.customer_phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(r.customer_phone)}">📞 Call ${escapeHtml(r.customer_phone)}</a>` : ''}
           </div>
         </div>

@@ -275,7 +275,7 @@ function paintList() {
           ${callerJsSafe ? `<a href="tel:${callerJsSafe}" class="transcript-toggle" style="text-decoration:none;color:#4ca7ff;border-color:rgba(76,167,255,0.4)">📞 Call back</a>` : ''}
           ${callerJsSafe ? `<button class="transcript-toggle" onclick="openTextCompose('${callerJsSafe}')" style="color:#4ad991;border-color:rgba(74,217,145,0.4)">📱 Text</button>` : ''}
           ${customerId ? `<a href="/customer-search.html?q=${callerEnc}" class="transcript-toggle" style="text-decoration:none">👤 Customer</a>` : ''}
-          ${jobId ? `<a href="/job-detail.html?job_id=${jobId}" class="transcript-toggle" style="text-decoration:none">🧾 Job #${jobId}</a>` : ''}
+          ${jobId ? `<a href="/office-board.html?job=${jobId}" class="transcript-toggle" style="text-decoration:none">🧾 Job #${jobId}</a>` : ''}
           ${!c._isReviewed ? `<button class="transcript-toggle" data-mark-reviewed="${m.vapi_call_id || ''}" style="background:rgba(74,217,145,0.10);border-color:rgba(74,217,145,0.4);color:#4ad991">✓ Mark reviewed</button>` : ''}
         </div>
         ${m.transcript_preview ? `<pre class="transcript" id="${transcriptId}" style="display:none">${escapeHtml(m.transcript_preview)}</pre>` : ''}

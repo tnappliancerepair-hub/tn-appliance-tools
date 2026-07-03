@@ -358,7 +358,7 @@ const $ = (id) => document.getElementById(id);
         if (j.appliance_type) pills += ` <span class="pill">${escapeHtml(j.appliance_type)}</span>`;
         const when = j.created_at ? fmtCT(j.created_at) : '';
         latest = `<div class="latest">latest: job #${j.id} ${when ? '· ' + escapeHtml(when) : ''}</div>`;
-        actions += ` <a href="job-detail.html?job_id=${j.id}&office=1">📋 Job</a>`;
+        actions += ` <a href="office-board.html?job=${j.id}&office=1">📋 Job</a>`;
         if (last4) {
           actions += ` <a href="customer-portal.html?job_id=${j.id}&last4=${last4}" target="_blank">👤 Portal</a>`;
         }

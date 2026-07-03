@@ -144,7 +144,7 @@ async function load(){
           const name=s.c.name||((s.c.first_name||'')+' '+(s.c.last_name||'')).trim()||'Customer';
           const city=s.c.city||'';
           const appl=[s.j.brand,s.j.appliance,s.j.appliance_type].filter(Boolean).join(' ')||'appliance';
-          return `<a class="jl" href="/job-detail.html?job_id=${s.j.id}"><div class="stop ${st.state}${st.behind?' behind':''}">
+          return `<a class="jl" href="/office-board.html?job=${s.j.id}"><div class="stop ${st.state}${st.behind?' behind':''}">
             <div class="r1"><span class="who">${i+1}. ${esc(name)}${st.behind?'<span class="behindtag">BEHIND</span>':''}</span><span class="stat">${st.label}</span></div>
             <div class="meta">${esc(appl)}${city?' · '+esc(city):''}</div>
             ${st.when?`<div class="when">${esc(st.when)}</div>`:''}

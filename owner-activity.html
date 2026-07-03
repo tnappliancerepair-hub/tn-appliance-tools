@@ -110,7 +110,7 @@
         return '<span class="pill">'+esc(lbl)+' <b>'+counts[a]+'</b></span>';
       }).join('')||'<span class="sub">no actions yet today</span>';
       $('list').innerHTML=(d.timeline||[]).map(function(t){
-        var job=t.job_id?'<span class="j"><a href="/job-detail.html?job_id='+t.job_id+'&office=1">#'+t.job_id+'</a></span>':'';
+        var job=t.job_id?'<span class="j"><a href="/office-board.html?job='+t.job_id+'&office=1">#'+t.job_id+'</a></span>':'';
         var who=t.actor?'<span class="who">'+esc(String(t.actor))+'</span>':'';
         return '<div class="row"><span class="t">'+esc(t.time)+'</span><span class="l">'+esc(t.label)+' '+who+'</span>'+job+'</div>';
       }).join('')||'<div class="empty">No office activity logged today yet.</div>';

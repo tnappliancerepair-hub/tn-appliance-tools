@@ -85,7 +85,7 @@ function jobCard(j,tagClass,tagText){
       <input type="date" id="day-${j.job_id}" value="${todayCT()}" style="${FX_IN}">
       <select id="tech-${j.job_id}" style="${FX_IN}"><option value="">— tech —</option>${techOptions(j.tech_id)}</select>
       <button onclick="fixSchedule(${j.job_id},this)" style="background:var(--ok);color:#03130b;border:none;border-radius:8px;padding:8px 13px;font-weight:800;font-size:13px;cursor:pointer">✓ Schedule</button>
-      <a href="job-detail.html?job_id=${j.job_id}&office=1" style="color:var(--mut);font-size:12px;text-decoration:none;margin-left:auto">open ↗</a>
+      <a href="office-board.html?job=${j.job_id}&office=1" style="color:var(--mut);font-size:12px;text-decoration:none;margin-left:auto">open ↗</a>
     </div>
   </div>`;
 }
@@ -135,7 +135,7 @@ async function load(){
   html+=section('👥','Double-booked',b.double_book.length,'#ff6b6b',
     'Same tech, same time, two+ jobs. Spread them out so the day is real.',
     b.double_book.map(g=>`<div class="card db"><div class="ctop"><div class="who">${esc(g.tech)}</div><div class="when">${esc(g.slot)} · ${g.count} jobs</div></div>
-      <div class="sub2">tap each to re-time:</div>${g.jobs.map(j=>`<a class="card" style="margin:5px 0" href="job-detail.html?job_id=${j.job_id}&office=1"><div class="ctop"><div class="who" style="font-size:14px">${esc(j.customer)}</div><div class="meta">${esc(j.appliance)}${j.city?' · '+esc(j.city):''}</div></div></a>`).join('')}</div>`).join(''));
+      <div class="sub2">tap each to re-time:</div>${g.jobs.map(j=>`<a class="card" style="margin:5px 0" href="office-board.html?job=${j.job_id}&office=1"><div class="ctop"><div class="who" style="font-size:14px">${esc(j.customer)}</div><div class="meta">${esc(j.appliance)}${j.city?' · '+esc(j.city):''}</div></div></a>`).join('')}</div>`).join(''));
   // 3) No tech assigned
   html+=section('👤','No tech assigned',b.no_tech.length,'#b08bff',
     'On the calendar with a time but nobody\'s on it. Assign a tech.',

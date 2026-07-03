@@ -539,7 +539,7 @@
       const dur = r.duration_minutes > 0 ? `${r.duration_minutes}m` : '';
       const earned = r.earnings && r.earnings.total_earned != null ? `$${Number(r.earnings.total_earned).toFixed(2)}` : '';
       return `
-        <a class="row" href="job-detail.html?job_id=${r.id}">
+        <a class="row" href="office-board.html?job=${r.id}">
           <div class="top">
             <div class="who">${escapeHtml(who)} · ${escapeHtml(appl)}</div>
             <div class="ts">${escapeHtml(ts)}</div>

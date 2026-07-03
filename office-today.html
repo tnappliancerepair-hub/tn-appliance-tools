@@ -455,24 +455,24 @@
     const base = { key, ts, jobId, action };
 
     if (action === 'tdr_finalized_from_voice' || action === 'tdr_submitted') {
-      return { ...base, icon:'📋', label:'WARRANTY READY TO SUBMIT', what:`${techName ? techName + ' just finished' : 'A tech just finished'} a TDR ${jobId ? `on job #${jobId}` : ''}. ${customer} is ready for the vendor submission.`, primary:{label:'Open warranty', href:`/warranty-review.html`}, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+      return { ...base, icon:'📋', label:'WARRANTY READY TO SUBMIT', what:`${techName ? techName + ' just finished' : 'A tech just finished'} a TDR ${jobId ? `on job #${jobId}` : ''}. ${customer} is ready for the vendor submission.`, primary:{label:'Open warranty', href:`/warranty-review.html`}, links:jobId?[{label:'Job',href:`/office-board.html?job=${jobId}`}]:[] };
     }
     if (action === 'job_created_from_vapi_call') {
-      return { ...base, icon:'☎️', label:'NEW INTAKE FROM CALL', what:`${customer} just called in. Job ticket #${jobId} created. Office needs to schedule.`, primary:{label:'Schedule', href:`/needs-scheduled.html`}, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+      return { ...base, icon:'☎️', label:'NEW INTAKE FROM CALL', what:`${customer} just called in. Job ticket #${jobId} created. Office needs to schedule.`, primary:{label:'Schedule', href:`/needs-scheduled.html`}, links:jobId?[{label:'Job',href:`/office-board.html?job=${jobId}`}]:[] };
     }
     if (action === 'customer_feedback_received') {
       const rating = m.rating || 0;
       const isLow = rating > 0 && rating <= 2;
-      return { ...base, icon:isLow?'⚠️':'⭐', label:isLow?'LOW RATING — REACH OUT':'CUSTOMER FEEDBACK', what:`${customer} left a ${rating}-star review${m.comment?': "'+esc(m.comment).slice(0,140)+'"':''}.`, primary:isLow?{label:'Call customer',href:`tel:${m.customer_phone||''}`}:null, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+      return { ...base, icon:isLow?'⚠️':'⭐', label:isLow?'LOW RATING — REACH OUT':'CUSTOMER FEEDBACK', what:`${customer} left a ${rating}-star review${m.comment?': "'+esc(m.comment).slice(0,140)+'"':''}.`, primary:isLow?{label:'Call customer',href:`tel:${m.customer_phone||''}`}:null, links:jobId?[{label:'Job',href:`/office-board.html?job=${jobId}`}]:[] };
     }
     if (action === 'change_request_submitted') {
       return { ...base, icon:'💬', label:'CHANGE REQUEST IN', what:`${m.requester_name || 'Office'} sent a request: "${esc(m.title || '').slice(0,140)}"`, primary:null, links:[] };
     }
     if (action === 'parts_order_logged') {
-      return { ...base, icon:'📦', label:'PARTS ORDER LOGGED', what:`${techName} logged a parts order${m.part_number?` for ${m.part_number}`:''}${m.supplier?` from ${m.supplier}`:''}${m.eta_date?` — ETA ${m.eta_date}`:''}.`, primary:null, links:jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[] };
+      return { ...base, icon:'📦', label:'PARTS ORDER LOGGED', what:`${techName} logged a parts order${m.part_number?` for ${m.part_number}`:''}${m.supplier?` from ${m.supplier}`:''}${m.eta_date?` — ETA ${m.eta_date}`:''}.`, primary:null, links:jobId?[{label:'Job',href:`/office-board.html?job=${jobId}`}]:[] };
     }
     if (action === 'ant_field_assist_call_summary_sent') {
-      return { ...base, icon:'🐜', label:'TECH JUST FINISHED ANT CALL', what:`${techName || 'A tech'} wrapped up a Brooke call on job ${jobId ? '#'+jobId : ''}. Check the transcript if you want.`, primary:null, links:[{label:'Calls',href:'/recent-calls.html'}, ...(jobId?[{label:'Job',href:`/job-detail.html?job_id=${jobId}`}]:[])] };
+      return { ...base, icon:'🐜', label:'TECH JUST FINISHED ANT CALL', what:`${techName || 'A tech'} wrapped up a Brooke call on job ${jobId ? '#'+jobId : ''}. Check the transcript if you want.`, primary:null, links:[{label:'Calls',href:'/recent-calls.html'}, ...(jobId?[{label:'Job',href:`/office-board.html?job=${jobId}`}]:[])] };
     }
     return null;
   }
@@ -626,7 +626,7 @@
           <div class="actions">
             ${callerSafe ? `<a href="tel:${callerSafe}">📞 Call</a>` : ''}
             ${callerSafe ? `<a href="sms:${callerSafe}">📱 Text</a>` : ''}
-            ${jobId ? `<a href="/job-detail.html?job_id=${jobId}">🧾 Job #${jobId}</a>` : ''}
+            ${jobId ? `<a href="/office-board.html?job=${jobId}">🧾 Job #${jobId}</a>` : ''}
             ${callerSafe ? `<a href="/customer-search.html?q=${encodeURIComponent(caller)}">👤 Customer</a>` : ''}
             ${!c._reviewed ? `<button data-mark-rev="${m.vapi_call_id || ''}" style="background:rgba(74,217,145,0.10);color:#4ad991;border-color:rgba(74,217,145,0.4)">✓ Mark reviewed</button>` : ''}
           </div>
@@ -1457,7 +1457,7 @@ function renderWarrantyCard(w) {
         <button class="btn btn-success" onclick="openSubmitModal(${w.job_id}, '${escapeAttr(vendorLabel)}')">✓ Mark submitted</button>
         <button class="btn btn-warn" onclick="openEscalateModal(${w.job_id})">🚨 Escalate</button>
         <button class="btn btn-secondary" onclick="copyAllFields(this)">📋 Copy all</button>
-        <a class="btn btn-secondary" href="/job-detail.html?job_id=${w.job_id}" target="_blank">Open job ↗</a>
+        <a class="btn btn-secondary" href="/office-board.html?job=${w.job_id}" target="_blank">Open job ↗</a>
       </div>
     </div>`;
 }
@@ -1544,7 +1544,7 @@ function renderEscalation(e) {
       <div class="name">${escapeHtml(label)}</div>
       <div class="reason">${escapeHtml((m.reason || m.notes || m.message || '').toString().slice(0, 200) || '(see event log for detail)')}</div>
       ${jobId ? `<div class="actions">
-        <a class="btn btn-primary" href="/job-detail.html?job_id=${jobId}" target="_blank">Open job ↗</a>
+        <a class="btn btn-primary" href="/office-board.html?job=${jobId}" target="_blank">Open job ↗</a>
         <button class="btn btn-warn" onclick="openEscalateModal(${jobId})">🚨 Escalate</button>
         <button class="btn btn-secondary" onclick="openRescheduleModal(${jobId})">📅 Reschedule</button>
       </div>` : ''}
@@ -1564,7 +1564,7 @@ function renderStuck(s) {
       <div class="name">${escapeHtml(name)}</div>
       <div class="reason">${escapeHtml(s.intake_source || 'intake')} · ${escapeHtml(s.appliance_type || 'appliance')}${s.warranty_company ? ' · ' + escapeHtml(s.warranty_company) : ''}</div>
       <div class="actions">
-        <a class="btn btn-primary" href="/job-detail.html?job_id=${s.job_id}&edit=1" target="_blank">✏️ Fill in info</a>
+        <a class="btn btn-primary" href="/office-board.html?job=${s.job_id}&edit=1" target="_blank">✏️ Fill in info</a>
         ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
         <button class="btn btn-warn" onclick="openEscalateModal(${s.job_id})">🚨 Escalate</button>
         <button class="btn btn-secondary" onclick="dismissStuckJob(${s.job_id}, this)" style="color:#ff6b6b;border-color:rgba(255,107,107,0.4)">✕ Dismiss</button>
@@ -1753,7 +1753,7 @@ async function createJobFromVoicemail(sourceEventLogId, btn) {
     const d = await window.Ant.api.createJobFromVoicemail({ source_event_log_id: sourceEventLogId });
     if (d && d.success) {
       showToast(`✓ Job #${d.job_id} created`);
-      setTimeout(() => { window.open(d.job_detail_url || ('/job-detail.html?job_id=' + d.job_id), '_blank'); load(); }, 600);
+      setTimeout(() => { window.open('/office-board.html?job=' + d.job_id, '_blank'); load(); }, 600);
     } else {
       showToast('Failed: ' + (d && d.message || d.error || 'unknown'));
       btn.disabled = false; btn.textContent = '⚡ Create job from draft';
@@ -1777,7 +1777,7 @@ function renderUnpaid(u) {
       <div class="name">${escapeHtml(name)}</div>
       <div class="reason">${escapeHtml(u.appliance_type || 'appliance')}${u.problem_summary ? ' · ' + escapeHtml(u.problem_summary.slice(0,80)) : ''}</div>
       <div class="actions">
-        <a class="btn btn-primary" href="/job-detail.html?job_id=${u.job_id}" target="_blank">Open job ↗</a>
+        <a class="btn btn-primary" href="/office-board.html?job=${u.job_id}" target="_blank">Open job ↗</a>
         ${phone ? `<a class="btn btn-secondary" href="tel:${escapeAttr(phone)}">📞 Call</a>` : ''}
         <button class="btn btn-warn" onclick="openEscalateModal(${u.job_id})">🚨 Escalate</button>
       </div>
@@ -2062,7 +2062,7 @@ document.getElementById('nc-submit').addEventListener('click', async () => {
     });
     const d = await r.json();
     if (d && d.success) {
-      document.getElementById('nc-result').innerHTML = `<span style="color:#00d68f">✓ Created — job #${d.job_id}. Open it →</span> <a href="/job-detail.html?id=${d.job_id}" style="color:#4ca7ff">job-detail</a>`;
+      document.getElementById('nc-result').innerHTML = `<span style="color:#00d68f">✓ Created — job #${d.job_id}. Open it →</span> <a href="/office-board.html?job=${d.job_id}" style="color:#4ca7ff">open job tile</a>`;
       setTimeout(() => { closeNewCustomerModal(); load(); }, 2200);
     } else {
       document.getElementById('nc-result').innerHTML = '<span style="color:#ff6b6b">' + escapeHtml(d.error || 'failed') + '</span>';

@@ -1189,7 +1189,7 @@ async function maybeDuplicateBanner(job) {
   banner.style.cssText = 'border:2px solid #4a9eff;background:rgba(74,158,255,0.10);margin-bottom:10px';
   banner.innerHTML = `<div style="font-size:14px;font-weight:800;color:#4a9eff;margin-bottom:4px">🔁 Duplicate — the active job is #${active.id}</div>
     <div style="font-size:13px;color:#cbd5e0;margin-bottom:8px">This canceled record is just a duplicate. The customer's real job is <b>${escapeHtml(stt)}</b> on #${active.id} — check on that one, not this.</div>
-    <a href="/job-detail.html?job_id=${active.id}" style="display:inline-block;background:#4a9eff;color:#fff;padding:9px 16px;border-radius:8px;font-weight:800;text-decoration:none">Open the active job #${active.id} →</a>`;
+    <a href="/office-board.html?job=${active.id}" style="display:inline-block;background:#4a9eff;color:#fff;padding:9px 16px;border-radius:8px;font-weight:800;text-decoration:none">Open the active job #${active.id} →</a>`;
   content.insertBefore(banner, content.firstChild);
 }
 

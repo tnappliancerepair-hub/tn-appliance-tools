@@ -259,7 +259,7 @@
       const m = sold>0 ? sold - cost : null;
       const mPct = (sold>0 && sold>0) ? Math.round((m/sold)*100) : null;
       const st = (o.order_status||'').toLowerCase();
-      const jobCell = o.job_id ? `<a href="/job-detail.html?job_id=${o.job_id}">#${o.job_id}</a>` : '<span class="sup">—</span>';
+      const jobCell = o.job_id ? `<a href="/office-board.html?job=${o.job_id}">#${o.job_id}</a>` : '<span class="sup">—</span>';
       const dt = o.ordered_at ? new Date(o.ordered_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
       return `<tr>
         <td class="l"><div class="pn">${esc(o.part_number||'?')}</div><div class="sup">${esc(o.supplier||'')}${o.part_name?' · '+esc(o.part_name):''}</div></td>

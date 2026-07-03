@@ -519,7 +519,7 @@ function renderPop(d, num){
               (j.problem_summary?('<br><span style="color:var(--muted)">"'+esc(j.problem_summary).slice(0,90)+'"</span>'):'')+'</div>';
     });
     html += '</div>';
-    html += '<a class="open" href="/job-detail.html?job_id='+jobs[0].id+'" target="_blank">Open job #'+jobs[0].id+' →</a>';
+    html += '<a class="open" href="/office-board.html?job='+jobs[0].id+'" target="_blank">Open job #'+jobs[0].id+' →</a>';
   } else {
     html += '<div class="hint" style="margin-top:6px;">No open jobs on file.</div>';
   }

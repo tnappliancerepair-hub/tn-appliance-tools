@@ -379,7 +379,7 @@ function cardFor(job, colKey) {
   if (job.scheduled_start) metaLines.push('🕐 ' + esc(fmtTime(job.scheduled_start)));
   if (age >= 1) metaLines.push(age + 'd old');
 
-  return '<a class="' + cls + '" href="/job-detail.html?job_id=' + job.id + '" target="_blank" style="text-decoration:none; color:inherit; display:block;">' +
+  return '<a class="' + cls + '" href="/office-board.html?job=' + job.id + '" target="_blank" style="text-decoration:none; color:inherit; display:block;">' +
     '<div class="card-title">' + esc(name) + ' <span class="card-sub">#' + job.id + '</span></div>' +
     (badges.length ? '<div style="margin-top:4px;">' + badges.join('') + '</div>' : '') +
     '<div class="card-meta">' + metaLines.join(' · ') + '</div>' +

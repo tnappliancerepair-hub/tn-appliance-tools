@@ -267,7 +267,7 @@ function tableHtml(jobs) {
       <tbody>
         ${jobs.map(j => `
           <tr>
-            <td><a class="job-link" href="/job-detail.html?job_id=${j.id}" target="_blank">#${j.id}</a></td>
+            <td><a class="job-link" href="/office-board.html?job=${j.id}" target="_blank">#${j.id}</a></td>
             <td>${fmtTime(j.created_at)}</td>
             <td>${srcBadge(j.intake_source)}</td>
             <td>${escapeHtml(j.warranty_company || '')}</td>
