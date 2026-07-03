@@ -13,20 +13,25 @@
   const GEO_PREFIX = 'tn_geo_v1:';
   const GEO_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-  // Inject the Map button next to the TN/LA toggle in the search bar
+  // Drop a 🗺 Map pill straight into the office-nav pill row (next to the 🔍
+  // Search pill) so the top is just the one compact bar. Falls back to the
+  // standalone search bar if a page has no nav row. (Teddy 2026-07-03: "move
+  // the search and the map up" — both live in the pills now.)
+  let _tries = 0;
   function attach() {
-    const widget = document.querySelector('.ofc-search-bar');
-    if (!widget) { return setTimeout(attach, 200); }
-    if (widget.querySelector('.ofc-map-btn')) return;
+    if (document.querySelector('.ofc-map-btn')) return;
+    const nav = document.getElementById('office-topnav');
+    const fallback = document.querySelector('.ofc-search-fallback');
+    const host = nav || fallback;
+    if (!host) { if (_tries++ < 60) setTimeout(attach, 60); return; }
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.className = 'ofc-map-btn';
     btn.textContent = '🗺 Map';
-    btn.style.cssText = 'background:#1e6fdb;color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;margin-left:6px;font-family:inherit;';
+    // Match the nav-pill look so it sits cleanly in the row.
+    btn.style.cssText = 'flex-shrink:0;white-space:nowrap;cursor:pointer;background:rgba(30,111,219,0.16);border:2px solid rgba(30,111,219,0.6);color:#6db0ff;padding:10px 16px;border-radius:22px;font-size:14px;font-weight:700;line-height:1;font-family:inherit;';
     btn.onclick = openMapModal;
-    // Insert into the inner flex row (after the search input)
-    const row = widget.querySelector('div[style*="display: flex"]');
-    if (row) row.appendChild(btn);
-    else widget.appendChild(btn);
+    host.appendChild(btn);
   }
   attach();
 
@@ -112,7 +117,7 @@
       const m = L.marker([ll.lat, ll.lng], { icon }).addTo(map);
       const cname = (it.customer_first + ' ' + it.customer_last).trim() || '(no name)';
       const when = it.scheduled_start ? new Date(it.scheduled_start).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'needs scheduling';
-      const popup = `<div style="font-size:13px;line-height:1.4;"><b>${escapeHtml(cname)}</b><br>${escapeHtml(it.appliance || 'appliance')} · ${escapeHtml(it.warranty_company || '')}<br>${escapeHtml(addr)}<br>${escapeHtml(when)}<br><a href="/job-detail.html?job_id=${it.job_id}" target="_blank" style="color:#1e6fdb;text-decoration:none;font-weight:600;">Open job →</a></div>`;
+      const popup = `<div style="font-size:13px;line-height:1.4;"><b>${escapeHtml(cname)}</b><br>${escapeHtml(it.appliance || 'appliance')} · ${escapeHtml(it.warranty_company || '')}<br>${escapeHtml(addr)}<br>${escapeHtml(when)}<br><a href="/office-board.html?job=${it.job_id}" target="_blank" style="color:#1e6fdb;text-decoration:none;font-weight:600;">Open job tile →</a></div>`;
       m.bindPopup(popup);
       coords.push([ll.lat, ll.lng]);
       if (plotted % 5 === 0) status.textContent = `${plotted}/${items.length} pinned…`;
