@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en" data-default-theme="light">
+<head>
+<script src="/ant-theme.js?v=20260704-1"></script>
+<script src="/office-auth.js?v=20260701-1"></script>
+<meta charset="UTF-8">
+<title>Office Handoff &amp; Daily Checklist — TN Appliance Exchange</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#faf8f4; --surface:#ffffff; --ink:#1b1d21; --muted:#6b7078;
+    --accent:#1d5fd6; --accent-soft:#e8f0fd;
+    --good:#1f8a54; --good-soft:#e5f4ec;
+    --warn:#b96f00; --warn-soft:#fbf0dd;
+    --crit:#c33627; --crit-soft:#fbe9e6;
+    --line:#e7e2d8; --line-strong:#d8d2c5;
+    --shadow:0 1px 2px rgba(30,26,15,.05),0 6px 20px rgba(30,26,15,.06);
+    --radius:14px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#15171b; --surface:#1e2127; --ink:#e9eaec; --muted:#9aa0a8;
+      --accent:#5b8def; --accent-soft:#182437;
+      --good:#4bb57f; --good-soft:#13251c;
+      --warn:#d9922f; --warn-soft:#2a2113;
+      --crit:#e8695a; --crit-soft:#2c1815;
+      --line:#2b2f36; --line-strong:#3a3f47;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#faf8f4; --surface:#ffffff; --ink:#1b1d21; --muted:#6b7078;
+    --accent:#1d5fd6; --accent-soft:#e8f0fd; --good:#1f8a54; --good-soft:#e5f4ec;
+    --warn:#b96f00; --warn-soft:#fbf0dd; --crit:#c33627; --crit-soft:#fbe9e6;
+    --line:#e7e2d8; --line-strong:#d8d2c5;
+  }
+  :root[data-theme="dark"]{
+    --paper:#15171b; --surface:#1e2127; --ink:#e9eaec; --muted:#9aa0a8;
+    --accent:#5b8def; --accent-soft:#182437; --good:#4bb57f; --good-soft:#13251c;
+    --warn:#d9922f; --warn-soft:#2a2113; --crit:#e8695a; --crit-soft:#2c1815;
+    --line:#2b2f36; --line-strong:#3a3f47;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+
+  /* top nav — go back and forth to the board / warranties */
+  .nav{position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    padding:9px clamp(12px,4vw,20px); background:var(--surface); border-bottom:1px solid var(--line)}
+  .nav .brand{font:800 13px/1 system-ui; color:var(--ink); margin-right:4px; white-space:nowrap}
+  .nav a{font:700 12.5px/1 system-ui; text-decoration:none; color:var(--ink); background:var(--paper);
+    border:1px solid var(--line-strong); border-radius:9px; padding:8px 12px; white-space:nowrap}
+  .nav a:hover{border-color:var(--accent); color:var(--accent)}
+  .nav a.home{background:var(--accent-soft); border-color:color-mix(in srgb,var(--accent) 35%,transparent); color:var(--accent)}
+  .nav .spacer{flex:1}
+
+  .wrap{max-width:56rem; margin:0 auto; padding:clamp(20px,4vw,52px) clamp(16px,4vw,32px) 100px}
+  .eyebrow{font:700 12px/1 system-ui; letter-spacing:.14em; text-transform:uppercase; color:var(--accent)}
+  h1{font:800 clamp(28px,5vw,42px)/1.08 system-ui; letter-spacing:-.02em; text-wrap:balance; margin:.5rem 0 0}
+  h2{font:800 clamp(19px,3vw,24px)/1.15 system-ui; letter-spacing:-.01em; text-wrap:balance; margin:0}
+  h3{font:750 16px/1.3 system-ui; margin:0 0 2px}
+  p{margin:.5rem 0}
+  a{color:var(--accent); text-underline-offset:2px}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.88em}
+  .lede{font-size:clamp(16px,2.2vw,18.5px); color:var(--ink); max-width:44rem; margin-top:14px}
+  .situation{
+    margin-top:22px; padding:16px 18px; border-radius:var(--radius);
+    background:var(--warn-soft); border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);
+    font-size:15px;
+  }
+  .situation strong{color:var(--warn)}
+
+  .rule{height:1px; background:var(--line); border:0; margin:44px 0}
+  section{margin-top:14px}
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:6px}
+  .sec-head .n{font:800 14px/1 system-ui; color:var(--accent); font-variant-numeric:tabular-nums; padding-top:3px}
+  .sec-sub{color:var(--muted); font-size:14.5px; margin:2px 0 18px}
+
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 20px; box-shadow:var(--shadow); margin-bottom:14px;
+  }
+  .card.crit{border-color:color-mix(in srgb,var(--crit) 45%,transparent)}
+  .card.crit .tag{background:var(--crit-soft); color:var(--crit)}
+  .card-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px}
+  .tag{font:800 10.5px/1 system-ui; letter-spacing:.06em; text-transform:uppercase; padding:5px 9px; border-radius:999px; background:var(--accent-soft); color:var(--accent)}
+  .tag.good{background:var(--good-soft); color:var(--good)}
+  .card p{color:var(--muted); font-size:14.5px}
+  .card .ask{color:var(--ink)}
+
+  ul.clean{list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:9px}
+  ul.clean li{position:relative; padding-left:20px; font-size:14.5px; color:var(--ink)}
+  ul.clean li::before{content:""; position:absolute; left:2px; top:.62em; width:6px; height:6px; border-radius:2px; background:var(--accent)}
+  ul.clean li b{font-weight:700}
+
+  /* fill-in capture fields */
+  .fill{display:grid; grid-template-columns:auto 1fr; gap:6px 12px; margin-top:12px; align-items:end}
+  .fill .k{font:700 12px/1.5 system-ui; letter-spacing:.02em; color:var(--muted); text-transform:uppercase; white-space:nowrap}
+  .fill .v{border-bottom:1.5px dotted var(--line-strong); min-height:1.5em}
+
+  /* checklist */
+  .block{margin-bottom:26px}
+  .block-head{display:flex; align-items:center; gap:10px; margin-bottom:12px}
+  .block-head .icon{font-size:18px}
+  .block-head h3{font-size:15px; letter-spacing:.02em; text-transform:uppercase; color:var(--ink); font-weight:800}
+  .block-head .time{font:700 12px/1 system-ui; color:var(--muted); margin-left:auto}
+  .checks{display:flex; flex-direction:column; gap:2px}
+  .chk{display:flex; gap:12px; align-items:flex-start; padding:9px 10px; border-radius:10px; cursor:pointer; transition:background .12s}
+  .chk:hover{background:var(--accent-soft)}
+  .chk input{appearance:none; -webkit-appearance:none; margin:0; flex:none; width:20px; height:20px; border:2px solid var(--line-strong); border-radius:6px; background:var(--surface); cursor:pointer; position:relative; margin-top:1px; transition:all .12s}
+  .chk input:checked{background:var(--accent); border-color:var(--accent)}
+  .chk input:checked::after{content:""; position:absolute; left:5.5px; top:1.5px; width:5px; height:10px; border:solid #fff; border-width:0 2.5px 2.5px 0; transform:rotate(45deg)}
+  .chk input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .chk .txt{font-size:14.5px; line-height:1.5}
+  .chk .txt .where{display:block; color:var(--muted); font-size:12.5px; margin-top:1px}
+  .chk input:checked + .txt{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line-strong)}
+  .chk input:checked + .txt .where{text-decoration:none}
+
+  .risk{display:flex; gap:14px; padding:16px 18px; border-radius:var(--radius); margin-bottom:12px; border:1px solid var(--line); background:var(--surface)}
+  .risk .stripe{flex:none; width:5px; border-radius:3px; align-self:stretch}
+  .risk.r1 .stripe{background:var(--crit)} .risk.r2 .stripe{background:var(--warn)} .risk.r3 .stripe{background:var(--accent)}
+  .risk h3{font-size:15.5px}
+  .risk p{color:var(--muted); font-size:14px; margin:.3rem 0 0}
+  .risk .why{color:var(--ink); font-weight:600}
+
+  .tools{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; margin-top:8px}
+  .tool{display:block; text-decoration:none; background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:12px 14px}
+  .tool:hover{border-color:var(--accent)}
+  .tool .name{font:700 13.5px/1.2 system-ui; color:var(--ink)}
+  .tool .u{font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:var(--accent); word-break:break-all}
+  .tool .d{font-size:12.5px; color:var(--muted); margin-top:3px}
+
+  .toolbar{position:sticky; top:47px; z-index:5; display:flex; gap:8px; justify-content:flex-end; padding:10px 0; margin-bottom:-6px; background:linear-gradient(var(--paper) 70%,transparent)}
+  .btn{font:700 12.5px/1 system-ui; padding:9px 13px; border-radius:9px; border:1px solid var(--line-strong); background:var(--surface); color:var(--ink); cursor:pointer}
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:13px}
+
+  @media print{
+    .toolbar,.nav,#tn-theme-toggle{display:none} body{background:#fff}
+    .card,.tool,.risk{box-shadow:none; break-inside:avoid}
+    .chk:hover{background:none}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="brand">🐜 Office</span>
+  <a class="home" href="/office-board.html">← Job Board</a>
+  <a href="/warranty-review.html">📦 Warranties</a>
+  <a href="/needs-scheduled.html">🗓️ Needs Scheduled</a>
+  <a href="/office-messages.html">💬 Messages</a>
+  <span class="spacer"></span>
+  <a href="/office-todo.html">Todo</a>
+</nav>
+
+<div class="wrap">
+
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">Print</button>
+    <button class="btn" id="reset">Reset checks</button>
+  </div>
+
+  <header>
+    <div class="eyebrow">🐜 Ant · Office operator handoff</div>
+    <h1>Running the office — Teddy's plan &amp; daily checklist</h1>
+    <p class="lede">Danielle is out starting next week and you're taking the desk: calls, messages, scheduling, and warranty submissions. This is the plan to get through it — built from the Ant runbooks, so it covers the tools. Today is different.</p>
+    <div class="situation"><strong>Today with Danielle is the one shot.</strong> The system runs the mechanics — the buttons are documented. What isn't written down is what's in <em>her head</em>: the vendor portal logins, exactly how each warranty claim gets submitted, the judgment calls, and any side-processes. Spend today capturing that. Watch her do the real work; don't just talk about it.</p>
+  </header>
+
+  <hr class="rule">
+
+  <!-- PART A -->
+  <section>
+    <div class="sec-head"><span class="n">A</span><h2>Today: capture what only Danielle knows</h2></div>
+    <p class="sec-sub">Sit beside her, record it (voice + notes), and get every login into the vault. Priority order — do the top one first.</p>
+
+    <div class="card crit">
+      <div class="card-top"><span class="tag">Do this first · biggest $ risk</span></div>
+      <h3>1. Warranty submissions — watch a real one, end to end, for each vendor</h3>
+      <p>This is the highest-money, highest-risk part. Every completed warranty job must get filed with the vendor or we don't get paid. Have her submit <b>real completed jobs</b> while you watch and screen-record — one each for <b>SquareTrade / ServicePower</b>, <b>AHS / Frontdoor</b>, and <b>NSA</b>.</p>
+      <ul class="clean">
+        <li>The <b>portal login</b> for each (username + password → put it in the vault at <span class="mono">admin-secrets.html</span>).</li>
+        <li>The <b>exact click path</b> to submit a finished job: what fields, what codes, what she pastes from our <span class="mono">warranty-review.html</span> package.</li>
+        <li>What makes a claim <b>get rejected</b>, and how she fixes it.</li>
+        <li><b>Where the money shows up</b> (EFT / statement) and how she knows a claim got paid vs. denied.</li>
+        <li>The <b>parts-return labels</b> — which come from where (SquareTrade emails them from <span class="mono">rma_request@squaretrade.com</span>), and how she handles them.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><span class="tag">Relationships</span></div>
+      <h3>2. Vendor contacts &amp; the recurring issues</h3>
+      <p>The stuff no portal shows you.</p>
+      <ul class="clean">
+        <li>Who she <b>calls</b> at each warranty company — direct rep names / numbers.</li>
+        <li>The <b>recurring problems</b> per vendor and how she gets them resolved (rejections, missing auth, wrong parts, chargebacks).</li>
+        <li>Any <b>authorization / pre-approval</b> steps before a repair (deductibles, NCC auth).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><span class="tag">Run the sheet</span></div>
+      <h3>3. Parts &amp; returns — the chargeback shield</h3>
+      <p class="ask">Work through the 19 questions already prepared for her in <span class="mono">docs/parts-return-questions-for-danielle-2026-06-29.md</span>. The heart of it:</p>
+      <ul class="clean">
+        <li>Where the <b>"return by" date</b> comes from and how many days we get (per vendor).</li>
+        <li>How a part physically <b>ships back</b> — tech drops at FedEx, office collects, or staged somewhere.</li>
+        <li>How the vendor <b>penalizes</b> a missed return, how we find out, and how a tech gets charged.</li>
+        <li>How she <b>tracks open returns</b> today, and how many are <b>owed right now</b> (+ the oldest).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><span class="tag">Judgment</span></div>
+      <h3>4. Scheduling &amp; customer/tech quirks</h3>
+      <ul class="clean">
+        <li>How she decides <b>which tech, which day</b> beyond what the board suggests (route, who's strong at what, who's off when).</li>
+        <li>The <b>availability</b> workflow — how she pulls a customer's open days and schedules around them.</li>
+        <li>Any <b>customers to handle carefully</b>, and any <b>tech</b> preferences/no-gos.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><span class="tag">The desk</span></div>
+      <h3>5. Phones &amp; the daily rhythm — shadow her all day</h3>
+      <ul class="clean">
+        <li>How calls come in, when she <b>transfers vs. takes a message</b>, and the <b>"Reach Me"</b> toggle (<span class="mono">office-reach.html</span>).</li>
+        <li>The <b>order</b> she checks things each morning — and <em>why</em> (what she's looking for).</li>
+        <li>The <b>gotchas</b>: the little things that bite if you miss them.</li>
+        <li>Anything she does <b>outside the system</b> — spreadsheets, a notebook, memory, weekly/monthly tasks (like claims reconciliation).</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-top"><span class="tag good">Leave with this</span></div>
+      <h3>6. The logins inventory</h3>
+      <p>Before she leaves, every login you'll need is captured — vaulted, not on a sticky note. Fill this in with her:</p>
+      <div class="fill">
+        <div class="k">SquareTrade / ServicePower</div><div class="v"></div>
+        <div class="k">AHS / Frontdoor portal</div><div class="v"></div>
+        <div class="k">NSA portal</div><div class="v"></div>
+        <div class="k">Office board password</div><div class="v"></div>
+        <div class="k">Any others she uses</div><div class="v"></div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- PART B -->
+  <section>
+    <div class="sec-head"><span class="n">B</span><h2>Your daily office checklist</h2></div>
+    <p class="sec-sub">The recurring routine, mapped to the real tools. Tick as you go; hit "Reset checks" each morning. Every page has a 🐜 <b>Ask Ant</b> button — use it (“what needs my attention right now?”).</p>
+
+    <div class="block">
+      <div class="block-head"><span class="icon">☀️</span><h3>Morning — first 30 minutes</h3><span class="time">~7:30 AM</span></div>
+      <div class="checks">
+        <label class="chk"><input type="checkbox"><span class="txt">Open <b>Office Todo</b> — anything that hit overnight, one prioritized list<span class="where">office-todo.html</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt">Work the <b>Needs Scheduled</b> queue — schedule the new warranty jobs (pick tech + day)<span class="where">needs-scheduled.html</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt">Clear the <b>callbacks</b> — customers who need a call back<span class="where">callbacks.html (also a red banner on Messages)</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Messages</b> — reply to any customer text flagged <b>🔴 REPLIED — needs you</b> (a human, not Ant, must answer)<span class="where">office-messages.html</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt">Glance at the <b>board</b> — anything ⏰ OVERDUE (red card) that needs a nudge<span class="where">office-board.html</span></span></label>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="icon">📋</span><h3>Through the day</h3><span class="time">as it comes</span></div>
+      <div class="checks">
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Schedule new warranty emails</b> as they land — Ant texts you when one hits Needs Scheduled</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>SquareTrade dispatches</b> — auto-accept is on, but confirm new ones landed on the right tech</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Answer flagged customer texts</b> + handle reschedule / cancel requests (Ant alerts you; confirm before it commits)</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Submit completed warranty jobs</b> to the vendor portals — the day's completions, package ready in Warranty Review<span class="where">warranty-review.html</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Parts</b> — order parts for awaiting-parts jobs; log any return labels that came in<span class="where">parts-orders.html</span></span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>File the board</b> — drag jobs to the right folder as they move (Report → Invoice → Waiting Parts → Completion). Your placement wins; it stays put.</span></label>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="icon">🌙</span><h3>End of day</h3><span class="time">before you close up</span></div>
+      <div class="checks">
+        <label class="chk"><input type="checkbox"><span class="txt">Every <b>completed warranty job today</b> is either submitted or flagged blocked (TDR missing a field → text the tech)</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Board is clean</b> — nothing stuck in the wrong column, no job with no tech</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt">Any <b>parts due back</b>? Reminder sent so we don't eat a chargeback</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt">Skim <b>Office Pulse</b> for anything weird, and check <b>Loop Health</b> is green<span class="where">office-pulse.html · health-check.html</span></span></label>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head"><span class="icon">📅</span><h3>Weekly / recurring</h3><span class="time">don't let these slide</span></div>
+      <div class="checks">
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Claims reconciliation</b> — what got paid, what's still pending, chase the rejects (Warranty Review claims view)</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Parts owed back</b> — clear the return worklist; nothing past its deadline</span></label>
+        <label class="chk"><input type="checkbox"><span class="txt"><b>Duplicates</b> — merge any duplicate customers/jobs<span class="where">dupe-cleanup.html</span></span></label>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- PART C -->
+  <section>
+    <div class="sec-head"><span class="n">C</span><h2>The three things that will bite you</h2></div>
+    <p class="sec-sub">If everything else slips a little, protect these. In order of how much it hurts.</p>
+
+    <div class="risk r1"><div class="stripe"></div><div>
+      <h3>1. A completed warranty job that never gets submitted</h3>
+      <p><span class="why">= money we did the work for and never collect.</span> This is the single thing to master with Danielle. Every finished warranty job → filed with the vendor. Warranty Review shows you the day's completions with the package ready.</p>
+    </div></div>
+
+    <div class="risk r2"><div class="stripe"></div><div>
+      <h3>2. A job that never gets scheduled</h3>
+      <p><span class="why">= a lost customer, often a warranty one who quietly falls off.</span> The Needs Scheduled queue is your inbox — don't let it grow. If you can't schedule a job because you lack the customer's availability, that's what the availability chase is for.</p>
+    </div></div>
+
+    <div class="risk r3"><div class="stripe"></div><div>
+      <h3>3. A parts return that misses its deadline</h3>
+      <p><span class="why">= we eat the part cost (a core charge), and sometimes lose the claim.</span> Every return label has a clock. Log it, make sure it ships, confirm it went back.</p>
+    </div></div>
+  </section>
+
+  <hr class="rule">
+
+  <!-- PART D -->
+  <section>
+    <div class="sec-head"><span class="n">D</span><h2>Your safety net</h2></div>
+    <p class="sec-sub">You're not doing this from memory. Three backstops.</p>
+    <ul class="clean" style="gap:12px; margin-bottom:20px">
+      <li><b>🐜 Ask Ant</b> — the blue button on every office page. “What needs my attention right now?” · “Who should I put on job 20114?” · “Reschedule job 20114 to Friday.” It <b>previews and asks you to confirm</b> before it changes anything.</li>
+      <li><b>The written runbook</b> — <span class="mono">docs/danielle-runbook.md</span> has the button-level “how do I…” for every common scenario (new warranty email, reschedule request, tech running late, something looks broken).</li>
+      <li><b>The watchers keep running</b> — customer confirmations, tech assignment texts, no-show checks, the missed-call callback net. You <em>are</em> the escalation point now, so the alerts come to you — but the automation still does the repetitive work.</li>
+    </ul>
+
+    <h3 style="margin-bottom:8px">Your desk — the pages you'll live in</h3>
+    <div class="tools">
+      <a class="tool" href="/office-todo.html"><div class="name">Office Todo</div><div class="u">office-todo.html</div><div class="d">What needs a human, right now</div></a>
+      <a class="tool" href="/needs-scheduled.html"><div class="name">Needs Scheduled</div><div class="u">needs-scheduled.html</div><div class="d">Your warranty intake queue</div></a>
+      <a class="tool" href="/office-board.html"><div class="name">Job Board</div><div class="u">office-board.html</div><div class="d">Every job, by folder; drag to move</div></a>
+      <a class="tool" href="/office-messages.html"><div class="name">Messages</div><div class="u">office-messages.html</div><div class="d">Texts + the callback banner</div></a>
+      <a class="tool" href="/warranty-review.html"><div class="name">Warranty Review</div><div class="u">warranty-review.html</div><div class="d">Completions ready to submit + claims</div></a>
+      <a class="tool" href="/parts-orders.html"><div class="name">Parts to Order</div><div class="u">parts-orders.html</div><div class="d">Order parts, log returns</div></a>
+      <a class="tool" href="/callbacks.html"><div class="name">Callbacks</div><div class="u">callbacks.html</div><div class="d">Customers to call back</div></a>
+      <a class="tool" href="/customer-search.html"><div class="name">Customer Search</div><div class="u">customer-search.html</div><div class="d">Find anyone by phone / name</div></a>
+      <a class="tool" href="/health-check.html"><div class="name">Loop Health</div><div class="u">health-check.html</div><div class="d">Green = the automation is alive</div></a>
+    </div>
+  </section>
+
+  <footer>
+    TN Appliance Exchange · office operator handoff. Built from the Ant runbooks (<span class="mono">docs/danielle-runbook.md</span>, <span class="mono">parts-return-questions-for-danielle</span>). The mechanics are documented — today is for the tribal knowledge. Get the logins vaulted before she goes.
+  </footer>
+</div>
+
+<script>
+  (function(){
+    var KEY='tn_office_checklist_v1';
+    var boxes=[].slice.call(document.querySelectorAll('.chk input'));
+    boxes.forEach(function(b,i){b.dataset.i=i;});
+    try{ var saved=JSON.parse(localStorage.getItem(KEY)||'[]'); saved.forEach(function(i){ if(boxes[i]) boxes[i].checked=true; }); }catch(e){}
+    function save(){ try{ localStorage.setItem(KEY, JSON.stringify(boxes.filter(function(b){return b.checked}).map(function(b){return +b.dataset.i}))); }catch(e){} }
+    boxes.forEach(function(b){ b.addEventListener('change',save); });
+    document.getElementById('reset').addEventListener('click',function(){ boxes.forEach(function(b){b.checked=false}); save(); });
+  })();
+</script>
+</body>
+</html>
