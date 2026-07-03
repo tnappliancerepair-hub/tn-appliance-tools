@@ -297,6 +297,11 @@ const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 const REGION_TECHS={TN:[2,4,3,1],NOLA:[6,3]};
 const NOLA_CITY=/(new orleans|metairie|kenner|covington|mandeville|slidell|hammond|baton|denham|walker|ponchatoula|laplace|chalmette|gonzales|madisonville|abita|destrehan|nola)/i;
 const PARTS_WAIT=/(awaiting_parts|ordered|on_order|parts_needed|pending|backorder)/i;
+// A job only AUTO-FILES into Waiting Parts once the part is actually ORDERED —
+// NOT just because a part was named/needed. Danielle must be the one who moves a
+// job to Waiting Parts (by ordering the part); a tech entering a part number in
+// his report must never move a scheduled job on its own. (Teddy 2026-07-03)
+const PARTS_ORDERED=/(awaiting_parts|ordered|on_order|backorder)/i;
 
 function jobRegion(j){
   // Office's explicit call wins (service_state set from the drawer Region buttons
@@ -430,7 +435,13 @@ function placeOf(j){
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
   if(ss==='completed'||cs==='completed') return hasTech?('inv-'+t):'done';
-  if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
+  // A job moves to Waiting Parts ONLY once Danielle sets the part's ETA (that's
+  // when she's actually ordered it — and it fires the "part ordered, ETA is X"
+  // text to the customer). A part merely named/needed by the tech, or the tech's
+  // "parts needed" completion, do NOT move it — it stays put until she sets the
+  // ETA. (Teddy 2026-07-03) parts_status ordered-value is a belt-and-suspenders
+  // fallback for orders logged without an ETA.
+  if((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||'')) return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
   // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
   // Needs Scheduled. SquareTrade/AHS jobs often land scheduled-with-a-date but
@@ -1451,13 +1462,23 @@ async function orderParts(id){
   const cost=parseFloat((document.getElementById('pt-cost')||{}).value);
   const charge=parseFloat((document.getElementById('pt-charge')||{}).value);
   if(!pn){toast('Enter the part # to order');return;}
+  // ETA is REQUIRED — it's the trigger that moves the job to Waiting Parts AND
+  // texts the customer the ETA. No ETA = no order. (Teddy 2026-07-03)
+  if(!eta){ toast('Set the part ETA first — the customer gets texted this date.'); const e=document.getElementById('pt-eta'); if(e){e.style.outline='2px solid #c0392b';e.focus();setTimeout(()=>{e.style.outline='';},2500);} return; }
   const body={job_id:parseInt(id,10),part_number:pn,part_name:nm,parts_eta_date:eta,order_status:'ordered',source:'office'};
   if(src)body.supplier=src;   // where it's coming from / pickup (Danielle's dropdown) -> parts_orders.supplier
   if(!isNaN(cost))body.cost_cents=Math.round(cost*100);
   if(!isNaN(charge))body.sold_to_customer_cents=Math.round(charge*100);
   toast('Ordering parts…');
   try{const d=await postJSON('record_parts_order',body);
-    if(d&&!d.error){toast('Parts ordered ✓ — job set to awaiting parts');closeDrawer();loadBoard();}
+    if(d&&!d.error){
+      // Text the customer right now: part ordered + ETA + "what's your availability
+      // after that?" — saves the "where's my part" call. (Teddy 2026-07-03)
+      let texted=false;
+      try{ const nd=await (await fetch('/.netlify/functions/notify-part-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),eta_date:eta})})).json(); texted=!!(nd&&nd.ok); }catch(_){}
+      toast(texted?'Parts ordered ✓ — customer texted the ETA':'Parts ordered ✓ — moved to Waiting Parts');
+      closeDrawer();loadBoard();
+    }
     else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ connection error');}
 }
