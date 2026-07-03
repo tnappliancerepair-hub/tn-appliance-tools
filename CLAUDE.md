@@ -1,5 +1,16 @@
 # Appliance Ant
 
+## 📋 THE OPERATING PLAN — canonical business plan (READ + BUILD ON THIS)
+**`docs/ant-operating-plan.md`** is the living business plan (v1, 2026-07-03) — the
+full three-layer arc: **L1 TN Appliance (proving ground) → L2 Ant SaaS for shops →
+L3 the consumer platform.** Audience = us/the team (honest operating plan, not a
+pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
+- **Build on it:** edit the `.md`, commit, push. Keep the changelog at the bottom updated.
+- Rendered (pretty, theme-aware) version lives at `docs/ant-operating-plan.html` —
+  re-render it as an Artifact when Teddy wants the nice view.
+- When strategy/direction is discussed, reconcile it INTO this plan (don't let the
+  plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
+
 ## 🗓️🐜 2026-07-02 (Wed) — OFFICE-BOARD FOLDER FIX + MAC DEPLOY FLUSHED LIVE (READ FIRST)
 
 Shorter live-ops day. All committed/pushed to `main` (Netlify auto-deploys front-end). **The pending Mac backlog is now DEPLOYED** (Teddy ran it end-to-end at the Mac Mini).
