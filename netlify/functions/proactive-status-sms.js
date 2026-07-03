@@ -1,26 +1,26 @@
-// proactive-status-sms — tell customers their status BEFORE they call to ask.
+// proactive-status-sms — when we ORDER a part, tell the customer right away:
+// "part's ordered, ETA is X — what days work for you after that?" It captures
+// their availability at the perfect moment so we can book them the moment the
+// part lands, and it kills the "where's my part / is it scheduled" call.
 //
-// Today's call log (2026-07-03) showed the #1 driver of repeat calls is
-// "where's my part / is it scheduled" — customers calling 2–3× while they wait.
-// This texts an awaiting-parts customer ONCE, proactively: "your part's on
-// order, ETA X, we'll reach out to schedule — nothing you need to do." That
-// single touch kills most of the "where's my part" calls.
+// FORWARD-ONLY BY DESIGN (Teddy 2026-07-03): it never touches the stale backlog.
+// A one-time ?baseline= marks every job that's ALREADY awaiting-parts as
+// "handled" without texting, so only jobs that enter awaiting-parts from now on
+// get the message. A sanity guard refuses to send if it ever sees a big batch of
+// un-notified jobs (i.e. the backlog wasn't baselined) so it can't blast.
 //
-// SAFE BY DESIGN:
-//   • guardedSend — opt-out is absolute; quiet-hours/frequency/global caps apply.
-//   • ONE text per job (a `proactive_parts_notified` marker dedupes forever).
-//   • THROTTLED per run so the current backlog drains over a few runs, never a blast.
-//   • SHADOW by default — it computes + logs what it WOULD send but sends nothing
-//     until PROACTIVE_STATUS_LIVE=true (or a manual ?send=1&secret= run). Preview
-//     any time with ?dry=1.
+// SAFE: guardedSend (opt-out absolute, quiet-hours/caps), one text per job
+// (dedupe marker), throttled per run. SHADOW until PART_ORDERED_NOTIFY_LIVE=true
+// (or a manual ?send=1&secret= run). Preview any time with ?dry=1.
 'use strict';
 
 const guard = require('./_lib/sms-guard');
 const crud = require('./_lib/xano/metadata-crud');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 
-const LIVE = String(process.env.PROACTIVE_STATUS_LIVE || '').toLowerCase() === 'true';
-const MAX_PER_RUN = Number(process.env.PROACTIVE_STATUS_MAX_PER_RUN) > 0 ? Number(process.env.PROACTIVE_STATUS_MAX_PER_RUN) : 12;
+const LIVE = String(process.env.PART_ORDERED_NOTIFY_LIVE || '').toLowerCase() === 'true';
+const MAX_PER_RUN = Number(process.env.PART_ORDERED_MAX_PER_RUN) > 0 ? Number(process.env.PART_ORDERED_MAX_PER_RUN) : 8;
+const SANITY_MAX = Number(process.env.PART_ORDERED_SANITY_MAX) > 0 ? Number(process.env.PART_ORDERED_SANITY_MAX) : 15;
 const ADMIN = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
 
 function json(o, code) { return { statusCode: code || 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }; }
@@ -28,7 +28,6 @@ function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try {
 function firstName(j) { return String(j.customer_first || j.customer_first_name || '').trim() || 'there'; }
 function appl(j) { return String(j.appliance || j.appliance_type || 'appliance').toLowerCase(); }
 
-// Pull every job object out of the kanban structure (dedupe by id).
 function collectJobs(d) {
   const out = {}; (function walk(o) {
     if (Array.isArray(o)) { for (const v of o) walk(v); return; }
@@ -40,7 +39,6 @@ function collectJobs(d) {
   return Object.values(out);
 }
 
-// Friendly ETA phrase, or '' when we don't have a real date.
 function etaPhrase(raw) {
   const s = String(raw || '').trim();
   if (!s) return '';
@@ -49,65 +47,71 @@ function etaPhrase(raw) {
   return dt.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-function partsMessage(j) {
+// Part ordered + ETA + the availability ask (so we book them right after the part lands).
+function orderMessage(j) {
   const eta = etaPhrase(j.parts_eta_date);
   const who = firstName(j), what = appl(j);
   if (eta) {
-    return `Hi ${who}, it's Tennessee Appliance with an update on your ${what} repair. Your part is on order — expected around ${eta}. As soon as it arrives we'll reach right out to get your visit scheduled. Nothing you need to do on your end, we're tracking it for you. Questions anytime? Just reply here.`;
+    return `Hi ${who}, it's Tennessee Appliance — good news, we've ordered the part for your ${what} repair. It's expected to arrive around ${eta}. As soon as it's in we'll get you scheduled. To make that quick: what days and times work best for you after ${eta}, and are there any that DON'T work? Just reply here and we'll lock in your visit. Thanks!`;
   }
-  return `Hi ${who}, it's Tennessee Appliance with an update on your ${what} repair. Your part is on order and we're tracking it. The moment it comes in we'll reach out to get your visit scheduled — nothing you need to do on your end, we've got it. Questions anytime? Just reply here.`;
+  return `Hi ${who}, it's Tennessee Appliance — good news, we've ordered the part for your ${what} repair and we're tracking its arrival. The moment it's in we'll reach out to get you scheduled. To make that quick: what days and times generally work for you, and any that DON'T? Just reply here and we'll get you set. Thanks!`;
+}
+
+async function markNotified(j, reason) {
+  try { await crud.logEvent('proactive_parts_notified', { job_id: j.id, phone: guard.toE164(j.customer_phone), eta: String(j.parts_eta_date || ''), at_ms: Date.now(), reason: reason || '' }); } catch (_) {}
 }
 
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
+  const authed = q.secret === ADMIN;
   const dry = q.dry === '1';
-  const manualSend = q.send === '1' && q.secret === ADMIN;
-  const willSend = manualSend || (LIVE && !dry);
-  const cap = Number(q.max) > 0 ? Number(q.max) : MAX_PER_RUN;
+  const baseline = q.baseline === '1' && authed;   // silence the current backlog (no texts)
+  const manualSend = q.send === '1' && authed;
+  const force = q.force === '1' && authed;
+  const willSend = !baseline && !dry && (manualSend || LIVE);
 
-  // 1) active jobs
+  // active jobs
   let jobs = [];
   try { jobs = collectJobs(await (await fetch(`${XANO}/get_office_kanban`)).json()); }
   catch (_) { return json({ ok: false, error: 'kanban_fetch_failed' }); }
 
-  // 2) jobs we've already proactively notified (dedupe forever, one text per job)
+  // already-handled set (dedupe forever — one text per job)
   const notified = new Set();
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'proactive_parts_notified' }, { id: 'desc' }, 1000);
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'proactive_parts_notified' }, { id: 'desc' }, 2000);
     for (const r of rows) { const jid = String(metaOf(r).job_id || ''); if (jid) notified.add(jid); }
   } catch (_) {}
 
-  // 3) candidates = genuinely waiting on parts, have a phone, not yet notified
-  const candidates = jobs.filter((j) => {
-    const waiting = String(j.scheduling_status || '') === 'awaiting_parts';
-    const notArrived = String(j.parts_status || '') !== 'arrived';
-    const hasPhone = !!String(j.customer_phone || '').trim();
-    return waiting && notArrived && hasPhone && !notified.has(String(j.id));
-  });
+  // candidates: genuinely awaiting a part, has a phone, not yet handled
+  const candidates = jobs.filter((j) => String(j.scheduling_status || '') === 'awaiting_parts'
+    && String(j.parts_status || '') !== 'arrived'
+    && !!String(j.customer_phone || '').trim()
+    && !notified.has(String(j.id)));
+
+  // BASELINE: mark all current candidates handled, send nothing (run once at go-live).
+  if (baseline) {
+    for (const j of candidates) await markNotified(j, 'baseline');
+    return json({ ok: true, mode: 'baseline', baselined: candidates.length });
+  }
+
+  // SANITY GUARD: a big un-notified batch means the backlog wasn't baselined —
+  // refuse to send so we can't blast. (Override with &force=1 once intended.)
+  if (willSend && candidates.length > SANITY_MAX && !force) {
+    return json({ ok: false, mode: 'refused_needs_baseline', un_notified: candidates.length,
+      hint: `Run ?baseline=1&secret=… once to silence the backlog, then only NEW part orders get texted. (or &force=1 to override)` });
+  }
 
   const results = []; let sent = 0;
   for (const j of candidates) {
-    if (sent >= cap) break;
-    const msg = partsMessage(j);
-    if (!willSend) { results.push({ job_id: j.id, name: firstName(j), appliance: appl(j), eta: etaPhrase(j.parts_eta_date) || null, preview: msg }); sent++; continue; }
-    const res = await guard.guardedSend({ phone: j.customer_phone, message: msg, tag: 'proactive_parts_status', kind: 'status_update' });
-    // Mark notified whenever the guard didn't hard-block for a retryable reason —
-    // sent OR shadow-sent OR opted-out (don't keep retrying an opt-out). Only a
-    // send_failed leaves it un-marked so the next run retries.
-    if (res.reason !== 'send_failed') { try { await crud.logEvent('proactive_parts_notified', { job_id: j.id, phone: guard.toE164(j.customer_phone), state: etaPhrase(j.parts_eta_date) ? 'eta' : 'pending', at_ms: Date.now(), reason: res.reason }); } catch (_) {} }
+    if (sent >= MAX_PER_RUN) break;
+    const message = orderMessage(j);
+    if (!willSend) { results.push({ job_id: j.id, name: firstName(j), appliance: appl(j), eta: etaPhrase(j.parts_eta_date) || null, preview: message }); sent++; continue; }
+    const res = await guard.guardedSend({ phone: j.customer_phone, message, tag: 'part_ordered_notify', kind: 'status_update' });
+    if (res.reason !== 'send_failed') await markNotified(j, res.reason);  // don't retry-spam; only a hard send failure retries
     results.push({ job_id: j.id, sent: res.sent, reason: res.reason });
     if (res.sent) sent++;
   }
 
-  return json({
-    ok: true,
-    mode: willSend ? 'LIVE' : (dry ? 'dry_preview' : 'shadow'),
-    live_flag: LIVE,
-    total_jobs: jobs.length,
-    awaiting_parts_candidates: candidates.length,
-    processed: results.length,
-    sent,
-    cap,
-    results: results.slice(0, 60),
-  });
+  return json({ ok: true, mode: willSend ? 'LIVE' : (dry ? 'dry_preview' : 'shadow'), live_flag: LIVE,
+    total_jobs: jobs.length, un_notified_candidates: candidates.length, processed: results.length, sent, results: results.slice(0, 60) });
 };
