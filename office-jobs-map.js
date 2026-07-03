@@ -20,6 +20,11 @@
   const region = (location.pathname || '').toLowerCase().includes('-la') ? 'la' : 'tn';
 
   let map = null, leafletReady = false, pinsByJob = {}, jobsLoaded = false;
+  let markerLayer = null;
+  // Two separate maps — Middle TN and Louisiana — so each region can be
+  // clustered on its own. Default to whatever the page implies. (Teddy 2026-07-03)
+  let currentRegion = region;
+  const CENTER = { tn: [36.0, -86.7], la: [30.1, -90.5] };
 
   // ── DOM: edge tab + sliding panel ──────────────────────────────
   const style = document.createElement('style');
@@ -39,6 +44,10 @@
     #antmap-el{flex:1;background:#e8ecf2}
     #antmap-legend{padding:8px 12px;font-size:12px;color:#9fb0c3;background:#0e1118;border-top:1px solid #2a3040;display:flex;gap:14px;align-items:center}
     #antmap-legend .d{width:11px;height:11px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:-1px}
+    #antmap-regions{display:flex;gap:8px;padding:9px 12px;background:#0e1118;border-bottom:1px solid #2a3040}
+    .antmap-reg{flex:1;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid #2a3040;color:#9fb0c3;
+      padding:9px 10px;border-radius:9px;font-size:13px;font-weight:700;font-family:inherit}
+    .antmap-reg.active{background:#1e6fdb;border-color:#1e6fdb;color:#fff}
     .antmap-pin{background:#e67e22;color:#fff;font-weight:700;font-size:11px;width:26px;height:26px;border-radius:50%;
       display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
     .antmap-pin.sched{background:#1aa05c}
@@ -56,14 +65,17 @@
   panel.id = 'antmap-panel';
   panel.innerHTML = `
     <div id="antmap-head">
-      <b>🗺 Where the jobs are</b>
+      <b>🗺 Needs scheduling</b>
       <span id="antmap-status">…</span>
       <button id="antmap-close" type="button">Hide</button>
     </div>
+    <div id="antmap-regions">
+      <button type="button" class="antmap-reg" data-region="tn">Middle TN</button>
+      <button type="button" class="antmap-reg" data-region="la">Louisiana</button>
+    </div>
     <div id="antmap-el"></div>
     <div id="antmap-legend">
-      <span><span class="d" style="background:#1aa05c"></span>scheduled</span>
-      <span><span class="d" style="background:#e67e22"></span>needs scheduling</span>
+      <span><span class="d" style="background:#e67e22"></span>needs scheduling — cluster these</span>
       <span style="margin-left:auto;opacity:.7">hover a job → its pin</span>
     </div>
   `;
@@ -74,6 +86,8 @@
     document.body.appendChild(panel);
     document.getElementById('antmap-close').onclick = () => setOpen(false);
     tab.onclick = () => setOpen(true);
+    panel.querySelectorAll('.antmap-reg').forEach(b => { b.onclick = () => switchRegion(b.getAttribute('data-region')); });
+    markActiveRegion();
     // Restore last state (default closed so it never surprises anyone).
     if (localStorage.getItem(OPEN_KEY) === '1') setOpen(true);
     wireHover();
@@ -114,46 +128,63 @@
     const status = document.getElementById('antmap-status');
     status.textContent = 'loading map…';
     try { await loadLeaflet(); } catch (e) { status.textContent = 'map failed'; return; }
-    const center = region === 'la' ? [30.45, -91.15] : [36.0, -86.7];
-    map = L.map('antmap-el', { zoomControl: true, attributionControl: false }).setView(center, 9);
+    map = L.map('antmap-el', { zoomControl: true, attributionControl: false }).setView(CENTER[currentRegion] || CENTER.tn, 9);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+    markerLayer = L.layerGroup().addTo(map);
     leafletReady = true;
     setTimeout(() => map.invalidateSize(), 60);
     loadJobs();
   }
 
+  function markActiveRegion() {
+    panel.querySelectorAll('.antmap-reg').forEach(b => b.classList.toggle('active', b.getAttribute('data-region') === currentRegion));
+  }
+
+  function switchRegion(r) {
+    if (!r || r === currentRegion) return;
+    currentRegion = r;
+    markActiveRegion();
+    if (map) map.setView(CENTER[r] || CENTER.tn, 9);
+    loadJobs();
+  }
+
   async function loadJobs() {
     jobsLoaded = true;
+    if (markerLayer) markerLayer.clearLayers();
+    pinsByJob = {};
     const status = document.getElementById('antmap-status');
     status.textContent = 'fetching jobs…';
     let items = [];
     try {
-      const r = await fetch(`${XANO}/list_jobs_for_office_map?region=${region}&limit=200`);
+      const r = await fetch(`${XANO}/list_jobs_for_office_map?region=${currentRegion}&limit=200`);
       const d = await r.json();
       items = (d && d.items) || [];
     } catch (_) { status.textContent = 'fetch failed'; return; }
-    status.textContent = `${items.length} jobs — locating…`;
+    // ONLY the unscheduled jobs — the ones we still need to place. A scheduled
+    // job is already handled; showing it just clutters the cluster view. (Teddy)
+    items = items.filter(it => !it.scheduled_start);
+    status.textContent = `${items.length} to schedule — locating…`;
+    const reqRegion = currentRegion;            // guard against a region switch mid-load
     let plotted = 0; const coords = [];
     for (let i = 0; i < items.length; i++) {
+      if (reqRegion !== currentRegion) return;  // user switched — abandon this pass
       const it = items[i];
       const addr = [it.address, it.city, it.state, it.zip].filter(Boolean).join(', ');
       if (!addr || it.job_id == null) continue;
       const ll = await geocode(addr);
-      if (!ll) continue;
+      if (!ll || reqRegion !== currentRegion) { if (reqRegion !== currentRegion) return; continue; }
       plotted++;
-      const sched = !!it.scheduled_start;
-      const icon = L.divIcon({ className: '', html: `<div class="antmap-pin ${sched ? 'sched' : ''}" data-pinjob="${it.job_id}">${plotted}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
-      const m = L.marker([ll.lat, ll.lng], { icon }).addTo(map);
+      const icon = L.divIcon({ className: '', html: `<div class="antmap-pin" data-pinjob="${it.job_id}">${plotted}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+      const m = L.marker([ll.lat, ll.lng], { icon }).addTo(markerLayer);
       const cname = ((it.customer_first || '') + ' ' + (it.customer_last || '')).trim() || '(no name)';
-      const when = sched ? new Date(it.scheduled_start).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'needs scheduling';
-      m.bindPopup(`<div style="font-size:13px;line-height:1.4"><b>${esc(cname)}</b><br>${esc(it.appliance || 'appliance')}<br>${esc(addr)}<br>${esc(when)}<br><a href="/office-board.html?job=${it.job_id}" style="color:#1e6fdb;font-weight:600;text-decoration:none">Open job tile →</a></div>`);
+      m.bindPopup(`<div style="font-size:13px;line-height:1.4"><b>${esc(cname)}</b><br>${esc(it.appliance || 'appliance')}<br>${esc(addr)}<br>needs scheduling<br><a href="/office-board.html?job=${it.job_id}" style="color:#1e6fdb;font-weight:600;text-decoration:none">Open job tile →</a></div>`);
       pinsByJob[String(it.job_id)] = { marker: m, ll };
       coords.push([ll.lat, ll.lng]);
       if (plotted % 5 === 0) status.textContent = `${plotted}/${items.length} located…`;
     }
     if (coords.length > 1) map.fitBounds(coords, { padding: [30, 30] });
     else if (coords.length === 1) map.setView(coords[0], 12);
-    status.textContent = `${plotted} pins`;
+    status.textContent = plotted ? `${plotted} to schedule` : 'nothing to schedule here 🎉';
   }
 
   // ── Hover linkage: any job tile with data-id → flash its pin ────
