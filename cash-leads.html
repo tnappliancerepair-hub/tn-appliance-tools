@@ -8,7 +8,7 @@
 <style>
   :root{--bg:#070a0e;--card:#111824;--bord:#1f2a37;--text:#e6edf3;--muted:#8b98a5;--green:#39ff14;--orange:#ff8c42;--blue:#4cc9c0;--red:#ff6b6b;--mono:ui-monospace,Menlo,monospace;}
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;padding:14px;max-width:860px;margin:0 auto;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,sans-serif;padding:14px 20px;max-width:1200px;margin:0 auto;}
   h1{font-size:20px;}.sub{color:var(--muted);font-size:12px;margin:4px 0 14px;}
   .gate{max-width:320px;margin:60px auto;text-align:center;}
   .gate input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--bord);background:var(--card);color:var(--text);font-size:16px;margin:10px 0;}
@@ -63,12 +63,22 @@ function show(){ document.getElementById('gate').style.display='none'; document.
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function fmtPhone(p){ const d=String(p||'').replace(/\D/g,'').slice(-10); return d.length===10?d.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3'):(p||''); }
 function ago(ms){ if(!ms) return ''; const m=Math.floor((Date.now()-ms)/60000); if(m<60) return m+'m ago'; const h=Math.floor(m/60); if(h<24) return h+'h ago'; return Math.floor(h/24)+'d ago'; }
+// Dismissed leads (junk like a commercial-cooler lead) are hidden with the ✕ and
+// remembered on this device so they don't come back on refresh.
+function dismissedSet(){ try{ return new Set(JSON.parse(localStorage.getItem('cash_leads_dismissed')||'[]').map(Number)); }catch(e){ return new Set(); } }
+function dismissLead(jobId){
+  if(!confirm('Remove this lead from the list?')) return;
+  const s=dismissedSet(); s.add(Number(jobId));
+  try{ localStorage.setItem('cash_leads_dismissed', JSON.stringify([...s])); }catch(e){}
+  load();
+}
 
 async function load(){
   const host=document.getElementById('list');
   try{
     const d=await fetch(FN+'/cash-leads?days=30').then(r=>r.json());
-    const leads=(d&&d.leads)||[];
+    const dis=dismissedSet();
+    const leads=((d&&d.leads)||[]).filter(L=>!dis.has(Number(L.job_id)));
     if(!leads.length){ host.innerHTML='<div class="empty">No open cash leads right now. 🎉</div>'; return; }
     host.innerHTML=leads.map(card).join('');
     // fetch photo counts per card (accurate, lazy)
@@ -90,7 +100,7 @@ function card(L){
     : '<span class="b need">no model</span>';
   const payBadge = L.paid ? '<span class="b ok">paid ✓</span>' : '<span class="b need">unpaid</span>';
   return `<div class="card">
-    <div class="top"><span class="nm">${esc(L.name)}</span><span class="jid">#${L.job_id} · ${ago(L.created_ms)}</span></div>
+    <div class="top"><span class="nm">${esc(L.name)}</span><span style="display:flex;align-items:center;gap:10px"><span class="jid">#${L.job_id} · ${ago(L.created_ms)}</span><button onclick='dismissLead(${L.job_id})' title="Remove this lead — not needed" style="background:rgba(255,107,107,.12);border:1px solid rgba(255,107,107,.4);color:#ff6b6b;width:26px;height:26px;border-radius:50%;font-size:14px;font-weight:800;line-height:1;cursor:pointer;padding:0;flex-shrink:0">✕</button></span></div>
     <div class="appl">${esc(L.appliance||'appliance')}${L.zip?(' · '+esc(L.zip)):''}${phone?(' · '+esc(phone)):''}</div>
     ${L.problem?`<div class="prob">"${esc(L.problem)}"</div>`:''}
     ${L.availability?`<div class="avail"><span class="lbl">🗓 THEY'RE AVAILABLE</span><br>${esc(L.availability)}</div>`:''}
