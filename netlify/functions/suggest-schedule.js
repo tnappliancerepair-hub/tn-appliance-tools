@@ -82,7 +82,10 @@ exports.handler = async function (event) {
   let rd = {};
   try { rd = await (await fetch(`${XANO}/get_tech_route_days?technician_id=${techId}`)).json(); } catch (_) {}
   const maxStops = Number(rd.max_stops_per_day) || 6;
-  const worksSat = rd.works_saturdays !== false;
+  // We run Mon–Fri — nobody works Saturday unless their profile EXPLICITLY opts in.
+  // (Was `!== false`, which treated a missing profile as "works Saturday" and made
+  // Ant suggest Saturday for everyone. Flip it to opt-in only.)
+  const worksSat = rd.works_saturdays === true;
   const stops = Array.isArray(rd.stops) ? rd.stops : [];
   let personalCtx = '';
   try { const t = await crud.searchPage(TECH_TABLE, { id: techId }, null, 1); personalCtx = (t && t[0] && t[0].personal_context) || ''; } catch (_) {}
