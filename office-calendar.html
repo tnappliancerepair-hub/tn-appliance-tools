@@ -328,6 +328,28 @@
   .unscheduled-tray .head { background: rgba(139,92,246,0.12); }
   .unscheduled-tray .item .meta { font-size: 11px; margin-top: 3px; }
   .unsched-item { cursor: pointer; }
+
+  /* ── HCP-style scheduling board (Teddy/Danielle 2026-07-03) ──────────
+     A left RAIL (month calendar + tight needs-scheduling queue + map) beside
+     the week grid, so the whole week is on one screen while you place jobs.
+     Elements are re-homed into #cal-rail by a script at the page bottom. */
+  #cal-rail { display: flex; flex-direction: column; gap: 12px; }
+  #cal-rail #miniCal { width: 100%; position: static; flex: 0 0 auto; }
+  @media (min-width: 900px) {
+    .scroll { display: flex; gap: 12px; overflow: hidden; }
+    #cal-rail { flex: 0 0 344px; width: 344px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 5px 24px 0; }
+    #content { flex: 1; min-width: 0; height: 100%; overflow: auto; }
+  }
+  /* Tight queue inside the rail: single column, small tiles, self-scroll so the
+     grid stays visible. Detail is hidden until you hover a row — then it opens. */
+  #cal-rail .unscheduled-tray { margin: 0; }
+  #cal-rail .unscheduled-tray .list { grid-template-columns: 1fr; gap: 6px; max-height: 46vh; overflow-y: auto; padding-right: 2px; }
+  #cal-rail .unscheduled-tray .item { padding: 7px 9px; }
+  #cal-rail .unscheduled-tray .item .cust { font-size: 12.5px; margin-top: 0; }
+  #cal-rail .unscheduled-tray .item .what { font-size: 11px; }
+  #cal-rail .unscheduled-tray .item .udetail { display: none; }
+  #cal-rail .unscheduled-tray .item:hover { position: relative; z-index: 6; border-color: var(--violet); background: rgba(122,92,240,0.16); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
+  #cal-rail .unscheduled-tray .item:hover .udetail { display: block; }
   .wtag {
     display: inline-block; font-size: 9px; text-transform: uppercase;
     letter-spacing: 0.04em; background: rgba(37,99,235,0.15); color: var(--blue);
@@ -1300,14 +1322,16 @@ function __initCalendar() {
              style="margin-top:6px;font:700 12px/1 system-ui;padding:6px 10px;border-radius:7px;border:1px solid rgba(232,116,59,0.55);background:rgba(232,116,59,0.14);color:#f0a074;cursor:pointer">📲 Text intake link</button>`
         : '';
       return `
-        <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule this job">
+        <div class="item unsched-item" data-job-id="${j.id}" role="button" tabindex="0" title="Tap to schedule — opens the full job">
           <div class="cust">${escapeHtml(cust)} ${tag}</div>
-          ${suggestLine}
-          ${constraintLine}
           <div class="what">${escapeHtml(appl)}${loc ? ' · ' + escapeHtml(loc) : ''}</div>
-          <div class="meta">${meta}</div>
-          ${intakeBtn}
-          <div class="intake-result" data-jobid="${j.id}" style="font-size:12px;margin-top:4px"></div>
+          ${suggestLine}
+          <div class="udetail">
+            ${constraintLine}
+            <div class="meta">${meta}</div>
+            ${intakeBtn}
+            <div class="intake-result" data-jobid="${j.id}" style="font-size:12px;margin-top:4px"></div>
+          </div>
         </div>
       `;
     }).join('');
@@ -2673,6 +2697,47 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   else tryFit(0);
   window.addEventListener('load',fitBelowNav);
   window.addEventListener('resize',function(){ clearTimeout(window.__fitT); window.__fitT=setTimeout(fitBelowNav,80); });
+})();
+
+/* HCP-style board: re-home the month calendar + the needs-scheduling queue into
+   a left RAIL beside the week grid, so the whole week is on one screen while you
+   place jobs. The grid re-renders #content on every load, so we re-run after
+   each render (guarded so our own DOM moves don't loop). (Teddy 2026-07-03) */
+(function(){
+  var relocating=false;
+  function ensureRail(){
+    var scroll=document.getElementById('scroll'); if(!scroll) return null;
+    var rail=document.getElementById('cal-rail');
+    if(!rail){ rail=document.createElement('aside'); rail.id='cal-rail'; scroll.insertBefore(rail, scroll.firstChild); }
+    var mini=document.getElementById('miniCal');
+    if(mini && mini.parentElement!==rail) rail.insertBefore(mini, rail.firstChild);
+    return rail;
+  }
+  function relocate(){
+    if(relocating) return; relocating=true;
+    try{
+      var rail=ensureRail(); if(!rail) return;
+      var content=document.getElementById('content'); if(!content) return;
+      var hasRender=!!content.querySelector('.calendar, .cal-row, .today-header, .empty');
+      var tray=content.querySelector('.unscheduled-tray');
+      var q=document.getElementById('railQueue');
+      if(!q){ q=document.createElement('div'); q.id='railQueue'; rail.appendChild(q); }
+      if(tray){ q.innerHTML=''; q.appendChild(tray); }       // fresh queue → into the rail
+      else if(hasRender){ q.innerHTML=''; }                   // real render, nothing to schedule
+      // keep a mount point for the map pinned to the bottom of the rail
+      var mapc=document.getElementById('railMap');
+      if(!mapc){ mapc=document.createElement('div'); mapc.id='railMap'; rail.appendChild(mapc); }
+      else if(mapc.parentElement!==rail){ rail.appendChild(mapc); }
+    } finally { setTimeout(function(){ relocating=false; }, 0); }
+  }
+  function boot(){
+    var content=document.getElementById('content');
+    if(content){ try{ new MutationObserver(relocate).observe(content,{childList:true}); }catch(_){} }
+    relocate();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  window.addEventListener('load', relocate);
+  setTimeout(relocate, 600);
 })();
 
 /* The top toolbar is gone (see .topbar display:none) — keep "+ New Job" by
