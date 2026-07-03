@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <meta charset="UTF-8">
@@ -436,7 +436,7 @@ async function loadTechMsgs(){
   }).join('') + '<div style="height:8px"></div>';
 }
 async function replyTech(techId,name){
-  const pw=localStorage.getItem('tn_office_auth')||prompt('Office password:');
+  const pw=(window.OfficeAuth&&window.OfficeAuth.password())||localStorage.getItem('tn_office_auth')||prompt('Office password:');
   if(!pw)return;
   const body=prompt('Message to '+name+':'); if(!body||!body.trim())return;
   try{
@@ -447,7 +447,7 @@ async function replyTech(techId,name){
   }catch(_){ alert('⚠ Connection error'); }
 }
 async function broadcastTechs(){
-  const pw=localStorage.getItem('tn_office_auth')||prompt('Office password:');
+  const pw=(window.OfficeAuth&&window.OfficeAuth.password())||localStorage.getItem('tn_office_auth')||prompt('Office password:');
   if(!pw)return;
   const body=prompt('📣 Message to send to ALL active techs (lands in every tech app):');
   if(!body||!body.trim())return;

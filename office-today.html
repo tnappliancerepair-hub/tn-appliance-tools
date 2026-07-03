@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="dark">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -845,7 +845,7 @@ document.getElementById('auth-input').addEventListener('keypress', (e) => {
   if (e.key === 'Enter') submitAuth();
 });
 
-if (localStorage.getItem(AUTH_KEY) === '1' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) {
+if (localStorage.getItem(AUTH_KEY) === '1' || (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) {
   document.getElementById('auth-overlay').classList.add('hidden');
   load();
 } else {
@@ -1576,7 +1576,7 @@ async function dismissStuckJob(jobId, btn) {
   if (!confirm('Remove job #' + jobId + ' from this queue?\n\n(Stays in DB for audit; just hidden from active views.)')) return;
   let pw = '';
   try { pw = (JSON.parse(localStorage.getItem(AUTH_KEY) || '{}')).password || ''; } catch (_) {}
-  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) pw = (window.OfficeAuth&&window.OfficeAuth.password()) || prompt('Office password:') || '';
   if (!pw) return;
   btn.disabled = true;
   try {
@@ -2030,7 +2030,7 @@ document.getElementById('nc-submit').addEventListener('click', async () => {
   }
   let pw = '';
   try { pw = (JSON.parse(localStorage.getItem(AUTH_KEY) || '{}')).password || ''; } catch (_) {}
-  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) pw = (window.OfficeAuth&&window.OfficeAuth.password()) || prompt('Office password:') || '';
   if (!pw) return;
   const btn = document.getElementById('nc-submit');
   btn.disabled = true;
@@ -2109,7 +2109,7 @@ document.getElementById('tm-send').addEventListener('click', async () => {
     const cached = JSON.parse(localStorage.getItem(AUTH_KEY) || '{}');
     pw = cached.password || '';
   } catch (_) {}
-  if (!pw) pw = prompt('Office password:') || '';
+  if (!pw) pw = (window.OfficeAuth&&window.OfficeAuth.password()) || prompt('Office password:') || '';
   if (!pw) return;
   document.getElementById('tm-send').disabled = true;
   document.getElementById('tm-result').textContent = 'Sending…';

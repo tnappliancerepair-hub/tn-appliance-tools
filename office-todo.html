@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="dark">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -126,7 +126,7 @@ const $ = (id) => document.getElementById(id);
   const pwBtn = $('pwBtn');
   const pwErr = $('pwErr');
 
-  if (localStorage.getItem(AUTH_KEY) === '1' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
+  if (localStorage.getItem(AUTH_KEY) === '1' || (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
   pwBtn.addEventListener('click', tryAuth);
   pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryAuth(); });
   async function tryAuth() {

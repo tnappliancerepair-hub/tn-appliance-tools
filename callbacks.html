@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="light">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -100,7 +100,7 @@ const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115'
 // never reach list_callback_requests, so we mine them from the call log.
 const DROP_REASONS=['silence-timed-out','no-answer','customer-did-not-answer','customer-busy','transfer-fail','error-transfer','providerfault','pipeline-error'];
 const TOLLFREE=/^\+?1?(800|888|866|877|855|844|833)/;
-function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
+function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
 async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
 async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}

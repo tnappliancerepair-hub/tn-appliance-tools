@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="light" data-self-theme>
 <head>
 <script src="/ant-theme.js"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -301,7 +301,7 @@ function jobRegion(j){
 // ── auth ──
 // A tech may VIEW the board only when read-only mode is active (office-readonly.js
 // set OFFICE_READONLY + installed the write-block first). Never write access.
-function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1'||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}
+function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}
 function initAuth(){
   if(authValid()){document.getElementById('auth').classList.add('hidden');loadBoard();return;}
   document.getElementById('pw').focus();

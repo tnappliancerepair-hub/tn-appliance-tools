@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="dark">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Crew Today · Ant Office</title>
@@ -90,7 +90,7 @@ const authGate=document.getElementById('authGate'),authInput=document.getElement
 async function tryAuth(p){try{const r=await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});const d=await r.json();return d&&d.success===true;}catch(e){return false;}}
 function unlock(){authGate.style.display='none';app.style.display='block';load();}
 const cached=localStorage.getItem(OFFICE_AUTH_KEY);
-if(cached&&Date.now()-parseInt(cached,10)<12*3600*1000)unlock();
+if((window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(cached&&Date.now()-parseInt(cached,10)<12*3600*1000))unlock();
 document.getElementById('authSubmit').addEventListener('click',async()=>{if(await tryAuth(authInput.value)){localStorage.setItem(OFFICE_AUTH_KEY,String(Date.now()));unlock();}else document.getElementById('authErr').textContent='Wrong password.';});
 authInput.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('authSubmit').click();});
 

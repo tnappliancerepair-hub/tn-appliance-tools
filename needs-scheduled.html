@@ -2,7 +2,7 @@
 <html lang="en" data-default-theme="light" data-self-theme>
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
-<script src="/office-auth.js?v=20260701-1"></script>
+<script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -455,7 +455,7 @@
     app.style.display = 'block';
     load();
   }
-  if ((window.OfficeAuth&&window.OfficeAuth.isLoggedIn()) || localStorage.getItem(AUTH_KEY) === 'ok' || localStorage.getItem(AUTH_KEY) === '1' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
+  if ((window.OfficeAuth&&window.OfficeAuth.isLoggedIn()) || localStorage.getItem(AUTH_KEY) === 'ok' || localStorage.getItem(AUTH_KEY) === '1' || (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
   else authGate.classList.add('show');
 
   $('authBtn').addEventListener('click', async () => {
