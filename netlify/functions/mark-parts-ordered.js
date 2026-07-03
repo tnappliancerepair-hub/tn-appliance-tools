@@ -46,5 +46,12 @@ exports.handler = async function (event) {
   }
   await crud.logEvent('parts_order_placed', { order_id: orderId, job_id: jobId, tracking: s(b.tracking, 80), eta, install: !!meta.install, at_ms: Date.now() });
 
-  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, job_id: jobId, eta }) };
+  // Text the customer RIGHT NOW: "part's ordered, ETA is X, what's your
+  // availability after that?" — captures their availability at order time so we
+  // can book the 2nd visit the moment it lands, and saves the "where's my part"
+  // call. Forward-only + SHADOW until PART_ORDERED_NOTIFY_LIVE=true. (Teddy 7/3)
+  let notify = null;
+  if (jobId) { try { notify = await require('./_lib/part-notify').notifyPartOrdered({ job_id: jobId, eta_date: eta }); } catch (_) {} }
+
+  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, job_id: jobId, eta, customer_notified: !!(notify && notify.ok && notify.reason !== 'shadow'), notify_mode: notify && notify.reason }) };
 };

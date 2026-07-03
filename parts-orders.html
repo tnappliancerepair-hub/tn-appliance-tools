@@ -48,6 +48,9 @@
   .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .row input{flex:1;min-width:120px;padding:10px;border-radius:9px;border:1px solid var(--bord);background:var(--card2);color:var(--text);font-size:14px;}
   .ordered{border-color:#1d3b33;}
+  .qeta{flex:0 0 auto;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid var(--bord);background:var(--card2);color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;}
+  .qeta:hover{border-color:var(--blue);color:var(--text);}
+  .row .btn{flex:0 0 auto;}
   .empty{color:var(--muted);font-size:13px;padding:14px 0;}
   a.joblink{color:var(--blue);font-size:12px;text-decoration:none;}
 </style></head><body>
@@ -96,11 +99,17 @@ function renderToOrder(list){
       <div class="ship">📦 Ship to ${o.ship_to==='customer'?'CUSTOMER':'shop'}: ${esc(o.ship_address||'—')}</div>
       <a class="joblink" href="/teddy-tdr-tool.html?job_id=${o.job_id}" target="_blank">Job #${o.job_id} ↗</a>
     </div><span class="tag">${esc(o.option_type||'')}</span></div>
-    <div class="row">
+    <div class="row" style="flex-wrap:wrap;align-items:center;gap:6px">
       <input id="trk${o.order_id}" placeholder="Tracking # (optional)">
-      <input id="eta${o.order_id}" type="date" title="Expected delivery">
+      <label style="font-size:12px;color:var(--muted);font-weight:700">ETA</label>
+      <input id="eta${o.order_id}" type="date" title="Expected delivery — the customer gets texted this">
+      <button type="button" class="qeta" onclick="setEta(${o.order_id},3)">+3d</button>
+      <button type="button" class="qeta" onclick="setEta(${o.order_id},5)">+5d</button>
+      <button type="button" class="qeta" onclick="setEta(${o.order_id},7)">+1wk</button>
       <button class="btn" onclick="placeOrder(${o.order_id})">✓ Ordered</button>
     </div>
+    <div class="meta" style="margin-top:4px">Setting an ETA texts the customer that the part's ordered + asks their availability — so we can book the 2nd visit the moment it lands.</div>
+    <div id="notemsg${o.order_id}" style="font-size:12px;font-weight:700;margin-top:4px"></div>
     <div class="row" style="border-top:1px dashed var(--bord);padding-top:10px;margin-top:10px;">
       <input id="asin${o.order_id}" placeholder="Amazon ASIN (e.g. B07XYZ…)">
       <button class="btn" style="background:#ff9900;color:#111;" onclick="placeAmazon(${o.order_id})">🅰 Order via Amazon Business →</button>
@@ -137,13 +146,23 @@ async function placeAmazon(id){
     else { btn.disabled=false; btn.textContent='🅰 Order via Amazon Business →'; alert('Order didn\'t go through: '+JSON.stringify(live&&live.amazon||live||{}).slice(0,200)); }
   }catch(_){ btn.disabled=false; btn.textContent='🅰 Order via Amazon Business →'; alert('Connection error'); }
 }
+// Quick ETA: set the date input to today + N days (no typing).
+function setEta(id,days){
+  const d=new Date(); d.setDate(d.getDate()+days);
+  const el=document.getElementById('eta'+id); if(el) el.value=d.toISOString().slice(0,10);
+}
 async function placeOrder(id){
   const tracking=document.getElementById('trk'+id).value.trim();
   const eta=document.getElementById('eta'+id).value.trim();
-  const card=document.getElementById('o'+id); const btn=card.querySelector('button'); btn.disabled=true; btn.textContent='Saving…';
+  const card=document.getElementById('o'+id); const btn=card.querySelector('.btn'); btn.disabled=true; btn.textContent='Saving…';
   try{
     const d=await fetch(FN+'/mark-parts-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:id,tracking,eta_date:eta})}).then(r=>r.json());
-    if(d&&d.ok){ load(); } else { btn.disabled=false; btn.textContent='✓ Ordered'; alert((d&&d.error)||'Failed'); }
+    if(d&&d.ok){
+      // Confirm whether the customer got the availability text (or would, in shadow).
+      const nm=document.getElementById('notemsg'+id);
+      if(nm){ nm.textContent = d.customer_notified ? '✅ Customer texted for availability' : (d.notify_mode==='shadow' ? 'ℹ️ Order saved (customer text is in preview mode — not live yet)' : (d.notify_mode==='no_phone' ? '⚠️ Ordered — no phone on file to text' : '✓ Ordered')); nm.style.color = d.customer_notified?'#0a7d33':'#8a6d1a'; }
+      setTimeout(load, 1200);
+    } else { btn.disabled=false; btn.textContent='✓ Ordered'; alert((d&&d.error)||'Failed'); }
   }catch(_){ btn.disabled=false; btn.textContent='✓ Ordered'; alert('Connection error'); }
 }
 if(localStorage.getItem('ant_office_pw')) show();
