@@ -394,38 +394,23 @@ function placeOf(j){
   const ss=(j.scheduling_status||'').toLowerCase();
   const cs=(j.current_status||'').toLowerCase();
   const t=j.technician_id; const hasTech=t&&TECH_NAME[t];
-  // TERMINAL JOBS SETTLE FIRST — before any stale office_stage placement. A
-  // canceled/completed job must NEVER stay pinned in an active folder (Waiting
-  // Parts, a tech's Report, etc.) just because it was dragged there once. This
-  // was the bug: closed-out jobs lingered in Waiting Parts and inflated the
-  // count (Danielle's 27-vs-13). Check BOTH status fields so a job closed via
-  // either one leaves the board.
+  // Canceled jobs leave the board entirely — nothing keeps them visible, not
+  // even a manual placement. Check BOTH status fields so a job canceled via
+  // either one drops off.
   if(/cancel/i.test(ss)||/cancel/i.test(cs)) return '__hide__';
-  // Manual placement is the boss (Teddy 7/2: the OFFICE controls folders, not
-  // the system). Read it FIRST so a card Danielle dragged STAYS put. Truth
-  // order: job.office_stage -> server STAGE_MAP -> localStorage (optimistic).
+  // THE OFFICE CONTROLS FOLDERS — full stop. Any explicit placement Danielle
+  // made wins on ANY job, terminal or not, so she can move a card back and forth
+  // between every area and it STAYS exactly where she dropped it (MeisterTask
+  // behavior). Only a canceled job (hidden above) is exempt. This replaces the
+  // old completed-job whitelist that kept snapping finished jobs back to Invoice
+  // and blocked Danielle from filing them into Waiting Parts / a tech Report /
+  // Follow Up. (Teddy 2026-07-03: "she needs to move them back and forth between
+  // the different areas.") Truth order: job.office_stage -> STAGE_MAP -> local.
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
   const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
-  // Explicit Waiting-Parts placement WINS even over a completed stamp. Danielle
-  // filing a finished job into Waiting Parts means it isn't really done — it
-  // needs a part / return visit — so honor it (the move also reopens the job's
-  // status server-side via office-stage). This was the Keli Vince #19918 /
-  // Carroll Heiser #19894 bug: completed John Houk jobs snapped Waiting Parts ->
-  // Invoice on every render. (Teddy 2026-07-03)
-  if(ov==='parts') return 'parts';
-  if(ss==='completed'||cs==='completed'){
-    // A finished job Danielle filed into a done-appropriate folder (a tech's
-    // Invoice, Needs Invoice, Paid, Follow Up, Completion) STAYS there — this
-    // was the Raquel Reed / 19865 bug: no technician_id, so it kept snapping
-    // back to Completion and ignoring her Lee·Invoice move. But a completed job
-    // stale-pinned to an ACTIVE folder (Waiting Parts / a Report column) still
-    // settles to the sensible default, preserving the count-inflation fix.
-    if(ov && /^(inv-|needinv|paid|done|followup)/.test(ov)) return ov;
-    return hasTech?('inv-'+t):'done';                          // done -> Invoice/Completion
-  }
-  // Non-terminal: honor her manual placement so a dragged card STAYS where she
-  // dropped it (MeisterTask behavior).
   if(ov) return ov;
+  // No manual placement yet → the system's sensible default for this job.
+  if(ss==='completed'||cs==='completed') return hasTech?('inv-'+t):'done';
   if(PARTS_WAIT.test(j.parts_status||'')||ss==='awaiting_parts') return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
   // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
