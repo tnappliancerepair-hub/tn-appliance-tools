@@ -28,7 +28,8 @@
     { id: 'calendar',  label: '📅 Schedule', href: '/office-calendar.html',  color: '#4a9eff' },
     { id: 'phone',     label: '📲 Phone',   href: '/office-phone.html',     color: '#5aa9ff' },
     { id: 'dispatch',  label: '📞 Ant Call', href: '/voice-dispatch.html',   color: '#4ad991' },
-    { id: 'templates', label: '💬 Texts',    href: '/office-templates.html',  color: '#ffb86b' },
+    // 'Texts' (office-templates) folded into Messages 2026-07-03 as the collapsible
+    // '📋 Quick Texts' side panel (tap Copy → paste). No longer a separate pill.
     { id: 'calls',     label: '📞 Calls',    href: '/recent-calls.html',     color: '#4ca7ff' },
     { id: 'parts',     label: '📦 Parts $',  href: '/parts-ledger.html',     color: '#5aa9ff' },
   ];
