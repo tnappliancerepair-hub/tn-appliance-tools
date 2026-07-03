@@ -148,6 +148,17 @@
     loadJobs();
   }
 
+  // Which region a job belongs to — by service state, with a city fallback for
+  // the common Louisiana metros (some rows carry a city but no clean state).
+  function regionOf(it) {
+    const s = String(it.service_state || '').trim().toLowerCase();
+    if (s === 'la' || s === 'louisiana') return 'la';
+    if (s === 'tn' || s === 'tennessee') return 'tn';
+    const c = String(it.service_city || '').toLowerCase();
+    if (/orleans|metairie|kenner|slidell|covington|hammond|houma|baton rouge|gretna|marrero|laplace|mandeville|walker|denham/.test(c)) return 'la';
+    return 'tn';
+  }
+
   async function loadJobs() {
     jobsLoaded = true;
     if (markerLayer) markerLayer.clearLayers();
@@ -156,29 +167,32 @@
     status.textContent = 'fetching jobs…';
     let items = [];
     try {
-      const r = await fetch(`${XANO}/list_jobs_for_office_map?region=${currentRegion}&limit=200`);
+      // SAME feed the needs-scheduled cards use — so the pin's job id matches the
+      // tile's data-id exactly and hover linkage works. These are already the
+      // unscheduled jobs. (Fix 2026-07-03: the old map used a scheduled-jobs feed,
+      // so hovering an unscheduled tile never matched a pin.)
+      const r = await fetch(`${XANO}/list_needs_scheduled_parallel?limit=1000`);
       const d = await r.json();
-      items = (d && d.items) || [];
+      items = Array.isArray(d) ? d : ((d && (d.jobs || d.items)) || []);
     } catch (_) { status.textContent = 'fetch failed'; return; }
-    // ONLY the unscheduled jobs — the ones we still need to place. A scheduled
-    // job is already handled; showing it just clutters the cluster view. (Teddy)
-    items = items.filter(it => !it.scheduled_start);
-    status.textContent = `${items.length} to schedule — locating…`;
     const reqRegion = currentRegion;            // guard against a region switch mid-load
+    items = items.filter(it => regionOf(it) === reqRegion);
+    status.textContent = `${items.length} to schedule — locating…`;
     let plotted = 0; const coords = [];
     for (let i = 0; i < items.length; i++) {
       if (reqRegion !== currentRegion) return;  // user switched — abandon this pass
       const it = items[i];
-      const addr = [it.address, it.city, it.state, it.zip].filter(Boolean).join(', ');
-      if (!addr || it.job_id == null) continue;
+      const jid = it.id != null ? it.id : it.job_id;
+      const addr = [it.service_address, it.service_city, it.service_state, it.service_zip].filter(Boolean).join(', ');
+      if (!addr || jid == null) continue;
       const ll = await geocode(addr);
       if (!ll || reqRegion !== currentRegion) { if (reqRegion !== currentRegion) return; continue; }
       plotted++;
-      const icon = L.divIcon({ className: '', html: `<div class="antmap-pin" data-pinjob="${it.job_id}">${plotted}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+      const icon = L.divIcon({ className: '', html: `<div class="antmap-pin" data-pinjob="${jid}">${plotted}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
       const m = L.marker([ll.lat, ll.lng], { icon }).addTo(markerLayer);
-      const cname = ((it.customer_first || '') + ' ' + (it.customer_last || '')).trim() || '(no name)';
-      m.bindPopup(`<div style="font-size:13px;line-height:1.4"><b>${esc(cname)}</b><br>${esc(it.appliance || 'appliance')}<br>${esc(addr)}<br>needs scheduling<br><a href="/office-board.html?job=${it.job_id}" style="color:#1e6fdb;font-weight:600;text-decoration:none">Open job tile →</a></div>`);
-      pinsByJob[String(it.job_id)] = { marker: m, ll };
+      const cname = ((it.customer_first || '') + ' ' + (it.customer_last || '')).trim() || (it.warranty_company || '(no name)');
+      m.bindPopup(`<div style="font-size:13px;line-height:1.4"><b>${esc(cname)}</b><br>${esc(it.appliance || 'appliance')}<br>${esc(addr)}<br>needs scheduling<br><a href="/office-board.html?job=${jid}" style="color:#1e6fdb;font-weight:600;text-decoration:none">Open job tile →</a></div>`);
+      pinsByJob[String(jid)] = { marker: m, ll };
       coords.push([ll.lat, ll.lng]);
       if (plotted % 5 === 0) status.textContent = `${plotted}/${items.length} located…`;
     }
