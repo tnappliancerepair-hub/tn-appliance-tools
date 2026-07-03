@@ -12,9 +12,19 @@
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
 
-const EVENT_LOG = crud.TABLES.event_log; // 3
-const JOBS = crud.TABLES.jobs;           // 7
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const JOBS = crud.TABLES.jobs;           // 7 (fast: primary-key lookups)
 const CUSTOMER = crud.TABLES.customer;   // 6
+
+// Fast event pull via the Xano FUNCTION API (indexed) — the Metadata content
+// search on the giant event_log table is far too slow (26s timeout).
+async function listEvents(action, daysBack, limit) {
+  try {
+    const r = await fetch(`${XANO}/list_recent_event_log?action=${encodeURIComponent(action)}&days_back=${daysBack}&limit=${limit}`, { signal: AbortSignal.timeout(9000) });
+    const d = await r.json();
+    return (d && (d.items || d.rows)) || [];
+  } catch (_) { return []; }
+}
 
 // Every action that represents a text in the customer conversation.
 // Big-volume ones get a deeper page; the rest are rarer.
@@ -60,10 +70,12 @@ exports.handler = async function (event) {
       }
     } catch (_) {}
   }
+  const daysBack = Math.ceil(hoursBack / 24);
+
   // Last-ditch: derive the phone from any inbound row tagged with this job_id.
   if (!phone10 && jobId) {
     try {
-      const rows = await crud.searchPage(EVENT_LOG, { action: 'inbound_customer_sms_received' }, { created_at: 'desc' }, 400);
+      const rows = await listEvents('inbound_customer_sms_received', daysBack, 400);
       for (const r of rows) { const md = asObj(r.metadata); if (Number(md.job_id) === jobId) { phone10 = rowCustomerPhone10(md); if (phone10) break; } }
     } catch (_) {}
   }
@@ -71,9 +83,7 @@ exports.handler = async function (event) {
   if (!phone10 && !jobId && !customerId) return json(200, { ok: false, error: 'need job_id or phone', messages: [] });
 
   // 2) Gather every SMS row across the actions, filter to THIS conversation.
-  const pages = await Promise.all(ACTIONS.map(([action, per]) =>
-    crud.searchPage(EVENT_LOG, { action }, { created_at: 'desc' }, per).catch(() => [])
-  ));
+  const pages = await Promise.all(ACTIONS.map(([action, per]) => listEvents(action, daysBack, per)));
 
   const seen = new Set();
   const out = [];
