@@ -531,7 +531,7 @@
   }
 
   function actionsForStage(j, stage) {
-    const view = `<a href="job-detail.html?job_id=${j.id}" target="_blank">↗ View</a>`;
+    const view = `<a href="office-board.html?job=${j.id}" target="_blank">↗ View</a>`;
     if (stage === 'needs_scheduled' || stage === 'awaiting_customer_info') {
       const label = stage === 'needs_scheduled' ? 'Send Ant Link' : 'Resend Link';
       return `<button class="primary" data-action="send_link" data-job-id="${j.id}">📲 ${label}</button>${view}`;

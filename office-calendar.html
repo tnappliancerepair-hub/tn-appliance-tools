@@ -1155,7 +1155,7 @@ function __initCalendar() {
       const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no customer)';
       const appl = (j.appliance_type || 'appliance').toLowerCase();
       return `
-        <a class="item" href="job-detail.html?job_id=${j.id}">
+        <a class="item" href="office-board.html?job=${j.id}">
           <div class="when">${date} · ${time}</div>
           <div class="cust">${escapeHtml(cust)}</div>
           <div class="what">${escapeHtml(appl)} · ${escapeHtml(j.service_city || '')}</div>
@@ -2156,7 +2156,7 @@ function __initCalendar() {
       if (el) { el.disabled = false; el.textContent = label; }
     });
     showManageView('actions');
-    manageOpenDetail.href = `job-detail.html?job_id=${jobId}`;
+    manageOpenDetail.href = `office-board.html?job=${jobId}`;
     // Pre-fill reschedule with current scheduled_start (CT)
     if (j.scheduled_start) {
       const d = new Date(j.scheduled_start);
