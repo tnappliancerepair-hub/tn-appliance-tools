@@ -211,19 +211,19 @@
 
   .topbar .spacer { flex: 1; }
 
-  /* The toolbar is a hardcoded DARK gradient, so its controls must ALWAYS read
-     light. In light theme the theme text vars go dark, so the ‹ › arrows, the
-     "Today" button, the date jump and the month name were dark-on-dark and
-     vanished into the bar until you highlighted them. Force light in both
-     themes. (Teddy 2026-07-03: "can't see what's in the banner unless I
-     highlight it — fix it for light or dark.") */
-  .topbar .nav-btn { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.22); color: #eef1f5; }
-  .topbar .nav-btn:hover { border-color: var(--orange); }
-  .topbar .title { color: #eef1f5; }
-  .topbar .week-range { color: #eef1f5; }
-  .topbar .month-label { color: #eef1f5 !important; }
-  .topbar #jumpDate { color: #eef1f5; color-scheme: dark; }
-  .topbar .view-btn.active { background: #4a9eff; border-color: #4a9eff; color: #fff; }
+  /* The toolbar background flips with the theme, so light OR dark text vanishes
+     on one of them. Fix once and for all with an ACCENT color (amber/orange)
+     that reads on BOTH a light and a dark bar — the ‹ › arrows, "Today", the
+     date jump and the month name stay visible either way. (Teddy 2026-07-03:
+     "make them orange or green, something that goes with the page, so hidden
+     letters show whether it's light or dark.") */
+  .topbar .nav-btn { background: transparent; border-color: rgba(217,119,10,0.55); color: #d9770a; }
+  .topbar .nav-btn:hover { border-color: #d9770a; background: rgba(217,119,10,0.12); }
+  .topbar .title { color: #d9770a; }
+  .topbar .week-range { color: #d9770a; }
+  .topbar .month-label { color: #d9770a !important; }
+  .topbar #jumpDate { color: #d9770a; }
+  .topbar .view-btn.active { background: #d9770a; border-color: #d9770a; color: #fff; }
 
   .new-job-btn {
     background: var(--green);
@@ -800,7 +800,7 @@
     </div>
     <div class="month-display" style="display:flex;align-items:center;gap:6px;margin-right:6px">
       <button class="nav-btn" id="prevMonth" title="previous month">‹</button>
-      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:#eef1f5">—</span>
+      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:#d9770a">—</span>
       <button class="nav-btn" id="nextMonth" title="next month">›</button>
     </div>
     <div class="week-display">
