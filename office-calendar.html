@@ -211,6 +211,20 @@
 
   .topbar .spacer { flex: 1; }
 
+  /* The toolbar is a hardcoded DARK gradient, so its controls must ALWAYS read
+     light. In light theme the theme text vars go dark, so the ‹ › arrows, the
+     "Today" button, the date jump and the month name were dark-on-dark and
+     vanished into the bar until you highlighted them. Force light in both
+     themes. (Teddy 2026-07-03: "can't see what's in the banner unless I
+     highlight it — fix it for light or dark.") */
+  .topbar .nav-btn { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.22); color: #eef1f5; }
+  .topbar .nav-btn:hover { border-color: var(--orange); }
+  .topbar .title { color: #eef1f5; }
+  .topbar .week-range { color: #eef1f5; }
+  .topbar .month-label { color: #eef1f5 !important; }
+  .topbar #jumpDate { color: #eef1f5; color-scheme: dark; }
+  .topbar .view-btn.active { background: #4a9eff; border-color: #4a9eff; color: #fff; }
+
   .new-job-btn {
     background: var(--green);
     color: #082018;
@@ -786,7 +800,7 @@
     </div>
     <div class="month-display" style="display:flex;align-items:center;gap:6px;margin-right:6px">
       <button class="nav-btn" id="prevMonth" title="previous month">‹</button>
-      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:var(--ink,#1a1a2e)">—</span>
+      <span class="month-label" id="monthLabel" style="font-weight:800;font-size:16px;min-width:140px;text-align:center;color:#eef1f5">—</span>
       <button class="nav-btn" id="nextMonth" title="next month">›</button>
     </div>
     <div class="week-display">
