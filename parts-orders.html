@@ -101,14 +101,14 @@ function renderToOrder(list){
     </div><span class="tag">${esc(o.option_type||'')}</span></div>
     <div class="row" style="flex-wrap:wrap;align-items:center;gap:6px">
       <input id="trk${o.order_id}" placeholder="Tracking # (optional)">
-      <label style="font-size:12px;color:var(--muted);font-weight:700">ETA</label>
-      <input id="eta${o.order_id}" type="date" title="Expected delivery — the customer gets texted this">
+      <label style="font-size:12px;color:var(--muted);font-weight:700">ETA <span style="color:#b91c1c">*required</span></label>
+      <input id="eta${o.order_id}" type="date" required title="Expected delivery — REQUIRED. The customer gets texted this the moment you order.">
       <button type="button" class="qeta" onclick="setEta(${o.order_id},3)">+3d</button>
       <button type="button" class="qeta" onclick="setEta(${o.order_id},5)">+5d</button>
       <button type="button" class="qeta" onclick="setEta(${o.order_id},7)">+1wk</button>
       <button class="btn" onclick="placeOrder(${o.order_id})">✓ Ordered</button>
     </div>
-    <div class="meta" style="margin-top:4px">Setting an ETA texts the customer that the part's ordered + asks their availability — so we can book the 2nd visit the moment it lands.</div>
+    <div class="meta" style="margin-top:4px">ETA is required. The moment you hit Ordered, the customer is texted that the part's on the way + asked their availability — so we book the 2nd visit right after it lands.</div>
     <div id="notemsg${o.order_id}" style="font-size:12px;font-weight:700;margin-top:4px"></div>
     <div class="row" style="border-top:1px dashed var(--bord);padding-top:10px;margin-top:10px;">
       <input id="asin${o.order_id}" placeholder="Amazon ASIN (e.g. B07XYZ…)">
@@ -154,13 +154,21 @@ function setEta(id,days){
 async function placeOrder(id){
   const tracking=document.getElementById('trk'+id).value.trim();
   const eta=document.getElementById('eta'+id).value.trim();
+  // ETA is REQUIRED — it's what we text the customer the moment you order (Teddy 7/3).
+  if(!eta){
+    const el=document.getElementById('eta'+id);
+    const nm=document.getElementById('notemsg'+id);
+    if(nm){ nm.textContent='⚠️ Set the arrival ETA first — the customer gets texted this date.'; nm.style.color='#b91c1c'; }
+    if(el){ el.style.outline='2px solid #b91c1c'; el.focus(); setTimeout(()=>{el.style.outline='';}, 2500); }
+    return;
+  }
   const card=document.getElementById('o'+id); const btn=card.querySelector('.btn'); btn.disabled=true; btn.textContent='Saving…';
   try{
     const d=await fetch(FN+'/mark-parts-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order_id:id,tracking,eta_date:eta})}).then(r=>r.json());
     if(d&&d.ok){
       // Confirm whether the customer got the availability text (or would, in shadow).
       const nm=document.getElementById('notemsg'+id);
-      if(nm){ nm.textContent = d.customer_notified ? '✅ Customer texted for availability' : (d.notify_mode==='shadow' ? 'ℹ️ Order saved (customer text is in preview mode — not live yet)' : (d.notify_mode==='no_phone' ? '⚠️ Ordered — no phone on file to text' : '✓ Ordered')); nm.style.color = d.customer_notified?'#0a7d33':'#8a6d1a'; }
+      if(nm){ nm.textContent = d.customer_notified ? '✅ Customer texted — ordered + availability asked' : (d.notify_mode==='already_notified' ? '✓ Ordered (customer was already texted)' : (d.notify_mode==='no_phone' ? '⚠️ Ordered — no phone on file to text' : (d.notify_mode==='paused' ? 'ℹ️ Ordered (texting is paused)' : '✓ Ordered'))); nm.style.color = d.customer_notified?'#0a7d33':'#8a6d1a'; }
       setTimeout(load, 1200);
     } else { btn.disabled=false; btn.textContent='✓ Ordered'; alert((d&&d.error)||'Failed'); }
   }catch(_){ btn.disabled=false; btn.textContent='✓ Ordered'; alert('Connection error'); }

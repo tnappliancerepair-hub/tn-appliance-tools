@@ -65,11 +65,15 @@ async function notifyPartOrdered({ job_id, eta_date }) {
 
   const message = orderMessage(name, appliance, eta);
 
-  if (!LIVE) {
-    try { await crud.logEvent('part_ordered_notify_shadow', { job_id, phone: guard.toE164(phone), eta: String(eta || ''), at_ms: Date.now() }); } catch (_) {}
-    return { ok: true, reason: 'shadow', would_send: message };
+  // LIVE from here forward (Teddy 2026-07-03): every part Danielle orders texts
+  // that customer immediately. Safe to be always-on — it fires only for the one
+  // job just ordered (never a backlog), dedupes one-per-job, and guardedSend
+  // still enforces opt-out absolutely (+ quiet-hours/caps). Set
+  // PART_ORDERED_NOTIFY_LIVE=false only if you ever need to hard-pause it.
+  if (String(process.env.PART_ORDERED_NOTIFY_LIVE || '').toLowerCase() === 'false') {
+    try { await crud.logEvent('part_ordered_notify_paused', { job_id, phone: guard.toE164(phone), at_ms: Date.now() }); } catch (_) {}
+    return { ok: false, reason: 'paused' };
   }
-
   const res = await guard.guardedSend({ phone, message, tag: 'part_ordered_notify', kind: 'status_update' });
   if (res.reason !== 'send_failed') {
     try { await crud.logEvent('proactive_parts_notified', { job_id, phone: guard.toE164(phone), eta: String(eta || ''), at_ms: Date.now(), reason: res.reason, via: 'order_hook' }); } catch (_) {}
