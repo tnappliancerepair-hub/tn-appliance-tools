@@ -112,6 +112,7 @@ exports.handler = async function (event) {
   const isInHome = String(m.service_type || '') === 'in_home_diagnostic';
   const videoMissing = yes(m.has_video) && !videoLinked;
   const photoMissing = yes(m.has_model) && !photoLinked;
+  let customerTexted = false;
   if (jobId && (isInHome || videoMissing || photoMissing)) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
     await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: convId ? String(convId) : '', phone: phone, in_home: isInHome, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
@@ -119,14 +120,19 @@ exports.handler = async function (event) {
       const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
       if (isInHome && !videoLinked && !photoLinked) {
         const cmsg = 'TN Appliance: you\'re on the schedule! One quick must-do so your tech rolls up ready to fix it the first trip — tap here to shoot a short video of the problem + a photo of the model-number sticker: ' + finishLink + '  (Reply STOP to opt out.)';
-        try { await sendSms(phone, cmsg, 'customer', 'in_home_media'); } catch (_) {}
+        try { await sendSms(phone, cmsg, 'customer', 'in_home_media'); customerTexted = true; } catch (_) {}
       } else {
         const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
         const cmsg = 'TN Appliance: got your Quick Check! When you have a sec on better signal, tap to add ' + what + ' so we can nail the diagnosis: ' + finishLink + '  (Reply STOP to opt out.)';
-        try { await sendSms(phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
+        try { await sendSms(phone, cmsg, 'customer', 'quick_check_media'); customerTexted = true; } catch (_) {}
       }
     }
   }
+
+  // Close the intake->schedule loop: media landed clean, so confirm receipt +
+  // next step + ask availability so nobody's left hanging after sending a video
+  // (Teddy 7/3). Suppressed if we already texted a finish-upload / schedule note.
+  if (jobId) { try { await require('./_lib/intake-ack').sendIntakeAck({ job_id: jobId, phone, name: m.name, appliance: m.appliance, availability: m.availability, consent: m.sms_consent, suppressed: customerTexted }); } catch (_) {} }
 
   // Record the line/hose safety-offer decision (Teddy 2026-06-27) — a recorded
   // DECLINE is the liability protection; a YES tells the office to bring it.

@@ -153,6 +153,7 @@ exports.handler = async function (event) {
   const expectedVideo = yes(m.has_video), expectedPhoto = yes(m.has_model);
   const videoMissing = expectedVideo && !videoLinked;
   const photoMissing = expectedPhoto && !photoLinked;
+  let customerTexted = false;
   if (jobId && (videoMissing || photoMissing)) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
     await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: m.conv_id || '', phone: m.phone, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
@@ -160,9 +161,14 @@ exports.handler = async function (event) {
       const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
       const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
       const cmsg = 'TN Appliance: got your $' + amount + ' Quick Check! It looks like ' + what + ' didn\'t fully upload on the last signal. Tap to finish so we can diagnose it fast: ' + finishLink + '  (Reply STOP to opt out.)';
-      try { await sendSms(m.phone, cmsg, 'customer', 'quick_check_media'); } catch (_) {}
+      try { await sendSms(m.phone, cmsg, 'customer', 'quick_check_media'); customerTexted = true; } catch (_) {}
     }
   }
+
+  // Close the intake->schedule loop: media landed clean, so confirm receipt +
+  // next step + ask availability so nobody's left hanging after sending a video
+  // (Teddy 7/3). Suppressed if we already texted a finish-upload link above.
+  if (jobId) { try { await require('./_lib/intake-ack').sendIntakeAck({ job_id: jobId, phone: m.phone, name: m.name, appliance: m.appliance, availability: m.availability, consent: m.sms_consent, suppressed: customerTexted }); } catch (_) {} }
 
   // Record the line/hose safety-offer decision (Teddy 2026-06-27). The recorded
   // choice — especially a DECLINE — is the liability protection; a YES tells the
