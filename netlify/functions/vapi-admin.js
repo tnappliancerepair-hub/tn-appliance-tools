@@ -242,6 +242,33 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // We service RESIDENTIAL / home appliances only — NOT commercial refrigeration.
+  // (Teddy 2026-07-03: "we don't work on commercial coolers." Ant had booked a
+  // commercial-cooler call.) Idempotent, prepended to Ant Inbound.
+  if (action === 'commercial_policy') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- COMMERCIAL-POLICY -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## WE DO RESIDENTIAL/HOME APPLIANCES ONLY — NO COMMERCIAL REFRIGERATION (hard rule)\n`
+      + `TN Appliance services home / household appliances (home refrigerators, freezers, washers, dryers, dishwashers, ovens, ranges, microwaves). We do NOT work on COMMERCIAL equipment — commercial coolers, walk-in / reach-in coolers or freezers, commercial refrigerators/freezers, ice machines, deli/display cases, restaurant/bar/store/gas-station equipment, HVAC/refrigeration units.\n`
+      + `If the caller describes a COMMERCIAL unit (mentions a business, restaurant, store, "commercial," a walk-in/reach-in, a cooler, an ice machine, or clearly not a home appliance), do NOT book it, do NOT collect a photo, and do NOT promise a tech or a callback. Say it warmly and clearly, for example:\n`
+      + `- "I'm really sorry, but we only work on residential home appliances — we don't service commercial coolers or commercial refrigeration, so I wouldn't be able to send someone out for that."\n`
+      + `- "You'll want a commercial refrigeration company for that one. I don't want to have you wait on us when we're not able to help with a commercial unit."\n`
+      + `Be kind and quick — don't take their model number or schedule anything. If they're not sure whether it's residential or commercial, ask: "Is this for your home, or for a business?" — a home unit is fine to help with; a business/commercial unit we have to decline.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Caller-ID first: the customer is calling from their own phone and we've
   // looked them up by it — greet by name, don't demand a work-order/claim number
   // most people don't have. Idempotent, prepended to Ant Inbound.

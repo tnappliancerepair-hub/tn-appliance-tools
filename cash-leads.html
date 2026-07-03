@@ -114,7 +114,7 @@ async function textLead(jobId, name, phone, hasModel){
   const ask = hasModel
     ? 'a quick photo of the model-number sticker so I can confirm the exact part'
     : 'a quick photo of the model-number sticker on your appliance';
-  const body='Hi '+first+', this is Teddy with Tennessee Appliance about your Quick Check. We had a glitch with our photo uploads yesterday -- it is fixed now. Could you send '+ask+'? With that I can get the exact part ordered and a quote back to you today. Easiest: tap here to add the pic: https://tnapplianceexchange.net/finish-upload.html?job_id='+jobId+'  Or just reply to this text with the photo. Any trouble, call or text my cell at 615-485-5795. Thanks! -- Teddy';
+  const body='Hi '+first+', this is Teddy with Tennessee Appliance about your Quick Check. To finish your quote I just need '+ask+'. With that I can get the exact part ordered and a quote back to you today. Easiest: tap here to add the pic: https://tnapplianceexchange.net/finish-upload.html?job_id='+jobId+'  Or just reply to this text with the photo. Any trouble, call or text my cell at 615-485-5795. Thanks! -- Teddy';
   if(!confirm('Text '+name+' ('+fmtPhone(phone)+')?\n\n'+body)) return;
   const to='+1'+String(phone||'').replace(/\D/g,'').slice(-10);
   if(to.length<12){ alert('No valid phone on file for this lead.'); return; }
