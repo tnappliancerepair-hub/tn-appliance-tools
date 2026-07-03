@@ -343,7 +343,7 @@
   #cal-rail #railQueue { flex: 0 0 auto; }
   @media (min-width: 900px) {
     .scroll { display: flex; gap: 12px; overflow: hidden; align-items: stretch; }
-    #cal-rail { flex: 0 0 300px; width: 300px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 20px 0; }
+    #cal-rail { flex: 0 0 280px; width: 280px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 2px 4px 20px 0; }
     #content { flex: 1 1 auto; min-width: 0; height: 100%; overflow: auto; }
   }
   /* KEEP TECH NAMES VISIBLE while scrolling the grid: the header row sticks to
@@ -385,7 +385,7 @@
   .cal-header,
   .cal-row {
     display: grid;
-    grid-template-columns: 96px repeat(var(--tech-count, 6), minmax(180px, 1fr));
+    grid-template-columns: 78px repeat(var(--tech-count, 6), minmax(132px, 1fr));
   }
 
   .cal-header {
@@ -638,7 +638,7 @@
   /* ── Footer totals row ─────────────────────────────────────────── */
   .cal-totals {
     display: grid;
-    grid-template-columns: 96px repeat(var(--tech-count, 6), minmax(180px, 1fr));
+    grid-template-columns: 78px repeat(var(--tech-count, 6), minmax(132px, 1fr));
     border-top: 2px solid var(--border);
     background: var(--bg-2);
     position: sticky;
@@ -732,10 +732,10 @@
     .cal-header,
     .cal-row,
     .cal-totals {
-      grid-template-columns: 80px repeat(var(--tech-count, 6), minmax(150px, 1fr));
+      grid-template-columns: 68px repeat(var(--tech-count, 6), minmax(120px, 1fr));
     }
-    .calendar { overflow-x: auto; }
-    .cal-header, .cal-row, .cal-totals { min-width: max-content; }
+    .calendar { overflow-x: visible; }
+    .cal-header, .cal-row, .cal-totals { min-width: 0; }
     .cap .num { font-size: 26px; }
   }
   @media (max-width: 700px) {
