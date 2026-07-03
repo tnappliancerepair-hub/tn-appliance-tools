@@ -78,8 +78,10 @@
   const bar = document.createElement('div');
   bar.className = 'ofc-search-bar';
   bar.innerHTML = `
-    <div style="max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px;">
+    <div style="max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; position: relative;">
       <input class="ofc-search-input" id="ofcSearch" placeholder="Search name, phone, address…" autocomplete="off" inputmode="search" style="flex:1; max-width:none; margin:0;">
+      <button type="button" id="ofcSearchClear" aria-label="Clear search" title="Clear"
+        style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:0; background:rgba(255,255,255,0.14); color:#fff; font-size:15px; line-height:1; cursor:pointer; padding:0;">✕</button>
     </div>
     <div class="ofc-search-results" id="ofcSearchResults"></div>
   `;
@@ -95,25 +97,37 @@
   function wire() {
     const input = document.getElementById('ofcSearch');
     const results = document.getElementById('ofcSearchResults');
+    const clearBtn = document.getElementById('ofcSearchClear');
 
-    function hide() { results.classList.remove('show'); }
+    function hide() { results.classList.remove('show'); results.innerHTML = ''; }
     function show() { results.classList.add('show'); }
-    function setStatus(msg) {
-      results.innerHTML = `<div class="ofc-search-status">${escapeHtml(msg)}</div>`;
-      show();
-    }
+    function reset() { input.value = ''; clearTimeout(debounceTimer); hide(); if (clearBtn) clearBtn.style.display = 'none'; }
+    function syncClear() { if (clearBtn) clearBtn.style.display = input.value ? 'block' : 'none'; }
 
     input.addEventListener('input', () => {
       const q = input.value.trim();
+      syncClear();
       clearTimeout(debounceTimer);
-      if (q.length < 2) { hide(); return; }
+      if (q.length < 2) { hide(); return; }        // clearing to <2 chars closes it
       debounceTimer = setTimeout(() => runSearch(q, results), 300);
     });
 
-    input.addEventListener('blur', () => { setTimeout(hide, 200); });
-    input.addEventListener('focus', () => {
-      if (input.value.trim().length >= 2) show();
-    });
+    // Escape clears + closes.
+    input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { reset(); input.blur(); } });
+
+    // The ✕ button wipes it (and re-focuses so you can type fresh).
+    if (clearBtn) clearBtn.addEventListener('click', (e) => { e.preventDefault(); reset(); input.focus(); });
+
+    // Click anywhere OUTSIDE the search bar closes the dropdown. This is the real
+    // fix for "it covers the content and won't go away" — blur alone wasn't
+    // reliably dismissing it. Result-row clicks are inside `bar`, so navigation
+    // still works before this hides anything.
+    document.addEventListener('mousedown', (e) => { if (!bar.contains(e.target)) hide(); });
+    document.addEventListener('touchstart', (e) => { if (!bar.contains(e.target)) hide(); }, { passive: true });
+
+    // No auto-reopen on focus: refocusing an input that still has old text must
+    // NOT re-pop the dropdown (that was the "keeps popping up after cleared"
+    // behavior). It only opens when you actually type.
   }
 
   async function runSearch(q, resultsEl) {
