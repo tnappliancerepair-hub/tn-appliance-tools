@@ -57,7 +57,11 @@
       pw = pw || findPw() || '';
       var ts = now();
       try { _set(SESSION, JSON.stringify({ pw: pw, ts: ts })); } catch (e) {}
-      TS_KEYS.forEach(function (k) { try { _set(k, String(ts)); } catch (e) {} });
+      // Pages use these keys as their GATE FLAG and check `=== '1'` — so write
+      // '1', not a timestamp. Writing a timestamp here is exactly what made every
+      // page re-prompt (a page's `getItem(key) === '1'` never matched a
+      // timestamp). The 30-day TTL lives in SESSION (above), not in these keys.
+      TS_KEYS.forEach(function (k) { try { _set(k, '1'); } catch (e) {} });
       if (pw) PW_KEYS.forEach(function (k) { try { _set(k, pw); } catch (e) {} });
     } finally { _establishing = false; }
   }
@@ -108,5 +112,5 @@
   // On load: already logged in? refresh + mirror so this page's gate is satisfied.
   if (isLoggedIn()) establish(findPw());
 
-  window.OfficeAuth = { logout: clearAll, establish: establish, isLoggedIn: isLoggedIn };
+  window.OfficeAuth = { logout: clearAll, establish: establish, isLoggedIn: isLoggedIn, password: findPw };
 })();

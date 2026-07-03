@@ -455,7 +455,7 @@
     app.style.display = 'block';
     load();
   }
-  if (localStorage.getItem(AUTH_KEY) === 'ok' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
+  if ((window.OfficeAuth&&window.OfficeAuth.isLoggedIn()) || localStorage.getItem(AUTH_KEY) === 'ok' || localStorage.getItem(AUTH_KEY) === '1' || (window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session())) unlock();
   else authGate.classList.add('show');
 
   $('authBtn').addEventListener('click', async () => {
