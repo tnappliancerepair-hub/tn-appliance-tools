@@ -32,7 +32,10 @@ module.exports = {
     label: 'Amazon Business',
     tier: 'price',
     primary: true, // aftermarket-equivalent tier + ship-to-customer ordering
-    loginUrl: 'https://www.amazon.com/gp/sign-in.html',
+    // Land in the BUSINESS account (not consumer amazon.com) so orders bill to the
+    // business card and can ship to any customer address. After sign-in, confirm the
+    // top-left shows your Business account, then press Enter to save the session.
+    loginUrl: 'https://www.amazon.com/business',
     searchUrl: (q) => 'https://www.amazon.com/s?k=' + encodeURIComponent(q + ' appliance part'),
     searchSelector: 'input#twotabsearchtextbox, input[type="text"][name="field-keywords"]',
     loggedInHint: '#nav-link-accountList-nav-line-1, a[href*="sign-out" i]',
