@@ -17,7 +17,7 @@ const ALLOWED = new Set([
   'labor_time_hours', 'parts_needed',
 ]);
 // JSON (array) columns — value is parsed/written as an array, not a string.
-const JSON_FIELDS = new Set(['parts_used', 'parts_not_used']);
+const JSON_FIELDS = new Set(['parts_used', 'parts_not_used', 'parts_needed']);
 
 function j(code, body) {
   return { statusCode: code, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(body) };
@@ -39,7 +39,11 @@ exports.handler = async function (event) {
   let value;
   if (JSON_FIELDS.has(field)) {
     let arr = b.value;
-    if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch (_) { arr = []; } }
+    if (typeof arr === 'string') {
+      const s = arr.trim();
+      if (!s) arr = [];
+      else { try { const p = JSON.parse(s); arr = Array.isArray(p) ? p : [s]; } catch (_) { arr = [s]; } }
+    }
     value = Array.isArray(arr) ? arr : [];
   } else {
     value = String(b.value == null ? '' : b.value);
