@@ -190,6 +190,15 @@
   <button class="tb-btn" id="search-btn" title="Search jobs">🔍</button>
 </div>
 
+<!-- Job-flow nav — one tap between the Day, this Job, its TDR, and the Teddy Tool.
+     Same loop on every tech surface so context + you never lose your place. (Teddy 7/4) -->
+<div id="jobflow" style="display:flex;gap:6px;overflow-x:auto;padding:7px 10px;background:#f4f7fb;border-bottom:1px solid #e4e8ee;-webkit-overflow-scrolling:touch">
+  <a id="jf-day" href="#" style="flex:0 0 auto;text-decoration:none;font-size:13px;font-weight:700;color:#33415c;background:#fff;border:1px solid #d7dde6;border-radius:999px;padding:6px 13px;white-space:nowrap">🗓 Day</a>
+  <span style="flex:0 0 auto;font-size:13px;font-weight:800;color:#0a6ebd;background:#e8f4ff;border:1px solid #a9d4f5;border-radius:999px;padding:6px 13px;white-space:nowrap">🔧 Job</span>
+  <button id="jf-tdr" type="button" style="flex:0 0 auto;font-size:13px;font-weight:700;color:#127a4a;background:#eafaf0;border:1px solid #9fe0bd;border-radius:999px;padding:6px 13px;white-space:nowrap;cursor:pointer;font-family:inherit">📝 TDR</button>
+  <a id="jf-teddy" href="#" style="flex:0 0 auto;text-decoration:none;font-size:13px;font-weight:700;color:#7a5410;background:#fff8e6;border:1px solid #f0c86a;border-radius:999px;padding:6px 13px;white-space:nowrap">🧰 Teddy Tool</a>
+</div>
+
 <div class="search-wrap" id="search-wrap">
   <input id="search-in" placeholder="Search any job — name, phone, job #…" autocomplete="off">
   <div class="search-results" id="search-results"></div>
@@ -206,6 +215,7 @@
 <script src="/ant-video-upload.js"></script>
 <script src="/ant-brain.js"></script>
 <script src="/ant-spine.js" defer></script>
+<script src="/ant-tdr-card.js?v=20260704-flow" defer></script>
 <script>
 // ant-spine.js: pin the role to tech (the page's URL doesn't match its
 // role-detector) and opt OUT of its auto top-strip + polling, which would
@@ -357,6 +367,12 @@ async function loadDayJobs(){
 function go(id){ location.href='tech-job.html?job_id='+id+'&tech_id='+TECH_ID; }
 
 document.getElementById('back-btn').onclick=()=>{ location.href = TECH_ID ? ('tech-daily-dashboard.html?tech_id='+TECH_ID) : 'office-dashboard.html'; };
+// Wire the job-flow row (Day · Job · TDR · Teddy Tool) — carries tech_id/job_id.
+(function(){
+  var day=document.getElementById('jf-day'); if(day) day.href = TECH_ID?('tech-daily-dashboard.html?tech_id='+TECH_ID):'tech-daily-dashboard.html';
+  var ted=document.getElementById('jf-teddy'); if(ted) ted.href = 'teddy-tdr-tool.html?job_id='+JOB_ID+(TECH_ID?('&tech_id='+TECH_ID):'');
+  var tdr=document.getElementById('jf-tdr'); if(tdr) tdr.onclick=function(){ if(typeof window.antTdrOpen==='function') window.antTdrOpen(); else { location.hash='#tdr'; } };
+})();
 
 // ── search ──────────────────────────────────────────────────────
 let searchTimer=null;

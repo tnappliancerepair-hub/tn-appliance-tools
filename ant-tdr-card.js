@@ -47,6 +47,13 @@
     refresh();
     pollTimer = setInterval(refresh, POLL_MS);
     window.addEventListener('ant:state-changed', refresh);
+    // Make the TDR a first-class nav destination: any surface (the cross-tool
+    // strip, a "📝 TDR" button) can open it, and #tdr in the URL auto-opens it
+    // so a deep-link lands right on the report. (Teddy 7/4: free flow of nav +
+    // add TDR to the tech dashboard ↔ job ↔ Teddy Tool loop.)
+    window.antTdrOpen = openModal;
+    if ((location.hash || '') === '#tdr') { try { openModal(); } catch (_) {} }
+    window.addEventListener('hashchange', function () { if ((location.hash || '') === '#tdr') { try { openModal(); } catch (_) {} } });
   }
 
   function detectRole() {

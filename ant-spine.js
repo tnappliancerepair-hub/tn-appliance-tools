@@ -25,7 +25,7 @@
     if (root.ANT_ROLE) return root.ANT_ROLE;
     const path = (root.location.pathname || '').toLowerCase();
     const search = root.location.search || '';
-    if (path.includes('tech-ant') || path.includes('tech-daily') || path.includes('tech-payouts') || path.includes('tech-performance')) return 'tech';
+    if (path.includes('tech-')) return 'tech'; // tech-job, tech-simple, tech-daily, tech-ant, tech-payouts, …
     if (path.includes('customer-portal') || path.includes('customer-feedback') || path.includes('cash-tdr-customer') || path.includes('upload.html') || /[?&](mode=resume|token=)/.test(search)) return 'customer';
     if (path.includes('teddy-tdr-tool') || path.includes('operator-status')) return 'owner';
     if (path.includes('office-') || path.includes('warranty-') || path.includes('needs-') || path.includes('job-detail') || path.includes('office.html')) return 'office';
@@ -46,39 +46,62 @@
   // Which lenses each role may even SEE in the strip. Customers must never be
   // shown links into tech/office/owner tools (they're internal); techs see
   // their job + the customer view; office/owner see everything.
+  // Which lenses each role may SEE in the strip. 'tdr' is the report itself
+  // (opens the TDR card). Techs now get the full working loop Teddy asked for:
+  // Day (their dashboard) ↔ Job ↔ TDR ↔ Teddy Tool ↔ Customer. Customers see
+  // nothing internal.
   const VISIBLE_LENSES = {
     customer: ['customer'],
-    tech: ['tech', 'customer'],
-    office: ['owner', 'tech', 'office', 'customer'],
-    owner: ['owner', 'tech', 'office', 'customer'],
+    tech: ['day', 'job', 'tdr', 'owner', 'customer'],
+    office: ['day', 'job', 'tdr', 'owner', 'office', 'customer'],
+    owner: ['day', 'job', 'tdr', 'owner', 'office', 'customer'],
   };
+
+  function techIdFromUrl() {
+    try { const u = new URLSearchParams(root.location.search); return u.get('tech_id') || u.get('techId') || ''; } catch (_) { return ''; }
+  }
 
   function buildStrip(jobId, currentRole) {
     if (!jobId) return '';
-    const allowed = VISIBLE_LENSES[currentRole] || ['customer'];
-    const lenses = [
-      { role: 'owner',    label: '📋 Teddy Tool',    href: `/teddy-tdr-tool.html?job_id=${jobId}` },
-      { role: 'tech',     label: '🔧 Tech View',     href: `/tech-simple.html?job_id=${jobId}` },
-      { role: 'office',   label: '📦 Warranty',      href: `/warranty-review.html?job_id=${jobId}` },
-      { role: 'office',   label: '🗂 Job Detail',    href: `/job-detail.html?job_id=${jobId}` },
-      { role: 'customer', label: '👤 Customer View', href: `/customer-portal.html?job_id=${jobId}` },
-    ].filter((l) => allowed.includes(l.role));
-    // A customer-only strip with a single "you are here" link adds no value and
-    // just advertises that other tools exist — suppress it entirely.
     if (currentRole === 'customer') return '';
+    const allowed = VISIBLE_LENSES[currentRole] || ['customer'];
+    const tid = techIdFromUrl();
+    const tq = tid ? `&tech_id=${tid}` : '';
+    const dayHref = `/tech-daily-dashboard.html${tid ? `?tech_id=${tid}` : ''}`;
+    const lenses = [
+      { lens: 'day',    match: 'tech-daily-dashboard', label: '🗓 Day',        href: dayHref },
+      { lens: 'job',    match: 'tech-job',             label: '🔧 Job',        href: `/tech-job.html?job_id=${jobId}${tq}` },
+      { lens: 'tdr',    match: '__tdr__',              label: '📝 TDR',        href: '#', tdr: true },
+      { lens: 'owner',  match: 'teddy-tdr-tool',       label: '📋 Teddy Tool', href: `/teddy-tdr-tool.html?job_id=${jobId}${tq}` },
+      { lens: 'office', match: 'warranty-review',      label: '📦 Warranty',   href: `/warranty-review.html?job_id=${jobId}` },
+      { lens: 'office', match: 'job-detail',           label: '🗂 Job Detail', href: `/job-detail.html?job_id=${jobId}` },
+      { lens: 'customer', match: 'customer-portal',    label: '👤 Customer',   href: `/customer-portal.html?job_id=${jobId}` },
+    ].filter((l) => allowed.includes(l.lens));
+    const here = root.location.pathname.replace(/^\//, '').toLowerCase();
     const items = lenses.map((l) => {
-      const isHere = l.role === currentRole && root.location.pathname.replace(/^\//, '') === l.href.replace(/^\//, '').split('?')[0];
-      const style = `display:inline-block; padding:4px 10px; margin:0 4px; font-size:11px; font-family: ui-monospace, monospace; text-decoration:none; border-radius:12px; border:1px solid ${isHere ? 'rgba(116,227,196,0.6)' : 'rgba(255,255,255,0.15)'}; color:${isHere ? '#74e3c4' : '#9aa1ad'}; background:${isHere ? 'rgba(116,227,196,0.10)' : 'transparent'};`;
-      return `<a href="${l.href}" style="${style}" target="${isHere ? '_self' : '_blank'}">${l.label}</a>`;
+      const isHere = l.match !== '__tdr__' && here.indexOf(l.match) !== -1;
+      const style = `display:inline-block; padding:5px 11px; margin:0 3px; font-size:11.5px; font-family: ui-monospace, monospace; text-decoration:none; border-radius:12px; border:1px solid ${isHere ? 'rgba(116,227,196,0.6)' : 'rgba(255,255,255,0.15)'}; color:${isHere ? '#74e3c4' : '#c4cbd6'}; background:${isHere ? 'rgba(116,227,196,0.12)' : 'transparent'}; font-weight:700;`;
+      // TDR opens the report card in place; the rest are same-tab links so the
+      // browser Back button returns you exactly where you were.
+      if (l.tdr) return `<a href="#" onclick="window.Ant&&window.Ant.openTdr();return false;" style="${style}">${l.label}</a>`;
+      return `<a href="${l.href}" style="${style}">${l.label}</a>`;
     }).join('');
     return `
-      <div id="ant-spine-strip" style="position:fixed; top:0; left:0; right:0; z-index:9999; padding:6px 12px; background:rgba(8,10,14,0.92); backdrop-filter: blur(10px); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:6px; overflow-x:auto; white-space:nowrap;">
-        <span style="font-size:10px; color:#5a6172; font-family: ui-monospace, monospace; padding-right:6px;">JOB #${jobId} ·</span>
+      <div id="ant-spine-strip" style="position:fixed; top:0; left:0; right:0; z-index:9999; padding:6px 12px; background:rgba(8,10,14,0.94); backdrop-filter: blur(10px); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:4px; overflow-x:auto; white-space:nowrap;">
+        <span style="font-size:10px; color:#5a6172; font-family: ui-monospace, monospace; padding-right:4px;">#${jobId} ·</span>
         ${items}
         <span id="ant-spine-pulse" style="margin-left:auto; font-size:10px; color:#5a6172; font-family: ui-monospace, monospace;" title="live awareness">⚪ idle</span>
       </div>
       <div style="height:34px"></div>
     `;
+  }
+
+  // 📝 TDR nav: open the report card in place if this surface has it; otherwise
+  // deep-link to the job page and auto-open it there (#tdr). One tap from anywhere.
+  function openTdr() {
+    if (typeof root.antTdrOpen === 'function') { try { root.antTdrOpen(); return; } catch (_) {} }
+    const jobId = detectJobId(); const tid = techIdFromUrl();
+    if (jobId) root.location.href = `/tech-job.html?job_id=${jobId}${tid ? `&tech_id=${tid}` : ''}#tdr`;
   }
 
   function injectStrip(jobId, role) {
@@ -448,6 +471,7 @@
   root.Ant.role = detectRole;
   root.Ant.jobId = detectJobId;
   root.Ant.deepLinkStrip = injectStrip;
+  root.Ant.openTdr = openTdr;
   root.Ant.startLiveAwareness = startLiveAwareness;
   root.Ant.mountSmsThread = mountSmsThread;
   root.Ant.mountJobTimeline = mountJobTimeline;
