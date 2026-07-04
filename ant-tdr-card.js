@@ -25,6 +25,7 @@
   var lastData = null;
   var pollTimer = null;
   var editKey = null; // when a field is being edited inline, don't let polling clobber it
+  var _rec = null, _chunks = [], recordingNow = false; // in-app voice for the one-box
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
   var FIELD_META = {
     diagnosis:        { label: 'Diagnosis',        col: 'diagnosis',        multiline: true,  ph: 'What is wrong with it?' },
@@ -201,6 +202,7 @@
     // Someone is mid-edit — a 6s poll must not wipe their typing.
     if (editKey !== null) return;
     // Don't wipe the tech's one-shot box while they're typing/dictating into it.
+    if (recordingNow) return;
     var _os = document.getElementById('ant-tdr-oneshot');
     if (_os && (document.activeElement === _os || String(_os.value || '').trim())) return;
     var fields = d.fields || {};
@@ -296,8 +298,9 @@
     // Actions per role
     html += '<div class="ant-tdr-actions">';
     if (role === 'tech') {
-      html += '<button class="ant-tdr-btn primary" onclick="window.__antTdrTalk()">🎤 Talk to Ant</button>';
-      html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrOpenTech()">Edit fields</button>';
+      // The one-box (type or 🎤 Speak it) is the primary path. A phone call is a
+      // fallback for guys who'd rather talk it out — demoted, not the default.
+      html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrTalk()" style="font-size:13px;flex:1">📞 Rather talk it out? Have Ant call you</button>';
     } else if (role === 'office') {
       var submitDisabled = ready ? '' : 'disabled';
       html += '<button class="ant-tdr-btn primary" ' + submitDisabled + ' onclick="window.__antTdrSubmitWarranty()">📦 Submit Warranty</button>';
@@ -432,14 +435,58 @@
     var ph = isOffice
       ? 'Paste the tech\'s notes here…'
       : 'e.g. Ice maker wasn\'t making ice, replaced the icemaker assembly, about an hour, tested and it\'s working now';
+    // Tech gets a 🎤 that records in-app (Whisper) + fills — reliable, unlike a
+    // phone call. Office just pastes + fills.
+    var actions = isOffice
+      ? '<button id="ant-tdr-oneshot-btn" onclick="window.__antTdrFillFromNotes()" style="width:100%;margin-top:9px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">✨ Fill the report</button>'
+      : '<div style="display:flex;gap:8px;margin-top:9px">'
+        + '<button id="ant-tdr-mic" onclick="window.__antTdrMic()" style="flex:1;background:#0f1420;color:#4ad991;border:1px solid #2f7a5c;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">🎤 Speak it</button>'
+        + '<button id="ant-tdr-oneshot-btn" onclick="window.__antTdrFillFromNotes()" style="flex:1;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">✨ Fill it in</button>'
+        + '</div>';
     return '<div style="background:rgba(16,185,129,0.09);border:1px solid rgba(16,185,129,0.45);border-radius:12px;padding:13px 14px;margin-bottom:14px">'
       + '<div style="font-size:13.5px;font-weight:800;color:#4ad991;margin-bottom:3px">' + head + '</div>'
       + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:9px;line-height:1.4">' + sub + '</div>'
       + '<textarea id="ant-tdr-oneshot" rows="3" placeholder="' + escapeHtml(ph) + '" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:11px 12px;font-size:16px;line-height:1.4;outline:none;resize:vertical"></textarea>'
-      + '<button id="ant-tdr-oneshot-btn" onclick="window.__antTdrFillFromNotes()" style="width:100%;margin-top:9px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">✨ Fill the report</button>'
+      + actions
       + '<div id="ant-tdr-oneshot-msg" style="font-size:12px;color:#8fc0ff;margin-top:7px;min-height:14px"></div>'
       + '</div>';
   }
+  // 🎤 In-app voice for the one-box: record → Whisper → drop the words in the box
+  // → fill. Reliable dictation (iOS records mp4/AAC, not webm — tag the real type),
+  // replacing the flaky "Ant calls you" scribe as the primary talk path. (Teddy 7/4)
+  window.__antTdrMic = async function () {
+    var btn = document.getElementById('ant-tdr-mic');
+    var msg = document.getElementById('ant-tdr-oneshot-msg');
+    if (_rec && _rec.state === 'recording') { _rec.stop(); return; }
+    var stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { if (msg) { msg.style.color = '#ff9d4a'; msg.textContent = 'Mic blocked — allow the microphone, or just type.'; } return; }
+    var recMime = '';
+    try { var cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/aac', 'audio/mpeg']; for (var i = 0; i < cands.length; i++) { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(cands[i])) { recMime = cands[i]; break; } } } catch (_) {}
+    _chunks = [];
+    try { _rec = recMime ? new MediaRecorder(stream, { mimeType: recMime }) : new MediaRecorder(stream); }
+    catch (_) { try { _rec = new MediaRecorder(stream); } catch (__) { if (msg) msg.textContent = 'Recording not supported — type it.'; stream.getTracks().forEach(function (t) { t.stop(); }); return; } }
+    _rec.ondataavailable = function (e) { if (e.data && e.data.size) _chunks.push(e.data); };
+    _rec.onstop = async function () {
+      recordingNow = false;
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      if (btn) { btn.textContent = '🎤 Speak it'; btn.style.background = '#0f1420'; btn.style.color = '#4ad991'; }
+      var realType = ((_rec && _rec.mimeType) || recMime || 'audio/webm').split(';')[0];
+      var ext = /mp4|aac|m4a|mpeg|mp3/i.test(realType) ? 'm4a' : 'webm';
+      var blob = new Blob(_chunks, { type: realType });
+      if (blob.size < 800) { if (msg) { msg.style.color = '#ff9d4a'; msg.textContent = "Didn't catch that — try again."; } return; }
+      if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Transcribing…'; }
+      var text = '';
+      try { var fd = new FormData(); fd.append('audio', blob, 'report.' + ext); var r = await fetch('/.netlify/functions/whisper-transcribe', { method: 'POST', body: fd }); var jd = await r.json(); text = ((jd && jd.text) || '').trim(); } catch (_) {}
+      if (!text) { if (msg) { msg.style.color = '#ff9d4a'; msg.textContent = 'Could not hear it — type it instead.'; } return; }
+      var ta = document.getElementById('ant-tdr-oneshot'); if (ta) ta.value = (ta.value ? ta.value.trim() + ' ' : '') + text;
+      window.__antTdrFillFromNotes();
+    };
+    recordingNow = true;
+    _rec.start();
+    if (btn) { btn.textContent = '⏹ Stop'; btn.style.background = '#d94545'; btn.style.color = '#fff'; }
+    if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Recording — say what you found, the part, what you did, how long. Tap Stop when done.'; }
+  };
   window.__antTdrFillFromNotes = async function () {
     var ta = document.getElementById('ant-tdr-oneshot');
     var msg = document.getElementById('ant-tdr-oneshot-msg');
@@ -607,16 +654,17 @@
   // ── Action handlers ────────────────────────────────────────────────
   window.__antTdrClose = closeModal;
   window.__antTdrTalk = async function () {
-    if (!jobId || !techId) { alert('Tech context missing'); return; }
+    if (!jobId || !techId) { alert('Open this from your job so Ant knows who to call. Or just type/🎤 Speak it above.'); return; }
+    if (!confirm('Ant will call your phone now. Just talk through the job — what was wrong, the part, what you did, how long — and it writes your report. Ready?')) return;
     try {
       var r = await fetch(XANO + '/dispatch_ant_field_assist', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({job_id: Number(jobId), tech_id: Number(techId), mode: 'wrap_up'}),
       });
       var d = await r.json();
-      if (d && d.success) alert('Calling you now. Ant will pick up where you left off.');
-      else alert('Dispatch failed: ' + (d && d.error || 'unknown'));
-    } catch (e) { alert('Could not place call: ' + e.message); }
+      if (d && d.success) alert('📞 Calling you now — answer and talk it through. Your report fills in as you go.');
+      else alert("Couldn't place the call — just type or 🎤 Speak it above instead. (" + (d && d.error || 'try again') + ')');
+    } catch (e) { alert("Couldn't place the call — type or 🎤 Speak it above instead."); }
   };
   window.__antTdrOpenTech = function () {
     location.href = '/tech-simple.html?job_id=' + jobId + (techId ? '&tech_id=' + techId : '');
