@@ -460,7 +460,14 @@ function placeOf(j){
   // "parts needed" completion, do NOT move it — it stays put until she sets the
   // ETA. (Teddy 2026-07-03) parts_status ordered-value is a belt-and-suspenders
   // fallback for orders logged without an ETA.
-  if((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||'')) return 'parts';
+  // BUT once Danielle has SCHEDULED the return visit (or the job is completed),
+  // it LEAVES Waiting Parts even though the part ETA is still on the job — the
+  // parts computation must not drag a scheduled/completed card back. This keys
+  // off scheduling_status (which the move reliably writes) so it holds even if
+  // the office_stage breadcrumb ages out of the read window. (Teddy 2026-07-04:
+  // "whenever Danielle moves a job to scheduled or completion it stays in parts")
+  const _schedOrDone = (ss==='scheduled' || ss==='completed' || cs==='completed');
+  if(!_schedOrDone && ((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||''))) return 'parts';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
   // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
   // Needs Scheduled. SquareTrade/AHS jobs often land scheduled-with-a-date but
