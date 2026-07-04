@@ -5,16 +5,17 @@
 //
 // ENV: ANTHROPIC_API_KEY required.
 
-const SYSTEM_PROMPT = `You extract TDR fields from a tech repair-chat transcript. Output STRICT JSON, no commentary, no markdown fence:
+const SYSTEM_PROMPT = `You extract TDR fields from a technician's repair notes / repair-chat transcript. Output STRICT JSON, no commentary, no markdown fence:
 {
-  "diagnosis": "...",        // 1-2 sentence root-cause diagnosis
+  "diagnosis": "...",        // 1-2 sentence root-cause diagnosis of what's wrong
   "failure_cause": "...",    // single phrase (e.g. "compressor failure", "clogged drain")
-  "failed_component": "...", // failed part (e.g. "evaporator fan motor")
-  "repair_completed": "...", // 1-2 sentences of what was done
-  "labor_time_hours": 0.0,   // decimal hours best estimate
+  "failed_component": "...", // the failed part in plain words (e.g. "evaporator fan motor", "heating element")
+  "part_number": "...",      // an OEM/manufacturer part number if the tech wrote one (e.g. "DC97-16350C"). "" if none.
+  "repair_completed": "...", // 1-2 sentences of what was done, if stated
+  "labor_time_hours": 0.0,   // decimal hours best estimate if stated
   "confidence": 0.0          // 0-1 overall extraction confidence
 }
-Empty string ("") or 0 when unknown. Don't fabricate. Use the tech's own words where possible.`;
+Empty string ("") or 0 when unknown. NEVER fabricate a part number or diagnosis — only pull what the tech actually wrote. Use the tech's own words. Notes may be terse shorthand; interpret sensibly.`;
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };

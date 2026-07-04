@@ -1190,7 +1190,8 @@ function renderDrawer(d){
         ${tdrLabel('Part #','td-part')}
         <input id="td-part" value="${esc(tdr.verified_part_number||'')}" placeholder="OEM part number" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         ${tdrLabel('Tech notes','td-notes')}
-        <textarea id="td-notes" rows="2" placeholder="notes" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.technician_notes||'')}</textarea>
+        <textarea id="td-notes" rows="2" placeholder="paste / type the tech's findings here" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.technician_notes||'')}</textarea>
+        <button type="button" onclick="fillTdrFromNotes(${jid})" style="padding:9px;border-radius:8px;background:rgba(74,158,255,0.14);color:#2a6fd6;border:1px solid rgba(74,158,255,0.5);font-size:12.5px;font-weight:800;cursor:pointer">✨ Fill diagnosis + part from the notes</button>
         <div style="font-size:12px;color:var(--ink2)">Parts status: <b>${esc((j.parts_status||'—').replace(/_/g,' '))}</b>${tdr.labor_time_hours!=null?(' · Labor '+esc(String(tdr.labor_time_hours))+' hr'):''}</div>
         <button onclick="saveTdr(${tdr.id||0},${jid},${j.technician_id||0})" style="margin-top:2px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${tdr.id?'💾 Save TDR':'💾 File report'}</button>
       </div>
@@ -1372,6 +1373,10 @@ function renderDrawer(d){
   loadOfficeNoteStatus(jid);
   loadPartsLocation(jid);
   loadPayStatus(jid);
+  // Auto-extract: if the tech dumped findings into Tech notes but the diagnosis
+  // is still blank, pull it into the structured fields once (no re-typing).
+  try{ const _n=(document.getElementById('td-notes')||{}).value||''; const _dg=(document.getElementById('td-diag')||{}).value||'';
+    if(_n.replace(/\s/g,'').length>10 && !_dg.trim() && !TDR_NOTES_TRIED.has(String(jid))){ TDR_NOTES_TRIED.add(String(jid)); fillTdrFromNotes(jid,{silent:true}); } }catch(_){}
 }
 
 // 📦 Warranty parts SUPPLIED by the vendor (SquareTrade/Allstate) — auto-pulled from the
@@ -1553,6 +1558,34 @@ async function saveTdr(tdrId, jid, techId){
   }
   toast(ok?'TDR saved ✓':'⚠ some fields did not save');
   openDrawer(String(jid));
+}
+// Extract structured TDR fields (diagnosis / failed part / part #) out of the
+// tech's free-text notes so a tech who dumps everything into Tech notes still
+// gets a real filed TDR — no double-entry. Only fills EMPTY fields (never
+// overwrites what someone typed); the human reviews + hits Save to file.
+// (Teddy 7/4: "Lee's putting his TDR info in the notes — extract it into the TDR.")
+let TDR_NOTES_TRIED=new Set();
+async function fillTdrFromNotes(jid,opts){
+  opts=opts||{};
+  const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
+  const notes=g('td-notes');
+  const j=window.__drawerJob||{};
+  const complaint=String(j.problem||j.problem_summary||'').trim();
+  const src=[notes, complaint?('Customer complaint: '+complaint):''].filter(Boolean).join('\n');
+  if(src.replace(/\s/g,'').length<4){ if(!opts.silent) toast('Type the tech notes first'); return; }
+  if(!opts.silent) toast('Reading the notes…');
+  try{
+    const r=await fetch('/.netlify/functions/extract-tdr-from-transcript',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript:src})});
+    const d=await r.json();
+    if(!d||!d.ok||!d.extracted){ if(!opts.silent) toast('⚠ could not read the notes'); return; }
+    const ex=d.extracted; let filled=0;
+    const setIf=(id,val)=>{ const el=document.getElementById(id); if(el&&!el.value.trim()&&val&&String(val).trim()){ el.value=String(val).trim(); el.style.background='rgba(74,158,255,0.10)'; filled++; } };
+    setIf('td-diag', ex.diagnosis);
+    setIf('td-comp', ex.failed_component);
+    setIf('td-part', ex.part_number);
+    if(filled&&!opts.silent) toast('✨ Pulled '+filled+' field'+(filled>1?'s':'')+' from the notes — review & Save');
+    else if(!filled&&!opts.silent) toast('Nothing new to pull from the notes');
+  }catch(_){ if(!opts.silent) toast('⚠ could not read the notes'); }
 }
 async function orderParts(id){
   const pn=((document.getElementById('pt-num')||{}).value||'').trim();
