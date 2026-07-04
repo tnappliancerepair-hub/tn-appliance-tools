@@ -142,8 +142,9 @@ const listSections = (projectId) => mtList(`/projects/${projectId}/sections`);
 const listSectionTasks = (sectionId, opts = {}) => mtList(`/sections/${sectionId}/tasks`, opts);
 const listProjectTasks = (projectId, opts = {}) => mtList(`/projects/${projectId}/tasks`, opts);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
+const listLabels = (projectId) => mtList(`/projects/${projectId}/labels`);
 
 module.exports = {
   isConfigured, token, mtGet, mtList, mtPost, createTask, deleteTask,
-  listProjects, listSections, listSectionTasks, listProjectTasks, listTaskComments,
+  listProjects, listSections, listSectionTasks, listProjectTasks, listTaskComments, listLabels,
 };
