@@ -213,6 +213,10 @@
       html += pct + '% complete · ' + blockingText;
     }
     html += '</div>';
+    // What the customer already told us — the intake info (complaint, model,
+    // serial, claim). This IS the seed for the diagnosis: if the customer
+    // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
+    html += buildCustomerToldUs(d);
     // Fields
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
@@ -344,6 +348,44 @@
       + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#8a92a6;font-weight:700">' + escapeHtml(label) + '</div>'
       + '<div style="font-size:15px;color:#e6e9f0;margin-top:4px;line-height:1.45;word-wrap:break-word">' + escapeHtml(String(value)) + '</div>'
       + '</div></div></div>';
+  }
+
+  // The intake info the customer already gave us — shown at the top of the
+  // internal (office/tech) TDR so nobody re-asks what's already on file, and
+  // so the diagnosis has a starting point. Copy buttons on each field.
+  function buildCustomerToldUs(d) {
+    var x = d.submission_extras || {};
+    var complaint = (x.problem_summary || '').toString().trim();
+    var model = (x.model_number || '').toString().trim();
+    var serial = (x.serial_number || '').toString().trim();
+    var claim = (x.claim_number || '').toString().trim();
+    if (!complaint && !model && !serial && !claim) return '';
+    var rows = '';
+    function row(label, val, big) {
+      if (!val) return '';
+      var esc = escapeHtml(val);
+      var enc = encodeURIComponent(val);
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,0.06)">'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#7fa8d8;font-weight:700">' + escapeHtml(label) + '</div>'
+        + '<div style="font-size:' + (big ? '15px' : '14px') + ';color:#e6e9f0;margin-top:3px;line-height:1.4;word-wrap:break-word">' + esc + '</div>'
+        + '</div>'
+        + '<button onclick="window.__antTdrCopy(decodeURIComponent(\'' + enc + '\'),this)" style="flex-shrink:0;background:rgba(255,255,255,0.08);border:0;color:#cfe0f5;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer">📋</button>'
+        + '</div>';
+    }
+    rows += row('Customer\'s complaint', complaint, true);
+    rows += row('Model #', model, false);
+    rows += row('Serial #', serial, false);
+    rows += row('Claim #', claim, false);
+    var seedBtn = '';
+    if (complaint && (role === 'office' || role === 'tech')) {
+      seedBtn = '<button onclick="window.__antTdrSeedDiagnosis()" style="margin-top:10px;width:100%;background:rgba(74,158,255,0.16);border:1px solid rgba(74,158,255,0.5);color:#8fc0ff;border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">✏️ Use this to start the diagnosis in Teddy Tool</button>';
+    }
+    return '<div style="background:rgba(74,158,255,0.07);border:1px solid rgba(74,158,255,0.28);border-radius:12px;padding:12px 14px;margin-bottom:14px">'
+      + '<div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#8fc0ff;letter-spacing:0.02em">📩 What the customer told us</div>'
+      + rows
+      + seedBtn
+      + '</div>';
   }
 
   function buildBlockingText(d) {
@@ -478,6 +520,14 @@
   };
   window.__antTdrOpenTech = function () {
     location.href = '/tech-simple.html?job_id=' + jobId + (techId ? '&tech_id=' + techId : '');
+  };
+  window.__antTdrCopy = function (text, btn) {
+    tdrCopyToClipboard(String(text || ''));
+    if (btn) { var o = btn.textContent; btn.textContent = '✓'; setTimeout(function () { btn.textContent = o; }, 1200); }
+  };
+  window.__antTdrSeedDiagnosis = function () {
+    var complaint = ((lastData && lastData.submission_extras) || {}).problem_summary || '';
+    location.href = '/teddy-tdr-tool.html?job_id=' + jobId + (complaint ? '&seed_diagnosis=' + encodeURIComponent(complaint) : '');
   };
   window.__antTdrOpenTeddy = function () {
     location.href = '/teddy-tdr-tool.html?job_id=' + jobId;
