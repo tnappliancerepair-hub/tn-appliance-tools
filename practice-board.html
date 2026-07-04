@@ -149,6 +149,8 @@ async function fetchBoard(key){
     }catch(e){}
   }
   if(cols==null) return null; // still busy — don't cache, let Refresh retry
+  // Billy left — drop his Report/Invoice columns.
+  cols=cols.filter(c=>!/billy/i.test(c.name||''));
   // Defensive: collapse any duplicate same-named columns into one.
   const seenCol={}; const merged=[];
   cols.forEach(c=>{ const k=c.name; if(seenCol[k]){ seenCol[k].cards=(seenCol[k].cards||[]).concat(c.cards||[]); } else { seenCol[k]=c; merged.push(c); } });
