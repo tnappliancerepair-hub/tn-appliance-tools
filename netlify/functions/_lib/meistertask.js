@@ -139,7 +139,7 @@ async function deleteTask(taskId) {
 // including archived/completed (status 8) and open (status 1) — verified live.
 const listProjects = () => mtList('/projects', { params: { status: 'all' } });
 const listSections = (projectId) => mtList(`/projects/${projectId}/sections`);
-const listSectionTasks = (sectionId) => mtList(`/sections/${sectionId}/tasks`);
+const listSectionTasks = (sectionId, opts = {}) => mtList(`/sections/${sectionId}/tasks`, opts);
 const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
 

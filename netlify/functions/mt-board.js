@@ -31,12 +31,16 @@ exports.handler = async function (event) {
     sections = (Array.isArray(sections) ? sections : []).sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
     const total = sections.length;
     const slice = sections.slice(from, to);
+    const status = String(q.status || 'actionable'); // server-side open-only filter (fast: skips years of archived cards)
     const columns = [];
     for (const s of slice) {
       let tasks = [];
-      try { tasks = await mt.listSectionTasks(s.id); } catch (_) {}
+      // Ask MeisterTask for ONLY the actionable (open) cards — otherwise mtList
+      // pages through every archived card in the section (slow -> timeout).
+      try { tasks = await mt.listSectionTasks(s.id, { params: { status } }); }
+      catch (_) { try { tasks = await mt.listSectionTasks(s.id); } catch (_) {} } // fallback: unfiltered
       const cards = (Array.isArray(tasks) ? tasks : [])
-        .filter((t) => Number(t.status) === 1) // open only = what's on the board now
+        .filter((t) => Number(t.status) === 1) // belt+suspenders: keep only open
         .map((t) => ({ id: t.id, title: clean(t.name).slice(0, 120), notes: clean(t.notes).slice(0, 160) }));
       columns.push({ name: s.name, sequence: s.sequence, cards });
     }
