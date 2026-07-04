@@ -140,7 +140,7 @@ async function deleteTask(taskId) {
 const listProjects = () => mtList('/projects', { params: { status: 'all' } });
 const listSections = (projectId) => mtList(`/projects/${projectId}/sections`);
 const listSectionTasks = (sectionId, opts = {}) => mtList(`/sections/${sectionId}/tasks`, opts);
-const listProjectTasks = (projectId) => mtList(`/projects/${projectId}/tasks`);
+const listProjectTasks = (projectId, opts = {}) => mtList(`/projects/${projectId}/tasks`, opts);
 const listTaskComments = (taskId) => mtList(`/tasks/${taskId}/comments`);
 
 module.exports = {
