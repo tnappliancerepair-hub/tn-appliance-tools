@@ -134,11 +134,15 @@ async function fetchBoard(key){
   if(CACHE[key]) return CACHE[key];
   await loadJobs();
   let cols=null;
-  try{
-    const d=await fetch(NF+'/mt-board?key='+key,{cache:'no-store'}).then(r=>r.json());
-    if(d&&d.ok&&Array.isArray(d.columns)) cols=d.columns;
-  }catch(e){}
-  if(cols==null) return null; // MeisterTask busy/timeout — don't cache, let Refresh retry
+  // MeisterTask can be briefly slow/rate-limited — try twice before giving up.
+  for(let attempt=0; attempt<2 && cols==null; attempt++){
+    if(attempt) await new Promise(r=>setTimeout(r,1800));
+    try{
+      const d=await fetch(NF+'/mt-board?key='+key,{cache:'no-store'}).then(r=>r.json());
+      if(d&&d.ok&&Array.isArray(d.columns)) cols=d.columns;
+    }catch(e){}
+  }
+  if(cols==null) return null; // still busy — don't cache, let Refresh retry
   // The new Paid folder (not in MeisterTask yet) — a job lands here once paid.
   cols.push({name:'💰 PAID', sequence:99999, cards:[], paid:true});
   cols.forEach((c,ci)=>(c.cards||[]).forEach((cd,i)=>{
