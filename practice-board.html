@@ -65,17 +65,17 @@
 
 <script>
 const NF='/.netlify/functions';
-// board key -> display name + section count (for parallel-slice fetching)
 const BOARDS=[
-  {key:'sched',name:'Scheduling',sections:5},
-  {key:'tn',   name:'TN Jobs',   sections:16},
-  {key:'nola', name:'NOLA Jobs', sections:13},
+  {key:'sched',name:'Scheduling'},
+  {key:'tn',   name:'TN Jobs'},
+  {key:'nola', name:'NOLA Jobs'},
 ];
 const CACHE={};       // key -> columns[]  (from MeisterTask)
 let curBoard='tn';
 
 function accent(name){
   const n=(name||'').toUpperCase();
+  if(n.includes('PAID')) return '#16a34a';
   if(n.includes('NEEDS SCHEDULED')||n.includes('NEED SCHEDULED')) return '#8a97a8';
   if(n==='SCHEDULED') return '#5b6b80';
   if(n.includes('TEMPLATE')) return '#9aa7b8';
@@ -94,21 +94,18 @@ function accent(name){
 }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 
-// Fetch a whole board from MeisterTask in parallel slices (each stays under the
-// function timeout), merge by section sequence.
+// Fetch a whole board from MeisterTask (one fast open-cards pull), then append
+// our "💰 PAID" folder — where a job moves once it's been paid. (Teddy 2026-07-04)
 async function fetchBoard(key){
   if(CACHE[key]) return CACHE[key];
-  const b=BOARDS.find(x=>x.key===key); const total=b.sections; const CH=5; const reqs=[];
-  for(let f=0; f<total; f+=CH){
-    const to=Math.min(f+CH,total);
-    reqs.push(fetch(NF+'/mt-board?key='+key+'&from='+f+'&to='+to).then(r=>r.json()).catch(()=>({ok:false,columns:[]})));
-  }
-  const parts=await Promise.all(reqs);
-  const cols=[];
-  parts.forEach(p=>{ if(p&&p.ok&&Array.isArray(p.columns)) cols.push(...p.columns); });
-  cols.sort((a,b)=>(a.sequence||0)-(b.sequence||0));
-  // give each card a stable drag id
-  cols.forEach(c=>(c.cards||[]).forEach((cd,i)=>{cd._id='c'+c.sequence+'_'+(cd.id||i);}));
+  let cols=[];
+  try{
+    const d=await fetch(NF+'/mt-board?key='+key,{cache:'no-store'}).then(r=>r.json());
+    if(d&&d.ok&&Array.isArray(d.columns)) cols=d.columns;
+  }catch(e){}
+  // The new Paid folder (not in MeisterTask yet) — a job lands here once paid.
+  cols.push({name:'💰 PAID', sequence:99999, cards:[], paid:true});
+  cols.forEach((c,ci)=>(c.cards||[]).forEach((cd,i)=>{cd._id='c'+ci+'_'+(cd.id||i);}));
   CACHE[key]=cols;
   return cols;
 }
@@ -143,11 +140,26 @@ async function switchBoard(k){
 }
 
 // ── Board render ──
+// MeisterTask card titles carry noise ("New Dispatch Notification #… ",
+// "ServicePower Call # …"). Pull out the customer-facing bit so the tile reads
+// like our own tiles, keep the raw claim/dispatch # as a sub line.
+function tidyTitle(raw){
+  let t=String(raw||'').trim();
+  const claim=(t.match(/#\s*(\d{6,})/)||t.match(/call\s*#?\s*(\d{6,})/i)||[])[1]||'';
+  t=t.replace(/new dispatch notification/ig,'')
+     .replace(/dispatch notification/ig,'')
+     .replace(/servicepower call\s*#?\s*\d+/ig,'')
+     .replace(/\bcall\s*#?\s*\d+/ig,'')
+     .replace(/#\s*\d{5,}/g,'')
+     .replace(/^[\s\-\/|:]+/,'').replace(/[\s\-\/|:]+$/,'').trim();
+  return { title: t || String(raw||'').trim(), claim };
+}
 function cardHtml(cd,ac){
-  const title=cd.title||('#'+cd.id);
+  const t=tidyTitle(cd.title);
+  const sub=[t.claim?('#'+t.claim):'', cd.notes||''].filter(Boolean).join(' · ');
   return '<div class="card" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
-    +'<div class="t">'+esc(title)+'</div>'
-    +(cd.notes?'<div class="sub">'+esc(cd.notes)+'</div>':'')
+    +'<div class="t">'+esc(t.title||('#'+cd.id))+'</div>'
+    +(sub?'<div class="sub">'+esc(sub)+'</div>':'')
     +'</div>';
 }
 async function showBoard(key){
