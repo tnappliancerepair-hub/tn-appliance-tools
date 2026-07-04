@@ -52,6 +52,7 @@
   .tag{font-size:9px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:1px 6px;border-radius:5px}
   .tag.war{background:#e7f0ff;color:#1f5fd0}
   .tag.cash{background:#e7f8ee;color:#1c8b4c}
+  .tag.area{background:#eef1f5;color:#54607a;text-transform:none;letter-spacing:0}
   .dot{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--c,#9aa7b8);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .empty{color:#a7b1bf;font-size:12px;text-align:center;padding:14px 6px;font-style:italic}
   .boardmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5f6b7c;font-size:14px;font-weight:600}
@@ -199,25 +200,40 @@ function tidyTitle(raw){
      .replace(/^[\s\-\/|:]+/,'').replace(/[\s\-\/|:]+$/,'').trim();
   return { title: t || String(raw||'').trim(), claim };
 }
+function titleCase(s){return String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}
+function cityFromTitle(t){const m=String(t||'').match(/\b([A-Z][A-Z]{2,}(?:\s+[A-Z]{2,})*)\s*$/);return m?titleCase(m[1]):'';}
+function detectCo(s){s=String(s||'');
+  if(/square\s*trade/i.test(s))return'SquareTrade';
+  if(/\bAHS\b|american\s*home/i.test(s))return'AHS';
+  if(/frontdoor|front\s*door/i.test(s))return'Frontdoor';
+  if(/\bNSA\b|national\s*service/i.test(s))return'NSA';
+  if(/2-?10|home\s*buyers/i.test(s))return'2-10';
+  return'';
+}
 function cardHtml(cd,ac){
   const j=cd.job;
-  // HEADER ONLY — customer name + work order #. Everything else collapsed so as
-  // many tiles as possible fit on the board. (Teddy 2026-07-04)
+  // HEADER ONLY — name + work order # + company + area. Everything else collapsed
+  // so as many tiles as possible fit on the board. (Teddy 2026-07-04)
   const wos=(String(cd.title||'').match(/[A-Z]{2,4}\d{6,}|\d{6,}/g)||[]);
   const wo = wos.length? '<span class="wo">🧾 '+esc(wos[0])+(wos.length>1?(' +'+(wos.length-1)):'')+'</span>' : '';
-  let name, tech='', war='';
+  let name, tech='', war='', area='';
   if(j){
     name=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim()||('Job #'+j.id);
     tech=TECH[Number(j.technician_id||0)]||'';
     war=(j.warranty_company||'').trim();
+    area=titleCase(j.service_city||'');
   }else{
     name=(tidyTitle(cd.title).title)||('#'+cd.id);
+    war=detectCo(cd.title+' '+(cd.notes||''));
+    area=cityFromTitle(cd.title);
   }
   const warTag= war?'<span class="tag war">'+esc(war)+'</span>':'';
+  const areaTag= area?'<span class="tag area">📍'+esc(area)+'</span>':'';
   const who= tech?'<span class="dot" style="--c:'+ac+'" title="'+esc(tech)+'">'+esc(tech.slice(0,2).toUpperCase())+'</span>':'';
+  const meta=[wo,warTag,areaTag].filter(Boolean).join('');
   return '<div class="card'+(j?' matched':'')+'" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
     +'<div class="hd"><div class="t">'+esc(name)+'</div>'+who+'</div>'
-    +((wo||warTag)?('<div class="meta">'+wo+warTag+'</div>'):'')
+    +(meta?('<div class="meta">'+meta+'</div>'):'')
     +'</div>';
 }
 async function showBoard(key){
