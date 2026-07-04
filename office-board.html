@@ -101,6 +101,8 @@
   .col.parts .col-h{color:var(--warn);}
   .col.done .col-h{color:var(--ok);}
   .col.followup .col-h{color:var(--violet);}
+  .col.upgrade .col-h{color:#0f9d92;}
+  .col.autho .col-h{color:#e07a3c;}
   .jcard{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,50,.05);}
   .jcard:active{transform:scale(.99);}
   .jcard.dragging{opacity:.5;}
@@ -497,18 +499,21 @@ function setBoardSolo(t){soloTech=String(t||'');try{localStorage.setItem('tn_boa
 function renderBoard(){
   const allRegTechs=REGION_TECHS[region];
   const techs=soloTech?allRegTechs.filter(t=>Number(t)===Number(soloTech)):allRegTechs;
+  // Column flow mirrors the MeisterTask TN Jobs board (Teddy 2026-07-04):
+  // Scheduled → all Reports → Upgrade → Waiting Autho → Waiting Parts →
+  // Completion → Follow Up → Needs Invoice → all Invoices → Shop Money.
   const cols=[{id:'schedule',label:'Needs Scheduled',cls:''},{id:'scheduled',label:'Scheduled',cls:''}];
-  // Each tech gets two folders: Report (active work) and Invoice (done, ready
-  // to bill). Cards flow Report -> Invoice as the job completes.
-  techs.forEach(t=>{
-    cols.push({id:'rep-'+t,label:TECH_NAME[t]+' · Report',cls:'tech',tech:t});
-    cols.push({id:'inv-'+t,label:TECH_NAME[t]+' · Invoice',cls:'tech',tech:t});
-  });
+  // All the per-tech REPORT folders grouped together (active work).
+  techs.forEach(t=>{ cols.push({id:'rep-'+t,label:TECH_NAME[t]+' · Report',cls:'tech',tech:t}); });
+  cols.push({id:'upgrade',label:'Upgrade',cls:'upgrade'});
+  cols.push({id:'autho',label:'Waiting for Autho',cls:'autho'});
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
   cols.push({id:'done',label:'Completion',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
   cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
-  cols.push({id:'paid',label:'💰 Paid · Closed (archive)',cls:'done'});
+  // All the per-tech INVOICE folders grouped together (done, ready to bill).
+  techs.forEach(t=>{ cols.push({id:'inv-'+t,label:TECH_NAME[t]+' · Invoice',cls:'tech',tech:t}); });
+  cols.push({id:'paid',label:'💰 Shop Money · Paid',cls:'done'});
 
   let items=allItems.filter(j=>jobRegion(j)===region);
   if(soloTech) items=items.filter(j=>Number(j.technician_id)===Number(soloTech));
@@ -734,8 +739,8 @@ async function onDrop(colId,techId,colEl){
   persistStage(id,colId);
 
   // Follow Up / Needs Invoice / Paid have no backend job-state — placement only.
-  if(colId==='followup'||colId==='needinv'||colId==='paid'){
-    toast('Moved to '+({needinv:'Needs Invoice',paid:'Paid · Closed',followup:'Follow Up'}[colId]));
+  if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
+    toast('Moved to '+({needinv:'Needs Invoice',paid:'Shop Money · Paid',followup:'Follow Up',upgrade:'Upgrade',autho:'Waiting for Autho'}[colId]));
     return;
   }
 
@@ -1639,9 +1644,9 @@ async function moveJobFromDrawer(id){
   // Same as a drag-drop: remember placement so it sticks, then fire the action.
   try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
   persistStage(id,colId);
-  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',parts:'Waiting Parts',done:'Completion',followup:'Follow Up',needinv:'Needs Invoice',paid:'Paid · Closed'};
+  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'Completion',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
-  if(colId==='followup'||colId==='needinv'||colId==='paid'){ toast('Moved to '+label); closeDrawer(); loadBoard(); return; }
+  if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){ toast('Moved to '+label); closeDrawer(); loadBoard(); return; }
   if(techId){
     try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
   } else if(STATUS_MAP[colId]){
