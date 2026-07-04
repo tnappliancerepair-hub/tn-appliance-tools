@@ -65,6 +65,17 @@
   [data-theme="dark"] .dcard{background:#161b26;}
   [data-theme="dark"] .tag.src{background:#242c3a;color:var(--ink2);}
   [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#12161f;color:var(--ink);border-color:var(--line);}
+  /* 🌙 Dark drawer: several controls hard-code a white bg inline, so in dark mode
+     they render as white boxes with light (invisible) text — the folder picker,
+     tech picker, region buttons, Jump-to pills. Force the dark surface so the
+     text + icons read. Inline styles need !important to lose. (Teddy 2026-07-04) */
+  [data-theme="dark"] .jumps a{background:#1c2330;color:var(--ink);border-color:var(--line);}
+  [data-theme="dark"] .jumps a:active{background:#242e3e;}
+  [data-theme="dark"] .drawer input,[data-theme="dark"] .drawer select,[data-theme="dark"] .drawer textarea{background:#12161f !important;color:var(--ink) !important;border-color:var(--line) !important;}
+  [data-theme="dark"] .regbtn{background:#12161f !important;color:var(--ink) !important;border-color:var(--line) !important;}
+  [data-theme="dark"] .regbtn.on{background:var(--blue) !important;color:#fff !important;border-color:var(--blue) !important;}
+  [data-theme="dark"] .jc-ref{background:#16233a !important;color:#9cc6ff !important;border-color:#274263 !important;}
+  [data-theme="dark"] .jc-ref.ant{background:#1c2330 !important;color:#aab6c9 !important;border-color:var(--line) !important;}
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:84px;}
   .topbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line);
@@ -126,8 +137,17 @@
   /* drawer (card file) */
   .scrim{position:fixed;inset:0;background:rgba(18,26,38,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;}
   .scrim.open{opacity:1;pointer-events:auto;}
-  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100%);background:var(--bg);z-index:61;transform:translateX(100%);transition:transform .26s cubic-bezier(.2,.8,.2,1);overflow-y:auto;-webkit-overflow-scrolling:touch;}
-  .drawer.open{transform:translateX(0);}
+  /* 📄 Card file — opens LARGE + CENTERED (Teddy 2026-07-04, MeisterTask-style),
+     scrolls internally. On phones it fills the screen. */
+  .drawer{position:fixed;top:50%;left:50%;width:min(680px,96vw);max-height:92vh;
+    background:var(--bg);z-index:61;border-radius:18px;box-shadow:0 26px 80px rgba(0,0,0,.45);
+    opacity:0;transform:translate(-50%,-46%) scale(.985);pointer-events:none;
+    transition:opacity .2s ease,transform .2s ease;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .drawer.open{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
+  @media (max-width:560px){
+    .drawer{width:100vw;max-height:100vh;height:100vh;top:0;left:0;transform:none;border-radius:0;transition:opacity .2s ease;}
+    .drawer.open{transform:none;}
+  }
   .dh{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:13px 14px;padding-top:max(13px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;z-index:2;}
   .dh .x{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:18px;cursor:pointer;flex-shrink:0;}
   .dh .dt{flex:1;min-width:0;} .dh .dt .n{font-weight:800;font-size:15px;} .dh .dt .s{font-size:12px;color:var(--ink2);}
@@ -642,7 +662,7 @@ function cardHtml(j){
   const name=((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';
   const appl=[j.brand,j.appliance].filter(Boolean).join(' ');
   const _ref=refOf(j);
-  const _refHtml='<div class="jc-ref" onclick="copyRef(event,\''+esc(_ref.num).replace(/'/g,"\\'")+'\')" title="Tap to copy" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:2px 8px;border-radius:6px;font-family:ui-monospace,monospace;font-size:12px;font-weight:800;cursor:pointer;'+(_ref.ant?'background:#eef1f5;color:#5b6675;border:1px solid #d7dde6':'background:#eaf2ff;color:#0a4ea8;border:1px solid #b9d4f5')+'">'+esc(_ref.label)+' '+esc(_ref.num)+' <span style="opacity:.5;font-size:10px">⧉</span></div>';
+  const _refHtml='<div class="jc-ref'+(_ref.ant?' ant':'')+'" onclick="copyRef(event,\''+esc(_ref.num).replace(/'/g,"\\'")+'\')" title="Tap to copy" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 9px;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:800;letter-spacing:.02em;white-space:nowrap;cursor:pointer;'+(_ref.ant?'background:#eef1f5;color:#3f4a5c;border:1px solid #d0d7e2':'background:#e6f0ff;color:#08417f;border:1px solid #adccf2')+'">'+esc(_ref.label)+' '+esc(_ref.num)+' <span style="opacity:.55;font-size:11px">⧉</span></div>';
   const tags=[];
   // Visit type at a glance — so the office can tell a first-look DIAGNOSIS from a
   // COMPLETION (return visit), and see when a job is DONE. (Jimmy + Danielle,
@@ -1330,8 +1350,8 @@ function renderDrawer(d){
       <h4>📍 Region <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">currently ${curRegion==='NOLA'?'NOLA':'TN'}</span></h4>
       <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">If a job is in the wrong region folder, set it here. It moves and stays — on every screen.</div>
       <div style="display:flex;gap:8px">
-        <button onclick="setRegion(${jid},'TN')" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--line);background:${curRegion==='TN'?'var(--blue)':'#fff'};color:${curRegion==='TN'?'#fff':'var(--ink)'};font-weight:800;cursor:pointer">TN</button>
-        <button onclick="setRegion(${jid},'LA')" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--line);background:${curRegion==='NOLA'?'var(--blue)':'#fff'};color:${curRegion==='NOLA'?'#fff':'var(--ink)'};font-weight:800;cursor:pointer">NOLA</button>
+        <button class="regbtn${curRegion==='TN'?' on':''}" onclick="setRegion(${jid},'TN')" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--line);background:${curRegion==='TN'?'var(--blue)':'#fff'};color:${curRegion==='TN'?'#fff':'var(--ink)'};font-weight:800;cursor:pointer">TN</button>
+        <button class="regbtn${curRegion==='NOLA'?' on':''}" onclick="setRegion(${jid},'LA')" style="flex:1;padding:11px;border-radius:9px;border:1px solid var(--line);background:${curRegion==='NOLA'?'var(--blue)':'#fff'};color:${curRegion==='NOLA'?'#fff':'var(--ink)'};font-weight:800;cursor:pointer">NOLA</button>
       </div>
     </div>
 
