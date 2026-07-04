@@ -61,19 +61,32 @@ exports.handler = async function (event) {
   if (!ids.jobs) return j(200, { ok: false, error: 'could not resolve jobs table' });
 
   // Invoices + payment records (by action — single-field search is reliable).
-  let invRows = [], payRows = [], qcRows = [];
+  let invRows = [], payRows = [], qcRows = [], markRows = [], unmarkRows = [];
   try {
-    [invRows, payRows, qcRows] = await Promise.all([
+    [invRows, payRows, qcRows, markRows, unmarkRows] = await Promise.all([
       searchAction(EVENT, 'office_invoice_logged', 600),
       searchAction(EVENT, 'customer_payment_received', 600),
       searchAction(EVENT, 'quick_check_paid', 400),
+      searchAction(EVENT, 'invoice_marked_paid', 600),
+      searchAction(EVENT, 'invoice_marked_unpaid', 400),
     ]);
   } catch (e) { return j(200, { ok: false, error: 'events: ' + String(e.message || e) }); }
-  if (q.debug === '1') return j(200, { ok: true, debug: true, inv_rows: invRows.length, pay_rows: payRows.length, qc_rows: qcRows.length, sample_inv: invRows.slice(0, 2).map(meta) });
+  if (q.debug === '1') return j(200, { ok: true, debug: true, inv_rows: invRows.length, pay_rows: payRows.length, qc_rows: qcRows.length, mark_rows: markRows.length, sample_inv: invRows.slice(0, 2).map(meta) });
 
   // Paid set: any job with a payment record.
   const paidBy = {};
   for (const r of [...payRows, ...qcRows]) { const m = meta(r); const jid = Number(m.job_id || 0); if (jid) paidBy[jid] = paidBy[jid] || { method: m.pay_method || m.method || (r.action === 'quick_check_paid' ? 'quick check' : 'card'), at: ms(m.logged_at_ms || m.at_ms || r.created_at) }; }
+
+  // MANUAL override (Danielle marks paid/unpaid — from the board's Paid folder or
+  // the invoices page). Latest write per job WINS over auto-detection, and it's
+  // the only way warranty jobs (paid by vendor EFT) ever read as Paid.
+  const manual = {}; // job_id -> { paid, at, method }
+  for (const r of [...markRows, ...unmarkRows]) {
+    const m = meta(r); const jid = Number(m.job_id || 0); if (!jid) continue;
+    const at = ms(m.at_ms || r.created_at);
+    const isPaid = r.action === 'invoice_marked_paid';
+    if (!manual[jid] || at >= manual[jid].at) manual[jid] = { paid: isPaid, at, method: m.method || 'office' };
+  }
 
   // Latest invoice per job within the window.
   const seen = new Set(); const invoices = [];
@@ -101,8 +114,10 @@ exports.handler = async function (event) {
     inv.type = jb.customer_type || '';
     inv.appliance = [jb.brand, jb.appliance_type].filter(Boolean).join(' ');
     inv.claim = jb.claim_number || '';
+    const mo = manual[inv.job_id];
     const p = paidBy[inv.job_id];
-    inv.paid = !!p; inv.method = p ? p.method : '';
+    if (mo) { inv.paid = mo.paid; inv.method = mo.paid ? 'marked paid' : ''; inv.marked = true; }
+    else { inv.paid = !!p; inv.method = p ? p.method : ''; inv.marked = false; }
     inv.warranty = inv.type === 'warranty';
   }
   invoices.sort((a, b) => b.when_ms - a.when_ms);

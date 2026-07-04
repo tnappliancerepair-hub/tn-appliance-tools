@@ -760,6 +760,11 @@ async function postJSON(ep,payload){
 async function persistStage(id,colId,serviceState){
   try{await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});}catch(_){}
 }
+// Mark a job's invoice paid/unpaid (drop into the 💰 Paid folder = paid). The
+// invoices page (invoices.html) honors this over auto-detection. Fire-and-forget.
+async function markInvoicePaid(id,paid){
+  try{await fetch('/.netlify/functions/mark-invoice-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),paid:paid!==false,by:'Danielle',method:'board'})});}catch(_){}
+}
 function refreshCounts(){
   document.querySelectorAll('.col').forEach(c=>{const ct=c.querySelector('.ct');const n=c.querySelectorAll('.col-body .jcard').length;if(ct)ct.textContent=n;});
 }
@@ -776,6 +781,9 @@ async function onDrop(colId,techId,colEl){
 
   // Follow Up / Needs Invoice / Paid have no backend job-state — placement only.
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
+    // Danielle's rule (Teddy 2026-07-04): dropping into 💰 Paid = this invoice is
+    // paid (warranty EFT landed / customer settled). Mark it so invoices.html flips.
+    if(colId==='paid'){ markInvoicePaid(id,true); toast('💰 Paid — invoice marked paid ✓'); return; }
     toast('Moved to '+({needinv:'Needs Invoice',paid:'Shop Money · Paid',followup:'Follow Up',upgrade:'Upgrade',autho:'Waiting for Autho'}[colId]));
     return;
   }
@@ -1680,7 +1688,10 @@ async function moveJobFromDrawer(id){
   persistStage(id,colId);
   const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'Completion',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
-  if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){ toast('Moved to '+label); closeDrawer(); loadBoard(); return; }
+  if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
+    if(colId==='paid'){ markInvoicePaid(id,true); toast('💰 Paid — invoice marked paid ✓'); } else toast('Moved to '+label);
+    closeDrawer(); loadBoard(); return;
+  }
   if(techId){
     try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
   } else if(STATUS_MAP[colId]){

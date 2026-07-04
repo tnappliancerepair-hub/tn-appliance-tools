@@ -99,9 +99,16 @@ function render(){
   if(FILTER==='paid') list=list.filter(i=>i.paid);
   if(!list.length){box.innerHTML='<div class="empty">No invoices'+(FILTER!=='all'?' in this filter':' yet — tap + New invoice')+'.</div>';return;}
   box.innerHTML=list.map(i=>{
-    const cls=i.warranty?'warr':(i.paid?'paid':'unpaid');
-    const badge=i.warranty?'<span class="badge b-warr">Warranty</span>':(i.paid?'<span class="badge b-paid">Paid'+(i.method?' · '+esc(i.method):'')+'</span>':'<span class="badge b-unpaid">Unpaid</span>');
+    // Paid wins the color, even for warranty (EFT landed). Warranty not-yet-paid
+    // shows amber "awaiting warranty $"; cash not-yet-paid shows red "Unpaid".
+    const cls=i.paid?'paid':(i.warranty?'warr':'unpaid');
+    const badge=i.paid
+      ? '<span class="badge b-paid">✓ Paid'+(i.warranty?' · warranty':'')+'</span>'
+      : (i.warranty?'<span class="badge b-warr">Awaiting warranty $</span>':'<span class="badge b-unpaid">Unpaid</span>');
     const payBtn=(!i.paid&&!i.warranty&&i.amount>0&&i.phone)?'<button class="btn sm g" onclick="payLink('+i.job_id+')">💳 Send pay link</button>':'';
+    const markBtn=i.paid
+      ? '<button class="btn sm ghost" onclick="markPaid('+i.job_id+',false)">↩ Mark unpaid</button>'
+      : '<button class="btn sm g" onclick="markPaid('+i.job_id+',true)">✓ Mark paid</button>';
     return '<div class="card '+cls+'">'
       +'<div class="row" style="justify-content:space-between;align-items:flex-start">'
         +'<div><div class="who">'+esc(i.customer)+'</div>'
@@ -109,7 +116,7 @@ function render(){
         +'<div style="text-align:right"><div class="amt">'+money(i.amount)+'</div>'+badge+'</div>'
       +'</div>'
       +'<div class="meta" style="margin-top:6px">Labor '+money(i.labor)+' · Parts '+money(i.parts)+' · Tax '+money(i.tax)+'</div>'
-      +'<div class="row" style="margin-top:10px">'+payBtn
+      +'<div class="row" style="margin-top:10px">'+markBtn+payBtn
         +'<button class="btn sm ghost" onclick="openEdit('+i.job_id+')">✏️ Edit</button>'
         +'<a class="btn sm ghost" style="text-decoration:none" href="office-board.html?job='+i.job_id+'">Open job →</a>'
       +'</div></div>';
@@ -149,6 +156,15 @@ async function saveInvoice(){
     else msg.innerHTML='<span style="color:var(--red)">'+esc((d&&(d.message||d.error))||'save failed')+'</span>';
   }catch(_){ msg.innerHTML='<span style="color:var(--red)">connection error</span>'; }
   btn.disabled=false;
+}
+
+// ── Mark paid / unpaid (Danielle's verify — she controls the truth) ──
+async function markPaid(jobId,paid){
+  const i=INV.find(x=>x.job_id===jobId); if(!i) return;
+  i.paid=paid; i.marked=true; i.method=paid?'marked paid':''; render();  // optimistic
+  try{ await fetch('/.netlify/functions/mark-invoice-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,paid:paid,by:'Danielle',method:'invoices'})}); }
+  catch(_){}
+  setTimeout(load,700);
 }
 
 // ── Pay link (Stripe) ──
