@@ -230,16 +230,20 @@
     html += buildCustomerToldUs(d);
     // Fields — inline-editable for tech + office (tap a field to edit it
     // right here; no jump to another page). Customer never reaches this loop.
+    // NOTE: parts_needed is a JSON column that get_unified can't yet read back,
+    // so it's shown read-only until the server-side fix lands (no silent-fail
+    // editor). The other four save through update_tdr_field_from_voice.
     var canEdit = (role === 'tech' || role === 'office');
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
+      var editable = canEdit && !!FIELD_META[f.key] && f.key !== 'parts_needed';
       var cls = fState.filled ? 'filled' : 'empty';
       var icon = fState.filled ? '✅' : '⏳';
-      html += '<div class="ant-tdr-field ' + cls + '"' + (canEdit ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"' : '') + '>';
+      html += '<div class="ant-tdr-field ' + cls + '"' + (editable ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"' : '') + '>';
       html += '<div class="ant-tdr-field-icon">' + icon + '</div>';
       html += '<div class="ant-tdr-field-body">';
       html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label)
-        + (canEdit ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + (fState.filled ? '✏️ edit' : '✏️ add') + '</span>' : '') + '</div>';
+        + (editable ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + (fState.filled ? '✏️ edit' : '✏️ add') + '</span>' : '') + '</div>';
       if (fState.filled) {
         html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
       } else {
@@ -582,23 +586,19 @@
     var btn = document.getElementById('ant-tdr-save-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
-      var tdrId = Number(lastData.tdr_id || 0);
-      if (tdrId <= 0) {
-        // No TDR row yet — create one WITHOUT firing TDR_SUBMITTED (no auto-move).
-        var er = await fetch('/.netlify/functions/ensure-tdr', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: Number(jobId), technician_id: techId ? Number(techId) : undefined }),
-        });
-        var ed = await er.json();
-        if (!ed || !ed.ok || !ed.tdr_id) throw new Error((ed && ed.error) || 'could not start report');
-        tdrId = Number(ed.tdr_id);
-      }
-      var wr = await fetch('/.netlify/functions/set-tdr-field', {
+      // update_tdr_field_from_voice upserts the in-progress TDR by (job_id,
+      // technician_id) and writes via db.edit — no TDR_SUBMITTED signal, so
+      // editing a field never autonomously moves the job. It takes the same
+      // field keys this card uses (diagnosis / failed_component / labor_hours /
+      // repair_completed / parts_needed).
+      var body = { job_id: Number(jobId), field: key, value: val };
+      if (techId) body.technician_id = Number(techId);
+      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tdr_id: tdrId, field: meta.col, value: val }),
+        body: JSON.stringify(body),
       });
       var wd = await wr.json();
-      if (!wd || !wd.ok) throw new Error((wd && wd.error) || 'save failed');
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
       alert('Could not save: ' + (e && e.message ? e.message : e));
