@@ -128,6 +128,17 @@
   .dwrap{padding:12px;display:flex;flex-direction:column;gap:11px;}
   .dcard{background:#fff;border:1px solid var(--line);border-radius:13px;padding:13px;}
   .dcard h4{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);margin-bottom:9px;}
+  .dc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px;}
+  [data-theme="dark"] .dc{background:#161b26;}
+  .dc-head{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:14px;color:var(--ink);margin-bottom:7px;}
+  .dc-head button{background:var(--card2,#eef2f7);border:0;width:28px;height:28px;border-radius:8px;font-size:16px;cursor:pointer;color:var(--ink2);}
+  .dc-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;}
+  .dc-dow span{text-align:center;font-size:10px;font-weight:800;color:var(--ink2);}
+  .dc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .dc-empty{height:30px;}
+  .dc-day{height:30px;border:0;background:var(--card2,#f4f6f9);border-radius:7px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;}
+  .dc-day:hover{background:#dbe6f5;}
+  .dc-day.sel{background:var(--accent,#1f6feb);color:#fff;}
   .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;}
   .kv .k{color:var(--ink2);font-size:12px;} .kv .v{font-weight:600;word-break:break-word;}
   .kv .v.mono{font-family:ui-monospace,monospace;font-size:12px;}
@@ -1063,6 +1074,7 @@ function renderDrawer(d){
   // tech to whoever's already assigned. This is the place to put the schedule
   // date IN Ant (kills double-entry into the old tool).
   const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
+  initDrawCal(schDayVal); // seed the pick-a-day calendar shown in the Schedule card
   // Part # gate (Teddy 2026-07-01): a filed report with NO part number can't be
   // closed out. Flag it loud so the office chases the tech for the part #.
   const _hasPartNum = tdrs.some(x=>String((x&&(x.verified_part_number||x.oem_part_number||x.part_number))||'').trim()!=='')
@@ -1266,6 +1278,7 @@ function renderDrawer(d){
       <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b>. We route by day — the customer gets a live arrival window the morning of. Set a <b>time</b> too if you like (optional, just for your planning). This saves right here in Ant — nothing to enter anywhere else.</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
+        <div id="drawCal" class="dc">${drawCalHtml()}</div>
         <div style="display:flex;gap:8px">
           <input type="date" id="schDay" value="${schDayVal}" style="flex:2;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
           <input type="time" id="schTime" value="${schTimeVal}" title="optional time" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
@@ -1533,6 +1546,26 @@ async function partsArrived(id){
 // ⏳ Hold the picked tech+day tentatively (for a completion customer who says
 // "get us in Thursday, we'll confirm"). Ghosted on the calendar, office-only.
 // Confirm books it for real; Release frees it. No auto-expire. (Teddy 2026-07-03)
+// ── Pick-a-day calendar in the Schedule card (feeds #schDay) ──
+let DCAL={y:0,m:0,sel:null};
+function initDrawCal(schDayVal){
+  let base=null;
+  if(schDayVal){const p=String(schDayVal).split('-'); if(p.length===3) base=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));}
+  const b=base||new Date(); DCAL.y=b.getFullYear(); DCAL.m=b.getMonth(); DCAL.sel=base?b:null;
+}
+function drawCalHtml(){
+  const y=DCAL.y,m=DCAL.m; const first=new Date(y,m,1); const startDow=(first.getDay()+6)%7;
+  const days=new Date(y,m+1,0).getDate(); const monthName=first.toLocaleString('en-US',{month:'long',year:'numeric'});
+  const dow=['Mo','Tu','We','Th','Fr','Sa','Su'];
+  let grid=''; for(let i=0;i<startDow;i++) grid+='<span class="dc-empty"></span>';
+  for(let d=1;d<=days;d++){ const s=DCAL.sel; const sel=s&&s.getFullYear()===y&&s.getMonth()===m&&s.getDate()===d;
+    grid+='<button type="button" class="dc-day'+(sel?' sel':'')+'" onclick="drawCalPick('+d+')">'+d+'</button>'; }
+  return '<div class="dc-head"><button type="button" onclick="drawCalMove(-1)">‹</button><span>'+esc(monthName)+'</span><button type="button" onclick="drawCalMove(1)">›</button></div>'
+    +'<div class="dc-dow">'+dow.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="dc-grid">'+grid+'</div>';
+}
+function drawCalMove(delta){ DCAL.m+=delta; if(DCAL.m<0){DCAL.m=11;DCAL.y--;} if(DCAL.m>11){DCAL.m=0;DCAL.y++;} const el=document.getElementById('drawCal'); if(el) el.innerHTML=drawCalHtml(); }
+function drawCalPick(d){ DCAL.sel=new Date(DCAL.y,DCAL.m,d); const el=document.getElementById('drawCal'); if(el) el.innerHTML=drawCalHtml();
+  const inp=document.getElementById('schDay'); if(inp) inp.value=DCAL.y+'-'+String(DCAL.m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
 async function holdFromDrawer(id){
   const tech=parseInt((document.getElementById('schTech')||{}).value||'0',10);
   const day=(document.getElementById('schDay')||{}).value||'';
