@@ -466,7 +466,7 @@ function toggleChk(id,i,el,auto){
   CHECK_MAP[id]=arr;                                  // keep local view fresh
   // persist to the job so it sticks everywhere (fire-and-forget)
   try{fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),checklist:arr,actor:'Danielle'})});}catch(_){}
-  const on=!!auto||arr.includes(i); // auto-derived steps stay checked regardless
+  const on=arr.includes(i); // FULLY MANUAL — Danielle ticks each step herself, never auto (Teddy 2026-07-04)
   el.classList.toggle('done',on);
   const box=el.querySelector('.box'); if(box)box.textContent=on?'✓':'';
 }
@@ -1082,10 +1082,8 @@ function renderDrawer(d){
   ];
   const chkManual=chkGet(j.id);
   const chkHtml=steps.map((s,i)=>{
-    const done=s[1]||chkManual.includes(i);  // auto-derived OR manually ticked
-    const cls=done?'done':(s[2]==='gap'?'gap':'');
-    const badge=s[2]==='gap'?'<span class="auto">gap</span>':(s[2]==='auto'?'<span class="auto">auto</span>':'');
-    return `<div class="chk ${cls}" style="cursor:pointer" onclick="toggleChk(${j.id},${i},this,${s[1]?1:0})"><span class="box">${done?'✓':''}</span><span class="lbl">${esc(s[0])}</span>${badge}</div>`;
+    const done=chkManual.includes(i);        // MANUAL ONLY — never auto-checked so Danielle can't miss a step (Teddy 2026-07-04)
+    return `<div class="chk ${done?'done':''}" style="cursor:pointer" onclick="toggleChk(${j.id},${i},this,0)"><span class="box">${done?'✓':''}</span><span class="lbl">${esc(s[0])}</span></div>`;
   }).join('');
 
   const jid=j.id;
@@ -1268,7 +1266,7 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
-      <h4>✅ Office checklist <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">auto-ticks as the job moves</span></h4>
+      <h4>✅ Office checklist <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">tick each step as you handle it</span></h4>
       ${chkHtml}
     </div>
 
