@@ -1325,9 +1325,32 @@ async function readModelFromPhoto(s3Key, attachmentId){
 async function readModelFromUrl(url, attachmentId){
   try{
     const r=await fetch('/.netlify/functions/ocr-model-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID,image_url:url,attachment_id:attachmentId})}).then(x=>x.json());
-    if(r&&r.kind==='model_sticker'&&r.model_number){ toast('📋 Read model: '+r.model_number); if(typeof loadJob==='function') loadJob(); }
+    if(r&&r.kind==='model_sticker'&&r.model_number){ if(typeof loadJob==='function'){ await loadJob(); } showModelConfirm(r.model_number, r.confidence); }
     else if(r&&r.kind==='part_sticker'&&r.part_number){ toast('🔩 Read part: '+r.part_number); }
   }catch(_){ }
+}
+// A reading is never 100% off a scuffed nameplate — so instead of silently
+// trusting it, ASK the tech to confirm the model or fix it in two taps.
+// (Teddy 7/4: John's photo read the wrong model with no way to catch it.)
+function showModelConfirm(model, conf){
+  let b=document.getElementById('ocr-model-confirm');
+  if(!b){ b=document.createElement('div'); b.id='ocr-model-confirm';
+    b.style.cssText='position:fixed;left:8px;right:8px;top:calc(8px + env(safe-area-inset-top,0px));z-index:9999;background:#fff8e6;border:1px solid #f0c86a;border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.22);max-width:520px;margin:0 auto';
+    document.body.appendChild(b); }
+  const low=String(conf||'').toLowerCase()==='low';
+  b.innerHTML='<div style="font-weight:800;color:#7a5410;font-size:13px">📋 Model read from your photo — is this exactly right?</div>'
+    +'<div style="font-size:22px;font-weight:900;letter-spacing:.03em;margin:5px 0 3px;color:#12203a;font-family:ui-monospace,monospace">'+esc(model)+'</div>'
+    +'<div style="font-size:12.5px;color:#8a5a12;margin-bottom:9px">'+(low?'⚠ Hard to read — check every character against the sticker.':'Compare it character-by-character with the sticker.')+'</div>'
+    +'<div style="display:flex;gap:8px">'
+      +'<button type="button" onclick="var e=this.closest(\'#ocr-model-confirm\');if(e)e.remove();" style="flex:1;padding:11px;border:0;border-radius:9px;background:#1faa6b;color:#fff;font-weight:800;font-size:14px;cursor:pointer">✓ Looks right</button>'
+      +'<button type="button" onclick="fixOcrModel()" style="flex:1;padding:11px;border:1px solid #d9a54a;border-radius:9px;background:#fff;color:#8a5a12;font-weight:800;font-size:14px;cursor:pointer">✏️ Fix it</button>'
+    +'</div>';
+}
+function fixOcrModel(){
+  var b=document.getElementById('ocr-model-confirm'); if(b)b.remove();
+  var el=document.getElementById('aj-model');
+  if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(function(){ el.focus(); try{el.select();}catch(_){} el.style.outline='2px solid #e8821e'; setTimeout(function(){el.style.outline='';},2500); },350); }
+  toast('Type the correct model, then tap Save');
 }
 
 // ── parts finder ────────────────────────────────────────────────

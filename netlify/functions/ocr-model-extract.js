@@ -16,11 +16,14 @@
 //             confidence?, wrote: bool }
 
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
+// Sonnet reads scuffed/angled nameplates far more accurately than Haiku — the
+// model number drives every part order, so accuracy beats the pennies saved.
+// (Teddy 7/4: John's photo gave the wrong model number.)
+const ANTHROPIC_MODEL = 'claude-sonnet-5';
 
-const PROMPT = `You're an expert at reading appliance documentation. Classify this image into ONE of three buckets and extract structured data.
+const PROMPT = `You're an expert at reading appliance nameplates and part labels. Classify this image into ONE of three buckets and extract structured data.
 
-BUCKET 1 - "model_sticker": the appliance manufacturer's NAMEPLATE on a washer / dryer / refrigerator / dishwasher / range / oven / microwave / HVAC unit. Has "Model" / "Model #" / "Model No." text plus an alphanumeric model code (e.g. WTW5000DW2, GTW465ASN0WW, RF28HFEDBSR). Often also a Serial # and manufacturer logo.
+BUCKET 1 - "model_sticker": the appliance manufacturer's NAMEPLATE on a washer / dryer / refrigerator / dishwasher / range / oven / microwave / HVAC unit. Has "Model" / "Model #" / "Model No." / "MOD" text plus an alphanumeric model code (e.g. WTW5000DW2, GTW465ASN0WW, RF28HFEDBSR). Often also a Serial # and manufacturer logo.
 
 BUCKET 2 - "part_sticker": a label on a SINGLE COMPONENT — drive belt, control board, water valve, pump, motor, capacitor, switch. Usually shows a Part # / P/N / Part No. with an alphanumeric code (e.g. 8540101, WPW10730972, W11315838) and may show brand + a short description.
 
@@ -29,7 +32,7 @@ BUCKET 3 - "none": anything else (room photo, appliance front exterior, person, 
 Return STRICT JSON:
 
 If model sticker:
-{"kind": "model_sticker", "model_number": "UPPERCASE_CODE", "serial_number": "...", "manufacturer": "Whirlpool|Samsung|GE|LG|Maytag|Kenmore|Frigidaire|KitchenAid|Bosch|Amana|other", "appliance_type": "washer|dryer|refrigerator|dishwasher|range|oven|microwave|hvac|other", "confidence": "high|medium|low"}
+{"kind": "model_sticker", "model_number": "EXACT_CODE_AS_PRINTED", "raw_model_line": "the full text of the line the model sits on", "serial_number": "...", "manufacturer": "Whirlpool|Samsung|GE|LG|Maytag|Kenmore|Frigidaire|KitchenAid|Bosch|Amana|other", "appliance_type": "washer|dryer|refrigerator|dishwasher|range|oven|microwave|hvac|other", "confidence": "high|medium|low"}
 
 If part sticker:
 {"kind": "part_sticker", "part_number": "EXACT_CODE", "part_description": "short description if visible, else ''", "manufacturer": "brand if visible, else ''", "confidence": "high|medium|low"}
@@ -37,9 +40,15 @@ If part sticker:
 If none:
 {"kind": "none"}
 
+HOW TO READ A MODEL NUMBER (do this carefully — a wrong model orders the wrong part):
+- Transcribe the code EXACTLY as printed, character by character. Do NOT normalize, "correct", complete, or guess it into a model you recognize.
+- Read ONLY the value on the line labeled "Model" / "Model No." / "MOD". If the plate also shows Serial / Type / Config / a UPC / a "part of" number, DO NOT return those as the model.
+- Watch look-alike characters and decide by what is actually printed: 0 vs O, 1 vs I vs l, 5 vs S, 8 vs B, 2 vs Z, 6 vs G, D vs 0, U vs V, Q vs O. Trailing suffixes matter (…VA3, …0WW, …-01) — capture them.
+- If ANY character is smudged, glare-washed, cut off, or ambiguous, set "confidence":"low" (don't hide the uncertainty).
+
 CRITICAL RULES:
-- Be conservative. If you can't clearly read the label + code, return "none". Better to miss than hallucinate a part number that misroutes a return.
-- For model stickers, the model_number must include "Model" label proximity. A random alphanumeric isn't a model.
+- Be conservative. If you can't clearly read the label + code, return "none". Better to miss than hallucinate a code that misroutes a return.
+- For model stickers, the model_number must sit next to a "Model"/"MOD" label. A random alphanumeric isn't a model.
 - For part stickers, the part_number must come from a labeled "Part" / "P/N" line. A generic number on a box isn't a part.
 - Never return both bucket types simultaneously. One image, one kind.`;
 
