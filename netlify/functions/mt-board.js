@@ -17,22 +17,30 @@ function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'applicati
 function clean(s) { return String(s || '').replace(/\s+/g, ' ').trim(); }
 
 exports.handler = async function (event) {
-  const key = String((event.queryStringParameters || {}).key || '').toLowerCase();
+  const q = event.queryStringParameters || {};
+  const key = String(q.key || '').toLowerCase();
   const p = PROJECTS[key];
   if (!p) return j(400, { ok: false, error: 'key must be one of ' + Object.keys(PROJECTS).join(',') });
+  // Boards with many sections (TN=16) blow the 26s function cap when pulled at
+  // the ~1.1s API pace. The client fetches SLICES in parallel (separate lambdas,
+  // separate pace gates) and merges. from/to = section-index window.
+  const from = Math.max(0, parseInt(q.from, 10) || 0);
+  const to = q.to != null ? (parseInt(q.to, 10) || 0) : 999;
   try {
-    const sections = await mt.listSections(p.id);
+    let sections = await mt.listSections(p.id);
+    sections = (Array.isArray(sections) ? sections : []).sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+    const total = sections.length;
+    const slice = sections.slice(from, to);
     const columns = [];
-    for (const s of (Array.isArray(sections) ? sections : [])) {
+    for (const s of slice) {
       let tasks = [];
       try { tasks = await mt.listSectionTasks(s.id); } catch (_) {}
       const cards = (Array.isArray(tasks) ? tasks : [])
-        .filter((t) => Number(t.status) === 1) // open only
+        .filter((t) => Number(t.status) === 1) // open only = what's on the board now
         .map((t) => ({ id: t.id, title: clean(t.name).slice(0, 120), notes: clean(t.notes).slice(0, 160) }));
       columns.push({ name: s.name, sequence: s.sequence, cards });
     }
-    columns.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-    return j(200, { ok: true, key, name: p.name, columns });
+    return j(200, { ok: true, key, name: p.name, total_sections: total, from, to, columns });
   } catch (e) {
     return j(200, { ok: false, error: String((e && e.message) || e) });
   }

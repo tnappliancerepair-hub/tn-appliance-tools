@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>Practice Board — MeisterTask layout</title>
+<title>Practice Board — MeisterTask mirror</title>
 <style>
   :root{
     --bg:#e9edf2; --lane:#eef1f6; --lane-head:#e4e9f0; --card:#ffffff;
@@ -14,90 +14,68 @@
   html,body{margin:0;height:100%}
   body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
 
-  /* Top bar */
-  .top{flex:0 0 auto;background:#1f2a3a;color:#fff;padding:9px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  .brand{font-weight:800;letter-spacing:.02em;font-size:15px;display:flex;align-items:center;gap:8px}
-  .practice-chip{background:#f5a623;color:#241a06;font-weight:800;font-size:10px;letter-spacing:.08em;padding:3px 8px;border-radius:6px;text-transform:uppercase}
-  .note{color:#aeb9c9;font-size:12px}
-  .top .spacer{flex:1}
-  .btn{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
-  .btn:hover{background:rgba(255,255,255,.2)}
-  .live-dot{width:8px;height:8px;border-radius:50%;background:#3ad07a;display:inline-block;box-shadow:0 0 0 0 rgba(58,208,122,.6);animation:pulse 2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(58,208,122,.5)}70%{box-shadow:0 0 0 7px rgba(58,208,122,0)}100%{box-shadow:0 0 0 0 rgba(58,208,122,0)}}
-
-  /* Sliding board switcher (the "slider") */
-  .switchbar{flex:0 0 auto;background:#27344a;padding:9px 12px;display:flex;justify-content:center}
-  .slider{position:relative;display:inline-flex;background:#1b2637;border-radius:999px;padding:4px;gap:2px;box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
-  .slider .pill{position:relative;z-index:2;border:0;background:transparent;color:#a9b7cb;font-weight:800;font-size:13px;letter-spacing:.01em;padding:9px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:color .2s}
-  .slider .pill .cnt{font-weight:700;font-size:11px;opacity:.75;margin-left:6px}
+  /* ── Sliding board switcher — TOP of the page ── */
+  .switchbar{flex:0 0 auto;background:#1b2637;padding:10px 12px;display:flex;justify-content:center}
+  .slider{position:relative;display:inline-flex;background:#111b29;border-radius:999px;padding:4px;gap:2px;box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}
+  .slider .pill{position:relative;z-index:2;border:0;background:transparent;color:#9fb0c6;font-weight:800;font-size:13px;letter-spacing:.01em;padding:9px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:color .2s}
+  .slider .pill .cnt{font-weight:700;font-size:11px;opacity:.7;margin-left:6px}
   .slider .pill.on{color:#16202e}
-  .slider .thumb{position:absolute;z-index:1;top:4px;bottom:4px;left:4px;width:0;background:linear-gradient(180deg,#ffd36b,#f5a623);border-radius:999px;box-shadow:0 2px 6px rgba(245,166,35,.5);transition:transform .28s cubic-bezier(.4,1.3,.5,1),width .28s}
+  .slider .thumb{position:absolute;z-index:1;top:4px;bottom:4px;left:0;width:0;background:linear-gradient(180deg,#ffd36b,#f5a623);border-radius:999px;box-shadow:0 2px 6px rgba(245,166,35,.5);transition:transform .28s cubic-bezier(.4,1.2,.5,1),width .28s}
 
-  /* Lane row */
-  .board{flex:1 1 auto;overflow-x:auto;overflow-y:hidden;padding:14px 12px 20px;display:none}
-  .board.on{display:flex;gap:12px;align-items:flex-start}
-  .lane{flex:0 0 268px;width:268px;max-height:100%;background:var(--lane);border-radius:12px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
-  .lane-head{padding:10px 12px 8px;border-top:4px solid var(--accent,#9aa7b8);border-radius:12px 12px 0 0;background:var(--lane-head)}
+  /* Slim info bar */
+  .top{flex:0 0 auto;background:#27344a;color:#fff;padding:7px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand{font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px}
+  .practice-chip{background:#f5a623;color:#241a06;font-weight:800;font-size:9px;letter-spacing:.07em;padding:3px 7px;border-radius:5px;text-transform:uppercase}
+  .note{color:#aeb9c9;font-size:11.5px}
+  .top .spacer{flex:1}
+  .btn{background:rgba(255,255,255,.13);color:#fff;border:0;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+  .btn:hover{background:rgba(255,255,255,.22)}
+
+  /* ── Board area — fills remaining height, scrolls both ways ── */
+  #boards{flex:1 1 auto;min-height:0;position:relative}
+  .board{position:absolute;inset:0;display:none;gap:12px;align-items:stretch;padding:14px 12px;overflow-x:auto;overflow-y:hidden}
+  .board.on{display:flex}
+  .lane{flex:0 0 270px;width:270px;max-height:100%;display:flex;flex-direction:column;background:var(--lane);border-radius:12px;box-shadow:var(--shadow)}
+  .lane-head{flex:0 0 auto;padding:10px 12px 8px;border-top:4px solid var(--accent,#9aa7b8);border-radius:12px 12px 0 0;background:var(--lane-head)}
   .lane-title{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px;line-height:1.25}
   .lane-title .n{background:#fff;color:var(--ink2);border:1px solid var(--line);border-radius:999px;min-width:22px;text-align:center;padding:1px 7px;font-size:11px;font-weight:800}
-  .lane-body{padding:8px;overflow-y:auto;flex:1 1 auto;min-height:60px;display:flex;flex-direction:column;gap:8px}
-  .lane-body.drag-over{background:rgba(31,110,235,.07);outline:2px dashed #9db8e6;outline-offset:-4px;border-radius:0 0 12px 12px}
+  .lane-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px}
+  .lane-body.drag-over{background:rgba(31,110,235,.07);outline:2px dashed #9db8e6;outline-offset:-4px}
 
-  /* Cards */
-  .card{background:var(--card);border-radius:9px;box-shadow:var(--shadow);padding:10px 11px;cursor:grab;border-left:4px solid var(--c,#9aa7b8);position:relative}
+  .card{background:var(--card);border-radius:9px;box-shadow:var(--shadow);padding:10px 11px;cursor:grab;border-left:4px solid var(--c,#9aa7b8)}
   .card:active{cursor:grabbing}
   .card.dragging{opacity:.45}
-  .card .t{font-size:13.5px;font-weight:700;color:var(--ink);line-height:1.3}
-  .card .sub{font-size:12px;color:var(--ink2);margin-top:3px;line-height:1.35}
-  .card .row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
-  .tag{font-size:10px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
-  .tag.war{background:#e7f0ff;color:#1f5fd0}
-  .tag.cash{background:#e7f8ee;color:#1c8b4c}
-  .tag.eta{background:#fff2dc;color:#a5670c}
-  .who{font-size:11px;color:var(--ink2);font-weight:700;margin-left:auto;display:flex;align-items:center;gap:5px}
-  .dot{width:17px;height:17px;border-radius:50%;background:var(--c,#9aa7b8);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
-  .empty{color:#a7b1bf;font-size:12px;text-align:center;padding:16px 6px;font-style:italic}
-  .loading{padding:40px;text-align:center;color:#6b7686;font-size:14px;width:100%}
-
-  .hint{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;background:#1f2a3a;color:#dfe6f0;font-size:12px;padding:7px 14px;border-radius:999px;box-shadow:var(--shadow);opacity:.92}
+  .card .t{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;white-space:pre-wrap;word-break:break-word}
+  .card .sub{font-size:11.5px;color:var(--ink2);margin-top:4px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
+  .empty{color:#a7b1bf;font-size:12px;text-align:center;padding:14px 6px;font-style:italic}
+  .boardmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5f6b7c;font-size:14px;font-weight:600}
+  .spin{width:26px;height:26px;border:3px solid #c3ccd8;border-top-color:#f5a623;border-radius:50%;animation:sp 0.8s linear infinite;margin-right:10px}
+  @keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
+  <div class="switchbar"><div class="slider" id="slider"><div class="thumb" id="thumb"></div></div></div>
   <div class="top">
-    <div class="brand">🐜 Practice Job Board <span class="practice-chip">Practice · preview</span></div>
-    <div class="note" id="note">Your MeisterTask layout, with <b>live jobs</b> loaded in. Read-only preview — dragging is visual only, nothing saves.</div>
+    <div class="brand">🐜 Practice Board <span class="practice-chip">MeisterTask mirror · preview</span></div>
+    <div class="note" id="note">Live from MeisterTask (the source of truth). Read-only preview — dragging is visual only.</div>
     <div class="spacer"></div>
-    <button class="btn" id="reload">↻ Reload live</button>
+    <button class="btn" id="reload">↻ Refresh</button>
   </div>
-
-  <div class="switchbar">
-    <div class="slider" id="slider"><div class="thumb" id="thumb"></div></div>
-  </div>
-
-  <div id="boards"><div class="loading">Loading live jobs…</div></div>
-  <div class="hint">Drag a card between columns to feel the flow. Reload pulls fresh live jobs.</div>
+  <div id="boards"></div>
 
 <script>
-const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-
-// ── The exact MeisterTask projects -> columns (pulled live from your boards) ──
-const BOARDS = [
-  { key:'sched', name:'Scheduling', cols:[
-    'TN NEEDS SCHEDULED','NOLA NEED SCHEDULED','TEMPLATES','PRE DIAGNOSIS','POST DIAGNOSIS' ] },
-  { key:'tn', name:'TN Jobs', cols:[
-    'SCHEDULED','TEDDY REPORTS','LEE REPORTS','JIMMYS REPORTS','ANDRE REPORTS','UPGRADE',
-    'WAITING FOR AUTHO','WAITING FOR PARTS','COMPLETION APPT','FOLLOW UP BEFORE INVOICING',
-    'NEEDS INVOICED','TE INVOICES','JIMMY INVOICES','LEE INVOICES','ANDRE INVOICES','SHOP MONEY $$' ] },
-  { key:'nola', name:'NOLA Jobs', cols:[
-    'SCHEDULED','JOHN REPORT','BILLY REPORTS','ANDRE REPORTS','UPGRADE','WAITING FOR AUTHO',
-    'WAITING FOR PARTS','COMPLETION','FOLLOW UP','NEEDS INVOICED','JOHN INVOICES','ANDRE INVOICES','BILLY INVOICES' ] },
-  { key:'fl', name:'Florida Jobs', cols:[
-    'SCHEDULED','DUSTY REPORTS','WAITING FOR AUTHO','WAITING FOR PARTS','COMPLETION APPOINTMENT',
-    'FOLLOW UP BEFORE INVOICING','NEEDS INVOICED','DUSTY INVOICE' ] },
+const NF='/.netlify/functions';
+// board key -> display name + section count (for parallel-slice fetching)
+const BOARDS=[
+  {key:'sched',name:'Scheduling',sections:5},
+  {key:'tn',   name:'TN Jobs',   sections:16},
+  {key:'nola', name:'NOLA Jobs', sections:13},
 ];
+const CACHE={};       // key -> columns[]  (from MeisterTask)
+let curBoard='tn';
 
 function accent(name){
-  const n=name.toUpperCase();
+  const n=(name||'').toUpperCase();
   if(n.includes('NEEDS SCHEDULED')||n.includes('NEED SCHEDULED')) return '#8a97a8';
   if(n==='SCHEDULED') return '#5b6b80';
   if(n.includes('TEMPLATE')) return '#9aa7b8';
@@ -107,112 +85,45 @@ function accent(name){
   if(n.includes('UPGRADE')) return '#0f9d92';
   if(n.includes('AUTHO')) return '#e07a3c';
   if(n.includes('PART')) return '#e0a72c';
-  if(n.includes('COMPLETION')) return '#33a852';
-  if(n.includes('FOLLOW')) return '#7a5bd0';
+  if(n.includes('COMPLETION')||n.includes('COMPLETE')) return '#33a852';
+  if(n.includes('FOLLOW')||n.includes('FOLOW')) return '#7a5bd0';
   if(n.includes('NEEDS INVOIC')) return '#d64550';
   if(n.includes('INVOICE')) return '#4b57c4';
   if(n.includes('MONEY')) return '#c99700';
   return '#9aa7b8';
 }
-
-// ── Live-job -> MeisterTask column mapper ──────────────────────────────
-const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John',7:'Dusty'};
-const REPORT_COL={
-  tn:{Teddy:'TEDDY REPORTS',Lee:'LEE REPORTS',Jimmy:'JIMMYS REPORTS',Andre:'ANDRE REPORTS'},
-  nola:{John:'JOHN REPORT',Billy:'BILLY REPORTS',Andre:'ANDRE REPORTS'},
-  fl:{Dusty:'DUSTY REPORTS'},
-};
-const INVOICE_COL={
-  tn:{Teddy:'TE INVOICES',Jimmy:'JIMMY INVOICES',Lee:'LEE INVOICES',Andre:'ANDRE INVOICES'},
-  nola:{John:'JOHN INVOICES',Andre:'ANDRE INVOICES',Billy:'BILLY INVOICES'},
-  fl:{Dusty:'DUSTY INVOICE'},
-};
-function boardOf(j){ const st=(j.service_state||'').toUpperCase(); if(st==='LA')return'nola'; if(st==='FL')return'fl'; return'tn'; }
-function mapJob(j){
-  const ss=(j.scheduling_status||'').toLowerCase(), cs=(j.current_status||'').toLowerCase();
-  const tid=Number(j.technician_id||0), tname=TECH[tid]||'';
-  const done = ss==='completed'||cs==='completed'||Number(j.job_completed_at)>0;
-  const parts = (j.parts_eta_date||'').trim() || /(awaiting_parts|ordered|on_order|backorder)/i.test(j.parts_status||'');
-  const scheduled = ss==='scheduled' || Number(j.scheduled_start)>0;
-  const board = boardOf(j);
-  const cols = (BOARDS.find(b=>b.key===board)||{}).cols||[];
-  const has = c => cols.includes(c);
-  const needsSched = !scheduled && !done && (['not_ready','needs_more_info','broadcasting','prediagnosis_pending','intake_complete',''].includes(ss) || !tid);
-  if(needsSched && !done) return {board:'sched', col:(j.service_state||'').toUpperCase()==='LA'?'NOLA NEED SCHEDULED':'TN NEEDS SCHEDULED'};
-  let col;
-  if(done){ col = (tname && (INVOICE_COL[board]||{})[tname]) || 'NEEDS INVOICED'; }
-  else if(parts){ col = has('WAITING FOR PARTS')?'WAITING FOR PARTS':'SCHEDULED'; }
-  else if(tid && (ss==='in_progress'||cs==='in_progress')){ col = (REPORT_COL[board]||{})[tname] || 'SCHEDULED'; }
-  else if(scheduled){ col='SCHEDULED'; }
-  else { col = (REPORT_COL[board]||{})[tname] || 'SCHEDULED'; }
-  if(!has(col)) col = has('SCHEDULED')?'SCHEDULED':cols[0];
-  return {board, col};
-}
-
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
-function cap(s){s=String(s||'');return s?s[0].toUpperCase()+s.slice(1):'';}
 
-let curBoard='tn';
-let STATE={};   // board|col -> [cards]
-let LOADED=false;
-
-function cardObj(j){
-  const nm=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim() || ('Job #'+j.id);
-  const appl=cap(j.appliance||j.appliance_type||'appliance');
-  const brand=cap(j.brand||'');
-  const tname=TECH[Number(j.technician_id||0)]||'';
-  const warranty=(j.warranty_company||'').trim();
-  const eta=(j.parts_eta_date||'').trim();
-  return { id:'j'+j.id, t:nm, sub:(brand?brand+' ':'')+appl+(j.problem_summary?(' — '+j.problem_summary):''),
-           tag: warranty?'war':'cash', tagLabel: warranty||'Cash', who:tname, eta };
-}
-function cardHtml(c,ac){
-  const initials=c.who?c.who.slice(0,2).toUpperCase():'';
-  const who=c.who?('<span class="who"><span class="dot" style="--c:'+ac+'">'+initials+'</span>'+esc(c.who)+'</span>'):'';
-  let tag='';
-  if(c.tag==='war') tag='<span class="tag war">'+esc(c.tagLabel||'Warranty')+'</span>';
-  else tag='<span class="tag cash">Cash</span>';
-  const etaTag=c.eta?'<span class="tag eta">ETA '+esc(c.eta)+'</span>':'';
-  return '<div class="card" draggable="true" data-id="'+c.id+'" style="--c:'+ac+'">'
-    +'<div class="t">'+esc(c.t)+'</div>'
-    +'<div class="sub">'+esc((c.sub||'').slice(0,90))+'</div>'
-    +'<div class="row">'+tag+etaTag+who+'</div></div>';
+// Fetch a whole board from MeisterTask in parallel slices (each stays under the
+// function timeout), merge by section sequence.
+async function fetchBoard(key){
+  if(CACHE[key]) return CACHE[key];
+  const b=BOARDS.find(x=>x.key===key); const total=b.sections; const CH=5; const reqs=[];
+  for(let f=0; f<total; f+=CH){
+    const to=Math.min(f+CH,total);
+    reqs.push(fetch(NF+'/mt-board?key='+key+'&from='+f+'&to='+to).then(r=>r.json()).catch(()=>({ok:false,columns:[]})));
+  }
+  const parts=await Promise.all(reqs);
+  const cols=[];
+  parts.forEach(p=>{ if(p&&p.ok&&Array.isArray(p.columns)) cols.push(...p.columns); });
+  cols.sort((a,b)=>(a.sequence||0)-(b.sequence||0));
+  // give each card a stable drag id
+  cols.forEach(c=>(c.cards||[]).forEach((cd,i)=>{cd._id='c'+c.sequence+'_'+(cd.id||i);}));
+  CACHE[key]=cols;
+  return cols;
 }
 
-async function loadLive(){
-  document.getElementById('boards').innerHTML='<div class="loading">Loading live jobs…</div>';
-  // reset buckets
-  STATE={}; BOARDS.forEach(b=>b.cols.forEach(c=>STATE[b.key+'|'+c]=[]));
-  let items=[];
-  try{
-    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
-    const d=await r.json();
-    items=d.items||d.jobs||(Array.isArray(d)?d:[]);
-  }catch(e){ items=[]; }
-  let placed=0;
-  items.forEach(j=>{
-    // skip canceled
-    const ss=(j.scheduling_status||'').toLowerCase(), cs=(j.current_status||'').toLowerCase();
-    if(/cancel/.test(ss)||/cancel/.test(cs)) return;
-    const {board,col}=mapJob(j);
-    const key=board+'|'+col;
-    if(STATE[key]){ STATE[key].push(cardObj(j)); placed++; }
-  });
-  LOADED=true;
-  document.getElementById('note').innerHTML='Your MeisterTask layout with <b>'+placed+' live jobs</b> loaded in. Read-only preview — dragging is visual only.';
-  renderSlider(); renderBoards();
-}
-
+// ── Slider ──
 function renderSlider(){
   const s=document.getElementById('slider');
-  // keep the thumb node, rebuild pills
   [...s.querySelectorAll('.pill')].forEach(p=>p.remove());
   BOARDS.forEach(b=>{
-    const n=b.cols.reduce((a,c)=>a+(STATE[b.key+'|'+c]||[]).length,0);
+    const cols=CACHE[b.key];
+    const n = cols ? cols.reduce((a,c)=>a+((c.cards||[]).length),0) : null;
     const btn=document.createElement('button');
     btn.className='pill'+(b.key===curBoard?' on':'');
     btn.dataset.k=b.key;
-    btn.innerHTML=esc(b.name)+' <span class="cnt">'+n+'</span>';
+    btn.innerHTML=esc(b.name)+(n!=null?' <span class="cnt">'+n+'</span>':'');
     btn.onclick=()=>switchBoard(b.key);
     s.appendChild(btn);
   });
@@ -220,54 +131,76 @@ function renderSlider(){
 }
 function moveThumb(){
   const s=document.getElementById('slider'), thumb=document.getElementById('thumb');
-  const active=s.querySelector('.pill.on'); if(!active)return;
+  const active=s.querySelector('.pill.on'); if(!active){thumb.style.width='0';return;}
   thumb.style.width=active.offsetWidth+'px';
   thumb.style.transform='translateX('+(active.offsetLeft-4)+'px)';
 }
-function switchBoard(k){
+async function switchBoard(k){
   curBoard=k;
   document.querySelectorAll('.slider .pill').forEach(p=>p.classList.toggle('on',p.dataset.k===k));
-  document.querySelectorAll('.board').forEach(el=>el.classList.toggle('on',el.dataset.k===k));
   moveThumb();
+  await showBoard(k);
 }
 
-function renderBoards(){
+// ── Board render ──
+function cardHtml(cd,ac){
+  const title=cd.title||('#'+cd.id);
+  return '<div class="card" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
+    +'<div class="t">'+esc(title)+'</div>'
+    +(cd.notes?'<div class="sub">'+esc(cd.notes)+'</div>':'')
+    +'</div>';
+}
+async function showBoard(key){
   const host=document.getElementById('boards');
-  host.innerHTML=BOARDS.map(b=>{
-    const lanes=b.cols.map(col=>{
-      const key=b.key+'|'+col, cards=STATE[key]||[], ac=accent(col);
-      const body=cards.length? cards.map(c=>cardHtml(c,ac)).join('') : '<div class="empty">—</div>';
-      return '<div class="lane"><div class="lane-head" style="--accent:'+ac+'">'
-        +'<div class="lane-title"><span>'+esc(col)+'</span><span class="n">'+cards.length+'</span></div></div>'
-        +'<div class="lane-body" data-key="'+esc(key)+'">'+body+'</div></div>';
-    }).join('');
-    return '<div class="board '+(b.key===curBoard?'on':'')+'" data-k="'+b.key+'">'+lanes+'</div>';
-  }).join('');
-  wireDnD(); moveThumb();
+  // build/replace the board container
+  let board=host.querySelector('.board[data-k="'+key+'"]');
+  document.querySelectorAll('.board').forEach(el=>el.classList.remove('on'));
+  if(!CACHE[key]){
+    // show spinner while loading
+    host.innerHTML='<div class="boardmsg"><span class="spin"></span>Loading '+esc((BOARDS.find(b=>b.key===key)||{}).name||'')+' from MeisterTask…</div>';
+    await fetchBoard(key);
+    if(curBoard!==key) return; // switched away while loading
+  }
+  const cols=CACHE[key]||[];
+  const lanes = cols.length ? cols.map(c=>{
+    const ac=accent(c.name); const cards=c.cards||[];
+    const body=cards.length? cards.map(cd=>cardHtml(cd,ac)).join('') : '<div class="empty">—</div>';
+    return '<div class="lane"><div class="lane-head" style="--accent:'+ac+'">'
+      +'<div class="lane-title"><span>'+esc(c.name)+'</span><span class="n">'+cards.length+'</span></div></div>'
+      +'<div class="lane-body" data-key="'+esc(key+'|'+c.name)+'">'+body+'</div></div>';
+  }).join('') : '<div class="boardmsg">No open cards on this board.</div>';
+  host.innerHTML='<div class="board on" data-k="'+key+'">'+lanes+'</div>';
+  renderSlider();
+  wireDnD();
+  moveThumb();
+  document.getElementById('note').innerHTML='Live from MeisterTask · <b>'+esc((BOARDS.find(b=>b.key===key)||{}).name)+'</b> — '+cols.reduce((a,c)=>a+(c.cards||[]).length,0)+' open cards. Read-only preview.';
 }
 
-// ── Drag & drop (visual only, no persistence) ──
-let dragId=null, dragFrom=null;
+// ── Drag & drop (visual only) ──
+let dragId=null, dragFromKey=null;
+function findCard(colKey,id){ const [k,name]=colKey.split('|'); const col=(CACHE[k]||[]).find(c=>c.name===name); if(!col)return null; const idx=(col.cards||[]).findIndex(x=>x._id===id); return idx<0?null:{col,idx}; }
 function wireDnD(){
   document.querySelectorAll('.card').forEach(card=>{
-    card.addEventListener('dragstart',e=>{dragId=card.dataset.id;dragFrom=card.closest('.lane-body').dataset.key;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    card.addEventListener('dragstart',e=>{dragId=card.dataset.id;dragFromKey=card.closest('.lane-body').dataset.key;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
     card.addEventListener('dragend',()=>{card.classList.remove('dragging');document.querySelectorAll('.lane-body').forEach(b=>b.classList.remove('drag-over'));});
   });
   document.querySelectorAll('.lane-body').forEach(body=>{
     body.addEventListener('dragover',e=>{e.preventDefault();body.classList.add('drag-over');});
     body.addEventListener('dragleave',()=>body.classList.remove('drag-over'));
     body.addEventListener('drop',e=>{e.preventDefault();body.classList.remove('drag-over');
-      const toKey=body.dataset.key; if(!dragId||dragFrom==null)return;
-      const fromArr=STATE[dragFrom]||[]; const idx=fromArr.findIndex(c=>c.id===dragId); if(idx<0)return;
-      const [card]=fromArr.splice(idx,1); (STATE[toKey]=STATE[toKey]||[]).push(card);
-      renderSlider(); renderBoards();
+      const toKey=body.dataset.key; if(!dragId||!dragFromKey)return;
+      const from=findCard(dragFromKey,dragId); if(!from)return;
+      const [tk,tname]=toKey.split('|'); const toCol=(CACHE[tk]||[]).find(c=>c.name===tname); if(!toCol)return;
+      const [cd]=from.col.cards.splice(from.idx,1); (toCol.cards=toCol.cards||[]).push(cd);
+      showBoard(curBoard);
     });
   });
 }
 
-document.getElementById('reload').onclick=loadLive;
+document.getElementById('reload').onclick=()=>{ delete CACHE[curBoard]; showBoard(curBoard); };
 window.addEventListener('resize',moveThumb);
-loadLive();
+renderSlider();
+showBoard(curBoard);
 </script>
 </body>
 </html>
