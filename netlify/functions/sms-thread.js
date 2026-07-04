@@ -85,26 +85,42 @@ exports.handler = async function (event) {
   // 2) Gather every SMS row across the actions, filter to THIS conversation.
   const pages = await Promise.all(ACTIONS.map(([action, per]) => listEvents(action, daysBack, per)));
 
-  const seen = new Set();
-  const out = [];
+  // First gather every matched row (with its action + ts), THEN dedupe.
+  const matched = [];
   pages.forEach((rows, i) => {
     const action = ACTIONS[i][0];
     for (const r of rows) {
       const ts = Number(r.created_at) || 0;
       if (ts && ts < sinceMs) continue;
       const md = asObj(r.metadata);
-      // Match this row to the conversation: customer phone (last-10) OR job/customer id.
       const match = (phone10 && rowCustomerPhone10(md) === phone10)
         || (jobId && Number(md.job_id) === jobId)
         || (customerId && Number(md.customer_id) === customerId);
       if (!match) continue;
-      // Dedupe on the provider id when present, else action+ts+text.
-      const key = md.provider_message_id || md.provider_sid || (action + '|' + ts + '|' + String(md.body_preview || '').slice(0, 40));
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ action, metadata: md, ts_ms: ts });
+      matched.push({ action, md, ts });
     }
   });
+
+  // A single office/loop send is logged TWICE: the raw `sms_sent` envelope
+  // (from Xano send_sms) AND a body-bearing row (customer_sms_reply /
+  // feedback_sms_sent / etc.). Both rendered as separate bubbles, so the office
+  // saw every outbound text DUPLICATED. Drop the `sms_sent` envelope whenever a
+  // body-bearing OUTBOUND row exists within ~12s (same conversation) — the
+  // customer only got one text. sms_sent that stands alone (a plain loop send
+  // with no reply row) is kept. (Teddy 2026-07-04: "sending duplicate texts")
+  const ENVELOPE = 'sms_sent';
+  const INBOUND = 'inbound_customer_sms_received';
+  const bodyOutTs = matched.filter((m) => m.action !== ENVELOPE && m.action !== INBOUND && m.ts).map((m) => m.ts);
+
+  const seen = new Set();
+  const out = [];
+  for (const m of matched) {
+    if (m.action === ENVELOPE && bodyOutTs.some((t) => Math.abs(t - m.ts) <= 12000)) continue;
+    const key = m.md.provider_message_id || m.md.provider_sid || (m.action + '|' + m.ts + '|' + String(m.md.body_preview || '').slice(0, 40));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ action: m.action, metadata: m.md, ts_ms: m.ts });
+  }
 
   // 3) Chronological (oldest → newest) so the thread reads top-to-bottom.
   out.sort((a, b) => a.ts_ms - b.ts_ms);
