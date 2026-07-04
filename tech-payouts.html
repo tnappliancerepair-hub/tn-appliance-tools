@@ -118,16 +118,46 @@ document.getElementById('pin').addEventListener('keypress',e=>{if(e.key==='Enter
 async function load(){
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading your pay…</div>';
   try{
-    const r=await fetch('/.netlify/functions/tech-earnings?tech_id='+TECH_ID,{cache:'no-store'});
-    const d=await r.json();
+    const [d,comp]=await Promise.all([
+      fetch('/.netlify/functions/tech-earnings?tech_id='+TECH_ID,{cache:'no-store'}).then(x=>x.json()),
+      fetch('/.netlify/functions/tdr-compliance?tech_id='+TECH_ID,{cache:'no-store'}).then(x=>x.json()).catch(()=>null),
+    ]);
     if(!d.success)throw new Error(d.error||'could not load');
-    render(d);
+    render(d,comp);
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">Couldn’t load your pay yet — '+esc(e.message)+'</div>';
   }
 }
 
-function render(d){
+// 📋 Reports = your pay (Teddy 7/4): a stop isn't done until the TDR is filed.
+// This card puts the money that's waiting on an un-filed report right at the top,
+// with a one-tap "File →" into the job's TDR — the behavior lever, not a nag.
+function buildTdrCard(comp){
+  if(!comp||!comp.ok) return '';
+  const holding=comp.holding||{count:0,amount:0}, today=comp.today||{stops:0,filed:0,pct:100};
+  const seen=new Set(), items=[];
+  (comp.holding_jobs||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:x.amount||0,kind:'holding'});} });
+  (comp.today_unfiled||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:0,kind:'today',customer:x.customer});} });
+  if(!items.length){
+    if(today.stops>0) return `<div class="card" style="border:1px solid var(--ok,#1faa6b)"><h3 style="color:var(--ok,#1faa6b)">✓ All reports filed — nice work</h3><div class="empty" style="padding:6px 0">Filed today: ${today.filed}/${today.stops}. Nothing holding your pay.</div></div>`;
+    return '';
+  }
+  const rows=items.map(it=>`
+    <a class="job" href="tech-job.html?job_id=${it.job_id}&tech_id=${TECH_ID}#tdr" style="border-left:3px solid #e0524a">
+      <div class="info"><div class="jid">Job #${it.job_id}${it.customer?(' · '+esc(it.customer)):''}</div><div class="when">${it.amount>0?('$'+it.amount.toFixed(2)+' waiting — file to release'):"today's stop — file the report"}</div></div>
+      <div class="pay" style="color:#e0524a;font-size:14px">File →</div>
+    </a>`).join('');
+  const head = holding.amount>0
+    ? `<div class="amt" style="font-size:30px">$${holding.amount.toFixed(2)}</div><div class="sub">waiting on ${holding.count} report${holding.count===1?'':'s'} — file to release your pay</div>`
+    : `<div class="amt" style="font-size:24px">${items.length} report${items.length===1?'':'s'} to file</div><div class="sub">file today's stops before you clock out</div>`;
+  return `<div class="owed" style="background:linear-gradient(135deg,#e0524a,#b83b34)">
+      <div class="lbl">📋 Reports = your pay</div>${head}
+      <div class="sub" style="margin-top:8px;opacity:.95">Filed today: ${today.filed}/${today.stops}</div>
+    </div>
+    <div class="card"><h3>File these to get paid</h3>${rows}</div>`;
+}
+function render(d,comp){
+  const tdrCard=buildTdrCard(comp);
   const jobs=d.jobs||[];
   const rows=jobs.length?jobs.map(j=>`
     <a class="job" href="tech-job.html?job_id=${esc(String(j.job_id))}&tech_id=${TECH_ID}">
@@ -164,6 +194,7 @@ function render(d){
   const pendingCard=pending.length?`<div class="card"><h3>⏳ Pending · finish to get paid <span style="font-size:11px;font-weight:600;color:var(--ink2,#8a93a6)">$${(d.pending_pay||0).toFixed(2)} not yet earned</span></h3>${pendingRows}</div>`:'';
   document.getElementById('content').innerHTML=`
     <div class="wrap">
+      ${tdrCard}
       <div class="owed">
         <div class="lbl">Owed to you now</div>
         <div class="amt">$${(d.owed||0).toFixed(2)}</div>
