@@ -57,8 +57,14 @@ query update_tdr_field_from_voice verb=POST {
     var $v_repair {
       value = ($field_clean == "repair_completed") ? $clean_value : ""
     }
+    // parts_needed is a list column - write a 1-element list, not a bare string
+    // (a string write silently no-ops on a list column). null when not the
+    // parts field so create doesn't stuff an empty string into a list column.
+    var $parts_list {
+      value = ([] |push: $clean_value)
+    }
     var $v_parts {
-      value = ($field_clean == "parts_needed") ? $clean_value : ""
+      value = ($field_clean == "parts_needed") ? $parts_list : null
     }
     var $v_notes {
       value = ($field_clean == "customer_notes") ? $clean_value : ""
@@ -146,7 +152,7 @@ query update_tdr_field_from_voice verb=POST {
         db.edit technician_decision_report {
           field_name = "id"
           field_value = $existing_id
-          data = {parts_needed: $clean_value}
+          data = {parts_needed: $parts_list}
         }
       }
     }

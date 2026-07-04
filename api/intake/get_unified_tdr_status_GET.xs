@@ -68,7 +68,8 @@ query get_unified_tdr_status verb=GET {
     var $v_failed { value = ($tdr == null) ? "" : (($tdr.failed_component ?? "")|to_text) }
     var $v_hours  { value = ($tdr == null) ? "" : (($tdr.labor_time_hours ?? "")|to_text) }
     var $v_repair { value = ($tdr == null) ? "" : (($tdr.repair_completed ?? "")|to_text) }
-    var $v_parts  { value = ($tdr == null) ? "" : (($tdr.parts_needed ?? "")|to_text) }
+    // parts_needed is a list column - join it back to text (null -> [] -> "").
+    var $v_parts  { value = ($tdr == null) ? "" : (($tdr.parts_needed ?? [])|join:", ") }
     var $v_notes  { value = ($tdr == null) ? "" : (($tdr.customer_notes ?? "")|to_text) }
 
     var $f_diag   { value = ($v_diag != "") }
