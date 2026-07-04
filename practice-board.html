@@ -58,6 +58,35 @@
   .boardmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5f6b7c;font-size:14px;font-weight:600}
   .spin{width:26px;height:26px;border:3px solid #c3ccd8;border-top-color:#f5a623;border-radius:50%;animation:sp 0.8s linear infinite;margin-right:10px}
   @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* ── Tile detail modal (click a tile -> large, centered) ── */
+  .tm-back{position:fixed;inset:0;background:rgba(15,22,34,.55);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+  .tm-back.open{display:flex}
+  .tm{background:#fff;color:var(--ink);width:100%;max-width:620px;max-height:88vh;overflow-y:auto;border-radius:16px;box-shadow:0 20px 60px rgba(10,20,40,.4);padding:20px 22px 26px;animation:tmIn .18s ease-out}
+  @keyframes tmIn{from{transform:translateY(14px);opacity:.4}to{transform:translateY(0);opacity:1}}
+  .tm-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .tm-wo{display:flex;gap:6px;flex-wrap:wrap}
+  .tm-x{background:#eef1f5;border:0;color:#48566b;width:34px;height:34px;border-radius:17px;font-size:22px;cursor:pointer;flex-shrink:0}
+  .tm-title{font-size:20px;font-weight:800;line-height:1.25;color:#1c2532}
+  .tm-city{font-size:13px;font-weight:600;color:#6b7686}
+  .tm-sched-card{background:#f4f7fb;border:1px solid #e0e7f0;border-radius:12px;padding:12px 14px;margin:14px 0}
+  .tm-sched-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#7c8798}
+  .tm-sched-val{font-size:16px;font-weight:800;color:#1f6df0;margin-top:2px}
+  .cal{margin-top:12px;background:#fff;border:1px solid #e4e9f0;border-radius:10px;padding:10px}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:14px;color:#2b3444;margin-bottom:8px}
+  .cal-head button{background:#eef1f5;border:0;width:28px;height:28px;border-radius:8px;font-size:16px;cursor:pointer;color:#48566b}
+  .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px}
+  .cal-dow span{text-align:center;font-size:10px;font-weight:800;color:#9aa4b2}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-empty{height:32px}
+  .cal-day{height:32px;border:0;background:#f4f6f9;border-radius:7px;font-size:13px;font-weight:700;color:#2b3444;cursor:pointer}
+  .cal-day:hover{background:#e2e9f2}
+  .cal-day.sel{background:#1f6df0;color:#fff}
+  .tm-body{margin-top:8px}
+  .tm-row{display:flex;gap:10px;padding:7px 0;border-top:1px solid #eef1f5;font-size:14px}
+  .tm-k{flex:0 0 96px;color:#7c8798;font-weight:700}
+  .tm-v{flex:1;color:#26313f;word-break:break-word}
+  .tm-notes{font-size:13px;color:#48566b;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:#f7f9fb;border-radius:10px;padding:12px}
 </style>
 </head>
 <body>
@@ -69,6 +98,7 @@
     <button class="btn" id="reload">↻ Refresh</button>
   </div>
   <div id="boards"></div>
+  <div id="tileModal" class="tm-back" onclick="if(event.target===this)closeTile()"></div>
 
 <script>
 const NF='/.netlify/functions';
@@ -277,13 +307,77 @@ async function showBoard(key){
   document.getElementById('note').innerHTML='<b>'+esc((BOARDS.find(b=>b.key===key)||{}).name)+'</b> · MeisterTask layout + our tiles — <b>'+matched+'</b> of '+total+' cards matched to our jobs. Read-only preview.';
 }
 
+// ── Tile detail modal + calendar (click a tile) ──
+function findCardObj(id){
+  const cols=CACHE[curBoard]||[];
+  for(const c of cols){ const cd=(c.cards||[]).find(x=>x._id===id); if(cd) return cd; }
+  return null;
+}
+let calState={y:0,m:0,sel:null};
+function renderCalendar(){
+  const y=calState.y,m=calState.m;
+  const first=new Date(y,m,1); const startDow=(first.getDay()+6)%7; // Mon=0
+  const days=new Date(y,m+1,0).getDate();
+  const monthName=first.toLocaleString('en-US',{month:'long',year:'numeric'});
+  const dow=['MO','TU','WE','TH','FR','SA','SU'];
+  let grid='';
+  for(let i=0;i<startDow;i++) grid+='<span class="cal-empty"></span>';
+  for(let d=1;d<=days;d++){
+    const s=calState.sel; const isSel=s&&s.getFullYear()===y&&s.getMonth()===m&&s.getDate()===d;
+    grid+='<button class="cal-day'+(isSel?' sel':'')+'" onclick="pickDate('+d+')">'+d+'</button>';
+  }
+  return '<div class="cal"><div class="cal-head"><button onclick="calMove(-1)">‹</button><span>'+esc(monthName)+'</span><button onclick="calMove(1)">›</button></div>'
+    +'<div class="cal-dow">'+dow.map(x=>'<span>'+x+'</span>').join('')+'</div>'
+    +'<div class="cal-grid">'+grid+'</div></div>';
+}
+function calMove(delta){ calState.m+=delta; if(calState.m<0){calState.m=11;calState.y--;} if(calState.m>11){calState.m=0;calState.y++;} const el=document.getElementById('tm-cal'); if(el) el.innerHTML=renderCalendar(); }
+function pickDate(d){ calState.sel=new Date(calState.y,calState.m,d); const el=document.getElementById('tm-cal'); if(el) el.innerHTML=renderCalendar();
+  const lbl=document.getElementById('tm-sched'); if(lbl) lbl.textContent=calState.sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+function openTile(id){
+  const cd=findCardObj(id); if(!cd) return; const j=cd.job;
+  const wos=(String(cd.title||'').match(/[A-Z]{2,4}\d{6,}|\d{6,}/g)||[]);
+  const woBadges=wos.map(w=>'<span class="wo">🧾 '+esc(w)+'</span>').join('');
+  let titleName='', city='', body='';
+  if(j){
+    titleName=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim()||('Job #'+j.id);
+    city=titleCase(j.service_city||'');
+    const rows=[
+      ['Appliance',(cap(j.brand||'')+' '+cap(j.appliance||'')).trim()],
+      ['Problem',j.problem_summary||''],
+      ['Warranty',j.warranty_company||''],
+      ['Claim #',j.claim_number||''],
+      ['Tech',TECH[Number(j.technician_id||0)]||''],
+      ['Phone',j.customer_phone||''],
+      ['Location',[titleCase(j.service_city||''),j.service_state,j.service_zip].filter(Boolean).join(', ')],
+    ].filter(r=>r[1]);
+    body=rows.map(r=>'<div class="tm-row"><span class="tm-k">'+esc(r[0])+'</span><span class="tm-v">'+esc(r[1])+'</span></div>').join('');
+    calState.sel = Number(j.scheduled_start)>0 ? new Date(Number(j.scheduled_start)) : null;
+  }else{
+    const t=tidyTitle(cd.title); titleName=t.title||('#'+cd.id); city=cityFromTitle(cd.title);
+    body='<div class="tm-notes">'+esc(cd.notes||cd.title||'')+'</div>';
+    calState.sel=null;
+  }
+  const base=calState.sel||new Date(); calState.y=base.getFullYear(); calState.m=base.getMonth();
+  const schLabel=calState.sel? calState.sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Not scheduled';
+  const html='<div class="tm">'
+    +'<div class="tm-top"><div class="tm-wo">'+woBadges+'</div><button class="tm-x" onclick="closeTile()">×</button></div>'
+    +'<div class="tm-title">'+esc(titleName)+(city?' <span class="tm-city">📍'+esc(city)+'</span>':'')+'</div>'
+    +'<div class="tm-sched-card"><div class="tm-sched-label">📅 Scheduled date</div><div id="tm-sched" class="tm-sched-val">'+esc(schLabel)+'</div>'
+    +'<div id="tm-cal">'+renderCalendar()+'</div></div>'
+    +'<div class="tm-body">'+body+'</div></div>';
+  const back=document.getElementById('tileModal'); back.innerHTML=html; back.classList.add('open');
+}
+function closeTile(){ const b=document.getElementById('tileModal'); if(b){b.classList.remove('open');b.innerHTML='';} }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeTile(); });
+
 // ── Drag & drop (visual only) ──
 let dragId=null, dragFromKey=null;
 function findCard(colKey,id){ const [k,name]=colKey.split('|'); const col=(CACHE[k]||[]).find(c=>c.name===name); if(!col)return null; const idx=(col.cards||[]).findIndex(x=>x._id===id); return idx<0?null:{col,idx}; }
 function wireDnD(){
   document.querySelectorAll('.card').forEach(card=>{
-    card.addEventListener('dragstart',e=>{dragId=card.dataset.id;dragFromKey=card.closest('.lane-body').dataset.key;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-    card.addEventListener('dragend',()=>{card.classList.remove('dragging');document.querySelectorAll('.lane-body').forEach(b=>b.classList.remove('drag-over'));});
+    card.addEventListener('dragstart',e=>{dragId=card.dataset.id;dragFromKey=card.closest('.lane-body').dataset.key;card._moved=true;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+    card.addEventListener('dragend',()=>{card.classList.remove('dragging');setTimeout(()=>{card._moved=false;},50);document.querySelectorAll('.lane-body').forEach(b=>b.classList.remove('drag-over'));});
+    card.addEventListener('click',()=>{ if(card._moved)return; openTile(card.dataset.id); });
   });
   document.querySelectorAll('.lane-body').forEach(body=>{
     body.addEventListener('dragover',e=>{e.preventDefault();body.classList.add('drag-over');});
