@@ -82,6 +82,9 @@
   .cal-day{height:32px;border:0;background:#f4f6f9;border-radius:7px;font-size:13px;font-weight:700;color:#2b3444;cursor:pointer}
   .cal-day:hover{background:#e2e9f2}
   .cal-day.sel{background:#1f6df0;color:#fff}
+  .tm-save{margin-top:10px;width:100%;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer}
+  .tm-save:disabled{opacity:.6;cursor:default}
+  .tm-save-msg{margin-top:8px;font-size:12.5px;font-weight:700}
   .tm-body{margin-top:8px}
   .tm-row{display:flex;gap:10px;padding:7px 0;border-top:1px solid #eef1f5;font-size:14px}
   .tm-k{flex:0 0 96px;color:#7c8798;font-weight:700}
@@ -332,9 +335,39 @@ function renderCalendar(){
 }
 function calMove(delta){ calState.m+=delta; if(calState.m<0){calState.m=11;calState.y--;} if(calState.m>11){calState.m=0;calState.y++;} const el=document.getElementById('tm-cal'); if(el) el.innerHTML=renderCalendar(); }
 function pickDate(d){ calState.sel=new Date(calState.y,calState.m,d); const el=document.getElementById('tm-cal'); if(el) el.innerHTML=renderCalendar();
-  const lbl=document.getElementById('tm-sched'); if(lbl) lbl.textContent=calState.sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }
+  const lbl=document.getElementById('tm-sched'); if(lbl) lbl.textContent=calState.sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  const btn=document.getElementById('tm-save'); if(btn && calState.job){ btn.style.display='block'; btn.disabled=false; btn.textContent='✓ Reschedule to '+calState.sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+  const msg=document.getElementById('tm-save-msg'); if(msg) msg.textContent=''; }
+async function saveReschedule(){
+  const j=calState.job, sel=calState.sel; if(!j||!sel) return;
+  const y=sel.getFullYear(), mo=String(sel.getMonth()+1).padStart(2,'0'), da=String(sel.getDate()).padStart(2,'0');
+  const ms=Date.parse(y+'-'+mo+'-'+da+'T09:00:00-05:00')||sel.getTime();
+  const nm=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim()||('Job #'+j.id);
+  const nice=sel.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  if(!confirm('Reschedule '+nm+' to '+nice+'?\nThis updates the job and texts the customer.')) return;
+  const btn=document.getElementById('tm-save'), msg=document.getElementById('tm-save-msg');
+  if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+  try{
+    const r=await fetch(XANO+'/reschedule_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:Number(j.id),new_start_ms:ms})});
+    const d=await r.json();
+    const ok=d&&(d.success||d.ok||d.id||d.job_id||d.scheduled_start);
+    if(ok){
+      j.scheduled_start=ms;
+      const lbl=document.getElementById('tm-sched'); if(lbl) lbl.textContent=sel.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+      if(btn) btn.style.display='none';
+      if(msg){ msg.textContent='✓ Rescheduled to '+nice+' — customer notified.'; msg.style.color='#1c8b4c'; }
+    }else{
+      if(msg){ msg.textContent='⚠ Could not reschedule'+(d&&d.error?': '+d.error:''); msg.style.color='#c0392b'; }
+      if(btn){ btn.disabled=false; btn.textContent='✓ Reschedule'; }
+    }
+  }catch(e){
+    if(msg){ msg.textContent='⚠ '+(e&&e.message?e.message:e); msg.style.color='#c0392b'; }
+    if(btn){ btn.disabled=false; btn.textContent='✓ Reschedule'; }
+  }
+}
 function openTile(id){
   const cd=findCardObj(id); if(!cd) return; const j=cd.job;
+  calState.job = j || null;
   const wos=(String(cd.title||'').match(/[A-Z]{2,4}\d{6,}|\d{6,}/g)||[]);
   const woBadges=wos.map(w=>'<span class="wo">🧾 '+esc(w)+'</span>').join('');
   let titleName='', city='', body='';
@@ -363,7 +396,9 @@ function openTile(id){
     +'<div class="tm-top"><div class="tm-wo">'+woBadges+'</div><button class="tm-x" onclick="closeTile()">×</button></div>'
     +'<div class="tm-title">'+esc(titleName)+(city?' <span class="tm-city">📍'+esc(city)+'</span>':'')+'</div>'
     +'<div class="tm-sched-card"><div class="tm-sched-label">📅 Scheduled date</div><div id="tm-sched" class="tm-sched-val">'+esc(schLabel)+'</div>'
-    +'<div id="tm-cal">'+renderCalendar()+'</div></div>'
+    +'<div id="tm-cal">'+renderCalendar()+'</div>'
+    +(j?'<button id="tm-save" class="tm-save" style="display:none" onclick="saveReschedule()">✓ Reschedule</button><div id="tm-save-msg" class="tm-save-msg"></div>':'<div class="tm-save-msg" style="color:#8a94a3">Not in our system yet — can\'t reschedule from here.</div>')
+    +'</div>'
     +'<div class="tm-body">'+body+'</div></div>';
   const back=document.getElementById('tileModal'); back.innerHTML=html; back.classList.add('open');
 }
