@@ -200,6 +200,9 @@
     }
     // Someone is mid-edit — a 6s poll must not wipe their typing.
     if (editKey !== null) return;
+    // Don't wipe the tech's one-shot box while they're typing/dictating into it.
+    var _os = document.getElementById('ant-tdr-oneshot');
+    if (_os && (document.activeElement === _os || String(_os.value || '').trim())) return;
     var fields = d.fields || {};
     var pct = d.readiness_pct || 0;
     var ready = pct >= 100;
@@ -235,6 +238,10 @@
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
     html += buildCustomerToldUs(d);
+    // ✨ ONE-SHOT fill (tech) — the simplest path: say/type everything you found
+    // in ONE box, Ant fills all the fields below. Flips the tech from author →
+    // editor (confirm a draft, don't type 5 boxes in a hot kitchen). (Teddy 7/4)
+    if (role === 'tech') html += buildOneShot(d);
     // Fields — inline-editable for tech + office (tap a field to edit it
     // right here; no jump to another page). Customer never reaches this loop.
     // NOTE: parts_needed is a JSON column that get_unified can't yet read back,
@@ -412,6 +419,58 @@
       + seedBtn
       + '</div>';
   }
+
+  // The one-box: dump everything you found (talk via the keyboard 🎤 or type),
+  // Ant fills diagnosis / failed part / repair / labor below. One save, not five.
+  function buildOneShot(d) {
+    return '<div style="background:rgba(16,185,129,0.09);border:1px solid rgba(16,185,129,0.45);border-radius:12px;padding:13px 14px;margin-bottom:14px">'
+      + '<div style="font-size:13.5px;font-weight:800;color:#4ad991;margin-bottom:3px">✨ Fill the whole report at once</div>'
+      + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:9px;line-height:1.4">Say or type everything you found — what was wrong, the part, what you did, how long. Ant fills the fields below. Tap the 🎤 on your keyboard to talk instead of type.</div>'
+      + '<textarea id="ant-tdr-oneshot" rows="3" placeholder="e.g. Ice maker wasn\'t making ice, replaced the icemaker assembly, about an hour, tested and it\'s working now" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:11px 12px;font-size:16px;line-height:1.4;outline:none;resize:vertical"></textarea>'
+      + '<button id="ant-tdr-oneshot-btn" onclick="window.__antTdrFillFromNotes()" style="width:100%;margin-top:9px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">✨ Fill the report</button>'
+      + '<div id="ant-tdr-oneshot-msg" style="font-size:12px;color:#8fc0ff;margin-top:7px;min-height:14px"></div>'
+      + '</div>';
+  }
+  window.__antTdrFillFromNotes = async function () {
+    var ta = document.getElementById('ant-tdr-oneshot');
+    var msg = document.getElementById('ant-tdr-oneshot-msg');
+    var btn = document.getElementById('ant-tdr-oneshot-btn');
+    var text = ta ? String(ta.value || '').trim() : '';
+    var complaint = ((lastData && lastData.submission_extras || {}).problem_summary || '').toString().trim();
+    var src = [text, complaint ? ('Customer complaint: ' + complaint) : ''].filter(Boolean).join('\n');
+    if (src.replace(/\s/g, '').length < 4) { if (msg) { msg.style.color = '#ff9d4a'; msg.textContent = 'Type or say what you found first.'; } return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Reading…'; }
+    if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Ant is reading your notes…'; }
+    var ex = null;
+    try {
+      var r = await fetch('/.netlify/functions/extract-tdr-from-transcript', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript: src }) });
+      var jd = await r.json();
+      if (jd && jd.ok && jd.extracted) ex = jd.extracted;
+    } catch (e) {}
+    if (!ex) { if (btn) { btn.disabled = false; btn.textContent = '✨ Fill the report'; } if (msg) { msg.style.color = '#ff9d4a'; msg.textContent = 'Could not read it — try again, or fill the fields below.'; } return; }
+    var fields = (lastData && lastData.fields) || {};
+    var toWrite = [];
+    function add(key, val) { if (val != null && String(val).trim() && !((fields[key] || {}).filled)) toWrite.push({ key: key, value: String(val).trim() }); }
+    add('diagnosis', ex.diagnosis);
+    add('failed_component', ex.failed_component);
+    add('repair_completed', ex.repair_completed);
+    if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
+    if (!toWrite.length) { if (btn) { btn.disabled = false; btn.textContent = '✨ Fill the report'; } if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Those are already filled — check them below.'; } return; }
+    var ok = 0;
+    for (var i = 0; i < toWrite.length; i++) {
+      try {
+        var body = { job_id: Number(jobId), field: toWrite[i].key, value: toWrite[i].value };
+        if (techId) body.technician_id = Number(techId);
+        var wr = await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        var wd = await wr.json();
+        if (wd && wd.success) ok++;
+      } catch (e) {}
+    }
+    if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Filled ' + ok + ' field' + (ok === 1 ? '' : 's') + ' — check them below, tap any to fix.'; }
+    if (ta) ta.value = '';
+    editKey = null;
+    setTimeout(function () { refresh(); try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {} }, 950);
+  };
 
   function buildBlockingText(d) {
     var b = d.blocking || {};
