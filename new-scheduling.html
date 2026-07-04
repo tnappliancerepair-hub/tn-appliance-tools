@@ -1012,16 +1012,43 @@ function __initCalendar() {
   // Confirm a tentative hold into a real booked appointment (day-of routing, 8am
   // CT default), then clear the hold. Release just frees the spot. Global so the
   // ghosted block's inline buttons can call them. (Teddy 2026-07-03)
-  window.confirmHold = async function (jobId, techId, date) {
-    if (!confirm('Confirm this slot into a real appointment? The customer said yes.')) return;
+  // Confirm a hold → ask the arrival WINDOW the customer agreed to (holds carry
+  // no time, so booking a fixed 8am made confirmed jobs jump to the top of the
+  // day). Pick 8-11 / 11-2 / 2-5, then book at that CT time. (Teddy 2026-07-04)
+  window.confirmHold = function (jobId, techId, date) {
+    if (!(techId && date)) {
+      fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) }).then(loadWeek).catch(loadWeek);
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    const btn = (h, lbl) => `<button type="button" data-h="${h}" style="padding:13px;border:1px solid #cdd6e2;border-radius:11px;background:#f4f7fb;font-size:15px;font-weight:800;color:#22314c;cursor:pointer;font-family:inherit">${lbl}</button>`;
+    wrap.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="font-weight:800;font-size:16px;margin-bottom:3px;color:#12203a">Confirm the appointment</div>
+      <div style="font-size:13px;color:#667;margin-bottom:14px">Pick the arrival window you gave the customer.</div>
+      <div style="display:flex;flex-direction:column;gap:9px">
+        ${btn(8, '🌅 Morning · 8–11am')}${btn(11, '☀️ Midday · 11am–2pm')}${btn(14, '🌇 Afternoon · 2–5pm')}
+      </div>
+      <button type="button" data-cancel style="margin-top:12px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef1f5;color:#556;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
+    </div>`;
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) { if (e.target === wrap) wrap.remove(); return; }
+      if (b.hasAttribute('data-cancel')) { wrap.remove(); return; }
+      const h = parseInt(b.getAttribute('data-h'), 10);
+      wrap.remove();
+      bookConfirmedHold(jobId, techId, date, h);
+    });
+  };
+  async function bookConfirmedHold(jobId, techId, date, hour) {
+    const win = hour === 8 ? '8-11am' : hour === 11 ? '11am-2pm' : '2-5pm';
     try {
-      if (techId && date) {
-        await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, 8) }) });
-      }
+      await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: win }) });
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
     } catch (_) { alert('Could not confirm — try again.'); }
-  };
+  }
   window.releaseHold = async function (jobId) {
     try { await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) }); loadWeek(); } catch (_) {}
   };
