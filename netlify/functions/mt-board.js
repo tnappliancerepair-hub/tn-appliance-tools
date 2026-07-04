@@ -22,7 +22,7 @@ exports.handler = async function (event) {
   const key = String(q.key || '').toLowerCase();
   const p = PROJECTS[key];
   if (!p) return j(400, { ok: false, error: 'key must be one of ' + Object.keys(PROJECTS).join(',') });
-  const status = String(q.status || 'actionable'); // open cards only
+  const status = String(q.status || 'open'); // open cards only — the fast server-side filter (skips archived)
   try {
     // Sections define the columns + their order.
     let sections = await mt.listSections(p.id);
