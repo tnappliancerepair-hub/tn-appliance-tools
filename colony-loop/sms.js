@@ -220,6 +220,22 @@ function isAllowedForTech(action) {
   return TECH_SMS_ALLOW_PATTERNS.some((p) => a.includes(p));
 }
 
+// 2026-07-04 per Teddy — FRESH START on the tech roster. Automated texts go
+// ONLY to the current field techs; any tech off this list (departed/extra:
+// Billy=5, Dusty=7, the orphan row=8, test techs) is skipped so we don't text
+// people who no longer work here. The note still lands in their in-app inbox,
+// so nothing is lost, and the roster records are untouched. Trim/extend without
+// a code change via env TECH_SMS_ALLOW_IDS="1,2,3,4,6".
+//   1=Teddy · 2=Jimmy · 3=Andre · 4=Lee · 6=John
+const TECH_SMS_ALLOW_IDS = new Set(
+  String(process.env.TECH_SMS_ALLOW_IDS || '1,2,3,4,6')
+    .split(',').map((s) => Number(String(s).trim())).filter((n) => n > 0)
+);
+function isTechOnList(techId) {
+  const id = Number(techId) || 0;
+  return id > 0 && TECH_SMS_ALLOW_IDS.has(id);
+}
+
 function isQuietedForTech(action) {
   // Inverse of allow — if not in allow list, it's quieted.
   return !isAllowedForTech(action);
@@ -284,6 +300,19 @@ export async function toTech(phone, body, context = {}) {
   }
   const action = context.action || context.outcome || '';
   const isOwnerAsTech = (e164 === config.ownerPhone) || (Number(context.tech_id) === 1);
+
+  // Fresh-roster allow-list: skip any tech not on the current field-tech list
+  // (departed/extra techs). Only applies when the send carries a tech_id; the
+  // note still mirrors to their in-app inbox so nothing vanishes. (Teddy 7/4)
+  const _tid = Number(context.tech_id) || 0;
+  if (_tid && !isOwnerAsTech && !isTechOnList(_tid)) {
+    await mirrorToInbox(context, body);
+    xano.logLocal('tech_sms_offlist', {
+      action, tech_id: _tid,
+      body_preview: String(body || '').slice(0, 240),
+    });
+    return { success: false, offlist: true, action, tech_id: _tid, in_app: true };
+  }
 
   // Weekend hard-mute (field techs only). No force_send escape — Teddy asked
   // for ALL texts silenced Sat/Sun. BUT it still lands in the in-app inbox, so
