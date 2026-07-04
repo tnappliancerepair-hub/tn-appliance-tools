@@ -114,8 +114,11 @@ exports.handler = async function (event) {
   const techId = parseInt(q.tech_id, 10) || 0;
   if (!techId) return j(400, { ok: false, error: 'tech_id or scope=today required' });
 
-  // Billed-but-unfiled = the tech's invoiced jobs with no filed report → the pay
-  // that's waiting on documentation. Newest invoice per job.
+  // Billed-but-unfiled = the tech's RECENT invoiced jobs with no filed report →
+  // the current pay that's waiting on documentation. Scoped to a rolling window
+  // (default 30d) so it's actionable, not an ancient backlog. Newest invoice per job.
+  const days = Math.max(1, Math.min(120, parseInt(q.days, 10) || 30));
+  const cutoff = Date.now() - days * 86400000;
   let invRows = [];
   try { invRows = await actionRows('office_invoice_logged', 4); } catch (_) {}
   const seen = new Set(); const holding = [];
@@ -123,9 +126,11 @@ exports.handler = async function (event) {
   for (const r of invRows) {
     const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue;
     const jid = Number(m.job_id || 0); if (!jid || seen.has(jid)) continue; seen.add(jid);
+    const when = num(m.logged_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
+    if (when && when < cutoff) continue;
     if (jobFiled(byJob, jid, techId)) continue;
     const pay = num(m.tech_pay) || num(m.labor);
-    holding.push({ job_id: jid, amount: pay, when: num(m.logged_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0) });
+    holding.push({ job_id: jid, amount: pay, when });
     holdingAmount += pay;
   }
   holding.sort((a, b) => b.when - a.when);
