@@ -93,6 +93,8 @@
   .sresults .sn{font-weight:600;} .sresults .ss{font-size:12px;color:var(--ink2);}
   /* board */
   .board{display:flex;gap:11px;overflow-x:auto;padding:12px;-webkit-overflow-scrolling:touch;align-items:flex-start;}
+  .board-topscroll{overflow-x:auto;overflow-y:hidden;height:15px;margin:0 12px;position:sticky;top:0;z-index:5;}
+  #btScrollInner{height:1px;}
   .col{flex:0 0 240px;background:#e8ecf2;border-radius:13px;padding:9px;min-height:120px;}
   .col.dropok{outline:2px dashed var(--blue);outline-offset:-3px;background:#e2ecfd;}
   .col-h{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);padding:4px 4px 9px;}
@@ -103,6 +105,8 @@
   .col.followup .col-h{color:var(--violet);}
   .col.upgrade .col-h{color:#0f9d92;}
   .col.autho .col-h{color:#e07a3c;}
+  .jc-area{font-size:11px;font-weight:700;color:#54607a;background:#eef1f5;border-radius:5px;padding:1px 7px;}
+  [data-theme="dark"] .jc-area{background:#232a38;color:#9aa7ba;}
   .jcard{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,50,.05);}
   .jcard:active{transform:scale(.99);}
   .jcard.dragging{opacity:.5;}
@@ -527,7 +531,7 @@ function renderBoard(){
     +`<button onclick="setBoardSolo('')" style="${chipStyle(!soloTech)}">All techs</button>`
     +allRegTechs.map(t=>`<button onclick="setBoardSolo('${t}')" style="${chipStyle(Number(soloTech)===Number(t))}">${esc(TECH_NAME[t]||('Tech '+t))}</button>`).join('')
     +'</div>';
-  const html=chipBar+'<div class="board">'+cols.map(c=>{
+  const html=chipBar+'<div class="board-topscroll" id="btScroll"><div id="btScrollInner"></div></div>'+'<div class="board" id="theBoard">'+cols.map(c=>{
     const list=byCol[c.id]||[];
     const stale=list.filter(j=>{const cc=Number(j.created_at||0);return cc&&j.scheduling_status!=='completed'&&(Date.now()-cc)>7*86400000;}).length;
     const staleBadge=stale>0?`<span class="ct" style="background:#fdece9;color:#c0392b;border:1px solid #f3c0b7" title="${stale} job${stale===1?'':'s'} waiting 7+ days">⏳ ${stale}</span>`:'';
@@ -553,10 +557,24 @@ function renderBoard(){
   }).join('')+'</div>';
   document.getElementById('board-host').innerHTML=html;
   wireDnD();
+  syncTopScroll();
   // Notification deep-link: office-board.html?job=ID drops her straight on
   // that card so she can act and get back to the board fast.
   const pj=new URLSearchParams(location.search).get('job');
   if(pj && !window.__openedPending){ window.__openedPending=true; openDrawer(pj); }
+}
+
+// A horizontal scrollbar ABOVE the board (synced to it), so you can scroll across
+// the columns from the top without dragging to the very bottom. (Teddy 2026-07-04)
+function syncTopScroll(){
+  const board=document.getElementById('theBoard'), top=document.getElementById('btScroll'), inner=document.getElementById('btScrollInner');
+  if(!board||!top||!inner)return;
+  const set=()=>{ inner.style.width=board.scrollWidth+'px'; };
+  set(); setTimeout(set,200);
+  let lock=false;
+  board.onscroll=()=>{ if(lock)return; lock=true; top.scrollLeft=board.scrollLeft; lock=false; };
+  top.onscroll=()=>{ if(lock)return; lock=true; board.scrollLeft=top.scrollLeft; lock=false; };
+  if(!window.__btResize){ window.__btResize=true; window.addEventListener('resize',()=>{const b=document.getElementById('theBoard'),i=document.getElementById('btScrollInner');if(b&&i)i.style.width=b.scrollWidth+'px';}); }
 }
 
 // OVERDUE = the job missed its expected timing (Danielle, 2026-06-18) — not just
@@ -639,12 +657,10 @@ function cardHtml(j){
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
   if(HOLD_MAP[j.id])tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — waiting on the customer to confirm">⏳ HELD</span>');
-  if(j.warranty_company)tags.push('<span class="tag warr">'+esc(j.warranty_company)+'</span>');
-  // Only label "cash" for an actual self-pay job. A blank warranty_company does
-  // NOT mean cash — we're a warranty shop (no cash jobs), so a missing vendor is
-  // a warranty job whose vendor just isn't filled in yet. (Danielle 2026-06-16)
-  else if(/self|cash|customer.?pay/i.test(String(j.customer_type||''))) tags.push('<span class="tag cash">cash</span>');
-  else tags.push('<span class="tag warr">warranty</span>');
+  // Company + area now live in the compact tile HEADER (below), not as tags.
+  const _coLabel = j.warranty_company ? j.warranty_company : (/self|cash|customer.?pay/i.test(String(j.customer_type||''))?'Cash':'Warranty');
+  const _areaRaw = String(j.service_city||'').trim();
+  const _area = _areaRaw ? _areaRaw.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()) : '';
   const _inv=INVOICES[String(j.id)];
   if(_inv){
     const _amt='$'+(Number(_inv.amount)||0).toFixed(0);
@@ -687,9 +703,9 @@ function cardHtml(j){
   }
   return `<div class="jcard${_over?' over':''}" draggable="true" data-id="${j.id}">
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
-    <div class="jc-top" style="display:flex;align-items:center;justify-content:space-between;gap:6px"><div class="jc-name">${esc(name)}</div></div>
-    <div class="jc-meta">${esc(appl||'appliance')}${j.service_city?(' · '+esc(j.service_city)):''}</div>
-    ${_refHtml}
+    <div class="jc-name">${esc(name)}</div>
+    <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
+    <div class="jc-meta" style="margin-top:5px">${esc(appl||'appliance')}</div>
     ${_availCard}
     <div class="jc-tags">${tags.join('')}</div>
     ${_reportBtn}
