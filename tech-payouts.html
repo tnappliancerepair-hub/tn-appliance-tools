@@ -144,17 +144,21 @@ function buildTdrCard(comp){
   }
   const rows=items.map(it=>`
     <a class="job" href="tech-job.html?job_id=${it.job_id}&tech_id=${TECH_ID}#tdr" style="border-left:3px solid #e0524a">
-      <div class="info"><div class="jid">Job #${it.job_id}${it.customer?(' · '+esc(it.customer)):''}</div><div class="when">${it.amount>0?('$'+it.amount.toFixed(2)+' waiting — file to release'):"today's stop — file the report"}</div></div>
-      <div class="pay" style="color:#e0524a;font-size:14px">File →</div>
+      <div class="info"><div class="jid">Job #${it.job_id}${it.customer?(' · '+esc(it.customer)):''}</div><div class="when">${it.amount>0?('$'+it.amount.toFixed(2)+" — can't bill it 'til the report's in"):"today's stop — finish the report"}</div></div>
+      <div class="pay" style="color:#e0524a;font-size:14px">Finish →</div>
     </a>`).join('');
   const head = holding.amount>0
-    ? `<div class="amt" style="font-size:30px">$${holding.amount.toFixed(2)}</div><div class="sub">waiting on ${holding.count} report${holding.count===1?'':'s'} — file to release your pay</div>`
-    : `<div class="amt" style="font-size:24px">${items.length} report${items.length===1?'':'s'} to file</div><div class="sub">file today's stops before you clock out</div>`;
+    ? `<div class="amt" style="font-size:30px">$${holding.amount.toFixed(2)}</div><div class="sub">stuck on ${holding.count} report${holding.count===1?'':'s'} — finish them and the money starts moving</div>`
+    : `<div class="amt" style="font-size:24px">${items.length} report${items.length===1?'':'s'} to finish</div><div class="sub">wrap today's stops so we can bill them</div>`;
+  // The real chain — nobody's holding your money, it just can't come in until the
+  // report unlocks the claim. You're the first domino. (Teddy 7/4)
+  const chain = `<div style="margin-top:11px;background:rgba(0,0,0,.16);border-radius:10px;padding:9px 11px;font-size:11.5px;font-weight:700;line-height:1.5;opacity:.96">📋 Your report → 🧾 we bill the warranty co → 💵 they pay us → 🤝 you get paid</div>`;
   return `<div class="owed" style="background:linear-gradient(135deg,#e0524a,#b83b34)">
-      <div class="lbl">📋 Reports = your pay</div>${head}
-      <div class="sub" style="margin-top:8px;opacity:.95">Filed today: ${today.filed}/${today.stops}</div>
+      <div class="lbl">📋 Your report = your pay</div>${head}
+      ${chain}
+      <div class="sub" style="margin-top:9px;opacity:.95">Filed today: ${today.filed}/${today.stops}</div>
     </div>
-    <div class="card"><h3>File these to get paid</h3>${rows}</div>`;
+    <div class="card"><h3>Finish these so we can bill them</h3>${rows}</div>`;
 }
 function render(d,comp){
   const tdrCard=buildTdrCard(comp);
