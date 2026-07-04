@@ -14,6 +14,7 @@ const ALLOWED = new Set([
   'diagnosis', 'failure_cause', 'failure_cause_notes', 'failed_component',
   'repair_completed', 'verified_part_number', 'customer_facing_diagnosis',
   'technician_notes', 'parts_used', 'parts_not_used',
+  'labor_time_hours', 'parts_needed',
 ]);
 // JSON (array) columns — value is parsed/written as an array, not a string.
 const JSON_FIELDS = new Set(['parts_used', 'parts_not_used']);

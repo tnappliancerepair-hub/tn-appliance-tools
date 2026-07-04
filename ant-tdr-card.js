@@ -24,6 +24,15 @@
   var role = 'office';
   var lastData = null;
   var pollTimer = null;
+  var editKey = null; // when a field is being edited inline, don't let polling clobber it
+  // The 5 inline-editable TDR fields → their real DB column + editor shape.
+  var FIELD_META = {
+    diagnosis:        { label: 'Diagnosis',        col: 'diagnosis',        multiline: true,  ph: 'What is wrong with it?' },
+    failed_component: { label: 'Failed Component', col: 'failed_component', multiline: false, ph: 'Which part failed?' },
+    labor_hours:      { label: 'Labor Hours',      col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
+    repair_completed: { label: 'Repair Done',      col: 'repair_completed', multiline: true,  ph: 'What did you do to fix it?' },
+    parts_needed:     { label: 'Parts Used',       col: 'parts_needed',     multiline: true,  ph: 'Parts swapped in (or "none")' },
+  };
 
   // ── Boot ───────────────────────────────────────────────────────────
   function init() {
@@ -182,6 +191,8 @@
       renderCustomerModal(host, d);
       return;
     }
+    // Someone is mid-edit — a 6s poll must not wipe their typing.
+    if (editKey !== null) return;
     var fields = d.fields || {};
     var pct = d.readiness_pct || 0;
     var ready = pct >= 100;
@@ -217,15 +228,18 @@
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
     html += buildCustomerToldUs(d);
-    // Fields
+    // Fields — inline-editable for tech + office (tap a field to edit it
+    // right here; no jump to another page). Customer never reaches this loop.
+    var canEdit = (role === 'tech' || role === 'office');
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
       var cls = fState.filled ? 'filled' : 'empty';
       var icon = fState.filled ? '✅' : '⏳';
-      html += '<div class="ant-tdr-field ' + cls + '">';
+      html += '<div class="ant-tdr-field ' + cls + '"' + (canEdit ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"' : '') + '>';
       html += '<div class="ant-tdr-field-icon">' + icon + '</div>';
       html += '<div class="ant-tdr-field-body">';
-      html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label) + '</div>';
+      html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label)
+        + (canEdit ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + (fState.filled ? '✏️ edit' : '✏️ add') + '</span>' : '') + '</div>';
       if (fState.filled) {
         html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
       } else {
@@ -379,7 +393,7 @@
     rows += row('Claim #', claim, false);
     var seedBtn = '';
     if (complaint && (role === 'office' || role === 'tech')) {
-      seedBtn = '<button onclick="window.__antTdrSeedDiagnosis()" style="margin-top:10px;width:100%;background:rgba(74,158,255,0.16);border:1px solid rgba(74,158,255,0.5);color:#8fc0ff;border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">✏️ Use this to start the diagnosis in Teddy Tool</button>';
+      seedBtn = '<button onclick="window.__antTdrSeedDiagnosis()" style="margin-top:10px;width:100%;background:rgba(74,158,255,0.16);border:1px solid rgba(74,158,255,0.5);color:#8fc0ff;border-radius:10px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">✏️ Start the diagnosis from this →</button>';
     }
     return '<div style="background:rgba(74,158,255,0.07);border:1px solid rgba(74,158,255,0.28);border-radius:12px;padding:12px 14px;margin-bottom:14px">'
       + '<div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#8fc0ff;letter-spacing:0.02em">📩 What the customer told us</div>'
@@ -525,9 +539,74 @@
     tdrCopyToClipboard(String(text || ''));
     if (btn) { var o = btn.textContent; btn.textContent = '✓'; setTimeout(function () { btn.textContent = o; }, 1200); }
   };
-  window.__antTdrSeedDiagnosis = function () {
-    var complaint = ((lastData && lastData.submission_extras) || {}).problem_summary || '';
-    location.href = '/teddy-tdr-tool.html?job_id=' + jobId + (complaint ? '&seed_diagnosis=' + encodeURIComponent(complaint) : '');
+  window.__antTdrSeedDiagnosis = function () { window.__antTdrEdit('diagnosis'); };
+
+  // Inline field editing — tap a TDR field, edit right in the card, save.
+  // No jump to another page. Empty diagnosis pre-fills from the customer's
+  // own complaint (the tech confirms/corrects instead of typing from zero).
+  window.__antTdrEdit = function (key) {
+    if (!lastData) return;
+    var meta = FIELD_META[key]; if (!meta) return;
+    if (role !== 'tech' && role !== 'office') return;
+    editKey = key;
+    var host = document.getElementById('ant-tdr-content'); if (!host) return;
+    var fields = lastData.fields || {};
+    var cur = ((fields[key] || {}).value || '').toString();
+    var seededNote = '';
+    if (key === 'diagnosis' && !cur.trim()) {
+      var complaint = ((lastData.submission_extras || {}).problem_summary || '').toString().trim();
+      if (complaint) { cur = complaint; seededNote = 'Pre-filled from what the customer told us — confirm or edit.'; }
+    }
+    var editorStyle = 'width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:12px;padding:13px 14px;font-size:16px;font-family:-apple-system,sans-serif;line-height:1.4;outline:none';
+    var inputHtml = meta.multiline
+      ? '<textarea id="ant-tdr-edit-input" rows="5" placeholder="' + escapeHtml(meta.ph) + '" style="' + editorStyle + ';resize:vertical">' + escapeHtml(cur) + '</textarea>'
+      : '<input id="ant-tdr-edit-input" type="text"' + (meta.numeric ? ' inputmode="decimal"' : '') + ' placeholder="' + escapeHtml(meta.ph) + '" value="' + escapeHtml(cur) + '" style="' + editorStyle + '">';
+    var html = '';
+    html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Edit ' + escapeHtml(meta.label) + '</div>';
+    html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()">×</button></div>';
+    if (seededNote) html += '<div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.4);color:#8fc0ff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px">📩 ' + escapeHtml(seededNote) + '</div>';
+    html += inputHtml;
+    html += '<div class="ant-tdr-actions"><button class="ant-tdr-btn primary" id="ant-tdr-save-btn" onclick="window.__antTdrSaveField()">Save</button>';
+    html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrCancelEdit()">Cancel</button></div>';
+    host.innerHTML = html;
+    var inp = document.getElementById('ant-tdr-edit-input');
+    if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) {} }
+  };
+  window.__antTdrCancelEdit = function () { editKey = null; if (lastData) renderModal(lastData); };
+  window.__antTdrSaveField = async function () {
+    var key = editKey; var meta = FIELD_META[key];
+    if (!key || !meta || !lastData) return;
+    var inp = document.getElementById('ant-tdr-edit-input');
+    var val = inp ? String(inp.value == null ? '' : inp.value).trim() : '';
+    var btn = document.getElementById('ant-tdr-save-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      var tdrId = Number(lastData.tdr_id || 0);
+      if (tdrId <= 0) {
+        // No TDR row yet — create one WITHOUT firing TDR_SUBMITTED (no auto-move).
+        var er = await fetch('/.netlify/functions/ensure-tdr', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: Number(jobId), technician_id: techId ? Number(techId) : undefined }),
+        });
+        var ed = await er.json();
+        if (!ed || !ed.ok || !ed.tdr_id) throw new Error((ed && ed.error) || 'could not start report');
+        tdrId = Number(ed.tdr_id);
+      }
+      var wr = await fetch('/.netlify/functions/set-tdr-field', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tdr_id: tdrId, field: meta.col, value: val }),
+      });
+      var wd = await wr.json();
+      if (!wd || !wd.ok) throw new Error((wd && wd.error) || 'save failed');
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      alert('Could not save: ' + (e && e.message ? e.message : e));
+      return;
+    }
+    editKey = null;
+    await refresh();
+    try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
   window.__antTdrOpenTeddy = function () {
     location.href = '/teddy-tdr-tool.html?job_id=' + jobId;
