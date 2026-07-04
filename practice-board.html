@@ -9,32 +9,34 @@
   :root{
     --bg:#e9edf2; --lane:#eef1f6; --lane-head:#e4e9f0; --card:#ffffff;
     --ink:#26313f; --ink2:#6b7686; --line:#d7dee7; --shadow:0 1px 2px rgba(20,30,50,.08),0 2px 8px rgba(20,30,50,.05);
-    --tab:#ffffff;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
 
   /* Top bar */
-  .top{flex:0 0 auto;background:#1f2a3a;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .top{flex:0 0 auto;background:#1f2a3a;color:#fff;padding:9px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   .brand{font-weight:800;letter-spacing:.02em;font-size:15px;display:flex;align-items:center;gap:8px}
   .practice-chip{background:#f5a623;color:#241a06;font-weight:800;font-size:10px;letter-spacing:.08em;padding:3px 8px;border-radius:6px;text-transform:uppercase}
   .note{color:#aeb9c9;font-size:12px}
   .top .spacer{flex:1}
-  .reset{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
-  .reset:hover{background:rgba(255,255,255,.2)}
+  .btn{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
+  .btn:hover{background:rgba(255,255,255,.2)}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#3ad07a;display:inline-block;box-shadow:0 0 0 0 rgba(58,208,122,.6);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(58,208,122,.5)}70%{box-shadow:0 0 0 7px rgba(58,208,122,0)}100%{box-shadow:0 0 0 0 rgba(58,208,122,0)}}
 
-  /* Board tabs */
-  .tabs{flex:0 0 auto;background:#27344a;display:flex;gap:2px;padding:0 12px;overflow-x:auto}
-  .tab{background:transparent;color:#b9c4d4;border:0;border-bottom:3px solid transparent;padding:11px 16px 9px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.01em}
-  .tab .cnt{color:#7f8da0;font-weight:600;font-size:11px;margin-left:6px}
-  .tab.on{color:#fff;border-bottom-color:#f5a623}
-  .tab:hover{color:#fff}
+  /* Sliding board switcher (the "slider") */
+  .switchbar{flex:0 0 auto;background:#27344a;padding:9px 12px;display:flex;justify-content:center}
+  .slider{position:relative;display:inline-flex;background:#1b2637;border-radius:999px;padding:4px;gap:2px;box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
+  .slider .pill{position:relative;z-index:2;border:0;background:transparent;color:#a9b7cb;font-weight:800;font-size:13px;letter-spacing:.01em;padding:9px 18px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:color .2s}
+  .slider .pill .cnt{font-weight:700;font-size:11px;opacity:.75;margin-left:6px}
+  .slider .pill.on{color:#16202e}
+  .slider .thumb{position:absolute;z-index:1;top:4px;bottom:4px;left:4px;width:0;background:linear-gradient(180deg,#ffd36b,#f5a623);border-radius:999px;box-shadow:0 2px 6px rgba(245,166,35,.5);transition:transform .28s cubic-bezier(.4,1.3,.5,1),width .28s}
 
   /* Lane row */
   .board{flex:1 1 auto;overflow-x:auto;overflow-y:hidden;padding:14px 12px 20px;display:none}
   .board.on{display:flex;gap:12px;align-items:flex-start}
-  .lane{flex:0 0 264px;width:264px;max-height:100%;background:var(--lane);border-radius:12px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+  .lane{flex:0 0 268px;width:268px;max-height:100%;background:var(--lane);border-radius:12px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
   .lane-head{padding:10px 12px 8px;border-top:4px solid var(--accent,#9aa7b8);border-radius:12px 12px 0 0;background:var(--lane-head)}
   .lane-title{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px;line-height:1.25}
   .lane-title .n{background:#fff;color:var(--ink2);border:1px solid var(--line);border-radius:999px;min-width:22px;text-align:center;padding:1px 7px;font-size:11px;font-weight:800}
@@ -52,28 +54,32 @@
   .tag.war{background:#e7f0ff;color:#1f5fd0}
   .tag.cash{background:#e7f8ee;color:#1c8b4c}
   .tag.eta{background:#fff2dc;color:#a5670c}
-  .tag.autho{background:#ffe9e2;color:#c2491f}
-  .tag.up{background:#e4f6f4;color:#0f7c74}
-  .tag.hot{background:#ffe1e1;color:#c62d2d}
   .who{font-size:11px;color:var(--ink2);font-weight:700;margin-left:auto;display:flex;align-items:center;gap:5px}
-  .dot{width:16px;height:16px;border-radius:50%;background:var(--c,#9aa7b8);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .dot{width:17px;height:17px;border-radius:50%;background:var(--c,#9aa7b8);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .empty{color:#a7b1bf;font-size:12px;text-align:center;padding:16px 6px;font-style:italic}
+  .loading{padding:40px;text-align:center;color:#6b7686;font-size:14px;width:100%}
 
   .hint{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;background:#1f2a3a;color:#dfe6f0;font-size:12px;padding:7px 14px;border-radius:999px;box-shadow:var(--shadow);opacity:.92}
 </style>
 </head>
 <body>
   <div class="top">
-    <div class="brand">🐜 Practice Job Board <span class="practice-chip">Practice · not live</span></div>
-    <div class="note">Mirrors your MeisterTask layout. Mock cards. Drag them around — nothing saves, nothing touches real jobs.</div>
+    <div class="brand">🐜 Practice Job Board <span class="practice-chip">Practice · preview</span></div>
+    <div class="note" id="note">Your MeisterTask layout, with <b>live jobs</b> loaded in. Read-only preview — dragging is visual only, nothing saves.</div>
     <div class="spacer"></div>
-    <button class="reset" onclick="renderAll()">↺ Reset cards</button>
+    <button class="btn" id="reload">↻ Reload live</button>
   </div>
-  <div class="tabs" id="tabs"></div>
-  <div id="boards"></div>
-  <div class="hint">Drag a card between columns to feel the flow. Refresh to reset.</div>
+
+  <div class="switchbar">
+    <div class="slider" id="slider"><div class="thumb" id="thumb"></div></div>
+  </div>
+
+  <div id="boards"><div class="loading">Loading live jobs…</div></div>
+  <div class="hint">Drag a card between columns to feel the flow. Reload pulls fresh live jobs.</div>
 
 <script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
 // ── The exact MeisterTask projects -> columns (pulled live from your boards) ──
 const BOARDS = [
   { key:'sched', name:'Scheduling', cols:[
@@ -90,7 +96,6 @@ const BOARDS = [
     'FOLLOW UP BEFORE INVOICING','NEEDS INVOICED','DUSTY INVOICE' ] },
 ];
 
-// Column accent color by meaning (so the flow reads at a glance)
 function accent(name){
   const n=name.toUpperCase();
   if(n.includes('NEEDS SCHEDULED')||n.includes('NEED SCHEDULED')) return '#8a97a8';
@@ -98,94 +103,139 @@ function accent(name){
   if(n.includes('TEMPLATE')) return '#9aa7b8';
   if(n.includes('PRE DIAG')) return '#3f7fd6';
   if(n.includes('POST DIAG')) return '#2f9e9e';
-  if(n.includes('REPORT')) return '#3f7fd6';         // per-tech report lanes = blue (active work)
-  if(n.includes('UPGRADE')) return '#0f9d92';        // teal
-  if(n.includes('AUTHO')) return '#e07a3c';          // orange = waiting on warranty auth
-  if(n.includes('PART')) return '#e0a72c';           // amber = waiting on parts
-  if(n.includes('COMPLETION')) return '#33a852';     // green
-  if(n.includes('FOLLOW')) return '#7a5bd0';         // purple
-  if(n.includes('NEEDS INVOIC')) return '#d64550';   // red = needs invoicing
-  if(n.includes('INVOICE')) return '#4b57c4';        // per-tech invoice lanes = indigo
-  if(n.includes('MONEY')) return '#c99700';          // gold
+  if(n.includes('REPORT')) return '#3f7fd6';
+  if(n.includes('UPGRADE')) return '#0f9d92';
+  if(n.includes('AUTHO')) return '#e07a3c';
+  if(n.includes('PART')) return '#e0a72c';
+  if(n.includes('COMPLETION')) return '#33a852';
+  if(n.includes('FOLLOW')) return '#7a5bd0';
+  if(n.includes('NEEDS INVOIC')) return '#d64550';
+  if(n.includes('INVOICE')) return '#4b57c4';
+  if(n.includes('MONEY')) return '#c99700';
   return '#9aa7b8';
 }
 
-// ── Mock cards keyed by "boardKey|COLUMN" so the layout looks alive ──
-function mk(t,sub,tag,who){return {t,sub,tag,who,id:'c'+(mk._i=(mk._i||0)+1)};}
-const CARDS = {
-  'sched|TN NEEDS SCHEDULED':[ mk('Gregory White','Dryer — not heating','war','—'), mk('Virginia Willits','Washer — leaking','war','—'), mk('Nathan M.','Fridge ice maker','cash','—') ],
-  'sched|NOLA NEED SCHEDULED':[ mk('Paula Reaux','Range — burner out','war','—') ],
-  'sched|TEMPLATES':[ mk('AHS intake template','claim + model + video','','—'), mk('Cash quick-check','$50 diagnostic','','—') ],
-  'sched|PRE DIAGNOSIS':[ mk('Detrich R.','Refrigerator — ice maker coil','war','Ant'), mk('William T.','Dishwasher — won\'t drain','war','Ant') ],
-  'sched|POST DIAGNOSIS':[ mk('Keli Vince','Dryer — belt + roller','war','Teddy') ],
-
-  'tn|SCHEDULED':[ mk('Anne Rose P.','Range — Thu','war','Lee'), mk('Bruce S.','Fridge — Fri','war','Jimmy') ],
-  'tn|TEDDY REPORTS':[ mk('Detrich R.','Refrigerator — ice maker','war','TE') ],
-  'tn|LEE REPORTS':[ mk('Kevin Rucker','Dishwasher — pump','war','Lee') ],
-  'tn|JIMMYS REPORTS':[ mk('Bryan Smith','Washer — bearing','war','Jimmy') ],
-  'tn|UPGRADE':[ mk('Anne Rose P.','+ Dryer vent clean','up','Lee') ],
-  'tn|WAITING FOR AUTHO':[ mk('Reece D.','AHS — auth pending','autho','Teddy'), mk('Carroll H.','SquareTrade — auth','autho','Jimmy') ],
-  'tn|WAITING FOR PARTS':[ mk('Nathan M.','Ice maker WPW10300024','eta','Teddy','ETA Jul 8'), mk('Rachel Thomas','Drain pump','eta','Lee') ],
-  'tn|COMPLETION APPT':[ mk('Margy Brady','Return visit — Mon','war','Lee') ],
-  'tn|FOLLOW UP BEFORE INVOICING':[ mk('Eda Bagby','Confirm parts returned','war','Jimmy') ],
-  'tn|NEEDS INVOICED':[ mk('Raquel Reed','Warranty — file claim','hot','Lee') ],
-  'tn|TE INVOICES':[ mk('Jason W.','$150 labor','war','TE') ],
-  'tn|JIMMY INVOICES':[ mk('Eyob T.','$150 labor','war','Jimmy') ],
-  'tn|SHOP MONEY $$':[ mk('Monahan','EFT $150 — PAID','cash','') ],
-
-  'nola|SCHEDULED':[ mk('Andre route','2 stops — Hammond','war','Andre') ],
-  'nola|JOHN REPORT':[ mk('LeBlanc','Fridge — compressor','war','John') ],
-  'nola|WAITING FOR PARTS':[ mk('Billy job','Washer motor','eta','Billy') ],
-  'nola|COMPLETION':[ mk('Walker return','Dryer — Wed','war','John') ],
-
-  'fl|SCHEDULED':[ mk('Dusty route','3 stops','war','Dusty') ],
-  'fl|DUSTY REPORTS':[ mk('Ormond fridge','Not cooling','war','Dusty') ],
-  'fl|WAITING FOR AUTHO':[ mk('AHS claim','auth pending','autho','Dusty') ],
+// ── Live-job -> MeisterTask column mapper ──────────────────────────────
+const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John',7:'Dusty'};
+const REPORT_COL={
+  tn:{Teddy:'TEDDY REPORTS',Lee:'LEE REPORTS',Jimmy:'JIMMYS REPORTS',Andre:'ANDRE REPORTS'},
+  nola:{John:'JOHN REPORT',Billy:'BILLY REPORTS',Andre:'ANDRE REPORTS'},
+  fl:{Dusty:'DUSTY REPORTS'},
 };
+const INVOICE_COL={
+  tn:{Teddy:'TE INVOICES',Jimmy:'JIMMY INVOICES',Lee:'LEE INVOICES',Andre:'ANDRE INVOICES'},
+  nola:{John:'JOHN INVOICES',Andre:'ANDRE INVOICES',Billy:'BILLY INVOICES'},
+  fl:{Dusty:'DUSTY INVOICE'},
+};
+function boardOf(j){ const st=(j.service_state||'').toUpperCase(); if(st==='LA')return'nola'; if(st==='FL')return'fl'; return'tn'; }
+function mapJob(j){
+  const ss=(j.scheduling_status||'').toLowerCase(), cs=(j.current_status||'').toLowerCase();
+  const tid=Number(j.technician_id||0), tname=TECH[tid]||'';
+  const done = ss==='completed'||cs==='completed'||Number(j.job_completed_at)>0;
+  const parts = (j.parts_eta_date||'').trim() || /(awaiting_parts|ordered|on_order|backorder)/i.test(j.parts_status||'');
+  const scheduled = ss==='scheduled' || Number(j.scheduled_start)>0;
+  const board = boardOf(j);
+  const cols = (BOARDS.find(b=>b.key===board)||{}).cols||[];
+  const has = c => cols.includes(c);
+  const needsSched = !scheduled && !done && (['not_ready','needs_more_info','broadcasting','prediagnosis_pending','intake_complete',''].includes(ss) || !tid);
+  if(needsSched && !done) return {board:'sched', col:(j.service_state||'').toUpperCase()==='LA'?'NOLA NEED SCHEDULED':'TN NEEDS SCHEDULED'};
+  let col;
+  if(done){ col = (tname && (INVOICE_COL[board]||{})[tname]) || 'NEEDS INVOICED'; }
+  else if(parts){ col = has('WAITING FOR PARTS')?'WAITING FOR PARTS':'SCHEDULED'; }
+  else if(tid && (ss==='in_progress'||cs==='in_progress')){ col = (REPORT_COL[board]||{})[tname] || 'SCHEDULED'; }
+  else if(scheduled){ col='SCHEDULED'; }
+  else { col = (REPORT_COL[board]||{})[tname] || 'SCHEDULED'; }
+  if(!has(col)) col = has('SCHEDULED')?'SCHEDULED':cols[0];
+  return {board, col};
+}
 
-function tagHtml(c){
-  const map={war:['war','Warranty'],cash:['cash','Cash'],eta:['eta',c.eta||'Parts'],autho:['autho','Auth'],up:['up','Upsell'],hot:['hot','Action']};
-  const m=map[c.tag]; if(!m) return '';
-  return '<span class="tag '+m[0]+'">'+m[1]+'</span>';
-}
-function cardHtml(c,accentColor){
-  const initials=(c.who&&c.who!=='—'&&c.who!=='Ant')?c.who.slice(0,2).toUpperCase():'';
-  const who=c.who?('<span class="who">'+(initials?'<span class="dot" style="--c:'+accentColor+'">'+initials+'</span>':'')+c.who+'</span>'):'';
-  return '<div class="card" draggable="true" data-id="'+c.id+'" style="--c:'+accentColor+'">'
-    +'<div class="t">'+esc(c.t)+'</div>'
-    +'<div class="sub">'+esc(c.sub)+'</div>'
-    +'<div class="row">'+tagHtml(c)+who+'</div></div>';
-}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function cap(s){s=String(s||'');return s?s[0].toUpperCase()+s.slice(1):'';}
 
-let curBoard=BOARDS[1].key; // default to TN Jobs
-let STATE={}; // {board|col: [cards]}
+let curBoard='tn';
+let STATE={};   // board|col -> [cards]
+let LOADED=false;
 
-function seed(){
-  STATE={};
-  BOARDS.forEach(b=>b.cols.forEach(col=>{
-    const k=b.key+'|'+col.toUpperCase();
-    // match seed keys case-insensitively
-    let arr=null;
-    for(const kk in CARDS){ if(kk.toUpperCase()===k){arr=CARDS[kk];break;} }
-    STATE[b.key+'|'+col]= arr? arr.map(c=>Object.assign({},c)) : [];
-  }));
+function cardObj(j){
+  const nm=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim() || ('Job #'+j.id);
+  const appl=cap(j.appliance||j.appliance_type||'appliance');
+  const brand=cap(j.brand||'');
+  const tname=TECH[Number(j.technician_id||0)]||'';
+  const warranty=(j.warranty_company||'').trim();
+  const eta=(j.parts_eta_date||'').trim();
+  return { id:'j'+j.id, t:nm, sub:(brand?brand+' ':'')+appl+(j.problem_summary?(' — '+j.problem_summary):''),
+           tag: warranty?'war':'cash', tagLabel: warranty||'Cash', who:tname, eta };
+}
+function cardHtml(c,ac){
+  const initials=c.who?c.who.slice(0,2).toUpperCase():'';
+  const who=c.who?('<span class="who"><span class="dot" style="--c:'+ac+'">'+initials+'</span>'+esc(c.who)+'</span>'):'';
+  let tag='';
+  if(c.tag==='war') tag='<span class="tag war">'+esc(c.tagLabel||'Warranty')+'</span>';
+  else tag='<span class="tag cash">Cash</span>';
+  const etaTag=c.eta?'<span class="tag eta">ETA '+esc(c.eta)+'</span>':'';
+  return '<div class="card" draggable="true" data-id="'+c.id+'" style="--c:'+ac+'">'
+    +'<div class="t">'+esc(c.t)+'</div>'
+    +'<div class="sub">'+esc((c.sub||'').slice(0,90))+'</div>'
+    +'<div class="row">'+tag+etaTag+who+'</div></div>';
 }
 
-function renderTabs(){
-  const tabs=document.getElementById('tabs');
-  tabs.innerHTML=BOARDS.map(b=>{
-    const n=b.cols.reduce((s,col)=>s+(STATE[b.key+'|'+col]||[]).length,0);
-    return '<button class="tab '+(b.key===curBoard?'on':'')+'" onclick="switchBoard(\''+b.key+'\')">'+esc(b.name)+' <span class="cnt">'+n+'</span></button>';
-  }).join('');
+async function loadLive(){
+  document.getElementById('boards').innerHTML='<div class="loading">Loading live jobs…</div>';
+  // reset buckets
+  STATE={}; BOARDS.forEach(b=>b.cols.forEach(c=>STATE[b.key+'|'+c]=[]));
+  let items=[];
+  try{
+    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    const d=await r.json();
+    items=d.items||d.jobs||(Array.isArray(d)?d:[]);
+  }catch(e){ items=[]; }
+  let placed=0;
+  items.forEach(j=>{
+    // skip canceled
+    const ss=(j.scheduling_status||'').toLowerCase(), cs=(j.current_status||'').toLowerCase();
+    if(/cancel/.test(ss)||/cancel/.test(cs)) return;
+    const {board,col}=mapJob(j);
+    const key=board+'|'+col;
+    if(STATE[key]){ STATE[key].push(cardObj(j)); placed++; }
+  });
+  LOADED=true;
+  document.getElementById('note').innerHTML='Your MeisterTask layout with <b>'+placed+' live jobs</b> loaded in. Read-only preview — dragging is visual only.';
+  renderSlider(); renderBoards();
 }
-function switchBoard(k){curBoard=k;renderTabs();document.querySelectorAll('.board').forEach(el=>el.classList.toggle('on',el.dataset.k===k));}
+
+function renderSlider(){
+  const s=document.getElementById('slider');
+  // keep the thumb node, rebuild pills
+  [...s.querySelectorAll('.pill')].forEach(p=>p.remove());
+  BOARDS.forEach(b=>{
+    const n=b.cols.reduce((a,c)=>a+(STATE[b.key+'|'+c]||[]).length,0);
+    const btn=document.createElement('button');
+    btn.className='pill'+(b.key===curBoard?' on':'');
+    btn.dataset.k=b.key;
+    btn.innerHTML=esc(b.name)+' <span class="cnt">'+n+'</span>';
+    btn.onclick=()=>switchBoard(b.key);
+    s.appendChild(btn);
+  });
+  moveThumb();
+}
+function moveThumb(){
+  const s=document.getElementById('slider'), thumb=document.getElementById('thumb');
+  const active=s.querySelector('.pill.on'); if(!active)return;
+  thumb.style.width=active.offsetWidth+'px';
+  thumb.style.transform='translateX('+(active.offsetLeft-4)+'px)';
+}
+function switchBoard(k){
+  curBoard=k;
+  document.querySelectorAll('.slider .pill').forEach(p=>p.classList.toggle('on',p.dataset.k===k));
+  document.querySelectorAll('.board').forEach(el=>el.classList.toggle('on',el.dataset.k===k));
+  moveThumb();
+}
 
 function renderBoards(){
   const host=document.getElementById('boards');
   host.innerHTML=BOARDS.map(b=>{
     const lanes=b.cols.map(col=>{
-      const key=b.key+'|'+col; const cards=STATE[key]||[]; const ac=accent(col);
+      const key=b.key+'|'+col, cards=STATE[key]||[], ac=accent(col);
       const body=cards.length? cards.map(c=>cardHtml(c,ac)).join('') : '<div class="empty">—</div>';
       return '<div class="lane"><div class="lane-head" style="--accent:'+ac+'">'
         +'<div class="lane-title"><span>'+esc(col)+'</span><span class="n">'+cards.length+'</span></div></div>'
@@ -193,9 +243,8 @@ function renderBoards(){
     }).join('');
     return '<div class="board '+(b.key===curBoard?'on':'')+'" data-k="'+b.key+'">'+lanes+'</div>';
   }).join('');
-  wireDnD();
+  wireDnD(); moveThumb();
 }
-function renderAll(){seed();renderTabs();renderBoards();}
 
 // ── Drag & drop (visual only, no persistence) ──
 let dragId=null, dragFrom=null;
@@ -208,16 +257,17 @@ function wireDnD(){
     body.addEventListener('dragover',e=>{e.preventDefault();body.classList.add('drag-over');});
     body.addEventListener('dragleave',()=>body.classList.remove('drag-over'));
     body.addEventListener('drop',e=>{e.preventDefault();body.classList.remove('drag-over');
-      const toKey=body.dataset.key; if(!dragId||dragFrom==null) return;
-      const fromArr=STATE[dragFrom]||[]; const idx=fromArr.findIndex(c=>c.id===dragId);
-      if(idx<0) return; const [card]=fromArr.splice(idx,1);
-      (STATE[toKey]=STATE[toKey]||[]).push(card);
-      renderTabs(); renderBoards();
+      const toKey=body.dataset.key; if(!dragId||dragFrom==null)return;
+      const fromArr=STATE[dragFrom]||[]; const idx=fromArr.findIndex(c=>c.id===dragId); if(idx<0)return;
+      const [card]=fromArr.splice(idx,1); (STATE[toKey]=STATE[toKey]||[]).push(card);
+      renderSlider(); renderBoards();
     });
   });
 }
 
-renderAll();
+document.getElementById('reload').onclick=loadLive;
+window.addEventListener('resize',moveThumb);
+loadLive();
 </script>
 </body>
 </html>
