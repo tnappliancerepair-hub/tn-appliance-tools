@@ -80,9 +80,17 @@ exports.handler = async function (event) {
   let byJob;
   try { byJob = await tdrFiledSets(); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
-  // Today's stops per tech (from the calendar week, filtered to today CT).
-  let week = {};
-  try { week = await fetch(`${XANO}/get_office_calendar_week?week_start=${ctTodayMonday()}`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()); } catch (_) { week = {}; }
+  // Today's stops per tech (from the calendar week, filtered to today CT) +
+  // a job_id -> customer name map so a held report reads "Sarah Johnson", not "#123".
+  let week = {}, nameByJob = {};
+  try {
+    const [wk, km] = await Promise.all([
+      fetch(`${XANO}/get_office_calendar_week?week_start=${ctTodayMonday()}`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => ({})),
+      fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => ({})),
+    ]);
+    week = wk || {};
+    for (const jb of ((km && (km.items || km.jobs)) || [])) { const id = Number(jb.id); if (id) nameByJob[id] = `${(jb.customer_first || '').trim()} ${(jb.customer_last || '').trim()}`.trim(); }
+  } catch (_) { week = {}; }
   const techNames = {};
   for (const t of (week.technicians || [])) techNames[Number(t.id)] = ((t.first_name || t.name || ('Tech ' + t.id)) + '').trim();
   const todayJobs = (week.jobs || []).filter((jb) => ctDate(Number(jb.scheduled_start || 0)) === todayCt);
@@ -94,6 +102,22 @@ exports.handler = async function (event) {
     const filed = jobFiled(byJob, jb.id, tid);
     if (filed) b.filed++;
     else b.unfiled.push({ job_id: jb.id, customer: `${(jb.customer_first_name || '').trim()} ${(jb.customer_last_name || '').trim()}`.trim() || 'Customer' });
+  }
+  // Whole-week completions per tech → the "you're in Nth place this week" race.
+  const weekByTech = {};
+  for (const jb of (week.jobs || [])) {
+    const tid = Number(jb.technician_id || 0); if (!tid) continue;
+    const b = weekByTech[tid] || (weekByTech[tid] = { stops: 0, filed: 0 });
+    b.stops++;
+    if (jobFiled(byJob, jb.id, tid)) b.filed++;
+  }
+  const KEEP_IDS = [1, 2, 3, 4, 6];
+  function weekRank(techId) {
+    const arr = KEEP_IDS.map((id) => ({ id, filed: (weekByTech[id] || {}).filed || 0 }));
+    arr.sort((a, b) => b.filed - a.filed);
+    // Standard competition ranking (ties share a place).
+    let rank = 1; for (let i = 0; i < arr.length; i++) { if (i > 0 && arr[i].filed < arr[i - 1].filed) rank = i + 1; if (arr[i].id === techId) return { rank, rank_total: arr.length, week_completions: arr[i].filed }; }
+    return { rank: arr.length, rank_total: arr.length, week_completions: (weekByTech[techId] || {}).filed || 0 };
   }
 
   // ── scoreboard mode ──
@@ -130,17 +154,21 @@ exports.handler = async function (event) {
     if (when && when < cutoff) continue;
     if (jobFiled(byJob, jid, techId)) continue;
     const pay = num(m.tech_pay) || num(m.labor);
-    holding.push({ job_id: jid, amount: pay, when });
+    holding.push({ job_id: jid, amount: pay, when, customer: nameByJob[jid] || '' });
     holdingAmount += pay;
   }
   holding.sort((a, b) => b.when - a.when);
-
+  // Fill any missing names on today's unfiled from the kanban map too.
   const mine = stopsByTech[techId] || { stops: 0, filed: 0, unfiled: [] };
+  mine.unfiled = mine.unfiled.map((u) => ({ job_id: u.job_id, customer: u.customer || nameByJob[u.job_id] || 'Customer' }));
+  const rank = weekRank(techId);
+  const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   return j(200, {
     ok: true, tech_id: techId,
     today: { stops: mine.stops, filed: mine.filed, pct: mine.stops ? Math.round((mine.filed / mine.stops) * 100) : 100 },
     today_unfiled: mine.unfiled,
     holding: { count: holding.length, amount: holdingAmount },
     holding_jobs: holding.slice(0, 20),
+    week: { rank: rank.rank, rank_total: rank.rank_total, completions: rank.week_completions, rank_label: ordinal(rank.rank) },
   });
 };

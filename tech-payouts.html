@@ -136,15 +136,17 @@ function buildTdrCard(comp){
   if(!comp||!comp.ok) return '';
   const holding=comp.holding||{count:0,amount:0}, today=comp.today||{stops:0,filed:0,pct:100};
   const seen=new Set(), items=[];
-  (comp.holding_jobs||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:x.amount||0,kind:'holding'});} });
-  (comp.today_unfiled||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:0,kind:'today',customer:x.customer});} });
+  (comp.holding_jobs||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:x.amount||0,kind:'holding',customer:x.customer||''});} });
+  (comp.today_unfiled||[]).forEach(x=>{ if(!seen.has(x.job_id)){seen.add(x.job_id);items.push({job_id:x.job_id,amount:0,kind:'today',customer:x.customer||''});} });
+  const wk=comp.week||{};
+  const rankLine = wk.rank_total ? `<div style="margin-top:9px;font-size:13px;font-weight:800;opacity:.97">🏆 You're in ${esc(wk.rank_label||(wk.rank+''))} place for completions this week</div>` : '';
   if(!items.length){
-    if(today.stops>0) return `<div class="card" style="border:1px solid var(--ok,#1faa6b)"><h3 style="color:var(--ok,#1faa6b)">✓ All reports filed — nice work</h3><div class="empty" style="padding:6px 0">Filed today: ${today.filed}/${today.stops}. Nothing holding your pay.</div></div>`;
+    if(today.stops>0||wk.rank_total) return `<div class="card" style="border:1px solid var(--ok,#1faa6b)"><h3 style="color:var(--ok,#1faa6b)">✓ All reports filed — nice work</h3><div class="empty" style="padding:6px 0">Filed today: ${today.filed}/${today.stops}. Nothing holding your pay.${wk.rank_total?(' 🏆 '+esc(wk.rank_label||('#'+wk.rank))+' place for completions this week.'):''}</div></div>`;
     return '';
   }
   const rows=items.map(it=>`
     <a class="job" href="tech-job.html?job_id=${it.job_id}&tech_id=${TECH_ID}#tdr" style="border-left:3px solid #e0524a">
-      <div class="info"><div class="jid">Job #${it.job_id}${it.customer?(' · '+esc(it.customer)):''}</div><div class="when">${it.amount>0?('$'+it.amount.toFixed(2)+" — can't bill it 'til the report's in"):"today's stop — finish the report"}</div></div>
+      <div class="info"><div class="jid">${it.customer?esc(it.customer):('Job #'+it.job_id)}</div><div class="when">#${it.job_id} · ${it.amount>0?('$'+it.amount.toFixed(2)+" tied up until the TDR's finished"):"today's stop — finish the report"}</div></div>
       <div class="pay" style="color:#e0524a;font-size:14px">Finish →</div>
     </a>`).join('');
   const head = holding.amount>0
@@ -157,6 +159,7 @@ function buildTdrCard(comp){
       <div class="lbl">📋 Your report = your pay</div>${head}
       ${chain}
       <div class="sub" style="margin-top:9px;opacity:.95">Filed today: ${today.filed}/${today.stops}</div>
+      ${rankLine}
     </div>
     <div class="card"><h3>Finish these so we can bill them</h3>${rows}</div>`;
 }

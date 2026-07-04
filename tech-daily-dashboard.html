@@ -1400,6 +1400,11 @@
     var headline = count
       ? '<b>' + count + ' report' + (count === 1 ? '' : 's') + '</b> = <b>$' + (holding.amount || 0).toFixed(2) + '</b> of your pay is stuck'
       : '<b>' + todayUnfiled.length + " stop" + (todayUnfiled.length === 1 ? '' : 's') + '</b> today still need a report';
+    // Name the freshest held job so it's a person, not a number.
+    var firstName = (d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].customer) || (todayUnfiled[0] && todayUnfiled[0].customer) || '';
+    var nameLine = firstName ? '<div style="font-size:12.5px;font-weight:700;margin-top:3px;opacity:.95">e.g. ' + escapeHtml(firstName) + " — $" + Number((d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].amount) || 0).toFixed(2) + " tied up 'til the TDR's done</div>" : '';
+    var wk = d.week || {};
+    var rankLine = wk.rank_total ? '<div style="font-size:12.5px;font-weight:800;margin-top:8px">🏆 You\'re in ' + escapeHtml(wk.rank_label || ('#' + wk.rank)) + ' place for completions this week</div>' : '';
     // First unfiled job → one-tap straight into its TDR; full list on the Pay page.
     var firstJob = (todayUnfiled[0] && todayUnfiled[0].job_id) || (d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].job_id) || 0;
     var goHref = firstJob ? ('tech-job.html?job_id=' + firstJob + '&tech_id=' + TECH_ID + '#tdr') : ('tech-payouts.html?tech_id=' + TECH_ID);
@@ -1407,7 +1412,9 @@
       '<div style="background:linear-gradient(135deg,#e0524a,#b83b34);color:#fff;border-radius:14px;padding:13px 15px;margin-bottom:12px;box-shadow:0 4px 14px rgba(224,82,74,.3)">'
       + '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.9">📋 Your report = your pay</div>'
       + '<div style="font-size:16px;font-weight:800;margin-top:3px">' + headline + '</div>'
+      + nameLine
       + '<div style="font-size:11px;font-weight:700;line-height:1.5;margin-top:7px;background:rgba(0,0,0,.16);border-radius:9px;padding:8px 10px">📋 Your report → 🧾 we bill the warranty co → 💵 they pay us → 🤝 you get paid</div>'
+      + rankLine
       + '<div style="display:flex;gap:8px;margin-top:10px">'
       + '<a href="' + goHref + '" style="flex:2;text-align:center;background:#fff;color:#b83b34;border-radius:9px;padding:10px;font-size:14px;font-weight:800;text-decoration:none">✨ Finish a report</a>'
       + '<a href="tech-payouts.html?tech_id=' + TECH_ID + '" style="flex:1;text-align:center;background:rgba(255,255,255,.18);color:#fff;border-radius:9px;padding:10px;font-size:14px;font-weight:800;text-decoration:none">See all</a>'
