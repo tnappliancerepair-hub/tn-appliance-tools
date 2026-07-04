@@ -30,13 +30,6 @@ exports.handler = async function (event) {
     const bySection = {}; // section_id -> {name, sequence, cards:[]}
     sections.forEach((s) => { bySection[String(s.id)] = { name: s.name, sequence: s.sequence, cards: [] }; });
 
-    // Project labels (MeisterTask "tags") -> id -> {name, color}
-    const LBL = {};
-    try {
-      const labels = await mt.listLabels(p.id);
-      (Array.isArray(labels) ? labels : []).forEach((l) => { LBL[String(l.id)] = { name: clean(l.name), color: l.color }; });
-    } catch (_) {}
-
     // ONE project-wide actionable pull, grouped by section (each task carries section_id).
     let tasks = [];
     try { tasks = await mt.listProjectTasks(p.id, { params: { status } }); }
@@ -46,8 +39,7 @@ exports.handler = async function (event) {
       const sid = String(t.section_id);
       const col = bySection[sid];
       if (!col) continue;
-      const tags = (Array.isArray(t.label_ids) ? t.label_ids : []).map((id) => LBL[String(id)]).filter(Boolean);
-      col.cards.push({ id: t.id, title: clean(t.name).slice(0, 120), notes: clean(t.notes).slice(0, 160), tags });
+      col.cards.push({ id: t.id, title: clean(t.name).slice(0, 120), notes: clean(t.notes).slice(0, 160) });
     }
     const columns = sections.map((s) => bySection[String(s.id)]);
     return j(200, { ok: true, key, name: p.name, columns });

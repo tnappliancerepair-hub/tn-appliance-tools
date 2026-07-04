@@ -45,8 +45,16 @@
   .card{background:var(--card);border-radius:9px;box-shadow:var(--shadow);padding:10px 11px;cursor:grab;border-left:4px solid var(--c,#9aa7b8)}
   .card:active{cursor:grabbing}
   .card.dragging{opacity:.45}
+  .card.matched{border-left-width:4px}
   .card .t{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;white-space:pre-wrap;word-break:break-word}
   .card .sub{font-size:11.5px;color:var(--ink2);margin-top:4px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
+  .card .row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .tag{font-size:10px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:5px}
+  .tag.war{background:#e7f0ff;color:#1f5fd0}
+  .tag.cash{background:#e7f8ee;color:#1c8b4c}
+  .tag.eta{background:#fff2dc;color:#a5670c}
+  .who{font-size:11px;color:var(--ink2);font-weight:700;margin-left:auto;display:flex;align-items:center;gap:5px}
+  .dot{width:17px;height:17px;border-radius:50%;background:var(--c,#9aa7b8);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .empty{color:#a7b1bf;font-size:12px;text-align:center;padding:14px 6px;font-style:italic}
   .boardmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#5f6b7c;font-size:14px;font-weight:600}
   .spin{width:26px;height:26px;border:3px solid #c3ccd8;border-top-color:#f5a623;border-radius:50%;animation:sp 0.8s linear infinite;margin-right:10px}
@@ -65,13 +73,39 @@
 
 <script>
 const NF='/.netlify/functions';
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const BOARDS=[
   {key:'sched',name:'Scheduling'},
   {key:'tn',   name:'TN Jobs'},
   {key:'nola', name:'NOLA Jobs'},
 ];
-const CACHE={};       // key -> columns[]  (from MeisterTask)
+const CACHE={};       // key -> columns[]  (from MeisterTask, placement) + matched job
 let curBoard='tn';
+const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John',7:'Dusty'};
+
+// Our live jobs, indexed by claim/dispatch # — MeisterTask decides WHERE a
+// card sits; our job record supplies the rich tile (customer/appliance/tech).
+let JOBS_IDX=null;
+async function loadJobs(){
+  if(JOBS_IDX) return JOBS_IDX;
+  JOBS_IDX={};
+  try{
+    const d=await fetch(XANO+'/get_office_kanban',{cache:'no-store'}).then(r=>r.json());
+    const items=d.items||d.jobs||[];
+    items.forEach(j=>{
+      const c=String(j.claim_number||'').trim(); if(c) JOBS_IDX[c]=j;
+      const ds=String(j.dispatch_source_id||'').trim(); if(ds) JOBS_IDX[ds]=j;
+    });
+  }catch(e){}
+  return JOBS_IDX;
+}
+function matchJob(title){
+  if(!JOBS_IDX) return null;
+  const toks=String(title||'').match(/\d{6,}/g)||[];
+  for(const t of toks){ if(JOBS_IDX[t]) return JOBS_IDX[t]; }
+  return null;
+}
+function cap(s){s=String(s||'');return s?s[0].toUpperCase()+s.slice(1):'';}
 
 function accent(name){
   const n=(name||'').toUpperCase();
@@ -98,14 +132,19 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','
 // our "💰 PAID" folder — where a job moves once it's been paid. (Teddy 2026-07-04)
 async function fetchBoard(key){
   if(CACHE[key]) return CACHE[key];
-  let cols=[];
+  await loadJobs();
+  let cols=null;
   try{
     const d=await fetch(NF+'/mt-board?key='+key,{cache:'no-store'}).then(r=>r.json());
     if(d&&d.ok&&Array.isArray(d.columns)) cols=d.columns;
   }catch(e){}
+  if(cols==null) return null; // MeisterTask busy/timeout — don't cache, let Refresh retry
   // The new Paid folder (not in MeisterTask yet) — a job lands here once paid.
   cols.push({name:'💰 PAID', sequence:99999, cards:[], paid:true});
-  cols.forEach((c,ci)=>(c.cards||[]).forEach((cd,i)=>{cd._id='c'+ci+'_'+(cd.id||i);}));
+  cols.forEach((c,ci)=>(c.cards||[]).forEach((cd,i)=>{
+    cd._id='c'+ci+'_'+(cd.id||i);
+    cd.job=matchJob(cd.title);   // attach our live job when the claim/dispatch # matches
+  }));
   CACHE[key]=cols;
   return cols;
 }
@@ -155,6 +194,24 @@ function tidyTitle(raw){
   return { title: t || String(raw||'').trim(), claim };
 }
 function cardHtml(cd,ac){
+  const j=cd.job;
+  if(j){
+    // OUR rich tile — MeisterTask placed it, our record fills it.
+    const nm=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim()||('Job #'+j.id);
+    const appl=(cap(j.brand||'')+' '+cap(j.appliance||'')).trim();
+    const sub=(appl+(j.problem_summary?(' — '+j.problem_summary):'')).trim();
+    const tech=TECH[Number(j.technician_id||0)]||'';
+    const war=(j.warranty_company||'').trim();
+    const eta=(j.parts_eta_date||'').trim();
+    const tag= war?'<span class="tag war">'+esc(war)+'</span>':'<span class="tag cash">Cash</span>';
+    const etaTag= eta?'<span class="tag eta">ETA '+esc(eta)+'</span>':'';
+    const who= tech?'<span class="who"><span class="dot" style="--c:'+ac+'">'+esc(tech.slice(0,2).toUpperCase())+'</span>'+esc(tech)+'</span>':'';
+    return '<div class="card matched" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
+      +'<div class="t">'+esc(nm)+'</div>'
+      +(sub?'<div class="sub">'+esc(sub.slice(0,84))+'</div>':'')
+      +'<div class="row">'+tag+etaTag+who+'</div></div>';
+  }
+  // Fallback — no match in our system: show the cleaned MeisterTask card.
   const t=tidyTitle(cd.title);
   const sub=[t.claim?('#'+t.claim):'', cd.notes||''].filter(Boolean).join(' · ');
   return '<div class="card" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
@@ -170,10 +227,16 @@ async function showBoard(key){
   if(!CACHE[key]){
     // show spinner while loading
     host.innerHTML='<div class="boardmsg"><span class="spin"></span>Loading '+esc((BOARDS.find(b=>b.key===key)||{}).name||'')+' from MeisterTask…</div>';
-    await fetchBoard(key);
+    const res=await fetchBoard(key);
     if(curBoard!==key) return; // switched away while loading
+    if(res==null){
+      host.innerHTML='<div class="boardmsg" style="flex-direction:column;gap:12px">MeisterTask was busy loading this board.<button class="btn" style="background:#f5a623;color:#1a1206" onclick="showBoard(\''+key+'\')">↻ Try again</button></div>';
+      return;
+    }
   }
   const cols=CACHE[key]||[];
+  const matched=cols.reduce((a,c)=>a+(c.cards||[]).filter(cd=>cd.job).length,0);
+  const total=cols.reduce((a,c)=>a+(c.cards||[]).length,0);
   const lanes = cols.length ? cols.map(c=>{
     const ac=accent(c.name); const cards=c.cards||[];
     const body=cards.length? cards.map(cd=>cardHtml(cd,ac)).join('') : '<div class="empty">—</div>';
@@ -185,7 +248,7 @@ async function showBoard(key){
   renderSlider();
   wireDnD();
   moveThumb();
-  document.getElementById('note').innerHTML='Live from MeisterTask · <b>'+esc((BOARDS.find(b=>b.key===key)||{}).name)+'</b> — '+cols.reduce((a,c)=>a+(c.cards||[]).length,0)+' open cards. Read-only preview.';
+  document.getElementById('note').innerHTML='<b>'+esc((BOARDS.find(b=>b.key===key)||{}).name)+'</b> · MeisterTask layout + our tiles — <b>'+matched+'</b> of '+total+' cards matched to our jobs. Read-only preview.';
 }
 
 // ── Drag & drop (visual only) ──
