@@ -56,11 +56,26 @@ exports.handler = async function (event) {
   // 2) resolve each job's customer, dedup, send
   const sent = [], skipped = [];
   for (const jid of jobIds.slice(0, MAX_PER_RUN)) {
-    let cust = {}, applType = '';
-    try { const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json()); cust = (d && d.customer) || {}; applType = String((d && d.appliance) || (d && d.job && d.job.appliance_type) || '').trim(); } catch (_) {}
+    let cust = {}, applType = '', liveDone = false;
+    try {
+      const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json());
+      cust = (d && d.customer) || {};
+      // d.appliance is an OBJECT { type, brand, ... } — pull the type string
+      // (String(object) was rendering "[object Object]" in the customer text).
+      const ap = (d && d.appliance) || {};
+      applType = String((ap && ap.type) || (d && d.job && d.job.appliance_type) || '').trim();
+      // Re-check the job's LIVE status — the completion event may be stale
+      // (job later rescheduled/reopened, or a mis-tapped completion). Only ask
+      // "how'd we do?" if the job is ACTUALLY completed right now, so a merely
+      // scheduled customer never gets a post-service text. (Teddy 2026-07-04)
+      const jss = String((d && d.job && d.job.scheduling_status) || '').toLowerCase();
+      const jcs = String((d && d.job && d.job.current_status) || '').toLowerCase();
+      liveDone = (jss === 'completed' || jcs === 'completed');
+    } catch (_) {}
     const custId = Number(cust.id || 0);
     const phone = e164(cust.phone);
     if (!custId || !phone) { skipped.push({ job_id: jid, why: 'no customer/phone' }); continue; }
+    if (!liveDone) { skipped.push({ job_id: jid, customer: custId, why: 'not currently completed (scheduled/reopened) — no satisfaction text' }); continue; }
     if (await askedRecently(custId)) { skipped.push({ job_id: jid, customer: custId, why: 'asked < 60d' }); continue; }
     const first = cust.first_name || 'there';
     const appl = applType.toLowerCase();
