@@ -87,14 +87,21 @@ const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John',7:'Dusty'};
 let JOBS_IDX=null;
 async function loadJobs(){
   if(JOBS_IDX) return JOBS_IDX;
-  JOBS_IDX={};
+  JOBS_IDX={}; const byId={};
   try{
     const d=await fetch(XANO+'/get_office_kanban',{cache:'no-store'}).then(r=>r.json());
     const items=d.items||d.jobs||[];
     items.forEach(j=>{
+      byId[String(j.id)]=j;
       const c=String(j.claim_number||'').trim(); if(c) JOBS_IDX[c]=j;
       const ds=String(j.dispatch_source_id||'').trim(); if(ds) JOBS_IDX[ds]=j;
     });
+  }catch(e){}
+  // Merge harvested aliases (extra warranty numbers -> job_id) so more cards match.
+  try{
+    const a=await fetch(NF+'/warranty-aliases',{cache:'no-store'}).then(r=>r.json());
+    const map=(a&&a.map)||{};
+    Object.keys(map).forEach(num=>{ const j=byId[String(map[num])]; if(j && !JOBS_IDX[num]) JOBS_IDX[num]=j; });
   }catch(e){}
   return JOBS_IDX;
 }
