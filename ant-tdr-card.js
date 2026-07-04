@@ -238,10 +238,11 @@
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
     html += buildCustomerToldUs(d);
-    // ✨ ONE-SHOT fill (tech) — the simplest path: say/type everything you found
-    // in ONE box, Ant fills all the fields below. Flips the tech from author →
-    // editor (confirm a draft, don't type 5 boxes in a hot kitchen). (Teddy 7/4)
-    if (role === 'tech') html += buildOneShot(d);
+    // ✨ ONE-SHOT fill — the simplest path: say/type (tech) or paste the tech's
+    // notes (office) in ONE box, Ant fills all the fields below. Flips the tech
+    // from author → editor (confirm a draft, don't type 5 boxes in a hot
+    // kitchen); lets the office fill straight from texted-in notes. (Teddy 7/4)
+    if (role === 'tech' || role === 'office') html += buildOneShot(d);
     // Fields — inline-editable for tech + office (tap a field to edit it
     // right here; no jump to another page). Customer never reaches this loop.
     // NOTE: parts_needed is a JSON column that get_unified can't yet read back,
@@ -423,10 +424,18 @@
   // The one-box: dump everything you found (talk via the keyboard 🎤 or type),
   // Ant fills diagnosis / failed part / repair / labor below. One save, not five.
   function buildOneShot(d) {
+    var isOffice = (role === 'office');
+    var head = isOffice ? '✨ Fill the report from the tech\'s notes' : '✨ Fill the whole report at once';
+    var sub = isOffice
+      ? 'Paste what the tech texted or told you — what was wrong, the part, what they did, how long. Ant fills the fields below; you review and save.'
+      : 'Say or type everything you found — what was wrong, the part, what you did, how long. Ant fills the fields below. Tap the 🎤 on your keyboard to talk instead of type.';
+    var ph = isOffice
+      ? 'Paste the tech\'s notes here…'
+      : 'e.g. Ice maker wasn\'t making ice, replaced the icemaker assembly, about an hour, tested and it\'s working now';
     return '<div style="background:rgba(16,185,129,0.09);border:1px solid rgba(16,185,129,0.45);border-radius:12px;padding:13px 14px;margin-bottom:14px">'
-      + '<div style="font-size:13.5px;font-weight:800;color:#4ad991;margin-bottom:3px">✨ Fill the whole report at once</div>'
-      + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:9px;line-height:1.4">Say or type everything you found — what was wrong, the part, what you did, how long. Ant fills the fields below. Tap the 🎤 on your keyboard to talk instead of type.</div>'
-      + '<textarea id="ant-tdr-oneshot" rows="3" placeholder="e.g. Ice maker wasn\'t making ice, replaced the icemaker assembly, about an hour, tested and it\'s working now" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:11px 12px;font-size:16px;line-height:1.4;outline:none;resize:vertical"></textarea>'
+      + '<div style="font-size:13.5px;font-weight:800;color:#4ad991;margin-bottom:3px">' + head + '</div>'
+      + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:9px;line-height:1.4">' + sub + '</div>'
+      + '<textarea id="ant-tdr-oneshot" rows="3" placeholder="' + escapeHtml(ph) + '" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:11px 12px;font-size:16px;line-height:1.4;outline:none;resize:vertical"></textarea>'
       + '<button id="ant-tdr-oneshot-btn" onclick="window.__antTdrFillFromNotes()" style="width:100%;margin-top:9px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:800;cursor:pointer">✨ Fill the report</button>'
       + '<div id="ant-tdr-oneshot-msg" style="font-size:12px;color:#8fc0ff;margin-top:7px;min-height:14px"></div>'
       + '</div>';
@@ -456,11 +465,18 @@
     add('repair_completed', ex.repair_completed);
     if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
     if (!toWrite.length) { if (btn) { btn.disabled = false; btn.textContent = '✨ Fill the report'; } if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Those are already filled — check them below.'; } return; }
+    // Resolve the tech whose TDR this is: URL tech_id, else the loaded status,
+    // else the job's assigned tech (get_job) — so an office paste lands on the
+    // right report instead of creating a tech_id=0 phantom.
+    var writeTech = Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0;
+    if (!writeTech) {
+      try { var gj = await fetch(XANO + '/get_job?job_id=' + Number(jobId)).then(function (x) { return x.json(); }); writeTech = Number(gj && gj.technician_id) || 0; } catch (e) {}
+    }
     var ok = 0;
     for (var i = 0; i < toWrite.length; i++) {
       try {
         var body = { job_id: Number(jobId), field: toWrite[i].key, value: toWrite[i].value };
-        if (techId) body.technician_id = Number(techId);
+        if (writeTech) body.technician_id = writeTech;
         var wr = await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         var wd = await wr.json();
         if (wd && wd.success) ok++;
