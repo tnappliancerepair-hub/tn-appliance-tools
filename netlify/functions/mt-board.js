@@ -39,7 +39,7 @@ exports.handler = async function (event) {
       const sid = String(t.section_id);
       const col = bySection[sid];
       if (!col) continue;
-      col.cards.push({ id: t.id, title: clean(t.name).slice(0, 120), notes: clean(t.notes).slice(0, 160) });
+      col.cards.push({ id: t.id, title: clean(t.name).slice(0, 160), notes: clean(t.notes).slice(0, 520) });
     }
     const columns = sections.map((s) => bySection[String(s.id)]);
     return j(200, { ok: true, key, name: p.name, columns });

@@ -46,6 +46,7 @@
   .card:active{cursor:grabbing}
   .card.dragging{opacity:.45}
   .card.matched{border-left-width:4px}
+  .card .wo{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:800;color:#0f2f57;background:#e9f1fc;border:1px solid #cfe0f5;border-radius:6px;padding:3px 7px;display:inline-block;margin-bottom:7px;letter-spacing:.01em;word-break:break-all}
   .card .t{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3;white-space:pre-wrap;word-break:break-word}
   .card .sub{font-size:11.5px;color:var(--ink2);margin-top:4px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
   .card .row{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
@@ -143,6 +144,10 @@ async function fetchBoard(key){
     }catch(e){}
   }
   if(cols==null) return null; // still busy — don't cache, let Refresh retry
+  // Defensive: collapse any duplicate same-named columns into one.
+  const seenCol={}; const merged=[];
+  cols.forEach(c=>{ const k=c.name; if(seenCol[k]){ seenCol[k].cards=(seenCol[k].cards||[]).concat(c.cards||[]); } else { seenCol[k]=c; merged.push(c); } });
+  cols=merged;
   // The new Paid folder (not in MeisterTask yet) — a job lands here once paid.
   cols.push({name:'💰 PAID', sequence:99999, cards:[], paid:true});
   cols.forEach((c,ci)=>(c.cards||[]).forEach((cd,i)=>{
@@ -199,8 +204,12 @@ function tidyTitle(raw){
 }
 function cardHtml(cd,ac){
   const j=cd.job;
+  // Work-order / dispatch / claim numbers from the MeisterTask card (the office's
+  // actual WO #s). Shown in a dedicated area at the top of every tile.
+  const wos=(String(cd.title||'').match(/[A-Z]{2,4}\d{6,}|\d{6,}/g)||[]);
+  const woLine = wos.length? '<div class="wo">🧾 '+wos.slice(0,3).map(esc).join(' · ')+'</div>' : '';
   if(j){
-    // OUR rich tile — MeisterTask placed it, our record fills it.
+    // OUR tile — MeisterTask placed it, our record fills it.
     const nm=[j.customer_first,j.customer_last].filter(Boolean).join(' ').trim()||('Job #'+j.id);
     const appl=(cap(j.brand||'')+' '+cap(j.appliance||'')).trim();
     const sub=(appl+(j.problem_summary?(' — '+j.problem_summary):'')).trim();
@@ -211,16 +220,17 @@ function cardHtml(cd,ac){
     const etaTag= eta?'<span class="tag eta">ETA '+esc(eta)+'</span>':'';
     const who= tech?'<span class="who"><span class="dot" style="--c:'+ac+'">'+esc(tech.slice(0,2).toUpperCase())+'</span>'+esc(tech)+'</span>':'';
     return '<div class="card matched" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
+      +woLine
       +'<div class="t">'+esc(nm)+'</div>'
-      +(sub?'<div class="sub">'+esc(sub.slice(0,84))+'</div>':'')
+      +(sub?'<div class="sub">'+esc(sub.slice(0,90))+'</div>':'')
       +'<div class="row">'+tag+etaTag+who+'</div></div>';
   }
-  // Fallback — no match in our system: show the cleaned MeisterTask card.
+  // No match in our system yet — WO # area + cleaned customer name from MeisterTask.
   const t=tidyTitle(cd.title);
-  const sub=[t.claim?('#'+t.claim):'', cd.notes||''].filter(Boolean).join(' · ');
   return '<div class="card" draggable="true" data-id="'+esc(cd._id)+'" style="--c:'+ac+'">'
+    +woLine
     +'<div class="t">'+esc(t.title||('#'+cd.id))+'</div>'
-    +(sub?'<div class="sub">'+esc(sub)+'</div>':'')
+    +(cd.notes?'<div class="sub">'+esc(String(cd.notes).slice(0,130))+'</div>':'')
     +'</div>';
 }
 async function showBoard(key){
