@@ -46,12 +46,87 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 function tier(pct,stops){ if(!stops) return 'ok'; if(pct>=100) return 'ok'; if(pct>=50) return 'warn'; return 'bad'; }
 function barColor(t){ return t==='ok'?'#2fbd77':t==='warn'?'#e8a317':'#e0524a'; }
 
+// 🎯 The honest Part Showdown board — reads game-truth (reality-settled).
+function buildTruthBoard(g){
+  if(!g||!g.ok) return '';
+  const medal=i=>['🥇','🥈','🥉'][i]||('#'+(i+1));
+  const ant=g.ant||{};
+  const players=(g.players||[]);
+  const anyRounds=players.some(p=>p.rounds>0)||(g.rivalries||[]).length;
+  let html='<div style="margin-top:16px;margin-bottom:4px;font-size:13px;font-weight:800;color:#7db4ff;text-transform:uppercase;letter-spacing:.05em">🎯 Part Showdown · Danielle vs the crew vs Ant</div>';
+  // Ant climb line — the number the humans race + the moat getting smarter.
+  const antTxt = ant.accuracy_pct!=null
+    ? '🐜 Ant Brain: <span style="color:#7db4ff">'+ant.accuracy_pct+'%</span> first-guess'
+      +(ant.climbing?' <span style="color:#2fbd77;font-weight:800">↑ climbing</span>':'')
+      +' <span style="font-size:12px;color:var(--dim);font-weight:600">— beat it</span>'
+    : '🐜 Ant Brain: <span style="color:var(--dim)">learning — no graded rounds yet</span>';
+  html+='<div class="row" style="border-left-color:#4d8bff;padding:11px 14px"><div style="font-size:14px;font-weight:800">'+antTxt+'</div>'
+    +(ant.remembered?'<div style="font-size:12px;color:#9fe0bd;margin-top:4px;font-weight:700">🧠 remembers '+ant.remembered+' part'+(ant.remembered===1?'':'s')+' you taught it — it won\'t miss those again</div>':'')
+    +'</div>';
+  if(!anyRounds){
+    html+='<div class="row" style="border-left-color:#4d8bff"><div style="font-size:13px;color:var(--dim);font-weight:700">Clean slate — first part called this week is up for grabs. Ant guesses, Danielle calls it from the office, the tech settles it in the field.</div></div>';
+    return html;
+  }
+  // Leaderboard — sorted by LOCKED (reality-confirmed) points.
+  const ranked=players.filter(p=>p.rounds>0||p.total>0);
+  html+='<div class="row" style="border-left-color:#4d8bff">'
+    +ranked.map((t,i)=>{
+      const extras=[];
+      if(t.streak>=2) extras.push('<span style="color:#ffb454">🔥'+t.streak+'</span>');
+      if(t.role==='office'&&t.correct) extras.push('🎯 '+t.correct);
+      else if(t.beats) extras.push('beat Ant '+t.beats+'×');
+      if(t.pioneers) extras.push('🧭 '+t.pioneers+' taught');
+      if(t.busted) extras.push('<span style="color:#ff8a82">⚠'+t.busted+'</span>');
+      const pend=t.pending?' <span style="font-size:11px;color:var(--dim);font-weight:700">+'+t.pending+' pending</span>':'';
+      return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span style="font-size:16px;width:26px">'+medal(i)+'</span>'
+        +'<span style="flex:1;font-weight:700">'+esc(t.name)+(t.role==='office'?' <span style="font-size:10px;color:#7db4ff">🧑‍💼 office</span>':'')+'</span>'
+        +(extras.length?'<span style="font-size:11px;color:#ffb454;font-weight:700;margin-right:8px">'+extras.join(' · ')+'</span>':'')
+        +'<span style="font-weight:900;font-variant-numeric:tabular-nums">'+t.locked+' pts'+pend+'</span></div>';
+    }).join('')
+    +'</div>';
+  // Rivalries — Danielle vs each tech, head-to-head on the same part.
+  const rv=(g.rivalries||[]).filter(r=>r.agreed+r.disputes>0);
+  if(rv.length){
+    html+='<div style="margin-top:12px;margin-bottom:4px;font-size:12px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">🥊 Danielle vs the crew — the part</div>'
+      +'<div class="row" style="border-left-color:#e8a317">'
+      +rv.map(r=>{
+        const rec=r.disputes?(' → '+(r.tech_wins>=r.dani_wins?esc(r.name)+' '+r.tech_wins+'-'+r.dani_wins:'Danielle '+r.dani_wins+'-'+r.tech_wins)):'';
+        return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span style="flex:1;font-weight:700">Danielle vs '+esc(r.name)+'</span>'
+          +'<span style="font-size:12px;color:var(--dim);font-weight:700">agreed '+r.agreed+' · '+r.disputes+' dispute'+(r.disputes===1?'':'s')+'<span style="color:#ffb454">'+rec+'</span></span></div>';
+      }).join('')
+      +'</div>';
+  }
+  // The ones that fooled us — misses + busts, real part revealed.
+  const f=(g.fooled_us||[]);
+  if(f.length){
+    html+='<div style="margin-top:12px;margin-bottom:4px;font-size:12px;font-weight:800;color:#ff8a82;text-transform:uppercase;letter-spacing:.05em">🕳️ The ones that fooled us</div>'
+      +'<div class="row" style="border-left-color:#e0524a">'
+      +f.slice(0,6).map(x=>{
+        const tag=x.status==='busted'?'⤴ callback':(x.who==='ant'?'🐜 whiffed':'');
+        const real=x.real_part?('real: <span style="font-family:monospace;color:#fff">'+esc(x.real_part)+'</span>'):'';
+        const guess=x.ant_part?('Ant said '+esc(x.ant_part)):'';
+        return '<div style="padding:7px 0;border-top:1px solid var(--line);font-size:12.5px"><b>#'+x.job_id+'</b>'+(x.customer?' · '+esc(String(x.customer).split(' ')[0]):'')+' <span style="color:#ff8a82;font-weight:700">'+tag+'</span><div style="color:var(--dim);margin-top:2px">'+[guess,real].filter(Boolean).join(' · ')+'</div></div>';
+      }).join('')
+      +'</div>';
+  }
+  // Integrity — the game policing itself.
+  const it=g.integrity||{};
+  if(it.rubber_stamps||it.ungraded_danielle||it.busted){
+    const bits=[];
+    if(it.rubber_stamps) bits.push(it.rubber_stamps+' rubber-stamp'+(it.rubber_stamps===1?'':'s')+' caught');
+    if(it.busted) bits.push(it.busted+' bounced');
+    if(it.ungraded_danielle) bits.push(it.ungraded_danielle+' of Danielle\'s calls ungraded');
+    html+='<div class="row" style="border-left-color:#8a93aa;padding:10px 14px"><div style="font-size:12px;color:var(--dim);font-weight:700">🕵️ Integrity: '+bits.join(' · ')+'</div></div>';
+  }
+  return html;
+}
+
 async function load(){
   let d, game=null;
   try{
     [d,game]=await Promise.all([
       fetch('/.netlify/functions/tdr-compliance?scope=today',{cache:'no-store'}).then(r=>r.json()),
-      fetch('/.netlify/functions/ant-brain-game?scope=week',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+      fetch('/.netlify/functions/game-truth?scope=week',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
     ]);
   }
   catch(_){ document.getElementById('list').innerHTML='<div class="empty">Could not load — try again.</div>'; return; }
@@ -88,24 +163,9 @@ async function load(){
       +lb('Most reports completed',byCount,t=>t.completions)
       +lb('Best completion rate',byRate,t=>t.pct+'%');
   }
-  // 🐜 Beat the Machine — Tech vs Ant points + Ant's first-guess accuracy.
-  let gameBoard='';
-  if(game&&game.ok&&(game.techs||[]).some(t=>t.rounds>0)){
-    const gt=(game.techs||[]).filter(t=>t.rounds>0);
-    const ant=game.ant||{};
-    const antLine=(ant.accuracy_pct!=null)
-      ? '<div class="row" style="border-left-color:#4d8bff;padding:10px 14px"><div style="font-size:14px;font-weight:800">🐜 Ant Brain: <span style="color:#7db4ff">'+ant.accuracy_pct+'%</span> first-guess this week <span style="font-size:12px;color:var(--dim);font-weight:600">('+ant.hits+'/'+ant.guesses+') — beat it</span></div></div>'
-      : '';
-    const medal=i=>['🥇','🥈','🥉'][i]||('#'+(i+1));
-    const sub=t=>{ if(t.role==='office') return t.correct?('🎯 found '+t.correct+' part'+(t.correct===1?'':'s')+(t.beat_tech?' · beat the tech '+t.beat_tech+'×':'')):''; return t.beats?('beat Ant '+t.beats+'×'):''; };
-    gameBoard='<div style="margin-top:14px;margin-bottom:4px;font-size:13px;font-weight:800;color:#7db4ff;text-transform:uppercase;letter-spacing:.05em">🎯 Part Showdown · Danielle vs the crew vs Ant · this week</div>'
-      +antLine
-      +'<div class="row" style="border-left-color:#4d8bff">'
-      +gt.map((t,i)=>{const s=sub(t);return '<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span style="font-size:16px;width:26px">'+medal(i)+'</span><span style="flex:1;font-weight:700">'+esc(t.name)+(t.role==='office'?' <span style="font-size:10px;color:#7db4ff">🧑‍💼 office</span>':'')+'</span>'
-        +(s?'<span style="font-size:11px;color:#ffb454;font-weight:700;margin-right:8px">'+s+'</span>':'')
-        +'<span style="font-weight:900;font-variant-numeric:tabular-nums">'+t.points+' pts</span></div>';}).join('')
-      +'</div>';
-  }
+  // 🎯 Part Showdown — the HONEST board (game-truth): reality-settled points,
+  // Ant's climbing accuracy, rivalries, the ones that fooled us, integrity.
+  const gameBoard = buildTruthBoard(game);
   document.getElementById('list').innerHTML=team+rows+boards+gameBoard
     +'<div class="foot">The TDR is the claim — we can\'t bill the warranty company until it\'s filed, and nobody gets paid until we do. Tap an open job to work it.<br><a class="back" href="office-board.html">← Board</a></div>';
 }
