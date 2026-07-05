@@ -30,51 +30,75 @@ function ctMondayMs() {
   return Date.UTC(y, mo - 1, d - back, 5, 0, 0); // ~CT Monday 00:00
 }
 
-async function verdictRows() {
+async function rowsFor(action) {
   const out = [];
   try {
     for (let p = 1; p <= 4; p++) {
-      const r = await fetch(`${META}/table/${EVENT}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action: 'ant_brain_verdict' }, sort: { created_at: 'desc' }, per_page: 500, page: p }), signal: AbortSignal.timeout(15000) });
+      const r = await fetch(`${META}/table/${EVENT}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action }, sort: { created_at: 'desc' }, per_page: 500, page: p }), signal: AbortSignal.timeout(15000) });
       if (!r.ok) break; const rows = ((await r.json()).items) || []; out.push(...rows); if (rows.length < 500) break;
     }
   } catch (_) {}
   return out;
 }
+// Normalize a part number to its comparable key (leading token, alphanumeric).
+function partKey(p) { const first = String(p || '').trim().split(/[\s(—\-]/)[0]; return first.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const q = event.queryStringParameters || {};
   const cutoff = String(q.scope || '') === 'all' ? 0 : ctMondayMs();
 
-  let rows = [];
-  try { rows = await verdictRows(); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  let verdicts = [], dcalls = [];
+  try { [verdicts, dcalls] = await Promise.all([rowsFor('ant_brain_verdict'), rowsFor('danielle_part_call')]); }
+  catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
-  const per = {}; // tech_id -> {confirms,beats,taught,points,rounds}
-  let antGuesses = 0, antHits = 0;
-  for (const r of rows) {
-    const m = metaOf(r);
-    const at = ms(m.at_ms) || ms(r.created_at);
+  // TRUTH per job = the tech's confirmed part (earliest resolving verdict).
+  const truthByJob = {};
+  for (const r of verdicts) { const m = metaOf(r); const jid = Number(m.job_id || 0); if (!jid) continue; const k = partKey(m.part); if (!k) continue; const at = ms(m.at_ms) || ms(r.created_at); if (!truthByJob[jid] || at < truthByJob[jid].at) truthByJob[jid] = { key: k, at }; }
+
+  // ── techs (from verdicts, windowed) ──
+  const per = {}; let antGuesses = 0, antHits = 0;
+  for (const r of verdicts) {
+    const m = metaOf(r); const at = ms(m.at_ms) || ms(r.created_at);
     if (cutoff && at && at < cutoff) continue;
     const tid = Number(m.technician_id || 0); if (!tid) continue;
     const t = per[tid] || (per[tid] = { confirms: 0, beats: 0, taught: 0, points: 0, rounds: 0 });
     t.rounds++;
     const hadGuess = String(m.ant_part || '').trim() !== '';
     if (m.verdict === 'confirmed') { t.confirms++; t.points += PTS.confirm; if (hadGuess) { antGuesses++; antHits++; } }
-    else if (m.verdict === 'overridden' && hadGuess) { t.beats++; t.points += PTS.beat; antGuesses++; } // Ant missed
-    else { t.taught++; t.points += PTS.taught; } // Ant had no guess — tech taught it
+    else if (m.verdict === 'overridden' && hadGuess) { t.beats++; t.points += PTS.beat; antGuesses++; }
+    else { t.taught++; t.points += PTS.taught; }
   }
   const antAccuracy = antGuesses ? Math.round((antHits / antGuesses) * 100) : null;
 
-  // ── per-tech line ──
-  const tid = parseInt(q.tech_id, 10) || 0;
-  if (tid) {
-    const board = KEEP.map((id) => ({ id, points: (per[id] || {}).points || 0 })).sort((a, b) => b.points - a.points);
-    let rank = 1; for (let i = 0; i < board.length; i++) { if (i > 0 && board[i].points < board[i - 1].points) rank = i + 1; if (board[i].id === tid) break; }
-    const t = per[tid] || { confirms: 0, beats: 0, taught: 0, points: 0, rounds: 0 };
-    return j(200, { ok: true, tech_id: tid, points: t.points, beats: t.beats, confirms: t.confirms, taught: t.taught, rounds: t.rounds, rank, rank_total: board.length, ant_accuracy_pct: antAccuracy });
+  // ── Danielle (from her calls, windowed) — graded vs the truth ──
+  const dani = { correct: 0, calls: 0, beat_tech: 0, points: 0, rounds: 0 };
+  const dseen = new Set();
+  for (const r of dcalls) {
+    const m = metaOf(r); const at = ms(m.at_ms) || ms(r.created_at);
+    if (cutoff && at && at < cutoff) continue;
+    const jid = Number(m.job_id || 0); if (!jid || dseen.has(jid)) continue; dseen.add(jid); // latest call per job
+    dani.calls++; dani.rounds++;
+    const truth = truthByJob[jid]; if (!truth) continue; // round not resolved yet
+    if (partKey(m.part) === truth.key) { dani.correct++; dani.points += 3; if (at < truth.at) { dani.beat_tech++; dani.points += 2; } }
   }
 
-  // ── leaderboard ──
-  const techs = KEEP.map((id) => { const t = per[id] || { confirms: 0, beats: 0, taught: 0, points: 0, rounds: 0 }; return { tech_id: id, name: TECH_NAMES[id] || ('Tech ' + id), points: t.points, beats: t.beats, confirms: t.confirms, taught: t.taught, rounds: t.rounds }; }).sort((a, b) => b.points - a.points || b.beats - a.beats);
-  return j(200, { ok: true, scope: cutoff ? 'week' : 'all', ant: { accuracy_pct: antAccuracy, guesses: antGuesses, hits: antHits }, techs });
+  // Combined leaderboard: Danielle + the field, one board.
+  const players = KEEP.map((id) => { const t = per[id] || { confirms: 0, beats: 0, taught: 0, points: 0, rounds: 0 }; return { id: String(id), name: TECH_NAMES[id] || ('Tech ' + id), role: 'tech', points: t.points, beats: t.beats, confirms: t.confirms, rounds: t.rounds }; });
+  players.push({ id: 'danielle', name: 'Danielle', role: 'office', points: dani.points, correct: dani.correct, beat_tech: dani.beat_tech, rounds: dani.rounds });
+  players.sort((a, b) => b.points - a.points || (b.beats || b.correct || 0) - (a.beats || a.correct || 0));
+
+  function rankOf(pid) { let rank = 1; for (let i = 0; i < players.length; i++) { if (i > 0 && players[i].points < players[i - 1].points) rank = i + 1; if (players[i].id === String(pid)) return rank; } return players.length; }
+
+  // ── per-player line ──
+  if (String(q.player || '') === 'danielle') {
+    return j(200, { ok: true, player: 'danielle', points: dani.points, correct: dani.correct, beat_tech: dani.beat_tech, calls: dani.calls, rounds: dani.rounds, rank: rankOf('danielle'), rank_total: players.length, ant_accuracy_pct: antAccuracy });
+  }
+  const tid = parseInt(q.tech_id, 10) || 0;
+  if (tid) {
+    const t = per[tid] || { confirms: 0, beats: 0, taught: 0, points: 0, rounds: 0 };
+    return j(200, { ok: true, tech_id: tid, points: t.points, beats: t.beats, confirms: t.confirms, taught: t.taught, rounds: t.rounds, rank: rankOf(tid), rank_total: players.length, ant_accuracy_pct: antAccuracy });
+  }
+
+  return j(200, { ok: true, scope: cutoff ? 'week' : 'all', ant: { accuracy_pct: antAccuracy, guesses: antGuesses, hits: antHits }, techs: players });
 };

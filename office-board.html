@@ -1212,6 +1212,17 @@ function renderDrawer(d){
       </div>
     </div>
 
+    <div class="dcard" id="showdown-card" style="border:1px solid #bcd3ff;background:#f2f7ff">
+      <h4 style="color:#2a6fd6">🎯 Part Showdown <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">— beat the tech &amp; Ant to the part</span></h4>
+      <div id="showdown-ant" style="font-size:12.5px;color:var(--ink2);margin-bottom:8px">🐜 Ant's checking the part…</div>
+      <div style="display:flex;gap:8px">
+        <input id="showdown-part" placeholder="Your part # call" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <button onclick="callPart(${jid})" style="padding:10px 16px;border-radius:9px;background:#4d8bff;color:#fff;border:0;font-weight:800;cursor:pointer;white-space:nowrap">🎯 Lock it</button>
+      </div>
+      <div id="showdown-msg" style="font-size:12px;margin-top:6px;min-height:14px"></div>
+      <div style="font-size:11px;color:var(--dim);margin-top:6px">Truth = the part the tech confirms fixed it. Call it right (and before him) to score. <a href="tdr-scoreboard.html" style="color:#2a6fd6;font-weight:700">Standings →</a></div>
+    </div>
+
     <div class="dcard">
       <h4>📦 Parts — order &amp; ETA</h4>
       <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Order the part + set its ETA. Marks the job <b>awaiting parts</b> so it won't get scheduled until it's in. Cost/charge are optional (feeds margin).</div>
@@ -1388,6 +1399,7 @@ function renderDrawer(d){
   loadOfficeNoteStatus(jid);
   loadPartsLocation(jid);
   loadPayStatus(jid);
+  loadShowdown(jid);
   // Auto-extract: if the tech dumped findings into Tech notes but the diagnosis
   // is still blank, pull it into the structured fields once (no re-typing).
   try{ const _n=(document.getElementById('td-notes')||{}).value||''; const _dg=(document.getElementById('td-diag')||{}).value||'';
@@ -1601,6 +1613,28 @@ async function fillTdrFromNotes(jid,opts){
     if(filled&&!opts.silent) toast('✨ Pulled '+filled+' field'+(filled>1?'s':'')+' from the notes — review & Save');
     else if(!filled&&!opts.silent) toast('Nothing new to pull from the notes');
   }catch(_){ if(!opts.silent) toast('⚠ could not read the notes'); }
+}
+// 🎯 Part Showdown — Danielle vs the tech vs Ant (Teddy 7/5). Show Ant's guess so
+// she's racing it, and let her lock her own call. Truth = the tech's confirmed part.
+async function loadShowdown(jid){
+  const el=document.getElementById('showdown-ant'); if(!el) return;
+  try{
+    const d=await fetch('/.netlify/functions/ant-brain-predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10)})}).then(r=>r.json());
+    const top=(d&&d.predictions&&d.predictions[0])||null;
+    if(top&&top.part_display) el.innerHTML='🐜 Ant\'s call: <b>'+esc(top.part_display)+'</b> <span style="color:var(--dim)">('+(top.component||'')+' · '+(top.confidence||0)+'% sure) — beat it</span>';
+    else el.innerHTML='🐜 Ant has no call on this machine yet — <b>you name it, you\'re teaching it.</b>';
+  }catch(_){ el.textContent='🐜 (couldn\'t load Ant\'s call — call the part anyway)'; }
+}
+async function callPart(jid){
+  const inp=document.getElementById('showdown-part'), msg=document.getElementById('showdown-msg');
+  const part=inp?inp.value.trim():'';
+  if(!part){ if(msg){msg.style.color='#c0392b';msg.textContent='Type the part # you\'re calling first.';} return; }
+  if(msg){msg.style.color='var(--ink2)';msg.textContent='Locking your call…';}
+  try{
+    const d=await fetch('/.netlify/functions/danielle-call-part',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),part:part,by:'Danielle'})}).then(r=>r.json());
+    if(d&&d.ok){ if(msg){msg.style.color='#127a4a';msg.textContent='🎯 Locked in — the race is on. You score if the tech confirms this one.';} }
+    else if(msg){ msg.style.color='#c0392b'; msg.textContent='⚠ '+((d&&d.error)||'try again'); }
+  }catch(_){ if(msg){msg.style.color='#c0392b';msg.textContent='⚠ connection error';} }
 }
 async function orderParts(id){
   const pn=((document.getElementById('pt-num')||{}).value||'').trim();
