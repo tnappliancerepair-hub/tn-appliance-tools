@@ -1466,13 +1466,19 @@
   var ANT_GAME = null;
   async function renderAntGame() {
     var host = document.getElementById('antGameCard'); if (!host || !TECH_ID) return;
-    if (ANT_GAME === null) { try { ANT_GAME = await fetch('/.netlify/functions/ant-brain-game?tech_id=' + encodeURIComponent(TECH_ID), { cache: 'no-store' }).then(function (r) { return r.json(); }); } catch (_) { ANT_GAME = { ok: false }; } }
-    var g = ANT_GAME; if (!g || !g.ok || !g.rounds) { host.innerHTML = ''; return; }
+    if (ANT_GAME === null) { try { ANT_GAME = await fetch('/.netlify/functions/game-truth?tech_id=' + encodeURIComponent(TECH_ID), { cache: 'no-store' }).then(function (r) { return r.json(); }); } catch (_) { ANT_GAME = { ok: false }; } }
+    var g = ANT_GAME; var p = g && g.player; if (!g || !g.ok || !p || !p.rounds) { host.innerHTML = ''; return; }
     var ord = function (n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
-    var line2 = (g.beats ? ('🏆 beat Ant ' + g.beats + '× · ') : '') + (g.ant_accuracy_pct != null ? ("Ant's at " + g.ant_accuracy_pct + '% this week — beat it') : 'confirm or beat Ant on each job');
+    var ant = g.ant || {}, rv = g.rivalry_vs_danielle || {};
+    var bits = [];
+    if (p.streak >= 2) bits.push('🔥 ' + p.streak + ' streak');
+    if (p.beats) bits.push('beat Ant ' + p.beats + '×');
+    if (rv.disputes) bits.push('vs Danielle ' + (rv.tech_wins >= rv.dani_wins ? (rv.tech_wins + '-' + rv.dani_wins) : ('down ' + rv.dani_wins + '-' + rv.tech_wins)));
+    if (!bits.length) bits.push(ant.accuracy_pct != null ? ("Ant's at " + ant.accuracy_pct + '% — beat it') : 'confirm or beat Ant on each job');
+    var pend = p.pending ? ' <span style="opacity:.7">+' + p.pending + ' pending</span>' : '';
     host.innerHTML = '<a href="tdr-scoreboard.html" style="display:block;text-decoration:none;background:rgba(77,139,255,0.10);border:1px solid rgba(77,139,255,0.4);border-radius:12px;padding:11px 14px;margin-bottom:12px">'
-      + '<div style="font-size:12.5px;font-weight:800;color:#7db4ff">🐜 You vs Ant — ' + ord(g.rank) + ' of ' + g.rank_total + ' · ' + g.points + ' pts</div>'
-      + '<div style="font-size:11.5px;color:#9fb2cc;margin-top:2px">' + line2 + '</div></a>';
+      + '<div style="font-size:12.5px;font-weight:800;color:#7db4ff">🐜 You vs Ant — ' + ord(g.rank) + ' of ' + g.rank_total + ' · ' + p.locked + ' pts' + pend + '</div>'
+      + '<div style="font-size:11.5px;color:#9fb2cc;margin-top:2px">' + bits.join(' · ') + '</div></a>';
   }
 
   // Office notes across the tech's day, fetched once, shown TWO ways (Teddy 7/3):
@@ -1880,7 +1886,7 @@
       }) }).then(x => x.json());
       if (r && r.ok) {
         renderShowdown(jid, { part: r.part, verdict: r.verdict, beat_ant: r.beat_ant });
-        try { if (typeof renderAntGame === 'function') renderAntGame(); } catch (_) {}
+        try { ANT_GAME = null; if (typeof renderAntGame === 'function') renderAntGame(); } catch (_) {}
       } else { if (host) host.querySelectorAll('button').forEach(b => b.disabled = false); if (msg) msg.textContent = '⚠ try again'; }
     } catch (_) { if (host) host.querySelectorAll('button').forEach(b => b.disabled = false); if (msg) msg.textContent = '⚠ connection'; }
   }

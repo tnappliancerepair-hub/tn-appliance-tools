@@ -165,9 +165,10 @@ exports.handler = async function (event) {
   const ant = { accuracy_pct: antAccuracy, hits: antHits, misses: antMisses, remembered, climbing: antAccuracy != null && antAccuracy >= 50 };
 
   // per-player detail
-  if (String(q.player || '') === 'danielle') { const p = players.find((x) => x.id === 'danielle'); return j(200, { ok: true, player: p, ant }); }
+  function rankOf(pid) { let rank = 1; for (let i = 0; i < players.length; i++) { if (i > 0 && players[i].locked < players[i - 1].locked) rank = i + 1; if (players[i].id === String(pid)) return rank; } return players.length; }
+  if (String(q.player || '') === 'danielle') { const p = players.find((x) => x.id === 'danielle'); return j(200, { ok: true, player: p, ant, rank: rankOf('danielle'), rank_total: players.length }); }
   const tid = parseInt(q.tech_id, 10) || 0;
-  if (tid) { const p = players.find((x) => x.id === String(tid)); const rv = rivalry[tid] || { agreed: 0, disputes: 0, dani_wins: 0, tech_wins: 0 }; return j(200, { ok: true, player: p, ant, rivalry_vs_danielle: rv }); }
+  if (tid) { const p = players.find((x) => x.id === String(tid)); const rv = rivalry[tid] || { agreed: 0, disputes: 0, dani_wins: 0, tech_wins: 0 }; return j(200, { ok: true, player: p, ant, rivalry_vs_danielle: rv, rank: rankOf(tid), rank_total: players.length }); }
 
   const rivalries = Object.entries(rivalry).filter(([, v]) => v.agreed + v.disputes > 0).map(([tid, v]) => ({ tech_id: tid, name: TECH_NAMES[tid] || ('Tech ' + tid), ...v })).sort((a, b) => (b.agreed + b.disputes) - (a.agreed + a.disputes));
 
