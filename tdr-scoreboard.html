@@ -47,8 +47,13 @@ function tier(pct,stops){ if(!stops) return 'ok'; if(pct>=100) return 'ok'; if(p
 function barColor(t){ return t==='ok'?'#2fbd77':t==='warn'?'#e8a317':'#e0524a'; }
 
 async function load(){
-  let d;
-  try{ d=await fetch('/.netlify/functions/tdr-compliance?scope=today',{cache:'no-store'}).then(r=>r.json()); }
+  let d, game=null;
+  try{
+    [d,game]=await Promise.all([
+      fetch('/.netlify/functions/tdr-compliance?scope=today',{cache:'no-store'}).then(r=>r.json()),
+      fetch('/.netlify/functions/ant-brain-game?scope=week',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+    ]);
+  }
   catch(_){ document.getElementById('list').innerHTML='<div class="empty">Could not load — try again.</div>'; return; }
   if(!d||!d.ok){ document.getElementById('list').innerHTML='<div class="empty">Could not load — try again.</div>'; return; }
   const techs=(d.techs||[]).filter(t=>t.stops>0);
@@ -83,7 +88,24 @@ async function load(){
       +lb('Most reports completed',byCount,t=>t.completions)
       +lb('Best completion rate',byRate,t=>t.pct+'%');
   }
-  document.getElementById('list').innerHTML=team+rows+boards
+  // 🐜 Beat the Machine — Tech vs Ant points + Ant's first-guess accuracy.
+  let gameBoard='';
+  if(game&&game.ok&&(game.techs||[]).some(t=>t.rounds>0)){
+    const gt=(game.techs||[]).filter(t=>t.rounds>0);
+    const ant=game.ant||{};
+    const antLine=(ant.accuracy_pct!=null)
+      ? '<div class="row" style="border-left-color:#4d8bff;padding:10px 14px"><div style="font-size:14px;font-weight:800">🐜 Ant Brain: <span style="color:#7db4ff">'+ant.accuracy_pct+'%</span> first-guess this week <span style="font-size:12px;color:var(--dim);font-weight:600">('+ant.hits+'/'+ant.guesses+') — beat it</span></div></div>'
+      : '';
+    const medal=i=>['🥇','🥈','🥉'][i]||('#'+(i+1));
+    gameBoard='<div style="margin-top:14px;margin-bottom:4px;font-size:13px;font-weight:800;color:#7db4ff;text-transform:uppercase;letter-spacing:.05em">🐜 Beat the Machine · this week</div>'
+      +antLine
+      +'<div class="row" style="border-left-color:#4d8bff">'
+      +gt.map((t,i)=>'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span style="font-size:16px;width:26px">'+medal(i)+'</span><span style="flex:1;font-weight:700">'+esc(t.name)+'</span>'
+        +(t.beats?'<span style="font-size:11px;color:#ffb454;font-weight:700;margin-right:8px">beat Ant '+t.beats+'×</span>':'')
+        +'<span style="font-weight:900;font-variant-numeric:tabular-nums">'+t.points+' pts</span></div>').join('')
+      +'</div>';
+  }
+  document.getElementById('list').innerHTML=team+rows+boards+gameBoard
     +'<div class="foot">The TDR is the claim — we can\'t bill the warranty company until it\'s filed, and nobody gets paid until we do. Tap an open job to work it.<br><a class="back" href="office-board.html">← Board</a></div>';
 }
 load();
