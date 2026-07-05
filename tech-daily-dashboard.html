@@ -605,6 +605,21 @@
   .lc-ok { background:rgba(0,214,143,0.15); color:var(--green); border-color:rgba(0,214,143,0.4); }
   .lc-done { flex:1; text-align:center; padding:13px; color:var(--muted); font-size:13px; font-weight:700; font-family:var(--mono); }
 
+  /* ── Finish + file the report right on the tile (Teddy 7/5: close the loop
+        where he stands, no page jump). "Your report = your pay." ── */
+  .lc-report { background:var(--orange); color:#231400; border-color:var(--orange); }
+  .lc-expand { flex:0 0 auto; }
+  .tile-report { margin-top:10px; border:1px solid rgba(245,166,35,0.45); background:rgba(245,166,35,0.06); border-radius:11px; padding:12px; }
+  .tile-report .pay { font-size:11.5px; font-weight:800; color:#f5a623; font-family:var(--mono); letter-spacing:0.04em; margin-bottom:8px; text-transform:uppercase; }
+  .tile-report textarea { width:100%; box-sizing:border-box; min-height:74px; resize:vertical; background:var(--bg); border:1px solid var(--border); border-radius:9px; color:var(--text); font-size:16px; font-family:inherit; padding:10px; line-height:1.4; }
+  .tile-report .rr { display:flex; gap:8px; margin-top:9px; }
+  .tile-report .mic { flex:0 0 auto; padding:11px 14px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:15px; font-weight:800; cursor:pointer; }
+  .tile-report .mic.rec { background:rgba(255,107,107,0.16); border-color:rgba(255,107,107,0.5); color:#ff8a82; }
+  .tile-report .done { flex:1; padding:12px; border-radius:9px; border:1px solid var(--green); background:var(--green); color:#082018; font-size:13px; font-weight:800; cursor:pointer; font-family:var(--mono); text-transform:uppercase; letter-spacing:0.03em; }
+  .tile-report .parts { flex:1; padding:12px; border-radius:9px; border:1px solid rgba(116,160,255,0.5); background:var(--bg); color:#8ab4ff; font-size:12.5px; font-weight:800; cursor:pointer; font-family:var(--mono); text-transform:uppercase; }
+  .tile-report .rmsg { font-size:12px; margin-top:8px; min-height:15px; color:var(--muted); }
+  .tile-report .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.35; }
+
   /* ── Empty / loading / error ──────────────────────────────────── */
   .empty {
     padding: 48px 24px;
@@ -1620,6 +1635,125 @@
     } catch (_) { btn.textContent = '⚠ tap to retry'; btn.disabled = false; }
   };
 
+  // ── Finish + file the report right on the tile (Teddy 7/5). Opens an inline
+  // report drawer in the card; saves the TDR (voice or type) and completes the
+  // job without leaving the day. mode: 'repair_complete' (in-progress) | 'filed'
+  // (already completed, just owe the report).
+  window.tfin = function (btn, jobId, mode) {
+    const host = document.getElementById('trh-' + jobId);
+    if (!host) return;
+    if (host.dataset.open === '1') { host.innerHTML = ''; host.dataset.open = ''; return; }
+    const isFiled = mode === 'filed';
+    const buttons = isFiled
+      ? '<button class="done" onclick="event.stopPropagation();treport(this,' + jobId + ',\'\')">✓ Save my report</button>'
+      : '<button class="done" onclick="event.stopPropagation();treport(this,' + jobId + ',\'repair_complete\')">✓ Fixed it — Done</button>'
+        + '<button class="parts" onclick="event.stopPropagation();treport(this,' + jobId + ',\'parts_needed\')">🔩 Parts needed</button>';
+    host.innerHTML =
+      '<div class="tile-report">'
+        + '<div class="pay">📋 Your report = your pay</div>'
+        + '<textarea id="trta-' + jobId + '" placeholder="What was wrong, the part you used, what you did — talk or type. Tap the 🎤 on your keyboard to speak."></textarea>'
+        + '<div class="rr">'
+          + '<button class="mic" onclick="event.stopPropagation();trec(this,' + jobId + ')">🎤</button>'
+          + buttons
+        + '</div>'
+        + '<div class="rmsg" id="trm-' + jobId + '"></div>'
+        + (isFiled ? '' : '<div class="hint">Everything except the part number — that\'s all Ant needs to bill it and pay you.</div>')
+      + '</div>';
+    host.dataset.open = '1';
+    const ta = document.getElementById('trta-' + jobId);
+    if (ta) { try { ta.focus(); } catch (_) {} ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  };
+
+  // In-app voice: record -> whisper -> drop the transcript into the textarea.
+  const _trRec = {};
+  window.trec = async function (btn, jobId) {
+    const ta = document.getElementById('trta-' + jobId);
+    const msg = document.getElementById('trm-' + jobId);
+    const active = _trRec[jobId];
+    if (active && active.state === 'recording') { try { active.stop(); } catch (_) {} return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { if (msg) msg.textContent = 'Mic blocked — just type it, or use your keyboard 🎤.'; return; }
+    let mime = '';
+    try { const cs = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2','audio/aac','audio/mpeg']; for (const c of cs) { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) { mime = c; break; } } } catch (_) {}
+    let mr;
+    try { mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+    catch (_) { try { mr = new MediaRecorder(stream); } catch (__) { if (msg) msg.textContent = 'Recording not supported — type it.'; stream.getTracks().forEach(t => t.stop()); return; } }
+    _trRec[jobId] = mr;
+    const chunks = [];
+    mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = async function () {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('rec'); btn.textContent = '🎤';
+      const type = (chunks[0] && chunks[0].type) || mime || 'audio/webm';
+      const blob = new Blob(chunks, { type });
+      const ext = /mp4|aac|m4a|mpeg|mp3/i.test(type) ? 'm4a' : 'webm';
+      if (msg) msg.textContent = 'Ant is listening…';
+      try {
+        const fd = new FormData(); fd.append('audio', blob, 'report.' + ext);
+        const r = await fetch('/.netlify/functions/whisper-transcribe', { method: 'POST', body: fd });
+        const jd = await r.json();
+        const text = ((jd && jd.text) || '').trim();
+        if (text && ta) ta.value = (ta.value ? ta.value.trim() + ' ' : '') + text;
+        if (msg) msg.textContent = text ? '✓ Got it — check it, then tap Done.' : 'Didn\'t catch that — try again or type it.';
+      } catch (_) { if (msg) msg.textContent = 'Couldn\'t hear it — type it.'; }
+    };
+    try { mr.start(); btn.classList.add('rec'); btn.textContent = '⏹'; if (msg) msg.textContent = 'Recording… tap ⏹ when done.'; } catch (_) {}
+  };
+
+  // Save the report (extract -> update_tdr_field_from_voice, side-effect-free) and,
+  // for a completion, fire Start (if needed) + tech_job_complete.
+  // ct: 'repair_complete' | 'parts_needed' | '' (file-only, job already done).
+  window.treport = async function (btn, jobId, ct) {
+    const tid = parseInt(localStorage.getItem('tn_tech_id') || '0', 10);
+    const ta = document.getElementById('trta-' + jobId);
+    const msg = document.getElementById('trm-' + jobId);
+    const host = document.getElementById('trh-' + jobId);
+    const text = (ta ? ta.value : '').trim();
+    if (!tid) { if (msg) msg.textContent = 'Missing tech id — reopen from your Ant link.'; return; }
+    if (ct === 'repair_complete' && text.length < 8) {
+      if (msg) { msg.style.color = '#ff8a82'; msg.textContent = 'Add what you found + the part first — that\'s your pay.'; }
+      if (ta) ta.focus(); return;
+    }
+    if (host) host.querySelectorAll('button').forEach(b => b.disabled = true);
+    if (msg) { msg.style.color = ''; msg.textContent = 'Filing your report…'; }
+    // 1) save the report onto the TDR — upsert by job+tech, emits NO folder move.
+    if (text) {
+      let ex = null;
+      try { const r = await fetch('/.netlify/functions/extract-tdr-from-transcript', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript: text }) }); const jd = await r.json(); if (jd && jd.ok && jd.extracted) ex = jd.extracted; } catch (_) {}
+      const toWrite = [];
+      const add = (k, v) => { if (v != null && String(v).trim()) toWrite.push({ field: k, value: String(v).trim() }); };
+      if (ex) {
+        add('diagnosis', (ex.diagnosis && String(ex.diagnosis).trim()) ? ex.diagnosis : text);
+        add('failed_component', ex.failed_component);
+        add('repair_completed', ex.repair_completed);
+        if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
+      } else {
+        add('diagnosis', text); // fallback: his raw words are still a filed report
+      }
+      for (const w of toWrite) {
+        try { await fetch(XANO_BASE + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), field: w.field, value: w.value, technician_id: tid }) }); } catch (_) {}
+      }
+    }
+    // 2) file-only mode (job already completed) — done, just refresh.
+    if (!ct) {
+      if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Report filed — you\'re getting paid on this one.'; }
+      setTimeout(loadDashboard, 1100); return;
+    }
+    // 3) completion: pass through Start (state machine requires it), then Complete.
+    try { await fetch(XANO_BASE + '/tech_job_started', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid }) }); } catch (_) {}
+    let done = null;
+    try { const r = await fetch(XANO_BASE + '/tech_job_complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid, completion_type: ct }) }); done = await r.json().catch(() => ({})); } catch (_) {}
+    if (done && done.success) {
+      if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Done + report filed — nice work.'; }
+      setTimeout(loadDashboard, 1200);
+    } else {
+      if (host) host.querySelectorAll('button').forEach(b => b.disabled = false);
+      const err = (done && done.error) || 'try again';
+      if (msg) { msg.style.color = '#ff8a82'; msg.textContent = /tdr|incomplete|labor|repair|diagnos|required/i.test(String(err)) ? 'Office needs a bit more to bill it — add the part / what you fixed.' : ('⚠ ' + err); }
+    }
+  };
+
   function renderCard(item, index) {
     const j = item.job || {};
     const c = item.customer || {};
@@ -1773,13 +1907,22 @@
     // the job to file the report). This is what makes the schedule TRUE: Ant finally
     // sees when a tech is en route / on-site / done, instead of guessing.
     const jid = j.id;
+    // Did THIS tech file his report? (reports = pay). A report = any real content
+    // on the latest TDR authored by the assigned tech — not Teddy's pre-diagnosis.
+    const reportFiled = !!(lt && Number(lt.technician_id) === Number(TECH_ID)
+      && (String(lt.diagnosis||'').trim() || String(lt.failed_component||'').trim() || String(lt.repair_completed||'').trim()));
     let lcRow = '';
     if (status === 'completed') {
-      lcRow = `<div class="lc-done">✓ Completed</div>`;
+      lcRow = reportFiled
+        ? `<div class="lc-done">✓ Completed · report filed</div>`
+        // Done but no report from him = pay is stuck. File it right here.
+        : `<button class="lc-btn lc-report" onclick="event.stopPropagation();tfin(this,${jid},'filed')">📋 File your report — get paid</button>`;
     } else if (status === 'in_progress') {
-      lcRow = `<a href="tech-job.html?job_id=${jid}&tech_id=${TECH_ID}" class="lc-btn lc-finish" onclick="event.stopPropagation()">✓ Finish &amp; report →</a>`;
+      // Close the loop on the tile: file the report + complete, no page jump.
+      lcRow = `<button class="lc-btn lc-report" onclick="event.stopPropagation();tfin(this,${jid},'repair_complete')">✓ Done — file report</button>
+               <a href="tech-job.html?job_id=${jid}&tech_id=${TECH_ID}" class="lc-btn lc-expand" title="open the full job" onclick="event.stopPropagation()">⤢</a>`;
     } else {
-      lcRow = `<button class="lc-btn lc-otw" onclick="event.stopPropagation();tlc(this,${jid},'tech_on_the_way')">🚗 On my way</button>
+      lcRow = `<button class="lc-btn lc-otw" onclick="event.stopPropagation();tlc(this,${jid},'tech_on_the_way')">🚚 On my way</button>
                <button class="lc-btn lc-start" onclick="event.stopPropagation();tlc(this,${jid},'tech_job_started')">▶ Start</button>`;
     }
 
@@ -1811,6 +1954,7 @@
         ${latestTdrHtml}
         ${attHtml}
         <div class="lc-row">${lcRow}</div>
+        <div class="tr-host" id="trh-${jid}"></div>
         <div class="card-cta">
           <div class="open-btn">Open Tech Ant →</div>
           <div class="quick-actions">
