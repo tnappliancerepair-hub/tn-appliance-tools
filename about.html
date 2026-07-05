@@ -215,6 +215,54 @@
     letter-spacing:.05em;
   }
 
+  /* ── THE FAMILY, TODAY (photo coda) ── */
+  .family {
+    max-width:700px;
+    margin:8px auto 0;
+    padding:8px 28px 0;
+  }
+  .fam-label {
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--gray);
+    text-align:center;
+    margin-bottom:26px;
+  }
+  .family figure { margin:0; }
+  .family img {
+    width:100%;
+    height:auto;
+    display:block;
+    border:1px solid var(--bord2);
+    border-radius:14px;
+    background:var(--surface);
+    box-shadow:0 10px 34px rgba(0,0,0,.5);
+  }
+  .family figcaption {
+    font-family:var(--serif);
+    font-style:italic;
+    font-size:15px;
+    color:var(--gray);
+    text-align:center;
+    margin-top:12px;
+    letter-spacing:.01em;
+  }
+  .fam-hero { margin-bottom:26px; }
+  .fam-hero img { border-color:rgba(255,98,0,.28); }
+  .fam-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .fam-grid img { aspect-ratio:3/4; object-fit:cover; }
+  @media(max-width:600px) {
+    .family { padding:8px 20px 0; }
+    .fam-grid { gap:12px; }
+    .family figcaption { font-size:14px; }
+  }
+
   /* ── FOOTER ── */
   footer {
     width:100%;
@@ -317,6 +365,27 @@
       </div>
 
     </div>
+
+    <!-- ── THE FAMILY, TODAY — a quiet photo coda ── -->
+    <section class="family" aria-label="The family that fixes things">
+      <div class="fam-label">The family that fixes things</div>
+
+      <figure class="fam-hero">
+        <img src="/assets/marketing/truck-wrap-wide.jpg" alt="TN Appliance Exchange wrapped truck — Stop guessing, ask a technician, get it fixed" width="1200" height="628" loading="lazy">
+        <figcaption>The truck that carries his name — around Middle Tennessee.</figcaption>
+      </figure>
+
+      <div class="fam-grid">
+        <figure>
+          <img src="/assets/marketing/crew-1.jpg" alt="One of the TN Appliance crew" width="1050" height="1400" loading="lazy">
+          <figcaption>One of ours, off the clock.</figcaption>
+        </figure>
+        <figure>
+          <img src="/assets/marketing/crew-2.jpg" alt="TN Appliance crew" width="1050" height="1400" loading="lazy">
+          <figcaption>The crew.</figcaption>
+        </figure>
+      </div>
+    </section>
 
   </article>
 
