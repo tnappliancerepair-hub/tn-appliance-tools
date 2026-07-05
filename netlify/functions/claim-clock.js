@@ -15,6 +15,11 @@ const PTS_FILED = 10;    // every claim out the door
 const PTS_SAMEDAY = 5;   // filed the same day the job finished
 const PTS_FAST = 3;      // filed within 2 hours
 
+// Forward-only line: MeisterTask is the accurate record for pre-Ant work, so the
+// game only counts jobs completed on/after go-live — a clean slate, no stale
+// backlog polluting the board. Change this one date if go-live shifts (?since= to override).
+const GO_LIVE = '2026-07-05';
+
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(b) }; }
 function ms(x) { if (x == null || x === '') return 0; if (typeof x === 'number') return x < 1e12 ? x * 1000 : x; const t = Date.parse(x); return isNaN(t) ? 0 : t; }
 function ctDay(t) { if (!t) return ''; try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t)); } catch (_) { return ''; } }
@@ -31,7 +36,9 @@ function ctMondayMs() {
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
-  const days = Math.max(7, Math.min(120, parseInt((event.queryStringParameters || {}).days, 10) || 45));
+  const q = event.queryStringParameters || {};
+  const days = Math.max(7, Math.min(120, parseInt(q.days, 10) || 45));
+  const sinceMs = ms((q.since || GO_LIVE) + 'T00:00:00-05:00'); // CT go-live line
 
   let jobs = [];
   try {
@@ -50,6 +57,7 @@ exports.handler = async function (event) {
     if (!vendor) continue; // warranty jobs only
     const completed = ms(jb.job_completed_at);
     const submitted = ms(jb.warranty_submitted_at);
+    if (completed && completed < sinceMs) continue; // pre-Ant work lives in MeisterTask — skip
     if (completed && submitted) {
       const hours = Math.max(0, (submitted - completed) / 3600000);
       filed.push({ job_id: jb.id, hours, completed, submitted, day: ctDay(submitted), sameDay: ctDay(submitted) === ctDay(completed), fast: hours <= 2 });
