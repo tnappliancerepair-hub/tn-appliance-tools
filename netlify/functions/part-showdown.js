@@ -44,7 +44,7 @@ exports.handler = async function (event) {
   catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
   const danielle = (dcall && String(dcall.part || '').trim())
-    ? { part: String(dcall.part).trim(), by: String(dcall.by || 'Danielle') } : null;
+    ? { part: String(dcall.part).trim(), by: String(dcall.by || 'Danielle'), at: ms(dcall.at_ms) || 0 } : null;
   const resolved = (verdict && String(verdict.part || '').trim())
     ? { part: String(verdict.part).trim(), verdict: String(verdict.verdict || 'confirmed'), tech_id: Number(verdict.technician_id || 0) || null, beat_ant: !!verdict.beat_ant, ant_part: String(verdict.ant_part || '').trim(), ant_component: String(verdict.ant_component || '') } : null;
 

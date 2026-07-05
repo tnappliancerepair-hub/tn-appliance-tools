@@ -1822,16 +1822,23 @@
       const chips = [];
       if (ant) chips.push('<span class="chip ' + (antHit ? 'hit' : 'miss') + '">🐜 Ant ' + (antHit ? '✓' : '✗') + '</span>');
       if (dani) chips.push('<span class="chip ' + (daniHit ? 'hit' : 'miss') + '">🧑‍💼 Danielle ' + (daniHit ? '✓' : '✗') + '</span>');
+      const beatAnt = ant && resolved.verdict === 'overridden';
       const you = resolved.verdict === 'overridden' ? (ant ? 'you beat Ant 🏆' : 'you set the part') : 'you nailed it';
       chips.push('<span class="chip hit">🔧 ' + you + '</span>');
-      host.innerHTML = '<div class="sh-resolved"><div class="real">✓ Real part: <span class="p">' + _she(real) + '</span></div><div class="sh-chips">' + chips.join('') + '</div></div>';
+      // #2 Ant remembers what beat it · #3 Danielle locked in from the office first.
+      const notes = [];
+      if (resolved.verdict === 'overridden') notes.push('🐜 logged it — it\'s in the brain now, won\'t miss it again');
+      if (dani) notes.push('🧑‍💼 Danielle called it from the office' + (daniHit ? ' — and she nailed it' : ' — you got her this time'));
+      notes.push('settles when the job proves out (no callback)');
+      host.innerHTML = '<div class="sh-resolved"><div class="real">✓ Real part: <span class="p">' + _she(real) + '</span></div><div class="sh-chips">' + chips.join('') + '</div>'
+        + notes.map(n => '<div style="font-size:11px;color:var(--muted);margin-top:6px">' + n + '</div>').join('') + '</div>';
       return;
     }
     let html = '<div class="sh-h">🎯 The part — you vs Ant' + (dani ? ' vs Danielle' : '') + '</div>';
     html += ant
       ? '<div class="sh-call sh-ant"><span class="lab">🐜 Ant:</span> <span class="p">' + _she(ant.part) + '</span>' + (ant.confidence ? ' <span class="c">' + ant.confidence + '%' + (ant.component ? ' · ' + _she(ant.component) : '') + '</span>' : '') + '</div>'
       : '<div class="sh-call sh-ant"><span class="lab">🐜 Ant:</span> <span class="c">no guess yet — you set it</span></div>';
-    if (dani) html += '<div class="sh-call sh-dani"><span class="lab">🧑‍💼 Danielle:</span> <span class="p">' + _she(dani.part) + '</span></div>';
+    if (dani) html += '<div class="sh-call sh-dani"><span class="lab">🧑‍💼 Danielle:</span> <span class="p">' + _she(dani.part) + '</span> <span class="c">🔒 locked in from the office</span></div>';
     html += '<div class="sh-btns">';
     if (ant) html += '<button class="sh-btn sh-yes" onclick="event.stopPropagation();tsdConfirm(' + jid + ',\'ant\')">✓ Ant nailed it</button>';
     if (dani && (!ant || _pkey(dani.part) !== _pkey(ant.part))) html += '<button class="sh-btn sh-yes" onclick="event.stopPropagation();tsdConfirm(' + jid + ',\'danielle\')">✓ Danielle\'s right</button>';
