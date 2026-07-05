@@ -70,7 +70,20 @@ async function load(){
       +'<div class="bar"><span style="width:'+t.pct+'%;background:'+barColor(tr)+'"></span></div>'
       +unfiled+'</div>';
   }).join('');
-  document.getElementById('list').innerHTML=team+rows
+  // 🏆 Weekly leaderboards — most reports completed + best completion rate.
+  const wb=(d.week_board||[]).filter(t=>t.stops>0||t.completions>0);
+  let boards='';
+  if(wb.length){
+    const medal=i=>['🥇','🥈','🥉'][i]||('#'+(i+1));
+    const byCount=wb.slice().sort((a,b)=>b.completions-a.completions);
+    const byRate=wb.slice().sort((a,b)=>b.pct-a.pct||b.completions-a.completions);
+    const lb=(title,arr,val)=>'<div class="row" style="border-left-color:#e8a317"><div class="rhead"><div class="name" style="font-size:14px">'+title+'</div></div>'
+      +arr.map((t,i)=>'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line)"><span style="font-size:16px;width:26px">'+medal(i)+'</span><span style="flex:1;font-weight:700">'+esc(t.name)+'</span><span style="font-weight:900;font-variant-numeric:tabular-nums">'+val(t)+'</span></div>').join('')+'</div>';
+    boards='<div style="margin-top:6px;margin-bottom:4px;font-size:13px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:.05em">🏆 This week</div>'
+      +lb('Most reports completed',byCount,t=>t.completions)
+      +lb('Best completion rate',byRate,t=>t.pct+'%');
+  }
+  document.getElementById('list').innerHTML=team+rows+boards
     +'<div class="foot">The TDR is the claim — we can\'t bill the warranty company until it\'s filed, and nobody gets paid until we do. Tap an open job to work it.<br><a class="back" href="office-board.html">← Board</a></div>';
 }
 load();

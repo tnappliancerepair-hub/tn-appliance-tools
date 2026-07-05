@@ -112,12 +112,14 @@ exports.handler = async function (event) {
     if (jobFiled(byJob, jb.id, tid)) b.filed++;
   }
   const KEEP_IDS = [1, 2, 3, 4, 6];
-  function weekRank(techId) {
-    const arr = KEEP_IDS.map((id) => ({ id, filed: (weekByTech[id] || {}).filed || 0 }));
-    arr.sort((a, b) => b.filed - a.filed);
-    // Standard competition ranking (ties share a place).
-    let rank = 1; for (let i = 0; i < arr.length; i++) { if (i > 0 && arr[i].filed < arr[i - 1].filed) rank = i + 1; if (arr[i].id === techId) return { rank, rank_total: arr.length, week_completions: arr[i].filed }; }
-    return { rank: arr.length, rank_total: arr.length, week_completions: (weekByTech[techId] || {}).filed || 0 };
+  // Two leaderboards (Teddy 7/5): MOST reports completed (volume) and completion
+  // RATE (%). Standard competition ranking (ties share a place).
+  function weekRanks(techId) {
+    const rows = KEEP_IDS.map((id) => { const b = weekByTech[id] || { stops: 0, filed: 0 }; return { id, filed: b.filed, stops: b.stops, pct: b.stops ? b.filed / b.stops : 0 }; });
+    function rankBy(key) { const arr = rows.slice().sort((a, b) => b[key] - a[key]); let r = 1; for (let i = 0; i < arr.length; i++) { if (i > 0 && arr[i][key] < arr[i - 1][key]) r = i + 1; if (arr[i].id === techId) return { rank: r, val: arr[i][key] }; } return { rank: arr.length, val: 0 }; }
+    const c = rankBy('filed'), p = rankBy('pct');
+    const me = rows.find((x) => x.id === techId) || { filed: 0, stops: 0, pct: 0 };
+    return { rank_total: rows.length, rank: c.rank, completions: me.filed, pct_rank: p.rank, pct: Math.round(me.pct * 100), stops: me.stops };
   }
 
   // ── scoreboard mode ──
@@ -131,7 +133,9 @@ exports.handler = async function (event) {
       techs.push({ tech_id: tid, name: techNames[tid] || ('Tech ' + tid), stops: b.stops, filed: b.filed, pct: b.stops ? Math.round((b.filed / b.stops) * 100) : 100, unfiled: b.unfiled });
     }
     techs.sort((a, b) => (a.pct - b.pct) || (b.stops - a.stops));
-    return j(200, { ok: true, date_ct: todayCt, techs });
+    // Weekly leaderboards: most reports completed + best completion rate.
+    const week_board = KEEP.size ? [...KEEP].map((tid) => { const b = weekByTech[tid] || { stops: 0, filed: 0 }; return { tech_id: tid, name: techNames[tid] || ('Tech ' + tid), completions: b.filed, stops: b.stops, pct: b.stops ? Math.round((b.filed / b.stops) * 100) : 0 }; }) : [];
+    return j(200, { ok: true, date_ct: todayCt, techs, week_board });
   }
 
   // ── per-tech (pay + own line) mode ──
@@ -161,14 +165,17 @@ exports.handler = async function (event) {
   // Fill any missing names on today's unfiled from the kanban map too.
   const mine = stopsByTech[techId] || { stops: 0, filed: 0, unfiled: [] };
   mine.unfiled = mine.unfiled.map((u) => ({ job_id: u.job_id, customer: u.customer || nameByJob[u.job_id] || 'Customer' }));
-  const rank = weekRank(techId);
   const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const rk = weekRanks(techId);
   return j(200, {
     ok: true, tech_id: techId,
     today: { stops: mine.stops, filed: mine.filed, pct: mine.stops ? Math.round((mine.filed / mine.stops) * 100) : 100 },
     today_unfiled: mine.unfiled,
     holding: { count: holding.length, amount: holdingAmount },
     holding_jobs: holding.slice(0, 20),
-    week: { rank: rank.rank, rank_total: rank.rank_total, completions: rank.week_completions, rank_label: ordinal(rank.rank) },
+    week: {
+      rank: rk.rank, rank_total: rk.rank_total, completions: rk.completions, rank_label: ordinal(rk.rank),
+      pct_rank: rk.pct_rank, pct_rank_label: ordinal(rk.pct_rank), pct: rk.pct,
+    },
   });
 };
