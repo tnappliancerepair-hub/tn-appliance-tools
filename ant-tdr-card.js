@@ -26,6 +26,8 @@
   var pollTimer = null;
   var editKey = null; // when a field is being edited inline, don't let polling clobber it
   var _rec = null, _chunks = [], recordingNow = false; // in-app voice for the one-box
+  // Tech vs Ant 🐜 (Stage 1): antGuess undefined=unfetched, null=no confident call, obj=call.
+  var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false;
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
   var FIELD_META = {
     diagnosis:        { label: 'Diagnosis',        col: 'diagnosis',        multiline: true,  ph: 'What is wrong with it?' },
@@ -202,7 +204,7 @@
     // Someone is mid-edit — a 6s poll must not wipe their typing.
     if (editKey !== null) return;
     // Don't wipe the tech's one-shot box while they're typing/dictating into it.
-    if (recordingNow) return;
+    if (recordingNow || antGuessOverriding) return;
     var _os = document.getElementById('ant-tdr-oneshot');
     if (_os && (document.activeElement === _os || String(_os.value || '').trim())) return;
     var fields = d.fields || {};
@@ -245,6 +247,9 @@
     // from author → editor (confirm a draft, don't type 5 boxes in a hot
     // kitchen); lets the office fill straight from texted-in notes. (Teddy 7/4)
     if (role === 'tech' || role === 'office') html += buildOneShot(d);
+    // 🐜 Tech vs Ant — Ant's part guess: confirm it or beat it (fills the part #
+    // so the tech never hunts, and trains the moat). Tech only. (Teddy 7/5)
+    if (role === 'tech') html += buildAntGuess();
     // Fields — inline-editable for tech + office (tap a field to edit it
     // right here; no jump to another page). Customer never reaches this loop.
     // NOTE: parts_needed is a JSON column that get_unified can't yet read back,
@@ -310,7 +315,88 @@
     }
     html += '</div>';
     host.innerHTML = html;
+    // Kick off Ant's part prediction once per open (fills the guess card).
+    if (role === 'tech' && antGuess === undefined && !antGuessLoading) { antGuessLoading = true; loadAntGuess(); }
   }
+
+  // ── Tech vs Ant 🐜 — Ant's part guess: confirm or beat it ─────────
+  function buildAntGuess() {
+    if (antGuessVerdict) {
+      var v = antGuessVerdict;
+      var txt = v.beat_ant ? ('🏆 You beat Ant — part ' + escapeHtml(v.part || '')) : ('✓ Confirmed Ant\'s call — part ' + escapeHtml(v.part || '(none)'));
+      return '<div style="background:rgba(74,158,255,0.10);border:1px solid rgba(74,158,255,0.4);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13.5px;font-weight:800;color:#8fc0ff">🐜 ' + txt + '</div>';
+    }
+    var open = '<div id="ant-guess-box" style="background:rgba(74,158,255,0.08);border:1px solid rgba(74,158,255,0.35);border-radius:12px;padding:13px 14px;margin-bottom:14px">';
+    var head = '<div style="font-size:13px;font-weight:800;color:#8fc0ff;margin-bottom:6px">🐜 Ant vs you — the part</div>';
+    var msg = '<div id="ant-guess-msg" style="font-size:12px;color:#8fc0ff;margin-top:6px;min-height:12px"></div>';
+    if (antGuess === undefined) return open + head + '<div style="font-size:12.5px;color:#b8bfd0">Checking the part from our repair history…</div></div>';
+    if (!antGuess || !antGuess.part_display) {
+      return open + head
+        + '<div style="font-size:12.5px;color:#b8bfd0;margin-bottom:8px">Ant\'s not sure on this one yet — what part did you use? (You\'re teaching it.)</div>'
+        + '<input id="ant-guess-input" type="text" placeholder="OEM part number" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
+        + '<button onclick="window.__antGuessSaveOverride()" style="width:100%;margin-top:8px;background:#1f6fed;color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">Save the part</button>'
+        + msg + '</div>';
+    }
+    var g = antGuess, conf = Number(g.confidence || 0), seen = Number(g.seen_n || 0), based = Number(antGuessBasedOn || 0);
+    var proof = seen ? ('fixed ' + seen + (based ? ' of ' + based : '') + ' similar') : 'best call from our history';
+    return open + head
+      + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:4px">Ant\'s call — confirm it or beat it:</div>'
+      + '<div style="font-size:19px;font-weight:900;color:#e6e9f0;letter-spacing:.02em;font-family:ui-monospace,monospace">' + escapeHtml(g.part_display) + '</div>'
+      + '<div style="font-size:12.5px;color:#9fb2cc;margin-top:2px">' + escapeHtml(g.component || '') + ' · <b style="color:#8fc0ff">' + conf + '% sure</b> · ' + proof + '</div>'
+      + '<div id="ant-guess-actions" style="display:flex;gap:8px;margin-top:11px">'
+      + '<button onclick="window.__antGuessConfirm()" style="flex:1;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✓ Ant nailed it</button>'
+      + '<button onclick="window.__antGuessOverride()" style="flex:1;background:#2a3242;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✗ I\'ve got the real one</button>'
+      + '</div>'
+      + '<div id="ant-guess-override" style="display:none;margin-top:9px">'
+      + '<input id="ant-guess-input" type="text" placeholder="the part # you actually used" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
+      + '<button onclick="window.__antGuessSaveOverride()" style="width:100%;margin-top:8px;background:#1f6fed;color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">🏆 Save my answer — beat the machine</button>'
+      + '</div>' + msg + '</div>';
+  }
+  async function loadAntGuess() {
+    if (!jobId) { antGuess = null; antGuessLoading = false; return; }
+    try {
+      var r = await fetch('/.netlify/functions/ant-brain-predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId) }) });
+      var d = await r.json();
+      antGuessBasedOn = (d && d.based_on_n) || 0;
+      var top = (d && d.predictions && d.predictions[0]) || null;
+      antGuess = (top && top.part_display) ? top : null;
+    } catch (_) { antGuess = null; }
+    antGuessLoading = false;
+    if (editKey === null && !recordingNow && !antGuessOverriding && lastData) renderModal(lastData);
+  }
+  function _guessMsg(t, color) { var m = document.getElementById('ant-guess-msg'); if (m) { m.style.color = color || '#8fc0ff'; m.textContent = t; } }
+  async function _postVerdict(verdict, techPart) {
+    var g = antGuess || {};
+    try {
+      var r = await fetch('/.netlify/functions/ant-brain-verdict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        job_id: Number(jobId), tech_id: Number(techId) || 0, tdr_id: Number((lastData && lastData.tdr_id) || 0), verdict: verdict,
+        ant_part: (g.part_display || ''), ant_component: (g.component || ''), ant_confidence: Number(g.confidence || 0), tech_part: techPart || '',
+      }) });
+      return await r.json();
+    } catch (_) { return { ok: false }; }
+  }
+  window.__antGuessConfirm = async function () {
+    _guessMsg('Saving…');
+    var d = await _postVerdict('confirmed', '');
+    if (d && d.ok) { antGuessVerdict = { verdict: 'confirmed', part: d.part, beat_ant: false }; if (lastData) renderModal(lastData); refresh(); }
+    else _guessMsg('Could not save — try again', '#ff9d4a');
+  };
+  window.__antGuessOverride = function () {
+    antGuessOverriding = true;
+    var box = document.getElementById('ant-guess-override'); if (box) box.style.display = 'block';
+    var acts = document.getElementById('ant-guess-actions'); if (acts) acts.style.display = 'none';
+    var inp = document.getElementById('ant-guess-input'); if (inp) inp.focus();
+  };
+  window.__antGuessSaveOverride = async function () {
+    var inp = document.getElementById('ant-guess-input');
+    var part = inp ? String(inp.value || '').trim() : '';
+    if (!part) { _guessMsg('Type the part # you used', '#ff9d4a'); return; }
+    _guessMsg('Saving…');
+    var d = await _postVerdict('overridden', part);
+    antGuessOverriding = false;
+    if (d && d.ok) { antGuessVerdict = { verdict: 'overridden', part: d.part || part, beat_ant: true }; if (lastData) renderModal(lastData); refresh(); }
+    else { _guessMsg('Could not save — try again', '#ff9d4a'); }
+  };
 
   // ── Customer-friendly view — sanitized, no tech jargon ───────────
   function renderCustomerModal(host, d) {
