@@ -20,9 +20,12 @@ exports.handler = async function (event) {
   const token = await ads.accessToken(c);
   const ver = c.version;
 
-  // which accounts to query
+  // which accounts to query. Default to the account that actually holds our
+  // campaigns (GOOGLE_ADS_CONV_CID = 9267688121) — otherwise listAccessible can
+  // surface an empty LSA/system account and hide the real spend + conversions.
   let cids = [];
   if (q.cid) cids = [String(q.cid).replace(/\D/g, '')];
+  else if (q.all !== '1') { const conv = (await getSecret('GOOGLE_ADS_CONV_CID')) || '9267688121'; cids = [String(conv).replace(/\D/g, '')]; }
   else {
     try {
       const r = await fetch(`https://googleads.googleapis.com/${ver}/customers:listAccessibleCustomers`, { headers: ads.apiHeaders(token, c) });
