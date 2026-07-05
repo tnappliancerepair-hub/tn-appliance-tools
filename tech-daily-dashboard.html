@@ -620,6 +620,29 @@
   .tile-report .rmsg { font-size:12px; margin-top:8px; min-height:15px; color:var(--muted); }
   .tile-report .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.35; }
 
+  /* ── 🎯 Part showdown on the tile — you vs Ant vs Danielle (Teddy 7/5) ── */
+  .tile-showdown { margin-top:10px; border:1px solid rgba(116,160,255,0.4); background:rgba(116,160,255,0.06); border-radius:11px; padding:11px 12px; }
+  .tile-showdown .sh-h { font-size:11.5px; font-weight:800; color:#8ab4ff; font-family:var(--mono); letter-spacing:0.04em; text-transform:uppercase; margin-bottom:7px; }
+  .tile-showdown .sh-call { font-size:13px; font-weight:700; margin:3px 0; color:var(--text); }
+  .tile-showdown .sh-call .p { font-family:var(--mono); color:#fff; }
+  .tile-showdown .sh-call .c { color:var(--muted); font-weight:600; font-size:12px; }
+  .tile-showdown .sh-ant .lab { color:#8ab4ff; font-weight:800; }
+  .tile-showdown .sh-dani .lab { color:#f5a623; font-weight:800; }
+  .tile-showdown .sh-btns { display:flex; gap:7px; margin-top:9px; flex-wrap:wrap; }
+  .tile-showdown .sh-btn { flex:1 1 120px; padding:11px 8px; border-radius:9px; font-family:var(--mono); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:0.02em; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+  .tile-showdown .sh-yes { border-color:var(--green); color:var(--green); }
+  .tile-showdown .sh-no { border-color:rgba(245,166,35,0.5); color:#f5a623; }
+  .tile-showdown .sh-ov { display:flex; gap:7px; margin-top:9px; }
+  .tile-showdown .sh-ov input { flex:1; min-width:0; padding:11px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:16px; font-family:var(--mono); }
+  .tile-showdown .sh-ov button { flex:0 0 auto; padding:11px 14px; border-radius:9px; border:1px solid var(--green); background:var(--green); color:#082018; font-weight:800; font-size:12px; cursor:pointer; font-family:var(--mono); }
+  .tile-showdown .sh-resolved .real { font-size:13.5px; font-weight:800; color:#4ad991; }
+  .tile-showdown .sh-resolved .real .p { font-family:var(--mono); color:#fff; }
+  .tile-showdown .sh-chips { display:flex; gap:6px; margin-top:7px; flex-wrap:wrap; }
+  .tile-showdown .chip { font-size:11px; font-weight:800; font-family:var(--mono); padding:3px 8px; border-radius:20px; }
+  .tile-showdown .chip.hit { background:rgba(0,214,143,0.15); color:#4ad991; }
+  .tile-showdown .chip.miss { background:rgba(224,82,74,0.14); color:#ff8a82; }
+  .tile-showdown .sh-msg { font-size:11.5px; color:var(--muted); margin-top:7px; min-height:14px; }
+
   /* ── Empty / loading / error ──────────────────────────────────── */
   .empty {
     padding: 48px 24px;
@@ -1609,6 +1632,8 @@
     });
     // Fetch attachment view URLs in batch and inject thumbnails
     hydrateAttachmentThumbs(jobs);
+    // 🎯 Part showdown per active job (you vs Ant vs Danielle)
+    hydrateShowdowns(jobs);
   }
 
   // One-tap lifecycle from the day view — posts {job_id, technician_id} to the
@@ -1753,6 +1778,105 @@
       if (msg) { msg.style.color = '#ff8a82'; msg.textContent = /tdr|incomplete|labor|repair|diagnos|required/i.test(String(err)) ? 'Office needs a bit more to bill it — add the part / what you fixed.' : ('⚠ ' + err); }
     }
   };
+
+  // ── 🎯 Part showdown on the tile — you vs Ant vs Danielle (Teddy 7/5).
+  // Ant throws a part guess (ant-brain-predict), Danielle calls one from the
+  // office (danielle_part_call), the tech confirms or beats it in the field. His
+  // confirmed part is the TRUTH that grades all three (ant-brain-game).
+  const _tsd = {};
+  const _pkey = s => String(s || '').trim().split(/[\s(—\-]/)[0].toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const _she = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  async function hydrateShowdowns(jobs) {
+    for (const it of (jobs || [])) {
+      const j = it.job || {}; const jid = j.id;
+      const st = (j.scheduling_status || j.current_status || '').toLowerCase();
+      if (!jid || (st !== 'in_progress' && st !== 'completed')) continue;
+      const host = document.getElementById('tsd-' + jid);
+      if (!host) continue;
+      const tdrId = Number((it.latest_tdr || {}).id || 0) || 0;
+      let sd = null;
+      try { sd = await fetch('/.netlify/functions/part-showdown?job_id=' + jid).then(r => r.json()); } catch (_) {}
+      const danielle = sd && sd.danielle ? sd.danielle : null;
+      const resolved = sd && sd.resolved ? sd.resolved : null;
+      if (resolved) {
+        _tsd[jid] = { ant: resolved.ant_part ? { part: resolved.ant_part, component: resolved.ant_component || '', confidence: 0 } : null, danielle, tdr_id: tdrId };
+        renderShowdown(jid, resolved); host.style.display = ''; continue;
+      }
+      // unresolved → get a fresh Ant guess
+      let ant = null;
+      try { const pr = await fetch('/.netlify/functions/ant-brain-predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }) }).then(r => r.json()); if (pr && pr.ok && pr.predictions && pr.predictions.length) ant = pr.predictions[0]; } catch (_) {}
+      if (!ant && !danielle) continue; // nothing to show — keep the tile clean
+      _tsd[jid] = { ant: ant ? { part: ant.part_display || ant.part, component: ant.component || '', confidence: ant.confidence || 0 } : null, danielle, tdr_id: tdrId };
+      renderShowdown(jid, null); host.style.display = '';
+    }
+  }
+
+  function renderShowdown(jid, resolved) {
+    const host = document.getElementById('tsd-' + jid); if (!host) return;
+    const s = _tsd[jid] || {}; const ant = s.ant, dani = s.danielle;
+    if (resolved) {
+      const real = resolved.part;
+      const antHit = ant && _pkey(ant.part) === _pkey(real);
+      const daniHit = dani && _pkey(dani.part) === _pkey(real);
+      const chips = [];
+      if (ant) chips.push('<span class="chip ' + (antHit ? 'hit' : 'miss') + '">🐜 Ant ' + (antHit ? '✓' : '✗') + '</span>');
+      if (dani) chips.push('<span class="chip ' + (daniHit ? 'hit' : 'miss') + '">🧑‍💼 Danielle ' + (daniHit ? '✓' : '✗') + '</span>');
+      const you = resolved.verdict === 'overridden' ? (ant ? 'you beat Ant 🏆' : 'you set the part') : 'you nailed it';
+      chips.push('<span class="chip hit">🔧 ' + you + '</span>');
+      host.innerHTML = '<div class="sh-resolved"><div class="real">✓ Real part: <span class="p">' + _she(real) + '</span></div><div class="sh-chips">' + chips.join('') + '</div></div>';
+      return;
+    }
+    let html = '<div class="sh-h">🎯 The part — you vs Ant' + (dani ? ' vs Danielle' : '') + '</div>';
+    html += ant
+      ? '<div class="sh-call sh-ant"><span class="lab">🐜 Ant:</span> <span class="p">' + _she(ant.part) + '</span>' + (ant.confidence ? ' <span class="c">' + ant.confidence + '%' + (ant.component ? ' · ' + _she(ant.component) : '') + '</span>' : '') + '</div>'
+      : '<div class="sh-call sh-ant"><span class="lab">🐜 Ant:</span> <span class="c">no guess yet — you set it</span></div>';
+    if (dani) html += '<div class="sh-call sh-dani"><span class="lab">🧑‍💼 Danielle:</span> <span class="p">' + _she(dani.part) + '</span></div>';
+    html += '<div class="sh-btns">';
+    if (ant) html += '<button class="sh-btn sh-yes" onclick="event.stopPropagation();tsdConfirm(' + jid + ',\'ant\')">✓ Ant nailed it</button>';
+    if (dani && (!ant || _pkey(dani.part) !== _pkey(ant.part))) html += '<button class="sh-btn sh-yes" onclick="event.stopPropagation();tsdConfirm(' + jid + ',\'danielle\')">✓ Danielle\'s right</button>';
+    html += '<button class="sh-btn sh-no" onclick="event.stopPropagation();tsdOverrideOpen(' + jid + ')">✗ It\'s actually…</button>';
+    html += '</div><div class="sh-ov" id="shov-' + jid + '" style="display:none"><input id="shin-' + jid + '" placeholder="real part #" autocomplete="off"><button onclick="event.stopPropagation();tsdOverrideSave(' + jid + ')">Lock it in</button></div>';
+    html += '<div class="sh-msg" id="shm-' + jid + '"></div>';
+    host.innerHTML = html;
+  }
+
+  window.tsdConfirm = function (jid, who) {
+    const s = _tsd[jid] || {};
+    const truth = who === 'danielle' ? (s.danielle && s.danielle.part) : (s.ant && s.ant.part);
+    if (truth) tsdResolve(jid, truth);
+  };
+  window.tsdOverrideOpen = function (jid) {
+    const ov = document.getElementById('shov-' + jid); if (ov) ov.style.display = 'flex';
+    const inp = document.getElementById('shin-' + jid); if (inp) inp.focus();
+  };
+  window.tsdOverrideSave = function (jid) {
+    const inp = document.getElementById('shin-' + jid); const v = (inp ? inp.value : '').trim();
+    const msg = document.getElementById('shm-' + jid);
+    if (!v) { if (msg) msg.textContent = 'Type the real part #.'; if (inp) inp.focus(); return; }
+    tsdResolve(jid, v);
+  };
+  async function tsdResolve(jid, truthPart) {
+    const s = _tsd[jid] || {};
+    const msg = document.getElementById('shm-' + jid);
+    const tid = parseInt(localStorage.getItem('tn_tech_id') || '0', 10);
+    const antPart = (s.ant && s.ant.part) || '';
+    const verdict = (antPart && _pkey(truthPart) === _pkey(antPart)) ? 'confirmed' : 'overridden';
+    const host = document.getElementById('tsd-' + jid);
+    if (host) host.querySelectorAll('button').forEach(b => b.disabled = true);
+    if (msg) msg.textContent = 'Locking it in…';
+    try {
+      const r = await fetch('/.netlify/functions/ant-brain-verdict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        job_id: jid, tech_id: tid, tdr_id: s.tdr_id || 0, verdict,
+        ant_part: antPart, ant_component: (s.ant && s.ant.component) || '', ant_confidence: (s.ant && s.ant.confidence) || 0,
+        tech_part: verdict === 'overridden' ? truthPart : '',
+      }) }).then(x => x.json());
+      if (r && r.ok) {
+        renderShowdown(jid, { part: r.part, verdict: r.verdict, beat_ant: r.beat_ant });
+        try { if (typeof renderAntGame === 'function') renderAntGame(); } catch (_) {}
+      } else { if (host) host.querySelectorAll('button').forEach(b => b.disabled = false); if (msg) msg.textContent = '⚠ try again'; }
+    } catch (_) { if (host) host.querySelectorAll('button').forEach(b => b.disabled = false); if (msg) msg.textContent = '⚠ connection'; }
+  }
 
   function renderCard(item, index) {
     const j = item.job || {};
@@ -1955,6 +2079,7 @@
         ${attHtml}
         <div class="lc-row">${lcRow}</div>
         <div class="tr-host" id="trh-${jid}"></div>
+        ${(status === 'in_progress' || status === 'completed') ? `<div class="tile-showdown" id="tsd-${jid}" style="display:none"></div>` : ''}
         <div class="card-cta">
           <div class="open-btn">Open Tech Ant →</div>
           <div class="quick-actions">
