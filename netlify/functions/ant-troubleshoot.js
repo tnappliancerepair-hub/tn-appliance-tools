@@ -69,6 +69,16 @@ async function getSimilarJobs(query, jobId) {
   } catch (_) { return []; }
 }
 
+// The 24k-job HCP archive — real history for this machine (model first, then
+// brand+appliance). Job notes carry complaints + sometimes the part delivered.
+async function getArchiveHistory(brand, model, appliance) {
+  try {
+    const u = `${FUNCTIONS_BASE}/hcp-recall?model=${encodeURIComponent(model || '')}&brand=${encodeURIComponent(brand || '')}&appliance=${encodeURIComponent(appliance || '')}&limit=5`;
+    const d = await fetch(u).then((r) => r.json());
+    return (d && d.ok && d.jobs) ? { matched_on: d.matched_on, jobs: d.jobs } : { jobs: [] };
+  } catch (_) { return { jobs: [] }; }
+}
+
 // Keep grounding ON the appliance. The semantic store returns the most similar
 // TDRs regardless of appliance, so a washer symptom ("loud, won't spin") can pull
 // back a FRIDGE job that mentions "compressor" — which is how Ant started telling
@@ -102,11 +112,13 @@ exports.handler = async function (event) {
 
   // ── gather context (parallel) ──────────────────────────────────────────────
   const fcRes = code ? faultCodes.lookup(brand, code, appliance) : { match: null };
-  let [commonFailures, similarJobs, intelHit] = await Promise.all([
+  let [commonFailures, similarJobs, intelHit, archive] = await Promise.all([
     getCommonFailures(brand, appliance, model),
     getSimilarJobs([brand, appliance, model, symptom].filter(Boolean).join(' '), jobId),
     (model || brand) ? modelIntel.readModelIntel({ brand, model }).catch(() => null) : Promise.resolve(null),
+    (model || brand) ? getArchiveHistory(brand, model, appliance) : Promise.resolve({ jobs: [] }),
   ]);
+  const archiveJobs = (archive && archive.jobs) || [];
   // Strip cross-appliance grounding so a fridge TDR never bleeds into a washer
   // (or vice-versa handled by the appliance check inside).
   similarJobs = dropForeignAppliance(similarJobs, appliance);
@@ -136,7 +148,7 @@ exports.handler = async function (event) {
   const recalls = (intel && intel.recalls) || [];
   const bulletins = (intel && intel.bulletins) || [];
 
-  const grounded = !!(pbMatches.length || faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length);
+  const grounded = !!(pbMatches.length || faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length || archiveJobs.length);
 
   // ── build the grounded context block for Claude ─────────────────────────────
   const ctxParts = [];
@@ -162,6 +174,11 @@ exports.handler = async function (event) {
   if (commonFailures.length) {
     ctxParts.push('[common-failures] This shop\'s past TDRs for similar units:\n' + commonFailures.map((e) =>
       `- ${e.brand || ''} ${e.appliance_type || ''} ${e.model_number || ''}: failed=${e.failed_component || '?'} cause=${e.failure_cause || '?'}${e.verified_part_number ? ' part=' + e.verified_part_number : ''} (job #${e.job_id || '?'})`
+    ).join('\n'));
+  }
+  if (archiveJobs.length) {
+    ctxParts.push('[archive] Real history for this machine from our 24k-job archive — notes carry the complaint + sometimes the part we used (extract a part number if one is clearly stated, else treat as pattern evidence):\n' + archiveJobs.map((x) =>
+      `- ${String(x.snippet || '').replace(/\s+/g, ' ').slice(0, 200)}`
     ).join('\n'));
   }
   if (similarJobs.length) {
@@ -215,6 +232,7 @@ exports.handler = async function (event) {
   if (faultMatch) citations.push({ type: 'fault-code', label: `${brand} ${faultMatch.code}` });
   for (const e of commonFailures) if (e.job_id) citations.push({ type: 'job', label: `job #${e.job_id}`, job_id: e.job_id });
   for (const x of similarJobs) citations.push({ type: 'job', label: `job #${x.source_row_id}`, job_id: x.source_row_id });
+  if (archiveJobs.length) citations.push({ type: 'archive', label: `archive · ${archiveJobs.length} past ${archiveJobs.length === 1 ? 'job' : 'jobs'}` });
 
   return {
     statusCode: 200, headers: CORS,
