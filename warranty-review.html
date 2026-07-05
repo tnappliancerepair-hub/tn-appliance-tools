@@ -219,6 +219,28 @@
     </div>
   </div>
 
+  <!-- ⏱️ Claim Clock — the office game (Teddy 7/5). Your report = your pay. -->
+  <style>
+    #claim-clock { margin: 14px 16px 0; }
+    .cc-card { border:1px solid var(--accent); background:linear-gradient(180deg,rgba(246,207,69,0.08),rgba(246,207,69,0.02)); border-radius:14px; padding:14px 16px; }
+    .cc-top { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+    .cc-title { font-family:var(--display); letter-spacing:0.06em; font-size:22px; color:var(--accent); }
+    .cc-sub { font-family:var(--mono); font-size:11px; color:var(--muted); }
+    .cc-tiles { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+    .cc-tile { flex:1 1 84px; background:var(--bg); border:1px solid var(--border); border-radius:11px; padding:10px 12px; }
+    .cc-tile .n { font-family:var(--display); font-size:30px; line-height:1; color:var(--text); font-variant-numeric:tabular-nums; }
+    .cc-tile .n.gold { color:var(--accent); }
+    .cc-tile .n.warm { color:var(--orange); }
+    .cc-tile .k { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-top:5px; }
+    .cc-clock { margin-top:12px; display:flex; align-items:center; gap:11px; background:rgba(255,157,74,0.09); border:1px solid rgba(255,157,74,0.4); border-radius:11px; padding:11px 13px; cursor:pointer; }
+    .cc-clock .t { flex:1; font-size:13px; font-weight:700; color:var(--orange); line-height:1.35; }
+    .cc-clock .go { flex:0 0 auto; font-family:var(--mono); font-size:11px; font-weight:700; color:#231400; background:var(--accent); border-radius:8px; padding:8px 11px; }
+    .cc-clock.zero { background:rgba(76,210,192,0.09); border-color:rgba(76,210,192,0.4); }
+    .cc-clock.zero .t { color:var(--green); }
+    .cc-foot { font-family:var(--mono); font-size:10.5px; color:var(--muted); margin-top:9px; }
+  </style>
+  <div id="claim-clock"></div>
+
   <!-- Change Request modal — Danielle/office sends requests to "Ant" -->
   <div id="crModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:9500;padding:18px">
     <div style="background:#131720;border:1px solid #2a3040;border-radius:14px;padding:22px;max-width:500px;width:100%;color:#e8edf5">
@@ -356,7 +378,44 @@
     authGate.style.display = 'none';
     app.style.display = 'block';
     loadCmdCenter();
+    loadClaimClock();
     load();
+  }
+
+  // ⏱️ Claim Clock — the office game. Your report = your pay: the clock starts
+  // when a job is completed and stops when you file the claim. Points + streak.
+  async function loadClaimClock() {
+    const host = document.getElementById('claim-clock');
+    if (!host) return;
+    let d;
+    try { d = await fetch('/.netlify/functions/claim-clock', { cache: 'no-store' }).then(r => r.json()); }
+    catch (_) { host.innerHTML = ''; return; }
+    if (!d || !d.ok) { host.innerHTML = ''; return; }
+    const t = d.today || {}, w = d.week || {};
+    const onClock = (d.on_clock || []).length ? d.on_clock : [];
+    const oldest = onClock.length ? onClock[0] : null;
+    const oldestDays = oldest ? Math.floor((oldest.age_hours || 0) / 24) : 0;
+    const streak = w.streak || 0;
+    const clockLine = t.on_clock > 0
+      ? `<div class="cc-clock" onclick="document.getElementById('content').scrollIntoView({behavior:'smooth'})">
+           <div class="t">🕒 <b>${t.on_clock}</b> ${t.on_clock === 1 ? 'claim' : 'claims'} on the clock${oldest ? ` · oldest ${oldestDays >= 1 ? oldestDays + (oldestDays === 1 ? ' day' : ' days') : Math.round(oldest.age_hours) + 'h'} (${escapeHtml(oldest.customer)})` : ''} — file them to score</div>
+           <div class="go">CLEAR ↓</div>
+         </div>`
+      : `<div class="cc-clock zero"><div class="t">✓ Board's clear — every completed job's claim is filed. That's the win.</div></div>`;
+    const bestLine = d.best && d.best.hours != null ? ` · ⚡ fastest ${d.best.hours}h` : '';
+    host.innerHTML = `
+      <div class="cc-card">
+        <div class="cc-top"><div class="cc-title">⏱️ Claim Clock</div><div class="cc-sub">your report = your pay — file it, score it</div></div>
+        <div class="cc-tiles">
+          <div class="cc-tile"><div class="n gold">${t.points || 0}</div><div class="k">pts today</div></div>
+          <div class="cc-tile"><div class="n">${t.filed || 0}</div><div class="k">filed today</div></div>
+          <div class="cc-tile"><div class="n ${streak >= 2 ? 'warm' : ''}">${streak}${streak >= 2 ? '🔥' : ''}</div><div class="k">day streak</div></div>
+          <div class="cc-tile"><div class="n">${w.median_hours != null ? w.median_hours + 'h' : '—'}</div><div class="k">avg to file</div></div>
+          <div class="cc-tile"><div class="n">${w.same_day_pct != null ? w.same_day_pct + '%' : '—'}</div><div class="k">same day</div></div>
+        </div>
+        ${clockLine}
+        <div class="cc-foot">This week: ${w.points || 0} pts · ${w.filed || 0} filed${bestLine} &nbsp;|&nbsp; +10 filed · +5 same-day · +3 under 2h</div>
+      </div>`;
   }
 
   // 🐜 Warranty command center — claims money + parts owed back (the chargeback list).
@@ -960,6 +1019,13 @@
       });
       const d = await r.json();
       if (!d.success) throw new Error(d.error || 'save failed');
+      // Stop the Claim Clock: stamp jobs.warranty_submitted_at so the office game
+      // scores it and the job leaves the "on the clock" list. record_warranty_submission
+      // logs the claim but never touches the job's timestamp — this closes that gap.
+      if (status !== 'failed' && status !== 'manual_required') {
+        try { await fetch(`${XANO_BASE}/mark_warranty_submitted`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid, submitted: true }) }); } catch (_) {}
+        try { loadClaimClock(); } catch (_) {}
+      }
       // Refresh status badges for this job
       await hydrateSubmissionStatus([jid]);
       // Collapse the form
