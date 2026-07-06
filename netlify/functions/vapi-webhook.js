@@ -629,10 +629,15 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       'technician\'s call, extract the Technician Decision Report fields. Return ' +
       'ONLY a JSON object, no prose, with these keys (all strings, "" when unknown):\n' +
       '  diagnosis           - what was wrong, plain and specific\n' +
-      '  failed_component    - the part/component that failed\n' +
+      '  failed_component    - the specific failed part(s) that need replacing, in plain ' +
+      'words PLUS any part number the tech gave, e.g. "oven control board (WB27T11350)". ' +
+      'ALWAYS fill this whenever the tech names a bad / failed / needed part, even if you ' +
+      'also mention it in the diagnosis. This is the #1 field the office needs to order the ' +
+      'part — never leave it empty when a part was named.\n' +
       '  labor_hours         - hours of labor as a number string, e.g. "1" or "1.5"\n' +
-      '  repair_completed    - what the tech did to fix it; INCLUDE any part numbers ' +
-      'mentioned and any parts-to-return notes\n' +
+      '  repair_completed    - what the tech DID, or the plan if returning (e.g. "parts ' +
+      'needed, will return to install"). Do NOT put the failed part number here — it goes ' +
+      'in failed_component.\n' +
       '  failure_cause       - the SINGLE best-fit cause, EXACTLY one of: normal_wear, ' +
       'lack_of_maintenance, customer_misuse, pests, power_surge, manufacturer_defect, ' +
       'improper_installation, external_damage, pre_existing, other. Map what the tech ' +
