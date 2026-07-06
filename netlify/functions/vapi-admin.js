@@ -287,6 +287,60 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // MESSAGE-FIRST mode (Teddy 2026-07-06: "I'm not sure why we need a live
+  // transfer — ask them to give us a message so we can call them back"). No live
+  // transfer at all: remove the transferCall tool + every transfer block, and
+  // install a WARM take-a-message flow so anyone who wants a person gets their
+  // details taken and a real callback promise. Re-runnable.
+  if (action === 'message_mode') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    let msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    let sys = String(msgs[si].content || '');
+
+    // strip every transfer-related block so nothing tells the AI to transfer.
+    sys = sys.replace(/\n*<!-- LIVE-TRANSFER -->[\s\S]*?<!-- LIVE-TRANSFER -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- OX-START -->[\s\S]*?<!-- OX-END -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- HUMAN-HANDOFF -->[\s\S]*?<!-- HUMAN-HANDOFF -->\n*/g, '\n');
+
+    const MARK = '<!-- MESSAGE-MODE -->';
+    if (!sys.includes(MARK)) {
+      const BLOCK = `${MARK}\n## NO LIVE TRANSFER — TAKE A GREAT MESSAGE + PROMISE A CALLBACK (highest priority; overrides any transfer instruction)\n`
+        + `There is no live call transfer. Do NOT try to transfer, and do NOT imply someone is about to pick up. When a caller wants a person, is upset, or needs something you can't finish yourself, your job is to take a clean message and reassure them warmly — that IS the help.\n`
+        + `SAY IT WARMLY, e.g.: "I can't put a live person on right now, but I'll take down everything and have our office call you right back — let me get a couple details so they can help you fast." Never sound like a brush-off.\n`
+        + `ALWAYS call the capture_callback function with: their name, the best callback number, and a clear one-line summary of what they need (include the appliance, the job/claim number if warranty, and what's wrong or what they're asking). Actually invoke the tool — do not just say you logged it.\n`
+        + `IF THEY'RE UPSET (a no-show, damage, "no one calls me back," a repeat problem): acknowledge it genuinely and apologize first — "I'm really sorry about that, that's not okay, let me make sure this gets straight to the right person" — THEN capture it and mark it urgent in the summary.\n`
+        + `SET HONEST EXPECTATIONS: say the office will call them back as soon as they can, typically within business hours. Never promise a specific person or an exact callback time you can't guarantee.\n`
+        + `CONFIRM before ending: read their number back once, tell them it's logged and someone will reach out, and thank them. Never just hang up on someone who wanted a person.\n${MARK}\n\n`;
+      sys = BLOCK + sys;
+    }
+    msgs[si] = Object.assign({}, msgs[si], { content: sys });
+
+    // tools: DROP transferCall, ensure capture_callback stays.
+    let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
+    if (!tools.some((t) => tname(t) === 'capture_callback')) {
+      const cc = TOOLS.find((t) => t.name === 'capture_callback');
+      if (cc) tools.push(toolBody(cc));
+    }
+
+    const patch = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json && verify.json.model) || {};
+    const vSys = (vm.messages || []).find((m) => m.role === 'system');
+    const vc = String((vSys && vSys.content) || '');
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status,
+      message_mode_installed: vc.includes(MARK),
+      transfer_tool_removed: !(vm.tools || []).some((t) => t.type === 'transferCall'),
+      transfer_blocks_removed: !vc.includes('<!-- LIVE-TRANSFER -->') && !vc.includes('<!-- OX-START -->'),
+      has_capture_callback: (vm.tools || []).some((t) => tname(t) === 'capture_callback'),
+    }, null, 2) };
+  }
+
   // Turn LIVE TRANSFER on: ring a real human (Teddy's cell via the office ring
   // group) for the calls that need it, remove the contradictory "NO transfer"
   // block, and keep capture_callback as the fallback. (Teddy 2026-07-06: "it's
