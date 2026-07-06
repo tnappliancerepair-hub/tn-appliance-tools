@@ -73,21 +73,31 @@ const p=new URLSearchParams(location.search);
 const JOB_ID=parseInt(p.get('job_id'),10)||0;
 const TECH_ID=parseInt(p.get('tech_id'),10)||0;
 const canvas=document.getElementById('pad'), ctx=canvas.getContext('2d');
-let drawing=false, dirty=false, last=null;
+let drawing=false, dirty=false, last=null, activeId=null;
 
 function sizeCanvas(){
-  const r=canvas.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-  canvas.width=r.width*dpr; canvas.height=r.height*dpr;
-  ctx.scale(dpr,dpr); ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#10141c';
+  const r=canvas.getBoundingClientRect(), dpr=Math.min(2,window.devicePixelRatio||1);
+  canvas.width=Math.max(1,Math.round(r.width*dpr)); canvas.height=Math.max(1,Math.round(r.height*dpr));
+  ctx.lineWidth=2.6*dpr; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#10141c';
 }
-function pos(e){ const r=canvas.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
-function start(e){ e.preventDefault(); drawing=true; last=pos(e); document.getElementById('hint').style.display='none'; }
-function move(e){ if(!drawing)return; e.preventDefault(); const pt=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(pt.x,pt.y); ctx.stroke(); last=pt; dirty=true; }
-function end(){ drawing=false; }
-['mousedown','touchstart'].forEach(ev=>canvas.addEventListener(ev,start,{passive:false}));
-['mousemove','touchmove'].forEach(ev=>canvas.addEventListener(ev,move,{passive:false}));
-['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>canvas.addEventListener(ev,end));
-window.addEventListener('resize',()=>{ sizeCanvas(); });
+// Map to the canvas's ACTUAL pixel space using the CURRENT rect — ink lands under
+// the finger even if the layout shifts (mobile chrome) or rotates. No ctx.scale drift.
+function pos(e){ const r=canvas.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; const sx=canvas.width/r.width, sy=canvas.height/r.height; return {x:(t.clientX-r.left)*sx,y:(t.clientY-r.top)*sy}; }
+// Only the FIRST pointer draws — a palm / 2nd finger is ignored so the line never
+// jumps to a different contact point ("wiggles all over and hits different letters").
+function start(e){ if(activeId!==null&&e.pointerId!==undefined&&e.pointerId!==activeId){e.preventDefault();return;} if(e.pointerId!==undefined){activeId=e.pointerId;try{canvas.setPointerCapture(e.pointerId);}catch(_){}} e.preventDefault(); drawing=true; last=pos(e); document.getElementById('hint').style.display='none'; }
+function move(e){ if(!drawing)return; if(e.pointerId!==undefined&&activeId!==null&&e.pointerId!==activeId)return; e.preventDefault(); const pt=pos(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(pt.x,pt.y); ctx.stroke(); last=pt; dirty=true; }
+function end(e){ if(e&&e.pointerId!==undefined&&activeId!==null&&e.pointerId!==activeId)return; drawing=false; activeId=null; }
+if(window.PointerEvent){
+  canvas.addEventListener('pointerdown',start);
+  canvas.addEventListener('pointermove',move);
+  window.addEventListener('pointerup',end);
+  canvas.addEventListener('pointercancel',end);
+}else{
+  ['mousedown','touchstart'].forEach(ev=>canvas.addEventListener(ev,start,{passive:false}));
+  ['mousemove','touchmove'].forEach(ev=>canvas.addEventListener(ev,move,{passive:false}));
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=>canvas.addEventListener(ev,end));
+}
 sizeCanvas();
 
 document.getElementById('clear').onclick=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); dirty=false; document.getElementById('hint').style.display='block'; };

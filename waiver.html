@@ -199,27 +199,34 @@
   // Canvas signature
   var canvas = document.getElementById('sig-canvas');
   var placeholder = document.getElementById('sig-placeholder');
-  var ctx = null, drawing = false, hasInk = false;
+  var ctx = null, drawing = false, hasInk = false, activeId = null, dprCur = 1;
   function sizeCanvas() {
-    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    dprCur = Math.min(2, window.devicePixelRatio || 1);
     var rect = canvas.getBoundingClientRect();
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
+    canvas.width = Math.max(1, Math.round(rect.width * dprCur));
+    canvas.height = Math.max(1, Math.round(rect.height * dprCur));
     ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.lineWidth = 2.4;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2.4 * dprCur;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#1a202c';
   }
+  // Map to the canvas's ACTUAL pixel space using the CURRENT rect, so ink always
+  // lands under the finger even if the layout shifted (mobile chrome) or rotated.
+  // No ctx.scale drift.
   function point(evt) {
     var rect = canvas.getBoundingClientRect();
     var t = (evt.touches && evt.touches[0]) || evt;
-    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    var sx = canvas.width / rect.width, sy = canvas.height / rect.height;
+    return { x: (t.clientX - rect.left) * sx, y: (t.clientY - rect.top) * sy };
   }
   function start(e) {
+    // Only the FIRST pointer draws. A palm / second finger touching down is ignored,
+    // so the line never jumps to a different contact point ("wiggles all over").
+    if (activeId !== null && e.pointerId !== undefined && e.pointerId !== activeId) { e.preventDefault(); return; }
+    if (e.pointerId !== undefined) { activeId = e.pointerId; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
     e.preventDefault();
     drawing = true;
     if (!hasInk) { hasInk = true; placeholder.style.display = 'none'; }
@@ -229,19 +236,34 @@
   }
   function move(e) {
     if (!drawing) return;
+    if (e.pointerId !== undefined && activeId !== null && e.pointerId !== activeId) return;
     e.preventDefault();
     var p = point(e);
     ctx.lineTo(p.x, p.y);
     ctx.stroke();
   }
-  function end(e) { if (e) e.preventDefault(); drawing = false; ctx.beginPath(); }
+  function end(e) {
+    if (e && e.pointerId !== undefined && activeId !== null && e.pointerId !== activeId) return;
+    if (e) e.preventDefault();
+    drawing = false; activeId = null;
+    if (ctx) ctx.beginPath();
+  }
   setTimeout(sizeCanvas, 30);
-  canvas.addEventListener('mousedown', start);
-  canvas.addEventListener('mousemove', move);
-  window.addEventListener('mouseup', end);
-  canvas.addEventListener('touchstart', start, { passive: false });
-  canvas.addEventListener('touchmove', move, { passive: false });
-  canvas.addEventListener('touchend', end, { passive: false });
+  // Pointer Events = one unified pointer with clean palm rejection. Fall back to
+  // mouse+touch only where PointerEvent is unavailable.
+  if (window.PointerEvent) {
+    canvas.addEventListener('pointerdown', start);
+    canvas.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+  } else {
+    canvas.addEventListener('mousedown', start);
+    canvas.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    canvas.addEventListener('touchstart', start, { passive: false });
+    canvas.addEventListener('touchmove', move, { passive: false });
+    canvas.addEventListener('touchend', end, { passive: false });
+  }
   document.getElementById('btn-clear').addEventListener('click', function () {
     hasInk = false; placeholder.style.display = 'flex'; sizeCanvas();
   });
