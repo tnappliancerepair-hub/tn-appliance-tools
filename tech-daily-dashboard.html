@@ -1795,7 +1795,7 @@
     // 3) completion: pass through Start (state machine requires it), then Complete.
     try { await fetch(XANO_BASE + '/tech_job_started', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid }) }); } catch (_) {}
     let done = null;
-    try { const r = await fetch(XANO_BASE + '/tech_job_complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid, completion_type: ct }) }); done = await r.json().catch(() => ({})); } catch (_) {}
+    try { const r = await fetchT('/.netlify/functions/tech-complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid, completion_type: ct }) }); done = await r.json().catch(() => ({})); } catch (_) {}
     if (done && done.success) {
       if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Done + report filed — nice work.'; }
       setTimeout(loadDashboard, 1200);

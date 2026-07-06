@@ -1002,9 +1002,13 @@ async function lifecycle(ep,okMsg,spStatus){
 function applyLifecycleButtons(){
   const otw=document.getElementById('a-otw'), st=document.getElementById('a-start'), dn=document.getElementById('a-done');
   if(!otw||!st||!dn) return;
-  const enroute=!!job.tech_en_route_at;
-  const started=!!job.job_started_at || job.scheduling_status==='in_progress';
-  const completed=!!job.job_completed_at || job.scheduling_status==='completed';
+  // Only count a step "done" if it happened TODAY — a prior-trip stamp must not grey
+  // out this visit's buttons (the return-visit trap). Live status is the source of truth.
+  const _today=new Date().toDateString();
+  const _sameDay=(ms)=>{ try{ return !!ms && new Date(Number(ms)).toDateString()===_today; }catch(_){ return false; } };
+  const enroute=_sameDay(job.tech_en_route_at);
+  const started=_sameDay(job.job_started_at) || job.scheduling_status==='in_progress';
+  const completed=_sameDay(job.job_completed_at) || job.scheduling_status==='completed' || job.scheduling_status==='no_fix_possible';
   const mark=(b,label)=>{ b.disabled=true; b.style.opacity='0.4'; b.style.pointerEvents='none'; b.innerHTML='<span class="ic">✓</span>'+label; };
   if(enroute||started||completed) mark(otw,'On my way');
   if(started||completed) mark(st,'Started');
@@ -1050,9 +1054,9 @@ async function sendPayLink(){
 }
 
 function completeFlow(){
-  const types=[['repair_complete','Repair complete'],['parts_needed','Parts needed'],['reassignment_needed','Reassign'],['no_repair','No repair']];
+  const types=[['repair_complete','✅ Fixed it — job complete'],['parts_needed','🔩 Diagnosed — need parts, coming back'],['reassignment_needed','↪️ Needs reassigned'],['no_repair','🚫 Can\'t be repaired']];
   const out=document.getElementById('lc-stamp');
-  out.innerHTML='How did it end?<div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
+  out.innerHTML='How did THIS visit end?<div style="font-size:12px;color:#8a93a1;margin:3px 0 2px">“Fixed it” closes the job out. Diagnostic / parts keeps it open and comes back — it won’t mark the job done.</div><div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
     // Gate: a "Repair complete" must carry a report (what you found + fixed + labor),
     // or the office can't bill or authorize it. Block clearly BEFORE submitting.
@@ -1088,7 +1092,9 @@ function completeFlow(){
       if(!job.job_started_at){
         try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){}
       }
-      const d=await xanoPost('tech_job_complete',{job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct});
+      // Via tech-complete: a diagnostic/parts trip won't leave a "done" stamp, and a
+      // stale stamp from a prior trip is cleared so a return visit completes cleanly.
+      const d=await fetchT('/.netlify/functions/tech-complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct})}).then(r=>r.json()).catch(()=>({success:false,error:'connection error'}));
       if(d.success){
         toast('Job completed ✓');
         const rpt=(document.getElementById('notes')||{}).value||'';
