@@ -2076,8 +2076,12 @@
         // Done but no report from him = pay is stuck. File it right here.
         : `<button class="lc-btn lc-report" onclick="event.stopPropagation();tfin(this,${jid},'filed')">📋 File your report — get paid</button>`;
     } else if (status === 'in_progress') {
-      // Close the loop on the tile: file the report + complete, no page jump.
-      lcRow = `<button class="lc-btn lc-report" onclick="event.stopPropagation();tfin(this,${jid},'repair_complete')">✓ Done — file report</button>
+      // Close the loop on the tile: file the report + complete, no page jump. Labeled
+      // "Complete" (not "Done — file report") — techs looking for a Complete button
+      // couldn't recognize the old wording, and a started job's tile changing from
+      // Start -> this made it feel like the job "disappeared" (Teddy 7/6).
+      lcRow = `<div style="width:100%;font-size:12px;color:#9aa7bd;font-weight:700;margin-bottom:6px">⏳ Started — tap Complete when you're done</div>
+               <button class="lc-btn lc-report" onclick="event.stopPropagation();tfin(this,${jid},'repair_complete')">✅ Complete this job</button>
                <a href="tech-job.html?job_id=${jid}&tech_id=${TECH_ID}" class="lc-btn lc-expand" title="open the full job" onclick="event.stopPropagation()">⤢</a>`;
     } else {
       lcRow = `<button class="lc-btn lc-otw" onclick="event.stopPropagation();tlc(this,${jid},'tech_on_the_way')">🚚 On my way</button>
