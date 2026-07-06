@@ -784,10 +784,16 @@
     var html = '';
     html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Edit ' + escapeHtml(meta.label) + '</div>';
     html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
-    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()">×</button></div>';
+    // Green ✓ Save in the header so it is ALWAYS visible above the phone keyboard — the
+    // bottom Save was getting hidden by the keyboard, so techs only saw the × and used
+    // that. Now the green check is the obvious save; × cancels. (Teddy 7/6.)
+    html += '<div style="display:flex;gap:8px;align-items:center;flex:0 0 auto">';
+    html += '<button class="ant-tdr-save-btn" onclick="window.__antTdrSaveField()" style="background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap">✓ Save</button>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()" title="cancel — do not save">×</button>';
+    html += '</div></div>';
     if (seededNote) html += '<div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.4);color:#8fc0ff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px">📩 ' + escapeHtml(seededNote) + '</div>';
     html += inputHtml;
-    html += '<div class="ant-tdr-actions"><button class="ant-tdr-btn primary" id="ant-tdr-save-btn" onclick="window.__antTdrSaveField()">Save</button>';
+    html += '<div class="ant-tdr-actions"><button class="ant-tdr-btn primary ant-tdr-save-btn" onclick="window.__antTdrSaveField()" style="background:linear-gradient(135deg,#10b981,#047857)">✓ Save</button>';
     html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrCancelEdit()">Cancel</button></div>';
     host.innerHTML = html;
     var inp = document.getElementById('ant-tdr-edit-input');
@@ -799,8 +805,8 @@
     if (!key || !meta || !lastData) return;
     var inp = document.getElementById('ant-tdr-edit-input');
     var val = inp ? String(inp.value == null ? '' : inp.value).trim() : '';
-    var btn = document.getElementById('ant-tdr-save-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    var btns = document.querySelectorAll('.ant-tdr-save-btn');
+    btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
     try {
       // update_tdr_field_from_voice upserts the in-progress TDR by (job_id,
       // technician_id) and writes via db.edit — no TDR_SUBMITTED signal, so
@@ -816,7 +822,7 @@
       var wd = await wr.json();
       if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
     } catch (e) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
       alert('Could not save: ' + (e && e.message ? e.message : e));
       return;
     }
