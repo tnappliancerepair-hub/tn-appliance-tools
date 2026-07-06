@@ -98,7 +98,7 @@ exports.handler = async function (event) {
     const ct = callerType.toLowerCase();
     if (ct.indexOf('warranty') !== -1 || ct.indexOf('rep') !== -1) return true;
     const s = (summary + ' ' + ref).toLowerCase();
-    return /urgent|expedit|emergency|medical|insulin|medication|no[-\s]?show|did\s*n'?t\s*show|didnt\s*show|no\s*one\s*(call|show)|never\s*call|no\s*call\s*back|call\s*me\s*back|damage|flood|leak|angry|upset|furious|frustrat|manager|complain|refund|escalat|asap|right\s*now|multiple\s*times|third\s*time|again/.test(s);
+    return /urgent|expedit|emergency|medical|insulin|medication|no[-\s]?show|never\s*(show|came|come)|no\s*one\s*(show|came|come)|did\s*n'?t\s*(show|come|make)|didnt\s*(show|come)|missed\s*(the\s*)?appointment|(no\s*(one|body)|never|still\s*(have\s*)?n'?t)\s*(ever\s*)?call|damage|flood|leak|water\s*everywhere|angry|upset|furious|frustrat|manager|complain|refund|escalat|asap|right\s*now|multiple\s*times|third\s*time|second\s*time|come\s*back\s*out/.test(s);
   }
   const urgent = isUrgent();
   // Safety net: if the durable queue write failed, alert even a routine one so it
