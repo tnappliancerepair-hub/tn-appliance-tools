@@ -1650,9 +1650,11 @@
     if (!tid) { alert('Missing tech id — reopen from your Ant link.'); return; }
     btn.disabled = true; btn.textContent = '…';
     try {
-      const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/' + action, {
+      // Route through tech-lifecycle so a return trip (2nd/3rd/4th visit) clears the
+      // prior trip's stale en-route/started flag and re-sends "on the way" fresh.
+      const r = await fetch('/.netlify/functions/tech-lifecycle', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: jobId, technician_id: tid }),
+        body: JSON.stringify({ job_id: jobId, technician_id: tid, action }),
       });
       const d = await r.json().catch(() => ({}));
       if (d && d.success) {

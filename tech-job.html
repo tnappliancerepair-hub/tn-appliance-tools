@@ -966,7 +966,9 @@ function pushSP(statusKey,notes){
 async function lifecycle(ep,okMsg,spStatus){
   toast('Sending…');
   try{
-    const d=await xanoPost(ep,{job_id:JOB_ID,technician_id:TECH_ID});
+    // Via tech-lifecycle: a return trip auto-clears the prior visit's stale flag so
+    // "On my way" / "Start" work + re-notify the customer on every 2nd/3rd/4th trip.
+    const d=await fetch('/.netlify/functions/tech-lifecycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,action:ep})}).then(r=>r.json()).catch(()=>({}));
     if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); loadJob(); }
     else {
       const e=String(d.error||'failed');
