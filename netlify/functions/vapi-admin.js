@@ -91,6 +91,50 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Day's calls at a glance — pull today's inbound calls, summarize each, and
+  // FLAG the ones that likely upset the caller (asked for a human, frustrated
+  // language, transfer/callback, abrupt end) so we can review them fast.
+  // GET ?action=daycalls[&hours=24][&flagged=1]
+  if (action === 'daycalls') {
+    const hours = Math.max(1, Math.min(72, Number(q.hours) || 24));
+    const sinceMs = Date.now() - hours * 3600 * 1000;
+    const sinceIso = new Date(sinceMs).toISOString();
+    const got = await vapi('GET', `/call?createdAtGt=${encodeURIComponent(sinceIso)}&limit=100`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, status: got.status, error: got.json }) };
+    const calls = Array.isArray(got.json) ? got.json : (got.json.results || []);
+    const UPSET_RE = /(speak|talk|get me|want|need)\s+(to\s+)?(a\s+)?(real\s+)?(person|human|representative|rep|someone|manager|agent)|frustrat|ridiculous|annoy|useless|stupid|terrible|awful|angry|upset|not\s+helpful|hate|robot|automated|real person|actual person|this is (a )?joke|waste of|cancel (my|the)|talk to (a )?human/i;
+    const rows = calls.map((c) => {
+      const msgs = (c.messages || (c.artifact && c.artifact.messages) || []);
+      const userText = msgs.filter((m) => m.role === 'user').map((m) => String(m.message || m.content || '')).join(' ');
+      const fullText = msgs.map((m) => String(m.message || m.content || '')).join(' ');
+      const summary = (c.analysis && c.analysis.summary) || c.summary || '';
+      const dur = c.startedAt && c.endedAt ? Math.round((new Date(c.endedAt) - new Date(c.startedAt)) / 1000) : null;
+      const flags = [];
+      if (UPSET_RE.test(userText) || UPSET_RE.test(summary)) flags.push('asked_for_human_or_upset');
+      if (/customer-?ended/i.test(c.endedReason || '') && dur != null && dur < 25) flags.push('hung_up_fast');
+      if (/silence|no-?answer|failed|error|transfer-failed/i.test(c.endedReason || '')) flags.push('dropped_or_failed');
+      const humanReqCount = (userText.match(/person|human|representative|\brep\b|someone|manager|agent/gi) || []).length;
+      if (humanReqCount >= 2) flags.push('repeated_human_requests');
+      return {
+        id: c.id,
+        at: c.startedAt || c.createdAt,
+        from: (c.customer && c.customer.number) || c.phoneNumber || '',
+        dur_s: dur,
+        ended: c.endedReason || '',
+        flags,
+        upset: flags.length > 0,
+        summary: String(summary).slice(0, 400),
+        last_user: String(userText).slice(-240),
+      };
+    });
+    rows.sort((a, b) => (b.upset - a.upset) || (String(b.at).localeCompare(String(a.at))));
+    const out = (q.flagged === '1') ? rows.filter((r) => r.upset) : rows;
+    return { statusCode: 200, body: JSON.stringify({
+      ok: true, window_hours: hours, total: rows.length, flagged: rows.filter((r) => r.upset).length,
+      calls: out,
+    }, null, 2) };
+  }
+
   // Human handoff: there is NO live transfer / no live rep right now. If a caller
   // asks for a person, don't imply a transfer — say so cleanly and take a message.
   if (action === 'human_handoff') {
