@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import * as supa from './supabase.js';
+import { isQuietHourCT } from './time.js';
 
 // Retry transient network failures (TypeError: fetch failed, DNS blips,
 // TLS reset). HTTP errors (4xx/5xx response bodies) fall through to the
@@ -510,6 +511,22 @@ function _customerSmsMuted(context) {
   return CUSTOMER_SMS_MUTE.find((p) => tag.includes(p)) || null;
 }
 
+// Quiet hours — the LOWEST-level guard so EVERY customer-direction send (via
+// toCustomer/dispatchSms AND agents that call xano.sendSms directly, e.g.
+// availability_request) is covered. A real customer got a 3:33am + 3:42am text
+// (Teddy 2026-07-06). Blocks proactive customer texts 9pm–8am CT. EXEMPT:
+// force_send, same-day en-route/ETA/running-late, and REACTIVE replies to a
+// live inbound (never go silent on a 3am customer — the Christopher S. gap).
+function _customerQuietBlocked(context) {
+  const role = String((context && context.recipient_role) || '').toLowerCase();
+  if (role !== 'customer') return null;
+  if (context && context.force_send) return null;
+  const tag = String((context && (context.action || context.outcome || context.context_tag)) || '').toLowerCase();
+  if (/en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up|reply|inbound|response|reactive/.test(tag)) return null;
+  if (!isQuietHourCT(Date.now(), config.quietStartHourCT, config.quietEndHourCT)) return null;
+  return tag || 'untagged';
+}
+
 // ── Per-recipient duplicate guard (2026-06-25 incident: 36 identical reminders
 // blasted to one customer). Lives at the LOWEST send point so every path —
 // the dispatchSms wrapper AND direct xano.sendSms callers — is covered. Drops
@@ -544,6 +561,12 @@ export async function sendSms(to, message, context = {}) {
     logLocal('customer_sms_muted', { matched: _muted, to_last4: String(to || '').slice(-4),
       tag: (context.action || context.context_tag || '') });
     return { success: false, muted: true, matched: _muted };
+  }
+  // Quiet hours — no proactive customer texts overnight (9pm–8am CT).
+  const _qhTag = _customerQuietBlocked(context);
+  if (_qhTag) {
+    logLocal('customer_sms_quiet_hours_blocked', { to_last4: String(to || '').slice(-4), tag: _qhTag });
+    return { success: false, quiet_hours: true, tag: _qhTag };
   }
   // Universal anti-spam backstop: never send the exact same text to the same
   // number twice within the window (any agent, any path).

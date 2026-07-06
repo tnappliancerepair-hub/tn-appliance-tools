@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import * as xano from './xano.js';
+import { isQuietHourCT } from './time.js';
 
 export function normalizeE164(phone) {
   if (!phone) return null;
@@ -151,6 +152,18 @@ export async function toCustomer(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
+  }
+  // QUIET HOURS — never proactively text a customer 9pm–8am CT. A real customer
+  // got a 3:33am + 3:42am text (Teddy 2026-07-06) from overnight loop sends; a
+  // night text is indefensible (TCPA + it wakes people up). Same-day en-route/
+  // ETA/running-late texts the customer is actively expecting still pass, and
+  // force_send is an explicit escape. Skipped sends log locally; daytime
+  // touchpoints re-reach them. (Owner/tech paths have their own gates.)
+  const _qact = String((context && (context.action || context.outcome || context.tag)) || '').toLowerCase();
+  const _quietOk = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up/.test(_qact);
+  if (!context.force_send && !_quietOk && isQuietHourCT(Date.now(), config.quietStartHourCT, config.quietEndHourCT)) {
+    xano.logLocal('customer_sms_quieted_quiet_hours', { to: e164, action: _qact, body_preview: String(body || '').slice(0, 120) });
+    return { success: false, quieted: true, quiet_hours: true, action: _qact };
   }
   // FORWARD-ONLY for the NEW-JOB OUTREACH only (greeting/availability/pre-diag).
   // The backlog never gets those. Reminders + confirmations are exempt — they
