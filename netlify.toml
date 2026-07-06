@@ -200,6 +200,11 @@
 [functions."gbp-post-generator"]
   schedule = "0 14 * * 1"
 
+# Social content pack (FB + IG + TikTok). Draft-texts Teddy weekly; auto-publishes
+# to FB + IG when the Meta Page token is vaulted. Mondays 3pm UTC (~9-10am CT).
+[functions."social-post-generator"]
+  schedule = "0 15 * * 1"
+
 # GBP photo request — weekly text to the field crew for 2-3 job photos (keeps the
 # Google profile photo-fresh = map-pack rank + clicks). One-tap upload link per
 # tech; photos land tagged for Teddy to post. Tue 2:30pm UTC (~9:30am CT). Kill
