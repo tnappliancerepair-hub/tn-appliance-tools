@@ -287,6 +287,33 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // NEVER give a precise arrival time (Teddy 2026-07-06: "we don't give precise
+  // time. Stop telling people we'll be there at a certain time. Jimmy's always
+  // late and there's no way to predict how long each stop takes"). We route by
+  // DAY; the customer gets a live arrival window the morning of. Idempotent.
+  if (action === 'no_precise_time') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- NO-PRECISE-TIME -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## NEVER GIVE A PRECISE ARRIVAL TIME — WE SCHEDULE BY DAY (highest priority; overrides anything that looks like a time)\n`
+      + `We do NOT commit to a clock time. The tech runs a route of stops and each one takes an unpredictable amount of time, so a specific time is a promise we can't keep. NEVER say "we'll be there at 11," "between 2 and 4," "around 3 o'clock," or read back a scheduled_start time-of-day as an appointment time — that time is an internal routing placeholder, not a promise.\n`
+      + `INSTEAD, always say it this way: the customer is set for a DAY (name the weekday + date), and we TEXT them a live arrival window the MORNING OF, once the tech starts his route and we can see how the day's running. That live window is accurate; a time picked days ahead never is.\n`
+      + `IF THEY PUSH FOR A TIME: be warm and honest — "I hear you, and I wish I could give you an exact time. The reason we don't is so we can give you an accurate heads-up the morning of instead of a guess we'd end up missing. You'll get a text that morning with a real arrival window, and you can always text or call us that day for where the tech is." Do not cave and invent a time.\n`
+      + `The ONLY time-ish thing you may offer is a broad part-of-day if the office set one (like "sometime in the afternoon") — never a specific hour, and always paired with "we'll text the live window that morning."\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // MESSAGE-FIRST mode (Teddy 2026-07-06: "I'm not sure why we need a live
   // transfer — ask them to give us a message so we can call them back"). No live
   // transfer at all: remove the transferCall tool + every transfer block, and
