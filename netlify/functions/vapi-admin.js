@@ -287,6 +287,36 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // ROOT CAUSE of the "your appointment is tomorrow" bug (it was TODAY): the AI
+  // has no clock, so it GUESSES the current date — and guessed a day behind, so
+  // it called today's July 6 job "tomorrow." Inject the live Central-time date at
+  // the TOP of the prompt so today/tomorrow math is anchored to reality, not a
+  // guess. Uses Vapi's {{now}} dynamic var (interpolated per call). Idempotent.
+  if (action === 'date_now') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- DATE-NOW -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## THE CURRENT DATE + TIME — AUTHORITATIVE, USE THIS FOR EVERY today/tomorrow/yesterday (highest priority)\n`
+      + `Right now it is {{"now" | date: "%A, %B %-d, %Y at %-I:%M %p", "America/Chicago"}} Central Time. (Raw timestamp if that didn't format: {{now}}.)\n`
+      + `This line is the REAL current date and time. You do NOT otherwise know what day it is — so compute "today," "tomorrow," and "yesterday" ONLY by comparing to THIS date. Never guess the current date from memory.\n`
+      + `- An appointment date EQUAL to the date above = TODAY (not tomorrow).\n`
+      + `- Only call a date "tomorrow" if it is literally the calendar day AFTER the date above.\n`
+      + `- If an appointment date is BEFORE the date above, it has already passed — say it looks like it was earlier/last (name the day) and ask if the visit happened or they need rescheduling. Never present a past date as upcoming.\n`
+      + `When in any doubt, state the plain calendar day (weekday, month, day) rather than a relative word.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // AHS/warranty dispatch calls — the AI was FUMBLING these: it hung up on a rep
   // ("talk to you soon") mid-dispatch and never actually captured an EXPEDITED
   // insulin fridge dispatch, so it was lost. This forces: never hang up on a rep,
