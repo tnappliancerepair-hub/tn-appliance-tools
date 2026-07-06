@@ -24,6 +24,21 @@ Auto-update ships *inside* the tech HTML, so the **first** time each tech needs 
 open/refresh once to load the version that has the watcher. After that, every future
 fix this week lands with a tap — no more "close and reopen."
 
+## ✅ FIXED — 2026-07-06 (afternoon, live-field with Teddy in Clarksville)
+| Bug | Cause | Fix |
+|---|---|---|
+| Started job "disappeared," no Complete button | A started tile swaps its buttons (Start → "✓ Done — file report"); techs didn't recognize it | Relabeled to **"✅ Complete this job"** + "⏳ Started — tap Complete when you're done" hint |
+| "Job already completed" on a return visit (couldn't record the real repair) | `tech_job_complete` stamps `job_completed_at` on EVERY completion type, so the first diagnostic/parts trip marked the job "done" → idempotency gate blocked the return trip | **`tech-complete` wrapper**: non-terminal completions (parts/warranty-auth/reassign) strip the "done" stamp back off; a stale blocking stamp is cleared before completing (+retry). Routed job-page + tile completion through it |
+| "Complete" button ambiguous (diagnostic vs job-done) | One button, no distinction | Picker relabeled: **"✅ Fixed it — job complete"** vs **"🔩 Diagnosed — need parts, coming back"** + explainer that diagnostic keeps the job open |
+| Complete/Start greyed out on a return visit | `applyLifecycleButtons` greyed from raw prior-trip timestamps | Now greys a step only if it happened **today** — a prior-trip stamp no longer disables this visit's buttons |
+| TDR field editor had no visible Save (only ×) | Save button sat below the input, hidden by the phone keyboard | **Green ✓ Save in the editor header** (always above the keyboard) + green ✓ at bottom; × clearly cancels |
+| (data) Colston #19789 + #19708/#19822 stuck "completed" | stale flags from prior trips | cleared via reset-job-lifecycle (now also clears `job_completed_at`) |
+
+**⏳ Proper XS follow-up (needs a Mac push):** fix `tech_job_complete.xs` to NOT stamp
+`job_completed_at` for non-terminal completion types (parts_needed / warranty_auth_needed
+/ reassignment_needed), and scope the idempotency gate to truly-terminal status. The
+`tech-complete` wrapper does this live today; the XS change makes it native.
+
 ## 🔎 PROACTIVE SWEEP — 2026-07-06 (done; fixes shipped)
 Deep read-only audit of the tech surfaces found the field-killers below. Two root
 causes drove most of the HIGH list: **no fetch timeouts** (a hung request on weak
