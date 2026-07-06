@@ -287,6 +287,65 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Turn LIVE TRANSFER on: ring a real human (Teddy's cell via the office ring
+  // group) for the calls that need it, remove the contradictory "NO transfer"
+  // block, and keep capture_callback as the fallback. (Teddy 2026-07-06: "it's
+  // gonna have to ring my phone.") Idempotent-ish (re-runnable).
+  if (action === 'transfer_on') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const RING = q.number || '+16155889591'; // office ring-group DID → office-texml dials the cells that are ON
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    let msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    let sys = String(msgs[si].content || '');
+
+    // 1) remove the contradictory "NO live transfer" blocks (HUMAN-HANDOFF + OX if present).
+    sys = sys.replace(/\n*<!-- HUMAN-HANDOFF -->[\s\S]*?<!-- HUMAN-HANDOFF -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- OX-START -->[\s\S]*?<!-- OX-END -->\n*/g, '\n');
+
+    // 2) add the transfer-triggers block (when to ring a human vs. handle/capture).
+    const MARK = '<!-- LIVE-TRANSFER -->';
+    if (!sys.includes(MARK)) {
+      const BLOCK = `${MARK}\n## CONNECTING A CALLER TO A LIVE PERSON — you CAN transfer now (use transferCall)\n`
+        + `You have a working transferCall function that rings a real person (the office/owner cell). Use it for calls that genuinely need a human, then fall back to a message if no one picks up.\n`
+        + `TRANSFER (call transferCall) when:\n`
+        + `- The caller asks to speak to a person / representative / manager / "Teddy" — after you've offered to help once and they still want a human. Don't fight them on it.\n`
+        + `- The caller is clearly upset about a real problem (a no-show, damage, "no one calls me back," a repair that failed).\n`
+        + `- It's a warranty/AHS rep who needs a decision or something you can't do yourself.\n`
+        + `- Anything expedited / urgent / medical.\n`
+        + `HOW: say "Let me connect you with our office right now — one moment," THEN call transferCall. It rings ~25 seconds.\n`
+        + `IF NO ONE ANSWERS: do NOT leave them hanging and do NOT promise a specific person. Say "I couldn't reach someone live just now, but I'll take your details and the office will call you right back," then call capture_callback (name, number, one-line summary; for a warranty rep set caller_type "warranty_rep" and include the claim/dispatch + member info).\n`
+        + `DON'T transfer for routine status or scheduling you can already handle — just handle those.\n${MARK}\n\n`;
+      sys = BLOCK + sys;
+    }
+    msgs[si] = Object.assign({}, msgs[si], { content: sys });
+
+    // 3) tools: ensure transferCall (to the ring DID) + capture_callback present.
+    let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
+    if (!tools.some((t) => tname(t) === 'capture_callback')) {
+      const cc = TOOLS.find((t) => t.name === 'capture_callback');
+      if (cc) tools.push(toolBody(cc));
+    }
+    tools.push({ type: 'transferCall', destinations: [{ type: 'number', number: RING, message: 'One second — let me connect you with our office.' }] });
+
+    const patch = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json && verify.json.model) || {};
+    const vt = (vm.tools || []).find((t) => t.type === 'transferCall');
+    const vSys = (vm.messages || []).find((m) => m.role === 'system');
+    const vc = String((vSys && vSys.content) || '');
+    return { statusCode: 200, body: JSON.stringify({
+      ok: patch.ok, patch_status: patch.status,
+      transfer_destinations: (vt && vt.destinations) || null,
+      triggers_block: vc.includes(MARK),
+      no_transfer_block_removed: !vc.includes('<!-- HUMAN-HANDOFF -->'),
+      has_capture_callback: (vm.tools || []).some((t) => tname(t) === 'capture_callback'),
+    }, null, 2) };
+  }
+
   // ROOT CAUSE of the "your appointment is tomorrow" bug (it was TODAY): the AI
   // has no clock, so it GUESSES the current date — and guessed a day behind, so
   // it called today's July 6 job "tomorrow." Inject the live Central-time date at
