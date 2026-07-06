@@ -90,20 +90,35 @@ exports.handler = async function (event) {
     } catch (_) { logged = false; }
   }
 
-  const tag = callerType === 'warranty' ? 'WARRANTY' : 'customer';
-  const alert = '[ant] 📞 callback needed (' + tag + '): ' + (name || '(no name)') + ' ' + (phone || '') +
-    (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') +
-    '. Follow up: https://tnapplianceexchange.net/callbacks.html';
+  // URGENT vs routine (Teddy 2026-07-06): only URGENT callbacks buzz Teddy's
+  // phone; routine ones just sit in the Callbacks queue so he's not pestered all
+  // day. Urgent = a warranty/AHS rep or dispatch, expedited/medical, OR clearly
+  // upset language (no-show, damage, "no one calls me back," repeat problem).
+  function isUrgent() {
+    const ct = callerType.toLowerCase();
+    if (ct.indexOf('warranty') !== -1 || ct.indexOf('rep') !== -1) return true;
+    const s = (summary + ' ' + ref).toLowerCase();
+    return /urgent|expedit|emergency|medical|insulin|medication|no[-\s]?show|did\s*n'?t\s*show|didnt\s*show|no\s*one\s*(call|show)|never\s*call|no\s*call\s*back|call\s*me\s*back|damage|flood|leak|angry|upset|furious|frustrat|manager|complain|refund|escalat|asap|right\s*now|multiple\s*times|third\s*time|again/.test(s);
+  }
+  const urgent = isUrgent();
+  // Safety net: if the durable queue write failed, alert even a routine one so it
+  // is never silently lost.
+  const alertOwner = urgent || !logged;
 
-  // Fire all three in parallel to keep the live call snappy: office alerts (so a
-  // human CAN still work it) + the immediate customer acknowledgment (so the
-  // loop closes even if no human does). guardedSend enforces opt-out; internal
-  // callers are skipped so a tech dialing in never gets the "thanks for calling"
-  // text. allowQuiet: they literally just called us seconds ago.
+  const tag = urgent ? '🚨 URGENT' : (!logged ? '(queue-write failed)' : (callerType === 'warranty' ? 'WARRANTY' : 'customer'));
+  const alert = '[ant] 📞 callback (' + tag + '): ' + (name || '(no name)') + ' ' + (phone || '') +
+    (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') +
+    '. Call back: https://tnapplianceexchange.net/callbacks.html';
+
+  // Fire in parallel to keep the live call snappy. Owner/Danielle get a text ONLY
+  // when it's urgent (routine callbacks live quietly in the queue). The immediate
+  // customer acknowledgment always fires so the loop closes even if no human works
+  // it. guardedSend enforces opt-out; internal callers are skipped so a tech
+  // dialing in never gets the "thanks for calling" text.
   let customerAcked = false, customerAckReason = 'skipped';
   await Promise.allSettled([
-    retry(() => sendSms(OWNER, alert, 'owner', 'vapi_callback'), 2).then(() => { ownerSent = true; }).catch(() => {}),
-    retry(() => sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback'), 2).then(() => { danielleSent = true; }).catch(() => {}),
+    alertOwner ? retry(() => sendSms(OWNER, alert, 'owner', 'vapi_callback_urgent'), 2).then(() => { ownerSent = true; }).catch(() => {}) : Promise.resolve(),
+    urgent ? retry(() => sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback_urgent'), 2).then(() => { danielleSent = true; }).catch(() => {}) : Promise.resolve(),
     (async () => {
       if (!phone || isInternal(phone)) { customerAckReason = isInternal(phone) ? 'internal' : 'no_phone'; return; }
       try {
@@ -127,5 +142,5 @@ exports.handler = async function (event) {
   const say = customerAcked
     ? "Got it — I've just sent a text to the number you're calling from so you have it in writing, and someone will follow up shortly. You can reply to that text anytime with the days and times that work for you. Anything else I can help with?"
     : "Got it — I've passed your info to our office and someone will reach out to you very shortly. Anything else I can help with in the meantime?";
-  return jsonResp(200, { ok: true, captured, logged, customer_acked: customerAcked, customer_ack_reason: customerAckReason, say });
+  return jsonResp(200, { ok: true, captured, logged, urgent, owner_alerted: ownerSent, customer_acked: customerAcked, customer_ack_reason: customerAckReason, say });
 };
