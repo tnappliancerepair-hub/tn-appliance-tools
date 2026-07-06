@@ -844,9 +844,18 @@
   // 'unreachable' = server down / network error (5xx, blank, or throw).
   // The distinction matters: a Xano outage must NOT be treated like a
   // wrong pin (which would lock a tech out + wipe their good cached pin).
+  // Time out any auth/API fetch so a silent hang on weak signal can't freeze the app
+  // at the loading screen — a hang now resolves to the degraded/'unreachable' path
+  // that already exists (unlock in degraded mode instead of spinning forever).
+  const FETCH_TIMEOUT_MS = 15000;
+  async function fetchT(url, opts) {
+    const c = new AbortController(); const t = setTimeout(function () { try { c.abort(); } catch (_) {} }, FETCH_TIMEOUT_MS);
+    try { return await fetch(url, Object.assign({ signal: c.signal }, opts || {})); }
+    finally { clearTimeout(t); }
+  }
   async function verifyPin(pin) {
     try {
-      const res = await fetch('/.netlify/functions/verify-pin-proxy', {
+      const res = await fetchT('/.netlify/functions/verify-pin-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ technician_id: parseInt(TECH_ID, 10), pin })
@@ -867,7 +876,7 @@
   // fails. Read-only view either way.
   async function verifyOfficePassword(pw) {
     try {
-      const res = await fetch(`${XANO_BASE}/verify_office_password`, {
+      const res = await fetchT(`${XANO_BASE}/verify_office_password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw })
@@ -1493,8 +1502,11 @@
     let byJob = {};
     try { const d = await fetch('/.netlify/functions/office-notes?job_ids=' + ids.join(','), { cache: 'no-store' }).then((r) => r.json()); byJob = (d && d.by_job) || {}; } catch (_) { return; }
 
-    // (1) one-liner ON each card
-    list.forEach(function (it, i) {
+    // (1) one-liner ON each card — iterate the ORIGINAL jobs array so the index lines
+    // up with card-<index>; the filtered `list` index would drift a note onto the
+    // wrong customer's card whenever a job lacked an id.
+    (jobs || []).forEach(function (it, i) {
+      if (!it || !it.job || !it.job.id) return;
       const notes = byJob[it.job.id];
       if (!Array.isArray(notes) || !notes.length) return;
       const card = $('card-' + i); if (!card) return;
@@ -1751,6 +1763,7 @@
     if (host) host.querySelectorAll('button').forEach(b => b.disabled = true);
     if (msg) { msg.style.color = ''; msg.textContent = 'Filing your report…'; }
     // 1) save the report onto the TDR — upsert by job+tech, emits NO folder move.
+    let savedOk = false;
     if (text) {
       let ex = null;
       try { const r = await fetch('/.netlify/functions/extract-tdr-from-transcript', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transcript: text }) }); const jd = await r.json(); if (jd && jd.ok && jd.extracted) ex = jd.extracted; } catch (_) {}
@@ -1765,11 +1778,17 @@
         add('diagnosis', text); // fallback: his raw words are still a filed report
       }
       for (const w of toWrite) {
-        try { await fetch(XANO_BASE + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), field: w.field, value: w.value, technician_id: tid }) }); } catch (_) {}
+        try { const rr = await fetchT(XANO_BASE + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), field: w.field, value: w.value, technician_id: tid }) }); const jj = await rr.json().catch(() => ({})); if (rr.ok && jj && jj.success !== false) savedOk = true; } catch (_) {}
       }
     }
     // 2) file-only mode (job already completed) — done, just refresh.
     if (!ct) {
+      // Bad signal can silently drop every write — never tell him he's paid if it didn't save.
+      if (text && !savedOk) {
+        if (host) host.querySelectorAll('button').forEach(b => b.disabled = false);
+        if (msg) { msg.style.color = '#ff8a82'; msg.textContent = '⚠ Bad signal — that didn\'t save. Tap File report again in a sec.'; }
+        return;
+      }
       if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Report filed — you\'re getting paid on this one.'; }
       setTimeout(loadDashboard, 1100); return;
     }
