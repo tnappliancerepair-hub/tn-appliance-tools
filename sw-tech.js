@@ -8,7 +8,7 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v8-2026-07-01-snappier';
+const CACHE_VERSION = 'ant-field-v9-2026-07-06-autoupdate';
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
@@ -22,6 +22,7 @@ const STATIC_FILES = [
   '/tech-payouts.html',
   '/tech-day-off.html',
   '/ant-spine.js',
+  '/tech-autoupdate.js',
   '/manifest-tech.json',
 ];
 
