@@ -25,8 +25,10 @@ function fmtWindowCT(startMs) {
   if (!startMs) return '';
   const startStr = new Date(Number(startMs)).toLocaleString('en-US', {
     timeZone: 'America/Chicago',
+    // NO exact time — TN runs day-of routing. Telling a customer a specific time made
+    // them expect the tech at that minute and get angry when routing shifted (Jimmy
+    // 7/6: "stop the approximate time messages"). The live window is texted the morning of.
     weekday: 'long', month: 'long', day: 'numeric',
-    hour: 'numeric', minute: '2-digit', hour12: true,
   });
   return startStr;
 }
@@ -137,8 +139,8 @@ export async function run(signal, ctx) {
     ? ` Manage or reschedule: https://${bareDomain}/customer-portal.html?job_id=${jobId}&last4=${last4}`
     : '';
   const body =
-    `Hi ${firstName} - reminder: ${techName} is coming tomorrow ${apptStr} CT for your ${appliance}. ` +
-    `Reply RESCHEDULE if you need to move it.${portalClause}`;
+    `Hi ${firstName} - reminder: ${techName} is coming tomorrow for your ${appliance}. ` +
+    `We'll text you a live arrival window in the morning. Reply RESCHEDULE if you need to move it.${portalClause}`;
 
   let smsRes = null;
   try {
