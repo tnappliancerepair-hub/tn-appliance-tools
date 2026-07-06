@@ -46,7 +46,10 @@ async function sendIntakeAck({ job_id, phone, name, appliance, availability, con
 
   const hasAvail = !!String(availability || '').trim();
   const message = ackMessage(name, appliance, hasAvail);
-  const res = await guard.guardedSend({ phone, message, tag: 'intake_ack', kind: 'intake_ack', allowQuiet: true });
+  // NOT allowQuiet — an intake ack is not time-sensitive, so it must respect
+  // quiet hours. A ServicePower dispatch landing at 3am was firing this text at
+  // 3:30am (real complaint, Teddy 2026-07-06). The guard now defers it to daytime.
+  const res = await guard.guardedSend({ phone, message, tag: 'intake_ack', kind: 'intake_ack', allowQuiet: false });
   if (res.sent) {
     try { await crud.logEvent('intake_ack_sent', { job_id, phone: guard.toE164(phone), appliance: String(appliance || ''), had_availability: hasAvail, at_ms: Date.now() }); } catch (_) {}
   }

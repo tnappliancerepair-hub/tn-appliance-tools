@@ -108,11 +108,22 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
   // 1. OPT-OUT — absolute, always enforced (even before SMS_GUARD_ENFORCE).
   if (await isOptedOut(to)) { await block(to, 'opted_out', kind, tag); return { sent: false, reason: 'opted_out' }; }
 
-  // 2–4. Quiet hours / frequency / global rate — hard-block only when ENFORCE=1;
-  // otherwise shadow-log so we can see the impact before flipping it on.
   const now = Date.now();
+
+  // 2. QUIET HOURS — HARD block for customers, ALWAYS (not gated on ENFORCE).
+  // A 3:30am text is indefensible: TCPA exposure AND it wakes real people up
+  // (a real customer got one 2026-07-06). There is no legitimate proactive
+  // customer text outside 8am–9pm CT. allowQuiet still lets the same-day
+  // en-route/ETA texts the customer is actively expecting through. Blocking a
+  // night send is always correct — the daytime touchpoints re-reach them.
+  if (!allowQuiet && inQuietHours()) {
+    await block(to, 'quiet_hours', kind, tag);
+    return { sent: false, reason: 'quiet_hours' };
+  }
+
+  // 3–4. Frequency / global rate — hard-block only when ENFORCE=1; otherwise
+  // shadow-log so we can see the impact before flipping it on.
   const checks = [];
-  if (!allowQuiet && inQuietHours()) checks.push('quiet_hours');
   if ((await sentSince(to, now - 86400000)) >= CAP_24H) checks.push('cap_24h');
   if ((await sentSince(to, now - 7 * 86400000)) >= CAP_7D) checks.push('cap_7d');
   if ((await globalSentSince(now - 600000)) >= GLOBAL_10MIN) checks.push('global_rate');
