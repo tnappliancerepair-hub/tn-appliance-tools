@@ -26,9 +26,14 @@ exports.handler = async function (event) {
 
   try {
     // PUT partial → preserves every other field, only clears the lifecycle stamps.
-    await crud.update(TABLES.jobs, jobId, { tech_en_route_at: null, job_started_at: null, eta_ms: null });
-    try { await crud.logEvent('job_lifecycle_reset', { job_id: jobId, cleared: ['tech_en_route_at', 'job_started_at', 'eta_ms'], by: 'admin', at_ms: Date.now() }); } catch (_) {}
-    return j(200, { ok: true, job_id: jobId, cleared: ['tech_en_route_at', 'job_started_at', 'eta_ms'] });
+    // job_completed_at included: a prior DIAGNOSTIC trip that was "completed for the
+    // day" leaves this set, which makes tech_job_complete throw "job already completed"
+    // when the tech comes back and finishes the real repair. Clearing it lets a return
+    // visit record the true repair completion.
+    const cleared = { tech_en_route_at: null, job_started_at: null, eta_ms: null, job_completed_at: null };
+    await crud.update(TABLES.jobs, jobId, cleared);
+    try { await crud.logEvent('job_lifecycle_reset', { job_id: jobId, cleared: Object.keys(cleared), by: 'admin', at_ms: Date.now() }); } catch (_) {}
+    return j(200, { ok: true, job_id: jobId, cleared: Object.keys(cleared) });
   } catch (e) {
     return j(200, { ok: false, error: String((e && e.message) || e) });
   }
