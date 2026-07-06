@@ -24,16 +24,32 @@ Auto-update ships *inside* the tech HTML, so the **first** time each tech needs 
 open/refresh once to load the version that has the watcher. After that, every future
 fix this week lands with a tap — no more "close and reopen."
 
-## 🔎 PROACTIVE SWEEP — 2026-07-06 (in progress)
-A read-only audit of the tech surfaces (tech-daily-dashboard, tech-job, tech.html,
-tech-simple, tech-ant-chat, sw-tech) for latent field-killers: dead-ends, silent
-failures, gating traps, weak-signal/offline, mobile touch/render, state/data races,
-correctness. Findings get triaged into the table above as they're fixed.
+## 🔎 PROACTIVE SWEEP — 2026-07-06 (done; fixes shipped)
+Deep read-only audit of the tech surfaces found the field-killers below. Two root
+causes drove most of the HIGH list: **no fetch timeouts** (a hung request on weak
+signal froze buttons forever) and **full-page re-renders that discarded the tech's
+unsaved report** (the report = his pay).
 
-_(Findings land here as the audit completes.)_
+### ✅ FIXED same-day
+| Sev | Bug | Fix shipped |
+|---|---|---|
+| HIGH | Hung request on weak signal → button stuck on "Saving…/Completing…" forever, no recovery | `fetchT` 15s AbortController on every API call in tech-job + tech-dashboard; a hang now rejects → catch re-enables the button |
+| HIGH | `completeFlow` accepted a *typed* report to pass the gate but never SAVED it → report vanished on the post-complete reload | Persist the typed report via `create_tdr` BEFORE completing |
+| HIGH | Any `loadJob()` re-render (model-photo OCR, lifecycle tap, save-basics) wiped unsaved notes | Preserve the notes textarea value across re-render |
+| HIGH | Dashboard "File your report" showed "✓ you're getting paid" even when every write silently failed on weak signal | Track `savedOk` from the write responses; tell the tech to retry instead of falsely confirming |
+| HIGH | Weak-signal PIN unlock had no timeout → app stuck on "loading your day…" with no PIN screen | `fetchT` on verify-pin / office-password → a hang falls through to the existing degraded unlock |
+| MED | Office notes attached to the WRONG customer's card (filtered-list index vs `card-<originalIndex>`) | Iterate the original jobs array so the index matches the card |
 
-## 📋 OPEN / WATCHING
-- (none yet — add as they come in from the field)
+### 📋 OPEN — queued for the coming days (ranked)
+- **#6/#9 (MED): return-visit lifecycle on the job page.** `applyLifecycleButtons` greys On-my-way/Start/Complete from raw prior-trip timestamps, and the tile-finish + tech-job Start/Complete still post straight to Xano instead of through `/tech-lifecycle`. Route them through the wrapper so 2nd/3rd/4th trips aren't greyed/blocked.
+- **#7 (MED): `loadJob` failure shows an error with no Retry button** (dashboard has one; job page doesn't). Add a retry.
+- **#8 (MED): a job link missing `tech_id` = PIN screen that can't validate and covers the back button** (dead-end). Add the office-password fallback like the dashboard.
+- **#11 (MED): voice transcribe has no timeout** → mic flow can hang on "Transcribing…". Wrap `whisper-transcribe` in `fetchT`.
+- **#13 (MED): S3-fallback upload has no timeout/retry** → large photo on weak signal hangs on "Uploading…". Add timeout/retry to the direct-PUT fallback.
+- **#10 (mitigated): SW serves stale HTML** — now covered by `tech-autoupdate.js` (one-tap Update). Optional: make the SW HTML strategy match its "always fresh" comment.
+- **#14 (LOW): `tech-simple.html` registers `/tech-sw.js`** (different SW than `/sw-tech.js` everywhere else) — unify.
+- **#15 (LOW): `prompt()`/`confirm()`** for cash method / deletes can be suppressed in installed-PWA webviews → silent wrong-default. Replace with in-page controls.
+- **#16 (LOW/sec): raw PIN / office password cached plaintext in localStorage** — a handed-off phone leaks it.
 
 ---
 *Changelog: 2026-07-06 created; seeded with the day's 5 fixes + kicked off the sweep.*
