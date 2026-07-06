@@ -258,22 +258,37 @@ async function submitPin(){
 }
 
 // ── data helpers ────────────────────────────────────────────────
+// Weak-signal guard: a hung request (sends but never responds) used to leave the
+// button stuck on "Saving…"/"Completing…" forever with no recovery. Time every API
+// call out so it REJECTS -> the caller's catch fires -> the button re-enables + shows
+// an error the tech can act on.
+const FETCH_TIMEOUT_MS=15000;
+async function fetchT(url,opts){
+  const c=new AbortController(); const t=setTimeout(function(){try{c.abort();}catch(_){}},FETCH_TIMEOUT_MS);
+  try{ return await fetch(url,Object.assign({signal:c.signal},opts||{})); }
+  finally{ clearTimeout(t); }
+}
 async function xanoPost(ep,payload){
-  const r=await fetch(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const r=await fetchT(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   return r.json();
 }
 async function xanoGet(ep,qs){
-  const r=await fetch(XANO+'/'+ep+(qs?('?'+qs):''),{cache:'no-store'});
+  const r=await fetchT(XANO+'/'+ep+(qs?('?'+qs):''),{cache:'no-store'});
   return r.json();
 }
 
 async function loadJob(){
+  // Preserve any report the tech has typed but not yet saved — a re-render (OCR of a
+  // model photo, a lifecycle tap, save-basics) reseeds the notes box from the saved
+  // TDR and would otherwise wipe what he just typed.
+  const _prevNotes=(document.getElementById('notes')||{}).value;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
   try{
     const d=await xanoPost('get_job_for_dashboard',{job_id:JOB_ID});
     if(!d.success) throw new Error(d.error||'not found');
     job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
     render();
+    try{ const _n=document.getElementById('notes'); if(_n && _prevNotes!=null && _prevNotes.trim() && _prevNotes!==_n.value){ _n.value=_prevNotes; } }catch(_){}
     renderAntTdr(tdr, allTdrs);
     startAntTdrPoll();
     loadAttachments();
@@ -968,7 +983,7 @@ async function lifecycle(ep,okMsg,spStatus){
   try{
     // Via tech-lifecycle: a return trip auto-clears the prior visit's stale flag so
     // "On my way" / "Start" work + re-notify the customer on every 2nd/3rd/4th trip.
-    const d=await fetch('/.netlify/functions/tech-lifecycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,action:ep})}).then(r=>r.json()).catch(()=>({}));
+    const d=await fetchT('/.netlify/functions/tech-lifecycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,action:ep})}).then(r=>r.json()).catch(()=>({}));
     if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); loadJob(); }
     else {
       const e=String(d.error||'failed');
@@ -1057,6 +1072,16 @@ function completeFlow(){
     }
     toast('Completing…');
     try{
+      // Persist the tech's typed report FIRST. Completing reloads the page and reseeds
+      // the notes box from the SAVED TDR, so an unsaved report would vanish — and that
+      // report is exactly what the office bills (his pay). Save it before we finish.
+      const _nEl=document.getElementById('notes'); const _note=(_nEl?_nEl.value:'').trim();
+      if(_note){
+        const _pEl=document.getElementById('tdr-part'); const _part=_pEl?_pEl.value.trim():'';
+        const _body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:_note};
+        if(_part) _body.verified_part_number=_part;
+        try{ await xanoPost('create_tdr',_body); }catch(_){}
+      }
       // Auto-Start guard: the state machine won't go scheduled -> completed directly
       // (must pass through in_progress). Techs Complete without ever tapping Start, so
       // fire Start first if needed, or the completion silently rejects.
