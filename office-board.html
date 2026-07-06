@@ -1161,7 +1161,7 @@ function renderDrawer(d){
       <div class="kv">
         <div class="k">Customer</div><div class="v">${esc(name)}</div>
         <div class="k">Address</div><div class="v">${esc(addr||'—')}</div>
-        <div class="k">Phone</div><div class="v">${esc(c.phone||'—')}</div>
+        <div class="k">Phone</div><div class="v" id="jf-phone-cell">${c.phone?`${esc(c.phone)} <button onclick='editPhoneInline(${jid}, ${JSON.stringify(c.phone||'')})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button>`:`<button onclick='editPhoneInline(${jid}, "")' style="padding:4px 11px;border:0;border-radius:7px;background:#1f8f3a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">+ Add phone</button>`}</div>
         <div class="k">Warranty</div><div class="v">${esc(j.warranty_company||'—')}</div>
         <div class="k">Claim #</div><div class="v mono">${esc(j.claim_number||'—')}</div>
         <div class="k">Dispatch #</div><div class="v mono">${esc(j.dispatch_source_id||'—')}</div>
@@ -1533,6 +1533,25 @@ async function saveJobInfo(id){
   toast(ok?'Saved ✓':'⚠ some fields did not save');
   openDrawer(String(id)); // reload the job file with the new values
   loadBoard();
+}
+// One-tap phone add/edit right on the Job File row (Danielle 7/6: "make this
+// editable, phone is missing and I need to add it"). Swaps the Phone cell for an
+// inline input + Save so she never has to scroll to the edit card. Saves via
+// office_quick_fill (phone-only overwrite — never wipes the claim).
+function editPhoneInline(jid,cur){
+  const cell=document.getElementById('jf-phone-cell'); if(!cell)return;
+  cell.innerHTML='<input id="jf-phone-in" type="tel" inputmode="tel" value="'+esc(cur||'')+'" placeholder="(615) 555-1234" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;width:140px"> <button onclick="savePhoneInline('+jid+')" style="padding:6px 11px;border:0;border-radius:6px;background:var(--ok);color:#fff;font-weight:800;font-size:12px;cursor:pointer">Save</button>';
+  const inp=document.getElementById('jf-phone-in'); if(inp){inp.focus();inp.addEventListener('keydown',function(e){if(e.key==='Enter')savePhoneInline(jid);});}
+}
+async function savePhoneInline(jid){
+  const inp=document.getElementById('jf-phone-in'); const ph=inp?(inp.value||'').trim():'';
+  if(!ph){toast('Enter a phone');return;}
+  toast('Saving…');
+  try{
+    const d=await postJSON('office_quick_fill',{job_id:parseInt(jid,10),customer_phone:ph,actor:'Danielle'});
+    if(d&&d.success){toast('Phone saved ✓');openDrawer(String(jid));loadBoard();}
+    else{toast('⚠ did not save');}
+  }catch(_){toast('⚠ failed');}
 }
 // Label row with a one-tap copy button (Danielle pastes these into warranty
 // portals / vendor orders and shouldn't have to hand-select each box). Teddy 7/3.
