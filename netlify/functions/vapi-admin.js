@@ -287,6 +287,36 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // AHS/warranty dispatch calls — the AI was FUMBLING these: it hung up on a rep
+  // ("talk to you soon") mid-dispatch and never actually captured an EXPEDITED
+  // insulin fridge dispatch, so it was lost. This forces: never hang up on a rep,
+  // always capture_callback the dispatch, flag expedited/medical, don't loop on a
+  // failed lookup. (Teddy 2026-07-06: "these calls need to be handled.") Idempotent.
+  if (action === 'warranty_dispatch') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- WARRANTY-DISPATCH -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## WARRANTY DISPATCH CALLS — CAPTURE EVERYTHING, NEVER HANG UP, NEVER LOSE A DISPATCH (TOP priority — overrides any end-call instruction)\n`
+      + `This applies whenever a warranty-company rep (American Home Shield / AHS 1-800-776-4663, SquareTrade, Frontdoor, ServicePower, NSA, etc.) is GIVING you a new/expedited dispatch, OR you CANNOT find a dispatch they're asking about. The office is short-staffed and you are the only thing answering — a dropped dispatch is a lost job. Follow these HARD rules:\n`
+      + `1) NEVER hang up on a warranty rep. Do NOT say "thanks for calling / talk to you soon" and end the call while they still need something. If they ask for "a representative" or "a person," say warmly: "I don't have a live person to transfer you to this second, but I've got every detail and I'm sending it straight to our office to handle right now — they'll follow up fast." Then CAPTURE it. Ending the call on a rep = losing the dispatch. Do not do it.\n`
+      + `2) ALWAYS actually CALL the capture_callback tool before the call ends whenever a rep gives you a dispatch OR you can't find one. Saying "I've logged it" is NOT enough — you must invoke capture_callback. Set caller_type = "warranty_rep", name = the member's name, phone = the member's phone if given, and put ALL of this in the summary: warranty company, claim/dispatch number, member name, full service address + ZIP, appliance, the exact issue, and whether the tech has already been out.\n`
+      + `3) EXPEDITED / MEDICAL = URGENT. If the rep says expedited, urgent, priority, medical, insulin, medication, a fridge not cooling with medicine inside, no heat/no AC with an elderly person or infant — start the capture_callback summary with "URGENT EXPEDITED — " so the office jumps on it immediately. Tell the rep we'll prioritize it.\n`
+      + `4) Do NOT loop on a lookup. If the dispatch/claim number doesn't match in our system after ONE careful re-read, stop hunting. Take the member name, address, appliance, issue, and the number, capture_callback it, tell the rep "I've got all of that logged and our office will confirm this dispatch shortly," and wrap up. Never spend the whole call failing to find a number.\n`
+      + `5) Read the claim/dispatch number and member name back ONCE to confirm you captured them correctly before ending.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Already-completed warranty repair → the customer must open a RECALL with
   // their warranty company. We CANNOT reschedule / send a tech / promise a
   // callback until that recall is opened. (Teddy 2026-07-01.) Idempotent.
