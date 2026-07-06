@@ -32,13 +32,17 @@ to speak with Teddy", 615-631-5355 "This is the repair technician — the office
 **Why:** there is NO live human transfer — every "get me a person" ends in a message.
 When the caller is ALREADY upset (no-show, delay), "I'll take a message" is gasoline.
 And techs / people asking for Teddy get dead air.
-**FIX (PARTIAL):** `human_handoff` makes the AI say cleanly "no live transfer, I'll
-take it to the office" instead of a fake transfer. `warranty_dispatch` stops it
-hanging up on reps.
-**FIX (TO BUILD — the big one):** real live transfer that RINGS Teddy's (or
-Danielle's) cell when they're available, for: caller asks for a person twice, AHS
-rep, expedited/urgent, or "get me Teddy." Falls back to capture when nobody's free.
-This is the bulletproof-phone plan (docs/phone-bulletproof-plan-2026-07-06.md).
+**DECISION (Teddy 2026-07-06):** NO live transfer. Teddy's in the field all day; a
+transfer just rings out and dumps to a message anyway. Instead the AI takes a great
+MESSAGE and we call back.
+**FIX (SHIPPED):** `vapi-admin action=message_mode` — removed the transferCall tool
+and all transfer blocks; installed a warm take-a-message flow: if a caller wants a
+person / is upset / needs follow-up, the AI acknowledges + apologizes, calls
+capture_callback (name, number, one-line need), sets honest callback expectations,
+reads the number back, and never hangs up on them.
+**OPEN (the follow-through that makes it work):** the callbacks have to actually get
+worked. They land in the **Callbacks queue** (`callbacks.html` / list_callback_requests).
+NEXT: alert Teddy (text) on URGENT/upset/AHS callbacks so a hot one never sits.
 
 ## ROOT CAUSE 3 — AHS new/expedited dispatches were NOT captured → LOST
 **Calls:** Karen Bailey (AHS claim 61476179, EXPEDITED refrigerator, insulin inside,
