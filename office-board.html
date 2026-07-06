@@ -333,6 +333,11 @@ let allItems=[], region='TN';
 const TECH_REGION={1:'TN',2:'TN',4:'TN',3:'NOLA',5:'NOLA',6:'NOLA'};
 const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
 const REGION_TECHS={TN:[2,4,3,1],NOLA:[6,3]};
+// The SCHEDULE picker offers EVERY active tech regardless of board region —
+// day-of routing crosses state lines (Andre's dual-state; a TN customer can
+// get John, an LA job can get Jimmy). Region only drives the folder columns.
+// Billy (5) left. (Teddy 2026-07-06: "John's not an option to pick, add him.")
+const SCHED_TECHS=[1,2,4,3,6];
 const NOLA_CITY=/(new orleans|metairie|kenner|covington|mandeville|slidell|hammond|baton|denham|walker|ponchatoula|laplace|chalmette|gonzales|madisonville|abita|destrehan|nola)/i;
 const PARTS_WAIT=/(awaiting_parts|ordered|on_order|parts_needed|pending|backorder)/i;
 // A job only AUTO-FILES into Waiting Parts once the part is actually ORDERED —
@@ -1135,7 +1140,11 @@ function renderDrawer(d){
   // Schedule card: pick tech + DAY (day-of routing — no clock time). Default the
   // tech to whoever's already assigned. This is the place to put the schedule
   // date IN Ant (kills double-entry into the old tool).
-  const schTechOpts='<option value="">— pick tech —</option>'+(REGION_TECHS[region]||[]).map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
+  // Every active tech is pickable here (not region-locked) + the job's current
+  // tech is always included even if somehow off the list, so a cross-region
+  // assignment (e.g. John on a TN board) stays selectable. (Teddy 2026-07-06)
+  const schPool=Array.from(new Set(SCHED_TECHS.concat(Number(j.technician_id)>0?[Number(j.technician_id)]:[])));
+  const schTechOpts='<option value="">— pick tech —</option>'+schPool.map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
   initDrawCal(schDayVal); // seed the pick-a-day calendar shown in the Schedule card
   // Part # gate (Teddy 2026-07-01): a filed report with NO part number can't be
   // closed out. Flag it loud so the office chases the tech for the part #.
