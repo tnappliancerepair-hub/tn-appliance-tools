@@ -39,6 +39,19 @@ fix this week lands with a tap — no more "close and reopen."
 / reassignment_needed), and scope the idempotency gate to truly-terminal status. The
 `tech-complete` wrapper does this live today; the XS change makes it native.
 
+## ✅ FIXED — 2026-07-06 (evening, Teddy: "last three TDR fields won't open")
+| Bug | Cause | Fix |
+|---|---|---|
+| TDR **Photos** row unopenable — couldn't add a pic from the card | Row rendered status-only, no tap handler | Photos row now **tappable** → snap/pick a photo, downscaled client-side, uploaded via `/photo-upload` (reliable browser→Netlify→S3 hop), card refreshes |
+| TDR **Customer Signature** row unopenable | Same — status only | Signature row now **tappable** → opens `sign.html` on the tech's phone to hand the customer |
+| TDR **Parts Used** row unopenable | Real backend bug: `parts_needed` is a JSON column the reader (`get_unified_tdr_status`) can't read back → a normal editor would silently fail | Row now **tappable** → routes the part # to **Failed Component** (where it persists + rides the warranty package). Honest, no silent-fail editor. Native fix still pending the Mac/XS push below |
+| **Complete** 4-option buttons had faint text | `.act` used light `var(--ink)` on white | Darker/bolder (`#111827`, weight 800, 13px) — readable in daylight |
+
+**⏳ Proper XS follow-up (needs a Mac push) for Parts Used:** make `get_unified_tdr_status`
+read `parts_needed` as text (join the array) and have the writers store a matching shape,
+then flip the card's Parts row back to a real inline editor (remove the
+`f.key !== 'parts_needed'` guard + the `__antTdrPartsHelp` redirect in `ant-tdr-card.js`).
+
 ## 🔎 PROACTIVE SWEEP — 2026-07-06 (done; fixes shipped)
 Deep read-only audit of the tech surfaces found the field-killers below. Two root
 causes drove most of the HIGH list: **no fetch timeouts** (a hung request on weak
