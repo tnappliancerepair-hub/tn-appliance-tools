@@ -258,48 +258,66 @@
     var canEdit = (role === 'tech' || role === 'office');
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
-      var editable = canEdit && !!FIELD_META[f.key] && f.key !== 'parts_needed';
+      // parts_needed is a JSON column the server can't yet read back (silent-fail),
+      // so instead of a broken editor we make the row TAPPABLE to a helper that
+      // sends the part # to Failed Component (where it persists + shows). (Teddy 7/6)
+      var isParts = (f.key === 'parts_needed');
+      var editable = canEdit && !!FIELD_META[f.key] && !isParts;
+      var partsTap = canEdit && isParts;
       var cls = fState.filled ? 'filled' : 'empty';
       var icon = fState.filled ? '✅' : '⏳';
-      html += '<div class="ant-tdr-field ' + cls + '"' + (editable ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"' : '') + '>';
+      var onclick = editable ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"'
+        : (partsTap ? ' style="cursor:pointer" onclick="window.__antTdrPartsHelp()"' : '');
+      html += '<div class="ant-tdr-field ' + cls + '"' + onclick + '>';
       html += '<div class="ant-tdr-field-icon">' + icon + '</div>';
       html += '<div class="ant-tdr-field-body">';
+      var hint = editable ? (fState.filled ? '✏️ edit' : '✏️ add') : (partsTap ? '✏️ add' : '');
       html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label)
-        + (editable ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + (fState.filled ? '✏️ edit' : '✏️ add') + '</span>' : '') + '</div>';
+        + (hint ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + hint + '</span>' : '') + '</div>';
       if (fState.filled) {
         html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
+      } else if (partsTap) {
+        html += '<div class="ant-tdr-field-empty-prompt">Tap — Ant adds the part # to Failed Component</div>';
       } else {
         html += '<div class="ant-tdr-field-empty-prompt">' + escapeHtml(f.prompt) + '</div>';
       }
       html += '</div></div>';
     });
-    // Photo row
+    // Photo row — tappable for tech/office: tap to snap/add a photo right here
+    // (routes through /photo-upload, the reliable browser→Netlify→S3 hop). No
+    // jump to another page. (Teddy 7/6: "the pictures… unable to open + add.")
     var photoIcon = photoFilled ? '✅' : '📷';
     var photoCls = photoFilled ? 'filled' : 'empty';
-    html += '<div class="ant-tdr-field ' + photoCls + '">';
+    html += '<div class="ant-tdr-field ' + photoCls + '"' + (canEdit ? ' style="cursor:pointer" onclick="window.__antTdrAddPhoto()"' : '') + '>';
     html += '<div class="ant-tdr-field-icon">' + photoIcon + '</div>';
     html += '<div class="ant-tdr-field-body">';
-    html += '<div class="ant-tdr-field-label">Photos</div>';
+    html += '<div class="ant-tdr-field-label">Photos'
+      + (canEdit ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">📷 ' + (photoFilled ? 'add more' : 'add') + '</span>' : '') + '</div>';
     if (photoFilled) {
-      html += '<div class="ant-tdr-field-value">' + (d.attachments_count || 0) + ' on file</div>';
+      html += '<div class="ant-tdr-field-value">' + (d.attachments_count || 0) + ' on file — tap to add more</div>';
     } else {
-      html += '<div class="ant-tdr-field-empty-prompt">At least one photo required for warranty</div>';
+      html += '<div class="ant-tdr-field-empty-prompt">Tap to snap or upload a photo (required for warranty)</div>';
     }
     html += '</div></div>';
-    // Signature row
+    // Signature row — tappable for tech: opens the sign page on the tech's phone
+    // to hand to the customer. (Teddy 7/6: make it openable.)
     var sigFilled = !!d.has_signature;
     var sigIcon = sigFilled ? '✅' : '✍️';
     var sigCls = sigFilled ? 'filled' : 'empty';
-    html += '<div class="ant-tdr-field ' + sigCls + '">';
+    var sigTap = canEdit;
+    html += '<div class="ant-tdr-field ' + sigCls + '"' + (sigTap ? ' style="cursor:pointer" onclick="window.__antTdrGetSignature()"' : '') + '>';
     html += '<div class="ant-tdr-field-icon">' + sigIcon + '</div>';
     html += '<div class="ant-tdr-field-body">';
-    html += '<div class="ant-tdr-field-label">Customer Signature</div>';
+    html += '<div class="ant-tdr-field-label">Customer Signature'
+      + (sigTap ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">✍️ ' + (sigFilled ? 'redo' : 'get it') + '</span>' : '') + '</div>';
     if (sigFilled) {
-      html += '<div class="ant-tdr-field-value">Signed on file</div>';
+      html += '<div class="ant-tdr-field-value">Signed on file — tap to re-sign</div>';
     } else {
-      html += '<div class="ant-tdr-field-empty-prompt">Customer needs to sign on the tech\'s phone</div>';
+      html += '<div class="ant-tdr-field-empty-prompt">Tap to hand the customer your phone to sign</div>';
     }
     html += '</div></div>';
+    // Hidden file input the Photos row triggers (reused across taps).
+    html += '<input type="file" id="ant-tdr-photo-input" accept="image/*" style="display:none" onchange="window.__antTdrPhotoPicked(this)">';
     // Actions per role
     html += '<div class="ant-tdr-actions">';
     if (role === 'tech') {
@@ -766,6 +784,72 @@
     if (btn) { var o = btn.textContent; btn.textContent = '✓'; setTimeout(function () { btn.textContent = o; }, 1200); }
   };
   window.__antTdrSeedDiagnosis = function () { window.__antTdrEdit('diagnosis'); };
+
+  // ── Photos — tap the Photos row, snap/pick, upload right here ──────────
+  window.__antTdrAddPhoto = function () {
+    var inp = document.getElementById('ant-tdr-photo-input');
+    if (inp) { inp.value = ''; inp.click(); }
+  };
+  window.__antTdrPhotoPicked = function (input) {
+    var file = input && input.files && input.files[0];
+    if (!file) return;
+    if (!jobId) { alert('Open this from the job so the photo lands on the right one.'); return; }
+    // Downscale client-side (weak-signal proof) then send to /photo-upload.
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var max = 1600, w = img.width, h = img.height;
+          if (w > max || h > max) { var s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+          var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          var b64 = cv.toDataURL('image/jpeg', 0.82);
+          uploadTdrPhoto(b64);
+        } catch (e) { uploadTdrPhoto(ev.target.result); } // fallback: send as-is
+      };
+      img.onerror = function () { uploadTdrPhoto(ev.target.result); };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  async function uploadTdrPhoto(b64) {
+    var host = document.getElementById('ant-tdr-content');
+    var note = document.createElement('div');
+    note.style.cssText = 'position:sticky;top:0;z-index:20;background:#1f6fed;color:#fff;padding:11px 14px;border-radius:10px;margin-bottom:12px;font-weight:800;font-size:13px';
+    note.textContent = '📤 Uploading photo…';
+    if (host) host.insertBefore(note, host.firstChild);
+    try {
+      var r = await fetch('/.netlify/functions/photo-upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: b64, job_id: Number(jobId), uploaded_by: 'tech' }),
+      });
+      var d = await r.json();
+      if (!d || !d.ok) throw new Error((d && d.error) || 'upload failed');
+      note.style.background = '#10b981'; note.textContent = '✅ Photo added';
+      await refresh();
+      try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
+      setTimeout(function () { if (note.parentNode) note.parentNode.removeChild(note); }, 1800);
+    } catch (e) {
+      note.style.background = '#b91c1c';
+      note.textContent = '❌ Photo didn\'t upload — try again on better signal (' + (e && e.message ? e.message : e) + ')';
+      setTimeout(function () { if (note.parentNode) note.parentNode.removeChild(note); }, 5000);
+    }
+  }
+
+  // ── Signature — tap the row → open the sign page to hand the customer ──
+  window.__antTdrGetSignature = function () {
+    if (!jobId) { alert('Open this from the job first.'); return; }
+    location.href = '/sign.html?job_id=' + jobId + (techId ? '&tech_id=' + techId : '');
+  };
+
+  // ── Parts Used — the column can't persist yet (server fix pending), so
+  // route the part # to Failed Component where it DOES save + show. Honest,
+  // and it fills the field the warranty package actually reads. (Teddy 7/6)
+  window.__antTdrPartsHelp = function () {
+    alert('Parts Used is getting a fix. For now, add the part number in Failed Component — it saves there and rides the warranty submission.');
+    window.__antTdrEdit('failed_component');
+  };
 
   // Inline field editing — tap a TDR field, edit right in the card, save.
   // No jump to another page. Empty diagnosis pre-fills from the customer's
