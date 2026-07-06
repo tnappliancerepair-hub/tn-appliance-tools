@@ -184,7 +184,7 @@
       }
       return;
     }
-    if (pctEl) pctEl.textContent = (d.readiness_pct || 0) + '%';
+    if (pctEl) pctEl.textContent = Math.round(d.readiness_pct || 0) + '%';
     if (btn) {
       if (d.readiness_pct >= 100) btn.classList.add('ready');
       else btn.classList.remove('ready');
@@ -594,7 +594,13 @@
     var toWrite = [];
     function add(key, val) { if (val != null && String(val).trim() && !((fields[key] || {}).filled)) toWrite.push({ key: key, value: String(val).trim() }); }
     add('diagnosis', ex.diagnosis);
-    add('failed_component', ex.failed_component);
+    // Keep the part number WITH the failed part (Jimmy 7/6: it kept landing in the
+    // Repair narrative instead of Failed Part). Append the extracted part # to the
+    // failed component if Ant split them out.
+    var _fc = String(ex.failed_component || '').trim();
+    var _pn = String(ex.part_number || '').trim();
+    if (_pn) { if (!_fc) _fc = _pn; else if (_fc.toUpperCase().indexOf(_pn.toUpperCase()) === -1) _fc = _fc + ' (' + _pn + ')'; }
+    add('failed_component', _fc);
     add('repair_completed', ex.repair_completed);
     if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
     if (!toWrite.length) { if (btn) { btn.disabled = false; btn.textContent = '✨ Fill the report'; } if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Those are already filled — check them below.'; } return; }

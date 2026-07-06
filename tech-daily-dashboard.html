@@ -1771,7 +1771,10 @@
       const add = (k, v) => { if (v != null && String(v).trim()) toWrite.push({ field: k, value: String(v).trim() }); };
       if (ex) {
         add('diagnosis', (ex.diagnosis && String(ex.diagnosis).trim()) ? ex.diagnosis : text);
-        add('failed_component', ex.failed_component);
+        // Part number rides WITH the failed part (not the repair narrative) — Jimmy 7/6.
+        var _fc = String(ex.failed_component || '').trim(); var _pn = String(ex.part_number || '').trim();
+        if (_pn) { if (!_fc) _fc = _pn; else if (_fc.toUpperCase().indexOf(_pn.toUpperCase()) === -1) _fc = _fc + ' (' + _pn + ')'; }
+        add('failed_component', _fc);
         add('repair_completed', ex.repair_completed);
         if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
       } else {

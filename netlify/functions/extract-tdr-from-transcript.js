@@ -9,9 +9,9 @@ const SYSTEM_PROMPT = `You extract TDR fields from a technician's repair notes /
 {
   "diagnosis": "...",        // 1-2 sentence root-cause diagnosis of what's wrong
   "failure_cause": "...",    // single phrase (e.g. "compressor failure", "clogged drain")
-  "failed_component": "...", // the failed part in plain words (e.g. "evaporator fan motor", "heating element")
-  "part_number": "...",      // an OEM/manufacturer part number if the tech wrote one (e.g. "DC97-16350C"). "" if none.
-  "repair_completed": "...", // 1-2 sentences of what was done, if stated
+  "failed_component": "...", // the failed part in plain words AND its OEM part number if the tech gave one, e.g. "dispenser cover assembly (DA97-19112C)". The part number belongs HERE with the failed part.
+  "part_number": "...",      // the same OEM/manufacturer part number on its own if the tech wrote one (e.g. "DC97-16350C"). "" if none.
+  "repair_completed": "...", // 1-2 sentences of what was DONE, or the plan if returning (e.g. "waiting on the part, will return to install"). Do NOT put the failed part's number here — it goes in failed_component.
   "labor_time_hours": 0.0,   // decimal hours best estimate if stated
   "confidence": 0.0          // 0-1 overall extraction confidence
 }
