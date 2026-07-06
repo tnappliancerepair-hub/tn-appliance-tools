@@ -440,6 +440,14 @@
   # Trimmed */30 → hourly (2026-06-29): one-time approval email, days-long wait.
   schedule = "0 * * * *"
 
+# Cybertruck watch (personal, Teddy) — relays Tesla inventory/availability/order emails
+# about the Cybertruck to Teddy's phone. Tesla's inventory API blocks servers (Akamai),
+# so this reads the connected Gmail instead — Tesla emails him the matches, we text them
+# over. Setup: enable Tesla Cybertruck inventory notifications to a connected inbox.
+# Kill switch: env CYBERTRUCK_WATCH=false. Every ~3h (off-minute); email isn't to-the-second.
+[functions."cybertruck-watch"]
+  schedule = "37 */3 * * *"
+
 # ServicePower claims auto-reconcile — twice daily (8a + 4p CT = 13:00 + 21:00 UTC).
 # Pulls our completed/claimed SQUARE TRADE dispatches → retrieves each claim by its
 # dispatch number → tracks status + payment (paid/approved/rejected). Texts Teddy on
