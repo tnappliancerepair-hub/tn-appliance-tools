@@ -265,6 +265,12 @@
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
+# Andre "running behind" reply forwarder (Teddy 2026-07-07) — forwards replies from
+# Andre's today-customers to Teddy's cell. Self-expires ~18h after the notice, then
+# no-ops. Safe to remove the cron after today.
+[functions."andre-late-forward"]
+  schedule = "*/10 * * * *"
+
 # Payout-ready notifier — when warranty EFTs land (jobs flip to paid), texts
 # Teddy a per-tech breakdown of what's ready to release, linking to Money →
 # Payroll for one-tap approval. Hourly ~8am-6pm CT; dedupes on the ready-set.
