@@ -20,6 +20,8 @@ const { isOptedOut } = require('./_lib/sms-guard');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = Number(process.env.INTAKE_COLLECTOR_MAX_PER_RUN) || 30;
+const MAX_EXAMINE = Number(process.env.INTAKE_COLLECTOR_MAX_EXAMINE) || 120; // bound dedup fetches/run
+const MAX_RESOLVE = Number(process.env.INTAKE_COLLECTOR_MAX_RESOLVE) || 40;  // bound job-truth lookups/run
 const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with no reply
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained
@@ -105,6 +107,13 @@ exports.handler = async function (event) {
     }
     const hasAvail = !!((j.customer_preference_text || '').trim() || (j.customer_availability_grid || '').trim());
     if (hasAvail) return false;
+    // Skip stale SquareTrade claim-shells: no phone field AND no name AND no appliance =
+    // unreachable, and only waste a job-truth lookup. (Anything with a name/appliance is
+    // worth a job-truth resolve.)
+    const hasPhoneField = String(j.customer_phone || j.phone || '').replace(/\D/g, '').length >= 10;
+    const hasName = !!String(j.customer_first || j.customer_name || j.first_name || '').trim();
+    const hasAppl = !!String(j.appliance || j.appliance_type || '').trim();
+    if (!hasPhoneField && !hasName && !hasAppl) return false;
     if (onlyJob && String(j.id || j.job_id) !== onlyJob) return false; // target one job for a test
     return true;
   });
@@ -132,10 +141,11 @@ exports.handler = async function (event) {
       note: `first 15 of ${cands.length} candidates shown; each live run resolves phones + sends up to ${MAX_PER_RUN}`, would_text: preview });
   }
 
-  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, failed = 0;
+  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0;
   const done = [];
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
+    if (examined++ >= MAX_EXAMINE) break;   // keep the run inside the function budget
     const id = j.id || j.job_id;
     // Dedup FIRST (cheap) so we don't job-truth a job we've already asked. ONE intake
     // text, then ONE resend ~4h later if no reply, then never (2 lifetime max). A reply
@@ -151,8 +161,11 @@ exports.handler = async function (event) {
       if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; }
     }
     // Resolve the phone — job field, or job-truth (where the warranty number lives).
-    const fieldHad = String(j.customer_phone || j.phone || '').replace(/\D/g, '').length >= 10;
-    const phoneDigits = await resolvePhone(j);
+    const fieldDigits = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
+    const fieldHad = fieldDigits.length >= 10;
+    if (!fieldHad && resolves >= MAX_RESOLVE) { skipped_no_phone++; continue; } // bound expensive lookups/run
+    if (!fieldHad) resolves++;
+    const phoneDigits = fieldHad ? fieldDigits : await resolvePhone(j);
     if (phoneDigits.length < 10) { skipped_no_phone++; continue; }
     if (!fieldHad) resolved_via_truth++;
     const phone = toE164(phoneDigits);
@@ -179,5 +192,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };
