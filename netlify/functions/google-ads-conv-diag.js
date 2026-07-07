@@ -40,7 +40,7 @@ exports.handler = async function (event) {
     // an ad click actually lands.
     if (q.urls === '1') {
       const ur = await gaql(ver, token, c, cid,
-        "SELECT campaign.name, ad_group.name, ad_group_ad.ad.final_urls, ad_group_ad.status FROM ad_group_ad WHERE campaign.status = 'ENABLED' OR campaign.status = 'PAUSED'");
+        "SELECT campaign.name, ad_group_ad.ad.final_urls, ad_group_ad.status FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED'");
       const urls = (ur.results || []).map((x) => ({
         campaign: x.campaign && x.campaign.name,
         ad_status: x.adGroupAd && x.adGroupAd.status,
