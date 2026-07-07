@@ -80,6 +80,11 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(20,30,50,0.04);}
   .card h3{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:10px;display:flex;align-items:center;gap:7px;}
   .card h3 .r{margin-left:auto;font-size:12px;font-weight:600;color:var(--blue);text-decoration:none;}
+  .card.mach{padding:11px 12px;}
+  .mchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;}
+  .mchip{display:inline-flex;align-items:center;gap:4px;padding:8px 12px;border-radius:999px;border:1px solid #cdbdf0;background:#fff;color:#5b3ba8;font-size:13px;font-weight:800;text-decoration:none;cursor:pointer;line-height:1;}
+  .mchip.cur{background:#6b46c1;border-color:#6b46c1;color:#fff;}
+  .mchip.add{border-style:dashed;color:#7c5db5;background:#faf7ff;}
   .pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
   .pill.scheduled{background:#e7f0fe;color:var(--blue);}
   .pill.in_progress{background:#fdf0e0;color:var(--warn);}
@@ -295,6 +300,7 @@ async function loadJob(){
     loadWaiverStatus();
     loadDayJobs();
     loadOfficeNotes();
+    loadMachines();
   }catch(e){
     document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
   }
@@ -319,6 +325,47 @@ async function loadOfficeNotes(){
     // it landed on his side). Fire-and-forget. (Teddy 2026-07-03)
     try{ fetch('/.netlify/functions/office-note-seen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(JOB_ID,10),tech_id:parseInt(TECH_ID,10)||0})}); }catch(_){}
   }catch(_){}
+}
+
+// ── Machines on this stop (multi-appliance) ─────────────────────
+// A stop can have more than one machine (AHS multi-item claims). Each machine is its
+// own job with its own TDR; this switcher lets the tech flip between them and add one.
+// Only shows once there are 2+ machines OR always shows the "＋ Add machine" affordance.
+const APPL_ICON={dishwasher:'🍽',dish:'🍽',washer:'🌀',washing:'🌀',dryer:'🔥',refrigerator:'🧊',fridge:'🧊',freezer:'🧊',range:'🍳',stove:'🍳',oven:'🍳',cooktop:'🍳',microwave:'📡',disposal:'🗑',ice:'🧊'};
+function applIcon(a){ const s=String(a||'').toLowerCase(); for(const k in APPL_ICON){ if(s.indexOf(k)>=0) return APPL_ICON[k]; } return '🧰'; }
+async function loadMachines(){
+  const el=document.getElementById('machine-switcher'); if(!el) return;
+  try{
+    const d=await fetch('/.netlify/functions/get-stop-machines?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
+    const machines=(d&&d.machines)||[];
+    // With only this one machine and no siblings, keep it quiet but still offer "add".
+    const chips=machines.map(function(m){
+      const cur=Number(m.job_id)===Number(JOB_ID);
+      const label=applIcon(m.appliance)+' '+esc(m.brand?(m.brand+' '+m.appliance):m.appliance)+(m.has_report?' ✓':'');
+      if(cur) return '<span class="mchip cur">'+label+'</span>';
+      return '<a class="mchip" href="tech-job.html?job_id='+encodeURIComponent(m.job_id)+'&tech_id='+encodeURIComponent(TECH_ID)+'">'+label+'</a>';
+    }).join('');
+    const many=machines.length>1;
+    el.innerHTML='<div class="card mach" style="border:1px solid #cdbdf0;background:#f7f2ff">'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +'<span style="font-size:11px;font-weight:800;color:#6b46c1;letter-spacing:.02em">'+(many?('🧩 '+machines.length+' MACHINES ON THIS STOP'):'🧩 MACHINE')+'</span>'
+      +'</div>'
+      +'<div class="mchips">'+chips+'<button class="mchip add" onclick="__antAddMachine()">＋ Add machine</button></div>'
+      +(many?'<div style="font-size:11px;color:#7c5db5;margin-top:6px">Each machine has its own report — tap a chip to switch. A ✓ means its report is started.</div>':'')
+      +'</div>';
+    el.style.display='';
+  }catch(_){ el.style.display='none'; }
+}
+async function __antAddMachine(){
+  const appliance=(prompt('What machine are you adding?\n(e.g. stove, dishwasher, dryer)')||'').trim();
+  if(!appliance) return;
+  toast('Adding '+appliance+'…');
+  try{
+    const r=await fetch('/.netlify/functions/add-machine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({parent_job_id:JOB_ID,appliance_type:appliance,added_by:'tech-'+(TECH_ID||'?')})});
+    const d=await r.json();
+    if(d&&d.ok&&d.machine_job_id){ location.href='tech-job.html?job_id='+encodeURIComponent(d.machine_job_id)+'&tech_id='+encodeURIComponent(TECH_ID); }
+    else{ toast('Could not add machine'+((d&&d.error)?(' — '+d.error):'')); }
+  }catch(e){ toast('Add failed — '+(e&&e.message||e)); }
 }
 
 // ── "From your Ant call" live panel ────────────────────────────
@@ -456,6 +503,7 @@ function render(){
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div id="release-banner"></div>
+      <div id="machine-switcher" style="display:none"></div>
       ${howto}
       <div class="card hero">
         <div class="row">
