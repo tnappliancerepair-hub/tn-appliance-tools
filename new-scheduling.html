@@ -1500,8 +1500,16 @@ function __initCalendar() {
     const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   }
+  // Short 3-hour window label from the stored hour (8-11 / 11-2 / 2-5). The customer
+  // promise; shown next to the stop position. (Teddy 2026-07-07: position + slot.)
+  function winShort(startMs) {
+    if (!startMs) return '';
+    const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(Number(startMs))));
+    return h < 11 ? '8-11' : h < 14 ? '11-2' : '2-5';
+  }
   function renderBlock(j, pos) {
-    const posLabel = (typeof pos === 'number') ? (ordinal(pos + 1) + ' stop') : fmtTimeShort(j.scheduled_start);
+    const win = winShort(j.scheduled_start);
+    const posLabel = ((typeof pos === 'number') ? (ordinal(pos + 1) + ' stop') : 'stop') + (win ? ` · ${win}` : '');
     const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim().slice(0,1)}${j.customer_last_name ? '.' : ''}`.trim() || '(no name)';
     const appl = (j.appliance_type || '').toLowerCase();
     const brand = (j.brand || '').trim();
@@ -2294,13 +2302,12 @@ function __initCalendar() {
     });
     showManageView('actions');
     manageOpenDetail.href = `office-board.html?job=${jobId}`;
-    // Pre-fill reschedule with current DAY only (CT) — no clock time. The system
-    // schedules by stop position, not by a time we can't keep (Teddy 2026-07-07).
-    if (j.scheduled_start) {
-      document.getElementById('rescheduleAt').value = ctDateForMs(j.scheduled_start);
-    } else {
-      document.getElementById('rescheduleAt').value = '';
-    }
+    // Pre-fill reschedule with current DAY (CT) + the matching 3-hour window. No
+    // exact clock time — the window is the customer promise. (Teddy 2026-07-07)
+    document.getElementById('rescheduleAt').value = j.scheduled_start ? ctDateForMs(j.scheduled_start) : '';
+    const curHour = j.scheduled_start ? Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(j.scheduled_start))) : 11;
+    const winH = curHour < 11 ? 8 : curHour < 14 ? 11 : 14;
+    document.querySelectorAll('#rescheduleWindow .win-opt').forEach((x) => x.classList.toggle('sel', Number(x.getAttribute('data-h')) === winH));
     // Populate the reassign tech selector
     const sel = document.getElementById('reassignTech');
     sel.innerHTML = lastTechs
@@ -2385,6 +2392,37 @@ function __initCalendar() {
     return Math.min(8 + n, 21); // 8am day-anchor + position; cap keeps a valid hour
   }
 
+  // Count of a tech's existing stops that day (any window) — used as the minute
+  // offset so same-window stops get distinct, ordered sort keys.
+  function dayStopCount(techId, dateStr, excludeJobId) {
+    let n = 0;
+    for (const id in lastJobsById) {
+      const j = lastJobsById[id];
+      if (!j || Number(j.technician_id) !== Number(techId)) continue;
+      if (Number(j.id) === Number(excludeJobId)) continue;
+      if (!j.scheduled_start) continue;
+      const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
+      if (st === 'canceled' || st === 'cancelled') continue;
+      if (ctDateForMs(j.scheduled_start) !== dateStr) continue;
+      n++;
+    }
+    return n;
+  }
+  // The picked 3-hour window's base hour (8 / 11 / 14). Default midday.
+  function getRescheduleWinHour() {
+    const sel = document.querySelector('#rescheduleWindow .win-opt.sel');
+    return sel ? Number(sel.getAttribute('data-h')) : 11;
+  }
+  // Window picker toggle.
+  (function wireWinPicker() {
+    const wp = document.getElementById('rescheduleWindow');
+    if (wp) wp.addEventListener('click', (e) => {
+      const b = e.target.closest('.win-opt'); if (!b) return;
+      wp.querySelectorAll('.win-opt').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel');
+    });
+  })();
+
   // The job's stop position on its tech's day (1st/2nd/3rd…), from the hidden sort
   // key — what we show instead of a clock time. "" when not scheduled.
   function stopPositionLabel(j) {
@@ -2411,8 +2449,9 @@ function __initCalendar() {
     if (!dayValue) { manageError.textContent = 'Pick a day.'; return; }
     const techId = Number(document.getElementById('rescheduleTech').value || 0);
     if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
-    // No clock time — assign the next stop position on that tech's day (hidden key).
-    const newStartMs = ctMs(dayValue, nextStopHourCT(techId, dayValue, manageJobId));
+    // 3-hour window (the customer promise) + a per-stop minute offset so same-window
+    // stops keep a distinct, ordered position. No exact clock time. (Teddy 2026-07-07)
+    const newStartMs = ctMs(dayValue, getRescheduleWinHour()) + Math.min(dayStopCount(techId, dayValue, manageJobId), 45) * 60000;
     // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
     // before the parts are due to arrive.
     const mj = lastJobsById[manageJobId];
@@ -2672,6 +2711,9 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   #manageClose:hover { color: #f0f0f0; }
   #manageCard { position: relative; }
   #manageError { color: #ff6b6b; font-size: 12px; min-height: 16px; margin-top: 8px; }
+  .win-picker { display: flex; gap: 8px; margin: 4px 0 6px; }
+  .win-opt { flex: 1; padding: 11px 6px; border-radius: 10px; border: 1px solid #cdd6e2; background: #f4f7fb; color: #22314c; font-size: 13.5px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  .win-opt.sel { background: #4a9eff; border-color: #4a9eff; color: #fff; }
 </style>
 
 <div id="manageModal" role="dialog" aria-modal="true">
@@ -2691,8 +2733,14 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
     <form id="manageRescheduleForm">
       <label>Tech</label>
       <select id="rescheduleTech" required></select>
-      <label>Day (no clock time — we place them by stop position)</label>
+      <label>Day</label>
       <input type="date" id="rescheduleAt" required>
+      <label>Arrival window (3-hr slot the customer gets — not an exact time)</label>
+      <div id="rescheduleWindow" class="win-picker">
+        <button type="button" class="win-opt" data-h="8">🌅 8–11am</button>
+        <button type="button" class="win-opt sel" data-h="11">☀️ 11am–2pm</button>
+        <button type="button" class="win-opt" data-h="14">🌇 2–5pm</button>
+      </div>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
         <button type="button" id="holdSlotBtn" title="Hold this spot while you wait on the customer — ghosted, tech won't see it">⏳ Hold</button>
