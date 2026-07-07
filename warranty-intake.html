@@ -61,6 +61,14 @@
   .save-day{width:100%;margin-top:12px;background:var(--orange);border:0;border-radius:11px;padding:14px;color:#0a0a0a;font-family:var(--mono);font-size:15px;font-weight:600;cursor:pointer;}
   .save-day.done{background:var(--green);}
   .save-day:disabled{opacity:.5;}
+  .add-machine-btn{max-width:520px;width:100%;margin:2px 0 4px;background:transparent;border:1.5px dashed var(--orange);border-radius:12px;padding:14px;color:var(--orange);font-family:var(--mono);font-size:14.5px;font-weight:600;cursor:pointer;}
+  .add-machine-btn.hidden{display:none;}
+  .appl-pick{max-width:520px;width:100%;margin:0 0 6px;}
+  .appl-opts{display:flex;flex-wrap:wrap;gap:8px;}
+  .applopt{flex:1 1 30%;min-width:98px;background:#111;border:1.5px solid var(--bord2);border-radius:11px;padding:12px 6px;text-align:center;cursor:pointer;color:var(--white);font-family:var(--mono);font-size:13.5px;}
+  .applopt:active{border-color:var(--green);}
+  .mcard{max-width:520px;width:100%;background:rgba(255,140,0,.05);border:1px solid var(--bord2);border-radius:13px;padding:15px;margin:0 0 10px;}
+  .mcard .mc-head{font-family:var(--mono);font-weight:600;color:var(--orange);margin-bottom:10px;font-size:14px;}
   .allset{max-width:520px;width:100%;margin-top:20px;background:rgba(57,255,20,.08);border:1px solid var(--green);border-radius:13px;padding:18px;text-align:center;color:var(--green);font-size:15px;display:none;}
   .hidden{display:none!important;}
   .footer{margin-top:34px;font-size:11px;color:var(--gray2);text-align:center;}
@@ -74,7 +82,7 @@
   <div class="steps" id="steps">
     <div class="step" id="s1">
       <div class="step-head"><div class="step-num" id="n1">1</div><div class="step-title">A short 10-second video</div></div>
-      <div class="step-hint">Show us what’s happening with the appliance. A 10–15 sec clip is perfect.</div>
+      <div class="step-hint">10–15 seconds is perfect. Just say what it <b>is or isn’t doing</b> — making noise, not draining, not heating, not spinning. You don’t need to diagnose it, just show us.</div>
       <label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>
       <div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>
     </div>
@@ -84,6 +92,21 @@
       <div class="step-hint">The sticker with the model #. Usually on the door frame, back, or inside. Get it close + clear so we can read it.</div>
       <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>
       <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
+    </div>
+
+    <div id="extraMachines"></div>
+    <button class="add-machine-btn" id="addMachineBtn">➕ Another appliance on this repair?</button>
+    <div class="appl-pick hidden" id="applPick">
+      <div class="step-hint" style="margin-bottom:8px">Which appliance is it?</div>
+      <div class="appl-opts" id="applOpts">
+        <div class="applopt" data-a="Refrigerator">🧊 Fridge</div>
+        <div class="applopt" data-a="Washer">🌀 Washer</div>
+        <div class="applopt" data-a="Dryer">🔥 Dryer</div>
+        <div class="applopt" data-a="Oven / Range">🍳 Oven / Range</div>
+        <div class="applopt" data-a="Dishwasher">🍽️ Dishwasher</div>
+        <div class="applopt" data-a="Microwave">📻 Microwave</div>
+        <div class="applopt" data-a="Other">➕ Other</div>
+      </div>
     </div>
 
     <div class="step" id="s3">
@@ -183,12 +206,13 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 // ── media upload (proven weak-signal path, same as finish-upload) ──
 function fetchJSON(url, body, tries){ tries=tries||3; return (async()=>{ let last; for(let i=0;i<tries;i++){ try{ const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),25000); const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}); clearTimeout(to); return await r.json(); }catch(e){ last=e; await new Promise(s=>setTimeout(s,Math.min(1500*(i+1),5000))); } } throw last||new Error('network'); })(); }
 function putWithProgress(url, file, mime, onPct){ return new Promise((resolve,reject)=>{ const x=new XMLHttpRequest(); x.open('PUT',url,true); x.setRequestHeader('Content-Type',mime); x.timeout=180000; if(x.upload)x.upload.onprogress=e=>{ if(e.lengthComputable&&onPct)onPct(e.loaded/e.total); }; x.onload=()=>(x.status>=200&&x.status<300)?resolve(true):reject(new Error('s3 '+x.status)); x.onerror=()=>reject(new Error('network')); x.ontimeout=()=>reject(new Error('timeout')); try{x.send(file);}catch(e){reject(e);} }); }
-async function uploadMedia(file, fileType, onStatus){
+async function uploadMedia(file, fileType, onStatus, targetJobId){
+  const jid=targetJobId||jobId;
   const mime=file.type||(fileType==='video'?'video/mp4':'image/jpeg'); const maxTries=6; let lastErr='';
   for(let a=1;a<=maxTries;a++){
     try{
       if(onStatus)onStatus('preparing',a,0);
-      const gen=await fetchJSON(XANO+'/generate_upload_url',{job_id:jobId, attachment_type:'intake', file_type:fileType, original_filename:file.name||(fileType+(fileType==='video'?'.mp4':'.jpg')), mime_type:mime, uploaded_by:'customer'});
+      const gen=await fetchJSON(XANO+'/generate_upload_url',{job_id:jid, attachment_type:'intake', file_type:fileType, original_filename:file.name||(fileType+(fileType==='video'?'.mp4':'.jpg')), mime_type:mime, uploaded_by:'customer'});
       if(!gen||!gen.s3_key||!gen.attachment_id) throw new Error('init');
       const pres=await fetchJSON(FN+'/s3-presign',{s3_key:gen.s3_key, mime_type:mime});
       if(!pres||!pres.upload_url) throw new Error('presign');
@@ -196,7 +220,7 @@ async function uploadMedia(file, fileType, onStatus){
       await fetchJSON(XANO+'/save_attachment',{attachment_id:gen.attachment_id, file_size_bytes:file.size||0}).catch(()=>{});
       // model sticker photo → auto-read the model # off it (fire-and-forget; the tech
       // rolls up with the right part). Video skips this.
-      if(fileType!=='video'){ try{ fetch(FN+'/ocr-model-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId, attachment_id:gen.attachment_id})}); }catch(_){ } }
+      if(fileType!=='video'){ try{ fetch(FN+'/ocr-model-extract',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid, attachment_id:gen.attachment_id})}); }catch(_){ } }
       if(onStatus)onStatus('done',a,1); return {ok:true};
     }catch(e){ lastErr=(e&&e.message)||'error'; if(a<maxTries){ if(onStatus)onStatus('retry',a,0); await new Promise(s=>setTimeout(s,Math.min(2000*a,9000))); } }
   }
@@ -214,6 +238,52 @@ function wire(fileId, btnId, progId, barId, statId, kind, label, stepId){
   };
 }
 if(jobId){ wire('vfile','vbtn','vprog','vbar','vstat','video','✓ Video added','s1'); wire('mfile','mbtn','mprog','mbar','mstat','photo','✓ Model photo added','s2'); }
+
+// ── multiple machines on one claim: add another appliance (its own video + model,
+// its own linked job via add-machine). Availability + waiver stay shared. ──
+let machineIdx=0;
+(function bindAddMachine(){
+  const addBtn=document.getElementById('addMachineBtn'); const applPick=document.getElementById('applPick');
+  if(!addBtn||!jobId) return;
+  addBtn.onclick=()=>{ applPick.classList.toggle('hidden'); };
+  document.querySelectorAll('#applOpts .applopt').forEach(el=>{
+    el.onclick=async()=>{
+      const appl=el.getAttribute('data-a'); applPick.classList.add('hidden');
+      addBtn.disabled=true; addBtn.textContent='Adding your '+appl+'…';
+      let mjid=0;
+      try{ const r=await fetchJSON(FN+'/add-machine',{parent_job_id:jobId, appliance_type:appl, added_by:'customer_intake'}); mjid=Number(r&&(r.machine_job_id||r.job_id))||0; }catch(_){}
+      addBtn.disabled=false; addBtn.textContent='➕ Add one more appliance';
+      if(!mjid){ addBtn.textContent='Couldn’t add — tap to try again'; return; }
+      buildMachineCard(appl, mjid);
+    };
+  });
+})();
+function buildMachineCard(appl, mjid){
+  machineIdx++; const i=machineIdx;
+  const card=document.createElement('div'); card.className='mcard';
+  card.innerHTML=
+    '<div class="mc-head">📦 '+esc(appl)+' — two quick things</div>'+
+    '<div class="step-hint">A 10–15 sec video — just say what it <b>is or isn’t doing</b>.</div>'+
+    '<label class="cap-btn" id="mv'+i+'"><span class="emo">📹</span><span>Tap for this '+esc(appl)+' video</span><input type="file" accept="video/*" class="hidden" id="mvf'+i+'"></label>'+
+    '<div class="uprog hidden" id="mvp'+i+'"><div class="upbar" id="mvb'+i+'"></div></div><div class="upstat hidden" id="mvs'+i+'"></div>'+
+    '<div class="step-hint" style="margin-top:10px">A clear photo of its model-number sticker.</div>'+
+    '<label class="cap-btn" id="mm'+i+'"><span class="emo">📸</span><span>Tap for its model photo</span><input type="file" accept="image/*" class="hidden" id="mmf'+i+'"></label>'+
+    '<div class="uprog hidden" id="mmp'+i+'"><div class="upbar" id="mmb'+i+'"></div></div><div class="upstat hidden" id="mms'+i+'"></div>';
+  document.getElementById('extraMachines').appendChild(card);
+  wireMachine('mvf'+i,'mv'+i,'mvp'+i,'mvb'+i,'mvs'+i,'video',mjid,'✓ Video added');
+  wireMachine('mmf'+i,'mm'+i,'mmp'+i,'mmb'+i,'mms'+i,'photo',mjid,'✓ Model photo added');
+}
+function machineStatus(bar,txt){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Got it!';} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn’t finish — try again.';} }; }
+function wireMachine(fileId, btnId, progId, barId, statId, kind, mjid, label){
+  const fi=document.getElementById(fileId);
+  fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    const b=document.getElementById(btnId); b.classList.add('done'); const l=b.querySelectorAll('span')[1]; if(l)l.textContent=label;
+    document.getElementById(progId).classList.remove('hidden'); document.getElementById(statId).classList.remove('hidden');
+    const st=machineStatus(document.getElementById(barId),document.getElementById(statId));
+    if(kind==='video' && window.AntVideo){ AntVideo.upload(f,{ jobId:mjid, uploadedBy:'customer', onStatus:st, s3Fallback:x=>uploadMedia(x,'video',st,mjid) }); }
+    else uploadMedia(f,kind,st,mjid);
+  };
+}
 
 // ── availability: next 5 weekdays + time-of-day, tap to pick, save ──
 const selDays=new Set();
