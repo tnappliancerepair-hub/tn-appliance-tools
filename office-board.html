@@ -808,7 +808,8 @@ async function onDrop(colId,techId,colEl){
       catch(_){toast('⚠ connection error');}
     } else {
       const _day=(String(_ans).trim()||_def);
-      const _startMs=ctStartMs(_day,9)||Date.parse(_day)||Date.now();  // true CT 9am (DST-aware)
+      const _hr=await appendHourForDay(parseInt(techId,10),_day);       // next stop position, no time
+      const _startMs=ctStartMs(_day,_hr)||Date.parse(_day)||Date.now();
       toast('Scheduling '+TECH_NAME[techId]+'…');
       try{
         let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10),scheduled_start_ms:_startMs,service_eta_window:''});
@@ -1358,14 +1359,11 @@ function renderDrawer(d){
 
     <div class="dcard">
       <h4>📅 Schedule (tech + day)</h4>
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b>. We route by day — the customer gets a live arrival window the morning of. Set a <b>time</b> too if you like (optional, just for your planning). This saves right here in Ant — nothing to enter anywhere else.</div>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b> — that's it. No clock time: the job lands as the next <b>stop</b> on that tech's day (1st, 2nd, 3rd…), and the customer gets a live arrival window the morning of. Saves right here in Ant.</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
         <div id="drawCal" class="dc">${drawCalHtml()}</div>
-        <div style="display:flex;gap:8px">
-          <input type="date" id="schDay" value="${schDayVal}" style="flex:2;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
-          <input type="time" id="schTime" value="${schTimeVal}" title="optional time" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
-        </div>
+        <input type="date" id="schDay" value="${schDayVal}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
         <div style="display:flex;gap:8px">
           <button onclick="scheduleFromDrawer(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📅 Schedule</button>
           <button onclick="holdFromDrawer(${jid})" title="Hold this day tentatively while you wait on the customer" style="flex:1;padding:11px;border-radius:9px;background:rgba(224,178,42,0.15);color:#a67c10;border:1px solid #e0b22a;font-weight:800;cursor:pointer">⏳ Hold</button>
@@ -1752,26 +1750,13 @@ function ctStartMs(dateStr,ctHour){
 function confirmHoldFromDrawer(id){
   const h=HOLD_MAP[id]; if(!h){toast('No hold on this job');return;}
   if(!(h.tech_id&&h.date)){toast('Hold missing tech/day');return;}
-  // Ask the arrival window the customer agreed to, then book at that CT time.
-  const wrap=document.createElement('div');
-  wrap.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:20px';
-  const bt=(hh,lbl)=>'<button type="button" data-h="'+hh+'" style="padding:13px;border:1px solid #cdd6e2;border-radius:11px;background:#f4f7fb;font-size:15px;font-weight:800;color:#22314c;cursor:pointer;font-family:inherit">'+lbl+'</button>';
-  wrap.innerHTML='<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)">'
-    +'<div style="font-weight:800;font-size:16px;margin-bottom:3px;color:#12203a">Confirm the appointment</div>'
-    +'<div style="font-size:13px;color:#667;margin-bottom:14px">Pick the arrival window you gave the customer.</div>'
-    +'<div style="display:flex;flex-direction:column;gap:9px">'+bt(8,'🌅 Morning · 8–11am')+bt(11,'☀️ Midday · 11am–2pm')+bt(14,'🌇 Afternoon · 2–5pm')+'</div>'
-    +'<button type="button" data-cancel style="margin-top:12px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef1f5;color:#556;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>'
-    +'</div>';
-  document.body.appendChild(wrap);
-  wrap.addEventListener('click',e=>{
-    const b=e.target.closest('button'); if(!b){ if(e.target===wrap) wrap.remove(); return; }
-    if(b.hasAttribute('data-cancel')){ wrap.remove(); return; }
-    const hr=parseInt(b.getAttribute('data-h'),10); wrap.remove(); bookHoldConfirmed(id,h.tech_id,h.date,hr);
-  });
+  // No arrival window — book it as the next stop position on that tech's day.
+  bookHoldConfirmed(id,h.tech_id,h.date);
 }
-async function bookHoldConfirmed(id,techId,date,hour){
+async function bookHoldConfirmed(id,techId,date){
+  const hour=await appendHourForDay(techId,date);   // next stop position (hidden key)
   const startMs=ctStartMs(date,hour);
-  const win=hour===8?'8-11am':hour===11?'11am-2pm':'2-5pm';
+  const win='';
   toast('Booking…');
   try{
     let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:techId,scheduled_start_ms:startMs,service_eta_window:win});
@@ -1785,23 +1770,32 @@ async function bookHoldConfirmed(id,techId,date,hour){
 async function releaseHoldFromDrawer(id){
   try{ await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release',job_id:parseInt(id,10)})}); toast('Hold released'); await loadHoldMap(); renderBoard(); openDrawer(String(id)); }catch(_){toast('⚠ failed');}
 }
+// The next stop position on a tech's day, as a hidden sort-key hour (8am + how many
+// stops he already has that day). NO clock time is chosen — the job just lands as the
+// next stop (1st/2nd/3rd…). (Teddy 2026-07-07: "positions only — 1,2,3,4,5,6.")
+async function appendHourForDay(techId, day){
+  try{
+    const rd=await (await fetch(XANO+'/get_tech_route_days?technician_id='+techId)).json();
+    const n=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
+    return Math.min(8+n,21);
+  }catch(_){ return 8; }
+}
 async function scheduleFromDrawer(id){
-  const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay'), timeEl=document.getElementById('schTime');
+  const techEl=document.getElementById('schTech'), dayEl=document.getElementById('schDay');
   const tech=parseInt((techEl&&techEl.value)||'0',10);
   const day=(dayEl&&dayEl.value)||'';
-  const tm=(timeEl&&timeEl.value)||'';   // optional HH:MM — her planning time
   if(!tech){toast('Pick a tech');return;}
   if(!day){toast('Pick a day');return;}
-  // Stop limit: cap = tech's preference (max_stops_per_day) or 6.
+  // Stop limit + position in one fetch: cap = tech's preference (max_stops_per_day) or 6.
+  let sameDay=0;
   try{
     const rd=await (await fetch(XANO+'/get_tech_route_days?technician_id='+tech)).json();
     const cap=(rd&&Number(rd.max_stops_per_day))||6;
-    const sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
+    sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
     if(sameDay>=cap){ if(!confirm((TECH_NAME[tech]||'Tech')+' already has '+sameDay+' stops that day (their limit is '+cap+'). Schedule anyway?')) return; }
   }catch(_){}
-  // Day-of routing: if she didn't set a time, 08:00 is the placeholder and only
-  // the DAY matters. If she DID set a time (her MeisterTask habit), honor it.
-  const startMs=new Date(day+'T'+(tm||'08:00')+':00').getTime();
+  // No clock time — append as the next stop position on that tech's day (hidden key).
+  const startMs=ctStartMs(day, Math.min(8+sameDay,21));
   toast('Scheduling…');
   try{
     let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
