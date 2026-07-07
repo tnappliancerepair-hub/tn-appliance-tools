@@ -36,6 +36,12 @@ const AB_VARIANTS = ['video', 'ai', 'portal'];
 function ctHour() {
   return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10);
 }
+// Midnight TODAY in CT (ms) — the cutoff for "today moving forward" scheduled jobs.
+function startOfTodayCtMs() {
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const [y, m, d] = ymd.split('-').map(Number);
+  return Date.UTC(y, m - 1, d, 5, 0, 0); // CT is UTC-5 (CDT)
+}
 function first(s) { return String(s || '').trim().split(/\s+/)[0] || 'there'; }
 function isVendor(w) { return /squaretrade|servicepower|service power/i.test(String(w || '')); }
 async function jget(url, ms = 9000) { const r = await fetch(url, { signal: AbortSignal.timeout(ms) }); return r.json().catch(() => ({})); }
@@ -85,6 +91,27 @@ exports.handler = async function (event) {
       items = d2.items || d2.jobs || d2.rows || (Array.isArray(d2) ? d2 : []);
     } catch (e2) { return ok({ status: 'list_failed', error: String((e2 && e2.message) || e2) }); }
   }
+
+  // ALSO reach customers already ON the schedule from TODAY MOVING FORWARD (Teddy
+  // 2026-07-07). SquareTrade preschedules them, but they may be more open than their
+  // slot — if they reply we tighten the route; if not, we keep the day/time we have.
+  // Calendar jobs carry customer_phone in-field, so no extra lookups. Skip past days.
+  let sched_added = 0;
+  try {
+    const cal = await jget(`${XANO}/get_office_calendar_week`, 15000);
+    const todayStart = startOfTodayCtMs();
+    const seen = new Set(items.map((j) => String(j.id || j.job_id)));
+    for (const j of (cal.jobs || [])) {
+      if (Number(j.scheduled_start || 0) < todayStart) continue;      // today forward only
+      const id = String(j.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      // normalize calendar field names to what the candidate filter + sender expect
+      j.customer_first = j.customer_first || j.customer_first_name || '';
+      j.appliance = j.appliance || j.appliance_type || '';
+      items.push(j); sched_added++;
+    }
+  } catch (_) {}
 
   // Candidates: non-vendor, has a phone, no availability captured yet.
   const cands = items.filter((j) => {
@@ -137,7 +164,7 @@ exports.handler = async function (event) {
         to: phoneDigits ? maskPhone(phoneDigits) : '❌ NO PHONE',
         phone_source: fieldHad ? 'job' : (phoneDigits ? 'job-truth ✓' : 'none'), link: vlink });
     }
-    return ok({ status: 'dryrun', ct_hour: h, total_needs_scheduled: items.length, candidates: cands.length,
+    return ok({ status: 'dryrun', ct_hour: h, total_pool: items.length, scheduled_today_forward_added: sched_added, candidates: cands.length,
       note: `first 15 of ${cands.length} candidates shown; each live run resolves phones + sends up to ${MAX_PER_RUN}`, would_text: preview });
   }
 
@@ -192,5 +219,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_today_forward_added: sched_added, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };
