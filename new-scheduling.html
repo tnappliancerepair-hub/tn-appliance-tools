@@ -1009,42 +1009,21 @@ function __initCalendar() {
     try { const d = await fetch('/.netlify/functions/schedule-hold', { cache: 'no-store' }).then((r) => r.json()); HOLDS = (d && d.holds) || []; }
     catch (_) { HOLDS = []; }
   }
-  // Confirm a tentative hold into a real booked appointment (day-of routing, 8am
-  // CT default), then clear the hold. Release just frees the spot. Global so the
-  // ghosted block's inline buttons can call them. (Teddy 2026-07-03)
-  // Confirm a hold → ask the arrival WINDOW the customer agreed to (holds carry
-  // no time, so booking a fixed 8am made confirmed jobs jump to the top of the
-  // day). Pick 8-11 / 11-2 / 2-5, then book at that CT time. (Teddy 2026-07-04)
+  // Confirm a tentative hold into a real booked appointment, then clear the hold.
+  // Release just frees the spot. Global so the ghosted block's inline buttons can
+  // call them. No clock time — the confirmed job appends as the next stop on that
+  // tech's day (hidden sort key). (Teddy 2026-07-07: "no times — just the day.")
   window.confirmHold = function (jobId, techId, date) {
     if (!(techId && date)) {
       fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) }).then(loadWeek).catch(loadWeek);
       return;
     }
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:20px';
-    const btn = (h, lbl) => `<button type="button" data-h="${h}" style="padding:13px;border:1px solid #cdd6e2;border-radius:11px;background:#f4f7fb;font-size:15px;font-weight:800;color:#22314c;cursor:pointer;font-family:inherit">${lbl}</button>`;
-    wrap.innerHTML = `<div style="background:#fff;border-radius:16px;max-width:360px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
-      <div style="font-weight:800;font-size:16px;margin-bottom:3px;color:#12203a">Confirm the appointment</div>
-      <div style="font-size:13px;color:#667;margin-bottom:14px">Pick the arrival window you gave the customer.</div>
-      <div style="display:flex;flex-direction:column;gap:9px">
-        ${btn(8, '🌅 Morning · 8–11am')}${btn(11, '☀️ Midday · 11am–2pm')}${btn(14, '🌇 Afternoon · 2–5pm')}
-      </div>
-      <button type="button" data-cancel style="margin-top:12px;width:100%;padding:11px;border:0;border-radius:10px;background:#eef1f5;color:#556;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
-    </div>`;
-    document.body.appendChild(wrap);
-    wrap.addEventListener('click', (e) => {
-      const b = e.target.closest('button');
-      if (!b) { if (e.target === wrap) wrap.remove(); return; }
-      if (b.hasAttribute('data-cancel')) { wrap.remove(); return; }
-      const h = parseInt(b.getAttribute('data-h'), 10);
-      wrap.remove();
-      bookConfirmedHold(jobId, techId, date, h);
-    });
+    bookConfirmedHold(jobId, techId, date);
   };
-  async function bookConfirmedHold(jobId, techId, date, hour) {
-    const win = hour === 8 ? '8-11am' : hour === 11 ? '11am-2pm' : '2-5pm';
+  async function bookConfirmedHold(jobId, techId, date) {
     try {
-      await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: win }) });
+      const hour = nextStopHourCT(techId, date, jobId);
+      await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: '' }) });
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
     } catch (_) { alert('Could not confirm — try again.'); }
@@ -2206,15 +2185,11 @@ function __initCalendar() {
     bookingError.textContent = '';
 
     const fd = new FormData(bookingForm);
-    const window = fd.get('time_window') || '';
-    if (!window) {
-      bookingError.textContent = 'Pick a time window.';
-      return;
-    }
-    const windowHour = window === '8-11am' ? 8 : window === '11am-2pm' ? 11 : window === '2-5pm' ? 14 : 8;
-    const windowEndHour = window === '8-11am' ? 11 : window === '11am-2pm' ? 14 : 17;
-    const scheduled_start_ms = ctMs(bookingCtx.date, windowHour);
-    const scheduled_end_ms = ctMs(bookingCtx.date, windowEndHour);
+    // No clock time — the new job appends as the next stop on this tech's day (the
+    // 8am day-anchor + position is a hidden sort key). (Teddy 2026-07-07: "no times.")
+    const bookHour = nextStopHourCT(bookingCtx.tech_id, bookingCtx.date, 0);
+    const scheduled_start_ms = ctMs(bookingCtx.date, bookHour);
+    const scheduled_end_ms = ctMs(bookingCtx.date, Math.min(bookHour + 3, 23));
 
     const first_name = (fd.get('first_name') || '').toString().trim();
     const last_name = (fd.get('last_name') || '').toString().trim();
@@ -2260,7 +2235,7 @@ function __initCalendar() {
           technician_id: parseInt(bookingCtx.tech_id, 10),
           scheduled_start_ms,
           scheduled_end_ms,
-          service_eta_window: window,
+          service_eta_window: '',
           customer_type,
           warranty_company,
         }),
@@ -2304,10 +2279,11 @@ function __initCalendar() {
     }
     manageJobId = jobId;
     const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim()}`.trim() || '(no name)';
-    const time = j.scheduled_start ? fmtTime(j.scheduled_start) : 'no time';
-    const day = j.scheduled_start ? fmtDayShort(j.scheduled_start) : '';
+    // Slot model: show the DAY + stop position, never a clock time. (Teddy 2026-07-07)
+    const day = j.scheduled_start ? fmtDayShort(j.scheduled_start) : 'not scheduled';
+    const pos = stopPositionLabel(j);
     manageHeader.textContent = `Job #${jobId} — ${cust}`;
-    manageSubhead.textContent = `${(j.appliance_type||'').toLowerCase()} · ${day} ${time}`;
+    manageSubhead.textContent = `${(j.appliance_type||'').toLowerCase()} · ${day}${pos ? ' · ' + pos : ''}`;
     manageError.textContent = '';
     // Reset the action buttons. On a successful action they close the modal and
     // reload BEFORE re-enabling, so without this reset they stay disabled for
@@ -2318,17 +2294,12 @@ function __initCalendar() {
     });
     showManageView('actions');
     manageOpenDetail.href = `office-board.html?job=${jobId}`;
-    // Pre-fill reschedule with current scheduled_start (CT)
+    // Pre-fill reschedule with current DAY only (CT) — no clock time. The system
+    // schedules by stop position, not by a time we can't keep (Teddy 2026-07-07).
     if (j.scheduled_start) {
-      const d = new Date(j.scheduled_start);
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'America/Chicago',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      }).formatToParts(d);
-      const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
-      const dtVal = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-      document.getElementById('rescheduleAt').value = dtVal;
+      document.getElementById('rescheduleAt').value = ctDateForMs(j.scheduled_start);
+    } else {
+      document.getElementById('rescheduleAt').value = '';
     }
     // Populate the reassign tech selector
     const sel = document.getElementById('reassignTech');
@@ -2395,14 +2366,53 @@ function __initCalendar() {
     return ctMs(datePart, h) + m * 60000;
   }
 
+  // The day's stop order is the hidden sort key: each new job on a tech's day gets
+  // the NEXT anchor hour (8am + how many stops he already has that day), so it appends
+  // as the next stop. No clock time is ever shown or chosen. (Teddy 2026-07-07: "no
+  // times — just the day + a position.")
+  function nextStopHourCT(techId, dateStr, excludeJobId) {
+    let n = 0;
+    for (const id in lastJobsById) {
+      const j = lastJobsById[id];
+      if (!j || Number(j.technician_id) !== Number(techId)) continue;
+      if (Number(j.id) === Number(excludeJobId)) continue;
+      if (!j.scheduled_start) continue;
+      const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
+      if (st === 'canceled' || st === 'cancelled') continue;
+      if (ctDateForMs(j.scheduled_start) !== dateStr) continue;
+      n++;
+    }
+    return Math.min(8 + n, 21); // 8am day-anchor + position; cap keeps a valid hour
+  }
+
+  // The job's stop position on its tech's day (1st/2nd/3rd…), from the hidden sort
+  // key — what we show instead of a clock time. "" when not scheduled.
+  function stopPositionLabel(j) {
+    if (!j || !j.scheduled_start || !j.technician_id) return '';
+    const dateStr = ctDateForMs(j.scheduled_start);
+    const sibs = [];
+    for (const id in lastJobsById) {
+      const x = lastJobsById[id];
+      if (!x || Number(x.technician_id) !== Number(j.technician_id) || !x.scheduled_start) continue;
+      const st = String(x.scheduling_status || x.current_status || '').toLowerCase();
+      if (st === 'canceled' || st === 'cancelled') continue;
+      if (ctDateForMs(x.scheduled_start) !== dateStr) continue;
+      sibs.push(x);
+    }
+    sibs.sort((a, b) => (Number(a.scheduled_start) || 0) - (Number(b.scheduled_start) || 0));
+    const idx = sibs.findIndex((x) => Number(x.id) === Number(j.id));
+    return idx >= 0 ? (ordinal(idx + 1) + ' stop') : '';
+  }
+
   manageRescheduleForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!manageJobId) return;
-    const dtValue = document.getElementById('rescheduleAt').value;
-    if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
-    const newStartMs = localDatetimeToMs(dtValue);
+    const dayValue = document.getElementById('rescheduleAt').value; // "YYYY-MM-DD", no time
+    if (!dayValue) { manageError.textContent = 'Pick a day.'; return; }
     const techId = Number(document.getElementById('rescheduleTech').value || 0);
     if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
+    // No clock time — assign the next stop position on that tech's day (hidden key).
+    const newStartMs = ctMs(dayValue, nextStopHourCT(techId, dayValue, manageJobId));
     // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
     // before the parts are due to arrive.
     const mj = lastJobsById[manageJobId];
@@ -2681,8 +2691,8 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
     <form id="manageRescheduleForm">
       <label>Tech</label>
       <select id="rescheduleTech" required></select>
-      <label>Date + time (CT)</label>
-      <input type="datetime-local" id="rescheduleAt" required>
+      <label>Day (no clock time — we place them by stop position)</label>
+      <input type="date" id="rescheduleAt" required>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
         <button type="button" id="holdSlotBtn" title="Hold this spot while you wait on the customer — ghosted, tech won't see it">⏳ Hold</button>
@@ -2716,15 +2726,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   <div id="bookingCard">
     <h3 id="bookingHeader">Book</h3>
     <form id="bookingForm">
-      <label>Time window</label>
-      <div class="book-windows">
-        <input type="radio" id="bw1" name="time_window" value="8-11am">
-        <label for="bw1">8-11am</label>
-        <input type="radio" id="bw2" name="time_window" value="11am-2pm">
-        <label for="bw2">11am-2pm</label>
-        <input type="radio" id="bw3" name="time_window" value="2-5pm">
-        <label for="bw3">2-5pm</label>
-      </div>
+      <div id="bookingDayNote" style="font-size:12.5px;color:#9aa4b2;margin:2px 0 10px">Added as the next stop on this day — no clock time.</div>
 
       <label for="bookPhone">Customer phone</label>
       <input type="tel" id="bookPhone" name="phone" autocomplete="off" placeholder="615-280-2949" required>
