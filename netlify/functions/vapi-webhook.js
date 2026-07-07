@@ -496,6 +496,13 @@ exports.handler = async function (event) {
       }
       if (writeJobId > 0 && (transcript || summary)) {
         await extractAndWriteTdrFromCall(writeJobId, numericTechId, transcript, summary, callId);
+      } else if (transcript || summary) {
+        // The tech gave a report but we couldn't pin it to a job — surface it so
+        // it's a visible miss (not a silent drop) when reviewing why a TDR is empty.
+        await safePost(XANO_RECORD_EVENT, {
+          action: 'tdr_scribe_no_job',
+          metadata_json: JSON.stringify({ tech_id: numericTechId, vapi_call_id: callId, had_transcript: !!transcript, at_ms: Date.now() }),
+        });
       }
     }
 
@@ -625,19 +632,26 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
     if (!apiKey) return;
     const src = `CALL SUMMARY:\n${summary || '(none)'}\n\nFULL TRANSCRIPT:\n${(transcript || '').slice(0, 11000)}`;
     const system =
-      'You are a service-report scribe for an appliance repair shop. From the ' +
-      'technician\'s call, extract the Technician Decision Report fields. Return ' +
-      'ONLY a JSON object, no prose, with these keys (all strings, "" when unknown):\n' +
-      '  diagnosis           - what was wrong, plain and specific\n' +
-      '  failed_component    - the specific failed part(s) that need replacing, in plain ' +
-      'words PLUS any part number the tech gave, e.g. "oven control board (WB27T11350)". ' +
-      'ALWAYS fill this whenever the tech names a bad / failed / needed part, even if you ' +
-      'also mention it in the diagnosis. This is the #1 field the office needs to order the ' +
-      'part — never leave it empty when a part was named.\n' +
-      '  labor_hours         - hours of labor as a number string, e.g. "1" or "1.5"\n' +
-      '  repair_completed    - what the tech DID, or the plan if returning (e.g. "parts ' +
-      'needed, will return to install"). Do NOT put the failed part number here — it goes ' +
-      'in failed_component.\n' +
+      'You are a service-report scribe for an appliance repair shop. The FULL ' +
+      'transcript below is the source of truth — the tech may have placed things ' +
+      'loosely while talking, so YOU decide the correct field for each fact and ' +
+      'place it in EXACTLY ONE field. Sections are exclusive — never repeat the same ' +
+      'fact in two fields, and never let a part number, a labor time, or a repair ' +
+      'action bleed into the wrong section. Return ONLY a JSON object, no prose, with ' +
+      'these keys (all strings, "" when the tech did not actually give it):\n' +
+      '  diagnosis           - what was WRONG with the unit, plain and specific (the ' +
+      'problem/root cause). NOT the part number, NOT what he did to fix it.\n' +
+      '  failed_component    - ONLY the specific failed part(s) that need replacing, in ' +
+      'plain words PLUS any part number the tech gave, e.g. "oven control board ' +
+      '(WB27T11350)". ALWAYS fill this whenever the tech names a bad / failed / needed ' +
+      'part. This is the #1 field the office needs to order the part — never leave it ' +
+      'empty when a part was named, and never put a part number anywhere else.\n' +
+      '  labor_hours         - ONLY a bare number string of hours, e.g. "1" or "1.5". ' +
+      'Empty "" if he never gave a time. Never put words here.\n' +
+      '  repair_completed    - ONLY what the tech DID, or the plan if returning (e.g. ' +
+      '"replaced the control board" or "parts needed, will return to install"). Do NOT ' +
+      'put the failed part number here — it goes in failed_component. Do NOT put the ' +
+      'diagnosis here.\n' +
       '  failure_cause       - the SINGLE best-fit cause, EXACTLY one of: normal_wear, ' +
       'lack_of_maintenance, customer_misuse, pests, power_surge, manufacturer_defect, ' +
       'improper_installation, external_damage, pre_existing, other. Map what the tech ' +
@@ -673,22 +687,33 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
     } catch (_) { return; }
     if (!fields) return;
 
-    // Write each non-empty field. Don't clobber: the live tool may have
-    // already captured some — update_tdr_field_from_voice just edits the
-    // same row, so re-writing the same value is a safe no-op. We capture the
-    // returned tdr_id so we can set the enum cause (which the voice endpoint
-    // can't map) directly afterward.
+    // AUTHORITATIVE write (2026-07-07). The live mid-call tool (Brooke's
+    // update_tdr_field) writes fields while the tech talks and sometimes
+    // mis-places them (a part # landing in diagnosis, a repair note in
+    // failed_component) — the "wrong sections" Teddy reported. This end-of-call
+    // pass re-derives all 4 core fields from the FULL transcript and OWNS them:
+    // it writes the same in-progress (job,tech) row the card reads, overwriting
+    // each field. When the extraction clearly succeeded (a real diagnosis came
+    // back), it also CLEARS the two OTHER text fields that came back empty — so
+    // a mid-call value that landed in the wrong box gets scrubbed. It never
+    // clears on a thin/failed extraction (guarded on diagnosis present), and it
+    // never blanks labor_hours (a decimal column) — only writes it when given.
+    const diagOut = String(fields.diagnosis || '').trim();
+    const authoritative = diagOut.length > 0; // extraction produced a real report
     const map = [
-      ['diagnosis', fields.diagnosis],
-      ['failed_component', fields.failed_component],
-      ['labor_hours', fields.labor_hours],
-      ['repair_completed', fields.repair_completed],
+      ['diagnosis', fields.diagnosis, true],       // text — clearable
+      ['failed_component', fields.failed_component, true],
+      ['repair_completed', fields.repair_completed, true],
+      ['labor_hours', fields.labor_hours, false],  // decimal — write only when given
     ];
     let wrote = 0;
+    let cleared = 0;
     let tdrId = 0;
-    for (const [field, value] of map) {
+    for (const [field, value, clearable] of map) {
       const v = String(value || '').trim();
-      if (!v) continue;
+      // Thin extraction, or a non-clearable field with no value → leave whatever
+      // the live tool captured. Authoritative + clearable + empty → scrub it.
+      if (!v && !(authoritative && clearable)) continue;
       try {
         const r = await fetch(`${XANO_BASE}/update_tdr_field_from_voice`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -698,7 +723,7 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
         const d = await r.json().catch(() => ({}));
         if (d && d.tdr_id) tdrId = d.tdr_id;
       } catch (_) {}
-      wrote += 1;
+      if (v) wrote += 1; else cleared += 1;
     }
 
     // failure_cause is an ENUM the voice endpoint can't write — set it (and a
@@ -734,7 +759,8 @@ async function extractAndWriteTdrFromCall(jobId, techId, transcript, summary, ca
       action: 'tdr_written_from_call_transcript',
       metadata_json: JSON.stringify({
         job_id: jobId, tech_id: techId, vapi_call_id: callId,
-        fields_written: wrote, finalized: wrote >= 2, cause: (tdrId && CAUSE_ENUM.has(cause)) ? cause : '',
+        fields_written: wrote, fields_cleared: cleared, authoritative,
+        finalized: wrote >= 2, cause: (tdrId && CAUSE_ENUM.has(cause)) ? cause : '',
       }),
     });
   } catch (_) {}

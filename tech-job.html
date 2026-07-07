@@ -1228,6 +1228,7 @@ async function voiceReport(){
     if(cap.verified_part_number) body.verified_part_number=cap.verified_part_number;
     if(cap.repair_completed) body.repair_completed=cap.repair_completed;
     if(cap.labor_hours){ const lh=parseFloat(cap.labor_hours); if(lh>0) body.labor_time_hours=lh; }
+    carryForwardCore(body);
     try{
       const d=await xanoPost('create_tdr',body);
       if(d && d.tdr){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
@@ -1237,6 +1238,22 @@ async function voiceReport(){
   mediaRec.start();
   btn.textContent='⏹ Stop & save report'; btn.style.background='#d94545';
   toast('Recording — say what you found, what you fixed, and your labor time');
+}
+// Every in-app save is a NEW create_tdr row and the card reads the MOST-RECENT
+// row. So a save that omits a field would make it "disappear" (e.g. Save report
+// after a voice report dropped the diagnosis). Carry forward the core fields from
+// the currently-loaded TDR into any new row so each save is CUMULATIVE — fill gaps
+// only, never overwrite what the tech just gave. (Teddy 2026-07-07: "not adding.")
+function carryForwardCore(body){
+  try{
+    const t=tdr||{};
+    if(!body.diagnosis && String(t.diagnosis||'').trim()) body.diagnosis=t.diagnosis;
+    if(!body.failed_component && String(t.failed_component||'').trim()) body.failed_component=t.failed_component;
+    if(!body.repair_completed && String(t.repair_completed||'').trim()) body.repair_completed=t.repair_completed;
+    if(body.labor_time_hours==null && Number(t.labor_time_hours||0)>0) body.labor_time_hours=Number(t.labor_time_hours);
+    if(!body.verified_part_number && String(t.verified_part_number||'').trim()) body.verified_part_number=t.verified_part_number;
+  }catch(_){}
+  return body;
 }
 async function saveNotes(){
   const txt=document.getElementById('notes').value.trim();
@@ -1249,6 +1266,7 @@ async function saveNotes(){
     // next job on this brand+model gets the right part suggested automatically.
     const body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:txt};
     if(part) body.verified_part_number=part;
+    carryForwardCore(body);
     const d=await xanoPost('create_tdr',body);
     if(d && d.tdr){ note.className='save-note ok'; note.textContent='Saved ✓'; }
     else { note.className='save-note err'; note.textContent=d.message||d.error||'save failed'; }
