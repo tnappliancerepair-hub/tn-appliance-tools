@@ -34,17 +34,20 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   // deep link too — Ant promised it in the intake chat ("I'll text you
   // a link to mark your availability"). last4 is appended blank because
   // the portal extracts it from the phone match when they tap.
+  // ONE foolproof link for everyone (Teddy 2026-07-07): warranty-intake light —
+  // keyed by job_id (carries the customer, no cash-vs-warranty question). Captures
+  // the video + model photo + their days + waiver, all on one page.
   const link = job_id
-    ? `https://${baseLink}/customer-portal.html?job_id=${job_id}&last4=`
+    ? `https://${baseLink}/warranty-intake.html?job_id=${job_id}`
     : `https://${baseLink}`;
   const applianceWord = appliance || 'appliance';
-  // Consolidated, warm, reply-first greeting. Leads with the ONE thing we need
-  // (availability), invites a reply, keeps the portal link as a soft add-on.
-  let body = `Hi ${name}, this is TN Appliance Exchange 🐜 — let's get your ${applianceWord} fixed up fast. What days work best for you, and are there any you can't do? Just reply right here.`;
+  // Consolidated, warm, reply-first greeting. Leads the customer straight to the
+  // one simple page that gets them scheduled.
+  let body = `Hi ${name}, this is TN Appliance Exchange 🐜 — let's get your ${applianceWord} fixed fast.`;
   if (shouldIncludeWarrantyNote({ source, customer_type })) {
-    body += `\n\nCovered by your home warranty — no payment needed.`;
+    body += ` Covered by your home warranty — no payment needed.`;
   }
-  body += `\n\nYou can add photos + your model # to speed things up: ${link}`;
+  body += `\n\n2 quick minutes gets you scheduled — a short video, a photo of the model sticker, and tap the days that work: ${link}`;
   return body;
 }
 

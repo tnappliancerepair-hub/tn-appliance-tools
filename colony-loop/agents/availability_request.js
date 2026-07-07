@@ -71,7 +71,7 @@ export async function run(signal, ctx) {
 
   const first = (String(p.first_name || p.customer_name || '').trim().split(/\s+/)[0]) || 'there';
   const appliance = String(p.appliance_type || 'appliance').toLowerCase();
-  const link = `${SITE}/?job_id=${jobId}&mode=resume`;
+  const link = `${SITE}/warranty-intake.html?job_id=${jobId}`;
   const body =
     `Hi ${first}, this is Ant with TN Appliance Exchange about your ${appliance} repair. ` +
     `To get a tech out as fast as possible — what days/times work best for you, and are there any days/times you absolutely can't do? ` +

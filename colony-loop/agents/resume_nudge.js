@@ -70,13 +70,11 @@ export async function run(signal, ctx) {
     const first = String(j.customer_first || '').trim() || 'there';
     const appl = String(j.appliance_type || 'appliance').toLowerCase();
     const last4 = String(phone).replace(/\D/g, '').slice(-4);
-    const resumeUrl = `https://${domain}/?job_id=${jobId}&mode=resume`;
-    const portalUrl = last4 ? `https://${domain}/customer-portal.html?job_id=${jobId}&last4=${last4}` : '';
+    const resumeUrl = `https://${domain}/warranty-intake.html?job_id=${jobId}`;
 
     const body =
       `Hi ${first} - your ${appl} repair claim is in our system but we need a few quick details ` +
-      `to schedule. Takes ~60s: ${resumeUrl}` +
-      (portalUrl ? ` (or view status: ${portalUrl})` : '');
+      `to get you scheduled. 2 minutes — a short video, your model # + the days that work: ${resumeUrl}`;
 
     let smsRes = null;
     try {

@@ -149,7 +149,7 @@ exports.handler = async function (event) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
     await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: convId ? String(convId) : '', phone: phone, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
     if (yes(m.sms_consent) && phone) {
-      const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
+      const finishLink = `${SITE}/warranty-intake.html?job_id=${jobId}`;
       const what = (videoMissing && photoMissing) ? 'your video + model photo' : (videoMissing ? 'your video' : 'the model-number photo');
       const cmsg = 'TN Appliance: got it! When you have a sec on better signal, tap to add ' + what + ' so your tech shows up ready: ' + finishLink + '  (Reply STOP to opt out.)';
       try { await sendSms(phone, cmsg, 'customer', 'quick_check_media'); customerTexted = true; } catch (_) {}
