@@ -49,6 +49,27 @@ export async function run(signal, ctx) {
     return { success: false, action: 'missing_phone' };
   }
 
+  // KNOWN-CUSTOMER GUARD (Teddy 2026-07-07: "anything else is incorrect for warranty
+  // customers"). A reply from a phone that already has a live job is NOT a new lead —
+  // it's a warranty/existing customer answering the intake or availability text. Firing
+  // the new-lead "finish setting up" push at them is exactly the duplicate that piled
+  // onto Jen Ross's thread. If the number maps to any non-terminal job, stay out of it
+  // (the greeting + availability_request already own their intake — capped at 2).
+  try {
+    const pk = String(phone).replace(/\D/g, '').slice(-10);
+    const r = await fetch(`${config.xanoIntakeBase}/office_universal_search?q=${encodeURIComponent(pk)}`);
+    const d = await r.json();
+    const live = (d && d.items || []).some((it) => {
+      const s = String(it.scheduling_status || '').toLowerCase();
+      return s && !/cancel|complet/.test(s);
+    });
+    if (live) {
+      await xano.markSignalProcessed(signal.id, 'sms_response_new_lead_handled', { outcome: 'skipped_known_customer' });
+      log('sms_response_new_lead_handled', { outcome: 'skipped_known_customer', phone: pk.slice(-4) });
+      return { success: true, action: 'skipped_known_customer' };
+    }
+  } catch (_) { /* fail open — dedup + reply are still bounded */ }
+
   // Dedup — send the new-lead push reply ONCE per 24h per phone. The old
   // findRecentEventLog path was a no-op (it never found the marker), so this
   // re-fired on EVERY reply and spammed the customer the same text (Danielle,
