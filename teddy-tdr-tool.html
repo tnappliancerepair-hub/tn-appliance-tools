@@ -242,6 +242,10 @@
 
 <script>
 const NETLIFY_BASE = window.location.origin;
+// Xano function API base — three direct calls (model save, prediction, event log)
+// referenced this but it was never defined, so saving the model # threw
+// "Save failed: Can't find variable: XANO_BASE." (Teddy 2026-07-07)
+const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 
 let state = {
   step: "intake",
