@@ -40,6 +40,7 @@ exports.handler = async function (event) {
     if (!rows.length && appliance) { rows = (await ilike(term || appliance, limit)); if (rows.length) matched = 'appliance'; }
   }
 
-  const jobs = rows.map((r) => ({ hcp_id: r.hcp_id, snippet: clean(r.body).slice(0, 220) }));
+  const cap = (q.full === '1' || q.full === 'true') ? 4000 : 220;
+  const jobs = rows.map((r) => ({ hcp_id: r.hcp_id, snippet: clean(r.body).slice(0, cap) }));
   return j(200, { ok: true, matched_on: matched, seen_n: jobs.length, model: model || null, jobs });
 };
