@@ -497,11 +497,6 @@ function render(){
 
       ${teddyTdr?`<div class="card"><h3>🧠 Teddy's pre-diagnosis</h3><div class="briefing">${teddyTdr.diagnosis?('<b>'+esc(teddyTdr.diagnosis)+'</b><br>'):''}${teddyTdr.failed_component?('Likely part: '+esc(teddyTdr.failed_component)):''}</div></div>`:''}
 
-      <div class="card" id="convo-card">
-        <h3>💬 Customer conversation <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">what Ant &amp; the customer have texted</span></h3>
-        <div id="ant-sms-thread" style="margin-top:8px;border:1px solid #2a3040;border-radius:10px;background:#131720;min-height:48px;overflow:hidden"></div>
-      </div>
-
       <div class="card">
         <h3>🚦 Status</h3>
         <div class="acts">
@@ -513,24 +508,6 @@ function render(){
         <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
         <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
         ${job.job_completed_at ? `<a href="sign.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:10px;background:#127a4a;color:#fff;font-size:15px;padding:12px">✍️ Customer sign-off — repair complete</a>` : ''}
-      </div>
-
-      <div class="card" id="pay-card" style="display:none">
-        <h3>💳 Collect payment</h3>
-        <div id="pay-body"></div>
-      </div>
-
-      <div class="card" id="takepay-card">
-        <h3>💳 Take a payment <span id="tp-status" style="font-size:12px;font-weight:800;margin-left:auto"></span></h3>
-        <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">See if they've paid, and collect what's owed — card, cash/check, or text them a link. Works on any job (out-of-pocket extras count even on warranty).</div>
-        <label style="font-size:12px;color:var(--dim)">What's it for?</label>
-        <input id="tp-note" placeholder="e.g. coil cleaning, diagnostic fee" style="width:100%;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;margin:4px 0 9px">
-        <label style="font-size:12px;color:var(--dim)">Amount ($)</label>
-        <input id="tp-amt" inputmode="decimal" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 11px">
-        <button class="btn primary" id="tp-charge" style="width:100%;background:#127a4a;margin-bottom:8px">💳 Charge a card now</button>
-        <button class="btn" id="tp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Mark cash/check collected</button>
-        <button class="btn" id="tp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text them a pay link</button>
-        <div id="tp-note-out" style="font-size:12.5px;margin-top:9px"></div>
       </div>
 
       <div class="card" id="ant-tdr-live" style="display:none"></div>
@@ -558,21 +535,9 @@ function render(){
         <div class="gallery" id="gallery"><div class="empty">Loading media…</div></div>
       </div>
 
-      <div class="card">
-        <h3>🔧 Tech help <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
-        <button id="btn-talk-ant" class="btn primary" style="display:block;width:100%;text-align:center;box-sizing:border-box;margin-bottom:4px;background:#0a7d33;font-size:16px;padding:13px">📞 Talk to Ant — Ant calls your phone</button>
-        <div id="talk-ant-status" style="text-align:center;font-size:12px;color:var(--dim);min-height:14px;margin-bottom:9px"></div>
-        <a id="btn-teddy-tool" href="teddy-tdr-tool.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:11px;font-size:16px;padding:13px">🧰 Teddy Tool</a>
-        <div class="parts-in">
-          <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
-          <input id="pf-symptom" placeholder="Symptom / error code (e.g. F3, not cooling)" value="${esc(problem)}">
-        </div>
-        <button class="btn primary" id="dx-go" style="width:100%">🧠 Diagnose / error code</button>
-        <div id="dx-out" style="margin-top:11px"></div>
-        <button class="btn" id="pf-go" style="width:100%;margin-top:9px">🔩 Find the part</button>
-        <div id="pf-out" style="margin-top:11px"></div>
-        <button class="btn" id="mi-go" style="width:100%;margin-top:9px">📋 Recalls + tech sheets</button>
-        <div id="mi-out" style="margin-top:11px"></div>
+      <div class="card" id="pay-card" style="display:none">
+        <h3>💳 Collect payment</h3>
+        <div id="pay-body"></div>
       </div>
 
       <div class="card" id="cust-addons-card" style="display:none;border:2px solid #f0a82a;background:#fffaf0">
@@ -599,17 +564,56 @@ function render(){
         <div style="font-size:11px;color:var(--dim);margin-top:8px;line-height:1.5">Install now = you do it on this visit, your cut hits your pay. Ship it = office mails it to the customer (you still earn a finder cut).</div>
       </div>
 
+      <details class="more-fold" style="margin-top:6px">
+        <summary style="cursor:pointer;padding:13px 14px;background:#f4f6f9;border:1px solid var(--line,#d4d9e0);border-radius:12px;font-weight:800;font-size:15px;color:#33415c">🧰 More — Ant help, payment, texts, customer</summary>
+        <div style="margin-top:8px">
+          <div class="card" id="convo-card">
+            <h3>💬 Customer conversation <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">what Ant &amp; the customer have texted</span></h3>
+            <div id="ant-sms-thread" style="margin-top:8px;border:1px solid #2a3040;border-radius:10px;background:#131720;min-height:48px;overflow:hidden"></div>
+          </div>
 
-      <div class="card">
-        <h3>👤 Customer</h3>
-        <div class="cust-name">${esc(name)}</div>
-        <div class="cust-addr">${esc(addr||'—')}</div>
-        <div class="cust-acts">
-          ${e164?`<a class="call" href="tel:${esc(e164)}">📞 Call</a>`:''}
-          ${e164?`<a class="text" href="sms:${esc(e164)}">💬 Text</a>`:''}
-          ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener">🗺 Navigate</a>`:''}
+          <div class="card" id="takepay-card">
+            <h3>💳 Take a payment <span id="tp-status" style="font-size:12px;font-weight:800;margin-left:auto"></span></h3>
+            <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">See if they've paid, and collect what's owed — card, cash/check, or text them a link. Works on any job (out-of-pocket extras count even on warranty).</div>
+            <label style="font-size:12px;color:var(--dim)">What's it for?</label>
+            <input id="tp-note" placeholder="e.g. coil cleaning, diagnostic fee" style="width:100%;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;margin:4px 0 9px">
+            <label style="font-size:12px;color:var(--dim)">Amount ($)</label>
+            <input id="tp-amt" inputmode="decimal" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 11px">
+            <button class="btn primary" id="tp-charge" style="width:100%;background:#127a4a;margin-bottom:8px">💳 Charge a card now</button>
+            <button class="btn" id="tp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Mark cash/check collected</button>
+            <button class="btn" id="tp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text them a pay link</button>
+            <div id="tp-note-out" style="font-size:12.5px;margin-top:9px"></div>
+          </div>
+
+          <div class="card">
+            <h3>🔧 Tech help <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">internal only</span></h3>
+            <button id="btn-talk-ant" class="btn primary" style="display:block;width:100%;text-align:center;box-sizing:border-box;margin-bottom:4px;background:#0a7d33;font-size:16px;padding:13px">📞 Talk to Ant — Ant calls your phone</button>
+            <div id="talk-ant-status" style="text-align:center;font-size:12px;color:var(--dim);min-height:14px;margin-bottom:9px"></div>
+            <a id="btn-teddy-tool" href="teddy-tdr-tool.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:11px;font-size:16px;padding:13px">🧰 Teddy Tool</a>
+            <div class="parts-in">
+              <input id="pf-model" placeholder="Model #" value="${esc(appliance.model_number||'')}">
+              <input id="pf-symptom" placeholder="Symptom / error code (e.g. F3, not cooling)" value="${esc(problem)}">
+            </div>
+            <button class="btn primary" id="dx-go" style="width:100%">🧠 Diagnose / error code</button>
+            <div id="dx-out" style="margin-top:11px"></div>
+            <button class="btn" id="pf-go" style="width:100%;margin-top:9px">🔩 Find the part</button>
+            <div id="pf-out" style="margin-top:11px"></div>
+            <button class="btn" id="mi-go" style="width:100%;margin-top:9px">📋 Recalls + tech sheets</button>
+            <div id="mi-out" style="margin-top:11px"></div>
+          </div>
+
+          <div class="card">
+            <h3>👤 Customer</h3>
+            <div class="cust-name">${esc(name)}</div>
+            <div class="cust-addr">${esc(addr||'—')}</div>
+            <div class="cust-acts">
+              ${e164?`<a class="call" href="tel:${esc(e164)}">📞 Call</a>`:''}
+              ${e164?`<a class="text" href="sms:${esc(e164)}">💬 Text</a>`:''}
+              ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener">🗺 Navigate</a>`:''}
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
   `;
   wireActions();
