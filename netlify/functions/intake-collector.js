@@ -42,6 +42,23 @@ function ok(b) { return { statusCode: 200, headers: { 'content-type': 'applicati
 
 function maskPhone(p) { const d = String(p || '').replace(/\D/g, ''); return d.length >= 4 ? '•••' + d.slice(-4) : d; }
 
+// Resolve the customer's phone. The job's own customer_phone/phone field is often
+// EMPTY on warranty dispatch jobs (the number lives on the customer record) — so fall
+// back to job-truth, which resolves it the same way the office search does. This is the
+// fix for "warranty customers aren't getting the intake link" (Teddy 2026-07-07): the
+// phone exists, the sender just wasn't reading it from the right place.
+async function resolvePhone(j) {
+  let ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
+  if (ph.length >= 10) return ph;
+  try {
+    const id = j.id || j.job_id;
+    const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${encodeURIComponent(id)}&lens=office`, 8000);
+    const p = String((tr && tr.facts && tr.facts.customer_phone) || '').replace(/\D/g, '');
+    if (p.length >= 10) return p;
+  } catch (_) {}
+  return '';
+}
+
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const dryrun = q.dryrun === '1' || q.dryrun === 'true';
@@ -73,8 +90,8 @@ exports.handler = async function (event) {
     // non-warranty. Vendor jobs get a LIGHTER message (below), but they're no
     // longer skipped — availability + "tell us if your part comes sooner" is
     // hugely helpful across the board.
-    const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
-    if (ph.length < 10) return false;
+    // NOTE: we no longer exclude jobs with an empty phone FIELD here — warranty jobs
+    // carry the number on the customer record, resolved via job-truth in the send loop.
     // Never chase a job flagged for a human to look at — "Email captured — needs
     // review" is a stale warranty claim-update, not a live intake. Auto-texting
     // these is exactly how a completed customer (Kurt #19475) kept getting
@@ -92,62 +109,66 @@ exports.handler = async function (event) {
     return true;
   });
 
-  // Dry run: show exactly who WOULD be texted + a message preview. No sends, no
-  // dedup markers written. Safe to hit anytime to verify the logic.
-  if (dryrun) {
-    return ok({
-      status: 'dryrun', ct_hour: h, total_needs_scheduled: items.length, candidates: cands.length,
-      would_text: cands.slice(0, 10).map((j) => {
-        const id = j.id || j.job_id;
-        const cust = first(j.customer_first);
-        const appl = (j.appliance || 'appliance');
-        return { job_id: id, to: maskPhone(j.customer_phone || j.phone), first: cust, appliance: appl, portal: `${SITE}/customer-portal.html?job_id=${id}&last4=`, message_preview: `Hi ${cust} — TN Appliance Exchange 🐜. Two quick things to get your ${appl} fixed fast: 1) send a short video + model sticker photo  2) reply with the days that work…` };
-      }),
-    });
+  function linkFor(j, id) {
+    const isW = !!String(j.warranty_company || '').trim() || String(j.customer_type || '').toLowerCase() === 'warranty';
+    return { isW, vlink: isW ? `${SITE}/warranty-intake.html?job_id=${id}` : `${SITE}/appliance-ai.html?job_id=${id}&mode=resume` };
   }
 
-  let sent = 0, skipped_dupe = 0, failed = 0;
+  // Dry run: show exactly who WOULD be texted, with the phone RESOLVED (job field or
+  // job-truth), so Teddy can see the real numbers before anything sends. No writes.
+  if (dryrun) {
+    const preview = [];
+    for (const j of cands.slice(0, 15)) {
+      const id = j.id || j.job_id;
+      const fieldHad = String(j.customer_phone || j.phone || '').replace(/\D/g, '').length >= 10;
+      const phoneDigits = await resolvePhone(j);
+      const { isW, vlink } = linkFor(j, id);
+      preview.push({ job_id: id, first: first(j.customer_first), appliance: (j.appliance || 'appliance'),
+        type: isW ? (j.warranty_company || 'warranty') : 'cash',
+        to: phoneDigits ? maskPhone(phoneDigits) : '❌ NO PHONE',
+        phone_source: fieldHad ? 'job' : (phoneDigits ? 'job-truth ✓' : 'none'), link: vlink });
+    }
+    return ok({ status: 'dryrun', ct_hour: h, total_needs_scheduled: items.length, candidates: cands.length,
+      note: `first 15 of ${cands.length} candidates shown; each live run resolves phones + sends up to ${MAX_PER_RUN}`, would_text: preview });
+  }
+
+  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, failed = 0;
   const done = [];
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
     const id = j.id || j.job_id;
-    // ONE intake text, then at most ONE resend ~4h later if still no reply, then
-    // never again (Teddy 2026-06-23: "send it once, maybe twice if no answer").
-    // The candidate filter already drops jobs that have availability, so a reply
-    // stops the resend. FAIL CLOSED: if we can't verify history, skip.
-    // Honor STOP on THIS path too (the loop/Xano send_sms aren't all behind the
-    // guard yet). A customer who opted out never gets a chase text. (Teddy 2026-07-02)
-    try { if (await isOptedOut(toE164(j.customer_phone || j.phone))) { skipped_dupe++; continue; } } catch (_) {}
+    // Dedup FIRST (cheap) so we don't job-truth a job we've already asked. ONE intake
+    // text, then ONE resend ~4h later if no reply, then never (2 lifetime max). A reply
+    // sets availability → the candidate filter drops it. FAIL CLOSED on read error.
     let asks = [];
     try {
-      // LIFETIME dedup window (was 30d — after a month it rolled and re-sent 2 more,
-      // which is why Kurt got texts for weeks). 2 asks is now the true lifetime max.
       const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=3650&limit=5`, 7000);
       asks = dd.items || [];
     } catch (_) { skipped_dupe++; continue; }
-    if (asks.length >= 2) { skipped_dupe++; continue; }            // already sent the max (2), ever
+    if (asks.length >= 2) { skipped_dupe++; continue; }
     if (asks.length === 1) {
       const lastMs = Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0));
-      if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; } // too soon to resend
+      if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; }
     }
+    // Resolve the phone — job field, or job-truth (where the warranty number lives).
+    const fieldHad = String(j.customer_phone || j.phone || '').replace(/\D/g, '').length >= 10;
+    const phoneDigits = await resolvePhone(j);
+    if (phoneDigits.length < 10) { skipped_no_phone++; continue; }
+    if (!fieldHad) resolved_via_truth++;
+    const phone = toE164(phoneDigits);
+    // Honor STOP — a customer who opted out never gets a chase text. (Teddy 2026-07-02)
+    try { if (await isOptedOut(phone)) { skipped_dupe++; continue; } } catch (_) {}
 
-    // Claim BEFORE sending (optimistic lock) so parallel invocations + the next
-    // run see the marker immediately and never double-text.
+    // Claim BEFORE sending (optimistic lock) so a parallel run never double-texts.
     let claimed = false;
     try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', send_no: asks.length + 1, at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
     if (!claimed) { skipped_dupe++; continue; }
 
-    const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    // Route by KNOWN job type (Teddy 2026-07-07): WARRANTY customers get the new
-    // warranty-intake light page (video + model + days + waiver, no payer question);
-    // CASH customers stay on the old intake flow. The system knows the type from the
-    // dispatch, so the customer never has to pick — that's what they kept messing up.
-    const isWarranty = !!String(j.warranty_company || '').trim() || String(j.customer_type || '').toLowerCase() === 'warranty';
-    const vlink = isWarranty
-      ? `${SITE}/warranty-intake.html?job_id=${id}`
-      : `${SITE}/appliance-ai.html?job_id=${id}&mode=resume`;
+    // WARRANTY customers get the warranty-intake light page (video + model + days +
+    // waiver, no payer question); CASH customers stay on the old intake flow.
+    const { vlink } = linkFor(j, id);
     const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
 
     let okSend = false;
@@ -158,5 +179,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, sent, skipped_dupe, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };
