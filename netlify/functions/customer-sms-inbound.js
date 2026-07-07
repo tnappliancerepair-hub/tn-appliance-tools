@@ -52,6 +52,42 @@ function looksLikeRecall(body) {
     || /\b(recall|call ?back|come back out|send (someone|a tech) back)\b/.test(t);
 }
 
+const SAVE_AVAIL_URL = 'https://tnapplianceexchange.net/.netlify/functions/save-availability';
+function last10(v) { const d = String(v || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }
+
+// 🗓️ AVAILABILITY / SCHEDULING reply — the customer is telling us when they can (or can't)
+// be seen. Broad on purpose: this only fires as a RESCUE when the recorder couldn't match
+// the reply to a job, and all we do is save their words onto the job for the office.
+function looksLikeAvailability(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  return /\b(mon|tues|wed|wednes|thur|thurs|fri|satur|sun)(day|s)?\b/.test(t)
+    || /\b(morning|afternoon|evening|anytime|any time|all day|wide open|weekday|weekend)\b/.test(t)
+    || /\b(today|tomorrow|next week|this week|week of|after the)\b/.test(t)
+    || /\bwork(s)?\b.*\b(best|for me|fine|good|great)\b/.test(t)
+    || /\b(available|availability|free|open)\b/.test(t)
+    || /\b\d{1,2}\s*[\/-]\s*\d{1,2}\b/.test(t)     // 7/17
+    || /\b\d{1,2}\s?(am|pm|:\d\d)\b/.test(t)
+    || /\b(covid|flu|sick|out of town|vacation|reschedule|resched|push (it )?back|not until|can'?t do)\b/.test(t);
+}
+
+// Resolve the customer's most-recent ACTIVE job by phone (the office-search way) — used to
+// rescue replies the recorder returns job_id 0 for (warranty jobs carry the phone on the
+// job, not a customer record, so the recorder can't match them). Jen Ross bug 2026-07-07.
+async function findJobByPhone(phone) {
+  const p10 = last10(phone);
+  if (!p10) return 0;
+  try {
+    const r = await fetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(p10)}`, { signal: AbortSignal.timeout(9000) });
+    const d = await r.json();
+    const res = d.results || d.items || (Array.isArray(d) ? d : []);
+    const jobs = res.map((x) => ({ id: Number(x.job_id || x.id), status: String(x.scheduling_status || x.status || '').toLowerCase() }))
+      .filter((x) => x.id && !/cancel|complet/.test(x.status))
+      .sort((a, b) => b.id - a.id);
+    return jobs[0] ? jobs[0].id : 0;
+  } catch (_) { return 0; }
+}
+
 // Specific-intent keywords (mirror of the loop's KEYWORD_ROUTES). If a cold
 // lead's text matches one of these, do NOT fire the instant new-lead greeting —
 // let the loop route it to the right responder (cancel / reschedule / status…).
@@ -435,6 +471,31 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.warn('[customer-sms-inbound] recall detect error:', String((e && e.message) || e)); }
 
+  // 🗓️ AVAILABILITY RESCUE (Teddy 2026-07-07, the Jen Ross fix). Warranty jobs carry the
+  // customer's phone on the JOB, not on a linked customer record — so the recorder can't
+  // match the reply (job_id 0) and the availability the customer sent falls on the floor.
+  // If the recorder didn't match a job AND the message reads like scheduling info, resolve
+  // the job by phone and SAVE their words onto it so the office actually sees it.
+  let availRescued = false;
+  try {
+    const matched = Number(recordData && recordData.job_id) > 0;
+    if (!matched && !recallHandled && looksLikeAvailability(parsed.body)) {
+      const jid = await findJobByPhone(parsed.from);
+      if (jid) {
+        await fetch(SAVE_AVAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: jid, availability_text: String(parsed.body).slice(0, 400) }), signal: AbortSignal.timeout(12000) });
+        availRescued = true;
+        console.log('[customer-sms-inbound] availability rescued onto job', jid);
+        try { await crud.logEvent('availability_rescued', { job_id: jid, phone: String(parsed.from).slice(-4), body: String(parsed.body).slice(0, 120), at_ms: Date.now() }); } catch (_) {}
+        // Warm ack — reactive reply to a live inbound (never go silent on them).
+        try {
+          await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: parsed.from, message: "Got it — thank you! We've noted that and we'll text you to confirm your day. 🐜", context_tag: 'availability_ack' }), signal: AbortSignal.timeout(9000) });
+        } catch (_) {}
+      }
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] availability rescue error:', String((e && e.message) || e)); }
+
   // ⚡ INSTANT first-reply for a cold new lead (LSA / Google-chat speed-to-lead).
   // The loop's sms_response_new_lead is canonical but runs on a ~2-min tick →
   // 2-4 min wait. For a brand-new number (customer_known=false) whose message is
@@ -442,7 +503,7 @@ exports.handler = async function (event) {
   // reply inline in ~1s + mark it so the loop doesn't double-send. Known
   // customers + specific intents still flow through the loop with full context.
   try {
-    const isColdLead = !recallHandled
+    const isColdLead = !recallHandled && !availRescued
       && recordData && recordData.customer_known === false
       && !(Number(recordData.job_id) > 0)        // matched to a job => not a cold lead
       && !hasSpecificIntent(parsed.body)
