@@ -56,6 +56,7 @@
   .day.sel .dnum{color:var(--green);}
   .tod{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
   .todopt{flex:1 1 30%;min-width:104px;background:#111;border:1.5px solid var(--bord2);border-radius:11px;padding:13px 8px;text-align:center;cursor:pointer;color:var(--white);font-family:var(--mono);font-size:13.5px;}
+  .todopt.wide{flex:1 1 100%;font-size:15.5px;font-weight:600;padding:15px;}
   .todopt.sel{border-color:var(--green);background:rgba(57,255,20,.09);color:var(--green);}
   .save-day{width:100%;margin-top:12px;background:var(--orange);border:0;border-radius:11px;padding:14px;color:#0a0a0a;font-family:var(--mono);font-size:15px;font-weight:600;cursor:pointer;}
   .save-day.done{background:var(--green);}
@@ -91,9 +92,9 @@
       <div class="days" id="days"></div>
       <div class="step-hint" style="margin-top:14px">Any time of day that's best? <b style="color:var(--green)">The more open you are, the quicker we can get to you.</b></div>
       <div class="tod" id="tod">
+        <div class="todopt wide" data-tod="wide open — here anytime">🙌 I'm wide open — anytime works</div>
         <div class="todopt" data-tod="open most mornings">🌅 Most mornings</div>
         <div class="todopt" data-tod="open most afternoons/evenings">🌆 Most afternoons</div>
-        <div class="todopt" data-tod="wide open — here anytime">🙌 I'm wide open</div>
       </div>
       <button class="save-day" id="saveDay" disabled>Pick your days above</button>
     </div>
