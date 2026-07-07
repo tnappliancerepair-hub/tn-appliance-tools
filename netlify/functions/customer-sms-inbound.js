@@ -127,7 +127,7 @@ function looksLikeNewRepairLead(body) {
 // Same warm new-lead reply the loop composes (sms_response_new_lead) — replicated
 // so we can send it INSTANTLY inline for a cold lead, then write the loop's dedup
 // marker so it doesn't re-send. Template only (no Claude) = sub-second.
-function composeNewLeadReply(body) {
+function composeNewLeadReply(body, jobId) {
   const text = String(body || '').toLowerCase();
   let opener = 'Got it — thanks for reaching out.';
   if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker)\b/.test(text)) opener = 'Got it — fridge repair, perfect.';
@@ -136,7 +136,10 @@ function composeNewLeadReply(body) {
   else if (/\b(dishwasher|dish ?washer)\b/.test(text)) opener = 'Got it — dishwasher repair, perfect.';
   else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = 'Got it — oven/range repair, perfect.';
   else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = 'Got it — HVAC repair, perfect.';
-  return `${opener} Tap here to finish setting up in about 60 seconds: ${PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+  // If we can tie this number to a real job, hand them their JOB-KEYED link (loads their
+  // info + saves to their job); only fall back to the bare domain for a truly cold lead.
+  const link = jobId ? ('https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jobId) : PUBLIC_SITE;
+  return `${opener} Tap here to finish setting up in about 60 seconds: ${link} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
 }
 
 // Fire the instant inline reply for a genuinely-new lead. Bounded; best-effort.
@@ -153,7 +156,9 @@ async function instantNewLeadReply(fromPhone, body) {
     if (rd && (rd.count > 0 || (Array.isArray(rd.items) && rd.items.length > 0))) return false;
   } catch (_) { /* fail open — better to greet than stay silent */ }
 
-  const reply = composeNewLeadReply(body);
+  // If this number already belongs to a job, use its deep link, not the bare domain.
+  let jid = 0; try { jid = await findJobByPhone(fromPhone); } catch (_) {}
+  const reply = composeNewLeadReply(body, jid);
   const sc = new AbortController(); const st = setTimeout(() => sc.abort(), 6000);
   try {
     await fetch(`${XANO_BASE}/send_sms`, {
@@ -487,11 +492,17 @@ exports.handler = async function (event) {
         availRescued = true;
         console.log('[customer-sms-inbound] availability rescued onto job', jid);
         try { await crud.logEvent('availability_rescued', { job_id: jid, phone: String(parsed.from).slice(-4), body: String(parsed.body).slice(0, 120), at_ms: Date.now() }); } catch (_) {}
-        // Warm ack — reactive reply to a live inbound (never go silent on them).
+        // Warm ack that ALSO hands them their REAL deep link (job-keyed warranty-intake),
+        // not a bare domain — so the video + model photo actually lands on their job.
         try {
+          const link = 'https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jid;
+          const ack = "Got it — thank you! We've noted that. One quick thing so your tech rolls up with the right part: tap to send a 10-sec video + a photo of the model-# sticker — " + link + " — and we'll text to confirm your day. 🐜";
           await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: parsed.from, message: "Got it — thank you! We've noted that and we'll text you to confirm your day. 🐜", context_tag: 'availability_ack' }), signal: AbortSignal.timeout(9000) });
+            body: JSON.stringify({ to: parsed.from, message: ack, context_tag: 'availability_ack' }), signal: AbortSignal.timeout(9000) });
         } catch (_) {}
+        // Write the loop's new-lead dedup marker so it doesn't ALSO fire a bare-domain
+        // reply after our ack (no double-text).
+        try { await crud.logEvent('new_lead_replied_' + String(parsed.from).replace(/\D/g, ''), { outcome: 'availability_rescued', job_id: jid, at_ms: Date.now() }); } catch (_) {}
       }
     }
   } catch (e) { console.warn('[customer-sms-inbound] availability rescue error:', String((e && e.message) || e)); }
