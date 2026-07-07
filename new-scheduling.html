@@ -1477,13 +1477,32 @@ function __initCalendar() {
 
   // A ghosted "tentative" placeholder block — dashed + faded so it never reads as
   // a firm job. Confirm turns it real; release frees the spot. (Teddy 2026-07-03)
+  // How long a tentative hold has been sitting — Danielle asked to see hold time
+  // so she can catch stale ones (Teddy 2026-07-06). Amber normally; turns red
+  // once it's been held over a day so a forgotten hold jumps out.
+  function holdAgeLabel(at) {
+    const t = Number(at) || 0;
+    if (!t) return { text: 'held (time unknown)', stale: false };
+    const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+    let s;
+    if (mins < 1) s = 'just now';
+    else if (mins < 60) s = mins + 'm';
+    else if (mins < 1440) s = Math.round(mins / 60) + 'h';
+    else s = Math.round(mins / 1440) + 'd';
+    return { text: s === 'just now' ? 'held just now' : ('held ' + s + ' ago'), stale: mins >= 1440 };
+  }
   function renderHoldBlock(h) {
     const cust = (h.customer || '').trim() || 'Customer';
     const appl = (h.appliance || '').trim();
+    const age = holdAgeLabel(h.at);
+    const ageStyle = age.stale
+      ? 'color:#fff;background:#c62828;font-weight:800;padding:1px 7px;border-radius:6px;font-size:10.5px'
+      : 'color:#a67c10;font-weight:800;font-size:10.5px';
     return `
       <div class="blk hold" data-hold-job="${h.job_id}" title="Tentative hold — waiting on the customer">
         <div class="row1"><span class="time">⏳</span><span class="name">${escapeHtml(cust)}</span></div>
         <div class="row2"><span class="appl">TENTATIVE${appl ? ' · ' + escapeHtml(appl) : ''}</span></div>
+        <div class="row2" style="margin-top:2px"><span style="${ageStyle}">⏱ ${age.text}</span></div>
         <div class="hold-actions">
           <button type="button" class="hold-confirm" onclick="event.stopPropagation();confirmHold(${h.job_id},${Number(h.tech_id) || 0},'${h.date}')">✓ Confirm</button>
           <button type="button" class="hold-release" onclick="event.stopPropagation();releaseHold(${h.job_id})">✕ Release</button>
