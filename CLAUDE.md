@@ -11,6 +11,41 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-06 (Sun/Mon — field bug week + AI-phone hardening + declutter) — READ FIRST
+
+Long live-ops day with Teddy working from the field (his stated goal: "work out all
+the bugs in the tech app this week"). All shipped to `main` (Netlify auto-deploys;
+**loop-agent + XS changes still need a Mac `git pull` + kickstart / `xano push`**).
+
+### ✅ SHIPPED + LIVE (Netlify)
+- **TDR card — last-3 fields openable** (`ant-tdr-card.js`): Photos row taps → snap/upload a photo (downscaled client-side → `/photo-upload`); Signature row taps → `sign.html`; Parts Used row taps → routes the part # to **Failed Component** (honest workaround — `parts_needed` JSON column still can't read back; native fix pending Mac). Complete-option buttons darkened (`#111827/800`). Cache `?v=20260706-tdrfields` on the 5 embedding pages.
+- **Office board schedule picker offers ALL active techs** (`office-board.html`): was region-locked so John (NOLA) wasn't pickable on the TN board even for his own job. New `SCHED_TECHS=[1,2,4,3,6]` + always includes the job's current tech. Also added `tech-autoupdate.js` to the office board (kills the stale-cache "still no John" tax).
+- **SMS quiet-hours = HARD block (the 3:30am-text fix).** A real customer (Sonja Cotter) got texts at 3:33/3:42am. Root causes + fixes: (a) `_lib/sms-guard.js` — quiet hours (8am–9pm CT) now **hard-blocks customer sends regardless of `SMS_GUARD_ENFORCE`** (freq/global stay shadow); (b) `_lib/intake-ack.js` had `allowQuiet:true` (bypassed quiet) → set false; (c) **loop-side** (`colony-loop/sms.js` `toCustomer` + `xano.js` `sendSms`) block proactive customer texts 9pm–8am CT — EXEMPT: force_send, en-route/ETA/running-late, and REACTIVE replies to a live inbound (never go silent on a 3am customer). **Loop side needs the Mac pull to go live.**
+- **AI PHONE — big hardening day (all via `vapi-admin` actions on Ant Inbound `7cc98b0c-…`):**
+  - `daycalls` action (new) — pull + flag the day's upset callers (asked for a human, no-show language, dropped). Used it to review all 58 calls / 23 flagged.
+  - `date_now` — inject the live Central-time date so the AI stops guessing today (fixed "your appointment is tomorrow" when it was TODAY — Christopher Collier no-show call).
+  - `warranty_dispatch` — never hang up on an AHS rep; ALWAYS capture the dispatch via capture_callback; flag expedited/medical URGENT; stop looping on failed lookups. (An AHS EXPEDITED insulin-fridge dispatch — Karen Bailey, claim 61658369 — was LOST tonight because the AI "verbally confirmed" then hung up. **NEEDS MANUAL RECOVERY.**)
+  - `message_mode` (Teddy's call — NO live transfer): removed transferCall + all transfer blocks; warm take-a-message flow (acknowledge upset, capture, promise callback, read number back, never hang up). (`transfer_on` was built then reversed per Teddy.)
+  - `no_precise_time` — NEVER quote a clock time; state the DAY + "we text a live arrival window the morning of." Holds the line if pushed.
+- **Urgent-callback texts** (`capture-callback.js`): only URGENT callbacks buzz Teddy/Danielle (🚨 tag) — a warranty/AHS rep, expedited/medical, or upset (no-show/damage/"nobody calls me back"); routine ones sit quietly in `callbacks.html`. Safety net: if the queue write fails, alert anyway.
+- **Scheduling board (`new-scheduling.html`) — Teddy's SLOT MODEL (decision "B"):** job tiles now show **stop position "1st/2nd/3rd stop"** instead of clock times (ordered by scheduled_start; the time is a hidden sort key). Follow-ons noted: drag-to-reorder, convert the detail popup + confirm-hold window picker off times, customer-facing "N stops ahead." Also: **hold-time on tentative cards** (Danielle's ask — "⏱ held Xm/Xh/Xd ago," red once >1 day).
+- **Tech job page DECLUTTER (`tech-job.html`)** — ~23 cards → essentials up top (status → report → photos + self-hiding contextual cards), with **🔧 Tech help kept VISIBLE and led by 🔩 Find the part** (Teddy: "part finder is my favorite tool"). Only payment/texts/customer fold under "🧰 More." All element IDs preserved.
+
+### 🧭 DOCTRINE CAPTURED (new docs)
+- `docs/scheduling-model-and-territories-2026-07-06.md` — **SLOT model** (no times; 1st–6th stop; tell customer how many stops ahead) + **LA territories** (Andre=South Shore: NOLA/Metairie/Kenner/Gretna; John=North Shore→Baton Rouge→Slidell/Hammond). Unmapped BR/Livingston zips (70791/70714/70739/70744, +70812) fall through — **proposed fix: add to John's LA West cluster** (config, not built yet, awaiting Teddy).
+- `docs/phone-call-review-2026-07-06.md` — the **root-cause ledger** (every dropped call → cause → fix; 6 root causes). Scoreboard = shrink the list.
+- `docs/tech-app-bug-hunt-2026-07.md` — running field-bug tracker (updated).
+
+### ⚠️ OPERATING NOTE (Teddy 2026-07-06) — Claude stays OFF the live scheduling board
+Danielle is back working + actively mapping the schedule; Claude canceling/scheduling jobs COLLIDED with her (canceled the Fulton job she was mid-scheduling; assigned a time Teddy doesn't want). **Rule: Claude does NOT schedule/assign/cancel on the live board — Danielle owns it. Claude only touches a job when Teddy explicitly asks.** Claude's lane: AI phone/messaging, backend/config fixes, board FEATURES (like the hold-time + position display), diagnostics.
+
+### 🔜 NEXT (queued — "test in the morning", Teddy)
+- **Recover Karen Bailey's lost AHS expedited dispatch** (claim 61658369, 2152 Slater Dr, Murfreesboro, insulin fridge).
+- **Talk-to-Ant TDR bug** (Teddy: voice reports "not adding to the TDR + wrong sections"). Traced: two writers (flaky mid-call live tools + the end-of-call `extractAndWriteTdrFromCall` scribe in `vapi-webhook.js`). **Fix plan: make the end-of-call scribe AUTHORITATIVE** — always run it (never skip on missing job_id) + own/overwrite the 4 fields so it corrects the mid-call mis-placement. Confirm by pulling one real Jimmy call first.
+- **Dashboard ↔ tile ↔ TDR free-flow** (Teddy: make the TDR easier from the dashboard + easy nav both ways). Direction: the reliable fill path = tap-fields + part finder (not voice) — make it seamless from the dashboard.
+- **Mac deploys pending:** `git pull + launchctl kickstart` (loop quiet-hours + exact-time confirmation/reminder day-only wording) · `xano push` (parts_needed field + get_unified_tdr_status TDR-%).
+- **Slot-model follow-ons** (drag-to-reorder, detail-popup/confirm-hold off times, customer "N stops ahead"); **BR zip mapping to John** (awaiting Teddy's go).
+
 ## 🗓️🐜 2026-07-04 (Sat AM) — TDR CARD: USE THE CUSTOMER'S INTAKE + INLINE-EDIT (REMOVE FRICTION) (READ FIRST)
 
 Morning session — Teddy's ask: *"utilize anything we can from the customer's side and make it easy to edit and complete the TDR, remove all friction."* Screenshot showed the unified TDR card (`ant-tdr-card.js`) reading **"0% · needs diagnosis"** on a warranty fridge even though the customer already described the complaint at intake. Root cause: `get_unified_tdr_status` returns the intake info in `submission_extras` (problem_summary / model_number / serial_number / claim_number) but the card **never displayed it** (only buried it in the warranty submission text). All shipped to `main` (Netlify — no Mac push).
