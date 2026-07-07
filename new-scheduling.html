@@ -1455,7 +1455,10 @@ function __initCalendar() {
     let tier = 'green';
     if (count >= 5) tier = 'red';
     else if (count >= 3) tier = 'yellow';
-    const blocks = jobs.map((j) => renderBlock(j)).join('');
+    // Order the day's stops by their sort key (scheduled_start), then number them
+    // 1st, 2nd, 3rd… — that ordinal is what shows, not a clock time.
+    const orderedJobs = jobs.slice().sort((a, b) => (Number(a.scheduled_start) || 0) - (Number(b.scheduled_start) || 0));
+    const blocks = orderedJobs.map((j, i) => renderBlock(j, i)).join('');
     const holdBlocks = HOLDS.filter((h) => Number(h.tech_id) === Number(tech.id) && h.date === day.dateStr).map(renderHoldBlock).join('');
     return `
       <div class="cell cap-${tier} book-cell"
@@ -1511,8 +1514,15 @@ function __initCalendar() {
     `;
   }
 
-  function renderBlock(j) {
-    const time = fmtTimeShort(j.scheduled_start);
+  // Stop POSITION, not a clock time (Teddy 2026-07-06: "we don't give times —
+  // first spot, second spot, third spot"). The position is the job's order in the
+  // tech's day; the underlying scheduled_start is just the sort key, hidden.
+  function ordinal(n) {
+    const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+  function renderBlock(j, pos) {
+    const posLabel = (typeof pos === 'number') ? (ordinal(pos + 1) + ' stop') : fmtTimeShort(j.scheduled_start);
     const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim().slice(0,1)}${j.customer_last_name ? '.' : ''}`.trim() || '(no name)';
     const appl = (j.appliance_type || '').toLowerCase();
     const brand = (j.brand || '').trim();
@@ -1529,7 +1539,7 @@ function __initCalendar() {
       <div class="blk bk-${bk}" data-job-id="${j.id}" draggable="true" role="button" tabindex="0"
            title="Drag to another tech/day, or click to reschedule, reassign, or cancel">
         <div class="row1">
-          <span class="time">${time}</span>
+          <span class="time">${posLabel}</span>
           <span class="name">${escapeHtml(cust)}</span>
         </div>
         <div class="row2">
