@@ -158,8 +158,11 @@
   async function runSearch(q, resultsEl) {
     resultsEl.innerHTML = `<div class="ofc-search-status">Searching…</div>`;
     resultsEl.classList.add('show');
+    // office_universal_search scans every job and now runs ~7-8s on the grown
+    // board — right at the old 8s abort, so a real match (e.g. "Selvish Capers")
+    // randomly showed "Server timeout." Give it real headroom. (Teddy 2026-07-07)
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
+    const t = setTimeout(() => ctrl.abort(), 20000);
     try {
       const r = await fetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
       clearTimeout(t);
