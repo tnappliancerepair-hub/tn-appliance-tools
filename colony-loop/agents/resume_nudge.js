@@ -70,7 +70,11 @@ export async function run(signal, ctx) {
     const first = String(j.customer_first || '').trim() || 'there';
     const appl = String(j.appliance_type || 'appliance').toLowerCase();
     const last4 = String(phone).replace(/\D/g, '').slice(-4);
-    const resumeUrl = `https://${domain}/warranty-intake.html?job_id=${jobId}`;
+    // Warranty → the new light page; cash → the old customer-portal flow. (Teddy 2026-07-07)
+    const isWarranty = !!String(j.warranty_company || '').trim() || String(j.customer_type || '').toLowerCase() === 'warranty';
+    const resumeUrl = isWarranty
+      ? `https://${domain}/warranty-intake.html?job_id=${jobId}`
+      : `https://${domain}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
 
     const body =
       `Hi ${first} - your ${appl} repair claim is in our system but we need a few quick details ` +

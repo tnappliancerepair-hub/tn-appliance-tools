@@ -117,7 +117,7 @@ exports.handler = async function (event) {
     try { await crud.update(crud.TABLES.jobs, jobId, { media_status: 'pending' }); } catch (_) {}
     await crud.logEvent('quick_check_media_pending', { job_id: jobId, conv_id: convId ? String(convId) : '', phone: phone, in_home: isInHome, video_missing: videoMissing, photo_missing: photoMissing, at_ms: Date.now() });
     if (yes(m.sms_consent) && phone) {
-      const finishLink = `${SITE}/warranty-intake.html?job_id=${jobId}`;
+      const finishLink = `${SITE}/finish-upload.html?job_id=${jobId}`;
       if (isInHome && !videoLinked && !photoLinked) {
         const cmsg = 'TN Appliance: you\'re on the schedule! One quick must-do so your tech rolls up ready to fix it the first trip — tap here to shoot a short video of the problem + a photo of the model-number sticker: ' + finishLink + '  (Reply STOP to opt out.)';
         try { await sendSms(phone, cmsg, 'customer', 'in_home_media'); customerTexted = true; } catch (_) {}

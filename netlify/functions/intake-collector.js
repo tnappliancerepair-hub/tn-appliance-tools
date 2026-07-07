@@ -140,11 +140,14 @@ exports.handler = async function (event) {
     const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    // ONE foolproof intake link for EVERYONE (Teddy 2026-07-07): warranty-intake is
-    // keyed by job_id (carries the customer — no PII typing, no cash-vs-warranty
-    // question they kept getting wrong), and captures video + model photo + their
-    // days right on the page. No A/B rotation — the same simple page every time.
-    const vlink = `${SITE}/warranty-intake.html?job_id=${id}`;
+    // Route by KNOWN job type (Teddy 2026-07-07): WARRANTY customers get the new
+    // warranty-intake light page (video + model + days + waiver, no payer question);
+    // CASH customers stay on the old intake flow. The system knows the type from the
+    // dispatch, so the customer never has to pick — that's what they kept messing up.
+    const isWarranty = !!String(j.warranty_company || '').trim() || String(j.customer_type || '').toLowerCase() === 'warranty';
+    const vlink = isWarranty
+      ? `${SITE}/warranty-intake.html?job_id=${id}`
+      : `${SITE}/appliance-ai.html?job_id=${id}&mode=resume`;
     const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
 
     let okSend = false;

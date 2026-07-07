@@ -34,17 +34,20 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
   // deep link too — Ant promised it in the intake chat ("I'll text you
   // a link to mark your availability"). last4 is appended blank because
   // the portal extracts it from the phone match when they tap.
-  // ONE foolproof link for everyone (Teddy 2026-07-07): warranty-intake light —
-  // keyed by job_id (carries the customer, no cash-vs-warranty question). Captures
-  // the video + model photo + their days + waiver, all on one page.
+  // Route by KNOWN type (Teddy 2026-07-07): WARRANTY customers get the warranty-intake
+  // light page (video + model + days + waiver, no payer question); CASH customers stay
+  // on the old customer-portal flow. The system knows the type — the customer never picks.
+  const isWarranty = shouldIncludeWarrantyNote({ source, customer_type });
   const link = job_id
-    ? `https://${baseLink}/warranty-intake.html?job_id=${job_id}`
+    ? (isWarranty
+        ? `https://${baseLink}/warranty-intake.html?job_id=${job_id}`
+        : `https://${baseLink}/customer-portal.html?job_id=${job_id}&last4=`)
     : `https://${baseLink}`;
   const applianceWord = appliance || 'appliance';
   // Consolidated, warm, reply-first greeting. Leads the customer straight to the
   // one simple page that gets them scheduled.
   let body = `Hi ${name}, this is TN Appliance Exchange 🐜 — let's get your ${applianceWord} fixed fast.`;
-  if (shouldIncludeWarrantyNote({ source, customer_type })) {
+  if (isWarranty) {
     body += ` Covered by your home warranty — no payment needed.`;
   }
   body += `\n\n2 quick minutes gets you scheduled — a short video, a photo of the model sticker, and tap the days that work: ${link}`;
