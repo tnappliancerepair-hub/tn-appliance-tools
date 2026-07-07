@@ -36,6 +36,19 @@ exports.handler = async function (event) {
     const cust = await gaql(ver, token, c, cid,
       'SELECT customer.id, customer.descriptive_name, customer.auto_tagging_enabled, customer.conversion_tracking_setting.conversion_tracking_status, customer.conversion_tracking_setting.google_ads_conversion_customer FROM customer');
 
+    // ?urls=1 — just the ads' final (landing) URLs per campaign, to confirm where
+    // an ad click actually lands.
+    if (q.urls === '1') {
+      const ur = await gaql(ver, token, c, cid,
+        "SELECT campaign.name, ad_group.name, ad_group_ad.ad.final_urls, ad_group_ad.status FROM ad_group_ad WHERE campaign.status = 'ENABLED' OR campaign.status = 'PAUSED'");
+      const urls = (ur.results || []).map((x) => ({
+        campaign: x.campaign && x.campaign.name,
+        ad_status: x.adGroupAd && x.adGroupAd.status,
+        final_urls: (x.adGroupAd && x.adGroupAd.ad && x.adGroupAd.ad.finalUrls) || [],
+      }));
+      return json(200, { ok: true, cid, ads: urls.length ? urls : ur });
+    }
+
     // 2) every conversion action + its 30-day counts
     const acts = await gaql(ver, token, c, cid,
       "SELECT conversion_action.id, conversion_action.name, conversion_action.status, conversion_action.type, conversion_action.category, conversion_action.counting_type, metrics.all_conversions FROM conversion_action WHERE conversion_action.status != 'REMOVED'");
