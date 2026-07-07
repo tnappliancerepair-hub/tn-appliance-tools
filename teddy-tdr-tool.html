@@ -323,6 +323,13 @@ async function loadCockpit(jobId) {
       const _hasPhoto = ((data.attachments || []).some(function (a) { return a.file_type !== 'video'; }));
       if (!_m && _hasPhoto) readModelFromPhotos(true);
     } catch (_) {}
+    // Resolve the FULL customer + status (contact / type / tech / schedule / gaps) via
+    // job-truth — qc_cockpit_load's customer join is sometimes sparse (just a zip), so
+    // this is what actually tells Teddy who to call + what's missing. (Teddy 2026-07-07)
+    try {
+      const tr = await fetch('/.netlify/functions/job-truth?job_id=' + encodeURIComponent(state.jobId) + '&lens=office', { cache: 'no-store' }).then(function (r) { return r.json(); });
+      if (tr && tr.found) { state.truth = tr; render(); }
+    } catch (_) {}
   } catch(e) {
     state.error = e.message || ("Could not load job #" + jobId);
     state.step = "intake";
@@ -732,6 +739,70 @@ async function readModelFromPhotos(auto) {
   }
 }
 
+// 👤 Customer & status — the "who is this + can I act on it" card Teddy was missing.
+// qc_cockpit_load sometimes returns a sparse customer (just a zip), so this is fed by
+// job-truth (state.truth), which reliably resolves the name, phone, type, tech, and
+// schedule — and LOUDLY flags the gaps (no phone / no tech / not scheduled) with the
+// one-tap actions to fix them. (Teddy 2026-07-07)
+function renderCustomerStatus() {
+  const c = state.cockpit || {};
+  const job = c.job || {};
+  const cust = c.customer || {};
+  const f = (state.truth && state.truth.facts) || {};
+  const jobId = state.jobId || job.id || '';
+
+  const name = f.customer_name || cust.full_name || '—';
+  const phoneRaw = String(f.customer_phone || cust.phone || '').replace(/\D/g, '');
+  const p10 = phoneRaw.length === 11 && phoneRaw[0] === '1' ? phoneRaw.slice(1) : phoneRaw;
+  const e164 = p10.length === 10 ? '+1' + p10 : (phoneRaw ? '+' + phoneRaw : '');
+  const disp = p10.length === 10 ? ('(' + p10.slice(0, 3) + ') ' + p10.slice(3, 6) + '-' + p10.slice(6)) : (phoneRaw || '');
+
+  const ct = String(job.customer_type || '').toLowerCase();
+  const isWarranty = !!f.is_warranty || ct === 'warranty';
+  const typeLabel = isWarranty ? ('🛡 Warranty' + (f.warranty_company ? (' · ' + escapeHtml(f.warranty_company)) : '')) : '💵 Cash / self-pay';
+  const typeColor = isWarranty ? '#8ab4ff' : '#74e3c4';
+  const tech = (f.tech_name || '').trim();
+  const sched = (f.scheduled_day || '').trim();
+  const paid = job.paid === true || job.payment_status === 'paid' || f.paid === true;
+
+  const chip = (txt, color) => '<span style="display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;font-family:var(--mono);background:rgba(255,255,255,0.05);border:1px solid ' + color + '55;color:' + color + ';">' + txt + '</span>';
+  const chips = [
+    chip(typeLabel, typeColor),
+    chip(tech ? ('🔧 ' + escapeHtml(tech)) : '⚠ No tech', tech ? '#9aa4b2' : '#ff9d4a'),
+    chip(sched ? ('📅 ' + escapeHtml(sched)) : '⚠ Not scheduled', sched ? '#9aa4b2' : '#ff9d4a'),
+  ];
+  if (!isWarranty) chips.push(chip(paid ? '✅ Paid' : '💳 Verify payment', paid ? '#74e3c4' : '#ff9d4a'));
+
+  // Gaps → an amber "needs" list so nothing silently blocks working the job.
+  const gaps = [];
+  if (!e164) gaps.push('No phone on file — can\'t contact or schedule');
+  if (!tech) gaps.push('No tech assigned');
+  if (!sched) gaps.push('Not scheduled — get their availability + book a day');
+  if (!isWarranty && !paid) gaps.push('Cash job — confirm they\'ve paid before the visit');
+  const gapsHtml = gaps.length
+    ? '<div style="margin-top:10px;padding:9px 11px;border:1px dashed rgba(255,157,74,0.5);border-radius:8px;background:rgba(255,157,74,0.07);">'
+      + '<div style="font-size:10px;font-weight:700;color:#ff9d4a;letter-spacing:0.08em;font-family:var(--mono);margin-bottom:5px;">NEEDS ATTENTION</div>'
+      + gaps.map(g => '<div style="font-size:12.5px;color:#ffcfa0;line-height:1.5;">• ' + escapeHtml(g) + '</div>').join('')
+      + '</div>'
+    : '';
+
+  const btn = (href, label, primary) => '<a href="' + escapeAttr(href) + '"' + (/^https?:|^tel:|^sms:/.test(href) ? ' target="_blank" rel="noopener"' : '') + ' style="flex:1;text-align:center;text-decoration:none;padding:11px;border-radius:9px;font-size:13px;font-weight:800;font-family:var(--mono);' + (primary ? 'background:#1f6fed;color:#fff;' : 'background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:#dfe6f0;') + '">' + label + '</a>';
+  const actions = [];
+  if (e164) actions.push(btn('tel:' + e164, '📞 Call', true));
+  if (e164) actions.push(btn('sms:' + e164, '💬 Text'));
+  actions.push(btn('office-board.html?job=' + encodeURIComponent(jobId), '📋 Job tile'));
+
+  return '<div class="section-card" style="border-color:rgba(120,140,255,0.35);">' +
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">' +
+      '<div style="font-size:17px;font-weight:800;color:#fff;">' + escapeHtml(name) + '</div>' +
+      (disp ? '<a href="tel:' + escapeAttr(e164) + '" style="font-family:var(--mono);font-size:15px;color:#8ab4ff;text-decoration:none;">' + escapeHtml(disp) + '</a>' : '<span style="font-family:var(--mono);font-size:13px;color:#ff9d4a;">⚠ no phone</span>') +
+    '</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">' + chips.join('') + '</div>' +
+    gapsHtml +
+    '<div style="display:flex;gap:8px;margin-top:11px;">' + actions.join('') + '</div>' +
+  '</div>';
+}
+
 function renderCockpitHeader() {
   const c = state.cockpit;
   const job = c.job, app = c.appliance, cust = c.customer;
@@ -928,6 +999,7 @@ function renderReview() {
     (function(){ var p=new URLSearchParams(window.location.search); var t=p.get('tech_id')||''; var j=p.get('job_id')||p.get('job')||state.jobId||'';
       return t ? ('<a class="back-link" href="tech-job.html?job_id='+encodeURIComponent(j)+'&tech_id='+encodeURIComponent(t)+'">← Back to the job</a>')
                : '<a class="back-link" href="dashboard.html">← Back to dashboard</a>'; })() +
+    renderCustomerStatus() +
     renderCockpitHeader() +
     renderAntsGuessPanel() +
     renderPreviousAttempts() +
