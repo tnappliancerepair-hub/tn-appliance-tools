@@ -315,6 +315,14 @@ async function loadCockpit(jobId) {
     state.diagnosis = data.appliance.problem_summary || "";
     state.step = "review";
     render();
+    // Auto-pull the model # off the uploaded photos when it's blank (Teddy 2026-07-07:
+    // "the model number should've been pulled from the picture"). Fire-and-forget so it
+    // never blocks the page; fills the field the moment Vision reads the sticker.
+    try {
+      const _m = (data.appliance && data.appliance.model_number || '').trim();
+      const _hasPhoto = ((data.attachments || []).some(function (a) { return a.file_type !== 'video'; }));
+      if (!_m && _hasPhoto) readModelFromPhotos(true);
+    } catch (_) {}
   } catch(e) {
     state.error = e.message || ("Could not load job #" + jobId);
     state.step = "intake";
@@ -673,6 +681,57 @@ function renderMediaSplit() {
   return '<div class="media-split">' + videosBlock + photosBlock + '</div>';
 }
 
+// Lightweight transient toast (the tool had none — the save-fail used a raw alert).
+function tdrToast(msg, ms) {
+  let t = document.getElementById('tdr-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'tdr-toast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;background:#12203a;color:#fff;border:1px solid rgba(120,140,255,0.5);padding:11px 16px;border-radius:10px;font-size:14px;font-weight:700;max-width:88%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.5);opacity:0;transition:opacity .18s;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(tdrToast._t);
+  tdrToast._t = setTimeout(function () { t.style.opacity = '0'; }, ms || 3200);
+}
+
+// Read the model # off the customer's uploaded photos (the model sticker) via Vision
+// OCR, and fill the field — Teddy 2026-07-07: "the model number should've been pulled
+// from the picture." Runs automatically on load when the model is blank; the button
+// re-runs it. ocr-model-extract writes model_number to the job when it's empty; we
+// mirror it into the cockpit + re-render.
+async function readModelFromPhotos(auto) {
+  const c = state.cockpit; if (!c || !state.jobId) { if (!auto) tdrToast('Load a job first'); return; }
+  const atts = (c.attachments || []).filter(function (a) { return a.file_type !== 'video'; });
+  const urls = atts.map(function (a) { const sk = a.s3_key || a.cf_key || ''; return (sk.indexOf('cfimg:') === 0) ? sk.slice(6) : a.signed_view_url; }).filter(Boolean);
+  if (!urls.length) { if (!auto) tdrToast('No photos on this job to read'); return; }
+  const btn = document.getElementById('cockpit-model-ocr');
+  if (btn) { btn.disabled = true; btn.textContent = '📷 Reading…'; }
+  if (!auto) tdrToast('📷 Reading the photos for a model #…', 6000);
+  let found = null;
+  for (const u of urls) {
+    try {
+      const r = await fetch('/.netlify/functions/ocr-model-extract', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: parseInt(state.jobId, 10), image_url: u }),
+      });
+      const d = await r.json().catch(function () { return {}; });
+      if (d && d.kind === 'model_sticker' && d.model_number) { found = d; break; }
+    } catch (_) {}
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📷 Read from photo'; }
+  if (found) {
+    state.cockpit.appliance = state.cockpit.appliance || {};
+    state.cockpit.appliance.model_number = found.model_number;
+    if (found.manufacturer && !(state.cockpit.appliance.brand || '').trim()) state.cockpit.appliance.brand = found.manufacturer;
+    render();
+    tdrToast('📷 Model read from the photo: ' + found.model_number);
+  } else if (!auto) {
+    tdrToast('Couldn\'t read a model # — the sticker photo may be too small or blurry. Tap “+ Add model #” to type it.', 5200);
+  }
+}
+
 function renderCockpitHeader() {
   const c = state.cockpit;
   const job = c.job, app = c.appliance, cust = c.customer;
@@ -720,6 +779,7 @@ function renderCockpitHeader() {
               + '<button id="cockpit-model-edit-btn" title="Edit model #" data-editable="model" style="background:transparent; border:1px dashed rgba(255,255,255,0.18); color:var(--muted); padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; font-family:var(--mono);">✎ EDIT</button>'
             : '<span id="cockpit-model-edit" data-editable="model" title="Click to add" style="cursor:pointer; color:var(--orange,#ff9d4a); font-weight:600; font-size:14px;">+ Add model #</span>'
           ) +
+          '<button id="cockpit-model-ocr" onclick="readModelFromPhotos()" title="Read the model # off the uploaded photos" style="background:rgba(130,140,255,0.12); border:1px solid rgba(150,160,255,0.45); color:#aeb6ff; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; font-family:var(--mono);">📷 Read from photo</button>' +
         '</div>' +
         '<div class="machine-line" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center; margin-top:8px;">' +
           renderSchematicLink(app.model_number) +
