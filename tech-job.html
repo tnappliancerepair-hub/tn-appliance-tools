@@ -516,6 +516,14 @@ function render(){
         <div class="meta">📅 ${esc(sched)}${esc(win)}</div>
       </div>
 
+      <div class="card" style="padding:11px 12px">
+        <div style="font-size:13px;color:var(--ink2);margin-bottom:9px">📍 ${esc(addr||'address not set')}</div>
+        <div style="display:flex;gap:8px">
+          ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener" style="flex:2;background:#1f6fed;color:#fff;text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">🧭 Navigate</a>`:''}
+          ${e164?`<a href="tel:${esc(e164)}" style="flex:1;background:#fff;border:1px solid var(--line,#d4d9e0);color:var(--ink);text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">📞 Call</a>`:''}
+        </div>
+      </div>
+
       <div class="card" id="office-notes-card" style="display:none;border:1px solid #f0c674;background:#fff8e8">
         <h3 style="color:#8a6410">📋 From the office <span style="font-size:10px;color:#b3924e;font-weight:600;margin-left:auto">parts pickup · upsells · instructions</span></h3>
         <div id="office-notes-body"></div>
