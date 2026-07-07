@@ -27,7 +27,8 @@ const TOOLS = [
   { name: 'voice_followup_send_links', description: 'Text the caller a self-service link (status / photo+video upload / reschedule). Needs the job_id from a lookup.', params: { job_id: { type: 'number', description: 'Job id from a prior lookup.' }, offer_kind: { type: 'string', description: 'portal_and_uploads | status | reschedule' } }, required: ['job_id'] },
   { name: 'capture_callback', description: 'Fallback when you cannot resolve the caller: take name + number + summary so the office calls back.', params: { name: { type: 'string' }, phone: { type: 'string' }, summary: { type: 'string' }, caller_type: { type: 'string' }, ref: { type: 'string' } }, required: ['name', 'phone', 'summary', 'caller_type'] },
   { name: 'message_for_tech', description: 'When a caller wants to reach their technician directly, DO NOT transfer to the tech. Offer to drop the tech a quick message — he gets an alert on his app and can read it. Verify the caller first so you have their job_id.', params: { job_id: { type: 'number', description: 'from a prior lookup' }, message: { type: 'string', description: 'what the customer wants to tell their tech' }, customer_name: { type: 'string' }, phone: { type: 'string' } }, required: ['message'] },
-  { name: 'create_job_from_call', description: 'Create a NEW job/ticket from this call and put it in the office Needs-Scheduled queue. USE THIS for a CALLBACK when a prior repair did not hold (caller says the tech came out but it is still not working), or for a brand-new request. ALWAYS verify who the caller is first (phone/claim/name).', params: { customer_first_name: { type: 'string' }, customer_last_name: { type: 'string' }, customer_phone: { type: 'string' }, customer_zip: { type: 'string' }, appliance_type: { type: 'string', description: 'fridge, washer, dryer, oven, etc.' }, appliance_brand: { type: 'string' }, problem_summary: { type: 'string', description: 'For a callback, START with "CALLBACK:" and note what is still wrong + the original claim or work-order number.' }, customer_type: { type: 'string', description: 'warranty or self_pay' }, warranty_company: { type: 'string' } }, required: ['customer_first_name', 'customer_phone', 'appliance_type', 'problem_summary'] },
+  { name: 'create_job_from_call', description: 'Create a NEW job/ticket from this call and put it in the office Needs-Scheduled queue. USE THIS for a brand-new repair request (not a callback). ALWAYS verify who the caller is first (phone/claim/name). For a CALLBACK where a prior repair did not hold, use log_callback instead.', params: { customer_first_name: { type: 'string' }, customer_last_name: { type: 'string' }, customer_phone: { type: 'string' }, customer_zip: { type: 'string' }, appliance_type: { type: 'string', description: 'fridge, washer, dryer, oven, etc.' }, appliance_brand: { type: 'string' }, problem_summary: { type: 'string', description: 'What is wrong.' }, customer_type: { type: 'string', description: 'warranty or self_pay' }, warranty_company: { type: 'string' } }, required: ['customer_first_name', 'customer_phone', 'appliance_type', 'problem_summary'] },
+  { name: 'log_callback', description: "USE THIS for a CALLBACK / RECALL: the caller says a PRIOR repair did not hold — the tech came out but it's still broken, the part they put in did not fix it, or they need someone to come back out. It creates a fresh recall ticket, pulls their warranty company + claim from their last job automatically, and TEXTS them a quick link to send a short video + a photo of the model-number sticker + pick their days. Verify who they are first — their phone is attached automatically from caller ID. After calling it, tell them you're texting them the link and they'll get back on the schedule once it's in. Do NOT quote a specific appointment time.", params: { appliance: { type: 'string', description: 'the appliance — fridge, washer, dryer, oven, etc.' }, note: { type: 'string', description: "what is still wrong + any availability they mention (e.g. 'fridge still not cooling; available Mon or Tue')" }, phone: { type: 'string', description: 'caller phone; normally auto-filled from caller ID — leave blank unless they give a different number' } }, required: [] },
 ];
 
 function toolBody(t) {
@@ -485,6 +486,45 @@ exports.handler = async function (event) {
     const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
     const applied = String((sysNow && sysNow.content) || '').includes(MARK);
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
+  // Phase 2 (Teddy 2026-07-07): give the phone the log_callback tool so a caller
+  // reporting a dead repair triggers the SAME recall flow as text/office — fresh recall
+  // job (warranty cloned from the last job) + the ONE intake link texted to them.
+  // Adds the tool + a prompt block. Idempotent.  ?action=log_callback
+  if (action === 'log_callback') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    // 1) prompt block (idempotent by marker)
+    const MARK = '<!-- LOG-CALLBACK -->';
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## CALLBACK / RECALL — the repair didn't hold (use the log_callback tool)\n`
+        + `When a caller says a PRIOR repair did NOT hold — "the tech came out but it's still broken", "the part you put in didn't fix it", "same problem as before", or they just need someone to come back out — do this:\n`
+        + `1) Warmly acknowledge it and apologize that it's still giving them trouble. Verify who they are (their caller ID is attached automatically; confirm their name/appliance).\n`
+        + `2) Ask two quick things: which appliance, and what days work for them.\n`
+        + `3) CALL the log_callback tool (appliance + a short note with what's still wrong and their availability). This creates a fresh recall ticket, pulls their warranty + claim from their last job, and TEXTS them a link.\n`
+        + `4) Then tell them: "I've got you set up, and I'm texting you a quick link right now — just tap it to send a short video and a photo of the model-number sticker, and pick your days. As soon as that's in, we'll get you back on the schedule." NEVER quote a specific clock time.\n`
+        + `Use log_callback for callbacks (NOT create_job_from_call). If it fails, fall back to capture_callback. If it's a WARRANTY recall and the rep/customer asks to close out the claim, follow the recall policy (we finish on the original claim).\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    }
+    // 2) ensure the tool is attached (server: PROXY)
+    let tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    if (!tools.some((t) => tname(t) === 'log_callback')) {
+      const def = TOOLS.find((t) => t.name === 'log_callback');
+      if (def) tools.push(toolBody(def));
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json || {}).model || {};
+    const sysNow = (vm.messages || []).find((m) => m.role === 'system');
+    const hasBlock = String((sysNow && sysNow.content) || '').includes(MARK);
+    const hasTool = (vm.tools || []).some((t) => tname(t) === 'log_callback');
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock && hasTool, assistant: got.json.name, prompt_block: hasBlock, tool_attached: hasTool, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Already-completed warranty repair → the customer must open a RECALL with

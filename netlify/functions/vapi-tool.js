@@ -67,7 +67,7 @@ const GET_TOOLS = new Set(['lookup_customer_by_phone', 'check_service_zone', 'ge
 const ENDPOINT_OVERRIDE = { start_new_intake: 'create_job_from_chat', submit_tech_tdr: 'create_tdr' };
 // Tools that live on Netlify, not Xano. search_customers uses our forgiving
 // search fn (substring/any-case/middle-name) instead of the brittle XS endpoint.
-const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers', message_for_tech: 'tech-message', get_tech_report_context: 'vapi-tech-report-context', get_my_open_reports: 'vapi-tech-open-reports', save_availability: 'set-job-availability', send_quickcheck_link: 'send-quickcheck-link', send_parts_link: 'parts-link' };
+const NETLIFY_TOOLS = { capture_callback: 'capture-callback', search_customers: 'search-customers', message_for_tech: 'tech-message', get_tech_report_context: 'vapi-tech-report-context', get_my_open_reports: 'vapi-tech-open-reports', save_availability: 'set-job-availability', send_quickcheck_link: 'send-quickcheck-link', send_parts_link: 'parts-link', log_callback: 'callback-intake' };
 
 function qs(a) {
   const parts = Object.entries(a)
@@ -150,6 +150,17 @@ function shapeResult(name, data) {
   }
   if (name === 'search_customers') {
     return { match_count: data.match_count || (Array.isArray(data.matches) ? data.matches.length : 0), matches: stripInternal(data.matches || data.results || []) };
+  }
+  if (name === 'log_callback') {
+    const ok = !!data.ok;
+    return {
+      ok,
+      texted: !!data.sent_link,
+      recall_job: data.job_id || null,
+      instruction: ok
+        ? "Done — a fresh recall ticket is created and " + (data.sent_link ? "I've just texted them" : "we'll text them") + " a quick link. Tell the caller warmly: 'I've got you set up, and I'm texting you a quick link right now — just tap it to send a short video and a photo of the model-number sticker, and pick the days that work for you. As soon as that's in we'll get you back on the schedule.' Do NOT quote a specific appointment time."
+        : "That didn't save — apologize briefly, take their name + best callback number + what's still wrong with capture_callback so the office follows up.",
+    };
   }
   return stripInternal(data);
 }
@@ -238,6 +249,19 @@ async function captureCallerPhone(callerPhone, name, data) {
 // When a call creates a job/ticket (esp. a CALLBACK on a failed repair), text
 // BOTH Teddy and Danielle the customer info + a link so it never gets missed.
 async function alertNewJob(name, args, data) {
+  // Recall logged on the phone → heads-up to owner + office with the new recall job.
+  if (name === 'log_callback') {
+    if (!data || !data.ok || !data.job_id) return;
+    try {
+      const link = `${SITE}/office-board.html?job=${data.job_id}`;
+      const wc = data.warranty_company ? (' · ' + data.warranty_company + (data.claim_number ? (' ' + data.claim_number) : '')) : '';
+      const msg = '[ant] 🔁 CALLBACK from a call' + (args.phone ? (' ' + args.phone) : '') + (args.appliance ? (' · ' + args.appliance) : '') + wc
+        + ' — recall job #' + data.job_id + (data.sent_link ? ' (intake link texted)' : '') + '  ' + link;
+      await sendSms(OWNER_PHONE, msg, 'owner', 'vapi_callback').catch(() => {});
+      await sendSms(DANIELLE_PHONE, msg, 'warranty_handler', 'vapi_callback').catch(() => {});
+    } catch (_) {}
+    return;
+  }
   if (name !== 'create_job_from_call') return;
   if (!data || !data.success || !data.job_id) return;
   try {
@@ -301,6 +325,13 @@ exports.handler = async function (event) {
     // REAL caller ID, never by whatever the model mis-heard or left blank. (The
     // lookup itself flags a masked/shop number, so this is safe.)
     if (c.name === 'lookup_customer_by_phone' && callerPhone) a.phone = callerPhone;
+    // log_callback (recall on the phone): use the REAL caller ID to find their prior
+    // job, and always text them the intake link — the agent tells them it's coming.
+    if (c.name === 'log_callback') {
+      if (callerPhone && !a.phone) a.phone = callerPhone;
+      a.send_link = true;
+      a.source = 'phone';
+    }
     let data;
     try { data = await callBackend(c.name, a); }
     catch (e) { data = { error: String((e && e.message) || e) }; }
