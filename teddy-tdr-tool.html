@@ -213,15 +213,19 @@
 <body>
   <a id="back-to-job-float" class="back-to-job-float" href="#">← Back to the job</a>
   <script>
-    // If a tech opened Teddy Tool from their job ticket (tech_id in the URL),
-    // pin an always-visible button that takes them right back to that same job.
+    // Always-visible one-tap back to the SAME job. A tech (tech_id in URL) goes to
+    // their job ticket; the office/Teddy goes to the job tile (office-board drawer).
+    // Free-flow both ways: office-board ⇄ Teddy Tool. (Teddy 2026-07-07)
     (function(){
       var p = new URLSearchParams(window.location.search);
       var tech = p.get('tech_id') || '';
       var job = p.get('job_id') || p.get('job') || '';
-      if (tech && job) {
+      if (job) {
         var b = document.getElementById('back-to-job-float');
-        b.href = 'tech-job.html?job_id=' + encodeURIComponent(job) + '&tech_id=' + encodeURIComponent(tech);
+        b.href = tech
+          ? ('tech-job.html?job_id=' + encodeURIComponent(job) + '&tech_id=' + encodeURIComponent(tech))
+          : ('office-board.html?job=' + encodeURIComponent(job));
+        b.textContent = tech ? '← Back to the job' : '← Back to the job tile';
         b.style.display = 'inline-flex';
       }
     })();

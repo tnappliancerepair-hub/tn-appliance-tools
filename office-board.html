@@ -1202,9 +1202,12 @@ function renderDrawer(d){
     </div>
 
     <div class="dcard">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <h4 style="margin:0">🔧 TDR — diagnosis &amp; parts <span style="font-weight:400;font-size:11px;color:var(--ink2)">${tdr.id?'· edit any time':'· fill it in'}</span></h4>
-        <button type="button" onclick="copyTdrAll()" style="font-size:11px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card2,#eef2f7);color:var(--ink,#111);cursor:pointer;font-weight:800;white-space:nowrap">📋 Copy all</button>
+        <div style="display:flex;gap:6px">
+          <a href="teddy-tdr-tool.html?job_id=${jid}" style="font-size:11px;padding:5px 10px;border:1px solid #7a4ed9;border-radius:7px;background:rgba(122,78,217,0.12);color:#6a3fc0;cursor:pointer;font-weight:800;white-space:nowrap;text-decoration:none">🔧 Teddy Tool →</a>
+          <button type="button" onclick="copyTdrAll()" style="font-size:11px;padding:5px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card2,#eef2f7);color:var(--ink,#111);cursor:pointer;font-weight:800;white-space:nowrap">📋 Copy all</button>
+        </div>
       </div>
       ${tdr.id?'':'<div style="font-size:12px;color:var(--ink2);margin:6px 0 2px">No report filed yet — type what we know and hit Save to file it. You can always fix it later.</div>'}
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
