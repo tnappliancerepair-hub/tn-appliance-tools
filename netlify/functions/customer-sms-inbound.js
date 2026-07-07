@@ -35,6 +35,22 @@ const EXTRA_TIMEOUT_MS = 6000;
 const XANO_TIMEOUT_MS = 9000;
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const PUBLIC_SITE = 'tnapplianceexchange.net';
+const CALLBACK_INTAKE_URL = 'https://tnapplianceexchange.net/.netlify/functions/callback-intake';
+
+// 🔁 RECALL / CALLBACK language — the customer is back saying the prior repair didn't
+// hold ("same problem", "part didn't fix it", "came out but it's broken again", "recall").
+// Only meaningful for a RETURNING customer, so callers gate on customer_known/job match.
+function looksLikeRecall(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  return /\bsame (problem|issue|thing) as before\b/.test(t)
+    || /\b(part|piece|it)\s+(you |they |the tech )?(replaced|installed|put in|fixed)\s+(didn'?t|did not|hasn'?t|has not)\s+(fix|work|hold|last)/.test(t)
+    || /\b(didn'?t|did not|hasn'?t|has not)\s+(fix|hold|last|work)\b/.test(t)
+    || /\bstill (broke|broken|not working|isn'?t working|doesn'?t work|not fixed)\b/.test(t)
+    || /\b(broke|broken|acting up|out|down)\s+again\b/.test(t)
+    || /\b(came|come)\s+(back |out )?(but|and)\s+(it'?s|its|the)\b.*\b(broke|broken|not|isn'?t|still)\b/.test(t)
+    || /\b(recall|call ?back|come back out|send (someone|a tech) back)\b/.test(t);
+}
 
 // Specific-intent keywords (mirror of the loop's KEYWORD_ROUTES). If a cold
 // lead's text matches one of these, do NOT fire the instant new-lead greeting —
@@ -393,6 +409,32 @@ exports.handler = async function (event) {
     }
   }
 
+  // 🔁 CALLBACK / RECALL auto-flow (Teddy 2026-07-07). A RETURNING customer who says the
+  // prior repair didn't hold gets the SAME treatment every time: spin up a FRESH recall job
+  // (clone their warranty co + claim from the prior job — never touch the existing job) and
+  // text back the ONE warranty-intake link (video + model # + availability + waiver) so it
+  // lands in Needs-Scheduling complete. Always NEW mode (phone) — the matched job_id may be
+  // their completed original, which we must not relabel. Cold numbers saying "same problem"
+  // are ambiguous → left for a human. Suppresses the generic new-lead greeting on match.
+  let recallHandled = false;
+  try {
+    const returning = !!(recordData && (recordData.customer_known === true || Number(recordData.job_id) > 0));
+    if (returning && looksLikeRecall(parsed.body)) {
+      const r = await fetch(CALLBACK_INTAKE_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: parsed.from, source: 'inbound_text', send_link: true,
+          note: 'Customer texted in about a callback: "' + String(parsed.body).slice(0, 140) + '"' }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const cd = await r.json().catch(() => ({}));
+      if (cd && cd.ok) {
+        recallHandled = true;
+        console.log('[customer-sms-inbound] recall auto-flow:', { job_id: cd.job_id, prior: cd.prior_job_id, sent_link: cd.sent_link });
+        try { await crud.logEvent('callback_detected_inbound', { job_id: cd.job_id, prior_job_id: cd.prior_job_id || 0, phone: String(parsed.from).slice(-4), warranty_company: cd.warranty_company || '', at_ms: Date.now() }); } catch (_) {}
+      }
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] recall detect error:', String((e && e.message) || e)); }
+
   // ⚡ INSTANT first-reply for a cold new lead (LSA / Google-chat speed-to-lead).
   // The loop's sms_response_new_lead is canonical but runs on a ~2-min tick →
   // 2-4 min wait. For a brand-new number (customer_known=false) whose message is
@@ -400,7 +442,8 @@ exports.handler = async function (event) {
   // reply inline in ~1s + mark it so the loop doesn't double-send. Known
   // customers + specific intents still flow through the loop with full context.
   try {
-    const isColdLead = recordData && recordData.customer_known === false
+    const isColdLead = !recallHandled
+      && recordData && recordData.customer_known === false
       && !(Number(recordData.job_id) > 0)        // matched to a job => not a cold lead
       && !hasSpecificIntent(parsed.body)
       && looksLikeNewRepairLead(parsed.body);    // must READ like a fresh repair inquiry
