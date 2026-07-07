@@ -43,6 +43,25 @@ function fmtAppointment(startMs) {
   });
 }
 
+// 3-HOUR ARRIVAL WINDOW — never an exact clock time (Teddy 2026-07-07: "position
+// 1-6 + 3-hour slots"). A single "11am" made customers expect us to the minute
+// (Jimmy + Danielle both flagged it) and cost business. A 3-hour window ("11am-2pm",
+// like HCP/Dispatch) sets the right expectation and still leaves the route flexible.
+// The stored hour buckets into a window; a SquareTrade/vendor-designated window on
+// the job wins verbatim (their predetermined slot).
+function windowFromHour(startMs) {
+  if (!startMs) return '';
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(Number(startMs))));
+  if (h < 11) return '8am-11am';
+  if (h < 14) return '11am-2pm';
+  return '2pm-5pm';
+}
+function windowLabelFor(job, startMs) {
+  const vendor = String((job && job.service_eta_window) || '').trim();
+  if (vendor) return vendor; // SquareTrade / vendor designated window — honor as-is
+  return windowFromHour(startMs);
+}
+
 function applianceLabel(raw) {
   const k = String(raw || '').toLowerCase().trim();
   return APPLIANCE_NICE[k] || k || 'appliance';
@@ -52,16 +71,19 @@ function bareDomain() {
   return (config.publicSiteBase || '').replace(/^https?:\/\//, '');
 }
 
-function customerBody({ first, appliance, apptStr, techFirst, portalUrl }) {
+function customerBody({ first, appliance, apptStr, windowStr, techFirst, portalUrl }) {
   const name = (first || '').trim() || 'there';
   // Only name a tech when one is FIRMLY assigned — never guess a name (Danielle
   // 2026-06-26: customers were told a tech who wasn't actually on the job).
   const techClause = techFirst ? `Your tech will be ${techFirst}.` : '';
   const portalClause = portalUrl ? `View/reschedule: ${portalUrl}` : '';
+  // Day + a 3-HOUR WINDOW (e.g. "Monday, Jul 6, 11am-2pm") — a window, never an exact
+  // clock time. We still text a live heads-up when the tech is actually on the way.
+  const whenStr = windowStr ? `${apptStr}, ${windowStr}` : apptStr;
   return [
-    `Hi ${name}, your ${appliance} repair is set for ${apptStr}.`,
+    `Hi ${name}, your ${appliance} repair is set for ${whenStr}.`,
     techClause,
-    `We'll text you a live arrival window the morning of.`,
+    `We'll text you a heads-up when your tech is on the way.`,
     portalClause,
     `Reply STOP to cancel or call 866-268-0111.`,
   ].filter(Boolean).join(' ');
@@ -132,6 +154,7 @@ export async function run(signal, ctx) {
   const jobLabel = job.job_number || String(job.id);
   const appliance = applianceLabel(job.appliance_type);
   const apptStr = fmtAppointment(scheduledStartMs);
+  const windowStr = windowLabelFor(job, scheduledStartMs);
 
   const custFirst = (customer?.first_name || '').trim();
   const custLast = (customer?.last_name || '').trim();
@@ -158,7 +181,7 @@ export async function run(signal, ctx) {
     const portalUrl = last4
       ? `https://${bareDomain()}/customer-portal.html?job_id=${jobId}&last4=${last4}`
       : '';
-    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, portalUrl });
+    const body = customerBody({ first: custFirst, appliance, apptStr, windowStr, techFirst, portalUrl });
     const res = await sms.toCustomer(custPhone, body, {
       action: 'appointment_confirmation',
       job_id: jobId,
