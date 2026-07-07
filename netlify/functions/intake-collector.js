@@ -140,30 +140,18 @@ exports.handler = async function (event) {
     const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    const isWarranty = !!String(j.warranty_company || '').trim();
-    // WARRANTY = the LIGHTEST intake (Teddy 2026-07-07: "even easier than cash —
-    // we already have their info"). We have their name/address/claim, so all we
-    // need is a video + model pic + their days. Always route warranty to the
-    // no-form finish-upload page (tap to record, tap to snap — zero typing) and
-    // skip the A/B rotation that could drop them into the heavier cash AI flow.
-    // Non-warranty keeps the A/B test to learn which link converts best.
-    const variant = isWarranty ? 'video' : AB_VARIANTS[id % AB_VARIANTS.length];
-    const vlink =
-      variant === 'ai'     ? `${SITE}/appliance-ai.html?job_id=${id}&mode=resume` :
-      variant === 'portal' ? `${SITE}/customer-portal.html?job_id=${id}&last4=` :
-                             `${SITE}/finish-upload.html?job_id=${id}`;   // 'video' (default + all warranty)
-    // Teddy's pitch: warm + non-aggressive. Warranty gets a lighter, "we've got
-    // the rest handled" framing; non-warranty gets the full help-us-help-you ask.
-    const msg = isWarranty
-      ? `Hi ${cust} — TN Appliance Exchange 🐜. Good news, your ${appl} repair is covered — we've got all your info, so just 2 quick things and we'll get you scheduled fast: tap ${vlink} to send a 10-second video + a photo of the model sticker (so your tech rolls up with the right part), then reply with the days that work for you — and any you can't. That's it, thank you!`
-      : `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you — and any days you absolutely can't do. Thanks so much!`;
+    // ONE foolproof intake link for EVERYONE (Teddy 2026-07-07): warranty-intake is
+    // keyed by job_id (carries the customer — no PII typing, no cash-vs-warranty
+    // question they kept getting wrong), and captures video + model photo + their
+    // days right on the page. No A/B rotation — the same simple page every time.
+    const vlink = `${SITE}/warranty-intake.html?job_id=${id}`;
+    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
 
     let okSend = false;
-    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_' + variant }); okSend = !!(r && r.success); } catch (_) {}
+    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_light' }); okSend = !!(r && r.success); } catch (_) {}
     if (okSend) {
       sent++; done.push(id);
-      // Log the variant so the scoreboard can measure which link converts best.
-      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_ab_sent', metadata_json: JSON.stringify({ job_id: id, variant, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
+      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
     } else failed++;
   }
 
