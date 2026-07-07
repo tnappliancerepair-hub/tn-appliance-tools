@@ -22,7 +22,23 @@ const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = Number(process.env.INTAKE_COLLECTOR_MAX_PER_RUN) || 30;
 const MAX_EXAMINE = Number(process.env.INTAKE_COLLECTOR_MAX_EXAMINE) || 120; // bound dedup fetches/run
 const MAX_RESOLVE = Number(process.env.INTAKE_COLLECTOR_MAX_RESOLVE) || 40;  // bound job-truth lookups/run
-const RESEND_AFTER_MS = 4 * 3600 * 1000; // one resend, only if 4h passed with no reply
+// Space the touches out so we never blow a customer up — roughly one per day
+// (Teddy 2026-07-07: "I don't wanna blow these customers up"). Env-tunable.
+const RESEND_AFTER_MS = (Number(process.env.INTAKE_RESEND_HOURS) || 20) * 3600 * 1000;
+// Warranty customers get a 3-TOUCH escalation (intake pitch -> "second notice, help us
+// help you" -> minimum: just your availability). Cash stays at 2. (Teddy 2026-07-07.)
+const WARRANTY_TOUCHES = Number(process.env.INTAKE_WARRANTY_TOUCHES) || 3;
+const CASH_TOUCHES = Number(process.env.INTAKE_CASH_TOUCHES) || 2;
+// The escalating warranty copy, indexed by how many touches they've already had.
+function warrantyTouch(n, cust, appl, link) {
+  if (n <= 0) {
+    return `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${link} (about 2 min) — a 10-second video of what it's doing in your own words, a photo of the model-number sticker, tap the days that work for you, and sign a quick waiver. It lets us pre-diagnose it and bring the right part so we fix it in one trip. Thank you!`;
+  }
+  if (n === 1) {
+    return `Hi ${cust} — second notice from TN Appliance Exchange 🐜. We need your help so we can help you! A quick 10-second video showing what your ${appl} is doing lets us order the right parts ahead of time and have your technician better prepared for you. Please also let us know the days you're available. Tap here: ${link} — thank you!`;
+  }
+  return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, at minimum we just need your availability — what days work best for you, and any that don't? Reply right here, or tap ${link}. Thank you!`;
+}
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained
 // safely by the per-run rate limit + one-text dedup. Set the env to cap if ever
@@ -203,7 +219,11 @@ exports.handler = async function (event) {
       if (!jid) continue;
       if (m.source === 'intake_collector') continue;         // collector's own — counted via availability_requested
       if (m.via && !LOOP_VIAS.has(String(m.via))) continue;  // only real loop intake touches
-      loopIntakeByJob[jid] = (loopIntakeByJob[jid] || 0) + 1;
+      const cur = loopIntakeByJob[jid] || { n: 0, lastMs: 0 };
+      cur.n += 1;
+      const ts = (new Date(r.created_at || 0).getTime()) || Number(m.at_ms || 0);
+      if (ts > cur.lastMs) cur.lastMs = ts;
+      loopIntakeByJob[jid] = cur;
     }
   } catch (_) { /* fail open — per-job availability_requested cap still guards */ }
 
@@ -221,13 +241,20 @@ exports.handler = async function (event) {
       const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=3650&limit=5`, 7000);
       asks = dd.items || [];
     } catch (_) { skipped_dupe++; continue; }
-    // TOTAL intake to this customer = collector's own asks + the loop's greeting/nudges.
-    // Hard cap at 2 across both senders (Teddy: "No more than two each customer").
-    const priorIntake = asks.length + (loopIntakeByJob[String(id)] || 0);
-    if (priorIntake >= 2) { skipped_dupe++; continue; }
-    if (asks.length === 1) {
-      const lastMs = Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0));
-      if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; }
+    // TOTAL touches so far = collector's own asks + the loop's greeting/nudges.
+    const loopInfo = loopIntakeByJob[String(id)] || { n: 0, lastMs: 0 };
+    const priorIntake = asks.length + loopInfo.n;
+    // Warranty = 3-touch escalation (pitch -> second notice -> minimum availability);
+    // cash = 2. (Teddy 2026-07-07.)
+    const isW = linkFor(j, id).isW;
+    const capN = isW ? WARRANTY_TOUCHES : CASH_TOUCHES;
+    if (priorIntake >= capN) { skipped_dupe++; continue; }
+    // Space the touches out — never blow them up. One per RESEND_AFTER_MS, measured from
+    // the LAST intake we sent (greeting OR a prior collector touch), whichever is newest.
+    if (priorIntake >= 1) {
+      const asksLast = asks.length ? Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0)) : 0;
+      const lastSentMs = Math.max(asksLast, loopInfo.lastMs);
+      if (lastSentMs && (Date.now() - lastSentMs) < RESEND_AFTER_MS) { skipped_dupe++; continue; }
     }
     // Resolve the phone — job field, or job-truth (where the warranty number lives).
     const fieldDigits = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
@@ -250,12 +277,12 @@ exports.handler = async function (event) {
     const appl = (j.appliance || 'appliance');
     // WARRANTY customers get the warranty-intake light page (video + model + days +
     // waiver, no payer question); CASH customers stay on the old intake flow.
-    const { isW, vlink } = linkFor(j, id);
-    // Warranty intake pitch: same points as the greeting — video (their words), model
-    // photo (so we know the machine), days, and a quick waiver → pre-diagnose + right
-    // part + one trip. (Teddy 2026-07-07.)
+    const { vlink } = linkFor(j, id);
+    // Escalating warranty sequence by how many touches they've already had (priorIntake):
+    //   0 -> intake pitch, 1 -> "second notice, help us help you", 2 -> minimum availability.
+    // Cash keeps its single light message. (Teddy 2026-07-07.)
     const msg = isW
-      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${vlink} (about 2 min) — a 10-second video of what it's doing in your own words, a photo of the model-number sticker, tap the days that work for you, and sign a quick waiver. It lets us pre-diagnose it and bring the right part so we fix it in one trip. Thank you!`
+      ? warrantyTouch(priorIntake, cust, appl, vlink)
       : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
 
     let okSend = false;
