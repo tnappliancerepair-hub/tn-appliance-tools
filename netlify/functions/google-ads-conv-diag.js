@@ -49,6 +49,38 @@ exports.handler = async function (event) {
       return json(200, { ok: true, cid, ads: urls.length ? urls : ur });
     }
 
+    // ?keywords=1 — every keyword with match type, Quality Score, and 30-day perf.
+    // Quality Score is what drives the rank loss; low QS = ads lose auctions.
+    if (q.keywords === '1') {
+      const kw = await gaql(ver, token, c, cid,
+        "SELECT campaign.name, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.quality_info.quality_score, metrics.clicks, metrics.impressions, metrics.average_cpc FROM keyword_view WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED' ORDER BY metrics.impressions DESC");
+      const rows = (kw.results || []).map((x) => ({
+        campaign: x.campaign && x.campaign.name,
+        keyword: x.adGroupCriterion && x.adGroupCriterion.keyword && x.adGroupCriterion.keyword.text,
+        match: x.adGroupCriterion && x.adGroupCriterion.keyword && x.adGroupCriterion.keyword.matchType,
+        quality_score: x.adGroupCriterion && x.adGroupCriterion.qualityInfo && x.adGroupCriterion.qualityInfo.qualityScore,
+        clicks: x.metrics ? Number(x.metrics.clicks || 0) : 0,
+        impressions: x.metrics ? Number(x.metrics.impressions || 0) : 0,
+        avg_cpc: x.metrics ? Math.round((Number(x.metrics.averageCpc || 0) / 1e6) * 100) / 100 : 0,
+      }));
+      return json(200, { ok: true, cid, keywords: rows.length ? rows : kw });
+    }
+
+    // ?ads=1 — the responsive-search-ad headlines + descriptions (the copy).
+    if (q.adcopy === '1') {
+      const ac = await gaql(ver, token, c, cid,
+        "SELECT campaign.name, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED' AND campaign.status != 'REMOVED'");
+      const rows = (ac.results || []).map((x) => {
+        const rsa = (x.adGroupAd && x.adGroupAd.ad && x.adGroupAd.ad.responsiveSearchAd) || {};
+        return {
+          campaign: x.campaign && x.campaign.name,
+          headlines: (rsa.headlines || []).map((h) => h.text),
+          descriptions: (rsa.descriptions || []).map((h) => h.text),
+        };
+      });
+      return json(200, { ok: true, cid, ads: rows.length ? rows : ac });
+    }
+
     // 2) every conversion action + its 30-day counts
     const acts = await gaql(ver, token, c, cid,
       "SELECT conversion_action.id, conversion_action.name, conversion_action.status, conversion_action.type, conversion_action.category, conversion_action.counting_type, metrics.all_conversions FROM conversion_action WHERE conversion_action.status != 'REMOVED'");
