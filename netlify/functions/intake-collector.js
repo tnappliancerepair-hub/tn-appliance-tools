@@ -42,6 +42,20 @@ function startOfTodayCtMs() {
   const [y, m, d] = ymd.split('-').map(Number);
   return Date.UTC(y, m - 1, d, 5, 0, 0); // CT is UTC-5 (CDT)
 }
+// Midnight TOMORROW in CT (ms) — the cutoff Teddy wants: only intake people who are
+// on the schedule TOMORROW moving forward (never today or the past — that ship sailed).
+function startOfTomorrowCtMs() { return startOfTodayCtMs() + 86400000; }
+// YYYY-MM-DD (CT) for the Monday of the week N weeks out — to page the calendar forward
+// so a job scheduled early NEXT week still gets its intake link this week.
+function mondayYmdCt(weeksOut) {
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const [y, m, d] = ymd.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  const dow = base.getUTCDay();                 // 0=Sun..6=Sat
+  const toMon = (dow === 0 ? -6 : 1 - dow);     // back up to this week's Monday
+  base.setUTCDate(base.getUTCDate() + toMon + weeksOut * 7);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(base);
+}
 function first(s) { return String(s || '').trim().split(/\s+/)[0] || 'there'; }
 function isVendor(w) { return /squaretrade|servicepower|service power/i.test(String(w || '')); }
 async function jget(url, ms = 9000) { const r = await fetch(url, { signal: AbortSignal.timeout(ms) }); return r.json().catch(() => ({})); }
@@ -81,37 +95,39 @@ exports.handler = async function (event) {
   // sent ZERO intake texts. Give the full list real headroom (22s), and if it
   // still times out, FALL BACK to a smaller page (newest jobs first, ~6s) so a
   // growing board can never silently kill the funnel again.
+  // SCOPE (Teddy 2026-07-07): "We only need intake stuff for anybody on our schedule
+  // TOMORROW moving forward, plus anybody unscheduled — not going back." So we source
+  // ONLY from the office calendar (curated, real jobs), NOT list_needs_scheduled_parallel
+  // (which had ballooned to ~447 mostly-dead SquareTrade claim-shells — that stale
+  // backlog is exactly the "185" we do NOT want to text). Two clean buckets:
+  //   1. SCHEDULED tomorrow-forward  (cal.jobs where scheduled_start >= start of tomorrow)
+  //   2. UNSCHEDULED, active         (cal.unscheduled — the real ready-to-schedule set)
+  // We page this week + next week so a job scheduled early next week still gets its link.
   let items = [];
+  let sched_added = 0, unsched_added = 0;
+  const tomorrowStart = startOfTomorrowCtMs();
+  const seen = new Set();
+  const pushJob = (j, kind) => {
+    const id = String(j.id || j.job_id);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    j.customer_first = j.customer_first || j.customer_first_name || '';
+    j.appliance = j.appliance || j.appliance_type || '';
+    items.push(j);
+    if (kind === 'sched') sched_added++; else unsched_added++;
+  };
   try {
-    const d = await jget(`${XANO}/list_needs_scheduled_parallel?limit=1000`, 22000);
-    items = d.items || d.jobs || d.rows || (Array.isArray(d) ? d : []);
-  } catch (e) {
-    try {
-      const d2 = await jget(`${XANO}/list_needs_scheduled_parallel?limit=250`, 12000);
-      items = d2.items || d2.jobs || d2.rows || (Array.isArray(d2) ? d2 : []);
-    } catch (e2) { return ok({ status: 'list_failed', error: String((e2 && e2.message) || e2) }); }
-  }
-
-  // ALSO reach customers already ON the schedule from TODAY MOVING FORWARD (Teddy
-  // 2026-07-07). SquareTrade preschedules them, but they may be more open than their
-  // slot — if they reply we tighten the route; if not, we keep the day/time we have.
-  // Calendar jobs carry customer_phone in-field, so no extra lookups. Skip past days.
-  let sched_added = 0;
-  try {
-    const cal = await jget(`${XANO}/get_office_calendar_week`, 15000);
-    const todayStart = startOfTodayCtMs();
-    const seen = new Set(items.map((j) => String(j.id || j.job_id)));
-    for (const j of (cal.jobs || [])) {
-      if (Number(j.scheduled_start || 0) < todayStart) continue;      // today forward only
-      const id = String(j.id);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      // normalize calendar field names to what the candidate filter + sender expect
-      j.customer_first = j.customer_first || j.customer_first_name || '';
-      j.appliance = j.appliance || j.appliance_type || '';
-      items.push(j); sched_added++;
+    for (const w of [0, 1]) {   // this week + next week
+      const qs = w === 0 ? '' : `?week_start=${mondayYmdCt(w)}`;
+      const cal = await jget(`${XANO}/get_office_calendar_week${qs}`, 15000);
+      for (const j of (cal.jobs || [])) {
+        if (Number(j.scheduled_start || 0) < tomorrowStart) continue;   // TOMORROW forward only
+        pushJob(j, 'sched');
+      }
+      // unscheduled is a global ready-to-schedule set (not week-bound) — only take it once.
+      if (w === 0) for (const j of (cal.unscheduled || [])) pushJob(j, 'unsched');
     }
-  } catch (_) {}
+  } catch (e2) { return ok({ status: 'list_failed', error: String((e2 && e2.message) || e2) }); }
 
   // Candidates: non-vendor, has a phone, no availability captured yet.
   const cands = items.filter((j) => {
@@ -164,7 +180,7 @@ exports.handler = async function (event) {
         to: phoneDigits ? maskPhone(phoneDigits) : '❌ NO PHONE',
         phone_source: fieldHad ? 'job' : (phoneDigits ? 'job-truth ✓' : 'none'), link: vlink });
     }
-    return ok({ status: 'dryrun', ct_hour: h, total_pool: items.length, scheduled_today_forward_added: sched_added, candidates: cands.length,
+    return ok({ status: 'dryrun', ct_hour: h, total_pool: items.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, candidates: cands.length,
       note: `first 15 of ${cands.length} candidates shown; each live run resolves phones + sends up to ${MAX_PER_RUN}`, would_text: preview });
   }
 
@@ -219,5 +235,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_today_forward_added: sched_added, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };
