@@ -2056,15 +2056,10 @@ function __initCalendar() {
     bookingError.textContent = '';
 
     const fd = new FormData(bookingForm);
-    const window = fd.get('time_window') || '';
-    if (!window) {
-      bookingError.textContent = 'Pick a time window.';
-      return;
-    }
-    const windowHour = window === '8-11am' ? 8 : window === '11am-2pm' ? 11 : window === '2-5pm' ? 14 : 8;
-    const windowEndHour = window === '8-11am' ? 11 : window === '11am-2pm' ? 14 : 17;
-    const scheduled_start_ms = ctMs(bookingCtx.date, windowHour);
-    const scheduled_end_ms = ctMs(bookingCtx.date, windowEndHour);
+    // No clock time — append as the next stop on this tech's day. (Teddy 2026-07-07)
+    const bookHour = nextStopHourCT(bookingCtx.tech_id, bookingCtx.date, 0);
+    const scheduled_start_ms = ctMs(bookingCtx.date, bookHour);
+    const scheduled_end_ms = ctMs(bookingCtx.date, Math.min(bookHour + 3, 23));
 
     const first_name = (fd.get('first_name') || '').toString().trim();
     const last_name = (fd.get('last_name') || '').toString().trim();
@@ -2110,7 +2105,7 @@ function __initCalendar() {
           technician_id: parseInt(bookingCtx.tech_id, 10),
           scheduled_start_ms,
           scheduled_end_ms,
-          service_eta_window: window,
+          service_eta_window: '',
           customer_type,
           warranty_company,
         }),
@@ -2168,18 +2163,8 @@ function __initCalendar() {
     });
     showManageView('actions');
     manageOpenDetail.href = `office-board.html?job=${jobId}`;
-    // Pre-fill reschedule with current scheduled_start (CT)
-    if (j.scheduled_start) {
-      const d = new Date(j.scheduled_start);
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'America/Chicago',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-      }).formatToParts(d);
-      const get = (t) => (parts.find((p) => p.type === t) || {}).value || '00';
-      const dtVal = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-      document.getElementById('rescheduleAt').value = dtVal;
-    }
+    // Pre-fill reschedule with current DAY only (CT) — no clock time.
+    document.getElementById('rescheduleAt').value = j.scheduled_start ? ctDateForMs(j.scheduled_start) : '';
     // Populate the reassign tech selector
     const sel = document.getElementById('reassignTech');
     sel.innerHTML = lastTechs
@@ -2245,14 +2230,31 @@ function __initCalendar() {
     return ctMs(datePart, h) + m * 60000;
   }
 
+  // Next stop position on a tech's day as a hidden 8am-anchor+count hour — no clock
+  // time is chosen; the job lands as 1st/2nd/3rd… stop. (Teddy 2026-07-07: no times.)
+  function nextStopHourCT(techId, dateStr, excludeJobId) {
+    let n = 0;
+    for (const id in lastJobsById) {
+      const j = lastJobsById[id];
+      if (!j || Number(j.technician_id) !== Number(techId)) continue;
+      if (Number(j.id) === Number(excludeJobId)) continue;
+      if (!j.scheduled_start) continue;
+      const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
+      if (st === 'canceled' || st === 'cancelled') continue;
+      if (ctDateForMs(j.scheduled_start) !== dateStr) continue;
+      n++;
+    }
+    return Math.min(8 + n, 21);
+  }
+
   manageRescheduleForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!manageJobId) return;
-    const dtValue = document.getElementById('rescheduleAt').value;
-    if (!dtValue) { manageError.textContent = 'Pick a date + time.'; return; }
-    const newStartMs = localDatetimeToMs(dtValue);
+    const dayValue = document.getElementById('rescheduleAt').value; // "YYYY-MM-DD", no time
+    if (!dayValue) { manageError.textContent = 'Pick a day.'; return; }
     const techId = Number(document.getElementById('rescheduleTech').value || 0);
     if (!techId) { manageError.textContent = 'Pick a tech.'; return; }
+    const newStartMs = ctMs(dayValue, nextStopHourCT(techId, dayValue, manageJobId));
     // Parts-ETA guard: a job waiting on parts can't be scheduled for a day
     // before the parts are due to arrive.
     const mj = lastJobsById[manageJobId];
@@ -2511,8 +2513,8 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
     <form id="manageRescheduleForm">
       <label>Tech</label>
       <select id="rescheduleTech" required></select>
-      <label>Date + time (CT)</label>
-      <input type="datetime-local" id="rescheduleAt" required>
+      <label>Day (no clock time — we place them by stop position)</label>
+      <input type="date" id="rescheduleAt" required>
       <div class="manage-buttons">
         <button type="button" class="back manage-back">Back</button>
         <button type="submit" class="primary" id="rescheduleSubmit">Schedule</button>
@@ -2545,15 +2547,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   <div id="bookingCard">
     <h3 id="bookingHeader">Book</h3>
     <form id="bookingForm">
-      <label>Time window</label>
-      <div class="book-windows">
-        <input type="radio" id="bw1" name="time_window" value="8-11am">
-        <label for="bw1">8-11am</label>
-        <input type="radio" id="bw2" name="time_window" value="11am-2pm">
-        <label for="bw2">11am-2pm</label>
-        <input type="radio" id="bw3" name="time_window" value="2-5pm">
-        <label for="bw3">2-5pm</label>
-      </div>
+      <div style="font-size:12.5px;color:#9aa4b2;margin:2px 0 10px">Added as the next stop on this day — no clock time.</div>
 
       <label for="bookPhone">Customer phone</label>
       <input type="tel" id="bookPhone" name="phone" autocomplete="off" placeholder="615-280-2949" required>
