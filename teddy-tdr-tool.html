@@ -250,6 +250,10 @@ const NETLIFY_BASE = window.location.origin;
 // referenced this but it was never defined, so saving the model # threw
 // "Save failed: Can't find variable: XANO_BASE." (Teddy 2026-07-07)
 const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+// Multi-machine claim support (Teddy 2026-07-07): the intake can add several appliances
+// to one stop; the Teddy Tool loads ONE job, so we surface a switcher to flip between them.
+const APPL_ICON = { refriger:'🧊', fridge:'🧊', freezer:'🧊', wash:'🌀', dry:'🔥', dish:'🍽️', oven:'🍳', range:'🍳', stove:'🍳', microwave:'📻', disposal:'🗑️', ice:'🧊' };
+function applIcon(a){ const s=String(a||'').toLowerCase(); for(const k in APPL_ICON){ if(s.indexOf(k)>=0) return APPL_ICON[k]; } return '🧰'; }
 
 let state = {
   step: "intake",
@@ -333,6 +337,13 @@ async function loadCockpit(jobId) {
     try {
       const tr = await fetch('/.netlify/functions/job-truth?job_id=' + encodeURIComponent(state.jobId) + '&lens=office', { cache: 'no-store' }).then(function (r) { return r.json(); });
       if (tr && tr.found) { state.truth = tr; render(); }
+    } catch (_) {}
+    // Multi-machine claim: pull the sibling machines on this stop so Teddy can flip
+    // between the appliances (AHS multi-item claims). (Teddy 2026-07-07)
+    try {
+      const ms = await fetch('/.netlify/functions/get-stop-machines?job_id=' + encodeURIComponent(state.jobId), { cache: 'no-store' }).then(function (r) { return r.json(); });
+      state.machines = (ms && ms.machines) || [];
+      if (state.machines.length > 1) render();
     } catch (_) {}
   } catch(e) {
     state.error = e.message || ("Could not load job #" + jobId);
@@ -796,7 +807,25 @@ function renderCustomerStatus() {
   if (e164) actions.push(btn('sms:' + e164, '💬 Text'));
   actions.push(btn('office-board.html?job=' + encodeURIComponent(jobId), '📋 Job tile'));
 
-  return '<div class="section-card" style="border-color:rgba(120,140,255,0.35);">' +
+  // Multi-machine switcher — flip between the appliances on this stop. Each is its own
+  // job/TDR/media, so tapping a chip reloads the tool for that machine.
+  const machines = state.machines || [];
+  let switcher = '';
+  if (machines.length > 1) {
+    const mchips = machines.map(function (m) {
+      const cur = Number(m.job_id) === Number(jobId);
+      const lbl = applIcon(m.appliance) + ' ' + escapeHtml(m.brand ? (m.brand + ' ' + m.appliance) : (m.appliance || 'appliance')) + (m.has_report ? ' ✓' : '');
+      if (cur) return '<span style="padding:7px 12px;border-radius:999px;background:#6b46c1;border:1px solid #6b46c1;color:#fff;font-size:12px;font-weight:800;">' + lbl + '</span>';
+      return '<a href="teddy-tdr-tool.html?job_id=' + encodeURIComponent(m.job_id) + '" style="padding:7px 12px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(140,110,240,0.5);color:#c9b6f5;font-size:12px;font-weight:800;text-decoration:none;">' + lbl + '</a>';
+    }).join('');
+    switcher = '<div class="section-card" style="border-color:rgba(120,90,220,0.4);margin-bottom:10px;">' +
+      '<div style="font-size:10px;font-weight:800;color:#b39df2;letter-spacing:0.06em;font-family:var(--mono);margin-bottom:8px;">🧩 ' + machines.length + ' MACHINES ON THIS STOP</div>' +
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;">' + mchips + '</div>' +
+      '<div style="font-size:11px;color:#a99cc9;margin-top:7px;">Each machine has its own report — tap to switch. ✓ = report started.</div>' +
+    '</div>';
+  }
+
+  return switcher + '<div class="section-card" style="border-color:rgba(120,140,255,0.35);">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">' +
       '<div style="font-size:17px;font-weight:800;color:#fff;">' + escapeHtml(name) + '</div>' +
       (disp ? '<a href="tel:' + escapeAttr(e164) + '" style="font-family:var(--mono);font-size:15px;color:#8ab4ff;text-decoration:none;">' + escapeHtml(disp) + '</a>' : '<span style="font-family:var(--mono);font-size:13px;color:#ff9d4a;">⚠ no phone</span>') +
