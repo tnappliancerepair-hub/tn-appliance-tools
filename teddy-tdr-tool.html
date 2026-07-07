@@ -807,6 +807,23 @@ function renderCustomerStatus() {
   if (e164) actions.push(btn('sms:' + e164, '💬 Text'));
   actions.push(btn('office-board.html?job=' + encodeURIComponent(jobId), '📋 Job tile'));
 
+  // Blank-Teddy-Tool guard (Teddy 2026-07-07): if NO customer media has landed yet,
+  // there's nothing to diagnose — say so plainly + offer a one-tap resend, instead of
+  // presenting an empty diagnose page. The link often fires at creation, before the
+  // customer shoots the video; this makes that window clear, not a dead blank.
+  const atts = (c.attachments || []);
+  const hasVideo = atts.some(function (a) { return (a.file_type || '') === 'video' || String(a.s3_key || '').indexOf('cfstream:') === 0; });
+  const hasPhoto = atts.some(function (a) { return (a.file_type || '') !== 'video' && String(a.s3_key || '').indexOf('cfstream:') !== 0; });
+  let mediaBanner = '';
+  if (!hasVideo && !hasPhoto) {
+    const ilink = 'https://tnapplianceexchange.net/warranty-intake.html?job_id=' + encodeURIComponent(jobId);
+    mediaBanner = '<div class="section-card" style="border-color:rgba(255,157,74,0.55);background:rgba(255,157,74,0.06);margin-bottom:10px;">' +
+      '<div style="font-size:14px;font-weight:800;color:#ff9d4a;">⏳ No customer video or photo yet</div>' +
+      '<div style="font-size:12.5px;color:#ffcfa0;margin-top:5px;line-height:1.5;">Nothing to diagnose until they send a video + model-# photo. Resend the intake link — under 2 minutes for them.</div>' +
+      '<button onclick="(function(b){try{navigator.clipboard.writeText(\'' + ilink + '\');}catch(_){}b.textContent=\'✓ Copied — paste into their text thread\';})(this)" style="margin-top:9px;width:100%;padding:11px;border-radius:9px;background:#ff9d4a;color:#0a0a0a;border:0;font-weight:800;font-family:var(--mono);font-size:12.5px;cursor:pointer;">📋 Copy the intake link to resend</button>' +
+    '</div>';
+  }
+
   // Multi-machine switcher — flip between the appliances on this stop. Each is its own
   // job/TDR/media, so tapping a chip reloads the tool for that machine.
   const machines = state.machines || [];
@@ -825,7 +842,7 @@ function renderCustomerStatus() {
     '</div>';
   }
 
-  return switcher + '<div class="section-card" style="border-color:rgba(120,140,255,0.35);">' +
+  return mediaBanner + switcher + '<div class="section-card" style="border-color:rgba(120,140,255,0.35);">' +
     '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;">' +
       '<div style="font-size:17px;font-weight:800;color:#fff;">' + escapeHtml(name) + '</div>' +
       (disp ? '<a href="tel:' + escapeAttr(e164) + '" style="font-family:var(--mono);font-size:15px;color:#8ab4ff;text-decoration:none;">' + escapeHtml(disp) + '</a>' : '<span style="font-family:var(--mono);font-size:13px;color:#ff9d4a;">⚠ no phone</span>') +
