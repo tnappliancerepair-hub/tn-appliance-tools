@@ -250,8 +250,13 @@ exports.handler = async function (event) {
     const appl = (j.appliance || 'appliance');
     // WARRANTY customers get the warranty-intake light page (video + model + days +
     // waiver, no payer question); CASH customers stay on the old intake flow.
-    const { vlink } = linkFor(j, id);
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
+    const { isW, vlink } = linkFor(j, id);
+    // Warranty intake pitch: same points as the greeting — video (their words), model
+    // photo (so we know the machine), days, and a quick waiver → pre-diagnose + right
+    // part + one trip. (Teddy 2026-07-07.)
+    const msg = isW
+      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${vlink} (about 2 min) — a 10-second video of what it's doing in your own words, a photo of the model-number sticker, tap the days that work for you, and sign a quick waiver. It lets us pre-diagnose it and bring the right part so we fix it in one trip. Thank you!`
+      : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_light' }); okSend = !!(r && r.success); } catch (_) {}
