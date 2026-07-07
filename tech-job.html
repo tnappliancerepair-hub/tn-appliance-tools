@@ -482,7 +482,15 @@ function render(){
   const phone=(cust.phone||'').replace(/\D/g,'');
   const e164=phone.length===10?'+1'+phone:(phone.length===11?'+'+phone:phone);
   const addr=[cust.address,cust.city,cust.state,cust.zip].filter(Boolean).join(', ');
-  const navUrl=addr?('https://maps.google.com/?q='+encodeURIComponent(addr)):'';
+  // Open the device's NATIVE maps app for turn-by-turn: Apple Maps on iPhone/iPad
+  // (Andre 2026-07-07 — no Google Maps installed), Google Maps on Android/desktop.
+  const navUrl=(function(){
+    if(!addr) return '';
+    const a=encodeURIComponent(addr);
+    const ua=navigator.userAgent||'';
+    const isIOS=/iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&(navigator.maxTouchPoints||0)>1);
+    return isIOS ? ('https://maps.apple.com/?daddr='+a) : ('https://www.google.com/maps/dir/?api=1&destination='+a);
+  })();
 
   // First-time guide so techs aren't lost (John, 2026-06-23: "too complicated").
   // Everything lives on THIS page — there is no separate "Teddy Tool" for techs.
