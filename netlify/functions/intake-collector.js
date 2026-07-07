@@ -50,11 +50,22 @@ exports.handler = async function (event) {
   const h = ctHour();
   if (!force && !dryrun && (h < 8 || h >= 20)) return ok({ status: 'skipped_quiet_hours', ct_hour: h });
 
+  // REGRESSION FIX (Teddy 2026-07-07: "the warranty intake just stopped"):
+  // list_needs_scheduled_parallel grew to ~447 jobs and now takes ~12.3s — right
+  // at the old 12s timeout, so nearly every hourly run aborted at list_failed and
+  // sent ZERO intake texts. Give the full list real headroom (22s), and if it
+  // still times out, FALL BACK to a smaller page (newest jobs first, ~6s) so a
+  // growing board can never silently kill the funnel again.
   let items = [];
   try {
-    const d = await jget(`${XANO}/list_needs_scheduled_parallel?limit=1000`, 12000);
+    const d = await jget(`${XANO}/list_needs_scheduled_parallel?limit=1000`, 22000);
     items = d.items || d.jobs || d.rows || (Array.isArray(d) ? d : []);
-  } catch (e) { return ok({ status: 'list_failed', error: String(e.message || e) }); }
+  } catch (e) {
+    try {
+      const d2 = await jget(`${XANO}/list_needs_scheduled_parallel?limit=250`, 12000);
+      items = d2.items || d2.jobs || d2.rows || (Array.isArray(d2) ? d2 : []);
+    } catch (e2) { return ok({ status: 'list_failed', error: String((e2 && e2.message) || e2) }); }
+  }
 
   // Candidates: non-vendor, has a phone, no availability captured yet.
   const cands = items.filter((j) => {
@@ -129,17 +140,23 @@ exports.handler = async function (event) {
     const phone = toE164(j.customer_phone || j.phone);   // send_sms needs E.164, not bare digits
     const cust = first(j.customer_first);
     const appl = (j.appliance || 'appliance');
-    // ── A/B test: which link style gets the most videos + availability back?
-    // Deterministic per job (job_id % 3) so a re-ask keeps the same variant.
-    // All three attach to the EXISTING job (no dupes). (Teddy 2026-07-02)
-    const variant = AB_VARIANTS[id % AB_VARIANTS.length];
+    const isWarranty = !!String(j.warranty_company || '').trim();
+    // WARRANTY = the LIGHTEST intake (Teddy 2026-07-07: "even easier than cash —
+    // we already have their info"). We have their name/address/claim, so all we
+    // need is a video + model pic + their days. Always route warranty to the
+    // no-form finish-upload page (tap to record, tap to snap — zero typing) and
+    // skip the A/B rotation that could drop them into the heavier cash AI flow.
+    // Non-warranty keeps the A/B test to learn which link converts best.
+    const variant = isWarranty ? 'video' : AB_VARIANTS[id % AB_VARIANTS.length];
     const vlink =
       variant === 'ai'     ? `${SITE}/appliance-ai.html?job_id=${id}&mode=resume` :
       variant === 'portal' ? `${SITE}/customer-portal.html?job_id=${id}&last4=` :
-                             `${SITE}/finish-upload.html?job_id=${id}`;   // 'video' (default)
-    // Teddy's pitch: warm + non-aggressive — "help us help you," a 2-minute intake
-    // can save days. Video + BOTH available and unavailable days.
-    const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you — and any days you absolutely can't do. Thanks so much!`;
+                             `${SITE}/finish-upload.html?job_id=${id}`;   // 'video' (default + all warranty)
+    // Teddy's pitch: warm + non-aggressive. Warranty gets a lighter, "we've got
+    // the rest handled" framing; non-warranty gets the full help-us-help-you ask.
+    const msg = isWarranty
+      ? `Hi ${cust} — TN Appliance Exchange 🐜. Good news, your ${appl} repair is covered — we've got all your info, so just 2 quick things and we'll get you scheduled fast: tap ${vlink} to send a 10-second video + a photo of the model sticker (so your tech rolls up with the right part), then reply with the days that work for you — and any you can't. That's it, thank you!`
+      : `Hi ${cust} — TN Appliance Exchange 🐜. Want your ${appl} fixed faster? Help us help you — 2 quick minutes now can save you days of waiting: shoot a 10-second video + a photo of the model sticker so your tech rolls up ready with the right part (tap: ${vlink}), then reply with the days that work for you — and any days you absolutely can't do. Thanks so much!`;
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_' + variant }); okSend = !!(r && r.success); } catch (_) {}
