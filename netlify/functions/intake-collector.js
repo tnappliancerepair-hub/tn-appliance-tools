@@ -184,6 +184,29 @@ exports.handler = async function (event) {
       note: `first 15 of ${cands.length} candidates shown; each live run resolves phones + sends up to ${MAX_PER_RUN}`, would_text: preview });
   }
 
+  // SHARED 2-CAP (Teddy 2026-07-07: "No more than two each customer for intake").
+  // The loop's greeting + nudges write a shared 'intake_outreach_sent' marker; the
+  // collector writes its own 'availability_requested_<job>'. Neither saw the other, so a
+  // customer could get greeting(1) + collector(2) = 3. Fix: count the loop's sends too
+  // (one fetch, mapped per job) and add them to the collector's own count → hard 2 total.
+  // The collector also writes 'intake_outreach_sent' on each send (below) so the LOOP's
+  // own cap counts collector sends. Loop actions only (via != intake_collector) so the
+  // collector's own sends aren't double-counted against its availability_requested count.
+  const LOOP_VIAS = new Set(['new_job_greeting', 'availability_nudge', 'availability_request', 'resume_nudge']);
+  const loopIntakeByJob = {};
+  try {
+    const lr = await jget(`${XANO}/list_recent_event_log?action=intake_outreach_sent&days_back=120&limit=2000`, 12000);
+    for (const r of (lr.items || [])) {
+      let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      m = m || {};
+      const jid = String(m.job_id || '');
+      if (!jid) continue;
+      if (m.source === 'intake_collector') continue;         // collector's own — counted via availability_requested
+      if (m.via && !LOOP_VIAS.has(String(m.via))) continue;  // only real loop intake touches
+      loopIntakeByJob[jid] = (loopIntakeByJob[jid] || 0) + 1;
+    }
+  } catch (_) { /* fail open — per-job availability_requested cap still guards */ }
+
   let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0;
   const done = [];
   for (const j of cands) {
@@ -198,7 +221,10 @@ exports.handler = async function (event) {
       const dd = await jget(`${XANO}/list_recent_event_log?action=availability_requested_${id}&days_back=3650&limit=5`, 7000);
       asks = dd.items || [];
     } catch (_) { skipped_dupe++; continue; }
-    if (asks.length >= 2) { skipped_dupe++; continue; }
+    // TOTAL intake to this customer = collector's own asks + the loop's greeting/nudges.
+    // Hard cap at 2 across both senders (Teddy: "No more than two each customer").
+    const priorIntake = asks.length + (loopIntakeByJob[String(id)] || 0);
+    if (priorIntake >= 2) { skipped_dupe++; continue; }
     if (asks.length === 1) {
       const lastMs = Math.max(...asks.map((a) => new Date(a.created_at).getTime() || 0));
       if (Date.now() - lastMs < RESEND_AFTER_MS) { skipped_dupe++; continue; }
@@ -232,6 +258,9 @@ exports.handler = async function (event) {
     if (okSend) {
       sent++; done.push(id);
       try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
+      // Write the SHARED intake marker too so the LOOP's own 2-cap counts this send
+      // (via:'intake_collector' keeps it out of our own loop-count above → no double count).
+      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_outreach_sent', metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', via: 'intake_collector', at_ms: Date.now() }) }); } catch (_) {}
     } else failed++;
   }
 
