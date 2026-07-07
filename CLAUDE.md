@@ -11,6 +11,48 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-07 (Tue) — MULTI-MACHINE PER STOP (Option B) shipped — READ FIRST
+
+Teddy: techs often work **multiple machines at one stop** (AHS multi-item claims — a
+dishwasher AND a stove on one dispatch), but the tile had no setup for it and the 2nd
+machine got buried in notes with no TDR. Teddy chose **Option B: each machine = its own
+job (its own TDR / warranty / parts flow for free), LINKED to the stop, presented as ONE
+tile with a machine switcher.** All shipped to `main` (Netlify auto-deploy) — **no Mac/XS
+push needed** (pure Netlify fns + front-end).
+
+### ✅ SHIPPED + LIVE
+- **`netlify/functions/add-machine.js`** — tech-initiated `＋ Add machine`. POST
+  `{parent_job_id, appliance_type, brand?, model?, problem?, added_by?}`. Reads the parent
+  job (metadata `searchOne` by id), CLONES the inheritable fields (`CLONE_KEYS`: customer/
+  address/zip/claim/warranty/**technician_id/scheduled_start/scheduling_status**/
+  dispatch_source_id/access/consent/office_stage/parts…), sets the new appliance +
+  `channel:'tech_add_machine'`, inserts via the **metadata API (SIDE-EFFECT-FREE — no
+  create_job_from_chat, so NO customer greeting SMS fires while the tech is in the
+  kitchen)**, logs a `stop_machine` event-log link. Resolves the stop_id even when the
+  parent is itself an added machine (all siblings share one stop_id). → `{machine_job_id,
+  stop_id}`. Because it clones tech+day, the new machine lands on the same tech's day (not
+  Needs-Scheduled) and is its own job/TDR.
+- **`netlify/functions/get-stop-machines.js`** — GET `?job_id=<any machine on the stop>` →
+  `{stop_id, count, machines:[{job_id, appliance, brand, model, problem, status, is_primary,
+  has_report}]}` (primary first). Groups from `stop_machine` markers. **Verified live** on
+  job 20209 → 1 machine (Refrigerator), correct.
+- **tech-job.html machine switcher** — `#machine-switcher` card UP TOP (under the release
+  banner). Chips per machine (current highlighted, `✓` = report started), tap a chip →
+  that machine's job page (reuses the whole page + its own TDR). `＋ Add machine` → prompt
+  appliance → add-machine → opens the new machine. Always shows (even a 1-machine stop) so
+  the add affordance is discoverable. `.mchip` CSS added. `loadMachines()` runs in loadJob.
+- **Linking model (no schema change):** event_log `stop_machine` = `{stop_id, machine_job_id,
+  appliance, brand, added_by, at_ms}`. stop_id = the ORIGINAL job of the stop. (Can't add a
+  jobs column — no local metadata token; the marker is the link.)
+
+### 🔜 FOLLOW-ONS (not built)
+- **Office/Danielle grouping:** group linked machines under one stop on the board + drawer,
+  each machine's TDR navigable for warranty submit. Each machine already shows as its own
+  job today; the `stop_machine` link is what lets us group next.
+- **AHS multi-item intake auto-create:** when a multi-item claim lands, auto-create the
+  machines from the dispatch (`add-appliance-job.js` is the office-facing seed).
+- Plan doc: `docs/multi-machine-tdr-plan-2026-07-07.md`.
+
 ## 🗓️🐜 2026-07-06 (Sun/Mon — field bug week + AI-phone hardening + declutter) — READ FIRST
 
 Long live-ops day with Teddy working from the field (his stated goal: "work out all
