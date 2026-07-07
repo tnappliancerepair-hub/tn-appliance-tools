@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0EF3THNXLE');
+</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Send your repair info · TN Appliance</title>
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="https://tnapplianceexchange.net/warranty-intake.html">
+<meta property="og:title" content="Send your repair info · TN Appliance">
+<meta property="og:description" content="Three quick things and we'll get your repair moving.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://tnapplianceexchange.net/warranty-intake.html">
+<meta property="og:site_name" content="TN Appliance Exchange">
+<meta property="og:image" content="https://tnapplianceexchange.net/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+  :root{--black:#050505;--surface:#0c0c0c;--bord2:#262626;--orange:#ff6200;--green:#39ff14;--white:#f0f0f0;--gray:#888;--gray2:#555;--mono:'Geist Mono',monospace;--serif:'Instrument Serif',serif;--block:'Bebas Neue',sans-serif;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--black);color:var(--white);font-family:var(--mono);min-height:100%;}
+  body{display:flex;flex-direction:column;align-items:center;padding:28px 20px 60px;min-height:100vh;}
+  .orb-wrap{position:relative;width:82px;height:82px;display:flex;align-items:center;justify-content:center;margin:2px 0 14px;}
+  .orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 45%,#ff7c28,#ff6200 45%,#7a2f00);box-shadow:0 0 32px 5px rgba(255,98,0,.5);animation:breathe 3s ease-in-out infinite;}
+  .ant{position:relative;z-index:2;font-size:32px;}
+  @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);margin-bottom:8px;text-align:center;}
+  h1{font-family:var(--serif);font-style:italic;font-size:28px;font-weight:400;margin-bottom:8px;text-align:center;}
+  h1 .a{color:var(--green);}
+  .sub{color:var(--gray);font-size:13.5px;line-height:1.55;max-width:460px;text-align:center;margin:0 auto 20px;}
+  .steps{width:100%;max-width:520px;display:flex;flex-direction:column;gap:16px;}
+  .step{background:var(--surface);border:1px solid var(--bord2);border-radius:14px;padding:16px;}
+  .step-head{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+  .step-num{width:24px;height:24px;flex:0 0 24px;border-radius:50%;background:#1c1c1c;border:1px solid var(--bord2);color:var(--gray);font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+  .step.done .step-num{background:var(--green);border-color:var(--green);color:#062b00;}
+  .step-title{font-size:14.5px;font-weight:500;color:var(--white);}
+  .step-hint{font-size:12px;color:var(--gray);margin-bottom:10px;line-height:1.5;}
+  .cap-btn{width:100%;background:#111;border:1.5px dashed var(--bord2);border-radius:12px;padding:20px;color:var(--white);font-family:var(--mono);font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .cap-btn .emo{font-size:28px;}
+  .cap-btn.done{border-style:solid;border-color:var(--green);color:var(--green);}
+  .uprog{width:100%;height:7px;background:#1a1a1a;border-radius:6px;margin-top:9px;overflow:hidden;}
+  .upbar{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--green));border-radius:6px;transition:width .35s ease;}
+  .upbar.warn{background:#caa23a;}
+  .upstat{font-size:12px;color:var(--gray);margin-top:6px;text-align:center;}
+  .days{display:flex;flex-wrap:wrap;gap:8px;}
+  .day{flex:1 1 30%;min-width:96px;background:#111;border:1.5px solid var(--bord2);border-radius:11px;padding:12px 8px;text-align:center;cursor:pointer;color:var(--white);font-family:var(--mono);}
+  .day .dow{font-size:14px;font-weight:600;}
+  .day .dnum{font-size:11px;color:var(--gray);margin-top:2px;}
+  .day.sel{border-color:var(--green);background:rgba(57,255,20,.09);color:var(--green);}
+  .day.sel .dnum{color:var(--green);}
+  .save-day{width:100%;margin-top:12px;background:var(--orange);border:0;border-radius:11px;padding:14px;color:#0a0a0a;font-family:var(--mono);font-size:15px;font-weight:600;cursor:pointer;}
+  .save-day.done{background:var(--green);}
+  .save-day:disabled{opacity:.5;}
+  .allset{max-width:520px;width:100%;margin-top:20px;background:rgba(57,255,20,.08);border:1px solid var(--green);border-radius:13px;padding:18px;text-align:center;color:var(--green);font-size:15px;display:none;}
+  .hidden{display:none!important;}
+  .footer{margin-top:34px;font-size:11px;color:var(--gray2);text-align:center;}
+  .footer a{color:var(--gray);}
+</style></head><body>
+  <div class="orb-wrap"><div class="orb" id="orb"></div><div class="ant">🐜</div></div>
+  <div class="kicker">TN Appliance Exchange</div>
+  <h1 id="head">Let’s get your repair <span class="a">moving.</span></h1>
+  <div class="sub" id="sub">Three quick things — under two minutes — and we’ll roll up ready with the right part.</div>
+
+  <div class="steps" id="steps">
+    <div class="step" id="s1">
+      <div class="step-head"><div class="step-num" id="n1">1</div><div class="step-title">A short 10-second video</div></div>
+      <div class="step-hint">Show us what’s happening with the appliance. A 10–15 sec clip is perfect.</div>
+      <label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>
+      <div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>
+    </div>
+
+    <div class="step" id="s2">
+      <div class="step-head"><div class="step-num" id="n2">2</div><div class="step-title">A photo of the model number</div></div>
+      <div class="step-hint">The sticker with the model #. Usually on the door frame, back, or inside. Get it close + clear so we can read it.</div>
+      <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>
+      <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
+    </div>
+
+    <div class="step" id="s3">
+      <div class="step-head"><div class="step-num" id="n3">3</div><div class="step-title">The days that work for you</div></div>
+      <div class="step-hint">Tap every day you’re available over the next few days. The more you pick, the sooner we can come.</div>
+      <div class="days" id="days"></div>
+      <button class="save-day" id="saveDay" disabled>Pick your days above</button>
+    </div>
+
+    <div class="step hidden" id="s4">
+      <div class="step-head"><div class="step-num" id="n4">4</div><div class="step-title">While we’re there? <span style="color:var(--gray);font-weight:400;font-size:12px;">(optional)</span></div></div>
+      <div class="step-hint">Handy extras we can knock out on the same visit — tap any you’d like. No obligation.</div>
+      <div id="addons"></div>
+    </div>
+
+    <div class="step" id="s5">
+      <div class="step-head"><div class="step-num" id="n5">5</div><div class="step-title">Quick sign-off</div></div>
+      <div class="step-hint">A 10-second signature so we can get to work — protects your home and lets us start on time.</div>
+      <a class="save-day" id="waiverBtn" href="#" style="display:block;text-align:center;text-decoration:none;background:#1c1c1c;border:1.5px solid var(--orange);color:var(--orange);">✍️ Review &amp; sign your waiver</a>
+    </div>
+  </div>
+
+  <div class="allset" id="allset">✅ Got your video, model &amp; days! Last thing — tap <b>“Review &amp; sign your waiver”</b> above and you’re all done. Thank you!</div>
+  <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
+
+<script src="/ant-video-upload.js"></script>
+<script src="/ant-addons.js"></script>
+<script>
+if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.replace('://www.', '://')); }
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN='https://tnapplianceexchange.net/.netlify/functions';
+const jobId=parseInt(new URLSearchParams(location.search).get('job_id')||'0',10)||0;
+const state={video:false,model:false,avail:false};
+
+if(!jobId){
+  document.getElementById('head').textContent='Hmm —';
+  document.getElementById('sub').textContent='That link looks off. Text us at 615-280-2949 and we\'ll get you sorted right away.';
+  document.getElementById('steps').classList.add('hidden');
+}
+
+// Set the waiver link (appliance-aware waiver + signature lives on waiver.html).
+document.getElementById('waiverBtn').setAttribute('href', 'waiver.html?job_id='+encodeURIComponent(jobId));
+
+// Greet by first name + appliance (carried by the link — no typing). Best-effort.
+// Also drives the appliance-specific add-on offers.
+(async function greet(){
+  if(!jobId) return;
+  try{
+    const d=await fetch(FN+'/job-truth?job_id='+jobId+'&lens=customer',{cache:'no-store'}).then(r=>r.json());
+    const f=(d&&d.facts)||{};
+    const first=(f.customer_first||'').trim();
+    const appl=(f.appliance&&f.appliance!=='appliance')?f.appliance:'';
+    if(first) document.getElementById('head').innerHTML='Hi '+esc(first)+' — let’s get your '+esc(appl||'appliance')+' <span class="a">fixed.</span>';
+    renderAddons(appl);
+  }catch(_){ renderAddons(''); }
+})();
+
+// Appliance-specific add-on offers (vent hose / water hoses / coil cleaning / dryer
+// clean-out …) straight from the shared catalog. One tap = "add to my visit" ->
+// record-addon (the office ships/schedules it with the job). Optional; skippable.
+function renderAddons(appl){
+  const wrap=document.getElementById('addons'); if(!wrap||!window.AntAddons) return;
+  let items=[]; try{ items=AntAddons.forAppliance(appl)||[]; }catch(_){ items=[]; }
+  items=items.filter(function(o){ return o && o.name && !o.inquire; }).slice(0,4);
+  if(!items.length){ document.getElementById('s4').classList.add('hidden'); return; }
+  document.getElementById('s4').classList.remove('hidden');
+  wrap.innerHTML=items.map(function(o){
+    const price=o.price?('$'+o.price):'';
+    return '<div class="step" style="padding:12px;margin-bottom:10px;background:#0e0e0e;">'
+      +'<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;">'
+        +'<div style="font-size:14px;font-weight:500;color:#fff;">'+esc(o.name)+'</div>'
+        +(price?'<div style="font-family:var(--mono);font-size:13px;color:var(--green);white-space:nowrap;">'+esc(price)+'</div>':'')
+      +'</div>'
+      +(o.pitch?'<div style="font-size:11.5px;color:var(--gray);line-height:1.5;margin:5px 0 9px;">'+esc(o.pitch)+'</div>':'<div style="height:6px"></div>')
+      +'<button class="addon-add" data-key="'+esc(o.key)+'" data-name="'+esc(o.name)+'" data-price="'+esc(o.price||0)+'" data-disc="'+esc(o.discount||0)+'" style="width:100%;background:#141414;border:1.5px solid var(--bord2);border-radius:10px;padding:11px;color:var(--white);font-family:var(--mono);font-size:13.5px;cursor:pointer;">＋ Add to my visit</button>'
+    +'</div>';
+  }).join('');
+  wrap.querySelectorAll('.addon-add').forEach(function(btn){
+    btn.onclick=async function(){
+      if(btn.dataset.added==='1'){ return; }
+      btn.disabled=true; btn.textContent='Adding…';
+      try{
+        await fetch(FN+'/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId, addon_key:btn.dataset.key, name:btn.dataset.name, price:Number(btn.dataset.price)||0, discount:Number(btn.dataset.disc)||0, source:'warranty_intake'})});
+        btn.dataset.added='1'; btn.style.borderColor='var(--green)'; btn.style.color='var(--green)'; btn.textContent='✓ Added — the tech will take care of it';
+      }catch(_){ btn.disabled=false; btn.textContent='Try again'; }
+    };
+  });
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+// ── media upload (proven weak-signal path, same as finish-upload) ──
+function fetchJSON(url, body, tries){ tries=tries||3; return (async()=>{ let last; for(let i=0;i<tries;i++){ try{ const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),25000); const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}); clearTimeout(to); return await r.json(); }catch(e){ last=e; await new Promise(s=>setTimeout(s,Math.min(1500*(i+1),5000))); } } throw last||new Error('network'); })(); }
+function putWithProgress(url, file, mime, onPct){ return new Promise((resolve,reject)=>{ const x=new XMLHttpRequest(); x.open('PUT',url,true); x.setRequestHeader('Content-Type',mime); x.timeout=180000; if(x.upload)x.upload.onprogress=e=>{ if(e.lengthComputable&&onPct)onPct(e.loaded/e.total); }; x.onload=()=>(x.status>=200&&x.status<300)?resolve(true):reject(new Error('s3 '+x.status)); x.onerror=()=>reject(new Error('network')); x.ontimeout=()=>reject(new Error('timeout')); try{x.send(file);}catch(e){reject(e);} }); }
+async function uploadMedia(file, fileType, onStatus){
+  const mime=file.type||(fileType==='video'?'video/mp4':'image/jpeg'); const maxTries=6; let lastErr='';
+  for(let a=1;a<=maxTries;a++){
+    try{
+      if(onStatus)onStatus('preparing',a,0);
+      const gen=await fetchJSON(XANO+'/generate_upload_url',{job_id:jobId, attachment_type:'intake', file_type:fileType, original_filename:file.name||(fileType+(fileType==='video'?'.mp4':'.jpg')), mime_type:mime, uploaded_by:'customer'});
+      if(!gen||!gen.s3_key||!gen.attachment_id) throw new Error('init');
+      const pres=await fetchJSON(FN+'/s3-presign',{s3_key:gen.s3_key, mime_type:mime});
+      if(!pres||!pres.upload_url) throw new Error('presign');
+      await putWithProgress(pres.upload_url,file,mime,pct=>{ if(onStatus)onStatus('uploading',a,pct); });
+      await fetchJSON(XANO+'/save_attachment',{attachment_id:gen.attachment_id, file_size_bytes:file.size||0}).catch(()=>{});
+      if(onStatus)onStatus('done',a,1); return {ok:true};
+    }catch(e){ lastErr=(e&&e.message)||'error'; if(a<maxTries){ if(onStatus)onStatus('retry',a,0); await new Promise(s=>setTimeout(s,Math.min(2000*a,9000))); } }
+  }
+  if(onStatus)onStatus('failed',maxTries,0); return {ok:false,error:lastErr};
+}
+function statusFn(bar,txt,stepEl,kind){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Got it!';if(stepEl)stepEl.classList.add('done');state[kind]=true;maybeAllSet();} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 615-280-2949.';} }; }
+function wire(fileId, btnId, progId, barId, statId, kind, label, stepId){
+  const fi=document.getElementById(fileId);
+  fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
+    const b=document.getElementById(btnId); b.classList.add('done'); const l=b.querySelectorAll('span')[1]; if(l)l.textContent=label;
+    document.getElementById(progId).classList.remove('hidden'); document.getElementById(statId).classList.remove('hidden');
+    const st=statusFn(document.getElementById(barId),document.getElementById(statId),document.getElementById(stepId),kind==='video'?'video':'model');
+    if(kind==='video' && window.AntVideo){ AntVideo.upload(f,{ jobId:jobId, uploadedBy:'customer', onStatus:st, s3Fallback:x=>uploadMedia(x,'video',st) }); }
+    else uploadMedia(f,kind,st);
+  };
+}
+if(jobId){ wire('vfile','vbtn','vprog','vbar','vstat','video','✓ Video added','s1'); wire('mfile','mbtn','mprog','mbar','mstat','photo','✓ Model photo added','s2'); }
+
+// ── availability: next 5 weekdays, tap to pick, save ──
+const selDays=new Set();
+(function buildDays(){
+  const wrap=document.getElementById('days'); if(!wrap) return;
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const out=[]; const d=new Date(); let added=0;
+  while(added<5){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd===0||wd===6) continue; // Mon–Fri only
+    const label=DOW[wd]+' '+MON[d.getMonth()]+' '+d.getDate(); out.push({dow:DOW[wd],dnum:MON[d.getMonth()]+' '+d.getDate(),label}); added++; }
+  wrap.innerHTML=out.map(o=>'<div class="day" data-lbl="'+esc(o.label)+'"><div class="dow">'+esc(o.dow)+'</div><div class="dnum">'+esc(o.dnum)+'</div></div>').join('');
+  wrap.querySelectorAll('.day').forEach(el=>{ el.onclick=()=>{ const lbl=el.getAttribute('data-lbl'); if(selDays.has(lbl)){selDays.delete(lbl);el.classList.remove('sel');}else{selDays.add(lbl);el.classList.add('sel');} const b=document.getElementById('saveDay'); b.disabled=selDays.size===0; b.textContent=selDays.size?('Send my availability ('+selDays.size+')'):'Pick your days above'; }; });
+})();
+document.getElementById('saveDay').onclick=async function(){
+  if(!jobId||!selDays.size) return;
+  const btn=this; btn.disabled=true; btn.textContent='Saving…';
+  const txt='Available: '+Array.from(selDays).join(', ');
+  try{
+    const r=await fetchJSON(FN+'/save-availability',{job_id:jobId, availability_text:txt});
+    if(r&&r.ok){ btn.classList.add('done'); btn.textContent='✓ Availability sent'; document.getElementById('s3').classList.add('done'); state.avail=true; maybeAllSet(); }
+    else { btn.disabled=false; btn.textContent='Try again'; }
+  }catch(_){ btn.disabled=false; btn.textContent='Try again'; }
+};
+function maybeAllSet(){ if(state.video&&state.model&&state.avail){ document.getElementById('allset').style.display='block'; } }
+</script>
+<script defer src="/ant-valuebar.js"></script>
+</body></html>
