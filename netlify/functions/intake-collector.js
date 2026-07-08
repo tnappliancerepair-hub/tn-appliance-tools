@@ -25,26 +25,27 @@ const MAX_RESOLVE = Number(process.env.INTAKE_COLLECTOR_MAX_RESOLVE) || 40;  // 
 // Space the touches out so we never blow a customer up — roughly one per day
 // (Teddy 2026-07-07: "I don't wanna blow these customers up"). Env-tunable.
 const RESEND_AFTER_MS = (Number(process.env.INTAKE_RESEND_HOURS) || 20) * 3600 * 1000;
-// Warranty customers get a 3-TOUCH escalation (intake pitch -> "second notice, help us
-// help you" -> minimum: just your availability). Cash stays at 2. (Teddy 2026-07-07.)
-const WARRANTY_TOUCHES = Number(process.env.INTAKE_WARRANTY_TOUCHES) || 3;
-const CASH_TOUCHES = Number(process.env.INTAKE_CASH_TOUCHES) || 2;
-// The escalating warranty copy, indexed by how many touches they've already had.
-function warrantyTouch(n, cust, appl, link) {
+// THE ONLY proactive customer sequence (Teddy 2026-07-08): "intake text; if no answer,
+// one more intake; then an availability text; if no answer, one more availability text.
+// That's all. Other than that, they have to text us for us to text them back."
+// Four touches MAX, escalating intake -> availability, then reactive-only forever.
+//   n 0,1 = INTAKE (video + model # + days)      n 2,3 = AVAILABILITY only
+// No "second notice" nag — a booked/engaged customer is protected by the media +
+// availability "already answered" checks in the send loop.
+const INTAKE_SEQUENCE_CAP = 4;
+function intakeMsg(n, cust, appl, link, isW) {
   if (n <= 0) {
-    return `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${link} (about 2 min) — a 10-second video of what it's doing in your own words, a photo of the model-number sticker, tap the days that work for you, and sign a quick waiver. It lets us pre-diagnose it and bring the right part so we fix it in one trip. Thank you!`;
+    return isW
+      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${link} (about 2 min) — a 10-second video of what it's doing, a photo of the model-number sticker, and tap the days that work for you. It lets us bring the right part and fix it in one trip. Thank you!`
+      : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${link} — about 2 min: a 10-second video, a photo of the model-number sticker (so your tech brings the right part), and tap the days that work for you. Thank you!`;
   }
   if (n === 1) {
-    return `Hi ${cust} — second notice from TN Appliance Exchange 🐜. We need your help so we can help you! A quick 10-second video showing what your ${appl} is doing lets us order the right parts ahead of time and have your technician better prepared for you. Please also let us know the days you're available. Tap here: ${link} — thank you!`;
+    return `Hi ${cust} — just following up from TN Appliance Exchange 🐜 on your ${appl}. Whenever you get a sec, tap ${link} to send a quick 10-second video + a photo of the model-number sticker so we can bring the right part. Thank you!`;
   }
-  return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, at minimum we just need your availability — what days work best for you, and any that don't? Reply right here, or tap ${link}. Thank you!`;
-}
-// ALREADY-SCHEDULED customers get a SINGLE gentle, optional message — never the
-// "second notice / get you on the schedule / send your availability" nag, which
-// enrages someone who's already booked (Troy Faunce + Sherri Schmerda, 2026-07-08).
-// It acknowledges they're set and frames the video as optional + "already sent = you're good".
-function scheduledTouch(cust, appl, link) {
-  return `Hi ${cust} — TN Appliance Exchange 🐜. You're all set — your ${appl} repair is on the schedule. Totally optional: if you tap ${link} and add a quick 10-second video + a photo of the model-number sticker, your tech can bring the exact part and fix it in one trip. Already sent it? You're good, no need to resend. See you soon!`;
+  if (n === 2) {
+    return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, just let us know your availability — what days work best for you, and any that don't? Reply right here. Thank you!`;
+  }
+  return `Hi ${cust} — TN Appliance Exchange 🐜, last check-in on your ${appl}: what days work for you and any that don't? Reply here and we'll get you on the schedule. Thank you!`;
 }
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained
@@ -252,20 +253,16 @@ exports.handler = async function (event) {
     // TOTAL touches so far = collector's own asks + the loop's greeting/nudges.
     const loopInfo = loopIntakeByJob[String(id)] || { n: 0, lastMs: 0 };
     const priorIntake = asks.length + loopInfo.n;
-    // Already-scheduled jobs: ONE gentle optional touch, never the escalating nag.
-    // Warranty (unscheduled) = 3-touch escalation; cash (unscheduled) = 2. (Teddy 2026-07-07.)
-    const isScheduled = !!j._sched;
+    // 4 touches MAX, then reactive-only (Teddy 2026-07-08): 2 intake + 2 availability.
     const isW = linkFor(j, id).isW;
-    const capN = isScheduled ? 1 : (isW ? WARRANTY_TOUCHES : CASH_TOUCHES);
-    if (priorIntake >= capN) { skipped_dupe++; continue; }
-    // Never nag a BOOKED customer for media they may already have sent (Troy said
-    // "That has already been provided"). If a photo/video is on file, skip entirely.
-    if (isScheduled) {
-      try {
-        const st = await jget(`${XANO}/get_unified_tdr_status?job_id=${id}`, 7000);
-        if (st && (st.has_photo || Number(st.attachments_count || 0) > 0)) { skipped_has_media++; continue; }
-      } catch (_) { /* fail open — the copy is optional/gentle anyway */ }
-    }
+    if (priorIntake >= INTAKE_SEQUENCE_CAP) { skipped_dupe++; continue; }
+    // "Already answered" guard — if a photo/video is on file the customer has engaged, so
+    // we STOP proactively texting (this is what protects an already-scheduled customer like
+    // Troy + Sherri). Cheap check, only on candidates that passed dedup.
+    try {
+      const st = await jget(`${XANO}/get_unified_tdr_status?job_id=${id}`, 7000);
+      if (st && (st.has_photo || Number(st.attachments_count || 0) > 0)) { skipped_has_media++; continue; }
+    } catch (_) { /* fail open */ }
     // Space the touches out — never blow them up. One per RESEND_AFTER_MS, measured from
     // the LAST intake we sent (greeting OR a prior collector touch), whichever is newest.
     if (priorIntake >= 1) {
@@ -298,14 +295,12 @@ exports.handler = async function (event) {
     // Escalating warranty sequence by how many touches they've already had (priorIntake):
     //   0 -> intake pitch, 1 -> "second notice, help us help you", 2 -> minimum availability.
     // Cash keeps its single light message. (Teddy 2026-07-07.)
-    const msg = isScheduled
-      ? scheduledTouch(cust, appl, vlink)
-      : (isW
-        ? warrantyTouch(priorIntake, cust, appl, vlink)
-        : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`);
+    // Touch 0,1 = intake (video+model+days); 2,3 = availability only.
+    const msg = intakeMsg(priorIntake, cust, appl, vlink, isW);
+    const tag = priorIntake <= 1 ? 'intake_collect' : 'availability_request';
 
     let okSend = false;
-    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: isScheduled ? 'intake_scheduled_optional' : 'intake_collect_light' }); okSend = !!(r && r.success); } catch (_) {}
+    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: tag }); okSend = !!(r && r.success); } catch (_) {}
     if (okSend) {
       sent++; done.push(id);
       try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}

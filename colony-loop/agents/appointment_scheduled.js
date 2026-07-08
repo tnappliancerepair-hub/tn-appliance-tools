@@ -77,13 +77,13 @@ function customerBody({ first, appliance, apptStr, windowStr, techFirst, portalU
   // 2026-06-26: customers were told a tech who wasn't actually on the job).
   const techClause = techFirst ? `Your tech will be ${techFirst}.` : '';
   const portalClause = portalUrl ? `View/reschedule: ${portalUrl}` : '';
-  // Day + a 3-HOUR WINDOW (e.g. "Monday, Jul 6, 11am-2pm") — a window, never an exact
-  // clock time. We still text a live heads-up when the tech is actually on the way.
-  const whenStr = windowStr ? `${apptStr}, ${windowStr}` : apptStr;
+  // DAY ONLY — never a clock time AND never a window (Teddy 2026-07-08: "stop giving
+  // times, especially for Jimmy — he's never on time"). We run day-of routing; the live
+  // arrival window is texted the morning of. windowStr is intentionally ignored now.
   return [
-    `Hi ${name}, your ${appliance} repair is set for ${whenStr}.`,
+    `Hi ${name}, your ${appliance} repair is set for ${apptStr}.`,
     techClause,
-    `We'll text you a heads-up when your tech is on the way.`,
+    `We run day-of routing, so we'll text you a live arrival window the morning of.`,
     portalClause,
     `Reply STOP to cancel or call 866-268-0111.`,
   ].filter(Boolean).join(' ');
