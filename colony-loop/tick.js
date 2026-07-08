@@ -833,7 +833,11 @@ async function maybeEmitTimeSignals() {
     // tech-SMS channels per Teddy 2026-06-04 hardline policy).
     let techEodFired;
     try {
-      const fired = await xano.getJSON(`${xano.INTAKE ? xano.INTAKE() : ''}/get_action_fired_today?action=tech_eod_report_sent&since_ts_ms=${sinceMs}`).catch(() => null);
+      // BUG FIX (Teddy 2026-07-07): this checked 'tech_eod_report_sent' but the emit
+      // below records 'tech_eod_report_emitted' — the marker written and the marker
+      // checked never matched, so the EOD re-emitted EVERY tick for 3 hours (~182x =
+      // the "1,300 texts a day" storm). Check the marker we actually write.
+      const fired = await xano.getJSON(`${xano.INTAKE ? xano.INTAKE() : ''}/get_action_fired_today?action=tech_eod_report_emitted&since_ts_ms=${sinceMs}`).catch(() => null);
       techEodFired = fired && fired.fired === true;
     } catch (_e) { techEodFired = false; }
     if (!techEodFired) {

@@ -555,6 +555,24 @@ export async function sendSms(to, message, context = {}) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
     return { success: true, dry_run: true };
   }
+  // ── INTERNAL SMS CUTOFF (Teddy 2026-07-07: "the only text I need is Teddy Tool
+  // links; I don't know why we'd text the technicians"). The team lives in the app
+  // (tech dashboard + office board + web push), so every INTERNAL-direction text
+  // (tech / owner / office / Danielle) is DROPPED here — except two things:
+  //   1. context.force_send  — genuine emergencies (e.g. the SMS breaker alert)
+  //   2. a Teddy Tool pre-diagnosis link  — the one text Teddy wants
+  // Suppressed alerts are logged (and the helpers already fire a free web push), so
+  // nothing is lost — it just stops blowing up phones. Flip INTERNAL_SMS_ENABLED=true
+  // to restore internal texting, or force_send a specific critical alert.
+  const _role = String((context && context.recipient_role) || '').toLowerCase();
+  const _isInternal = /owner|tech|warranty_handler|office|danielle/.test(_role);
+  const _isTeddyToolLink = /teddy-tdr-tool/i.test(String(message || ''));
+  const _internalOn = String(process.env.INTERNAL_SMS_ENABLED || '').toLowerCase() === 'true';
+  if (_isInternal && !context.force_send && !_isTeddyToolLink && !_internalOn) {
+    logLocal('internal_sms_suppressed', { role: _role, tag: (context.action || context.context_tag || ''), body_preview: String(message || '').slice(0, 120) });
+    try { await recordEventLog('internal_sms_suppressed', { role: _role, tag: (context.action || context.context_tag || ''), body_preview: String(message || '').slice(0, 200), at_ms: Date.now() }); } catch (_) {}
+    return { success: false, internal_suppressed: true, role: _role };
+  }
   // Launch spam-control: drop muted customer-direction texts (local-log only).
   const _muted = _customerSmsMuted(context);
   if (_muted) {
