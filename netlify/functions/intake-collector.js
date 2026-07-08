@@ -39,6 +39,13 @@ function warrantyTouch(n, cust, appl, link) {
   }
   return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, at minimum we just need your availability — what days work best for you, and any that don't? Reply right here, or tap ${link}. Thank you!`;
 }
+// ALREADY-SCHEDULED customers get a SINGLE gentle, optional message — never the
+// "second notice / get you on the schedule / send your availability" nag, which
+// enrages someone who's already booked (Troy Faunce + Sherri Schmerda, 2026-07-08).
+// It acknowledges they're set and frames the video as optional + "already sent = you're good".
+function scheduledTouch(cust, appl, link) {
+  return `Hi ${cust} — TN Appliance Exchange 🐜. You're all set — your ${appl} repair is on the schedule. Totally optional: if you tap ${link} and add a quick 10-second video + a photo of the model-number sticker, your tech can bring the exact part and fix it in one trip. Already sent it? You're good, no need to resend. See you soon!`;
+}
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained
 // safely by the per-run rate limit + one-text dedup. Set the env to cap if ever
@@ -129,6 +136,7 @@ exports.handler = async function (event) {
     seen.add(id);
     j.customer_first = j.customer_first || j.customer_first_name || '';
     j.appliance = j.appliance || j.appliance_type || '';
+    j._sched = (kind === 'sched');   // already booked → gentle optional copy, not the nag
     items.push(j);
     if (kind === 'sched') sched_added++; else unsched_added++;
   };
@@ -227,7 +235,7 @@ exports.handler = async function (event) {
     }
   } catch (_) { /* fail open — per-job availability_requested cap still guards */ }
 
-  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0;
+  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0;
   const done = [];
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
@@ -244,11 +252,20 @@ exports.handler = async function (event) {
     // TOTAL touches so far = collector's own asks + the loop's greeting/nudges.
     const loopInfo = loopIntakeByJob[String(id)] || { n: 0, lastMs: 0 };
     const priorIntake = asks.length + loopInfo.n;
-    // Warranty = 3-touch escalation (pitch -> second notice -> minimum availability);
-    // cash = 2. (Teddy 2026-07-07.)
+    // Already-scheduled jobs: ONE gentle optional touch, never the escalating nag.
+    // Warranty (unscheduled) = 3-touch escalation; cash (unscheduled) = 2. (Teddy 2026-07-07.)
+    const isScheduled = !!j._sched;
     const isW = linkFor(j, id).isW;
-    const capN = isW ? WARRANTY_TOUCHES : CASH_TOUCHES;
+    const capN = isScheduled ? 1 : (isW ? WARRANTY_TOUCHES : CASH_TOUCHES);
     if (priorIntake >= capN) { skipped_dupe++; continue; }
+    // Never nag a BOOKED customer for media they may already have sent (Troy said
+    // "That has already been provided"). If a photo/video is on file, skip entirely.
+    if (isScheduled) {
+      try {
+        const st = await jget(`${XANO}/get_unified_tdr_status?job_id=${id}`, 7000);
+        if (st && (st.has_photo || Number(st.attachments_count || 0) > 0)) { skipped_has_media++; continue; }
+      } catch (_) { /* fail open — the copy is optional/gentle anyway */ }
+    }
     // Space the touches out — never blow them up. One per RESEND_AFTER_MS, measured from
     // the LAST intake we sent (greeting OR a prior collector touch), whichever is newest.
     if (priorIntake >= 1) {
@@ -281,12 +298,14 @@ exports.handler = async function (event) {
     // Escalating warranty sequence by how many touches they've already had (priorIntake):
     //   0 -> intake pitch, 1 -> "second notice, help us help you", 2 -> minimum availability.
     // Cash keeps its single light message. (Teddy 2026-07-07.)
-    const msg = isW
-      ? warrantyTouch(priorIntake, cust, appl, vlink)
-      : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`;
+    const msg = isScheduled
+      ? scheduledTouch(cust, appl, vlink)
+      : (isW
+        ? warrantyTouch(priorIntake, cust, appl, vlink)
+        : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${vlink} — takes 2 minutes: a 10-second video, a photo of the model sticker (so your tech rolls up with the right part), and tap the days that work for you. That's it — thank you!`);
 
     let okSend = false;
-    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: 'intake_collect_light' }); okSend = !!(r && r.success); } catch (_) {}
+    try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: isScheduled ? 'intake_scheduled_optional' : 'intake_collect_light' }); okSend = !!(r && r.success); } catch (_) {}
     if (okSend) {
       sent++; done.push(id);
       try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
@@ -296,5 +315,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };

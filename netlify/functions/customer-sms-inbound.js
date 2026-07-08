@@ -522,13 +522,25 @@ exports.handler = async function (event) {
         availRescued = true;
         console.log('[customer-sms-inbound] availability rescued onto job', jid);
         try { await crud.logEvent('availability_rescued', { job_id: jid, phone: String(parsed.from).slice(-4), body: String(parsed.body).slice(0, 120), at_ms: Date.now() }); } catch (_) {}
-        // Warm ack that ALSO hands them their REAL deep link (job-keyed warranty-intake),
-        // not a bare domain — so the video + model photo actually lands on their job.
+        // Warm ack. TWO guards (Troy Faunce + Sherri Schmerda got enraged 2026-07-08):
+        //   1) DEDUP per job — a furious customer fires several replies; ack ONCE, not each.
+        //   2) DON'T re-ask for media already on file — if a photo/video is on the job,
+        //      send a reassuring "you're all set" instead of "send a video" (Troy: "That
+        //      has already been provided.").
         try {
-          const link = 'https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jid;
-          const ack = "Got it — thank you! We've noted that. One quick thing so your tech rolls up with the right part: tap to send a 10-sec video + a photo of the model-# sticker — " + link + " — and we'll text to confirm your day. 🐜";
-          await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: parsed.from, message: ack, context_tag: 'availability_ack' }), signal: AbortSignal.timeout(9000) });
+          let ackAlready = false;
+          try { const dd = await crud.searchPage(crud.TABLES.event_log, { action: 'availability_ack_sent_' + jid }, { id: 'desc' }, 1); ackAlready = !!(dd && dd.length); } catch (_) {}
+          if (!ackAlready) {
+            let hasMedia = false;
+            try { const st = await (await fetch(`${XANO_BASE}/get_unified_tdr_status?job_id=${jid}`, { signal: AbortSignal.timeout(7000) })).json(); hasMedia = !!(st && (st.has_photo || Number(st.attachments_count || 0) > 0)); } catch (_) {}
+            const link = 'https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jid;
+            const ack = hasMedia
+              ? "Got it — thank you! You're all set. Nothing else needed on your end; we'll text a live arrival window the morning of your appointment. 🐜"
+              : "Got it — thank you! We've noted that. One quick thing so your tech rolls up with the right part: tap to send a 10-sec video + a photo of the model-# sticker — " + link + " — and we'll text to confirm your day. 🐜";
+            await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to: parsed.from, message: ack, context_tag: 'availability_ack' }), signal: AbortSignal.timeout(9000) });
+            try { await crud.logEvent('availability_ack_sent_' + jid, { phone: String(parsed.from).slice(-4), has_media: hasMedia, at_ms: Date.now() }); } catch (_) {}
+          }
         } catch (_) {}
         // Write the loop's new-lead dedup marker so it doesn't ALSO fire a bare-domain
         // reply after our ack (no double-text).
