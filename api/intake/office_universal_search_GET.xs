@@ -144,73 +144,16 @@ query office_universal_search verb=GET {
       }
     }
   
-    // Name search via first_name OR last_name LIKE - XS doesn't have ILIKE
-    // so we approximate with substring contains pattern through field-name LIKE
-    // (XS supports LIKE in where clause syntax: $db.tbl.col contains "x" via |contains)
-    // Practical XS: use db.query with field == value won't do substring. Use a
-    // broader pull + filter in foreach.
-    conditional {
-      if (!$is_phone_query) {
-        db.query customer {
-          sort = {customer.id: "desc"}
-          return = {type: "list", paging: {page: 1, per_page: 1000}}
-        } as $all_cust_rows
-      
-        var $needle {
-          value = $q_lower
-        }
-      
-        foreach ($all_cust_rows.items) {
-          each as $c {
-            var $c_first_lower {
-              value = (($c.first_name ?? "")|lower)
-            }
-          
-            var $c_last_lower {
-              value = (($c.last_name ?? "")|lower)
-            }
-          
-            var $c_addr_lower {
-              value = (($c.address ?? "")|lower)
-            }
-          
-            var $c_city_lower {
-              value = (($c.city ?? "")|lower)
-            }
-          
-            var $combined {
-              value = ($c_first_lower ~ " " ~ $c_last_lower ~ " " ~ $c_addr_lower ~ " " ~ $c_city_lower)
-            }
-          
-            var $strip {
-              value = $combined|replace:$needle:""
-            }
-          
-            var $combined_len {
-              value = $combined|strlen
-            }
-          
-            var $strip_len {
-              value = $strip|strlen
-            }
-          
-            conditional {
-              if ($combined_len > $strip_len) {
-                var.update $matched_customer_ids {
-                  value = $matched_customer_ids|push:$c.id
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  
-    // 2026-06-14 FIX: the JS-substring pass above only scans the 1000 NEWEST
-    // customers, so older customers came back "not found" by name (their WO #
-    // still found them). Add an UNCAPPED server-side exact match on first/last
-    // name tokens (same approach as search_customers), so name search reaches
-    // the whole table.
+    // 2026-07-08 SPEED FIX (Teddy): the office search was running ~7-8s on every
+    // name lookup. The culprit was a 1000-row customer pull + in-script substring
+    // scan that ran on EVERY name query. Now the FAST indexed passes run first
+    // (exact first/last name + WO# - both hit an index, uncapped across the whole
+    // table), and the slow substring scan only runs as a LAST RESORT when those
+    // found nothing (a real partial like "ruck", or an address-only search).
+    // Result: exact name / last name / phone / WO# come back instantly.
+
+    // Indexed exact-name match FIRST. Xano == is case-sensitive; names are stored
+    // Title Case, so title-case the lowered tokens ("sherri rucker" -> Sherri / Rucker).
     conditional {
       if (!$is_phone_query) {
         var $name_tokens {
@@ -222,8 +165,6 @@ query office_universal_search verb=GET {
         var $tok1_raw {
           value = (($name_tokens|count) > 1 ? (($name_tokens|get:1)|trim) : $tok0_raw)
         }
-        // Xano == is case-sensitive; names are stored Title Case. Title-case the
-        // lowered tokens so "sherri rucker" matches "Sherri" / "Rucker".
         var $tok0 {
           value = (($tok0_raw|substr:0:1|to_upper) ~ ($tok0_raw|substr:1))
         }
@@ -249,9 +190,8 @@ query office_universal_search verb=GET {
       }
     }
 
-    // 2026-06-02 NEW: WO# search. Hits jobs.claim_number, dispatch_source_id,
-    // housecall_pro_job_id, job_number - adds the customer_id of any match
-    // to the matched set. Danielle's most-common search pattern.
+    // WO# search. Hits jobs.claim_number, dispatch_source_id, housecall_pro_job_id,
+    // job_number - adds the customer_id of any match. Danielle's most-common search.
     conditional {
       if ($is_wo_query) {
         db.query jobs {
@@ -266,6 +206,71 @@ query office_universal_search verb=GET {
               if (($woj.customer_id ?? 0) > 0) {
                 var.update $matched_customer_ids {
                   value = $matched_customer_ids|push:$woj.customer_id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // FALLBACK substring scan - runs ONLY when the fast passes above found nothing
+    // (a partial name like "ruck", or an address-only search). This is the slow
+    // in-script loop, so gating it behind "nothing matched yet" is what fixes the
+    // office-search lag for the everyday searches.
+    var $pre_scan_count {
+      value = ($matched_customer_ids|count)
+    }
+
+    conditional {
+      if (!$is_phone_query && $pre_scan_count == 0) {
+        db.query customer {
+          sort = {customer.id: "desc"}
+          return = {type: "list", paging: {page: 1, per_page: 1000}}
+        } as $all_cust_rows
+
+        var $needle {
+          value = $q_lower
+        }
+
+        foreach ($all_cust_rows.items) {
+          each as $c {
+            var $c_first_lower {
+              value = (($c.first_name ?? "")|lower)
+            }
+
+            var $c_last_lower {
+              value = (($c.last_name ?? "")|lower)
+            }
+
+            var $c_addr_lower {
+              value = (($c.address ?? "")|lower)
+            }
+
+            var $c_city_lower {
+              value = (($c.city ?? "")|lower)
+            }
+
+            var $combined {
+              value = ($c_first_lower ~ " " ~ $c_last_lower ~ " " ~ $c_addr_lower ~ " " ~ $c_city_lower)
+            }
+
+            var $strip {
+              value = $combined|replace:$needle:""
+            }
+
+            var $combined_len {
+              value = $combined|strlen
+            }
+
+            var $strip_len {
+              value = $strip|strlen
+            }
+
+            conditional {
+              if ($combined_len > $strip_len) {
+                var.update $matched_customer_ids {
+                  value = $matched_customer_ids|push:$c.id
                 }
               }
             }
