@@ -46,7 +46,10 @@ exports.handler = async function (event) {
   if (!(await claims.isConfigured())) return json(200, { ok: false, error: 'ServicePower creds not in vault' });
 
   const dry = q.dryrun === '1';
-  const live = String(process.env.SP_CLAIM_AUTOSUBMIT_LIVE || '').toLowerCase() === 'true' && !dry;
+  // getSecret is env-first then vault, so the flag can live in admin-secrets.html (no
+  // Netlify redeploy, dodges the 4KB env wall) OR stay as a Netlify env var. Same place
+  // as SERVICEPOWER_PUSH_LIVE, so both go-live switches sit together.
+  const live = String((await getSecret('SP_CLAIM_AUTOSUBMIT_LIVE')) || '').toLowerCase() === 'true' && !dry;
 
   // 1) recently-completed jobs — repair_complete only (a parts-needed stop isn't done,
   //    so its claim isn't ready). Newest unique job_ids.

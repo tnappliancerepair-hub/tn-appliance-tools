@@ -10,6 +10,7 @@
 // tip it into a gateway timeout (was hitting ~11s and failing to load).
 exports.config = { timeout: 26 };
 
+const { getSecret } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'cache-control': 'no-store' }, body: JSON.stringify(b) }; }
 function mdOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
@@ -98,7 +99,7 @@ exports.handler = async function () {
 
     return json(200, {
       ok: true,
-      auto_live: String(process.env.SP_CLAIM_AUTOSUBMIT_LIVE || '').toLowerCase() === 'true',
+      auto_live: String((await getSecret('SP_CLAIM_AUTOSUBMIT_LIVE')) || '').toLowerCase() === 'true',
       counts,
       items,
     });
