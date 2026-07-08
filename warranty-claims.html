@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>📦 Warranty Claims — Ant</title>
+<style>
+  :root{--bg:#0b1017;--panel:#131a26;--line:#20293a;--ink:#e8ecf4;--muted:#8a93a8;
+    --green:#00d68f;--gold:#ffcb45;--red:#ff5b7f;--blue:#5aa9ff;--mono:'SF Mono',ui-monospace,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,system-ui,sans-serif;padding:16px 13px 40px}
+  .wrap{max-width:660px;margin:0 auto}
+  h1{font-size:23px;font-weight:900;margin:2px 0 3px;text-align:center}
+  .sub{text-align:center;color:var(--muted);font-size:12px;font-family:var(--mono);margin-bottom:14px}
+  .autopill{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;font-family:var(--mono)}
+  .auto-on{background:rgba(0,214,143,0.18);color:var(--green);border:1px solid rgba(0,214,143,0.5)}
+  .auto-off{background:rgba(245,166,35,0.16);color:var(--gold);border:1px solid rgba(245,166,35,0.45)}
+  .stats{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:0 0 18px}
+  .stat{flex:1;min-width:88px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:11px 8px;text-align:center}
+  .stat .n{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .stat .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:700;margin-top:2px}
+  .sec{margin-bottom:20px}
+  .sec h2{font-size:14px;font-weight:900;margin:0 0 9px;display:flex;align-items:center;gap:8px}
+  .sec h2 .c{margin-left:auto;font-size:12px;color:var(--muted);font-family:var(--mono)}
+  .item{display:flex;align-items:center;gap:11px;padding:12px 13px;background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-bottom:8px;text-decoration:none;color:var(--ink)}
+  .item .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  .item .body{flex:1;min-width:0}
+  .item .nm{font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .meta{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .right{font-size:12px;font-weight:800;font-family:var(--mono);text-align:right;flex:0 0 auto}
+  .blk{color:var(--gold)}
+  .badge{font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px;font-family:var(--mono)}
+  .b-block{background:rgba(255,203,69,0.15);color:var(--gold)}
+  .b-ready{background:rgba(0,214,143,0.15);color:var(--green)}
+  .b-filed{background:rgba(90,169,255,0.15);color:var(--blue)}
+  .b-paid{background:rgba(0,214,143,0.2);color:var(--green)}
+  .b-rej{background:rgba(255,91,127,0.15);color:var(--red)}
+  .empty{color:var(--muted);font-size:12px;text-align:center;padding:10px;font-style:italic}
+  .loading{text-align:center;color:var(--muted);padding:40px;font-family:var(--mono)}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
+  .foot a{color:var(--blue);text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📦 Warranty Claims</h1>
+  <div class="sub" id="sub">the claim files itself when the report's complete</div>
+  <div id="board"><div class="loading">Loading the pipeline…</div></div>
+  <div class="foot"><a href="warranty-review.html">Warranty review</a> · <a href="office-board.html">Board</a></div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const TECH_Q = new URLSearchParams(location.search);
+
+  const DOT = { blocked: 'var(--gold)', ready: 'var(--green)', filed: 'var(--blue)', paid: 'var(--green)', rejected: 'var(--red)' };
+
+  function item(it) {
+    const url = 'teddy-tdr-tool.html?job_id=' + it.job_id;
+    let right = '';
+    if (it.state === 'paid') right = '<span class="badge b-paid">$' + Math.round(it.paid_total) + '</span>';
+    else if (it.state === 'rejected') right = '<span class="badge b-rej">' + esc(it.status_name || 'Rejected') + '</span>';
+    else if (it.state === 'filed') right = '<span class="badge b-filed">' + esc(it.status_name || 'Filed') + '</span>';
+    else if (it.state === 'ready') right = '<span class="badge b-ready">ready</span>';
+    else right = '<span class="badge b-block">needs a fix</span>';
+    let meta = esc(it.appliance || 'appliance');
+    if (it.claim_number) meta += ' · #' + esc(it.claim_number);
+    if (it.state === 'blocked' && it.blockers.length) meta = '<span class="blk">Missing: ' + esc(it.blockers.join(', ')) + '</span>';
+    return '<a class="item" href="' + url + '"><span class="dot" style="background:' + DOT[it.state] + '"></span>'
+      + '<span class="body"><span class="nm">' + esc(it.customer || ('Job #' + it.job_id)) + '</span><span class="meta">' + meta + '</span></span>'
+      + '<span class="right">' + right + '</span></a>';
+  }
+
+  function section(title, emoji, list, emptyMsg) {
+    let h = '<div class="sec"><h2>' + emoji + ' ' + title + '<span class="c">' + list.length + '</span></h2>';
+    h += list.length ? list.map(item).join('') : '<div class="empty">' + emptyMsg + '</div>';
+    return h + '</div>';
+  }
+
+  async function load() {
+    try {
+      const d = await fetch('/.netlify/functions/warranty-claims-board', { cache: 'no-store' }).then((r) => r.json());
+      if (!d || !d.ok) { $('board').innerHTML = '<div class="loading">Couldn\'t load — try again in a sec.</div>'; return; }
+      const items = d.items || [];
+      const by = (s) => items.filter((x) => x.state === s);
+      const c = d.counts || {};
+      const autoPill = d.auto_live
+        ? '<span class="autopill auto-on">● AUTO-FILE ON</span>'
+        : '<span class="autopill auto-off">○ shadow — review then flip on</span>';
+      $('sub').innerHTML = 'the claim files itself when the report\'s complete &nbsp; ' + autoPill;
+
+      let h = '<div class="stats">'
+        + '<div class="stat"><div class="n" style="color:var(--gold)">' + (c.blocked || 0) + '</div><div class="l">Needs fix</div></div>'
+        + '<div class="stat"><div class="n" style="color:var(--green)">' + (c.ready || 0) + '</div><div class="l">Ready</div></div>'
+        + '<div class="stat"><div class="n" style="color:var(--blue)">' + (c.filed || 0) + '</div><div class="l">Filed</div></div>'
+        + '<div class="stat"><div class="n" style="color:var(--green)">' + (c.paid || 0) + '</div><div class="l">Paid</div></div>'
+        + '</div>';
+
+      h += section('Needs a fix — finish the report, it auto-files', '🛠', by('blocked'), 'Nothing blocked — nice. 🐜');
+      h += section('Ready to file', '🟢', by('ready'), 'Nothing waiting.');
+      h += section('Filed — waiting on payment', '📤', by('filed'), 'None in flight.');
+      const done = by('paid').concat(by('rejected'));
+      h += section('Paid / closed', '💰', done, 'None yet.');
+      $('board').innerHTML = h;
+    } catch (_) {
+      $('board').innerHTML = '<div class="loading">Couldn\'t load — try again in a sec.</div>';
+    }
+  }
+  load();
+  setInterval(load, 60000);
+</script>
+</body>
+</html>

@@ -73,8 +73,12 @@ exports.handler = async function (event) {
     if (!live && lastShadow[jid] && (Date.now() - lastShadow[jid]) < SHADOW_COOLDOWN_MS) { skipped++; continue; }
 
     // SquareTrade only — resolve the vendor via job-truth (reliable warranty read).
-    let vendor = '';
-    try { const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${jid}&lens=office`, 8000); vendor = String((tr && tr.facts && tr.facts.warranty_company) || ''); } catch (_) {}
+    let vendor = '', custName = '', appliance = '', claimNo = '';
+    try {
+      const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${jid}&lens=office`, 8000);
+      const f = (tr && tr.facts) || {};
+      vendor = String(f.warranty_company || ''); custName = String(f.customer_name || f.customer_first || ''); appliance = String(f.appliance || ''); claimNo = String(f.claim_number || '');
+    } catch (_) {}
     if (!/square\s*trade|servicepower|service ?power/i.test(vendor)) { notSt++; continue; }
 
     // Run it through the per-job submitter (shadow, or live w/ confirm).
@@ -82,7 +86,7 @@ exports.handler = async function (event) {
     let rr = null;
     try { rr = await jget(url, 22000); } catch (e) { rr = { ok: false, error: String((e && e.message) || e) }; }
 
-    try { await crud.logEvent('sp_claim_autosubmit', { job_id: jid, mode: (rr && rr.mode) || (live ? 'live' : 'shadow'), ok: !!(rr && rr.ok), vendor, blockers: (rr && rr.blockers) || [], at_ms: Date.now() }); } catch (_) {}
+    try { await crud.logEvent('sp_claim_autosubmit', { job_id: jid, mode: (rr && rr.mode) || (live ? 'live' : 'shadow'), ok: !!(rr && rr.ok), vendor, customer: custName, appliance, claim_number: claimNo, blockers: (rr && rr.blockers) || [], response_code: (rr && rr.response_code) || '', at_ms: Date.now() }); } catch (_) {}
 
     if (rr && rr.mode === 'live' && rr.ok) filed++;
     else if (!live || (rr && rr.mode !== 'live')) shadowed++;
