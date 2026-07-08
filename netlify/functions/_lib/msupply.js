@@ -164,7 +164,12 @@ async function placeOrder({ custNo, shipTo, items, shippingMethod, poNumber, not
     shippingMethod: shippingMethod || undefined,
     shipTo, eP_InternalNotes: notes || undefined,
     purchaseOrderItems: (items || []).map((i) => ({
-      make: i.make, partNumber: i.partNumber, quantity: Number(i.quantity) || 1, reference: i.reference,
+      make: i.make, partNumber: i.partNumber, quantity: Number(i.quantity) || 1,
+      // Route to the resolved in-stock branch — without this the PO defaults to the
+      // account's home warehouse (901 Nashville), which fails for non-stock parts /
+      // unsupported ship methods (Philip Widener control board, 2026-07-08).
+      warehouseNumber: i.warehouseNumber ? Number(i.warehouseNumber) : undefined,
+      reference: i.reference,
     })),
   });
 }
