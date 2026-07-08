@@ -72,6 +72,21 @@ exports.handler = async function () {
       });
     }
 
+    // Names/appliances land on the marker going forward (the enriched sweep). For any
+    // older marker still missing them, resolve via job-truth once — bounded so the board
+    // stays cheap. Danielle's worklist should read as customer names, not "Job #".
+    const SITE = 'https://tnapplianceexchange.net';
+    const needName = items.filter((it) => !it.customer).slice(0, 12);
+    await Promise.all(needName.map(async (it) => {
+      try {
+        const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${it.job_id}&lens=office`);
+        const f = (tr && tr.facts) || {};
+        it.customer = f.customer_name || f.customer_first || it.customer;
+        it.appliance = it.appliance || f.appliance || '';
+        if (!it.claim_number && f.claim_number) it.claim_number = String(f.claim_number);
+      } catch (_) {}
+    }));
+
     const order = { blocked: 0, ready: 1, filed: 2, rejected: 3, paid: 4 };
     items.sort((x, y) => (order[x.state] - order[y.state]) || (y.updated_ms - x.updated_ms));
     const counts = {};
