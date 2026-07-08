@@ -25,10 +25,23 @@ function spCallNumber(job) {
   return m ? m[1] : '';
 }
 
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+async function verifyOffice(password) {
+  if (!password) return false;
+  try {
+    const r = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) });
+    const d = await r.json().catch(() => ({})); return !!(d && (d.valid || d.success || d.ok));
+  } catch (_) { return false; }
+}
+
 exports.handler = async function (event) {
-  const q = event.queryStringParameters || {};
+  // Accept GET (?…) or POST ({…}) so the one-tap office button can call it.
+  const q = { ...(event.queryStringParameters || {}) };
+  if (event.httpMethod === 'POST') { try { Object.assign(q, JSON.parse(event.body || '{}')); } catch (_) {} }
+  // Auth: admin secret OR office password (so the office button works without a secret in the page).
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (String(q.secret || '') !== admin) return j(401, { ok: false, error: 'bad secret' });
+  const authed = String(q.secret || '') === admin || (await verifyOffice(q.password));
+  if (!authed) return j(401, { ok: false, error: 'bad secret / office password' });
   if (!(await sp.isConfigured())) return j(200, { ok: false, error: 'ServicePower creds not in vault' });
 
   let callNumber = String(q.call || q.call_number || '').replace(/\D/g, '');
@@ -36,7 +49,7 @@ exports.handler = async function (event) {
   if (!callNumber && q.job_id) {
     try { const job = await crud.searchOne(crud.TABLES.jobs, { id: Number(q.job_id) }) || {}; callNumber = spCallNumber(job); } catch (_) {}
   }
-  if (!callNumber) return j(400, { ok: false, error: 'pass ?call=<callNumber> or ?job_id=<id> with a ServicePower dispatch' });
+  if (!callNumber) return j(400, { ok: false, error: 'pass call=<callNumber> or job_id=<id> with a ServicePower dispatch' });
 
   // Resolve FSSCallId + MfgId from the dispatch board (some detail ops need them).
   let fssCallId = String(q.fss || '');
@@ -72,8 +85,20 @@ exports.handler = async function (event) {
     }
   }
 
-  const wantRaw = q.raw === '1';
+  const wantRaw = q.raw === '1' || q.raw === true;
   const pack = (r) => ({ ok: !!(r && r.ok), error: r && r.error, ack: r && r.ack, err_code: r && r.err_code, err_desc: r && r.err_desc, raw: wantRaw ? (r && r.raw || '').slice(0, 12000) : undefined });
+
+  // Log the result (incl. raw bodies) so Claude can read what ServicePower returned
+  // WITHOUT the office needing to copy/paste anything back.
+  try {
+    await crud.logEvent('servicepower_call_detail_probe', {
+      call_number: callNumber, job_id: Number(q.job_id || 0) || null, parts_found: parts.length, parts,
+      raw_attributes: ((attrs && attrs.raw) || '').slice(0, 8000),
+      raw_notes: ((notes && notes.raw) || '').slice(0, 8000),
+      raw_info: ((info && info.raw) || '').slice(0, 6000),
+      at_ms: Date.now(),
+    });
+  } catch (_) {}
 
   return j(200, {
     ok: true,

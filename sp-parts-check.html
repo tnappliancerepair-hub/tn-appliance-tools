@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Check parts from ServicePower</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #0e1118; color: #e6e9f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 20px 16px 60px; line-height: 1.45;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 4px 0 6px; }
+  .sub { color: #8a92a6; font-size: 13px; margin-bottom: 20px; }
+  label { display: block; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #7bb8ff; margin: 16px 0 6px; }
+  input {
+    width: 100%; background: #161b26; border: 1px solid #2a3140; border-radius: 11px;
+    color: #fff; padding: 14px 15px; font-size: 17px; outline: none;
+  }
+  input:focus { border-color: #5aa9ff; }
+  button {
+    width: 100%; margin-top: 18px; background: #1f6fed; color: #fff; border: 0;
+    border-radius: 12px; padding: 16px; font-size: 17px; font-weight: 800; cursor: pointer;
+  }
+  button:active { transform: scale(.98); }
+  button:disabled { opacity: .5; }
+  .card { background: #141926; border: 1px solid #232a3a; border-radius: 14px; padding: 16px; margin-top: 22px; }
+  .ok { color: #4ad991; } .warn { color: #f5a623; } .bad { color: #ff8a8a; }
+  .part { background: #0f1420; border: 1px solid #252b3a; border-radius: 10px; padding: 11px 13px; margin-top: 8px; font-size: 15px; font-weight: 700; }
+  .part small { display: block; color: #8a92a6; font-weight: 500; font-size: 12px; margin-top: 3px; }
+  .msg { padding: 13px 15px; border-radius: 11px; font-weight: 700; font-size: 14px; margin-top: 16px; }
+  .note { color: #8a92a6; font-size: 12.5px; margin-top: 14px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍 Check parts from ServicePower</h1>
+  <div class="sub">Pulls what SquareTrade actually has on record for a job — so we can match it against what the tech marks used / returned. Read-only, changes nothing.</div>
+
+  <label for="job">SquareTrade job number (or dispatch #)</label>
+  <input id="job" inputmode="numeric" placeholder="e.g. 20209" autocomplete="off">
+  <button id="go" onclick="run()">Check ServicePower</button>
+
+  <div id="out"></div>
+
+  <div class="note">Tap Check, then just tell Claude the job number — he reads the result automatically, no copy/paste. First use will ask for the office password once.</div>
+</div>
+
+<script>
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+function pw() {
+  let p = sessionStorage.getItem('sp_office_pw') || '';
+  if (!p) { p = window.prompt('Office password:') || ''; if (p) sessionStorage.setItem('sp_office_pw', p); }
+  return p;
+}
+async function run() {
+  const job = String(document.getElementById('job').value || '').replace(/\D/g, '');
+  const out = document.getElementById('out');
+  if (!job) { out.innerHTML = '<div class="msg bad">Type a job or dispatch number first.</div>'; return; }
+  const password = pw();
+  if (!password) { out.innerHTML = '<div class="msg bad">Need the office password to check.</div>'; return; }
+  const btn = document.getElementById('go'); btn.disabled = true; btn.textContent = 'Checking ServicePower…';
+  out.innerHTML = '<div class="msg" style="background:#132033;color:#8fc0ff">⏳ Asking ServicePower…</div>';
+  try {
+    // Try as a job_id first; if it can't resolve a dispatch, retry treating the number as the call#.
+    let d = await hit({ job_id: job, password });
+    if (d && !d.ok && /dispatch/i.test(d.error || '')) d = await hit({ call: job, password });
+    if (!d) throw new Error('no response');
+    if (d.error && /password/i.test(d.error)) { sessionStorage.removeItem('sp_office_pw'); throw new Error('Office password was wrong — tap Check again.'); }
+    render(d);
+  } catch (e) {
+    out.innerHTML = '<div class="msg bad">' + (e && e.message ? e.message : 'Could not reach ServicePower — try again.') + '</div>';
+  } finally { btn.disabled = false; btn.textContent = 'Check ServicePower'; }
+}
+async function hit(body) {
+  const r = await fetch('/.netlify/functions/servicepower-call-detail', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  return r.json();
+}
+function render(d) {
+  const out = document.getElementById('out');
+  if (!d.ok) { out.innerHTML = '<div class="msg bad">' + (d.error || 'ServicePower returned nothing') + '</div>'; return; }
+  let h = '<div class="card">';
+  h += '<div style="font-weight:800;margin-bottom:4px">Dispatch ' + esc(d.call_number || '') + '</div>';
+  if ((d.parts || []).length) {
+    h += '<div class="ok" style="font-weight:800;margin:8px 0 2px">✅ ' + d.parts.length + ' part(s) on record:</div>';
+    d.parts.forEach(function (p) {
+      h += '<div class="part">📦 ' + esc(p.part || '(no #)') + (p.quantity ? ' ×' + esc(p.quantity) : '')
+        + (p.description ? '<small>' + esc(p.description) + '</small>' : '')
+        + (p.return_flag ? '<small>return: ' + esc(p.return_flag) + '</small>' : '') + '</div>';
+    });
+    h += '<div class="msg" style="background:#12261a;color:#4ad991;margin-top:14px">Got it. Tell Claude "' + esc(d.call_number || '') + ' checked" and he\'ll wire these in.</div>';
+  } else {
+    h += '<div class="warn" style="font-weight:800;margin:8px 0">No parts matched the usual format.</div>';
+    h += '<div class="msg" style="background:#2a2312;color:#f5c266">That\'s fine — Claude logged the full ServicePower response and can read the exact format from it. Just tell him "' + esc(d.call_number || '') + ' checked".</div>';
+  }
+  h += '</div>';
+  out.innerHTML = h;
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+document.getElementById('job').addEventListener('keydown', function (e) { if (e.key === 'Enter') run(); });
+</script>
+</body>
+</html>
