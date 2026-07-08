@@ -29,13 +29,31 @@
   // Tech vs Ant 🐜 (Stage 1): antGuess undefined=unfetched, null=no confident call, obj=call.
   var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false;
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
+  // SIMPLE TDR (Teddy 2026-07-07): strip it to the essentials. Customer complaint
+  // (auto from intake, shown above), what failed, the part(s) (name + number in ONE
+  // box, multiple allowed), whether it's fixed, and labor. No photos/signature on the
+  // TDR (those flow into the system on their own).
   var FIELD_META = {
-    diagnosis:        { label: 'Diagnosis',        col: 'diagnosis',        multiline: true,  ph: 'What is wrong with it?' },
-    failed_component: { label: 'Failed Component', col: 'failed_component', multiline: false, ph: 'Which part failed?' },
-    labor_hours:      { label: 'Labor Hours',      col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
-    repair_completed: { label: 'Repair Done',      col: 'repair_completed', multiline: true,  ph: 'What did you do to fix it?' },
-    parts_needed:     { label: 'Parts Used',       col: 'parts_needed',     multiline: true,  ph: 'Parts swapped in (or "none")' },
+    diagnosis:        { label: 'What failed',   col: 'diagnosis',        multiline: true,  ph: 'What went wrong / what failed?' },
+    parts_needed:     { label: 'Part(s) used',  col: 'parts_needed',     multiline: true,  ph: 'Part name + number', parts: true },
+    repair_completed: { label: 'Job status',    col: 'repair_completed', multiline: true,  ph: 'Complete, or second trip needed?', outcome: true },
+    labor_hours:      { label: 'Labor hours',   col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
   };
+  // The two outcome choices for the Job-status field.
+  var OUTCOME_COMPLETE = 'Job complete';
+  var OUTCOME_SECOND_TRIP = 'Needs a second trip';
+
+  // 🔩 FIND THE PART (Teddy 2026-07-07: "might be the best tool we've got"). Preload the
+  // model # and open a search on each parts site so the tech can quickly confirm the
+  // real part number across a few sources. URLs ending in "=" get the query appended.
+  var PART_SOURCES = [
+    { name: 'Sears PartsDirect', url: 'https://www.searspartsdirect.com/search?q=' },
+    { name: 'AppliancePartsPros', url: 'https://www.appliancepartspros.com/search.aspx?model=' },
+    { name: 'RepairClinic', url: 'https://www.repairclinic.com/Shop-For-Parts?query=' },
+    { name: 'Encompass', url: 'https://www.encompass.com/search?q=' },
+    { name: 'PartSelect', url: 'https://www.partselect.com/Search.aspx?SearchTerm=' },
+    { name: 'Marcone (sign in)', url: 'https://my.marcone.com' },
+  ];
 
   // ── Boot ───────────────────────────────────────────────────────────
   function init() {
@@ -184,11 +202,25 @@
       }
       return;
     }
-    if (pctEl) pctEl.textContent = Math.round(d.readiness_pct || 0) + '%';
+    // Progress is over the SIMPLE TDR fields only (Teddy 2026-07-07) — what failed,
+    // part(s), job status, labor. Photos/signature aren't on the TDR, and empty extra
+    // part boxes never count (only a saved part value marks parts filled), so nothing
+    // drags the % down for the tech.
+    var pct = simpleTdrPct(d);
+    if (pctEl) pctEl.textContent = pct + '%';
     if (btn) {
-      if (d.readiness_pct >= 100) btn.classList.add('ready');
+      if (pct >= 100) btn.classList.add('ready');
       else btn.classList.remove('ready');
     }
+  }
+
+  // % complete over the four essential TDR fields the tech fills.
+  function simpleTdrPct(d) {
+    var fields = (d && d.fields) || {};
+    var keys = ['diagnosis', 'parts_needed', 'repair_completed', 'labor_hours'];
+    var filled = 0;
+    keys.forEach(function (k) { if ((fields[k] || {}).filled) filled += 1; });
+    return Math.round((filled / keys.length) * 100);
   }
 
   function renderModal(d) {
@@ -208,19 +240,19 @@
     var _os = document.getElementById('ant-tdr-oneshot');
     if (_os && (document.activeElement === _os || String(_os.value || '').trim())) return;
     var fields = d.fields || {};
-    var pct = d.readiness_pct || 0;
+    // % over the SIMPLE TDR fields only (matches the FAB) — photos/signature aren't on
+    // the TDR and empty part boxes never count. (Teddy 2026-07-07.)
+    var pct = simpleTdrPct(d);
     var ready = pct >= 100;
     var customerSafe = false;
     var blockingText = buildBlockingText(d);
 
     var fieldOrder = [
-      {key: 'diagnosis',        label: 'Diagnosis',        icon: '🔍', prompt: 'Tell Ant what\'s wrong'},
-      {key: 'failed_component', label: 'Failed Component', icon: '⚙️', prompt: 'Which part failed?'},
-      {key: 'labor_hours',      label: 'Labor Hours',      icon: '⏱️', prompt: 'Total time on the job'},
-      {key: 'repair_completed', label: 'Repair Done',      icon: '🔧', prompt: 'What did you do to fix it?'},
-      {key: 'parts_needed',     label: 'Parts Used',       icon: '📦', prompt: 'Parts swapped in (or "none")'},
+      {key: 'diagnosis',        label: 'What failed',  icon: '🔍', prompt: 'What went wrong / what failed?'},
+      {key: 'parts_needed',     label: 'Part(s) used', icon: '📦', prompt: 'Part name + number — add as many as you used'},
+      {key: 'repair_completed', label: 'Job status',   icon: '🔧', prompt: 'Complete, or second trip needed?'},
+      {key: 'labor_hours',      label: 'Labor hours',  icon: '⏱️', prompt: 'Total time on the job'},
     ];
-    var photoFilled = !!d.has_photo;
 
     var html = '';
     // Header
@@ -242,6 +274,9 @@
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
     html += buildCustomerToldUs(d);
+    // 🔩 FIND THE PART — the main tool for the tech: model # preloaded, one tap opens a
+    // search on each parts site to confirm the real part number. Above the TDR fields.
+    if (role === 'tech' || role === 'office') html += buildPartFinder(d);
     // ✨ ONE-SHOT fill — the simplest path: say/type (tech) or paste the tech's
     // notes (office) in ONE box, Ant fills all the fields below. Flips the tech
     // from author → editor (confirm a draft, don't type 5 boxes in a hot
@@ -258,66 +293,36 @@
     var canEdit = (role === 'tech' || role === 'office');
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
-      // parts_needed is a JSON column the server can't yet read back (silent-fail),
-      // so instead of a broken editor we make the row TAPPABLE to a helper that
-      // sends the part # to Failed Component (where it persists + shows). (Teddy 7/6)
       var isParts = (f.key === 'parts_needed');
-      var editable = canEdit && !!FIELD_META[f.key] && !isParts;
-      var partsTap = canEdit && isParts;
+      var isOutcome = !!(FIELD_META[f.key] && FIELD_META[f.key].outcome);
+      var editable = canEdit && !!FIELD_META[f.key];
       var cls = fState.filled ? 'filled' : 'empty';
       var icon = fState.filled ? '✅' : '⏳';
-      var onclick = editable ? ' style="cursor:pointer" onclick="window.__antTdrEdit(\'' + f.key + '\')"'
-        : (partsTap ? ' style="cursor:pointer" onclick="window.__antTdrPartsHelp()"' : '');
+      var editHandler = isParts ? 'window.__antTdrPartsEdit()'
+        : (isOutcome ? 'window.__antTdrOutcomeEdit()' : ('window.__antTdrEdit(\'' + f.key + '\')'));
+      var onclick = editable ? ' style="cursor:pointer" onclick="' + editHandler + '"' : '';
       html += '<div class="ant-tdr-field ' + cls + '"' + onclick + '>';
       html += '<div class="ant-tdr-field-icon">' + icon + '</div>';
       html += '<div class="ant-tdr-field-body">';
-      var hint = editable ? (fState.filled ? '✏️ edit' : '✏️ add') : (partsTap ? '✏️ add' : '');
+      var hint = editable ? (fState.filled ? '✏️ edit' : '✏️ add') : '';
       html += '<div class="ant-tdr-field-label">' + escapeHtml(f.label)
         + (hint ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">' + hint + '</span>' : '') + '</div>';
       if (fState.filled) {
-        html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
-      } else if (partsTap) {
-        html += '<div class="ant-tdr-field-empty-prompt">Tap — Ant adds the part # to Failed Component</div>';
+        if (isParts) {
+          // Show each part on its own line — name + number together, one per line.
+          var pl = splitParts(String(fState.value));
+          html += '<div class="ant-tdr-field-value">' + (pl.length ? pl.map(function (p) { return '📦 ' + escapeHtml(p); }).join('<br>') : escapeHtml(String(fState.value))) + '</div>';
+        } else {
+          html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
+        }
       } else {
         html += '<div class="ant-tdr-field-empty-prompt">' + escapeHtml(f.prompt) + '</div>';
       }
       html += '</div></div>';
     });
-    // Photo row — tappable for tech/office: tap to snap/add a photo right here
-    // (routes through /photo-upload, the reliable browser→Netlify→S3 hop). No
-    // jump to another page. (Teddy 7/6: "the pictures… unable to open + add.")
-    var photoIcon = photoFilled ? '✅' : '📷';
-    var photoCls = photoFilled ? 'filled' : 'empty';
-    html += '<div class="ant-tdr-field ' + photoCls + '"' + (canEdit ? ' style="cursor:pointer" onclick="window.__antTdrAddPhoto()"' : '') + '>';
-    html += '<div class="ant-tdr-field-icon">' + photoIcon + '</div>';
-    html += '<div class="ant-tdr-field-body">';
-    html += '<div class="ant-tdr-field-label">Photos'
-      + (canEdit ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">📷 ' + (photoFilled ? 'add more' : 'add') + '</span>' : '') + '</div>';
-    if (photoFilled) {
-      html += '<div class="ant-tdr-field-value">' + (d.attachments_count || 0) + ' on file — tap to add more</div>';
-    } else {
-      html += '<div class="ant-tdr-field-empty-prompt">Tap to snap or upload a photo (required for warranty)</div>';
-    }
-    html += '</div></div>';
-    // Signature row — tappable for tech: opens the sign page on the tech's phone
-    // to hand to the customer. (Teddy 7/6: make it openable.)
-    var sigFilled = !!d.has_signature;
-    var sigIcon = sigFilled ? '✅' : '✍️';
-    var sigCls = sigFilled ? 'filled' : 'empty';
-    var sigTap = canEdit;
-    html += '<div class="ant-tdr-field ' + sigCls + '"' + (sigTap ? ' style="cursor:pointer" onclick="window.__antTdrGetSignature()"' : '') + '>';
-    html += '<div class="ant-tdr-field-icon">' + sigIcon + '</div>';
-    html += '<div class="ant-tdr-field-body">';
-    html += '<div class="ant-tdr-field-label">Customer Signature'
-      + (sigTap ? '<span style="float:right;color:#7fa8d8;font-weight:700;letter-spacing:0">✍️ ' + (sigFilled ? 'redo' : 'get it') + '</span>' : '') + '</div>';
-    if (sigFilled) {
-      html += '<div class="ant-tdr-field-value">Signed on file — tap to re-sign</div>';
-    } else {
-      html += '<div class="ant-tdr-field-empty-prompt">Tap to hand the customer your phone to sign</div>';
-    }
-    html += '</div></div>';
-    // Hidden file input the Photos row triggers (reused across taps).
-    html += '<input type="file" id="ant-tdr-photo-input" accept="image/*" style="display:none" onchange="window.__antTdrPhotoPicked(this)">';
+    // Photos + signature are intentionally NOT on the TDR (Teddy 2026-07-07): they
+    // flow into the system on their own (media → database, signature → sign flow),
+    // so the TDR stays down to what the tech actually has to tell us.
     // Actions per role
     html += '<div class="ant-tdr-actions">';
     if (role === 'tech') {
@@ -493,6 +498,23 @@
   // The intake info the customer already gave us — shown at the top of the
   // internal (office/tech) TDR so nobody re-asks what's already on file, and
   // so the diagnosis has a starting point. Copy buttons on each field.
+  // 🔩 Find-the-part widget: model # preloaded, one tap per parts site.
+  function buildPartFinder(d) {
+    var x = d.submission_extras || {};
+    var model = (x.model_number || '').toString().trim();
+    var html = '';
+    html += '<div class="ant-tdr-field" style="flex-direction:column;align-items:stretch;gap:0;border-left:4px solid #6aa3ff;background:rgba(106,163,255,0.08)">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">🔩</span><span style="font-size:12px;font-weight:800;color:#8fc0ff;text-transform:uppercase;letter-spacing:0.05em">Find the part</span></div>';
+    html += '<div style="font-size:12px;color:#9aa3b7;margin-bottom:9px">' + (model ? 'Model # is loaded' : 'Type a model # or part #') + ' — tap a site to look it up.</div>';
+    html += '<input id="ant-tdr-partfind" type="text" value="' + escapeHtml(model) + '" placeholder="Model # or part #" style="' + PART_EDITOR_STYLE + ';margin-bottom:10px">';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    PART_SOURCES.forEach(function (s, i) {
+      html += '<button onclick="window.__antTdrFindPart(' + i + ')" style="flex:1 1 44%;min-width:44%;background:#16203a;color:#cfe0ff;border:1px solid #34507e;border-radius:10px;padding:12px 10px;font-size:13px;font-weight:800;cursor:pointer">🔍 ' + escapeHtml(s.name) + '</button>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
   function buildCustomerToldUs(d) {
     var x = d.submission_extras || {};
     var complaint = (x.problem_summary || '').toString().trim();
@@ -647,14 +669,14 @@
 
   function buildBlockingText(d) {
     var b = d.blocking || {};
+    // SIMPLE TDR (Teddy 2026-07-07): only these four can "block". Photos, signature and
+    // the old failed_component are no longer on the TDR, so even if the server still
+    // flags them we never surface them as missing.
     var labels = {
-      diagnosis: 'diagnosis',
-      failed_component: 'failed part',
+      diagnosis: 'what failed',
+      parts_needed: 'part(s)',
+      repair_completed: 'job status',
       labor_hours: 'labor hours',
-      repair_completed: 'repair description',
-      parts_needed: 'parts used',
-      photo: 'photo',
-      signature: 'signature',
     };
     var missing = [];
     for (var k in b) {
@@ -760,6 +782,10 @@
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
   }
+  // Split a saved parts value into individual parts (one per line, comma also ok).
+  function splitParts(s) {
+    return String(s == null ? '' : s).split(/[\n,]+/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length; });
+  }
 
   // ── Action handlers ────────────────────────────────────────────────
   window.__antTdrClose = closeModal;
@@ -843,12 +869,133 @@
     location.href = '/sign.html?job_id=' + jobId + (techId ? '&tech_id=' + techId : '');
   };
 
-  // ── Parts Used — the column can't persist yet (server fix pending), so
-  // route the part # to Failed Component where it DOES save + show. Honest,
-  // and it fills the field the warranty package actually reads. (Teddy 7/6)
-  window.__antTdrPartsHelp = function () {
-    alert('Parts Used is getting a fix. For now, add the part number in Failed Component — it saves there and rides the warranty submission.');
-    window.__antTdrEdit('failed_component');
+  var PART_EDITOR_STYLE = 'width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:12px;padding:13px 14px;font-size:16px;font-family:-apple-system,sans-serif;line-height:1.4;outline:none';
+
+  // 🔩 Find the part — open the chosen source's search with the entered model/part #.
+  window.__antTdrFindPart = function (i) {
+    var s = PART_SOURCES[i]; if (!s) return;
+    var el = document.getElementById('ant-tdr-partfind');
+    var q = el ? String(el.value || '').trim() : '';
+    var url = (s.url.slice(-1) === '=') ? (s.url + encodeURIComponent(q)) : s.url;
+    try { window.open(url, '_blank', 'noopener'); } catch (_) { location.href = url; }
+  };
+
+  // ── Part(s) used — MULTI-PART editor (Teddy 2026-07-07). One box per part, name +
+  // number together (e.g. "Ice maker assembly W10250000"). Add as many as the job
+  // needs; blank boxes are ignored, so they never count against completion. Saves the
+  // non-empty parts newline-joined into parts_needed.
+  window.__antTdrPartsEdit = function () {
+    if (!lastData) return;
+    if (role !== 'tech' && role !== 'office') return;
+    editKey = 'parts_needed';
+    var host = document.getElementById('ant-tdr-content'); if (!host) return;
+    var fields = lastData.fields || {};
+    var parts = splitParts(((fields.parts_needed || {}).value || '').toString());
+    if (!parts.length) parts = [''];
+    parts.push('');   // one spare empty box ready to fill
+    var html = '';
+    html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Part(s) used</div>';
+    html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
+    html += '<div style="display:flex;gap:8px;align-items:center;flex:0 0 auto">';
+    html += '<button class="ant-tdr-save-btn" onclick="window.__antTdrSaveParts()" style="background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap">✓ Save</button>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()" title="cancel — do not save">×</button>';
+    html += '</div></div>';
+    html += '<div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.4);color:#8fc0ff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px">📦 One box per part — name + number together. Add as many as you used; leave extras blank (blanks never count against you).</div>';
+    html += '<div id="ant-tdr-parts-rows" style="display:flex;flex-direction:column;gap:8px">';
+    parts.forEach(function (p) {
+      html += '<input class="ant-tdr-part-input" type="text" placeholder="Part name + number (e.g. Ice maker W10250000)" value="' + escapeHtml(p) + '" style="' + PART_EDITOR_STYLE + '">';
+    });
+    html += '</div>';
+    html += '<button onclick="window.__antTdrAddPartRow()" style="margin-top:10px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;width:100%">+ add another part</button>';
+    html += '<div class="ant-tdr-actions"><button class="ant-tdr-btn primary ant-tdr-save-btn" onclick="window.__antTdrSaveParts()" style="background:linear-gradient(135deg,#10b981,#047857)">✓ Save</button>';
+    html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrCancelEdit()">Cancel</button></div>';
+    host.innerHTML = html;
+    var first = host.querySelector('.ant-tdr-part-input');
+    if (first) { try { first.focus(); } catch (_) {} }
+  };
+  window.__antTdrAddPartRow = function () {
+    var rows = document.getElementById('ant-tdr-parts-rows'); if (!rows) return;
+    var inp = document.createElement('input');
+    inp.className = 'ant-tdr-part-input';
+    inp.type = 'text';
+    inp.placeholder = 'Part name + number (e.g. Ice maker W10250000)';
+    inp.setAttribute('style', PART_EDITOR_STYLE);
+    rows.appendChild(inp);
+    try { inp.focus(); } catch (_) {}
+  };
+  window.__antTdrSaveParts = async function () {
+    if (!lastData) return;
+    var inputs = document.querySelectorAll('.ant-tdr-part-input');
+    var vals = [];
+    inputs.forEach(function (i) {
+      var v = String(i.value == null ? '' : i.value).trim();
+      if (v && vals.indexOf(v) === -1) vals.push(v);
+    });
+    var joined = vals.join('\n');
+    var btns = document.querySelectorAll('.ant-tdr-save-btn');
+    btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
+    try {
+      var body = { job_id: Number(jobId), field: 'parts_needed', value: joined };
+      if (techId) body.technician_id = Number(techId);
+      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      var wd = await wr.json();
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+    } catch (e) {
+      btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
+      alert('Could not save parts: ' + (e && e.message ? e.message : e));
+      return;
+    }
+    editKey = null;
+    await refresh();
+    try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
+  };
+
+  // ── Job status — two-tap outcome (Teddy 2026-07-07): Job complete OR needs a second
+  // trip. Saves to repair_completed so the rest of the system reads the outcome.
+  window.__antTdrOutcomeEdit = function () {
+    if (!lastData) return;
+    if (role !== 'tech' && role !== 'office') return;
+    editKey = 'repair_completed';
+    var host = document.getElementById('ant-tdr-content'); if (!host) return;
+    var cur = (((lastData.fields || {}).repair_completed || {}).value || '').toString();
+    var isSecond = /second trip|return|come back|not fixed|awaiting|waiting/i.test(cur);
+    var isComplete = !isSecond && cur.trim().length > 0;
+    var html = '';
+    html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Job status</div>';
+    html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()" title="cancel">×</button></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:10px">';
+    html += '<button onclick="window.__antTdrSaveOutcome(\'complete\')" style="text-align:left;background:' + (isComplete ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f1420') + ';color:#e6e9f0;border:1px solid ' + (isComplete ? '#10b981' : '#3a4256') + ';border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer">✅ Job complete</button>';
+    html += '<button onclick="window.__antTdrSaveOutcome(\'second\')" style="text-align:left;background:' + (isSecond ? 'linear-gradient(135deg,#f5a623,#d98613)' : '#0f1420') + ';color:#e6e9f0;border:1px solid ' + (isSecond ? '#f5a623' : '#3a4256') + ';border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer">🔁 Needs a second trip</button>';
+    html += '</div>';
+    html += '<div style="margin-top:12px"><div style="font-size:12px;color:#8a92a6;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Note (optional)</div>';
+    html += '<textarea id="ant-tdr-outcome-note" rows="2" placeholder="e.g. what you did, or what the second trip needs" style="' + PART_EDITOR_STYLE + ';resize:vertical">' + escapeHtml(isComplete || isSecond ? cur.replace(/^(Job complete|Needs a second trip)[\s\-—:]*/i, '') : cur) + '</textarea></div>';
+    host.innerHTML = html;
+  };
+  window.__antTdrSaveOutcome = async function (which) {
+    if (!lastData) return;
+    var noteEl = document.getElementById('ant-tdr-outcome-note');
+    var note = noteEl ? String(noteEl.value || '').trim() : '';
+    var base = which === 'second' ? OUTCOME_SECOND_TRIP : OUTCOME_COMPLETE;
+    var val = note ? (base + ' — ' + note) : base;
+    var btns = document.querySelectorAll('button');
+    try {
+      var body = { job_id: Number(jobId), field: 'repair_completed', value: val };
+      if (techId) body.technician_id = Number(techId);
+      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      var wd = await wr.json();
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+    } catch (e) {
+      alert('Could not save: ' + (e && e.message ? e.message : e));
+      return;
+    }
+    editKey = null;
+    await refresh();
+    try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
 
   // Inline field editing — tap a TDR field, edit right in the card, save.
