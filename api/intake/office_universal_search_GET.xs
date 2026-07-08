@@ -190,12 +190,14 @@ query office_universal_search verb=GET {
       }
     }
 
-    // WO# search. Hits jobs.claim_number, dispatch_source_id, housecall_pro_job_id,
-    // job_number - adds the customer_id of any match. Danielle's most-common search.
+    // WO# / job-number search. Hits jobs.id (the Ant job number), claim_number,
+    // dispatch_source_id, housecall_pro_job_id, job_number - adds the customer_id of any
+    // match. Danielle's most-common search. A pure-number query also SKIPS the slow name
+    // fallback scan below (a number is never a name) - that was the 5.8s lag (Teddy 7/8).
     conditional {
       if ($is_wo_query) {
         db.query jobs {
-          where = $db.jobs.claim_number == $q_raw || $db.jobs.dispatch_source_id == $q_raw || $db.jobs.housecall_pro_job_id == $q_raw || $db.jobs.job_number == $q_raw
+          where = $db.jobs.id == $q_raw || $db.jobs.claim_number == $q_raw || $db.jobs.dispatch_source_id == $q_raw || $db.jobs.housecall_pro_job_id == $q_raw || $db.jobs.job_number == $q_raw
           sort = {jobs.id: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 25}}
         } as $wo_job_rows
@@ -223,7 +225,7 @@ query office_universal_search verb=GET {
     }
 
     conditional {
-      if (!$is_phone_query && $pre_scan_count == 0) {
+      if (!$is_phone_query && $pre_scan_count == 0 && $is_wo_query == false) {
         db.query customer {
           sort = {customer.id: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 1000}}
