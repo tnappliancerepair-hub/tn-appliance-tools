@@ -60,46 +60,76 @@ async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, h
     await page.waitForTimeout(3000);
     await shot(page, '2-checkout', out);
 
-    // 3. ship to the customer — add/select a NEW delivery address (brittle: tune from shots)
-    out.step = 'ship_to';
-    out.notes.push('Set ship-to from: ' + [ship.name, ship.line1, ship.city, ship.state, ship.zip].filter(Boolean).join(', '));
-    // common entry points to "add a new address"
-    await clickFirst(page, ['a:has-text("Add a new address")', 'a:has-text("Add delivery address")', 'input[aria-labelledby*="address" i]', '#add-new-address-popover-link']);
-    await page.waitForTimeout(1500);
-    // best-guess address fields (Amazon uses these names on the add-address form)
-    const fill = async (sel, val) => { if (!val) return; const el = await page.$(sel).catch(() => null); if (el) { try { await el.fill(String(val)); } catch (_) {} } };
-    await fill('#address-ui-widgets-enterAddressFullName, input[name="address.fullName"]', ship.name);
-    await fill('#address-ui-widgets-enterAddressLine1, input[name="address.addressLine1"]', ship.line1);
-    await fill('#address-ui-widgets-enterAddressLine2, input[name="address.addressLine2"]', ship.line2);
-    await fill('#address-ui-widgets-enterAddressCity, input[name="address.city"]', ship.city);
-    await fill('#address-ui-widgets-enterAddressStateOrRegion, input[name="address.stateOrRegion"], select[name="address.stateOrRegion"]', ship.state);
-    await fill('#address-ui-widgets-enterAddressPostalCode, input[name="address.postalCode"]', ship.zip);
-    await fill('#address-ui-widgets-enterAddressPhoneNumber, input[name="address.phoneNumber"]', ship.phone);
-    await shot(page, '3-address', out);
-    await clickFirst(page, ['input[aria-labelledby="address-ui-widgets-form-submit-button-announce"]', '#address-ui-widgets-form-submit-button input', 'input[type="submit"][value*="address" i]', 'input[data-action="address-ui-widgets-saveOnClick"]']);
-    await page.waitForTimeout(2500);
-    await clickFirst(page, ['input[aria-labelledby*="useThisAddress" i]', 'input[value*="Use this address" i]', '#shipToThisAddressButton input']);
-    await page.waitForTimeout(2500);
-    await shot(page, '4-payment-or-review', out);
+    // 3. Amazon BUSINESS checkout is a multi-step PROCUREMENT accordion, not the consumer
+    //    1-click: Business Order Info (PO#) -> Select a delivery address -> Payment method
+    //    -> Review items & shipping -> Place your order. Each section has its own "Continue".
+    //    We walk them in order with TEXT-based clicks (robust to Amazon's shifting ids) and
+    //    drop a screenshot at each sub-step so the flow is easy to see + tune.
+    out.step = 'business_checkout';
+    out.notes.push('Ship-to target: ' + [ship.name, ship.line1, ship.city, ship.state, ship.zip].filter(Boolean).join(', '));
 
-    // 4. continue through payment (use the account default) to the review screen
-    out.step = 'review';
-    await clickFirst(page, ['input[name="ppw-widgetEvent:SetPaymentPlanSelectContinueEvent"]', 'a:has-text("Use this payment method")', '#continue-top input', 'input[value*="Continue" i]']);
+    // Click the first control matching any given text/regex (button, link, or input submit).
+    async function clickText(names, timeout = 6000) {
+      for (const n of names) {
+        try { const b = page.getByRole('button', { name: n }).first(); if (await b.count()) { await b.click({ timeout }); return String(n); } } catch (_) {}
+        try { const l = page.getByRole('link', { name: n }).first(); if (await l.count()) { await l.click({ timeout }); return String(n); } } catch (_) {}
+        const t = (n instanceof RegExp) ? n.source.replace(/[\\^$]/g, '') : String(n);
+        try { const s = page.locator(`input[type="submit"][value*="${t}" i], input[type="button"][value*="${t}" i]`).first(); if (await s.count()) { await s.click({ timeout }); return t; } } catch (_) {}
+      }
+      return null;
+    }
+    const fill = async (sel, val) => { if (!val) return false; const el = await page.$(sel).catch(() => null); if (el) { try { await el.fill(String(val)); return true; } catch (_) {} } return false; };
+
+    // 3a. Business Order Information (PO number) — optional; leave blank + Continue.
+    out.notes.push('po_continue=' + await clickText([/^continue$/i, /continue/i]));
+    await page.waitForTimeout(2200);
+    await shot(page, '3a-after-po', out);
+
+    // 3b. Delivery address — add the customer's address if there's an add-new form; else
+    //     continue with whatever's selected (a saved address on the account).
+    out.step = 'address';
+    const addNew = await clickText([/add a new address/i, /add.*delivery address/i, /use a new address/i, /add address/i], 4000);
+    if (addNew) {
+      await page.waitForTimeout(1500);
+      await fill('#address-ui-widgets-enterAddressFullName, input[name="address.fullName"]', ship.name);
+      await fill('#address-ui-widgets-enterAddressLine1, input[name="address.addressLine1"]', ship.line1);
+      await fill('#address-ui-widgets-enterAddressLine2, input[name="address.addressLine2"]', ship.line2);
+      await fill('#address-ui-widgets-enterAddressCity, input[name="address.city"]', ship.city);
+      await fill('#address-ui-widgets-enterAddressStateOrRegion, input[name="address.stateOrRegion"], select[name="address.stateOrRegion"]', ship.state);
+      await fill('#address-ui-widgets-enterAddressPostalCode, input[name="address.postalCode"]', ship.zip);
+      await fill('#address-ui-widgets-enterAddressPhoneNumber, input[name="address.phoneNumber"]', ship.phone);
+      await shot(page, '3b-address-form', out);
+      await clickText([/use this address/i, /add address/i, /save.*address/i], 6000);
+      await page.waitForTimeout(2500);
+    }
+    out.notes.push('addr_continue=' + await clickText([/deliver to this address/i, /use this address/i, /^continue$/i, /continue/i]));
     await page.waitForTimeout(2500);
+    await shot(page, '3c-after-address', out);
+
+    // 3c. Payment method — use the shared card already on the account; Continue.
+    out.step = 'payment';
+    out.notes.push('pay_continue=' + await clickText([/use this payment method/i, /^continue$/i, /continue/i]));
+    await page.waitForTimeout(2500);
+    await shot(page, '4-after-payment', out);
+
+    // 3d. Review items and shipping — a final Continue may be needed to reach it.
+    out.step = 'review';
+    await clickText([/^continue$/i, /continue/i], 3000);
+    await page.waitForTimeout(2000);
     await shot(page, '5-review', out);
 
-    // 5. place the order ONLY if explicitly told to
+    // 4. Place the order ONLY if explicitly told to.
     if (place) {
       out.step = 'place';
-      const placed = await clickFirst(page, ['#placeYourOrder input', 'input[name="placeYourOrder1"]', '#submitOrderButtonId input', 'input[aria-labelledby*="placeYourOrder" i]', '#bottomSubmitOrderButtonId input']);
-      await page.waitForTimeout(4000);
+      const placed = await clickText([/place your order/i, /place order/i, /submit.*order/i], 8000);
+      await page.waitForTimeout(4500);
       await shot(page, '6-confirmation', out);
       out.placed = !!placed;
-      // try to read an order number from the confirmation
       try {
         const txt = await page.innerText('body');
         const m = txt.match(/\b\d{3}-\d{7}-\d{7}\b/);
         if (m) out.order_number = m[0];
+        if (/thank you for your order|order (has been )?placed|order confirmed/i.test(txt)) out.confirmed_text = true;
       } catch (_) {}
     }
 
