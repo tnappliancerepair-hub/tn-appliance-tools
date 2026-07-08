@@ -491,11 +491,38 @@
         html += '<div style="background:#161b26;border:1px solid #252b3a;border-radius:10px;padding:9px 12px;margin-top:6px;font-size:14px;font-weight:700;color:#e6e9f0;word-wrap:break-word">📦 ' + escapeHtml(w) + '</div>';
       });
     }
-    // Write-in for anything not listed → opens the multi-part editor (saves to parts_needed).
-    html += '<button onclick="window.__antTdrPartsEdit()" style="width:100%;margin-top:10px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">➕ Add a part not listed</button>';
+    // Add a part that was SENT but not in our list → creates a fully-tracked part
+    // (Used / Return / Not here + photo + return label), same as the listed ones.
+    // For SquareTrade a sent part may need to go back no matter how it got here.
+    html += '<button onclick="window.__antTdrAddSentPart()" style="width:100%;margin-top:10px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">➕ Add a part they sent (not listed)</button>';
     html += '</div>';
     return html;
   }
+  // Add a sent-but-unlisted part → a real tracked supplied part so it gets the same
+  // Used / Return / Not here + photo + return-label treatment. Defaults to "Return" so
+  // nothing sent gets forgotten (the SquareTrade chargeback risk); the tech taps Used if
+  // he installed it.
+  window.__antTdrAddSentPart = async function () {
+    if (!jobId) { alert('Open this from the job so the part lands on the right one.'); return; }
+    var part = window.prompt('Part number (or name) that was sent:');
+    if (part === null) return;
+    part = String(part).trim(); if (!part) return;
+    var desc = window.prompt('Short description (optional — e.g. "control board"):', '');
+    if (desc === null) desc = '';
+    desc = String(desc).trim();
+    var vendor = String((lastData && (lastData.warranty_company || lastData.vendor)) || '');
+    // Optimistic: show it right away with the full option set.
+    suppliedParts = suppliedParts || [];
+    suppliedParts.push({ part: part, description: desc, vendor: vendor, source: 'tech_added', status: 'to_return', checked: false, photos: [] });
+    if (lastData && editKey === null) renderModal(lastData);
+    try {
+      await fetch('/.netlify/functions/warranty-parts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', job_id: Number(jobId), part: part, description: desc, vendor: vendor, source: 'tech_added', status: 'to_return' }),
+      });
+    } catch (_) {}
+    loadSuppliedParts();
+  };
   var _returnEmailed = {}; // part -> true, so marking Return only auto-emails once per session
   window.__antTdrPartStatus = async function (part, status) {
     if (!jobId || !part) return;

@@ -103,6 +103,7 @@ exports.handler = async function (event) {
       job_id: jobId, claim: String(b.claim || ''), part: String(b.part),
       description: String(b.description || b.desc || ''),
       distributor: String(b.distributor || ''), vendor: String(b.vendor || ''),
+      source: String(b.source || 'manual'),
       status: String(b.status || 'to_return'), rma: String(b.rma || ''), tracking: String(b.tracking || ''),
       note: String(b.note || ''), at_ms: Date.now(),
     });
