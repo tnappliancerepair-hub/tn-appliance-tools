@@ -79,64 +79,56 @@ export async function run(signal, ctx) {
   const desc = shortProblem(job);
   const mediaTag = attachmentCount > 0 ? ` ${attachmentCount}x media.` : '';
 
-  // To Teddy: always.
-  const teddyBody =
-    `[ant] new intake from ${cn} - ${appl}.${mediaTag} ${desc} ` +
-    `Pre-diagnose: ${tdrToolUrl}`;
+  // 🏁 BEAT TEDDY (Teddy 2026-07-07): when a customer's media lands, the Teddy Tool
+  // pre-diagnosis link goes to BOTH Teddy AND the area tech(s) as a REAL text — they
+  // race to pre-diagnose it first. Teddy gets every intake (he plays against everyone);
+  // each tech gets the ones in their area. The 'teddy-tdr-tool' link is whitelisted
+  // through the internal-SMS cutoff, so these are the texts that DO go out.
 
+  // To Teddy: always, as an actual text (bypass toOwner, which routes to the portal).
+  const teddyBody =
+    `[ant] 🏁 new intake — ${cn}, ${appl}.${mediaTag} ${desc} Beat the techs, pre-diagnose it first: ${tdrToolUrl}`;
   let teddyResult = 'skipped_no_owner_phone';
   if (config.ownerPhone) {
     try {
-      const r = await sms.toOwner(teddyBody, {
-        action: 'customer_intake_bundle_owner_sms',
-        job_id: jobId,
-        signal_id: signal.id,
+      const r = await xano.sendSms(config.ownerPhone, teddyBody, {
+        recipient_role: 'owner', action: 'intake_teddy_tool_owner', job_id: jobId, signal_id: signal.id,
       });
-      teddyResult = r?.success ? 'ok' : (r?.error || 'failed');
+      teddyResult = r?.success ? 'ok' : (r?.internal_suppressed ? 'suppressed' : (r?.error || 'failed'));
     } catch (e) {
       teddyResult = String(e.message || e);
     }
   }
 
-  // Tech routing
-  let techTarget = null;
-  let techReason = '';
-  if (assignedTech && assignedTech.id && assignedTech.id !== 1) {
-    techTarget = assignedTech;
-    techReason = 'assigned';
-  } else if (!assignedTech || !assignedTech.id) {
-    // No assignment yet — is there exactly one tech in the cluster?
-    const eligible = clusterTechs.filter((t) => t.id !== 1 && (t.phone || '').trim());
-    if (eligible.length === 1) {
-      techTarget = eligible[0];
-      techReason = 'sole_cluster_tech';
-    } else {
-      techReason = eligible.length === 0 ? 'no_cluster_techs' : 'multiple_cluster_techs';
-    }
-  } else {
-    techReason = 'assigned_is_owner';
+  // Area techs: the assigned tech (if any, non-owner) PLUS every active tech whose
+  // cluster covers this zip. Each gets the link for customers in their area.
+  const techPool = [];
+  if (assignedTech && assignedTech.id && assignedTech.id !== 1 && (assignedTech.phone || '').trim()) {
+    techPool.push({ ...assignedTech, _reason: 'assigned' });
   }
-
-  let techResult = `skipped_${techReason}`;
-  if (techTarget && (techTarget.phone || '').trim()) {
-    const techPhone = normalizeE164(techTarget.phone);
-    const techFirst = (techTarget.first_name || 'tech').trim();
+  for (const t of clusterTechs) {
+    if (!t || !t.id || t.id === 1 || !(t.phone || '').trim()) continue;
+    if (techPool.some((x) => x.id === t.id)) continue;
+    techPool.push({ ...t, _reason: 'area_cluster' });
+  }
+  const techResults = [];
+  for (const t of techPool) {
+    const techPhone = normalizeE164(t.phone);
+    const techFirst = (t.first_name || 'tech').trim();
     const techBody =
-      `[ant] ${techFirst} - new intake for job #${jobId}, ${cn}, ${appl}.${mediaTag} ` +
-      `${desc} Full intake + Teddy's pre-diag: ${tdrToolUrl}`;
+      `[ant] 🏁 ${techFirst} — new intake in your area: ${cn}, ${appl}.${mediaTag} ${desc} ` +
+      `Beat Teddy, pre-diagnose it first: ${tdrToolUrl}`;
     try {
       const r = await sms.toTech(techPhone, techBody, {
-        action: 'customer_intake_bundle_tech_sms',
-        job_id: jobId,
-        technician_id: techTarget.id,
-        reason: techReason,
-        signal_id: signal.id,
+        action: 'intake_teddy_tool_tech', job_id: jobId, technician_id: t.id, reason: t._reason, signal_id: signal.id,
       });
-      techResult = r?.success ? 'ok' : (r?.error || 'failed');
+      techResults.push({ id: t.id, result: r?.success ? 'ok' : (r?.error || 'failed') });
     } catch (e) {
-      techResult = String(e.message || e);
+      techResults.push({ id: t.id, result: String(e.message || e) });
     }
   }
+  const techResult = techResults.length ? techResults.map((x) => `${x.id}:${x.result}`).join(',') : 'no_area_techs';
+  const techReason = techPool.length ? techPool.map((t) => t._reason).join(',') : 'none';
 
   // Danielle gets a separate SMS pointing at warranty-review.html when
   // the job is warranty AND there's customer media she'll need for the
@@ -175,7 +167,7 @@ export async function run(signal, ctx) {
     owner_sms: teddyResult,
     tech_sms: techResult,
     tech_routing: techReason,
-    tech_id_notified: techTarget?.id || 0,
+    tech_ids_notified: techPool.map((t) => t.id),
     danielle_sms: danielleResult,
     is_warranty: isWarrantyJob,
     attachment_count: attachmentCount,
