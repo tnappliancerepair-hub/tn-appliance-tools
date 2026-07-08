@@ -28,15 +28,19 @@ async function listEvents(action, daysBack, limit) {
 
 // Every action that represents a text in the customer conversation.
 // Big-volume ones get a deeper page; the rest are rarer.
+// Per-action fetch depth. sms_sent is VERY high-volume (~1,300/day) so a small limit
+// buries a given customer's older messages under everyone else's — which made a tech-
+// tile thread look one-sided (only the inbound rows, which are far fewer, survived).
+// (Teddy 2026-07-07 — Jen Ross.) Pull deep enough to reach ~2 days of the busy actions.
 const ACTIONS = [
-  ['inbound_customer_sms_received', 600],
-  ['sms_sent', 600],
-  ['sms_owner_bypass', 200],
-  ['customer_sms_reply', 400],
-  ['feedback_sms_sent', 200],
-  ['teddy_sms_triggered', 120],
-  ['sms_gated', 200],
-  ['dropped_customer_sms', 200],
+  ['inbound_customer_sms_received', 1500],
+  ['sms_sent', 3000],
+  ['sms_owner_bypass', 400],
+  ['customer_sms_reply', 1000],
+  ['feedback_sms_sent', 300],
+  ['teddy_sms_triggered', 200],
+  ['sms_gated', 400],
+  ['dropped_customer_sms', 300],
 ];
 
 function last10(v) { const d = String(v || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : ''; }
