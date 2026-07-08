@@ -380,10 +380,15 @@
   }
   .status-scheduled    { background: rgba(90,169,255,0.12);  border: 1px solid rgba(90,169,255,0.25);  color: var(--blue); }
   .status-in_progress  { background: rgba(0,214,143,0.12);   border: 1px solid rgba(0,214,143,0.25);   color: var(--green); }
-  .status-completed    { background: rgba(138,147,170,0.12); border: 1px solid rgba(138,147,170,0.25); color: var(--muted); }
+  .status-completed    { background: rgba(0,214,143,0.16); border: 1px solid rgba(0,214,143,0.45); color: var(--green); font-weight: 800; }
   .status-prediagnosis_pending { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.25); color: var(--orange); }
   .status-needs_review { background: rgba(180,140,255,0.12); border: 1px solid rgba(180,140,255,0.25); color: var(--violet); }
   .status-other        { background: rgba(138,147,170,0.10); border: 1px solid rgba(138,147,170,0.20); color: var(--muted); }
+  /* ✅ Completed job = GREEN (Andre 2026-07-07: "turn the job green when completed") */
+  .card.card--done { border-color: rgba(0,214,143,0.55); box-shadow: inset 4px 0 0 var(--green); background: linear-gradient(90deg, rgba(0,214,143,0.09), transparent 60%); }
+  .card.card--done .stop-num { background: var(--green); color: #082018; }
+  .card.card--done::after { content: '✅'; position: absolute; top: 12px; right: 12px; font-size: 18px; opacity: 0.9; }
+  .card { position: relative; }
 
   .customer-line {
     font-size: 16px;
@@ -1417,6 +1422,7 @@
       });
     }
     techBadge.textContent = `${data.tech.first_name || ''} #${data.tech.id}`;
+    _techFirst = (data.tech.first_name || '').trim() || 'brother';
     renderDateHeader(data.date_ct, data.today_ct);
     renderDateNav(data.date_ct, data.today_ct);
     renderSummary(data);
@@ -1562,8 +1568,24 @@
     todayBtn.textContent = isToday ? 'today' : 'jump to today';
   }
 
+  let _lastDoneCount = null; // for the celebration-on-increase (Andre's daily count)
+  let _techFirst = 'brother'; // set from data.tech for the hype line
+  function doneCountOf(jobs) {
+    return (jobs || []).filter((it) => {
+      const s = String(((it.job || {}).scheduling_status || (it.job || {}).current_status || '')).toLowerCase();
+      return s === 'completed' || s === 'complete';
+    }).length;
+  }
   function renderSummary(data) {
     const jobs = data.jobs || [];
+    const done = doneCountOf(jobs);
+    // 🎉 Celebrate when the done-count ticks UP on today's view (a job just closed).
+    // Andre 2026-07-07: easy way to see how many he did each day + a little payoff.
+    const isToday = (data.date_ct && data.today_ct && data.date_ct === data.today_ct);
+    if (isToday && _lastDoneCount !== null && done > _lastDoneCount) {
+      celebrateDone(done);
+    }
+    if (isToday) _lastDoneCount = done;
     if (jobs.length === 0) {
       summary.innerHTML = `<span class="count">0 jobs</span>`;
       return;
@@ -1573,16 +1595,63 @@
     const firstTime = firstStart ? fmtTimeShort(firstStart) : '—';
     let totalAtt = 0;
     for (const it of jobs) totalAtt += (it.attachments_count || 0);
-    const parts = [
-      `<span class="count">${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}</span>`,
-      `<span class="sep">·</span>`,
-      `first at <span class="count">${firstTime}</span>`,
-    ];
+    const parts = [];
+    if (done > 0) {
+      parts.push(`<span class="count" style="color:var(--green)">✅ ${done} done today</span>`);
+      parts.push(`<span class="sep">·</span>`);
+    }
+    parts.push(`<span class="count">${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}</span>`);
+    parts.push(`<span class="sep">·</span>`);
+    parts.push(`first at <span class="count">${firstTime}</span>`);
     if (totalAtt > 0) {
       parts.push(`<span class="sep">·</span>`);
       parts.push(`${totalAtt} <span class="count">media</span>`);
     }
     summary.innerHTML = parts.join(' ');
+  }
+
+  // 🎉 Confetti burst + hype line when a job is completed. Self-contained canvas, no
+  // deps; respects reduced-motion. (Teddy 2026-07-07: "congratulations burst.")
+  function celebrateDone(n) {
+    try {
+      const first = (String(_techFirst || '').trim() || 'brother');
+      const hype = [`🔥 ${n} done today, ${first}!`, `💪 That's ${n}, ${first}!`, `🏁 ${n} closed — keep rollin'!`, `⚡ ${n} down, ${first}!`];
+      const msg = hype[Math.floor(Math.random() * hype.length)] || `🎉 ${n} done today!`;
+      const b = document.createElement('div');
+      b.textContent = msg;
+      b.style.cssText = 'position:fixed;left:50%;top:24%;transform:translate(-50%,-50%) scale(0.8);z-index:2147482100;background:linear-gradient(135deg,#00d68f,#00a86f);color:#052015;font-weight:900;font-size:19px;padding:14px 22px;border-radius:16px;box-shadow:0 12px 40px rgba(0,214,143,0.5);opacity:0;transition:opacity .25s,transform .25s;font-family:var(--mono,inherit);text-align:center;max-width:90vw';
+      document.body.appendChild(b);
+      requestAnimationFrame(() => { b.style.opacity = '1'; b.style.transform = 'translate(-50%,-50%) scale(1)'; });
+      setTimeout(() => { b.style.opacity = '0'; b.style.transform = 'translate(-50%,-50%) scale(0.9)'; setTimeout(() => b.remove(), 300); }, 2200);
+    } catch (_) {}
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const cv = document.createElement('canvas');
+    cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147482000';
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+    document.body.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    const colors = ['#00d68f', '#4af5ff', '#f5a623', '#ff5b7f', '#a78bfa', '#ffffff'];
+    const N = 130;
+    const P = Array.from({ length: N }, () => ({
+      x: cv.width / 2 + (Math.random() - 0.5) * 120,
+      y: cv.height * 0.32,
+      vx: (Math.random() - 0.5) * 11,
+      vy: Math.random() * -13 - 4,
+      s: 5 + Math.random() * 7,
+      c: colors[(Math.random() * colors.length) | 0],
+      rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4,
+    }));
+    let frame = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      P.forEach((p) => {
+        p.vy += 0.4; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore();
+      });
+      frame += 1;
+      if (frame < 120) requestAnimationFrame(tick); else cv.remove();
+    })();
   }
 
   // HCP-style day segments. Order = the order sections appear (done last).
@@ -2092,7 +2161,7 @@
     }
 
     return `
-      <div class="card" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
+      <div class="card${(status === 'completed' || status === 'complete') ? ' card--done' : ''}" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
         <div class="card-top">
           <div class="stop-num">${num}</div>
           <div class="time-window">${timeStr}</div>
