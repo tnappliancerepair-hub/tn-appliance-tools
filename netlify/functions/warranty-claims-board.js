@@ -6,10 +6,14 @@
 //   GET /.netlify/functions/warranty-claims-board  -> { ok, auto_live, counts, items[] }
 'use strict';
 
+// Give the board headroom past Netlify's default so a slow event_log read can't
+// tip it into a gateway timeout (was hitting ~11s and failing to load).
+exports.config = { timeout: 26 };
+
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'cache-control': 'no-store' }, body: JSON.stringify(b) }; }
 function mdOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
-async function jget(url) { const r = await fetch(url, { signal: AbortSignal.timeout(12000) }); return r.json().catch(() => ({})); }
+async function jget(url, ms) { const r = await fetch(url, { signal: AbortSignal.timeout(ms || 12000) }); return r.json().catch(() => ({})); }
 
 // job_id -> latest metadata for an action
 async function latestByJob(action, days) {
@@ -29,16 +33,16 @@ const STATUS_NAME = { P: 'Paid', R: 'Rejected', W: 'Mfg Reject', S: 'Approved', 
 
 exports.handler = async function () {
   try {
-    const auto = await latestByJob('sp_claim_autosubmit', 30);   // ready / blocked (+ customer, appliance, blockers, claim#)
-    const filed = await latestByJob('sp_claim_submitted', 60);   // actually filed (confirmation/transaction)
-
+    // The three event_log reads are independent — run them together instead of
+    // three sequential round-trips (that stack was the bulk of the load time).
+    const [auto, filed, syncRows] = await Promise.all([
+      latestByJob('sp_claim_autosubmit', 30),   // ready / blocked (+ customer, appliance, blockers, claim#)
+      latestByJob('sp_claim_submitted', 60),     // actually filed (confirmation/transaction)
+      jget(`${XANO}/list_recent_event_log?action=sp_claim_sync_state&days_back=14&limit=3`).catch(() => ({})),
+    ]);
     // Latest reconcile snapshot: call# -> { status, paid_total, eft_num }
     let sync = {};
-    try {
-      const d = await jget(`${XANO}/list_recent_event_log?action=sp_claim_sync_state&days_back=14&limit=3`);
-      const rows = d.items || [];
-      if (rows.length) sync = mdOf(rows[0]).map || {};
-    } catch (_) {}
+    try { const rows = (syncRows && syncRows.items) || []; if (rows.length) sync = mdOf(rows[0]).map || {}; } catch (_) {}
 
     const jobIds = new Set([...Object.keys(auto), ...Object.keys(filed)]);
     const items = [];
@@ -79,7 +83,7 @@ exports.handler = async function () {
     const needName = items.filter((it) => !it.customer).slice(0, 12);
     await Promise.all(needName.map(async (it) => {
       try {
-        const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${it.job_id}&lens=office`);
+        const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${it.job_id}&lens=office`, 7000);
         const f = (tr && tr.facts) || {};
         it.customer = f.customer_name || f.customer_first || it.customer;
         it.appliance = it.appliance || f.appliance || '';
