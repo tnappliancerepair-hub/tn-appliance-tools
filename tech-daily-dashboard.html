@@ -1431,6 +1431,7 @@
     renderJobs(data.jobs || []);
     renderMap(data.jobs || []);
     hydrateOfficeNotes(data.jobs || []);
+    loadEarnings(data);
   }
 
   // 📋 Reports = your pay — front and center on the dashboard every day (Teddy 7/4).
@@ -1570,6 +1571,40 @@
 
   let _lastDoneCount = null; // for the celebration-on-increase (Andre's daily count)
   let _techFirst = 'brother'; // set from data.tech for the hype line
+  let _payByJob = {};   // job_id -> tech's pay on that job (from tech-earnings)
+  let _earnedToday = 0; // sum of pay over today's completed jobs
+
+  // 💪 Money on the board (Teddy 2026-07-07: "you made $67 on this one"). Pulls the
+  // tech's per-job pay, tags each completed card with the dollars earned, sums today,
+  // and refreshes the summary. Pay is known once the office logs the invoice.
+  async function loadEarnings(data) {
+    if (!TECH_ID) return;
+    let d = null;
+    try { d = await fetch('/.netlify/functions/tech-earnings?tech_id=' + encodeURIComponent(TECH_ID), { cache: 'no-store' }).then((r) => r.json()); } catch (_) { return; }
+    if (!d || !d.success) return;
+    _payByJob = {};
+    (d.jobs || []).forEach((j) => { if (j && j.job_id != null) _payByJob[String(j.job_id)] = parseFloat(j.pay) || 0; });
+    const jobs = (data && data.jobs) || [];
+    let today = 0;
+    jobs.forEach((it) => {
+      const j = it.job || {}; const s = String((j.scheduling_status || j.current_status || '')).toLowerCase();
+      if ((s === 'completed' || s === 'complete') && _payByJob[String(j.id)]) today += _payByJob[String(j.id)];
+    });
+    _earnedToday = today;
+    renderSummary(data); // refresh with the $ figure (won't re-fire the burst — done count is unchanged)
+    // Tag each completed card with the dollars.
+    jobs.forEach((it, i) => {
+      const j = it.job || {}; const s = String((j.scheduling_status || j.current_status || '')).toLowerCase();
+      if (s !== 'completed' && s !== 'complete') return;
+      const pay = _payByJob[String(j.id)]; if (!pay) return;
+      const card = $('card-' + i); if (!card || card.querySelector('.earn-pill')) return;
+      const el = document.createElement('div');
+      el.className = 'earn-pill';
+      el.style.cssText = 'display:inline-block;margin-top:8px;background:rgba(0,214,143,0.16);border:1px solid rgba(0,214,143,0.5);color:var(--green);font-weight:900;font-size:14px;padding:6px 12px;border-radius:9px;font-family:var(--mono,inherit)';
+      el.textContent = '💪 You made $' + Math.round(pay) + ' on this one';
+      card.appendChild(el);
+    });
+  }
   function doneCountOf(jobs) {
     return (jobs || []).filter((it) => {
       const s = String(((it.job || {}).scheduling_status || (it.job || {}).current_status || '')).toLowerCase();
@@ -1600,6 +1635,10 @@
       parts.push(`<span class="count" style="color:var(--green)">✅ ${done} done today</span>`);
       parts.push(`<span class="sep">·</span>`);
     }
+    if (_earnedToday > 0) {
+      parts.push(`<span class="count" style="color:var(--green)">💪 $${Math.round(_earnedToday)} today</span>`);
+      parts.push(`<span class="sep">·</span>`);
+    }
     parts.push(`<span class="count">${jobs.length} ${jobs.length === 1 ? 'job' : 'jobs'}</span>`);
     parts.push(`<span class="sep">·</span>`);
     parts.push(`first at <span class="count">${firstTime}</span>`);
@@ -1615,8 +1654,9 @@
   function celebrateDone(n) {
     try {
       const first = (String(_techFirst || '').trim() || 'brother');
+      const money = _earnedToday > 0 ? ` · $${Math.round(_earnedToday)} today 💰` : '';
       const hype = [`🔥 ${n} done today, ${first}!`, `💪 That's ${n}, ${first}!`, `🏁 ${n} closed — keep rollin'!`, `⚡ ${n} down, ${first}!`];
-      const msg = hype[Math.floor(Math.random() * hype.length)] || `🎉 ${n} done today!`;
+      const msg = (hype[Math.floor(Math.random() * hype.length)] || `🎉 ${n} done today!`) + money;
       const b = document.createElement('div');
       b.textContent = msg;
       b.style.cssText = 'position:fixed;left:50%;top:24%;transform:translate(-50%,-50%) scale(0.8);z-index:2147482100;background:linear-gradient(135deg,#00d68f,#00a86f);color:#052015;font-weight:900;font-size:19px;padding:14px 22px;border-radius:16px;box-shadow:0 12px 40px rgba(0,214,143,0.5);opacity:0;transition:opacity .25s,transform .25s;font-family:var(--mono,inherit);text-align:center;max-width:90vw';
