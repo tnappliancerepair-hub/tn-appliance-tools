@@ -20,8 +20,35 @@
 import { config } from '../config.js';
 
 const PUBLIC_SITE = (config.publicSiteBase || 'tnapplianceexchange.net').replace(/^https?:\/\//, '');
+const SITE_FN = 'https://tnapplianceexchange.net/.netlify/functions';
 
-function composeReply(body) {
+// Did the customer ASK for a link / how to get set up? Teddy 2026-07-08: "delete that
+// [auto setup-link push] unless they ask for it." Otherwise we stay silent for a human.
+function asksForLink(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  return /\b(link|website|the site|sign ?up|the form|portal|the app)\b/.test(t)
+    || /\b(how (do|can|should) i|where do i|what do i (do|need)|send (me|it|the)|resend|text me (the|it)|email me)\b/.test(t)
+    || /\b(get (set ?up|started|scheduled|booked)|set (me )?up|book me|schedule me)\b/.test(t);
+}
+
+// Resolve the customer's link: WARRANTY customers get the warranty-intake page
+// (Teddy 2026-07-08: "only send the warranty intake to warranty customers, no bare
+// domain"); everyone else gets the front door. Resolves the job by phone via job-truth.
+async function resolveLink(phone) {
+  try {
+    const pk = String(phone).replace(/\D/g, '').slice(-10);
+    const r = await fetch(`${SITE_FN}/job-truth?phone=${encodeURIComponent(pk)}&lens=office`);
+    const d = await r.json();
+    const f = (d && d.found && d.facts) || null;
+    if (f && f.job_id && (String(f.warranty_company || '').trim() || /warranty/i.test(String(f.customer_type || '')))) {
+      return `https://tnapplianceexchange.net/warranty-intake.html?job_id=${f.job_id}`;
+    }
+  } catch (_) {}
+  return PUBLIC_SITE;
+}
+
+function composeReply(body, link) {
   const text = String(body || '').toLowerCase();
   // Lightly personalize based on the customer's wording. Word-boundaried + specific
   // terms only — bare "air"/"heat"/"ac" substring-matched everyday words ("fairly"
@@ -35,7 +62,7 @@ function composeReply(body) {
   else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = "Got it — oven/range repair, perfect.";
   else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = "Got it — HVAC repair, perfect.";
 
-  return `${opener} Tap here to finish setting up in about 60 seconds: ${PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+  return `${opener} Tap here to finish setting up in about 60 seconds: ${link || PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
 }
 
 export async function run(signal, ctx) {
@@ -87,7 +114,17 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_recent_push' };
   }
 
-  const reply = composeReply(body);
+  // Teddy 2026-07-08: don't push the setup link unless the customer ASKS for it. If they
+  // didn't ask, stay silent — a human reads it. (Foreign-language replies are handled by
+  // the inline customer-sms-inbound path, which fires first + writes the dedup marker.)
+  if (!asksForLink(body)) {
+    await xano.markSignalProcessed(signal.id, 'sms_response_new_lead_handled', { outcome: 'skipped_no_link_request' });
+    log('sms_response_new_lead_handled', { outcome: 'skipped_no_link_request', phone: String(phone).replace(/\D/g, '').slice(-4) });
+    return { success: true, action: 'skipped_no_link_request' };
+  }
+
+  const link = await resolveLink(phone);   // WARRANTY -> warranty-intake page; else front door
+  const reply = composeReply(body, link);
 
   // Emit CUSTOMER_SMS_REPLY so the standard reply dispatcher sends it.
   let emitted = null;

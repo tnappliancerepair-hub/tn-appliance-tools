@@ -120,6 +120,16 @@ function looksLikeStatusQuestion(body) {
     || /\bam i (still )?(on|scheduled)\b/i.test(t);
 }
 
+// Did the customer ASK us to send them a link / how to get set up? Teddy 2026-07-08:
+// "delete that [auto setup-link reply] unless they ask for it." Only then do we push it.
+function asksForLink(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  return /\b(link|website|the site|sign ?up|the form|portal|the app)\b/.test(t)
+    || /\b(how (do|can|should) i|where do i|what do i (do|need)|send (me|it|the)|resend|text me (the|it)|email me)\b/.test(t)
+    || /\b(get (set ?up|started|scheduled|booked)|set (me )?up|book me|schedule me)\b/.test(t);
+}
+
 // Guard: only fire the instant new-lead greeting for a message that actually
 // READS like a fresh repair inquiry. A short courtesy/closing/tapback ("thank
 // you", "ok", "that will be fine", 👍, iMessage "Liked …") is NEVER a new lead —
@@ -158,8 +168,9 @@ function composeNewLeadReply(body, jobId) {
   return `${opener} Tap here to finish setting up in about 60 seconds: ${link} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
 }
 
-// Fire the instant inline reply for a genuinely-new lead. Bounded; best-effort.
-async function instantNewLeadReply(fromPhone, body) {
+// Fire the instant inline reply. Only called when the customer ASKED for a link or
+// wrote in a foreign language (Teddy 2026-07-08). Bounded; best-effort.
+async function instantNewLeadReply(fromPhone, body, foreign) {
   const phoneKey = String(fromPhone || '').replace(/\D/g, '');
   if (!phoneKey) return false;
   const dedupKey = 'new_lead_replied_' + phoneKey;
@@ -174,7 +185,9 @@ async function instantNewLeadReply(fromPhone, body) {
 
   // If this number already belongs to a job, use its deep link, not the bare domain.
   let jid = 0; try { jid = await findJobByPhone(fromPhone); } catch (_) {}
-  const reply = composeNewLeadReply(body, jid);
+  let reply = composeNewLeadReply(body, jid);
+  // Foreign-language customer → reply in their language (Teddy 2026-07-08).
+  if (foreign && foreign.lang_name) { try { reply = await translateFromEnglish(reply, foreign.lang_name); } catch (_) {} }
   const sc = new AbortController(); const st = setTimeout(() => sc.abort(), 6000);
   try {
     await fetch(`${XANO_BASE}/send_sms`, {
@@ -263,6 +276,31 @@ async function translateToEnglish(text) {
     const raw = (d && d.content && d.content[0] && d.content[0].text) || '';
     return JSON.parse(raw.replace(/```json|```/g, '').trim());
   } catch (_) { return null; }
+}
+
+// Translate an English reply INTO the customer's language (Teddy 2026-07-08: "text us
+// in a foreign language then send to them in their language"). Falls back to English.
+async function translateFromEnglish(text, langName) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !text || !langName || /english/i.test(langName)) return text;
+  try {
+    const ctl = new AbortController();
+    const tm = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 500,
+        system: `Translate the user's message into natural ${langName} for an appliance-repair text message. Keep any URL exactly as-is. Reply with ONLY the translation — no quotes, no notes.`,
+        messages: [{ role: 'user', content: String(text).slice(0, 1000) }],
+      }),
+      signal: ctl.signal,
+    });
+    clearTimeout(tm);
+    const d = await r.json();
+    const out = ((d && d.content && d.content[0] && d.content[0].text) || '').trim();
+    return out || text;
+  } catch (_) { return text; }
 }
 
 // ─── MMS media capture ──────────────────────────────────────────────
@@ -630,17 +668,25 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.warn('[customer-sms-inbound] instant status error:', String((e && e.message) || e)); }
 
+  // AUTO SETUP-LINK REPLY — deleted unless (a) the customer ASKS for a link/help, or
+  // (b) they wrote in a foreign language (then we reply in their language). Otherwise we
+  // stay SILENT and let a human read it. (Teddy 2026-07-08: "delete that unless they ask
+  // for it. Or text us in a foreign language then send to them in their language.")
   try {
-    const isColdLead = !recallHandled && !availRescued && !statusAnswered
-      && recordData && recordData.customer_known === false
-      && !(Number(recordData.job_id) > 0)        // matched to a job => not a cold lead
-      && !hasSpecificIntent(parsed.body)
-      && looksLikeNewRepairLead(parsed.body);    // must READ like a fresh repair inquiry
-    if (isColdLead) {
-      const sent = await instantNewLeadReply(parsed.from, parsed.body);
-      console.log('[customer-sms-inbound] instant new-lead reply:', { sent, from: parsed.from });
-    } else if (recordData && recordData.customer_known === false) {
-      console.log('[customer-sms-inbound] cold number but not a clear new lead — staying silent for a human:', { from: parsed.from, job_id: recordData.job_id || 0, body: String(parsed.body).slice(0, 60) });
+    if (!recallHandled && !availRescued && !statusAnswered) {
+      const asked = asksForLink(parsed.body);
+      let foreign = null;
+      // Only spend a translate call when it's plausibly foreign (not asked, not an
+      // English courtesy/tapback) — keeps cost down while still catching Spanish etc.
+      if (!asked && looksLikeNewRepairLead(parsed.body)) {
+        try { const tx = await translateToEnglish(parsed.body); if (tx && tx.is_english === false) foreign = tx; } catch (_) {}
+      }
+      if (asked || foreign) {
+        const sent = await instantNewLeadReply(parsed.from, parsed.body, foreign);
+        console.log('[customer-sms-inbound] setup-link reply sent:', { sent, asked, foreign: foreign && foreign.lang_name, from: parsed.from });
+      } else {
+        console.log('[customer-sms-inbound] no link requested — staying silent for a human:', { from: parsed.from, body: String(parsed.body).slice(0, 60) });
+      }
     }
   } catch (e) {
     console.warn('[customer-sms-inbound] instant reply error:', String((e && e.message) || e));

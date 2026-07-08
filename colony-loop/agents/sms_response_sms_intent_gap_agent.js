@@ -65,11 +65,31 @@ WHAT YOU DO NOT DO:
 
 const ESCALATE_MARKER = '__ESCALATE__';
 
+// Did the customer ASK for a link / how to get set up? (Teddy 2026-07-08.)
+function asksForLink(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  return /\b(link|website|the site|sign ?up|the form|portal|the app)\b/.test(t)
+    || /\b(how (do|can|should) i|where do i|what do i (do|need)|send (me|it|the)|resend|text me (the|it)|email me)\b/.test(t)
+    || /\b(get (set ?up|started|scheduled|booked)|set (me )?up|book me|schedule me)\b/.test(t);
+}
+
 export async function run(signal, ctx) {
   const { xano, claude, log } = ctx;
   const payload = signal.payload || {};
   const jobId = payload.job_id == null ? null : Number(payload.job_id);
   const customerId = payload.customer_id == null ? null : Number(payload.customer_id);
+
+  // Teddy 2026-07-08: don't auto-push the setup link to a NEW lead who didn't ask for it —
+  // stay silent for a human. (Asked-for-it + foreign-language replies are owned by the
+  // inline customer-sms-inbound path.) Existing customers still get their question answered.
+  const body0 = String(payload.body || payload.message || '');
+  const isNewLead = !(Number(customerId) > 0);
+  if (isNewLead && !asksForLink(body0)) {
+    await xano.markSignalProcessed(signal.id, 'customer_sms_reply_emitted', { sms_type: SMS_TYPE_SLUG, agent_id: AGENT_ID, outcome: 'skipped_no_link_request' });
+    log('customer_sms_reply_emitted', { sms_type: SMS_TYPE_SLUG, outcome: 'skipped_no_link_request' });
+    return { success: true, action: 'skipped_no_link_request' };
+  }
 
   const userMessage = [
     'Customer name: ' + (payload.customer_name || payload.first_name || 'unknown'),
