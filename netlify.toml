@@ -462,6 +462,13 @@
 [functions."servicepower-claims-sync"]
   schedule = "0 13,21 * * *"
 
+# SquareTrade claims AUTO-SUBMIT — files the claim by itself when a repair completes.
+# Scans repair_complete SquareTrade jobs hourly, builds each claim, and (once
+# SP_CLAIM_AUTOSUBMIT_LIVE=true) submits it. SHADOW by default: previews + logs, files
+# nothing. Manual: ?secret=<admin> [&dryrun=1].
+[functions."servicepower-claims-autosubmit"]
+  schedule = "23 13-23 * * *"
+
 # SquareTrade/Allstate parts-return tracker — the CHARGEBACK-KILLER. Every 30 min it
 # scans the inbox for prepaid-return-label emails (from rma_request@squaretrade.com),
 # parses each part's RMA# + FedEx tracking# + distributor + part# + claim#, records a
