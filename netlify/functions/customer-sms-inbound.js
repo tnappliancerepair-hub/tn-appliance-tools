@@ -370,6 +370,36 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.warn('[customer-sms-inbound] opt-out check threw:', e.message); }
 
+  // ─── RELAY the reply to the tech (Teddy 2026-07-08) ────────────────
+  // If this customer was texted "can John come by today?" (confirm-today-and-relay armed a
+  // tech_reply_relay marker), forward whatever they say back straight to the tech's phone.
+  // Non-terminal: we relay AND let normal handling continue (ack/booking still run).
+  try {
+    const fromDigits = String(parsed.from || '').replace(/\D/g, '').slice(-10);
+    if (fromDigits) {
+      const rr = await fetch(`${XANO_BASE}/list_recent_event_log?action=tech_reply_relay&days_back=3&limit=80`, { signal: AbortSignal.timeout(6000) });
+      const rd = await rr.json().catch(() => ({}));
+      let relay = null;
+      for (const row of ((rd && rd.items) || [])) {
+        let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+        if (m && m.active !== false && String(m.phone || '').replace(/\D/g, '').slice(-10) === fromDigits) { relay = m; break; }
+      }
+      if (relay && relay.tech_phone) {
+        const who = relay.customer_name || 'Customer';
+        const ctx = [relay.appliance, relay.city].filter(Boolean).join(', ');
+        const line = `📩 ${who}${ctx ? ' (' + ctx + ')' : ''} replied about today: "${String(parsed.body).slice(0, 300)}"`;
+        try {
+          await fetch(`${XANO_BASE}/send_sms`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: relay.tech_phone, body: line, message: line, context_tag: 'tech_reply_relay', force_send: true }),
+            signal: AbortSignal.timeout(8000),
+          });
+          await crud.logEvent('tech_reply_relayed', { job_id: relay.job_id || 0, tech_phone: relay.tech_phone, from: fromDigits, body: String(parsed.body).slice(0, 200), at_ms: Date.now() });
+        } catch (_) {}
+      }
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] tech relay error:', e.message); }
+
   // ─── EXTRA/BLAST YES/NO interceptor (Phase 2d) ─────────────────────
   // Check if this is a response to an active extra-work offer. If so,
   // the handler sends the customer reply itself + books/loser-routes
