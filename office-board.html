@@ -512,6 +512,13 @@ function placeOf(j){
   // "whenever Danielle moves a job to scheduled or completion it stays in parts")
   const _schedOrDone = (ss==='scheduled' || ss==='completed' || cs==='completed');
   if(!_schedOrDone && ((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||''))) return 'parts';
+  // Parts have ARRIVED → the return visit needs booking, so surface the job in
+  // Needs Scheduled (NOT the tech's Report folder, where it sat invisible for
+  // scheduling). Danielle's explicit placement still wins (ov, checked above);
+  // this only fires when nobody's filed it and it isn't already scheduled/done.
+  // (Teddy 2026-07-08: "when parts are received the customer added back to the
+  // needs scheduled list.")
+  if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='arrived') return 'schedule';
   if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
   // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
   // Needs Scheduled. SquareTrade/AHS jobs often land scheduled-with-a-date but

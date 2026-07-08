@@ -71,6 +71,21 @@ function looksLikeAvailability(body) {
     || /\b(covid|flu|sick|out of town|vacation|reschedule|resched|push (it )?back|not until|can'?t do)\b/.test(t);
 }
 
+// 📦 "MY PARTS ARRIVED" — the customer telling us the box hit their porch (many warranty
+// vendors ship the part straight to the customer, so they're the one who knows). Teddy
+// 2026-07-08: let them TEXT us to report it → we mark it arrived, put them back on Needs
+// Scheduled, and ask availability. Requires BOTH a part word AND an arrival word so a
+// plain "when will my part ship?" (a status question) does NOT trip it.
+function looksLikePartsArrived(body) {
+  const t = String(body || '').toLowerCase();
+  if (!t) return false;
+  const hasPart = /\b(part|parts|piece|component|box|package|it)\b/.test(t);
+  const arrived = /\b(arriv|came in|come in|is here|are here|got here|get here|received|delivered|showed up|show up|it'?s here|they'?re here|has (arrived|come)|on (my|the) porch|at (my|the) (door|house|porch)|in the mail)\b/.test(t);
+  if (hasPart && arrived) return true;
+  return /\b(got|received|have)\s+(the|my|our)\s+parts?\b/.test(t)
+    || /\bmy parts?\s+(is|are|just)?\s*(here|in|came|arrived|delivered)\b/.test(t);
+}
+
 // Resolve the customer's most-recent ACTIVE job by phone (the office-search way) — used to
 // rescue replies the recorder returns job_id 0 for (warranty jobs carry the phone on the
 // job, not a customer record, so the recorder can't match them). Jen Ross bug 2026-07-07.
@@ -86,6 +101,22 @@ async function findJobByPhone(phone) {
       .sort((a, b) => b.id - a.id);
     return jobs[0] ? jobs[0].id : 0;
   } catch (_) { return 0; }
+}
+
+// Find this phone's most-recent AWAITING-PARTS job (so "my part came in" only acts on a
+// job that's actually waiting on a part). Returns {id, status} or {id:0}.
+async function findAwaitingPartsJob(phone) {
+  const p10 = last10(phone);
+  if (!p10) return { id: 0 };
+  try {
+    const r = await fetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(p10)}`, { signal: AbortSignal.timeout(9000) });
+    const d = await r.json();
+    const res = d.results || d.items || (Array.isArray(d) ? d : []);
+    const jobs = res.map((x) => ({ id: Number(x.job_id || x.id), status: String(x.scheduling_status || x.status || '').toLowerCase() }))
+      .filter((x) => x.id && /await|part/.test(x.status))
+      .sort((a, b) => b.id - a.id);
+    return jobs[0] || { id: 0 };
+  } catch (_) { return { id: 0 }; }
 }
 
 // Specific-intent keywords (mirror of the loop's KEYWORD_ROUTES). If a cold
@@ -627,6 +658,53 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.warn('[customer-sms-inbound] recall detect error:', String((e && e.message) || e)); }
 
+  // 📦 "MY PARTS ARRIVED" auto-flow (Teddy 2026-07-08). The customer texts that the part
+  // hit their porch → mark it arrived (which flips the job to Needs Scheduled on the board),
+  // then ask their availability like the warranty intake so the office can book the revisit.
+  // Fully reactive (they texted us). Gated to a job actually AWAITING PARTS so a plain
+  // "when's my part shipping?" (a status question) never trips it. Dedup per job.
+  let partsArrivedHandled = false;
+  try {
+    if (!recallHandled && looksLikePartsArrived(parsed.body)) {
+      const pj = await findAwaitingPartsJob(parsed.from);
+      if (pj && pj.id) {
+        // Mark arrived (canonical path: flips parts_status→arrived, scheduling_status→not_ready,
+        // emits PARTS_ARRIVED). Board's placeOf then surfaces it in Needs Scheduled.
+        try {
+          await fetch(`${XANO_BASE}/mark_parts_arrived`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: pj.id, source: 'customer_text', notes: 'Customer texted: "' + String(parsed.body).slice(0, 140) + '"' }), signal: AbortSignal.timeout(12000) });
+        } catch (_) {}
+        // If they included their availability in the same text, save it now.
+        let gotAvail = false;
+        if (looksLikeAvailability(parsed.body)) {
+          try {
+            await fetch(SAVE_AVAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ job_id: pj.id, availability_text: String(parsed.body).slice(0, 400) }), signal: AbortSignal.timeout(12000) });
+            gotAvail = true;
+          } catch (_) {}
+        }
+        // One warm ack per job (a customer may fire several "it's here!" texts).
+        let ackAlready = false;
+        try { const dd = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_arrived_ack_' + pj.id }, { id: 'desc' }, 1); ackAlready = !!(dd && dd.length); } catch (_) {}
+        if (!ackAlready) {
+          const ack = gotAvail
+            ? "Perfect — glad your part's in, and we've got your availability. We'll get you back on the schedule and text to confirm your day. 🐜 — TN Appliance Exchange"
+            : "That's great news — glad your part arrived! 🐜 What days work best for you this week to get your tech back out? Text us your availability and we'll get you booked. — TN Appliance Exchange";
+          try {
+            await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ to: parsed.from, body: ack, message: ack, context_tag: 'parts_arrived_ack' }), signal: AbortSignal.timeout(9000) });
+          } catch (_) {}
+          try { await crud.logEvent('parts_arrived_ack_' + pj.id, { phone: String(parsed.from).slice(-4), got_avail: gotAvail, at_ms: Date.now() }); } catch (_) {}
+        }
+        // Suppress the loop's generic new-lead / status replies (no double-text).
+        try { await crud.logEvent('new_lead_replied_' + String(parsed.from).replace(/\D/g, ''), { outcome: 'parts_arrived', job_id: pj.id, at_ms: Date.now() }); } catch (_) {}
+        try { await crud.logEvent('parts_arrived_reported', { job_id: pj.id, phone: String(parsed.from).slice(-4), body: String(parsed.body).slice(0, 120), got_avail: gotAvail, at_ms: Date.now() }); } catch (_) {}
+        partsArrivedHandled = true;
+        console.log('[customer-sms-inbound] parts-arrived reported by customer:', { job_id: pj.id, got_avail: gotAvail });
+      }
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] parts-arrived detect error:', String((e && e.message) || e)); }
+
   // 🗓️ AVAILABILITY RESCUE (Teddy 2026-07-07, the Jen Ross fix). Warranty jobs carry the
   // customer's phone on the JOB, not on a linked customer record — so the recorder can't
   // match the reply (job_id 0) and the availability the customer sent falls on the floor.
@@ -635,7 +713,7 @@ exports.handler = async function (event) {
   let availRescued = false;
   try {
     const matched = Number(recordData && recordData.job_id) > 0;
-    if (!matched && !recallHandled && looksLikeAvailability(parsed.body)) {
+    if (!matched && !recallHandled && !partsArrivedHandled && looksLikeAvailability(parsed.body)) {
       const jid = await findJobByPhone(parsed.from);
       if (jid) {
         await fetch(SAVE_AVAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -680,7 +758,7 @@ exports.handler = async function (event) {
   // day-only reply RIGHT NOW instead of waiting on the loop (Sherri asked 6x into silence).
   let statusAnswered = false;
   try {
-    if (!recallHandled && !availRescued && looksLikeStatusQuestion(parsed.body)) {
+    if (!recallHandled && !availRescued && !partsArrivedHandled && looksLikeStatusQuestion(parsed.body)) {
       statusAnswered = await instantStatusReply(parsed.from, parsed.body);
       if (statusAnswered) console.log('[customer-sms-inbound] instant status answer sent:', { from: parsed.from });
     }
@@ -691,7 +769,7 @@ exports.handler = async function (event) {
   // stay SILENT and let a human read it. (Teddy 2026-07-08: "delete that unless they ask
   // for it. Or text us in a foreign language then send to them in their language.")
   try {
-    if (!recallHandled && !availRescued && !statusAnswered) {
+    if (!recallHandled && !availRescued && !statusAnswered && !partsArrivedHandled) {
       const asked = asksForLink(parsed.body);
       let foreign = null;
       // Only spend a translate call when it's plausibly foreign (not asked, not an

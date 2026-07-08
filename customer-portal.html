@@ -421,6 +421,13 @@
       📦 My parts arrived
       <span class="sub" style="color:rgba(255,255,255,0.85)">Tap when the box hits your porch — we'll come install.</span>
     </button>
+    <div id="partsAvailWrap" style="display:none;margin-top:10px;padding:14px;border:1px solid #d7e0ec;border-radius:12px;background:#f6faf8">
+      <div style="font-weight:700;margin-bottom:6px">✅ Got it — your part's marked in!</div>
+      <div style="font-size:14px;color:#33415c;margin-bottom:8px">What days work best to get your tech back out this week? (We run day-of routing and text a live arrival window the morning of.)</div>
+      <textarea id="partsAvailText" rows="2" placeholder="e.g. Any day after Thursday, mornings are best" style="width:100%;box-sizing:border-box;font-size:16px;padding:10px;border:1px solid #c8d2e0;border-radius:8px"></textarea>
+      <button class="btn" id="btnPartsAvailSend" style="margin-top:8px;background:#1f6feb;color:#fff;border-color:#1f6feb">Send my availability</button>
+      <div id="partsAvailDone" style="display:none;font-weight:700;color:#00875a;margin-top:8px">Thank you — we'll get you booked and confirm your day. 🐜</div>
+    </div>
     <button class="btn" id="btnRate" style="display:none">
       ⭐ Rate your visit
       <span class="sub">30-second feedback. Helps us improve.</span>
@@ -1034,9 +1041,35 @@
             });
             const data = await res.json();
             if (data && data.success) {
-              btnPartsArrived.textContent = '✓ Got it — your tech has been notified';
+              btnPartsArrived.textContent = '✓ Got it — your part is marked in';
               recordPortalEvent('portal_action_taken', 'parts_arrived').catch(() => {});
-              setTimeout(() => location.reload(), 1500);
+              // Ask availability right here (like the warranty intake) so the office can
+              // book the return visit — no reload, no leaving the page. (Teddy 2026-07-08.)
+              const wrap = $('partsAvailWrap');
+              if (wrap) {
+                wrap.style.display = '';
+                const sendBtn = $('btnPartsAvailSend');
+                if (sendBtn && !sendBtn.dataset.wired) {
+                  sendBtn.dataset.wired = '1';
+                  sendBtn.onclick = async () => {
+                    const txt = ($('partsAvailText').value || '').trim();
+                    if (!txt) { $('partsAvailText').focus(); return; }
+                    sendBtn.disabled = true; sendBtn.textContent = 'Sending…';
+                    try {
+                      await fetch('/.netlify/functions/save-availability', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ job_id: job.id, availability_text: txt }),
+                      });
+                      recordPortalEvent('portal_action_taken', 'parts_arrived_availability').catch(() => {});
+                    } catch (_) {}
+                    $('partsAvailText').style.display = 'none';
+                    sendBtn.style.display = 'none';
+                    $('partsAvailDone').style.display = '';
+                  };
+                }
+              } else {
+                setTimeout(() => location.reload(), 1500);
+              }
             } else {
               btnPartsArrived.disabled = false;
               btnPartsArrived.textContent = '📦 My parts arrived';
