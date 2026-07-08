@@ -144,7 +144,7 @@ exports.handler = async (event) => {
     const wins = {};
     for (const jid of Object.keys(firstFill)) { const tid = firstFill[jid].tid; wins[tid] = (wins[tid] || 0) + 1; }
     const teddyWins = wins[OWNER_ID] || 0;
-    const btTechs = Object.keys(wins).filter((id) => isField(id)).map((id) => ({
+    const btTechs = Object.keys(wins).filter((id) => isField(id) && Number(id) !== OWNER_ID).map((id) => ({
       tech_id: +id, name: nameOf(id), wins: wins[id], beating_teddy: wins[id] > teddyWins,
     })).sort((a, b) => b.wins - a.wins);
     const beat_teddy = {
