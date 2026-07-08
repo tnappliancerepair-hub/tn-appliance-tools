@@ -46,6 +46,11 @@
   // The two outcome choices for the Job-status field.
   var OUTCOME_COMPLETE = 'Job complete';
   var OUTCOME_SECOND_TRIP = 'Needs a second trip';
+  var OUTCOME_REASSIGN = 'Please reassign';   // tech can't take it — kick back to the office
+  // Not fixable / recommend replacement = the SAME outcome (Teddy 7/8): unit shouldn't be
+  // repaired, warranty should replace it. John called it "not fixable", Andre "recommend
+  // replacement" — one button, both phrasings recorded so either search finds it.
+  var OUTCOME_NOT_FIXABLE = 'Not fixable — recommend replacement';
 
   // 🔩 FIND THE PART (Teddy 2026-07-07: "might be the best tool we've got"). Preload the
   // model # and open a search on each parts site so the tech can quickly confirm the
@@ -232,13 +237,15 @@
     }
   }
 
-  // % complete over the four essential TDR fields the tech fills.
+  // % complete over the four essentials. Parts counts as done if the tech marked a sent
+  // part OR wrote one in (the parts UI is now the 📦 Parts section, not a field tile).
   function simpleTdrPct(d) {
     var fields = (d && d.fields) || {};
-    var keys = ['diagnosis', 'parts_needed', 'repair_completed', 'labor_hours'];
-    var filled = 0;
-    keys.forEach(function (k) { if ((fields[k] || {}).filled) filled += 1; });
-    return Math.round((filled / keys.length) * 100);
+    var diag = !!(fields.diagnosis || {}).filled;
+    var partsOk = !!(fields.parts_needed || {}).filled || !!(suppliedParts && suppliedParts.some(function (p) { return p.checked; }));
+    var status = !!(fields.repair_completed || {}).filled;
+    var labor = !!(fields.labor_hours || {}).filled;
+    return Math.round([diag, partsOk, status, labor].filter(Boolean).length / 4 * 100);
   }
 
   function renderModal(d) {
@@ -265,9 +272,11 @@
     var customerSafe = false;
     var blockingText = buildBlockingText(d);
 
+    // Parts live in the "📦 Parts" section (buildSuppliedParts) now — the parts the warranty
+    // sent, each tapped Used/Return/Not here, plus a write-in for anything not listed
+    // (John's ask 7/8). So there's no separate "Part(s) used" tile here.
     var fieldOrder = [
       {key: 'diagnosis',        label: 'What failed',  icon: '🔍', prompt: 'What went wrong / what failed?'},
-      {key: 'parts_needed',     label: 'Part(s) used', icon: '📦', prompt: 'Part name + number — add as many as you used'},
       {key: 'repair_completed', label: 'Job status',   icon: '🔧', prompt: 'Complete, or second trip needed?'},
       {key: 'labor_hours',      label: 'Labor hours',  icon: '⏱️', prompt: 'Total time on the job'},
     ];
@@ -425,18 +434,25 @@
     }
   }
 
-  // The parts the warranty company SHIPPED for this job. The tech taps each:
-  // Used (installed) / Return (goes back — chargeback risk if it doesn't) / Not here
-  // (never arrived — timestamped shield). Only renders when parts are on file.
+  // The ONE parts area (John 7/8). Lists the parts the warranty SENT — tech taps each
+  // Used (installed) / Return (goes back — chargeback risk) / Not here (customer doesn't
+  // have it) — and a write-in for any part used that wasn't on the sent list. Always shows
+  // for tech/office so the write-in is available even when nothing was sent.
   function buildSuppliedParts() {
+    if (role !== 'tech' && role !== 'office') return '';
+    var loaded = suppliedParts !== null;
     var parts = suppliedParts || [];
-    if (!parts.length) return '';
+    var writtenIn = splitParts((((lastData && lastData.fields || {}).parts_needed || {}).value || '').toString());
     var toReturn = parts.filter(function (p) { return p.status === 'to_return'; }).length;
     var html = '';
     html += '<div style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.4);border-radius:12px;padding:13px 14px;margin-bottom:14px">';
-    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px"><span style="font-size:18px">📦</span><span style="font-size:12px;font-weight:800;color:#f5c266;text-transform:uppercase;letter-spacing:0.05em">Parts sent for this job</span></div>';
-    html += '<div style="font-size:12px;color:#b8bfd0;margin-bottom:10px;line-height:1.4">Tap each one: <b style="color:#4ad991">Used</b> if you installed it, <b style="color:#f5a623">Return</b> if it goes back, <b style="color:#ff8a8a">Missing</b> if the customer doesn\'t have it.'
-      + (toReturn ? ' <b style="color:#f5a623">' + toReturn + ' to return</b> — ship them back or we eat a chargeback.' : '') + '</div>';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px"><span style="font-size:18px">📦</span><span style="font-size:12px;font-weight:800;color:#f5c266;text-transform:uppercase;letter-spacing:0.05em">Parts</span></div>';
+    if (parts.length) {
+      html += '<div style="font-size:12px;color:#b8bfd0;margin-bottom:6px;line-height:1.4">Parts the warranty sent — tap each: <b style="color:#4ad991">Used</b> if you installed it, <b style="color:#f5a623">Return</b> if it goes back, <b style="color:#ff8a8a">Not here</b> if the customer doesn\'t have it.'
+        + (toReturn ? ' <b style="color:#f5a623">' + toReturn + ' to return</b> — ship them back or we eat a chargeback.' : '') + '</div>';
+    } else {
+      html += '<div style="font-size:12px;color:#b8bfd0;margin-bottom:6px;line-height:1.4">' + (loaded ? 'No parts came from the warranty for this job. Add any part you used below.' : 'Checking for parts the warranty sent…') + '</div>';
+    }
     parts.forEach(function (p) {
       var enc = encodeURIComponent(p.part || '');
       var st = p.status || 'to_return';
@@ -448,14 +464,21 @@
       html += '<div style="background:#161b26;border:1px solid #252b3a;border-radius:11px;padding:10px 12px;margin-top:8px">';
       html += '<div style="font-size:14px;font-weight:800;color:#e6e9f0;word-wrap:break-word">' + escapeHtml(name) + (p.checked ? ' <span style="color:#4ad991;font-size:12px">✓</span>' : '') + '</div>';
       if (p.tracking) html += '<div style="font-size:11px;color:#8a92a6;margin-top:2px">📮 ' + escapeHtml(p.tracking) + '</div>';
-      html += '<div style="display:flex;gap:6px;margin-top:8px">' + btn('✅ Used', 'used', '#4ad991') + btn('↩️ Return', 'to_return', '#f5a623') + btn('❌ Missing', 'missing', '#ff8a8a') + '</div>';
-      // When it goes back: email the tech the actual prepaid return label so they can
-      // ship it later that day/week (Teddy's dream). Shown only for a to-return part.
+      html += '<div style="display:flex;gap:6px;margin-top:8px">' + btn('✅ Used', 'used', '#4ad991') + btn('↩️ Return', 'to_return', '#f5a623') + btn('❌ Not here', 'missing', '#ff8a8a') + '</div>';
       if (st === 'to_return') {
         html += '<button onclick="window.__antTdrEmailReturn(decodeURIComponent(\'' + enc + '\'))" style="width:100%;margin-top:8px;background:#132033;color:#8fc0ff;border:1px solid #34507e;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">📧 Email the return label (me + office)</button>';
       }
       html += '</div>';
     });
+    // Parts the tech wrote in that weren't on the sent list.
+    if (writtenIn.length) {
+      html += '<div style="font-size:11px;color:#8a92a6;font-weight:700;margin:11px 0 4px">Parts you added (not on the sent list):</div>';
+      writtenIn.forEach(function (w) {
+        html += '<div style="background:#161b26;border:1px solid #252b3a;border-radius:10px;padding:9px 12px;margin-top:6px;font-size:14px;font-weight:700;color:#e6e9f0;word-wrap:break-word">📦 ' + escapeHtml(w) + '</div>';
+      });
+    }
+    // Write-in for anything not listed → opens the multi-part editor (saves to parts_needed).
+    html += '<button onclick="window.__antTdrPartsEdit()" style="width:100%;margin-top:10px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">➕ Add a part not listed</button>';
     html += '</div>';
     return html;
   }
@@ -810,8 +833,12 @@
       repair_completed: 'job status',
       labor_hours: 'labor hours',
     };
+    // Parts is satisfied by a marked sent-part OR a written-in part (the 📦 Parts section),
+    // not just the parts_needed field — so don't nag for parts once either is done.
+    var partsOk = !!((d.fields || {}).parts_needed || {}).filled || !!(suppliedParts && suppliedParts.some(function (p) { return p.checked; }));
     var missing = [];
     for (var k in b) {
+      if (k === 'parts_needed' && partsOk) continue;
       if (b[k] && labels[k]) missing.push(labels[k]);
     }
     if (missing.length === 0) return 'ready to submit';
@@ -1092,27 +1119,42 @@
     editKey = 'repair_completed';
     var host = document.getElementById('ant-tdr-content'); if (!host) return;
     var cur = (((lastData.fields || {}).repair_completed || {}).value || '').toString();
-    var isSecond = /second trip|return|come back|not fixed|awaiting|waiting/i.test(cur);
-    var isComplete = !isSecond && cur.trim().length > 0;
+    var isReassign = /reassign/i.test(cur);
+    var isNotFix = /not fixable|no fix|not repairable|unrepairable|recommend replacement|replace the unit|not worth (repair|fixing)/i.test(cur);
+    var isSecond = !isReassign && !isNotFix && /second trip|return visit|come back|not fixed|awaiting|waiting/i.test(cur);
+    var isComplete = !isReassign && !isNotFix && !isSecond && cur.trim().length > 0;
+    // Each choice: [which, label, active?, border-color, active-bg]
+    var opts = [
+      ['complete', '✅ Job complete', isComplete, '#10b981', 'linear-gradient(135deg,#10b981,#047857)'],
+      ['second', '🔁 Needs a return visit', isSecond, '#f5a623', 'linear-gradient(135deg,#f5a623,#d98613)'],
+      ['notfix', '♻️ Not fixable / recommend replacement', isNotFix, '#4aa9ff', 'linear-gradient(135deg,#4aa9ff,#1f6fed)'],
+      ['reassign', '🔄 Please reassign', isReassign, '#a78bfa', 'linear-gradient(135deg,#a78bfa,#7c5cff)'],
+    ];
     var html = '';
     html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Job status</div>';
     html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
     html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()" title="cancel">×</button></div>';
-    html += '<div style="display:flex;flex-direction:column;gap:10px">';
-    html += '<button onclick="window.__antTdrSaveOutcome(\'complete\')" style="text-align:left;background:' + (isComplete ? 'linear-gradient(135deg,#10b981,#047857)' : '#0f1420') + ';color:#e6e9f0;border:1px solid ' + (isComplete ? '#10b981' : '#3a4256') + ';border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer">✅ Job complete</button>';
-    html += '<button onclick="window.__antTdrSaveOutcome(\'second\')" style="text-align:left;background:' + (isSecond ? 'linear-gradient(135deg,#f5a623,#d98613)' : '#0f1420') + ';color:#e6e9f0;border:1px solid ' + (isSecond ? '#f5a623' : '#3a4256') + ';border-radius:12px;padding:16px;font-size:16px;font-weight:800;cursor:pointer">🔁 Needs a second trip</button>';
+    html += '<div style="display:flex;flex-direction:column;gap:9px">';
+    opts.forEach(function (o) {
+      html += '<button onclick="window.__antTdrSaveOutcome(\'' + o[0] + '\')" style="text-align:left;background:' + (o[2] ? o[4] : '#0f1420') + ';color:#e6e9f0;border:1px solid ' + (o[2] ? o[3] : '#3a4256') + ';border-radius:12px;padding:15px;font-size:16px;font-weight:800;cursor:pointer">' + o[1] + '</button>';
+    });
     html += '</div>';
     html += '<div style="margin-top:12px"><div style="font-size:12px;color:#8a92a6;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Note (optional)</div>';
-    html += '<textarea id="ant-tdr-outcome-note" rows="2" placeholder="e.g. what you did, or what the second trip needs" style="' + PART_EDITOR_STYLE + ';resize:vertical">' + escapeHtml(isComplete || isSecond ? cur.replace(/^(Job complete|Needs a second trip)[\s\-—:]*/i, '') : cur) + '</textarea></div>';
+    var strippedNote = cur.replace(/^(Job complete|Needs a second trip|Recommend replacement|Please reassign|Not fixable)[\s\-—:]*/i, '');
+    html += '<textarea id="ant-tdr-outcome-note" rows="2" placeholder="e.g. what you did, why it needs replacing, or what the return trip needs" style="' + PART_EDITOR_STYLE + ';resize:vertical">' + escapeHtml(strippedNote) + '</textarea></div>';
     host.innerHTML = html;
   };
   window.__antTdrSaveOutcome = async function (which) {
     if (!lastData) return;
     var noteEl = document.getElementById('ant-tdr-outcome-note');
     var note = noteEl ? String(noteEl.value || '').trim() : '';
-    var base = which === 'second' ? OUTCOME_SECOND_TRIP : OUTCOME_COMPLETE;
+    var base = which === 'second' ? OUTCOME_SECOND_TRIP
+      : which === 'notfix' ? OUTCOME_NOT_FIXABLE
+      : which === 'reassign' ? OUTCOME_REASSIGN
+      : OUTCOME_COMPLETE;
+    // "Please reassign" sends the job back to the office (unassigns you) — confirm first.
+    if (which === 'reassign' && !window.confirm('This sends the job back to the office to reassign — you\'ll be taken off it. Continue?')) return;
     var val = note ? (base + ' — ' + note) : base;
-    var btns = document.querySelectorAll('button');
     try {
       var body = { job_id: Number(jobId), field: 'repair_completed', value: val };
       if (techId) body.technician_id = Number(techId);
@@ -1124,6 +1166,15 @@
     } catch (e) {
       alert('Could not save: ' + (e && e.message ? e.message : e));
       return;
+    }
+    // Side effect: reassign kicks the job back to the office's Needs-Scheduled with the reason.
+    if (which === 'reassign') {
+      try {
+        await fetch('/.netlify/functions/tech-request-reassignment', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || 0, tdr_id: Number((lastData && lastData.tdr_id) || 0) || null, reason: val }),
+        });
+      } catch (_) {}
     }
     editKey = null;
     await refresh();
