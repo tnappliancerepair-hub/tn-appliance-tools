@@ -72,6 +72,19 @@ exports.handler = async function (event) {
   }
   const daysBack = Math.ceil(hoursBack / 24);
 
+  // Reliable fallback: job-truth resolves the customer's phone from the customer record
+  // even when the job's own field AND the direct customer read come back empty — the
+  // same phone-on-customer-record gap that hid warranty numbers elsewhere. Without this
+  // the tech-tile thread showed only inbound rows (matched by job_id) and none of our
+  // outbound texts (keyed by phone). (Teddy 2026-07-07 — Jen Ross's one-sided thread.)
+  if (!phone10 && jobId) {
+    try {
+      const site = process.env.PUBLIC_SITE_BASE || 'https://tnapplianceexchange.net';
+      const tr = await fetch(`${site}/.netlify/functions/job-truth?job_id=${jobId}&lens=office`, { signal: AbortSignal.timeout(7000) }).then((r) => r.json());
+      phone10 = last10((tr && tr.facts && tr.facts.customer_phone) || '');
+    } catch (_) {}
+  }
+
   // Last-ditch: derive the phone from any inbound row tagged with this job_id.
   if (!phone10 && jobId) {
     try {
