@@ -34,8 +34,11 @@ async function clickFirst(page, selectors) {
   return null;
 }
 
-async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, headless = true }) {
+async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, headless = true, po = '' }) {
   const out = { ok: false, asin, step: 'start', placed: false, screenshots: [], notes: [] };
+  // This Business account REQUIRES a PO number to check out. Use the caller's PO (the job #
+  // when wired to a real order), else a stable ref so the order is tagged + can proceed.
+  const poNumber = String(po || ('TN-' + asin)).slice(0, 40);
   const { browser, ctx, page } = await open('amazon', { headless });
   try {
     // 1. product page
@@ -50,8 +53,27 @@ async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, h
     out.step = 'buy_now';
     try { const q = await page.$('#quantity, select[name="quantity"]'); if (q && quantity > 1) await q.selectOption(String(quantity)).catch(() => {}); } catch (_) {}
     const bought = await clickFirst(page, ['#buy-now-button', 'input#buy-now-button', '#buyNow', '#submit\\.buy-now']);
+    out.notes.push('buy_now=' + (bought || 'none'));
     if (!bought) {
-      // fall back to add-to-cart then proceed
+      // Fall back to add-to-cart. First EMPTY the cart so leftover items from earlier runs
+      // aren't ordered too (Business has no Buy-Now, so the cart persists between runs).
+      let cleared = 0;
+      try {
+        await page.goto('https://www.amazon.com/gp/cart/view.html', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+        for (let i = 0; i < 15; i++) {
+          const del = await clickFirst(page, ['input[value="Delete" i]', 'input[data-feature-id="item-delete-button"]', '[data-action="delete"] input', '.sc-action-delete input', 'span[data-action="delete"] input']);
+          let d = del;
+          if (!d) { try { const b = page.getByRole('button', { name: /^delete$/i }).first(); if (await b.count()) { await b.click({ timeout: 3000 }); d = 'delete-btn'; } } catch (_) {} }
+          if (!d) break;
+          cleared++; await page.waitForTimeout(1200);
+        }
+      } catch (_) {}
+      out.notes.push('cart_cleared=' + cleared);
+      // Now add just this one item and proceed to checkout.
+      await page.goto(`https://www.amazon.com/dp/${encodeURIComponent(asin)}`, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+      await page.waitForTimeout(1500);
+      try { const q = await page.$('#quantity, select[name="quantity"]'); if (q && quantity > 1) await q.selectOption(String(quantity)).catch(() => {}); } catch (_) {}
       await clickFirst(page, ['#add-to-cart-button', 'input#add-to-cart-button']);
       await page.waitForTimeout(1500);
       await page.goto('https://www.amazon.com/gp/cart/view.html', { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -80,7 +102,14 @@ async function orderToCustomer({ asin, quantity = 1, ship = {}, place = false, h
     }
     const fill = async (sel, val) => { if (!val) return false; const el = await page.$(sel).catch(() => null); if (el) { try { await el.fill(String(val)); return true; } catch (_) {} } return false; };
 
-    // 3a. Business Order Information (PO number) — optional; leave blank + Continue.
+    // 3a. Business Order Information — this account REQUIRES a PO number, so FILL it, then
+    //     Continue. Try the labeled field first (robust), then common id/name/placeholders.
+    out.step = 'po';
+    let poFilled = false;
+    try { const l = page.getByLabel(/po ?number/i).first(); if (await l.count()) { await l.fill(poNumber); poFilled = true; } } catch (_) {}
+    if (!poFilled) poFilled = await fill('#po-number-input, #po-number, input[name="poNumber"], input[name*="purchaseOrder" i], input[id*="po" i][id*="number" i], input[placeholder*="PO" i], input[aria-label*="PO" i]', poNumber);
+    out.notes.push('po_filled=' + poFilled + ' (' + poNumber + ')');
+    await page.waitForTimeout(600);
     out.notes.push('po_continue=' + await clickText([/^continue$/i, /continue/i]));
     await page.waitForTimeout(2200);
     await shot(page, '3a-after-po', out);
@@ -150,11 +179,12 @@ if (require.main === module) {
     const place = args.includes('--place');
     const headed = args.includes('--headed');
     const qi = args.indexOf('--qty'); const quantity = qi >= 0 ? parseInt(args[qi + 1], 10) || 1 : 1;
+    const pi = args.indexOf('--po'); const po = pi >= 0 ? String(args[pi + 1] || '') : '';
     const ti = args.indexOf('--to');
     const parts = ti >= 0 ? String(args[ti + 1] || '').split('|') : [];
     const ship = { name: parts[0], line1: parts[1], city: parts[2], state: parts[3], zip: parts[4], phone: parts[5] };
-    if (!asin) { console.error('Usage: node amazon-order.js <ASIN> --to "Name|Street|City|ST|Zip|Phone" [--qty N] [--place] [--headed]'); process.exit(1); }
-    const r = await orderToCustomer({ asin, quantity, ship, place, headless: !headed });
+    if (!asin) { console.error('Usage: node amazon-order.js <ASIN> --to "Name|Street|City|ST|Zip|Phone" [--qty N] [--po REF] [--place] [--headed]'); process.exit(1); }
+    const r = await orderToCustomer({ asin, quantity, ship, place, po, headless: !headed });
     console.log(JSON.stringify(r, null, 2));
     process.exit(0);
   })().catch((e) => { console.error(e); process.exit(1); });
