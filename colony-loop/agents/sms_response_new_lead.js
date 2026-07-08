@@ -41,11 +41,15 @@ async function resolveLink(phone) {
     const r = await fetch(`${SITE_FN}/job-truth?phone=${encodeURIComponent(pk)}&lens=office`);
     const d = await r.json();
     const f = (d && d.found && d.facts) || null;
-    if (f && f.job_id && (String(f.warranty_company || '').trim() || /warranty/i.test(String(f.customer_type || '')))) {
-      return `https://tnapplianceexchange.net/warranty-intake.html?job_id=${f.job_id}`;
+    if (f && f.job_id) {
+      const isW = String(f.warranty_company || '').trim() || /warranty/i.test(String(f.customer_type || ''));
+      // WARRANTY -> warranty-intake; CASH/self-pay -> appliance-ai. (Teddy 2026-07-08.)
+      return isW
+        ? `https://tnapplianceexchange.net/warranty-intake.html?job_id=${f.job_id}`
+        : `https://tnapplianceexchange.net/appliance-ai.html?job_id=${f.job_id}&mode=resume`;
     }
   } catch (_) {}
-  return PUBLIC_SITE;
+  return PUBLIC_SITE;   // unknown lead → front door (self-routes warranty vs cash)
 }
 
 function composeReply(body, link) {

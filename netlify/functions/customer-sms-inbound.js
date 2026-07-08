@@ -153,7 +153,7 @@ function looksLikeNewRepairLead(body) {
 // Same warm new-lead reply the loop composes (sms_response_new_lead) — replicated
 // so we can send it INSTANTLY inline for a cold lead, then write the loop's dedup
 // marker so it doesn't re-send. Template only (no Claude) = sub-second.
-function composeNewLeadReply(body, jobId) {
+function composeNewLeadReply(body, link) {
   const text = String(body || '').toLowerCase();
   let opener = 'Got it — thanks for reaching out.';
   if (/\b(fridge|refrigerator|refrig|freezer|ice ?maker)\b/.test(text)) opener = 'Got it — fridge repair, perfect.';
@@ -162,10 +162,28 @@ function composeNewLeadReply(body, jobId) {
   else if (/\b(dishwasher|dish ?washer)\b/.test(text)) opener = 'Got it — dishwasher repair, perfect.';
   else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = 'Got it — oven/range repair, perfect.';
   else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = 'Got it — HVAC repair, perfect.';
-  // If we can tie this number to a real job, hand them their JOB-KEYED link (loads their
-  // info + saves to their job); only fall back to the bare domain for a truly cold lead.
-  const link = jobId ? ('https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jobId) : PUBLIC_SITE;
-  return `${opener} Tap here to finish setting up in about 60 seconds: ${link} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+  return `${opener} Tap here to finish setting up in about 60 seconds: ${link || PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+}
+
+// Resolve the RIGHT intake link for this phone (Teddy 2026-07-08): WARRANTY jobs get
+// warranty-intake.html, CASH/self-pay jobs get appliance-ai.html; a truly unknown number
+// gets the front door (which itself routes to appliance-ai). Uses job-truth by phone.
+async function resolveIntakeLink(phone) {
+  try {
+    const pk = String(phone || '').replace(/\D/g, '').slice(-10);
+    const tc = new AbortController(); const tt = setTimeout(() => tc.abort(), 7000);
+    const r = await fetch(`https://tnapplianceexchange.net/.netlify/functions/job-truth?phone=${encodeURIComponent(pk)}&lens=office`, { signal: tc.signal });
+    clearTimeout(tt);
+    const d = await r.json().catch(() => ({}));
+    const f = (d && d.found && d.facts) || null;
+    if (f && f.job_id) {
+      const isW = String(f.warranty_company || '').trim() || /warranty/i.test(String(f.customer_type || ''));
+      return isW
+        ? `https://tnapplianceexchange.net/warranty-intake.html?job_id=${f.job_id}`
+        : `https://tnapplianceexchange.net/appliance-ai.html?job_id=${f.job_id}&mode=resume`;
+    }
+  } catch (_) {}
+  return PUBLIC_SITE;   // unknown lead → front door (self-routes warranty vs cash)
 }
 
 // Fire the instant inline reply. Only called when the customer ASKED for a link or
@@ -183,9 +201,9 @@ async function instantNewLeadReply(fromPhone, body, foreign) {
     if (rd && (rd.count > 0 || (Array.isArray(rd.items) && rd.items.length > 0))) return false;
   } catch (_) { /* fail open — better to greet than stay silent */ }
 
-  // If this number already belongs to a job, use its deep link, not the bare domain.
-  let jid = 0; try { jid = await findJobByPhone(fromPhone); } catch (_) {}
-  let reply = composeNewLeadReply(body, jid);
+  // WARRANTY -> warranty-intake, CASH -> appliance-ai, unknown -> front door.
+  const link = await resolveIntakeLink(fromPhone);
+  let reply = composeNewLeadReply(body, link);
   // Foreign-language customer → reply in their language (Teddy 2026-07-08).
   if (foreign && foreign.lang_name) { try { reply = await translateFromEnglish(reply, foreign.lang_name); } catch (_) {} }
   const sc = new AbortController(); const st = setTimeout(() => sc.abort(), 6000);
