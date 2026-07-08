@@ -17,6 +17,9 @@ const crud = require('./_lib/xano/metadata-crud');
 const sp = require('./_lib/servicepower');
 const { getSecret } = require('./_lib/secrets');
 
+// Give the FSSCallId/MfgId resolution (getCallInfo, chunked) headroom on the live write.
+exports.config = { timeout: 26 };
+
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
@@ -108,18 +111,30 @@ exports.handler = async function (event) {
     notes: b.notes || '', eta: b.eta || '', completed_date: b.completed || '',
   };
 
-  // LIVE requires the flag + auth + confirm. Otherwise SHADOW.
+  // ── LIVE vs SHADOW ────────────────────────────────────────────────────────
+  // The global vault flag SERVICEPOWER_PUSH_LIVE=true IS the authorization for
+  // ordinary lifecycle pushes: once we've decided auto-push is trusted, the tech's
+  // "on my way / start / complete" taps write to the portal for real WITHOUT the
+  // client carrying a secret (secrets never live in front-end code). Two guardrails:
+  //   • DESTRUCTIVE statuses (cancel / reject a warranty dispatch) NEVER auto-fire —
+  //     they always require the deliberate manual-admin path, flag or no flag.
+  //   • A caller can force a preview any time with dry_run:true.
+  // The manual-admin path (manual:true + admin secret/office pw + confirm) still works
+  // as a one-off even when the flag is OFF, for testing.
   const liveFlag = String((await getSecret('SERVICEPOWER_PUSH_LIVE')) || '').toLowerCase() === 'true';
   const adminOk = b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5');
   const authed = adminOk || (await verifyOffice(b.password));
-  // AUTO-fire writes need the global flag; a MANUAL admin-directed write (manual:true
-  // + admin secret + confirm) is a deliberate one-off and is allowed without it.
-  const goLive = b.live === true && b.confirm === true && authed && (liveFlag || b.manual === true);
+  const DESTRUCTIVE = { canceled: 1, rejected: 1 };
+  const manualLive = b.live === true && b.confirm === true && authed && b.manual === true;
+  const autoLive = liveFlag && b.dry_run !== true && !DESTRUCTIVE[statusKey];
+  const goLive = autoLive || manualLive;
 
   if (!goLive) {
     // SHADOW — log what we WOULD send, send nothing.
-    try { await crud.logEvent('servicepower_push_shadow', { ...planned, live_flag: liveFlag, would_send: true, at_ms: Date.now() }); } catch (_) {}
-    return json(200, { ok: true, mode: 'shadow', planned, note: 'SHADOW — nothing sent to ServicePower. To go live: set SERVICEPOWER_PUSH_LIVE=true + pass live:true, confirm:true, and admin secret/office password.' });
+    const why = DESTRUCTIVE[statusKey] ? 'destructive status needs manual-admin path'
+      : (!liveFlag ? 'SERVICEPOWER_PUSH_LIVE not set' : (b.dry_run === true ? 'dry_run requested' : 'auth/confirm missing'));
+    try { await crud.logEvent('servicepower_push_shadow', { ...planned, live_flag: liveFlag, why, would_send: true, at_ms: Date.now() }); } catch (_) {}
+    return json(200, { ok: true, mode: 'shadow', why, planned, note: 'SHADOW — nothing sent to ServicePower (' + why + '). Auto-live needs SERVICEPOWER_PUSH_LIVE=true; cancel/reject need the manual-admin path.' });
   }
 
   // LIVE push
