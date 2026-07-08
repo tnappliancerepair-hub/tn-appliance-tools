@@ -73,6 +73,18 @@ exports.handler = async function (event) {
       }
       return j(200, { ok: true, status });
     }
+    // The tech snaps a photo of a part (proof of used / to-return). The image is already
+    // in S3 (via /photo-upload) — we just link its s3_key to the part + status here so it
+    // shows as a thumbnail on the part row. Warranty documentation + chargeback shield.
+    if (b.action === 'photo') {
+      if (!b.part || !b.s3_key) return j(400, { ok: false, error: 'part and s3_key required' });
+      await crud.logEvent('warranty_part_photo', {
+        job_id: jobId, part: String(b.part), s3_key: String(b.s3_key),
+        status: normStatus(b.status), technician_id: Number(b.technician_id || 0) || null,
+        by: String(b.by || 'tech'), at_ms: Date.now(),
+      });
+      return j(200, { ok: true, s3_key: String(b.s3_key) });
+    }
     // Legacy "not here" flag (tech) — same as marking missing.
     if (b.action === 'discrepancy') {
       await crud.logEvent('warranty_part_discrepancy', {
@@ -103,10 +115,19 @@ exports.handler = async function (event) {
   if (!jobId && !claim) return j(400, { ok: false, error: 'job_id or claim required' });
   const mine = (m) => (jobId && Number(m.job_id) === jobId) || (claim && String(m.claim) === claim);
 
-  const [labels, manual, statuses, discreps] = await Promise.all([
+  const [labels, manual, statuses, discreps, photos] = await Promise.all([
     rows('parts_return_label', 400), rows('warranty_part_supplied', 200),
     rows('warranty_part_status', 300), rows('warranty_part_discrepancy', 200),
+    rows('warranty_part_photo', 300),
   ]);
+
+  // photos per part — newest first. The card resolves each s3_key to a signed thumbnail.
+  const photoByPart = {};
+  for (const r of photos) {
+    const m = meta(r); if (!mine(m) || !m.part || !m.s3_key) continue;
+    (photoByPart[m.part] = photoByPart[m.part] || []).push({ s3_key: String(m.s3_key), status: String(m.status || ''), at: Number(m.at_ms) || 0, by: String(m.by || '') });
+  }
+  for (const k of Object.keys(photoByPart)) photoByPart[k].sort((a, b) => b.at - a.at);
 
   // Latest explicit DECISION per part — the tech (or office) check. Compared across
   // both status events and discrepancy events by timestamp so the newest wins. This
@@ -134,6 +155,7 @@ exports.handler = async function (event) {
       checked: !!d,                       // has the tech/office confirmed this one?
       checked_by: d ? d.by : '',          // 'tech' | 'office' | ''
       checked_at: d ? d.at : 0,
+      photos: photoByPart[p.part] || [],  // [{s3_key, status, at, by}] newest first
     };
   });
   const to_return = parts.filter((p) => p.status === 'to_return').length;

@@ -30,6 +30,8 @@
   // this job, pulled from the parts emails. The tech marks each Used / Return / Not here —
   // that decision drives the return-tracking AND the claim's "returned" field. (Teddy 7/8)
   var suppliedParts = null, suppliedLoading = false;
+  var _photoUrlCache = {};        // s3_key -> viewable URL (signed or cached data URL)
+  var _partPhotoTarget = null;    // { part, status } while snapping a per-part photo
   // Tech vs Ant 🐜 (Stage 1): antGuess undefined=unfetched, null=no confident call, obj=call.
   var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false;
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
@@ -370,6 +372,7 @@
     host.innerHTML = html;
     // Kick off Ant's part prediction once per open (fills the guess card).
     if (role === 'tech' && antGuess === undefined && !antGuessLoading) { antGuessLoading = true; loadAntGuess(); }
+    if (role === 'tech' || role === 'office') _hydratePartPhotos();
   }
 
   // ── Tech vs Ant 🐜 — Ant's part guess: confirm or beat it ─────────
@@ -468,6 +471,17 @@
       if (st === 'to_return') {
         html += '<button onclick="window.__antTdrEmailReturn(decodeURIComponent(\'' + enc + '\'))" style="width:100%;margin-top:8px;background:#132033;color:#8fc0ff;border:1px solid #34507e;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">📧 Email the return label (me + office)</button>';
       }
+      // Photo proof for this part — snap what you used / what's going back. Thumbnails hydrate
+      // from S3; a freshly-snapped one shows instantly from the cached data URL.
+      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">';
+      (p.photos || []).forEach(function (ph) {
+        var src = _photoUrlCache[ph.s3_key] || '';
+        var brd = ph.status === 'used' ? '#2e6b4f' : (ph.status === 'missing' ? '#7a2e2e' : '#7a5a1e');
+        html += '<img data-s3key="' + escapeHtml(ph.s3_key) + '" src="' + src + '" onclick="window.__antTdrViewPhoto(decodeURIComponent(\'' + encodeURIComponent(ph.s3_key) + '\'))" style="width:50px;height:50px;border-radius:8px;object-fit:cover;border:1px solid ' + brd + ';cursor:pointer;background:#0f1420" alt="part photo">';
+      });
+      html += '<button onclick="window.__antTdrPartPhoto(decodeURIComponent(\'' + enc + '\'),\'' + st + '\')" style="width:50px;height:50px;border-radius:8px;border:1px dashed #3a4256;background:#0f1420;color:#8fc0ff;font-size:19px;cursor:pointer" title="Take a photo of this part">📷</button>';
+      html += '</div>';
+      if (!(p.photos || []).length) html += '<div style="font-size:11px;color:#8a92a6;margin-top:4px">📷 Optional: snap this part (proof of what you used / sent back)</div>';
       html += '</div>';
     });
     // Parts the tech wrote in that weren't on the sent list.
@@ -532,6 +546,101 @@
     } catch (e) { _returnEmailed[part] = false; toast.set('Could not send — try again', '#b91c1c'); }
   }
   window.__antTdrEmailReturn = function (part) { _sendReturnEmail(part, false); };
+
+  // ── Per-part photos — snap proof of what you used / what's going back ──────
+  // Reuses /photo-upload (weak-signal-proof) then links the s3_key to the part+status
+  // via warranty-parts action:'photo'. The freshly-snapped shot shows instantly from its
+  // cached data URL; older ones hydrate to signed thumbnails after render.
+  window.__antTdrPartPhoto = function (part, status) {
+    if (!jobId) { alert('Open this from the job so the photo lands on the right one.'); return; }
+    _partPhotoTarget = { part: part, status: status || '' };
+    var inp = document.getElementById('ant-tdr-part-photo-input');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');
+      inp.id = 'ant-tdr-part-photo-input'; inp.style.display = 'none';
+      inp.onchange = function () { _partPhotoPicked(this); };
+      document.body.appendChild(inp);
+    }
+    inp.value = ''; inp.click();
+  };
+  function _partPhotoPicked(input) {
+    var file = input && input.files && input.files[0];
+    if (!file || !_partPhotoTarget) return;
+    var tgt = _partPhotoTarget;
+    var reader = new FileReader();
+    reader.onload = function (ev) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var max = 1600, w = img.width, h = img.height;
+          if (w > max || h > max) { var s = Math.min(max / w, max / h); w = Math.round(w * s); h = Math.round(h * s); }
+          var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          _uploadPartPhoto(cv.toDataURL('image/jpeg', 0.82), tgt);
+        } catch (e) { _uploadPartPhoto(ev.target.result, tgt); }
+      };
+      img.onerror = function () { _uploadPartPhoto(ev.target.result, tgt); };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  async function _uploadPartPhoto(b64, tgt) {
+    var toast = _antTdrToast('📤 Uploading photo…', '#1f6fed');
+    try {
+      var r = await fetch('/.netlify/functions/photo-upload', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: b64, job_id: Number(jobId), uploaded_by: 'tech' }),
+      });
+      var d = await r.json();
+      if (!d || !d.ok || !d.s3_key) throw new Error((d && d.error) || 'upload failed');
+      // Cache the data URL under the real key so the thumbnail is instant (no signing round-trip).
+      _photoUrlCache[d.s3_key] = b64;
+      // Optimistic: attach to the part in local state.
+      if (suppliedParts) suppliedParts.forEach(function (p) { if (p.part === tgt.part) { p.photos = p.photos || []; p.photos.unshift({ s3_key: d.s3_key, status: tgt.status, at: Date.now(), by: 'tech' }); } });
+      if (lastData && editKey === null) renderModal(lastData);
+      // Link it to the part + status on the server.
+      await fetch('/.netlify/functions/warranty-parts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'photo', job_id: Number(jobId), part: tgt.part, status: tgt.status, s3_key: d.s3_key, technician_id: Number(techId) || 0, by: 'tech' }),
+      });
+      toast.set('✅ Photo added', '#10b981');
+      loadSuppliedParts();
+    } catch (e) {
+      toast.set('❌ Photo didn\'t upload — try again on better signal', '#b91c1c');
+    }
+  }
+  // Open a part photo full-size in a new tab (resolves to a signed URL if not cached).
+  window.__antTdrViewPhoto = async function (s3key) {
+    var url = _photoUrlCache[s3key];
+    if (url) { window.open(url, '_blank'); return; }
+    try {
+      var r = await fetch('/.netlify/functions/s3-view-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s3_keys: [s3key] }) });
+      var d = await r.json();
+      var u = d && d.signed_urls && d.signed_urls[0] && d.signed_urls[0].view_url;
+      if (u) { _photoUrlCache[s3key] = u; window.open(u, '_blank'); }
+    } catch (_) {}
+  };
+  // After a render, fill in any part-photo thumbnails whose signed URL we don't have yet.
+  async function _hydratePartPhotos() {
+    var imgs = document.querySelectorAll('#ant-tdr-content img[data-s3key]');
+    if (!imgs || !imgs.length) return;
+    var need = [];
+    imgs.forEach(function (im) {
+      var k = im.getAttribute('data-s3key');
+      if (_photoUrlCache[k]) { if (im.src !== _photoUrlCache[k]) im.src = _photoUrlCache[k]; }
+      else if (need.indexOf(k) < 0) need.push(k);
+    });
+    if (!need.length) return;
+    try {
+      var r = await fetch('/.netlify/functions/s3-view-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s3_keys: need }) });
+      var d = await r.json();
+      (d && d.signed_urls || []).forEach(function (s) { if (s && s.s3_key && s.view_url) _photoUrlCache[s.s3_key] = s.view_url; });
+      document.querySelectorAll('#ant-tdr-content img[data-s3key]').forEach(function (im) {
+        var k = im.getAttribute('data-s3key'); if (_photoUrlCache[k] && !im.src) im.src = _photoUrlCache[k];
+      });
+    } catch (_) {}
+  }
   // Tiny sticky toast inside the sheet.
   function _antTdrToast(text, bg) {
     var host = document.getElementById('ant-tdr-content');
