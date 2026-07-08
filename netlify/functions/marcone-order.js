@@ -162,7 +162,7 @@ exports.handler = async function (event) {
       const adminOk = b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5');
       if (!adminOk && !(await verifyOffice(b.password))) return json(401, { ok: false, error: 'auth required to place an order' });
       if (b.confirm !== true) return json(400, { ok: false, error: 'confirm:true required to place an order' });
-      const p = await msupply.placeOrder({ custNo, shipTo, items, shippingMethod: chosen.shippingMethodName, poNumber: b.po_number, notes: b.notes });
+      const p = await msupply.placeOrder({ custNo, shipTo, items, shippingMethod: chosen.shippingMethodName, poNumber: b.po_number, notes: b.notes, warehouseNumber: wh });
       if (!p.ok) return json(200, { ok: false, error: 'order failed', status: p.status, detail: (p.data && (p.data.reason || p.data.errorCode || p.data.message)) || (p.raw || '').slice(0, 200) });
       const d = p.data || {};
       const placed = !!(d.success || (Array.isArray(d.orderNumbers) && d.orderNumbers.length));

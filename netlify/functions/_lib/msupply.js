@@ -157,9 +157,14 @@ async function quoteCart({ custNo, shipTo, items, shippingMethodId, warehouseNum
 }
 
 // PLACE the real purchase order (drop-ship to shipTo). Spends money — caller must gate this.
-async function placeOrder({ custNo, shipTo, items, shippingMethod, poNumber, notes }) {
+async function placeOrder({ custNo, shipTo, items, shippingMethod, poNumber, notes, warehouseNumber }) {
+  // Ship-from warehouse at the TOP LEVEL too (not just per-item) — the purchaseorder
+  // API otherwise defaults to the account home branch (901 Nashville), which fails for
+  // non-stock parts / unsupported ship methods (Philip Widener control board, 2026-07-08).
+  const wh = warehouseNumber || (items && items[0] && items[0].warehouseNumber);
   return api('POST', '/orders/purchaseorder', {
     custNo: custNo ? Number(custNo) : undefined,
+    warehouseNumber: wh ? Number(wh) : undefined,
     poNumber: poNumber || undefined,
     shippingMethod: shippingMethod || undefined,
     shipTo, eP_InternalNotes: notes || undefined,
