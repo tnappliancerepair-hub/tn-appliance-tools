@@ -27,19 +27,23 @@ function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringif
 // Ant lifecycle → ServicePower CallStatus (+ SPCallStatusID where known from live reads).
 // SPCallStatusID numbers get filled in as we observe them; CallStatus name is the anchor.
 // Main CallStatus IDs confirmed from v2.8 §14.3: OPEN=2 ACCEPTED=3 CANCELLED=4 COMPLETED=5 REJECTED=6 RESCHEDULED=7
+// Sub-status IDs are the ACT## codes from v2.8 §13.4 (spec captured 2026-06-24). Passing
+// the exact code (not just the label) makes the portal read precisely.
 const STATUS_MAP = {
   accepted:   { callStatus: 'ACCEPTED',    spId: '3' },
   scheduled:  { callStatus: 'ACCEPTED',    spId: '3' },
-  en_route:   { callStatus: 'ACCEPTED',    spId: '3', sub: 'EN ROUTE' },
-  in_progress:{ callStatus: 'ACCEPTED',    spId: '3', sub: 'ON SITE' },
+  en_route:   { callStatus: 'ACCEPTED',    spId: '3', sub: 'EN ROUTE', spSubId: 'ACT11' },
+  in_progress:{ callStatus: 'ACCEPTED',    spId: '3', sub: 'ON SITE',  spSubId: 'ACT14' },
   completed:  { callStatus: 'COMPLETED',   spId: '5' },
   rescheduled:{ callStatus: 'RESCHEDULED', spId: '7' },
   canceled:   { callStatus: 'CANCELLED',   spId: '4' },
   rejected:   { callStatus: 'REJECTED',    spId: '6' },
-  // Parts request: ORDER PARTS (ACT15) under the ACCEPTED main status — this is the
-  // SquareTrade "request a part" the office does in the portal. Part #/qty rides in notes.
-  order_parts:  { callStatus: 'ACCEPTED', spId: '3', sub: 'ORDER PARTS' },
-  parts_ordered:{ callStatus: 'ACCEPTED', spId: '3', sub: 'PARTS ORDERED' },
+  // Parts flow under the ACCEPTED main status (ACT15/17/18/19/35 per §13.4). Part #/qty in notes.
+  order_parts:   { callStatus: 'ACCEPTED', spId: '3', sub: 'ORDER PARTS',     spSubId: 'ACT15' },
+  parts_ordered: { callStatus: 'ACCEPTED', spId: '3', sub: 'PARTS ORDERED',   spSubId: 'ACT17' },
+  parts_received:{ callStatus: 'ACCEPTED', spId: '3', sub: 'PARTS RECEIVED',  spSubId: 'ACT18' },
+  parts_shipped: { callStatus: 'ACCEPTED', spId: '3', sub: 'PARTS SHIPPED',   spSubId: 'ACT19' },
+  waiting_parts: { callStatus: 'ACCEPTED', spId: '3', sub: 'WAITING ON PARTS', spSubId: 'ACT35' },
   note:       { callStatus: null,          spId: null },
 };
 
@@ -107,7 +111,7 @@ exports.handler = async function (event) {
 
   const planned = {
     job_id: jobId || null, call_number: callNumber, fss_call_id: fssCallId || null, mfg_id: mfgId,
-    call_status: map.callStatus, sp_call_status_id: map.spId || null, sub_status: map.sub || null,
+    call_status: map.callStatus, sp_call_status_id: map.spId || null, sub_status: map.sub || null, sub_status_id: map.spSubId || null,
     notes: b.notes || '', eta: b.eta || '', completed_date: b.completed || '',
   };
 
@@ -142,7 +146,7 @@ exports.handler = async function (event) {
   try {
     res = await sp.updateCallInfo({
       callNumber, callStatus: map.callStatus, spCallStatusId: map.spId || undefined,
-      callSubStatus: map.sub || undefined, fssCallId: fssCallId || undefined, mfgId: mfgId || undefined,
+      callSubStatus: map.sub || undefined, spCallSubStatusId: map.spSubId || undefined, fssCallId: fssCallId || undefined, mfgId: mfgId || undefined,
       scheduleDate: scheduleDate || undefined, scheduleTimePeriod: scheduleTime || undefined,
       notes: b.notes || undefined, completedDate: b.completed || undefined, eta: b.eta || undefined,
     });

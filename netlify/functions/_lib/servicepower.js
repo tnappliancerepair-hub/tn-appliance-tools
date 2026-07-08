@@ -147,6 +147,50 @@ function parseCalls(raw) {
   return out;
 }
 
+// ─── CALL DETAIL (read-only) — where the parts-on-record likely live ──────
+// getCallAttributes / getCallNotes / getProductCoverage return the finer detail for a
+// single dispatch. We use these to pull the AUTHORITATIVE parts ServicePower has on
+// record for a job (vs parsing email), so the TDR return list matches ground truth.
+// All read-only + safe. Response shapes are discovered via the probe endpoint, then
+// parsed precisely once we see a real one.
+async function getCallAttributes({ callNumber, fssCallId, mfgId } = {}) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
+  const inner = `<impl:getCallAttributes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallAttributes>`;
+  return soapCall(inner, '');
+}
+async function getCallNotes({ callNumber, fssCallId, mfgId } = {}) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
+  const inner = `<impl:getCallNotes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallNotes>`;
+  return soapCall(inner, '');
+}
+async function getProductCoverage({ callNumber, fssCallId, mfgId } = {}) {
+  const ui = await userInfoXml();
+  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
+  const inner = `<impl:getProductCoverage>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getProductCoverage>`;
+  return soapCall(inner, '');
+}
+
+// Best-effort generic parts extractor — scans a SOAP response for repeated part-ish
+// blocks and pulls part number / description / qty / return flags out of whatever tags
+// are present. Tuned precisely once we see a real getCallAttributes/getCallNotes response.
+function parseParts(raw) {
+  const out = [];
+  const blockRe = /<(?:\w+:)?(Part|PartInfo|SPPart|CallPart|Parts|PartDetail|Component)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1>/gi;
+  let m;
+  while ((m = blockRe.exec(raw || ''))) {
+    const b = m[2];
+    const pn = _tag(b, 'PartNumber') || _tag(b, 'PartNo') || _tag(b, 'SPPartNumber') || _tag(b, 'Number') || '';
+    const desc = _tag(b, 'PartDescription') || _tag(b, 'Description') || _tag(b, 'PartDesc') || '';
+    const qty = _tag(b, 'Quantity') || _tag(b, 'Qty') || '';
+    const ret = _tag(b, 'ReturnRequired') || _tag(b, 'Return') || _tag(b, 'ReturnFlag') || _tag(b, 'CoreReturn') || '';
+    const status = _tag(b, 'PartStatus') || _tag(b, 'Status') || '';
+    if (pn || desc) out.push({ part: pn, description: desc, quantity: qty, return_flag: ret, status });
+  }
+  return out;
+}
+
 // ─── CAPACITY (the "get more work" lever) ─────────────────────────────────
 // getTechInfo: READ our techs + their TechKey (Key) + current weekly BasicCapacity
 // {Capacity, Day, TimeBand}. Answers "are we still capped at N/day?" and yields the
@@ -195,4 +239,4 @@ async function updateTechCapacity({ key, capacity, date, timeBand }) {
 
 const TIME_BANDS = { '8-12': 'MORNING', '12-17': 'AFTERNOON', '8-17': 'ALL DAY', '17-21': 'EVENING', '6-8': 'EARLY MORNING' };
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
