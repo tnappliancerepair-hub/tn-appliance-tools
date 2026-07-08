@@ -97,6 +97,17 @@ exports.handler = async (event) => {
       jobsByTech[tid] = (jobsByTech[tid] || 0) + 1;
     }
 
+    // Job START times — Beat-Teddy only counts a diagnosis filled BEFORE the stop
+    // starts (Teddy 2026-07-07: "once it's started, no points"). The whole point is to
+    // pre-diagnose the stop so the tech rolls up with the right part = more money.
+    const startRows = await actionRows('tech_job_started', 6);
+    const jobStartMs = {};
+    for (const r of startRows) {
+      const m = metaOf(r); const jid = Number(m.job_id || 0); const ms = rowMs(r);
+      if (!jid || !ms) continue;
+      if (!jobStartMs[jid] || ms < jobStartMs[jid]) jobStartMs[jid] = ms;
+    }
+
     // ── 📋 TDRs filed + 🏁 Beat-Teddy first-fill (both from the TDR table) ──
     const tdrAll = [];
     for (let p = 1; p <= 3; p++) {
@@ -115,9 +126,12 @@ exports.handler = async (event) => {
       if (!hasContent || !tid) continue;
       // TDRs-filed leaderboard (distinct jobs, field techs only, in the scope window)
       if (isField(tid) && jid && inWin(ms)) { (filedInWin[tid] = filedInWin[tid] || new Set()).add(jid); }
-      // Beat-Teddy: earliest fill per job in the pay period (Teddy=1 counts)
+      // Beat-Teddy: earliest PRE-diagnosis per job in the pay period. A fill only
+      // counts if it landed BEFORE the stop was started (no points once it's started).
       if (jid && ms >= pp.start && ms <= pp.end && Number(tid) > 0 && !EXCLUDE_TECH.has(Number(tid))) {
-        if (!firstFill[jid] || ms < firstFill[jid].ms) firstFill[jid] = { tid, ms };
+        const startedMs = jobStartMs[jid] || 0;
+        const isPreDiagnosis = !startedMs || ms < startedMs;
+        if (isPreDiagnosis && (!firstFill[jid] || ms < firstFill[jid].ms)) firstFill[jid] = { tid, ms };
       }
     }
 

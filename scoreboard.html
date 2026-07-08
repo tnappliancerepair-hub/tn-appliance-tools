@@ -91,7 +91,7 @@
         + '<span class="win">' + (t.beating_teddy ? '<span class="flame">BEATING TEDDY</span>' : '') + '</span>'
         + '<span class="val">' + t.wins + '</span></div>').join('');
     }
-    h += '<div class="foot" style="margin-top:10px">First to pre-diagnose a new intake on the Teddy Tool wins the round. Beat Teddy this pay period (' + esc(bt.period || '') + ') = <b style="color:var(--gold)">$' + (bt.bounty || 100) + '</b> 💵</div>';
+    h += '<div class="foot" style="margin-top:10px">Pre-diagnose a stop on the Teddy Tool <b>before it starts</b> to win the round — once it\'s started, no points. Pre-diagnosing = right part, one trip, <b style="color:var(--green)">more money</b>. Beat Teddy this pay period (' + esc(bt.period || '') + ') = <b style="color:var(--gold)">$' + (bt.bounty || 100) + '</b> 💵</div>';
     return h + '</div>';
   }
 
