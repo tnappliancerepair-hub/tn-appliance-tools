@@ -155,14 +155,27 @@
     document.body.appendChild(back);
   }
 
+  // The global floating buttons (dark-mode toggle bottom-left, Ask-Ant bottom-right)
+  // sit at a max z-index and float ON TOP of the TDR sheet — landing right on the
+  // lower fields (Teddy 2026-07-07: "a couple of those floating buttons are in the
+  // way"). Hide them while the TDR is open; restore on close.
+  var STRAY_FABS = ['tn-theme-toggle', 'ant-talk-fab'];
+  function toggleStrayFabs(hide) {
+    STRAY_FABS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = hide ? 'none' : '';
+    });
+  }
   function openModal() {
     var back = document.getElementById('ant-tdr-backdrop');
     if (back) back.classList.add('open');
+    toggleStrayFabs(true);
     refresh();
   }
   function closeModal() {
     var back = document.getElementById('ant-tdr-backdrop');
     if (back) back.classList.remove('open');
+    toggleStrayFabs(false);
   }
 
   // ── Fetch + render ─────────────────────────────────────────────────
