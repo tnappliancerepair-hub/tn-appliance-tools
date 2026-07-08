@@ -14,6 +14,12 @@ import { config } from '../config.js';
 
 export async function run(signal, ctx) {
   const { xano, log } = ctx;
+  // MINIMAL TEXT (Teddy 2026-07-08): proactive intake/availability nudges are OFF — the
+  // bounded 4-step sequence in intake-collector owns ALL proactive customer texting now
+  // (2 intake + 2 availability, then reactive-only). Flip LOOP_INTAKE_NUDGES=on to re-enable.
+  if (String(process.env.LOOP_INTAKE_NUDGES || '').toLowerCase() !== 'on') {
+    return { success: true, action: 'disabled_minimal_text' };
+  }
   const p = signal.payload || {};
   const jobId = Number(p.job_id || 0);
   if (!jobId) {
