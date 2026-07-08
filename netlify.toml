@@ -103,6 +103,12 @@
 [functions."gsc-weekly-report"]
   schedule = "0 13 * * 1"
 
+# One-off Monday reminder (2026-07-13): text Teddy to run the ServicePower parts
+# check (sp-parts-check.html) so we can wire the parts list from the API. Date-gated
+# inside the fn, idempotent, self-noops after that Monday.
+[functions."sp-parts-check-reminder"]
+  schedule = "7 13 * * 1"
+
 # Book-a-Repair media chase — if a web lead never sent their model pic + video,
 # text them ONCE (hard one-per-job dedup) to try to get it. Self-gates 9a-7p CT.
 [functions."book-media-chase"]
