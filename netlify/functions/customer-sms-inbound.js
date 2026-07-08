@@ -104,6 +104,22 @@ function hasSpecificIntent(body) {
     || /\b(where(?:'?s| is) my|status|any update|update on)\b/i.test(t);
 }
 
+// A STATUS / "when's my appointment" question we can answer instantly + factually
+// (Sherri Schmerda asked "When is my appt date and time" 6x into ~4h of silence,
+// 2026-07-08). NARROW on purpose — cancel / reschedule / complaint / payment need a
+// human or the loop, so they're excluded here and left to route normally.
+function looksLikeStatusQuestion(body) {
+  const t = String(body || '').trim();
+  if (!t) return false;
+  if (/\b(cancel|cancell|reschedul|refund|complain|unhappy|terrible|lawyer|sue|invoice|bill|charge|how much|price|cost)\b/i.test(t)) return false;
+  return /\bwhen(?:'?s| is| are| will)?\b/i.test(t) && /\b(appt|appointment|coming|tech|technician|schedul|here|out|arriv)\b/i.test(t)
+    || /\bwhat (day|time)\b/i.test(t)
+    || /\b(status|any update|update on my|any word)\b/i.test(t)
+    || /\bwhere(?:'?s| is)?\b.*\b(tech|technician|part|guy)\b/i.test(t)
+    || /\b(eta|how far|on (the|your) way|almost here)\b/i.test(t)
+    || /\bam i (still )?(on|scheduled)\b/i.test(t);
+}
+
 // Guard: only fire the instant new-lead greeting for a message that actually
 // READS like a fresh repair inquiry. A short courtesy/closing/tapback ("thank
 // you", "ok", "that will be fine", 👍, iMessage "Liked …") is NEVER a new lead —
@@ -170,6 +186,55 @@ async function instantNewLeadReply(fromPhone, body) {
   clearTimeout(st);
   // Write the marker the loop's new-lead agent checks, so it skips (no double-text).
   try { await crud.logEvent(dedupKey, { outcome: 'instant_inline_reply', phone: fromPhone, at_ms: Date.now() }); } catch (_) {}
+  return true;
+}
+
+// Instantly ANSWER a status / "when's my appointment" question (Teddy 2026-07-08:
+// "customer texts us, then let's text them back and answer whatever their text is").
+// Resolves the job by phone and replies with job-truth's customer lens — a clean,
+// factual, DAY-ONLY answer ("scheduled with Jimmy for Wednesday; live window the
+// morning of"). Reliable + instant, so nobody waits hours on the loop like Sherri did.
+async function instantStatusReply(fromPhone, body) {
+  const phoneKey = String(fromPhone || '').replace(/\D/g, '');
+  if (!phoneKey) return false;
+  const dedupKey = 'status_answered_' + phoneKey;
+  // One factual status answer per 30 min — repeated "where's my tech?" gets one reply,
+  // a genuinely later question still gets answered.
+  try {
+    const rc = new AbortController(); const rt = setTimeout(() => rc.abort(), 4000);
+    const rr = await fetch(`${XANO_BASE}/list_recent_event_log?action=${encodeURIComponent(dedupKey)}&days_back=1&limit=3`, { signal: rc.signal });
+    clearTimeout(rt);
+    const rd = await rr.json().catch(() => ({}));
+    const items = (rd && rd.items) || [];
+    const recent = items.some((r) => (Date.now() - (new Date(r.created_at || 0).getTime() || 0)) < 30 * 60 * 1000);
+    if (recent) return false;
+  } catch (_) { /* fail open */ }
+
+  let jid = 0; try { jid = await findJobByPhone(fromPhone); } catch (_) {}
+  if (!jid) return false;   // can't resolve their job → let the loop/human handle it
+  // Pull the customer-lens answer (day-only, no clock time — built for exactly this).
+  let answer = '';
+  try {
+    const tc = new AbortController(); const tt = setTimeout(() => tc.abort(), 7000);
+    const tr = await fetch(`https://tnapplianceexchange.net/.netlify/functions/job-truth?job_id=${jid}&lens=customer`, { signal: tc.signal });
+    clearTimeout(tt);
+    const td = await tr.json().catch(() => ({}));
+    answer = String((td && td.lenses && td.lenses.customer) || '').trim();
+  } catch (_) {}
+  if (!answer) return false;   // nothing confident to say → don't guess
+  const msg = answer + ' — TN Appliance Exchange 🐜. Reply here anytime.';
+  const sc = new AbortController(); const st = setTimeout(() => sc.abort(), 6000);
+  try {
+    await fetch(`${XANO_BASE}/send_sms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: fromPhone, body: msg, message: msg, context_tag: 'instant_status_answer' }),
+      signal: sc.signal,
+    });
+  } catch (e) { clearTimeout(st); console.warn('[customer-sms-inbound] instant status send failed', String((e && e.message) || e)); return false; }
+  clearTimeout(st);
+  try { await crud.logEvent(dedupKey, { outcome: 'instant_status_answer', job_id: jid, phone: fromPhone, at_ms: Date.now() }); } catch (_) {}
+  // Suppress the loop's own status reply so we don't double-text the same answer.
+  try { await crud.logEvent('new_lead_replied_' + phoneKey, { outcome: 'instant_status_answer', job_id: jid, at_ms: Date.now() }); } catch (_) {}
   return true;
 }
 
@@ -555,8 +620,18 @@ exports.handler = async function (event) {
   // a generic intake (not a specific intent like cancel/status), send the SAME
   // reply inline in ~1s + mark it so the loop doesn't double-send. Known
   // customers + specific intents still flow through the loop with full context.
+  // ⚡ INSTANT status answer — "when's my appointment / where's my tech" gets a factual
+  // day-only reply RIGHT NOW instead of waiting on the loop (Sherri asked 6x into silence).
+  let statusAnswered = false;
   try {
-    const isColdLead = !recallHandled && !availRescued
+    if (!recallHandled && !availRescued && looksLikeStatusQuestion(parsed.body)) {
+      statusAnswered = await instantStatusReply(parsed.from, parsed.body);
+      if (statusAnswered) console.log('[customer-sms-inbound] instant status answer sent:', { from: parsed.from });
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] instant status error:', String((e && e.message) || e)); }
+
+  try {
+    const isColdLead = !recallHandled && !availRescued && !statusAnswered
       && recordData && recordData.customer_known === false
       && !(Number(recordData.job_id) > 0)        // matched to a job => not a cold lead
       && !hasSpecificIntent(parsed.body)
