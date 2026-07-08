@@ -14,7 +14,9 @@ const crud = require('./_lib/xano/metadata-crud');
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SITE = 'https://tnapplianceexchange.net';
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
+function partKey(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
 // SquareTrade coded fields — SEEDED from real claims; refine arrays once we load the
 // official Defect / Repair / Category code lists from the portal. Ant maps the tech's
@@ -91,6 +93,26 @@ exports.handler = async function (event) {
     returned: 'N',
   })).filter((p) => p.number || p.description);
 
+  // The parts the VENDOR shipped for this job (from the parts emails) + the tech's
+  // used/return decision on each. This is what makes the SquareTrade "returned" field
+  // (the biggie) accurate instead of a hardcoded N — and, if the TDR carried no parts,
+  // it supplies the claim's parts outright.
+  let supplied = [];
+  try {
+    const wp = await fetch(`${SITE}/.netlify/functions/warranty-parts?job_id=${jobId}`, { signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+    if (wp && wp.ok && Array.isArray(wp.parts)) supplied = wp.parts;
+  } catch (_) {}
+  const retOf = {};
+  for (const s of supplied) { const k = partKey(s.part); if (k) retOf[k] = (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N'; }
+  for (const p of parts) { const k = partKey(p.number); if (k && retOf[k] != null) p.returned = retOf[k]; }
+  if (!parts.length && supplied.length) {
+    for (const s of supplied) {
+      if (s.status === 'missing') continue;   // never arrived — not on the claim
+      parts.push({ number: s.part || '', quantity: Number(s.qty || 1), description: s.description || '', priceRequested: 0, faultCode: '', jobCode: '', returned: (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N' });
+    }
+  }
+  const uncheckedSupplied = supplied.filter((s) => !s.checked).length;
+
   const laborHours = Number(tdr.labor_time_hours || 0);
   // SquareTrade labor: $150 for the trip that COMPLETES the repair (one-and-done, OR the
   // return trip that fixes it). $105 ONLY for a first trip that couldn't fix it and needs a
@@ -134,7 +156,10 @@ exports.handler = async function (event) {
   if (!claim.modelNumber) needed.push('model number');
   if (!claim.dateCompleted) needed.push('job_completed_at (mark the job complete first)');
   if (!performed) needed.push('service performed (TDR repair_completed)');
-  needed.push('⭐ PARTS USED-vs-RETURN: each part needs returned Y/N (the SquareTrade biggie) — surface the picked parts in the TDR so the tech marks USED or RETURN');
+  // Parts used-vs-return: now captured on the TDR (the tech taps Used/Return per shipped
+  // part). Only flag it if the vendor sent parts the tech hasn't marked yet.
+  if (supplied.length && uncheckedSupplied) needed.push('PARTS USED-vs-RETURN: ' + uncheckedSupplied + ' shipped part(s) not yet marked used/return on the TDR');
+  else if (!supplied.length) needed.push('PARTS USED-vs-RETURN: no shipped-parts email on file for this job — confirm no parts were supplied');
   needed.push('OFFICIAL CODE LISTS → confirm defect/repair/category + part fault/job codes (currently seeded)');
 
   return json(200, {

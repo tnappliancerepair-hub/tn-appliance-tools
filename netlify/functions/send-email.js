@@ -63,11 +63,12 @@ const DEFAULT_REPLY_TO = 'tnappliancerepair@gmail.com';
 // Build a raw multipart/mixed MIME message with file attachments. Used when
 // the caller passes `attachments` (e.g. a signed-waiver PNG). Each attachment
 // is { filename, mime_type, content_b64 }.
-function buildRawMime({ from, to, replyTo, subject, body, attachments }) {
+function buildRawMime({ from, to, cc, replyTo, subject, body, attachments }) {
   const boundary = 'tnae_' + crypto.randomBytes(16).toString('hex');
   const lines = [];
   lines.push(`From: ${from}`);
   lines.push(`To: ${to}`);
+  if (cc && cc.length) lines.push(`Cc: ${cc.join(', ')}`);
   lines.push(`Reply-To: ${replyTo}`);
   lines.push(`Subject: ${subject}`);
   lines.push('MIME-Version: 1.0');
@@ -124,12 +125,15 @@ exports.handler = async function (event) {
     return json(400, { ok: false, error: 'invalid json body' });
   }
 
-  const { to, subject, body: emailBody, replyTo, attachments } = body;
+  const { to, subject, body: emailBody, replyTo, attachments, cc } = body;
   if (typeof to !== 'string' || !to ||
       typeof subject !== 'string' || !subject ||
       typeof emailBody !== 'string' || !emailBody) {
     return json(400, { ok: false, error: 'to + subject + body required (all non-empty strings)' });
   }
+  // Optional CC (string or array) — used e.g. to give the shop a receipt copy.
+  const ccArr = (Array.isArray(cc) ? cc : (typeof cc === 'string' && cc ? [cc] : []))
+    .map((s) => String(s || '').trim()).filter((s) => /.+@.+\..+/.test(s));
 
   // Optional attachments: [{ filename, mime_type, content_b64 }]. When present
   // the email is sent as raw MIME (multipart/mixed) so files (e.g. a signed
@@ -145,6 +149,7 @@ exports.handler = async function (event) {
   if (!emailEnabled) {
     console.log('[send-email] EMAIL_ENABLED=false — would have sent:', {
       to,
+      cc: ccArr,
       subject,
       replyTo: replyTo || DEFAULT_REPLY_TO,
       attachments: atts.map((a) => a.filename || 'attachment'),
@@ -164,6 +169,7 @@ exports.handler = async function (event) {
       const raw = buildRawMime({
         from: DEFAULT_FROM,
         to,
+        cc: ccArr,
         replyTo: replyTo || DEFAULT_REPLY_TO,
         subject,
         body: emailBody,
@@ -175,7 +181,7 @@ exports.handler = async function (event) {
     } else {
       result = await ses.send(new SendEmailCommand({
         Source: DEFAULT_FROM,
-        Destination: { ToAddresses: [to] },
+        Destination: ccArr.length ? { ToAddresses: [to], CcAddresses: ccArr } : { ToAddresses: [to] },
         Message: {
           Subject: { Data: subject, Charset: 'UTF-8' },
           Body: { Text: { Data: emailBody, Charset: 'UTF-8' } },

@@ -26,6 +26,10 @@
   var pollTimer = null;
   var editKey = null; // when a field is being edited inline, don't let polling clobber it
   var _rec = null, _chunks = [], recordingNow = false; // in-app voice for the one-box
+  // Vendor-supplied parts (warranty jobs): the parts SquareTrade/ServicePower SHIPPED for
+  // this job, pulled from the parts emails. The tech marks each Used / Return / Not here —
+  // that decision drives the return-tracking AND the claim's "returned" field. (Teddy 7/8)
+  var suppliedParts = null, suppliedLoading = false;
   // Tech vs Ant 🐜 (Stage 1): antGuess undefined=unfetched, null=no confident call, obj=call.
   var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false;
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
@@ -171,6 +175,7 @@
     if (back) back.classList.add('open');
     toggleStrayFabs(true);
     refresh();
+    loadSuppliedParts();
   }
   function closeModal() {
     var back = document.getElementById('ant-tdr-backdrop');
@@ -287,6 +292,9 @@
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
     html += buildCustomerToldUs(d);
+    // 📦 PARTS SENT — on a warranty job, the parts the vendor shipped. Tech marks each
+    // Used / Return / Not here (drives return-tracking + the claim's returned field).
+    if (role === 'tech' || role === 'office') html += buildSuppliedParts();
     // 🔩 FIND THE PART — the main tool for the tech: model # preloaded, one tap opens a
     // search on each parts site to confirm the real part number. Above the TDR fields.
     if (role === 'tech' || role === 'office') html += buildPartFinder(d);
@@ -400,6 +408,117 @@
     antGuessLoading = false;
     if (editKey === null && !recordingNow && !antGuessOverriding && lastData) renderModal(lastData);
   }
+  // ── Vendor-supplied parts (warranty) — load + render + mark ──────────
+  async function loadSuppliedParts() {
+    if (!jobId || suppliedLoading) return;
+    suppliedLoading = true;
+    try {
+      var r = await fetch('/.netlify/functions/warranty-parts?job_id=' + encodeURIComponent(jobId), { cache: 'no-store' });
+      var d = await r.json();
+      suppliedParts = (d && d.ok && Array.isArray(d.parts)) ? d.parts : [];
+    } catch (_) { if (suppliedParts === null) suppliedParts = []; }
+    suppliedLoading = false;
+    // Re-render if the sheet is open and nothing is mid-edit.
+    if (editKey === null && !recordingNow && !antGuessOverriding && lastData) {
+      var back = document.getElementById('ant-tdr-backdrop');
+      if (back && back.classList.contains('open')) renderModal(lastData);
+    }
+  }
+
+  // The parts the warranty company SHIPPED for this job. The tech taps each:
+  // Used (installed) / Return (goes back — chargeback risk if it doesn't) / Not here
+  // (never arrived — timestamped shield). Only renders when parts are on file.
+  function buildSuppliedParts() {
+    var parts = suppliedParts || [];
+    if (!parts.length) return '';
+    var toReturn = parts.filter(function (p) { return p.status === 'to_return'; }).length;
+    var html = '';
+    html += '<div style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.4);border-radius:12px;padding:13px 14px;margin-bottom:14px">';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px"><span style="font-size:18px">📦</span><span style="font-size:12px;font-weight:800;color:#f5c266;text-transform:uppercase;letter-spacing:0.05em">Parts sent for this job</span></div>';
+    html += '<div style="font-size:12px;color:#b8bfd0;margin-bottom:10px;line-height:1.4">Tap each one: <b style="color:#4ad991">Used</b> if you installed it, <b style="color:#f5a623">Return</b> if it goes back, <b style="color:#ff8a8a">Missing</b> if the customer doesn\'t have it.'
+      + (toReturn ? ' <b style="color:#f5a623">' + toReturn + ' to return</b> — ship them back or we eat a chargeback.' : '') + '</div>';
+    parts.forEach(function (p) {
+      var enc = encodeURIComponent(p.part || '');
+      var st = p.status || 'to_return';
+      var name = (p.part || '') + (p.description ? ' — ' + p.description : '');
+      function btn(label, val, activeColor) {
+        var on = st === val;
+        return '<button onclick="window.__antTdrPartStatus(decodeURIComponent(\'' + enc + '\'),\'' + val + '\')" style="flex:1;background:' + (on ? activeColor : '#0f1420') + ';color:' + (on ? '#0e1118' : '#b8bfd0') + ';border:1px solid ' + (on ? activeColor : '#3a4256') + ';border-radius:9px;padding:9px 5px;font-size:12.5px;font-weight:800;cursor:pointer">' + label + '</button>';
+      }
+      html += '<div style="background:#161b26;border:1px solid #252b3a;border-radius:11px;padding:10px 12px;margin-top:8px">';
+      html += '<div style="font-size:14px;font-weight:800;color:#e6e9f0;word-wrap:break-word">' + escapeHtml(name) + (p.checked ? ' <span style="color:#4ad991;font-size:12px">✓</span>' : '') + '</div>';
+      if (p.tracking) html += '<div style="font-size:11px;color:#8a92a6;margin-top:2px">📮 ' + escapeHtml(p.tracking) + '</div>';
+      html += '<div style="display:flex;gap:6px;margin-top:8px">' + btn('✅ Used', 'used', '#4ad991') + btn('↩️ Return', 'to_return', '#f5a623') + btn('❌ Missing', 'missing', '#ff8a8a') + '</div>';
+      // When it goes back: email the tech the actual prepaid return label so they can
+      // ship it later that day/week (Teddy's dream). Shown only for a to-return part.
+      if (st === 'to_return') {
+        html += '<button onclick="window.__antTdrEmailReturn(decodeURIComponent(\'' + enc + '\'))" style="width:100%;margin-top:8px;background:#132033;color:#8fc0ff;border:1px solid #34507e;border-radius:9px;padding:10px;font-size:13px;font-weight:800;cursor:pointer">📧 Email the return label (me + office)</button>';
+      }
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+  var _returnEmailed = {}; // part -> true, so marking Return only auto-emails once per session
+  window.__antTdrPartStatus = async function (part, status) {
+    if (!jobId || !part) return;
+    // Optimistic: reflect the tap immediately.
+    if (suppliedParts) suppliedParts.forEach(function (p) { if (p.part === part) { p.status = status; p.checked = true; } });
+    if (lastData && editKey === null) renderModal(lastData);
+    try {
+      await fetch('/.netlify/functions/warranty-parts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status', job_id: Number(jobId), part: part, status: status, by: (role === 'office' ? 'office' : 'tech'), technician_id: Number(techId) || 0 }),
+      });
+    } catch (_) {}
+    // Marking it Return fires the label to the tech + CCs the shop (receipt) automatically —
+    // no extra tap. Once per part per session; the button below re-sends. (Teddy 7/8)
+    if (status === 'to_return' && !_returnEmailed[part]) _sendReturnEmail(part, true);
+    loadSuppliedParts();
+  };
+  // 📧 Email the prepaid return label to the tech AND cc the shop (a receipt that it was
+  // marked for return). Remembers the tech's email (asked once). Server forwards the actual
+  // label PDF if the RMA email is on file; else the RMA# / tracking / instructions.
+  //   auto=true  → silent if we already know the email; prompt once if we don't.
+  //   auto=false → always confirm/edit the email (the manual re-send button).
+  async function _sendReturnEmail(part, auto) {
+    if (!jobId || !part) return;
+    var saved = '';
+    try { saved = localStorage.getItem('tn_tech_email') || ''; } catch (_) {}
+    var to = saved;
+    if (!auto || !saved) {
+      to = window.prompt('Email the return label to (we\'ll CC the office):', saved || '');
+      if (to === null) return;               // cancelled
+      if (!/.+@.+\..+/.test(to)) { alert('Need a valid email.'); return; }
+      try { localStorage.setItem('tn_tech_email', to); } catch (_) {}
+    }
+    _returnEmailed[part] = true;
+    var toast = _antTdrToast('📧 Sending the return label…', '#1f6fed');
+    try {
+      var r = await fetch('/.netlify/functions/email-part-return', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: Number(jobId), part: part, to: to, tech_id: Number(techId) || 0 }),
+      });
+      var d = await r.json();
+      if (d && d.ok) {
+        var who = to + (d.cc && d.cc.length ? ' + the office' : '');
+        var m = d.mode === 'dry-run' ? ('Email isn\'t switched on yet — logged the return for ' + who)
+          : (d.had_label ? ('✅ Return label emailed to ' + who) : ('✅ Return details emailed to ' + who + (d.label_pending ? ' — the prepaid label follows when it lands' : '')));
+        toast.set(m, d.mode === 'dry-run' ? '#f5a623' : '#10b981');
+      } else { _returnEmailed[part] = false; toast.set('Could not send — ' + ((d && d.error) || 'try again'), '#b91c1c'); }
+    } catch (e) { _returnEmailed[part] = false; toast.set('Could not send — try again', '#b91c1c'); }
+  }
+  window.__antTdrEmailReturn = function (part) { _sendReturnEmail(part, false); };
+  // Tiny sticky toast inside the sheet.
+  function _antTdrToast(text, bg) {
+    var host = document.getElementById('ant-tdr-content');
+    var el = document.createElement('div');
+    el.style.cssText = 'position:sticky;top:0;z-index:30;background:' + (bg || '#1f6fed') + ';color:#fff;padding:11px 14px;border-radius:10px;margin-bottom:12px;font-weight:800;font-size:13px';
+    el.textContent = text;
+    if (host) host.insertBefore(el, host.firstChild);
+    return { set: function (t, c) { el.textContent = t; if (c) el.style.background = c; setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 5000); } };
+  }
+
   function _guessMsg(t, color) { var m = document.getElementById('ant-guess-msg'); if (m) { m.style.color = color || '#8fc0ff'; m.textContent = t; } }
   async function _postVerdict(verdict, techPart) {
     var g = antGuess || {};
