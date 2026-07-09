@@ -148,5 +148,50 @@ Quote Approved · Quote Expired · Quote Cancelled · Availability Verified · E
   Brian reply. (Sample `vendor.external_id: 1586688` is the doc's fake.)
 - Relay our **webhook URL** to Frontdoor + agree the **bearer token** (vault
   `FRONTDOOR_WEBHOOK_TOKEN`) for outbound.
-- The full **Appendix A OpenAPI YAML** (uploading when home) → lock exact required fields +
-  the code↔description map.
+- **Frontdoor Contractor / Vendor ID** (`FRONTDOOR_VENDOR_ID`).
+- For inbound: complete Step 4 (share Client ID → Frontdoor authorizes the account → clears 403).
+- For outbound: hand Frontdoor our webhook URL + agree the bearer token.
+
+## Appendix A — exact OpenAPI schema (locked from the YAML, 2026-07-09)
+Single endpoint `POST /dispatch/outbound`, `requestBody` is `oneOf` the 4 payloads.
+Responses: 200 processed / 400 invalid / 500 error. All payloads share
+`external_organization_id` (enum **AHS | HSA | FTDR | 2-10**) + `operation`.
+
+**SchedulePayload** (`operation: Schedule`) — the full job:
+- `vendor`: { external_id:int, name:str, phoneNumber:str, email:str(email) }
+- `dispatch`:
+  - external_id:int, dispatchType:str, trade:str,
+    priority:str enum **[Normal, Expedited]**, date:str(date-time), isAuthoRequired:bool
+  - `customers`: array of **DispatchCustomer**
+  - `items`: array of **Item**
+  - `streamLink`:str, `streamLinkExpiryDate`:str  ← media/stream link on the dispatch
+  - `coverage`: { details:{ header:str, content:[str] }, notes:[str] }
+  - `payments`: { total:num, paid:num, remaining:num }
+  - `contract`: { external_id:int, listingEffectiveDate:date, listingExpiryDate:date,
+    effectiveDate:date, expiryDate:date, customers:[**ContractCustomer**] }
+
+**StatusPayload** (`operation: Status`):
+- `dispatch`: { external_id:int, isAuthoRequired:bool }
+- `status`: { description:str, code:int, updated_at:date-time, start_time:date-time,
+  items:[**Item**] }
+
+**NotesPayload** (`operation: notes`):
+- `dispatch`: { external_id:int }
+- `note`: { type:str, text:str, created_at:date-time, created_by:str, application:str }
+
+**NCCPayload** (`operation: ncc`):
+- `dispatch`: { external_id:int }
+- `ncc`: { status:str }
+
+**Shared schemas:**
+- **DispatchCustomer / ContractCustomer**: { external_id:int, name:str, email:str(email),
+  preferredCommunicationType:str enum **[PHONE, EMAIL]**, phone:[{ number:str, type:str }],
+  property:{ external_id:int, address:{ streetNumber, streetDirection, streetName,
+  unitNumber, unitType, city, state, zip, zipFour } } }
+- **Item**: { external_id:int (aka STAR DB item id), legacy_item_id:int, description:str,
+  status:str (Open|Cancelled), symptoms:[str], attributes:{ Brand:str, location:str } }
+
+Note: the YAML types `status.code` as a plain integer (no enum) — the **code↔description
+pairing** (10–590) lives in the narrative catalog + the live API reference, not the YAML.
+Lock the exact map from developer.frontdoorhome.com/apis or during sandbox validation;
+`_lib/frontdoor.js STATUS` holds our working subset today.
