@@ -40,8 +40,9 @@
   // box, multiple allowed), whether it's fixed, and labor. No photos/signature on the
   // TDR (those flow into the system on their own).
   var FIELD_META = {
+    model_number:     { label: 'Model #',       col: 'model_number',     multiline: false, ph: 'Model # off the sticker (e.g. WED4815EW1)', model: true },
     diagnosis:        { label: 'What failed',   col: 'diagnosis',        multiline: true,  ph: 'What went wrong / what failed?' },
-    parts_needed:     { label: 'Part(s) used',  col: 'parts_needed',     multiline: true,  ph: 'Part name + number', parts: true },
+    parts_needed:     { label: 'Part & part #', col: 'parts_needed',     multiline: true,  ph: 'Part name + number', parts: true },
     repair_completed: { label: 'Job status',    col: 'repair_completed', multiline: true,  ph: 'Complete, or second trip needed?', outcome: true },
     labor_hours:      { label: 'Labor hours',   col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
   };
@@ -293,11 +294,15 @@
     var customerSafe = false;
     var blockingText = buildBlockingText(d);
 
-    // Parts live in the "📦 Parts" section (buildSuppliedParts) now — the parts the warranty
-    // sent, each tapped Used/Return/Not here, plus a write-in for anything not listed
-    // (John's ask 7/8). So there's no separate "Part(s) used" tile here.
+    // Every warranty claim needs the MODEL # + the PART used and its NUMBER, so both get
+    // their own clear, tappable spot on the TDR (Teddy 2026-07-09: "no spot to add the
+    // part and part number ... no spot for the model number — both must be added"). Model #
+    // saves to the job; Part & part # saves to the warranty-parts log (persists). The
+    // "📦 Parts" section below still tracks warranty-sent parts (Used/Return/Not here).
     var fieldOrder = [
+      {key: 'model_number',     label: 'Model #',      icon: '🏷️', prompt: 'Model # off the sticker'},
       {key: 'diagnosis',        label: 'What failed',  icon: '🔍', prompt: 'What went wrong / what failed?'},
+      {key: 'parts_needed',     label: 'Part & part #',icon: '📦', prompt: 'The part you used + its number'},
       {key: 'repair_completed', label: 'Job status',   icon: '🔧', prompt: 'Complete, or second trip needed?'},
       {key: 'labor_hours',      label: 'Labor hours',  icon: '⏱️', prompt: 'Total time on the job'},
     ];
@@ -345,14 +350,18 @@
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
       var isParts = (f.key === 'parts_needed');
+      var isModel = (f.key === 'model_number');
       // Parts field is backed by the warranty-parts event_log (persists), not the
       // broken parts_needed column — so it actually shows what the tech entered.
       if (isParts) { var _up = usedPartsList(); fState = { filled: _up.length > 0, value: _up.join('\n') }; }
+      // Model # lives on the JOB (submission_extras), not the TDR row — show + edit it here.
+      if (isModel) { var _mv = (((d.submission_extras || {}).model_number) || d.model_number || '').toString(); fState = { filled: !!_mv.trim(), value: _mv }; }
       var isOutcome = !!(FIELD_META[f.key] && FIELD_META[f.key].outcome);
       var editable = canEdit && !!FIELD_META[f.key];
       var cls = fState.filled ? 'filled' : 'empty';
       var icon = fState.filled ? '✅' : '⏳';
       var editHandler = isParts ? 'window.__antTdrPartsEdit()'
+        : isModel ? 'window.__antTdrModelEdit()'
         : (isOutcome ? 'window.__antTdrOutcomeEdit()' : ('window.__antTdrEdit(\'' + f.key + '\')'));
       var onclick = editable ? ' style="cursor:pointer" onclick="' + editHandler + '"' : '';
       html += '<div class="ant-tdr-field ' + cls + '"' + onclick + '>';
@@ -1277,6 +1286,74 @@
     } catch (_) {}
     editKey = null;
     await loadSuppliedParts();   // pull the freshly-saved parts back
+    await refresh();
+    try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
+  };
+
+  // Read the model # straight off the sticker PHOTO (customer's intake pic or the tech's)
+  // via Claude Vision OCR — Teddy 2026-07-09: "the model should load from customer's pic or
+  // tech's pic." Grabs the job's most-recent photo, runs ocr-model-extract, drops the code
+  // into the input for the tech to confirm + Save.
+  window.__antTdrReadModelPhoto = async function (btn) {
+    var old = btn.textContent; btn.disabled = true; btn.textContent = '📷 Reading photo…';
+    try {
+      var a = await (await fetch(XANO + '/get_job_attachments?job_id=' + encodeURIComponent(jobId))).json();
+      var atts = ((a && a.attachments) || []).filter(function (x) { return x.upload_complete_at; });
+      // prefer an obvious model/photo image; else the most recent image on the job
+      var img = atts.filter(function (x) { return /photo|image|model|sticker|jpg|jpeg|png|heic|webp/i.test(String(x.file_type || '') + String(x.s3_key || '') + String(x.mime_type || '')); }).slice(-1)[0]
+        || atts.slice(-1)[0];
+      if (!img) { alert('No photo on this job yet — snap the model sticker (or have the customer send one) and try again.'); btn.disabled = false; btn.textContent = old; return; }
+      var sv = await (await fetch('/.netlify/functions/s3-view-url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s3_keys: [img.s3_key] }) })).json();
+      var url = (((sv && sv.signed_urls) || [])[0] || {}).view_url;
+      if (!url) { alert('Could not open the photo.'); btn.disabled = false; btn.textContent = old; return; }
+      var oc = await (await fetch('/.netlify/functions/ocr-model-extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), image_url: url, attachment_id: img.id }) })).json();
+      var m = oc && oc.model_number;
+      if (m) {
+        var inp = document.getElementById('ant-tdr-model-input'); if (inp) inp.value = m;
+        btn.textContent = '✓ Read: ' + m + ' — check it, then Save'; btn.disabled = false;
+      } else {
+        alert("Couldn't read a model # from that photo. Type it in, or snap a clearer picture of the sticker.");
+        btn.disabled = false; btn.textContent = old;
+      }
+    } catch (e) { alert('Read failed: ' + (e && e.message ? e.message : e)); btn.disabled = false; btn.textContent = old; }
+  };
+  // Model # — its own editable spot on the TDR (Teddy 2026-07-09). Saves to the JOB
+  // (update_job_basics.model_number) — the one record every surface + the warranty claim
+  // reads — so the model # populates everywhere once the tech types it here.
+  window.__antTdrModelEdit = function () {
+    if (!lastData) return;
+    if (role !== 'tech' && role !== 'office') return;
+    editKey = 'model_number';
+    var host = document.getElementById('ant-tdr-content'); if (!host) return;
+    var cur = (((lastData.submission_extras || {}).model_number) || lastData.model_number || '').toString();
+    var html = '';
+    html += '<div class="ant-tdr-head"><div><div class="ant-tdr-title">Model #</div>';
+    html += '<div class="ant-tdr-sub">Job #' + lastData.job_id + ' · ' + escapeHtml(lastData.appliance_summary || '') + '</div></div>';
+    html += '<button class="ant-tdr-x" onclick="window.__antTdrCancelEdit()" title="cancel">×</button></div>';
+    html += '<div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.4);color:#8fc0ff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px">🏷️ Read it straight off the model-sticker photo — or type it exactly as printed.</div>';
+    html += '<button onclick="window.__antTdrReadModelPhoto(this)" style="width:100%;margin-bottom:10px;background:#132033;color:#8fc0ff;border:1px solid #34507e;border-radius:10px;padding:13px;font-size:14px;font-weight:800;cursor:pointer">📷 Read from the model photo</button>';
+    html += '<input id="ant-tdr-model-input" type="text" value="' + escapeHtml(cur) + '" placeholder="e.g. WED4815EW1" style="' + PART_EDITOR_STYLE + '">';
+    html += '<div class="ant-tdr-actions"><button class="ant-tdr-btn primary ant-tdr-save-btn" onclick="window.__antTdrSaveModel()" style="background:linear-gradient(135deg,#10b981,#047857)">✓ Save</button>';
+    html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrCancelEdit()">Cancel</button></div>';
+    host.innerHTML = html;
+    var inp = document.getElementById('ant-tdr-model-input'); if (inp) { try { inp.focus(); } catch (_) {} }
+  };
+  window.__antTdrSaveModel = async function () {
+    if (!lastData) return;
+    var el = document.getElementById('ant-tdr-model-input');
+    var val = el ? String(el.value || '').trim() : '';
+    var btns = document.querySelectorAll('.ant-tdr-save-btn');
+    btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
+    try {
+      var wr = await fetch(XANO + '/update_job_basics', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), model_number: val }) });
+      var wd = await wr.json();
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+    } catch (e) {
+      btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
+      alert('Could not save model #: ' + (e && e.message ? e.message : e));
+      return;
+    }
+    editKey = null;
     await refresh();
     try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
