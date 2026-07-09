@@ -10,7 +10,11 @@
 // Conservative classifier — better to miss than hallucinate. Tech sees
 // a toast only when something is captured.
 //
-// Request:  POST { job_id, tech_id?, image_url, attachment_id? }
+// Request:  POST { job_id?, tech_id?, image_url | image_b64, media_type?, attachment_id? }
+//   - image_url: fetches + reads it. image_b64: read a base64 image directly (no
+//     upload/URL needed — used by the standalone parts tool on the Reports Desk).
+//   - job_id OPTIONAL: when present, a model/part reading is written to that job;
+//     when absent (read-only lookup) nothing is written, we just return the read.
 // Response: { kind, model_number?, serial_number?, manufacturer?,
 //             appliance_type?, part_number?, part_description?,
 //             confidence?, wrote: bool }
@@ -60,23 +64,30 @@ exports.handler = async function (event) {
   try { body = JSON.parse(event.body || '{}'); }
   catch (_) { return cors({ statusCode: 400, body: JSON.stringify({ error: 'bad json' }) }); }
 
-  const { job_id, image_url, tech_id, attachment_id } = body;
-  if (!job_id || !image_url) {
-    return cors({ statusCode: 400, body: JSON.stringify({ error: 'job_id + image_url required' }) });
+  const { job_id, image_url, image_b64, media_type, tech_id, attachment_id } = body;
+  if (!image_url && !image_b64) {
+    return cors({ statusCode: 400, body: JSON.stringify({ error: 'image_url or image_b64 required' }) });
   }
 
-  // 1. Fetch the image and base64-encode it for the Anthropic API.
+  // 1. Get the image as base64 for the Anthropic API — either passed directly
+  //    (Reports Desk snaps a photo, downscales, sends base64) or fetched by URL.
   let imgB64 = '';
   let mediaType = 'image/jpeg';
-  try {
-    const r = await fetch(image_url);
-    if (!r.ok) throw new Error(`image fetch ${r.status}`);
-    const contentType = r.headers.get('content-type') || 'image/jpeg';
-    mediaType = contentType.split(';')[0].trim();
-    const arr = new Uint8Array(await r.arrayBuffer());
-    imgB64 = Buffer.from(arr).toString('base64');
-  } catch (err) {
-    return cors({ statusCode: 502, body: JSON.stringify({ error: 'image fetch failed: ' + err.message }) });
+  if (image_b64) {
+    const m = /^data:([^;]+);base64,(.*)$/i.exec(String(image_b64));
+    if (m) { mediaType = m[1]; imgB64 = m[2]; }
+    else { imgB64 = String(image_b64); mediaType = media_type || 'image/jpeg'; }
+  } else {
+    try {
+      const r = await fetch(image_url);
+      if (!r.ok) throw new Error(`image fetch ${r.status}`);
+      const contentType = r.headers.get('content-type') || 'image/jpeg';
+      mediaType = contentType.split(';')[0].trim();
+      const arr = new Uint8Array(await r.arrayBuffer());
+      imgB64 = Buffer.from(arr).toString('base64');
+    } catch (err) {
+      return cors({ statusCode: 502, body: JSON.stringify({ error: 'image fetch failed: ' + err.message }) });
+    }
   }
 
   // 2. Call Claude Vision (single round-trip classifier + extractor).
@@ -116,7 +127,7 @@ exports.handler = async function (event) {
 
   // 3. Route to the right write endpoint based on classification.
   let wrote = false;
-  if (kind === 'model_sticker' && extracted.model_number) {
+  if (job_id && kind === 'model_sticker' && extracted.model_number) {
     try {
       const r = await fetch(`${XANO_BASE}/update_job_model_from_ocr`, {
         method: 'POST',
@@ -134,7 +145,7 @@ exports.handler = async function (event) {
       const wr = await r.json();
       wrote = !!(wr && wr.wrote);
     } catch (_) {}
-  } else if (kind === 'part_sticker' && extracted.part_number) {
+  } else if (job_id && kind === 'part_sticker' && extracted.part_number) {
     try {
       const r = await fetch(`${XANO_BASE}/save_part_from_photo`, {
         method: 'POST',
