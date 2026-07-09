@@ -1393,6 +1393,9 @@
   };
   window.__antTdrSaveOutcome = async function (which) {
     if (!lastData) return;
+    // Unlock audio INSIDE the tap gesture (before any await) so the celebration's
+    // cha-ching + applause can play on iOS Safari too (it blocks audio started after an await).
+    if (which === 'complete') { try { var _AC = window.AudioContext || window.webkitAudioContext; if (_AC) { window.__antAudioCtx = window.__antAudioCtx || new _AC(); if (window.__antAudioCtx.state === 'suspended') window.__antAudioCtx.resume(); } } catch (_) {} }
     var noteEl = document.getElementById('ant-tdr-outcome-note');
     var note = noteEl ? String(noteEl.value || '').trim() : '';
     var base = which === 'second' ? OUTCOME_SECOND_TRIP
@@ -1423,10 +1426,172 @@
         });
       } catch (_) {}
     }
+    // 🎉 THE CELEBRATION — a tech finishing a job earns the confetti + giant check + their
+    // count for the day + the pay (Teddy 2026-07-09: "the celebration needs to be amazing").
+    if (which === 'complete' && role === 'tech') {
+      try { window.__antTdrCelebrate({ appliance: (lastData && lastData.appliance_summary) || '' }); } catch (_) {}
+    }
     editKey = null;
     await refresh();
     try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
+
+  // ── 🎉 COMPLETION CELEBRATION ────────────────────────────────────────────
+  // Full-screen confetti + a giant animated checkmark + "done today" + the pay. Fires the
+  // moment a tech marks a job complete. Self-contained (canvas confetti, SVG check — no deps).
+  window.__antTdrCelebrate = function (opts) {
+    opts = opts || {};
+    if (document.getElementById('ant-tdr-celebrate')) return;
+    var reduce = false; try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
+    var ov = document.createElement('div');
+    ov.id = 'ant-tdr-celebrate';
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 820px at 50% 34%, rgba(16,185,129,0.30), rgba(6,10,18,0.95) 60%);opacity:0;transition:opacity .25s;font-family:-apple-system,system-ui,sans-serif;-webkit-tap-highlight-color:transparent;');
+    ov.innerHTML =
+      '<canvas id="ant-tdr-confetti" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>' +
+      '<div style="position:relative;text-align:center;padding:24px;max-width:540px">' +
+        '<div id="ant-tdr-badge" style="margin:0 auto 16px;width:136px;height:136px;transform:scale(0)">' +
+          '<svg viewBox="0 0 120 120" width="136" height="136">' +
+            '<circle cx="60" cy="60" r="54" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" stroke-dasharray="339" stroke-dashoffset="339" id="ant-tdr-ring" transform="rotate(-90 60 60)"/>' +
+            '<path d="M36 62 L53 80 L86 43" fill="none" stroke="#4ade80" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="92" stroke-dashoffset="92" id="ant-tdr-check"/>' +
+          '</svg>' +
+        '</div>' +
+        '<div style="font-size:14px;font-weight:900;letter-spacing:.2em;color:#4ade80;text-transform:uppercase">Job Complete</div>' +
+        '<div style="font-size:42px;font-weight:900;color:#fff;line-height:1.05;margin-top:6px;text-shadow:0 4px 34px rgba(16,185,129,.55)">NICE WORK! 🎉</div>' +
+        (opts.appliance ? '<div style="font-size:15px;color:#b7f7d8;margin-top:8px;font-weight:700">' + escapeHtml(opts.appliance) + '</div>' : '') +
+        '<div style="display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap">' +
+          '<div style="background:rgba(255,255,255,.06);border:1px solid rgba(74,222,128,.4);border-radius:16px;padding:15px 22px;min-width:128px">' +
+            '<div id="ant-tdr-cel-count" style="font-size:36px;font-weight:900;color:#fff">1</div>' +
+            '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#7fe6ad;text-transform:uppercase">🔥 Done today</div>' +
+          '</div>' +
+          '<div style="background:rgba(255,255,255,.06);border:1px solid rgba(250,204,21,.45);border-radius:16px;padding:15px 22px;min-width:128px">' +
+            '<div id="ant-tdr-cel-pay" style="font-size:36px;font-weight:900;color:#ffd94a">—</div>' +
+            '<div id="ant-tdr-cel-paylbl" style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#f2d47a;text-transform:uppercase">💰 Pay</div>' +
+          '</div>' +
+        '</div>' +
+        '<button onclick="window.__antTdrCelebrateClose()" style="margin-top:26px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:30px;padding:15px 32px;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 10px 30px rgba(16,185,129,.5)">Keep crushing it →</button>' +
+      '</div>';
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.style.opacity = '1'; });
+    var badge = document.getElementById('ant-tdr-badge');
+    var ring = document.getElementById('ant-tdr-ring'), chk = document.getElementById('ant-tdr-check');
+    if (badge) setTimeout(function () { badge.style.transition = 'transform .55s cubic-bezier(.2,1.5,.4,1)'; badge.style.transform = 'scale(1)'; }, 80);
+    if (reduce) { if (ring) ring.style.strokeDashoffset = '0'; if (chk) chk.style.strokeDashoffset = '0'; }
+    else {
+      if (ring) { ring.style.transition = 'stroke-dashoffset .7s ease .15s'; setTimeout(function () { ring.style.strokeDashoffset = '0'; }, 160); }
+      if (chk) { chk.style.transition = 'stroke-dashoffset .45s ease'; setTimeout(function () { chk.style.strokeDashoffset = '0'; }, 560); }
+      __antTdrConfetti();
+    }
+    try { if (navigator.vibrate) navigator.vibrate([35, 55, 35, 55, 70]); } catch (_) {}
+    __antTdrCelebrateSound();
+    __antTdrCelebrateNumbers();
+    ov._t = setTimeout(function () { window.__antTdrCelebrateClose(); }, 14000);
+  };
+  // 🔊 Cash-register cha-ching + a burst of applause — synthesized with Web Audio (no files,
+  // works inside the Artifact/CSP). Teddy 2026-07-09: "cash register sounds ... an applause".
+  function __antTdrCelebrateSound() {
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try {
+      var ctx = window.__antAudioCtx || (window.__antAudioCtx = new AC());
+      if (ctx.state === 'suspended') ctx.resume();
+      var t = ctx.currentTime;
+      // cha-CHING: two bright ascending bell dings (fundamental + octave shimmer)
+      function bell(freq, start, dur, gain) {
+        var o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), g2 = ctx.createGain();
+        o.type = 'triangle'; o.frequency.value = freq; o2.type = 'sine'; o2.frequency.value = freq * 2.01;
+        o.connect(g); o2.connect(g2); g2.connect(g); g.connect(ctx.destination);
+        g2.gain.value = 0.3;
+        g.gain.setValueAtTime(0.0001, start);
+        g.gain.exponentialRampToValueAtTime(gain, start + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+        o.start(start); o2.start(start); o.stop(start + dur); o2.stop(start + dur);
+      }
+      bell(1318.5, t, 0.5, 0.32);        // E6
+      bell(1760.0, t + 0.11, 0.62, 0.38); // A6
+      // register "ka" thunk
+      var nb = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate), nd = nb.getChannelData(0);
+      for (var i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / nd.length, 2);
+      var ns = ctx.createBufferSource(); ns.buffer = nb; var ng = ctx.createGain(); ng.gain.value = 0.22;
+      var nf = ctx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 1100;
+      ns.connect(nf); nf.connect(ng); ng.connect(ctx.destination); ns.start(t);
+      // applause: swelling bandpassed noise + random claps
+      __antTdrApplause(ctx, t + 0.22, 1.9);
+    } catch (_) {}
+  }
+  function __antTdrApplause(ctx, start, dur) {
+    try {
+      var len = Math.floor(ctx.sampleRate * dur), buf = ctx.createBuffer(1, len, ctx.sampleRate), ch = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+      var src = ctx.createBufferSource(); src.buffer = buf;
+      var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 0.7;
+      var g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.linearRampToValueAtTime(0.16, start + 0.35);
+      g.gain.linearRampToValueAtTime(0.11, start + dur * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+      src.start(start); src.stop(start + dur);
+      for (var k = 0; k < 16; k++) {
+        var cs = ctx.createBufferSource(), cl = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.03), ctx.sampleRate), c = cl.getChannelData(0);
+        for (var j = 0; j < c.length; j++) c[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / c.length, 3);
+        cs.buffer = cl;
+        var cg = ctx.createGain(); cg.gain.value = 0.05 + Math.random() * 0.05;
+        var cf = ctx.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 1400 + Math.random() * 1600;
+        cs.connect(cf); cf.connect(cg); cg.connect(ctx.destination); cs.start(start + Math.random() * dur * 0.85);
+      }
+    } catch (_) {}
+  }
+  window.__antTdrCelebrateClose = function () {
+    var ov = document.getElementById('ant-tdr-celebrate'); if (!ov) return;
+    if (ov._t) clearTimeout(ov._t);
+    ov.style.opacity = '0';
+    setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 260);
+  };
+  function __antTdrConfetti() {
+    var cv = document.getElementById('ant-tdr-confetti'); if (!cv || !cv.getContext) return;
+    var ctx = cv.getContext('2d');
+    var W = cv.width = cv.offsetWidth, H = cv.height = cv.offsetHeight;
+    var cols = ['#10b981', '#4ade80', '#ffd94a', '#38bdf8', '#f472b6', '#ffffff'];
+    var N = Math.max(90, Math.min(200, Math.round(W / 5))), P = [];
+    for (var i = 0; i < N; i++) P.push({ x: Math.random() * W, y: -20 - Math.random() * H * 0.6, r: 4 + Math.random() * 7, c: cols[(Math.random() * cols.length) | 0], vy: 2 + Math.random() * 4.5, vx: -2.5 + Math.random() * 5, rot: Math.random() * 6.28, vr: -0.25 + Math.random() * 0.5, sh: Math.random() < 0.5 ? 0 : 1 });
+    var t0 = Date.now(), DUR = 3800;
+    function frame() {
+      var el = Date.now() - t0; ctx.clearRect(0, 0, W, H);
+      for (var i = 0; i < P.length; i++) { var p = P[i]; p.vy += 0.05; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, 1 - el / DUR);
+        if (p.sh) ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 1.6); else { ctx.beginPath(); ctx.arc(0, 0, p.r / 1.6, 0, 6.28); ctx.fill(); }
+        ctx.restore();
+      }
+      if (el < DUR && document.getElementById('ant-tdr-confetti')) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W, H);
+    }
+    requestAnimationFrame(frame);
+  }
+  function __antTdrCountUp(el, to, prefix, dur) {
+    if (!el) return; var t0 = Date.now();
+    function step() { var pr = Math.min(1, (Date.now() - t0) / dur); var v = Math.round(to * (1 - Math.pow(1 - pr, 3))); el.textContent = (prefix || '') + (prefix === '$' ? v.toLocaleString() : v); if (pr < 1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
+  async function __antTdrCelebrateNumbers() {
+    var countEl = document.getElementById('ant-tdr-cel-count'), payEl = document.getElementById('ant-tdr-cel-pay'), payLbl = document.getElementById('ant-tdr-cel-paylbl');
+    var count = 1, payVal = null, payLabel = 'Earned today';
+    try {
+      if (techId) {
+        var e = await (await fetch('/.netlify/functions/tech-earnings?tech_id=' + encodeURIComponent(techId), { cache: 'no-store' })).json();
+        var jobs = (e && e.jobs) || [];
+        var todayCT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+        var todays = jobs.filter(function (j) { var w = j.when ? new Date(j.when) : null; return w && !isNaN(w) && w.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) === todayCT; });
+        var here = todays.some(function (j) { return Number(j.job_id) === Number(jobId); });
+        count = todays.length + (here ? 0 : 1);
+        var thisJob = jobs.filter(function (j) { return Number(j.job_id) === Number(jobId); })[0];
+        var todayPay = todays.reduce(function (s, j) { return s + (Number(j.pay) || 0); }, 0);
+        if (thisJob && Number(thisJob.pay) > 0) { payVal = Number(thisJob.pay); payLabel = 'On this job'; }
+        else if (todayPay > 0) { payVal = todayPay; payLabel = 'Earned today'; }
+        else if (e && Number(e.owed) > 0) { payVal = Number(e.owed); payLabel = 'Owed to you'; }
+      }
+    } catch (_) {}
+    __antTdrCountUp(countEl, count, '', 750);
+    if (payVal != null) { __antTdrCountUp(payEl, Math.round(payVal), '$', 950); if (payLbl) payLbl.textContent = '💰 ' + payLabel; }
+    else { if (payEl) payEl.textContent = '✓'; if (payLbl) payLbl.textContent = '💰 Logged'; }
+  }
 
   // Inline field editing — tap a TDR field, edit right in the card, save.
   // No jump to another page. Empty diagnosis pre-fills from the customer's
