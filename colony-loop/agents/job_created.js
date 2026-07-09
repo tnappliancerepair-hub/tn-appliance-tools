@@ -215,12 +215,18 @@ export async function run(signal, ctx) {
   const MEDIA_SOURCES = new Set(['web_chat', 'appliance_ai', 'quick_check', 'cash_tdr', 'in_home', 'in_home_diagnostic', 'customer_pay', 'self_pay', 'cash']);
   const srcLower = String(payload.source || '').toLowerCase();
   const isMediaSource = MEDIA_SOURCES.has(srcLower);
+  // WARRANTY jobs now ALSO collect media — the warranty customer gets the warranty-intake
+  // link (video + model # + days + waiver), and customer_intake_bundle_ready.js pings Teddy
+  // the Teddy Tool link the moment that media LANDS. So firing the prediag here too just
+  // sends Teddy an EMPTY Teddy Tool (Teddy 2026-07-09: "several Teddy tool links, no video
+  // or pic"). Skip it for warranty jobs too — the populated bundle_ready ping owns it.
+  const isWarrantyJob = shouldIncludeWarrantyNote({ source: payload.source, customer_type: payload.customer_type });
   try {
     if (isTestJob) {
       // Silent skip — never page anyone for synthetic jobs.
-    } else if (isMediaSource) {
+    } else if (isMediaSource || isWarrantyJob) {
       // Skip — bundle_ready pings Teddy the Teddy Tool link once the video/photo lands.
-      log('prediag_skipped_media_source', { job_id: jobId, source: srcLower });
+      log('prediag_skipped_awaiting_media', { job_id: jobId, source: srcLower, warranty: isWarrantyJob });
     } else {
     const dedup = await xano.getPrediagSentForJob(jobId);
     if (dedup && dedup.sent) {

@@ -44,8 +44,8 @@ exports.handler = async function (event) {
     if (chasedJobs.has(jobId)) { skipped.push({ job: jobId, why: 'already chased' }); continue; }
     // Don't chase a lead that's already handled — scheduled, completed, or
     // canceled (incl. cleaned test jobs). Only chase still-open leads.
-    let st = '', cst = '';
-    try { const jd = await fetch(`${XANO}/get_job?job_id=${jobId}`, { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); st = String((jd && jd.scheduling_status) || '').toLowerCase(); cst = String((jd && jd.current_status) || '').toLowerCase(); } catch (_) {}
+    let st = '', cst = '', isW = false;
+    try { const jd = await fetch(`${XANO}/get_job?job_id=${jobId}`, { signal: AbortSignal.timeout(10000) }).then((x) => x.json()); st = String((jd && jd.scheduling_status) || '').toLowerCase(); cst = String((jd && jd.current_status) || '').toLowerCase(); isW = !!String((jd && jd.warranty_company) || '').trim() || String((jd && jd.customer_type) || '').toLowerCase() === 'warranty'; } catch (_) {}
     const TERM = ['scheduled', 'in_progress', 'completed', 'canceled', 'cancelled', 'closed', 'no_fix_possible'];
     if (TERM.includes(st) || TERM.includes(cst)) { skipped.push({ job: jobId, why: 'status ' + (st || cst) }); continue; }
     // What's still missing? Media (attachments) and/or availability (their reply
@@ -61,10 +61,18 @@ exports.handler = async function (event) {
     const phone = e164(m.phone); if (!phone) { skipped.push({ job: jobId, why: 'no phone' }); continue; }
     const first = m.first_name || 'there';
     const apl = m.appliance ? (' ' + String(m.appliance).toLowerCase()) : ' appliance';
-    const link = `https://tnapplianceexchange.net/finish-upload.html?job_id=${jobId}`;
+    // WARRANTY customers ONLY ever get the warranty-intake link — never finish-upload
+    // (media-only) or a "reply here" split. One link does video + model # + available
+    // days + waiver, so nothing's half-done. HARD RULE (Teddy 2026-07-09: "warranty
+    // customers need to only get the warranty intake link ... remove all other options").
+    const link = isW
+      ? `https://tnapplianceexchange.net/warranty-intake.html?job_id=${jobId}`
+      : `https://tnapplianceexchange.net/finish-upload.html?job_id=${jobId}`;
     // Tailor the ask to what's outstanding. Availability is the priority recover.
     let msg;
-    if (!hasAvail && !hasMedia) {
+    if (isW) {
+      msg = `Hi ${first}, TN Appliance Exchange 🐜 — your${apl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${link} (about 2 min) — a 10-second video of what it's doing, a photo of the model-# sticker, and tap the days that work for you. Thank you!`;
+    } else if (!hasAvail && !hasMedia) {
       msg = `Hi ${first}, still here to help with your${apl}! Two quick things to get you scheduled: 1) what days/times work to get a tech out? (just reply here) 2) a photo of the model-# sticker + short video of the problem helps us show up ready: ${link} — TN Appliance Exchange 🐜`;
     } else if (!hasAvail) {
       msg = `Hi ${first}, got your photos — thank you! Just need to know what days/times work to get a tech out to your${apl}, and we'll get you on the schedule. Reply right here. — TN Appliance Exchange 🐜`;
