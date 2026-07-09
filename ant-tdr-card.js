@@ -241,10 +241,29 @@
 
   // % complete over the four essentials. Parts counts as done if the tech marked a sent
   // part OR wrote one in (the parts UI is now the 📦 Parts section, not a field tile).
+  // The "Part(s) used" list — backed by the warranty-parts event_log (which persists),
+  // NOT the parts_needed TDR column (a broken JSON/text-mismatch column whose writes
+  // silently no-op and reads come back empty — the reason Jimmy's TDR capped at 75%
+  // with "no place to add part numbers", 2026-07-09). A part counts as "used" when the
+  // tech marked it Used, or when they wrote it in here (source tdr_used). Falls back to
+  // the (usually-empty) server field so nothing regresses if the column is ever fixed.
+  function usedPartsList() {
+    var out = [];
+    (suppliedParts || []).forEach(function (p) {
+      var st = String(p.status || '').toLowerCase();
+      if ((st === 'used' || p.checked || p.source === 'tdr_used') && p.part && out.indexOf(p.part) === -1) out.push(p.part);
+    });
+    if (!out.length) {
+      // server fallback (parts_needed) in case the column is ever fixed server-side
+      splitParts((((lastData && lastData.fields || {}).parts_needed || {}).value || '').toString()).forEach(function (w) { if (w && out.indexOf(w) === -1) out.push(w); });
+    }
+    return out;
+  }
+
   function simpleTdrPct(d) {
     var fields = (d && d.fields) || {};
     var diag = !!(fields.diagnosis || {}).filled;
-    var partsOk = !!(fields.parts_needed || {}).filled || !!(suppliedParts && suppliedParts.some(function (p) { return p.checked; }));
+    var partsOk = usedPartsList().length > 0 || !!(fields.parts_needed || {}).filled;
     var status = !!(fields.repair_completed || {}).filled;
     var labor = !!(fields.labor_hours || {}).filled;
     return Math.round([diag, partsOk, status, labor].filter(Boolean).length / 4 * 100);
@@ -326,6 +345,9 @@
     fieldOrder.forEach(function (f) {
       var fState = fields[f.key] || {filled: false, value: ''};
       var isParts = (f.key === 'parts_needed');
+      // Parts field is backed by the warranty-parts event_log (persists), not the
+      // broken parts_needed column — so it actually shows what the tech entered.
+      if (isParts) { var _up = usedPartsList(); fState = { filled: _up.length > 0, value: _up.join('\n') }; }
       var isOutcome = !!(FIELD_META[f.key] && FIELD_META[f.key].outcome);
       var editable = canEdit && !!FIELD_META[f.key];
       var cls = fState.filled ? 'filled' : 'empty';
@@ -1184,8 +1206,7 @@
     if (role !== 'tech' && role !== 'office') return;
     editKey = 'parts_needed';
     var host = document.getElementById('ant-tdr-content'); if (!host) return;
-    var fields = lastData.fields || {};
-    var parts = splitParts(((fields.parts_needed || {}).value || '').toString());
+    var parts = usedPartsList().slice();   // from the warranty-parts log (persists)
     if (!parts.length) parts = [''];
     parts.push('');   // one spare empty box ready to fill
     var html = '';
@@ -1226,23 +1247,36 @@
       var v = String(i.value == null ? '' : i.value).trim();
       if (v && vals.indexOf(v) === -1) vals.push(v);
     });
-    var joined = vals.join('\n');
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
+    // Persist each part to the warranty-parts event_log (this STICKS — the parts_needed
+    // TDR column silently drops writes, which is why they used to vanish). Recorded as a
+    // "used" write-in part (source tdr_used) so it counts toward 100% + shows in the parts
+    // list. Only add parts not already on the list (dedup); removals are handled with the
+    // Used/Return/Not-here buttons on each part below. (Jimmy's 75%-stuck bug, 2026-07-09.)
+    var existing = usedPartsList();
+    var toAdd = vals.filter(function (v) { return existing.indexOf(v) === -1; });
     try {
-      var body = { job_id: Number(jobId), field: 'parts_needed', value: joined };
-      if (techId) body.technician_id = Number(techId);
-      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      var wd = await wr.json();
-      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+      for (var i = 0; i < toAdd.length; i++) {
+        await fetch('/.netlify/functions/warranty-parts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: Number(jobId), part: toAdd[i], status: 'used', source: 'tdr_used', by: role, technician_id: techId ? Number(techId) : 0 }),
+        });
+      }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
       alert('Could not save parts: ' + (e && e.message ? e.message : e));
       return;
     }
+    // Best-effort: also write the legacy column (harmless no-op today; auto-populates if
+    // the column type is ever fixed server-side). Never block the save on it.
+    try {
+      var body = { job_id: Number(jobId), field: 'parts_needed', value: vals.join('\n') };
+      if (techId) body.technician_id = Number(techId);
+      await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } catch (_) {}
     editKey = null;
+    await loadSuppliedParts();   // pull the freshly-saved parts back
     await refresh();
     try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
