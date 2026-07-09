@@ -148,13 +148,20 @@ Quote Approved · Quote Expired · Quote Cancelled · Availability Verified · E
   Brian reply. (Sample `vendor.external_id: 1586688` is the doc's fake.)
 - Relay our **webhook URL** to Frontdoor + agree the **bearer token** (vault
   `FRONTDOOR_WEBHOOK_TOKEN`) for outbound.
-- **Frontdoor Vendor IDs** (from the contractor portal Company Details, 2026-07-09) —
-  all under "TN APPLIANCE EXCHANGE LLC". The portal lists **five**:
-  `1373302`, `120868`, `822418`, `822218`, `839828`.
-  Known: **822418 = North Shore (LA)** (appears on a real Slidell dispatch in our records).
-  The connector treats all five as "ours" (recognize inbound dispatches + echo the same
-  vendor_id back on status pushes). Area labels (North Shore / South Shore / Middle TN) +
-  which are active vs legacy = pending Teddy, used only for the bonus auto-route-to-cluster.
+- **Frontdoor Vendor IDs — CONFIRMED MAP (2026-07-09)**, all "TN APPLIANCE EXCHANGE LLC".
+  Portal lists five; three are active appliance accounts (one per service area), two are
+  legacy/inactive ("not call-committed / no tier data"). Area confirmed from the covered
+  address on each account's dispatch emails:
+  | Vendor ID | Area | Crew | Confirmed by |
+  |---|---|---|---|
+  | `822418` | **North Shore (LA)** | John | Slidell 70458 |
+  | `822218` | **South Shore (LA)** | Andre | New Orleans 70131 |
+  | `839828` | **Middle TN** | Jimmy/Lee/Teddy | Clarksville 37042 |
+  | `1373302` | inactive/legacy | — | no tier data |
+  | `120868` | inactive/legacy | — | no tier data |
+  Connector: recognize all five as "ours"; on a dispatch, map `vendor.external_id` → area →
+  pre-route to that cluster (North Shore→John, South Shore→Andre, Middle TN→TN crew); on a
+  status push, echo back the vendor_id the job arrived under.
 - For inbound: complete Step 4 (share Client ID → Frontdoor authorizes the account → clears 403).
 - For outbound: hand Frontdoor our webhook URL + agree the bearer token.
 
