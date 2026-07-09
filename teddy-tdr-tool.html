@@ -343,13 +343,27 @@ async function loadCockpit(jobId) {
     try {
       const ms = await fetch('/.netlify/functions/get-stop-machines?job_id=' + encodeURIComponent(state.jobId), { cache: 'no-store' }).then(function (r) { return r.json(); });
       state.machines = (ms && ms.machines) || [];
-      if (state.machines.length > 1) render();
+      render();   // always re-render so the switcher (with ＋ Add machine) shows even for 1
     } catch (_) {}
   } catch(e) {
     state.error = e.message || ("Could not load job #" + jobId);
     state.step = "intake";
     render();
   }
+}
+
+// Add another machine to this stop from the OFFICE tool — clones the stop (customer,
+// address, claim, warranty, tech, day) into a fresh job with its own full TDR, then opens
+// it. Same add-machine backend the tech uses; side-effect-free (no customer SMS).
+async function __addMachineOffice() {
+  const appliance = (prompt('What machine are you adding?\n(e.g. stove, dishwasher, dryer, fridge)') || '').trim();
+  if (!appliance) return;
+  try {
+    const r = await fetch('/.netlify/functions/add-machine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_job_id: state.jobId, appliance_type: appliance, added_by: 'office' }) });
+    const d = await r.json();
+    if (d && d.ok && d.machine_job_id) { location.href = 'teddy-tdr-tool.html?job_id=' + encodeURIComponent(d.machine_job_id); }
+    else { alert('Could not add machine' + ((d && d.error) ? (' — ' + d.error) : '')); }
+  } catch (e) { alert('Add failed — ' + (e && e.message || e)); }
 }
 
 async function aiPreFill() {
@@ -826,19 +840,26 @@ function renderCustomerStatus() {
 
   // Multi-machine switcher — flip between the appliances on this stop. Each is its own
   // job/TDR/media, so tapping a chip reloads the tool for that machine.
+  // Multi-machine switcher — ALWAYS shown (even for 1 machine) so ＋ Add machine is
+  // discoverable on the OFFICE side too (Teddy 2026-07-09: "the office TDR needs ...
+  // multiple machines + to add new machine means all categories added to complete the
+  // same process"). Each machine is its own job/TDR/media; ＋ Add machine clones the
+  // stop + opens a fresh full TDR for the new appliance.
   const machines = state.machines || [];
   let switcher = '';
-  if (machines.length > 1) {
+  {
     const mchips = machines.map(function (m) {
       const cur = Number(m.job_id) === Number(jobId);
       const lbl = applIcon(m.appliance) + ' ' + escapeHtml(m.brand ? (m.brand + ' ' + m.appliance) : (m.appliance || 'appliance')) + (m.has_report ? ' ✓' : '');
       if (cur) return '<span style="padding:7px 12px;border-radius:999px;background:#6b46c1;border:1px solid #6b46c1;color:#fff;font-size:12px;font-weight:800;">' + lbl + '</span>';
       return '<a href="teddy-tdr-tool.html?job_id=' + encodeURIComponent(m.job_id) + '" style="padding:7px 12px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(140,110,240,0.5);color:#c9b6f5;font-size:12px;font-weight:800;text-decoration:none;">' + lbl + '</a>';
     }).join('');
+    const many = machines.length > 1;
+    const addBtn = '<button onclick="__addMachineOffice()" style="padding:7px 12px;border-radius:999px;background:rgba(255,255,255,0.03);border:1px dashed rgba(140,110,240,0.6);color:#b39df2;font-size:12px;font-weight:800;cursor:pointer;">＋ Add machine</button>';
     switcher = '<div class="section-card" style="border-color:rgba(120,90,220,0.4);margin-bottom:10px;">' +
-      '<div style="font-size:10px;font-weight:800;color:#b39df2;letter-spacing:0.06em;font-family:var(--mono);margin-bottom:8px;">🧩 ' + machines.length + ' MACHINES ON THIS STOP</div>' +
-      '<div style="display:flex;gap:7px;flex-wrap:wrap;">' + mchips + '</div>' +
-      '<div style="font-size:11px;color:#a99cc9;margin-top:7px;">Each machine has its own report — tap to switch. ✓ = report started.</div>' +
+      '<div style="font-size:10px;font-weight:800;color:#b39df2;letter-spacing:0.06em;font-family:var(--mono);margin-bottom:8px;">🧩 ' + (many ? (machines.length + ' MACHINES ON THIS STOP') : 'MACHINE') + '</div>' +
+      '<div style="display:flex;gap:7px;flex-wrap:wrap;">' + mchips + addBtn + '</div>' +
+      (many ? '<div style="font-size:11px;color:#a99cc9;margin-top:7px;">Each machine has its own report — tap to switch. ✓ = report started.</div>' : '<div style="font-size:11px;color:#a99cc9;margin-top:7px;">Multiple machines on one stop? ＋ Add machine — each gets its own full TDR.</div>') +
     '</div>';
   }
 
