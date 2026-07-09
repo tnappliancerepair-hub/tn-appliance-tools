@@ -50,10 +50,27 @@
   .fb button{margin-top:9px;width:100%;background:var(--ant);color:#fff;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:800;cursor:pointer}
   .fb .fb-ok{color:var(--ok);font-weight:800;font-size:14px;text-align:center;margin-top:8px;display:none}
   .foot{text-align:center;color:#9aa5b3;font-size:12px;margin-top:20px}
+  .gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999}
+  .gate.hidden{display:none}
+  .gate-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 22px;max-width:340px;width:100%;text-align:center;box-shadow:0 6px 24px rgba(20,30,50,.08)}
+  .gate-card h2{margin:0 0 4px;font-size:20px;font-weight:800}
+  .gate-card .g-sub{font-size:13px;color:var(--ink2);margin-bottom:18px}
+  .gate-card input{width:100%;border:1px solid var(--line);border-radius:12px;padding:15px;font-size:26px;text-align:center;letter-spacing:.5em;font-family:ui-monospace,monospace;margin-bottom:12px}
+  .gate-card button{width:100%;background:var(--blue);color:#fff;border:0;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer}
+  .gate-card .g-err{color:var(--warn);font-size:13px;margin-top:10px;min-height:17px;font-weight:700}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <h2>🐜 Reports Desk</h2>
+    <div class="g-sub">Enter your PIN to help with John &amp; Andre's reports</div>
+    <input id="gpin" type="tel" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+    <button id="ggo" onclick="submitPin()">Open my desk</button>
+    <div class="g-err" id="gerr"></div>
+  </div>
+</div>
+<div class="wrap" id="wrap" style="display:none">
   <header class="hd">
     <div>
       <h1>🐜 Reports Desk</h1>
@@ -149,17 +166,46 @@ async function badge(id){
     else { el.className='pill rep-need'; el.textContent='🔴 needs a report'; }
   }catch(e){ el.className='pill rep-need'; el.textContent='📝 open to check'; }
 }
+let HELPER_NAME='';
 async function sendFeedback(){
   const ta=document.getElementById('fbText'); const txt=(ta.value||'').trim();
   if(!txt){ ta.focus(); return; }
   try{
     await fetch(XANO+'/record_event_log',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'carrie_feedback',metadata_json:JSON.stringify({from:'Carrie',page:'reports-desk',text:txt,at_ms:Date.now()})})});
+      body:JSON.stringify({action:'carrie_feedback',metadata_json:JSON.stringify({from:(HELPER_NAME||'Carrie'),page:'reports-desk',text:txt,at_ms:Date.now()})})});
   }catch(e){}
   ta.value=''; document.getElementById('fbOk').style.display='block';
   setTimeout(()=>{document.getElementById('fbOk').style.display='none';},4000);
 }
-load();
+// ── PIN gate ──
+const SESS_KEY='tn_reportsdesk_v1';
+function unlock(name){
+  HELPER_NAME=name||'Carrie';
+  document.getElementById('gate').classList.add('hidden');
+  document.getElementById('wrap').style.display='block';
+  load();
+}
+function sessionOk(){
+  try{ const s=JSON.parse(localStorage.getItem(SESS_KEY)||'null'); return s&&s.ok&&(Date.now()-(s.t||0)<30*86400000)?s:null; }catch(_){ return null; }
+}
+async function submitPin(){
+  const inp=document.getElementById('gpin'), err=document.getElementById('gerr'), go=document.getElementById('ggo');
+  const v=(inp.value||'').replace(/\D/g,'');
+  if(v.length<4){ err.textContent='Enter your 4-digit PIN'; return; }
+  err.textContent=''; go.disabled=true; go.textContent='Checking…';
+  try{
+    const r=await fetch('/.netlify/functions/verify-helper-pin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:v})});
+    const d=await r.json();
+    if(d&&d.ok){ localStorage.setItem(SESS_KEY,JSON.stringify({ok:true,name:d.name,t:Date.now()})); unlock(d.name); }
+    else { err.textContent=(d&&d.error)||'That PIN didn\'t match'; go.disabled=false; go.textContent='Open my desk'; inp.value=''; inp.focus(); }
+  }catch(e){ err.textContent='Connection issue — try again'; go.disabled=false; go.textContent='Open my desk'; }
+}
+document.getElementById('gpin').addEventListener('keydown',e=>{ if(e.key==='Enter') submitPin(); });
+(function init(){
+  const s=sessionOk();
+  if(s){ unlock(s.name); }
+  else { document.getElementById('gate').classList.remove('hidden'); setTimeout(()=>document.getElementById('gpin').focus(),60); }
+})();
 </script>
 </body>
 </html>
