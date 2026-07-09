@@ -148,7 +148,13 @@ Quote Approved · Quote Expired · Quote Cancelled · Availability Verified · E
   Brian reply. (Sample `vendor.external_id: 1586688` is the doc's fake.)
 - Relay our **webhook URL** to Frontdoor + agree the **bearer token** (vault
   `FRONTDOOR_WEBHOOK_TOKEN`) for outbound.
-- **Frontdoor Contractor / Vendor ID** (`FRONTDOOR_VENDOR_ID`).
+- **Frontdoor Vendor IDs** (from the contractor portal Company Details, 2026-07-09) —
+  all under "TN APPLIANCE EXCHANGE LLC". The portal lists **five**:
+  `1373302`, `120868`, `822418`, `822218`, `839828`.
+  Known: **822418 = North Shore (LA)** (appears on a real Slidell dispatch in our records).
+  The connector treats all five as "ours" (recognize inbound dispatches + echo the same
+  vendor_id back on status pushes). Area labels (North Shore / South Shore / Middle TN) +
+  which are active vs legacy = pending Teddy, used only for the bonus auto-route-to-cluster.
 - For inbound: complete Step 4 (share Client ID → Frontdoor authorizes the account → clears 403).
 - For outbound: hand Frontdoor our webhook URL + agree the bearer token.
 
