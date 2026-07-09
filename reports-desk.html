@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reports Desk — John & Andre</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1c2430; --ink2:#5a6675; --line:#e2e7ee;
+    --ant:#1f8f3a; --blue:#1f6fed; --john:#0a7d7d; --andre:#7a4ed9;
+    --warn:#c0392b; --ok:#127a4a; --amber:#b3690a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.4}
+  .wrap{max-width:820px;margin:0 auto;padding:16px 14px 90px}
+  header.hd{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .hd h1{font-size:20px;margin:0;font-weight:800;letter-spacing:-.01em}
+  .hd .sub{font-size:13px;color:var(--ink2);margin-top:2px}
+  .hello{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0 16px;font-size:14px;color:var(--ink2);line-height:1.5}
+  .hello b{color:var(--ink)}
+  .refresh{margin-left:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:13px;font-weight:700;color:var(--blue);cursor:pointer}
+  .sec{margin:18px 0 8px;display:flex;align-items:center;gap:9px}
+  .sec .chip{font-size:13px;font-weight:800;color:#fff;padding:4px 11px;border-radius:20px}
+  .sec .chip.john{background:var(--john)} .sec .chip.andre{background:var(--andre)}
+  .sec .cnt{font-size:13px;color:var(--ink2);font-weight:700}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:11px;box-shadow:0 1px 2px rgba(20,30,50,.03)}
+  .c-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+  .c-name{font-size:17px;font-weight:800}
+  .claim{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;font-weight:800;background:#eef1f5;color:#3f4a5c;border:1px solid #d5dce6;border-radius:6px;padding:2px 8px}
+  .c-meta{font-size:14px;color:var(--ink2);margin:2px 0 4px}
+  .pills{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .pill{font-size:12px;font-weight:800;padding:3px 9px;border-radius:20px;border:1px solid}
+  .pill.done{background:#e7f6ec;color:var(--ok);border-color:#a9e0bf}
+  .pill.prog{background:#fff3d8;color:var(--amber);border-color:#f0cd8a}
+  .pill.parts{background:#eaf2ff;color:#2560c0;border-color:#bcd4f7}
+  .pill.rep-need{background:#fdece9;color:var(--warn);border-color:#f3c0b7}
+  .pill.rep-ok{background:#e7f6ec;color:var(--ok);border-color:#a9e0bf}
+  .pill.rep-part{background:#fff3d8;color:var(--amber);border-color:#f0cd8a}
+  .pill.loading{background:#f0f2f5;color:#8a96a8;border-color:#e2e7ee}
+  .open-btn{display:block;width:100%;text-align:center;text-decoration:none;background:var(--blue);color:#fff;font-weight:800;font-size:15.5px;padding:13px;border-radius:11px}
+  .open-btn:active{opacity:.85}
+  .empty{background:var(--card);border:1px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--ink2);font-size:14px}
+  .loading-screen{padding:50px 16px;text-align:center;color:var(--ink2)}
+  .spinner{width:30px;height:30px;border:3px solid #d7dde5;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .fb{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:26px}
+  .fb h3{margin:0 0 4px;font-size:16px;font-weight:800}
+  .fb p{margin:0 0 10px;font-size:13px;color:var(--ink2)}
+  .fb textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;font-size:15px;font-family:inherit;min-height:80px;resize:vertical}
+  .fb button{margin-top:9px;width:100%;background:var(--ant);color:#fff;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:800;cursor:pointer}
+  .fb .fb-ok{color:var(--ok);font-weight:800;font-size:14px;text-align:center;margin-top:8px;display:none}
+  .foot{text-align:center;color:#9aa5b3;font-size:12px;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hd">
+    <div>
+      <h1>🐜 Reports Desk</h1>
+      <div class="sub">John &amp; Andre — help finish the reports</div>
+    </div>
+    <button class="refresh" onclick="load()">↻ Refresh</button>
+  </header>
+
+  <div class="hello">
+    Hi Carrie 👋 — this is your desk. It shows only <b>John's and Andre's</b> jobs that have been worked and still need their report finished.
+    Tap <b>Open / finish report</b> on any job to fill it in. That's all this page can do — no scheduling, nothing to break.
+    Scroll to the bottom anytime to tell us what would make this easier for you.
+  </div>
+
+  <div id="content"><div class="loading-screen"><div class="spinner"></div>Loading John &amp; Andre's jobs…</div></div>
+
+  <div class="fb">
+    <h3>💬 Make this easier for you</h3>
+    <p>What's confusing, missing, or slow? Anything that would help you finish reports faster — tell us and we'll build it.</p>
+    <textarea id="fbText" placeholder="e.g. 'I wish I could see the customer's video right here' or 'hard to tell which ones are done'…"></textarea>
+    <button onclick="sendFeedback()">Send my suggestion</button>
+    <div class="fb-ok" id="fbOk">✓ Sent — thank you, Carrie!</div>
+  </div>
+
+  <div class="foot">TN Appliance Exchange 🐜 · Reports Desk</div>
+</div>
+
+<script>
+const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+// John = tech 6, Andre = tech 3.
+const TECHS={6:{name:'John',cls:'john'},3:{name:'Andre',cls:'andre'}};
+const WORKED=/(complete|in_progress|in progress|awaiting_parts|awaiting parts|awaiting_authorization|held)/i;
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function fmtName(j){return ((j.customer_first||'')+' '+(j.customer_last||'')).trim()||'Customer';}
+function statusPill(j){
+  const s=String(j.scheduling_status||j.current_status||'').toLowerCase();
+  if(/complete/.test(s)) return '<span class="pill done">✅ completed</span>';
+  if(/awaiting_parts|awaiting parts/.test(s)) return '<span class="pill parts">🔧 waiting parts</span>';
+  if(/in_progress|in progress/.test(s)) return '<span class="pill prog">🛠 in progress</span>';
+  return '';
+}
+function worked(j){
+  const s=String(j.scheduling_status||'')+' '+String(j.current_status||'');
+  return (Number(j.job_completed_at)>0) || WORKED.test(s);
+}
+async function load(){
+  const content=document.getElementById('content');
+  content.innerHTML='<div class="loading-screen"><div class="spinner"></div>Loading John &amp; Andre\'s jobs…</div>';
+  let items=[];
+  try{
+    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    const d=await r.json();
+    items=d.items||d.jobs||(Array.isArray(d)?d:[]);
+  }catch(e){ content.innerHTML='<div class="empty">Couldn\'t load right now. Tap ↻ Refresh in a moment.</div>'; return; }
+  const mine=items.filter(j=>TECHS[Number(j.technician_id)] && worked(j));
+  // newest worked first
+  mine.sort((a,b)=>(Number(b.job_completed_at||b.scheduled_start||0))-(Number(a.job_completed_at||a.scheduled_start||0)));
+  if(!mine.length){ content.innerHTML='<div class="empty">🎉 Nothing waiting right now — no worked jobs need a report for John or Andre.</div>'; return; }
+  let html='';
+  [6,3].forEach(t=>{
+    const list=mine.filter(j=>Number(j.technician_id)===t);
+    if(!list.length) return;
+    html+='<div class="sec"><span class="chip '+TECHS[t].cls+'">'+TECHS[t].name+'</span><span class="cnt">'+list.length+' job'+(list.length>1?'s':'')+'</span></div>';
+    list.forEach(j=>{ html+=cardHtml(j); });
+  });
+  content.innerHTML=html;
+  // lazy report-status badges (small, staggered so we don't hammer)
+  mine.forEach((j,i)=>{ setTimeout(()=>badge(j.id), 60*i); });
+}
+function cardHtml(j){
+  const appl=[j.brand,j.appliance||j.appliance_type].filter(Boolean).join(' ')||'appliance';
+  const claim=j.claim_number?('<span class="claim">Claim '+esc(j.claim_number)+'</span>'):'';
+  const city=j.service_city?esc(String(j.service_city)):'';
+  const co=j.warranty_company?esc(j.warranty_company):'';
+  return '<div class="card" id="card-'+j.id+'">'
+    +'<div class="c-top"><span class="c-name">'+esc(fmtName(j))+'</span>'+claim+'</div>'
+    +'<div class="c-meta">'+esc(appl)+(city?(' · '+city):'')+(co?(' · '+co):'')+'</div>'
+    +'<div class="pills">'+statusPill(j)+'<span class="pill loading" id="rep-'+j.id+'">checking report…</span></div>'
+    +'<a class="open-btn" href="teddy-tdr-tool.html?job_id='+j.id+'" target="_blank" rel="noopener">🧰 Open / finish report</a>'
+    +'</div>';
+}
+async function badge(id){
+  const el=document.getElementById('rep-'+id); if(!el) return;
+  try{
+    const r=await fetch(XANO+'/get_unified_tdr_status?job_id='+id,{cache:'no-store'});
+    const d=await r.json();
+    const pct=Number(d.readiness_pct);
+    const filled=Number(d.filled_count)||0;
+    const f=d.fields||{};
+    const diagFilled=!!(f.diagnosis&&f.diagnosis.filled);
+    if(!isNaN(pct)&&pct>=100){ el.className='pill rep-ok'; el.textContent='✅ report done'; }
+    else if(filled>0||diagFilled){ el.className='pill rep-part'; el.textContent='📝 report '+(!isNaN(pct)?pct+'% — ':'')+'finish it'; }
+    else { el.className='pill rep-need'; el.textContent='🔴 needs a report'; }
+  }catch(e){ el.className='pill rep-need'; el.textContent='📝 open to check'; }
+}
+async function sendFeedback(){
+  const ta=document.getElementById('fbText'); const txt=(ta.value||'').trim();
+  if(!txt){ ta.focus(); return; }
+  try{
+    await fetch(XANO+'/record_event_log',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'carrie_feedback',metadata_json:JSON.stringify({from:'Carrie',page:'reports-desk',text:txt,at_ms:Date.now()})})});
+  }catch(e){}
+  ta.value=''; document.getElementById('fbOk').style.display='block';
+  setTimeout(()=>{document.getElementById('fbOk').style.display='none';},4000);
+}
+load();
+</script>
+</body>
+</html>
