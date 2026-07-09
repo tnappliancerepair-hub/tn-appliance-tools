@@ -424,10 +424,19 @@ async function loadHoldMap(){
     HOLD_MAP={}; ((d&&d.holds)||[]).forEach(h=>{ HOLD_MAP[Number(h.job_id)]=h; });
   }catch(_){ HOLD_MAP={}; }
 }
+// SLOTS_MAP[job_id] = N (>1) — a long job that eats N stop-positions on the tech's day.
+let SLOTS_MAP={};
+async function loadSlotsMap(){
+  try{
+    const d=await fetch('/.netlify/functions/job-slots',{cache:'no-store'}).then(r=>r.json());
+    SLOTS_MAP={}; const s=(d&&d.slots)||{}; Object.keys(s).forEach(k=>{ SLOTS_MAP[Number(k)]=Number(s[k]); });
+  }catch(_){ SLOTS_MAP={}; }
+}
+function slotsOf(jobId){ return Math.max(1, Number(SLOTS_MAP[Number(jobId)])||1); }
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap()]);
+    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap(),loadSlotsMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
@@ -691,6 +700,9 @@ function cardHtml(j){
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
   if(HOLD_MAP[j.id])tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — waiting on the customer to confirm">⏳ HELD</span>');
+  // Long job — takes N stop-slots on the tech's day so he isn't over-scheduled. (Teddy 2026-07-09)
+  const _slots=slotsOf(j.id);
+  if(_slots>1)tags.push('<span class="tag" style="background:#efe7fb;color:#5b3ba3;border:1px solid #c9b6ee;font-weight:800" title="Long job — eats '+_slots+' stops on the tech\'s day">⏱ '+_slots+' slots</span>');
   // Company + area now live in the compact tile HEADER (below), not as tags.
   const _coLabel = j.warranty_company ? j.warranty_company : (/self|cash|customer.?pay/i.test(String(j.customer_type||''))?'Cash':'Warranty');
   const _areaRaw = String(j.service_city||'').trim();
@@ -1389,6 +1401,12 @@ function renderDrawer(d){
           <option value="7">7th stop (over 6)</option>
           <option value="8">8th stop (over 6)</option>
         </select>
+        <select id="schSlots" title="How many stops this job takes on the tech's day" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
+          <option value="1">Job length — 1 slot (standard)</option>
+          <option value="2">2 slots — long job (~3 hrs)</option>
+          <option value="3">3 slots — half-day job</option>
+          <option value="4">4 slots — all-day job</option>
+        </select>
         <div style="display:flex;gap:8px">
           <button onclick="scheduleFromDrawer(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${scheduled?'🔄 Reschedule':'📅 Schedule'}</button>
           <button onclick="holdFromDrawer(${jid})" title="Hold this day tentatively while you wait on the customer" style="flex:1;padding:11px;border-radius:9px;background:rgba(224,178,42,0.15);color:#a67c10;border:1px solid #e0b22a;font-weight:800;cursor:pointer">⏳ Hold</button>
@@ -1878,12 +1896,18 @@ async function scheduleFromDrawer(id){
   // fired after an await, so it returned false and the button "did nothing." That was
   // the "not allowing a schedule add" bug when a tech was already at their cap.)
   // Fetch is time-boxed so a slow route-days call can never hang the Schedule button.
+  // This job's length in slots (1 = standard, 2 = long ~3hr, etc.). A long job fills
+  // multiple stop-positions so the tech isn't over-scheduled. (Teddy 2026-07-09)
+  const slotsEl=document.getElementById('schSlots');
+  const jobSlots=Math.max(1,parseInt((slotsEl&&slotsEl.value)||'1',10));
   let sameDay=0, capNote='';
   try{
     const rd=await fetchT(XANO+'/get_tech_route_days?technician_id='+tech, 6000).then(r=>r.json());
     const cap=(rd&&Number(rd.max_stops_per_day))||6;
-    sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
-    if(sameDay>=cap) capNote=' ('+(TECH_NAME[tech]||'tech')+' now over their '+cap+'-stop target)';
+    // Count SLOTS already on that day (a long job counts as its slot count), so the
+    // "auto" position + the over-target note reflect real capacity, not just headcount.
+    sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).reduce((a,s)=>a+slotsOf(s.job_id),0);
+    if(sameDay+jobSlots>cap) capNote=' ('+(TECH_NAME[tech]||'tech')+' now at '+(sameDay+jobSlots)+'/'+cap+' slots'+(jobSlots>1?', long job':'')+')';
   }catch(_){}
   // Stop POSITION: the office can pick 1st–8th (Teddy 2026-07-09: "1-8 even though we
   // only want to do 6"). Blank = auto (next open stop). Position N → hidden sort-key
@@ -1893,21 +1917,28 @@ async function scheduleFromDrawer(id){
   const pos=parseInt((posEl&&posEl.value)||'0',10);
   const posHour=(pos>=1&&pos<=8)?Math.min(8+(pos-1),21):Math.min(8+sameDay,21);
   const startMs=ctStartMs(day, posHour);
+  // A long job blocks the tech's day for longer — reserve ~2.5hr per slot so the day's
+  // real duration reflects it (the board still shows position, not clock time).
+  const endMs=startMs + jobSlots*2.5*3600000;
   toast('Scheduling…');
   try{
-    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
     // Canceled/terminal jobs bounce with "terminal_locked" (the state machine
     // locks terminal states). Auto-recover the documented way: lift the lock via
     // the status override, then retry the schedule. No more dead-end for Danielle.
     if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){
       toast('Reopening canceled job…');
       try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});}catch(_){}
-      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
+      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
     }
     if(d&&d.success){
+      // Record how many stop-slots this job eats (latest-wins). Always write it so
+      // switching a job back to 1 slot on a reschedule resets it to standard.
+      SLOTS_MAP[parseInt(id,10)]=jobSlots;
+      try{await fetch('/.netlify/functions/job-slots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),slots:jobSlots})});}catch(_){}
       try{localStorage.setItem('tn_stage_'+id,'scheduled');}catch(_){}
       persistStage(id,'scheduled');
-      toast('Scheduled ✓ — moved to Scheduled'+capNote);closeDrawer();loadBoard();
+      toast('Scheduled ✓ — moved to Scheduled'+(jobSlots>1?' ('+jobSlots+' slots)':'')+capNote);closeDrawer();loadBoard();
     } else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ connection error');}
 }
