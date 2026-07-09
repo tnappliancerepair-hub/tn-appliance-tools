@@ -19,24 +19,32 @@ const BACKLOG_MAX = 60;     // jobs waiting to schedule before we flag a backlog
 const DEDUP_MS = 2 * 3600 * 1000;
 
 async function post(path, body) {
+  // Time-box every call so a slow Xano moment can't hang the function (an un-timed
+  // fetch that Netlify eventually kills is exactly what surfaced as "fetch failed").
   const r = await fetch(XANO + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
+    signal: AbortSignal.timeout(20000),
   });
   return r.json().catch(() => ({}));
 }
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 exports.handler = async () => {
   const startedAt = Date.now();
 
-  // 1. Reconcile + auto-heal stranded jobs.
-  let rep;
-  try {
-    rep = await post('/job_safety_sweep', { recover: true, stuck_hours: 3 });
-  } catch (e) {
-    // The sweep itself failing is an alarm — try to page Teddy directly.
-    try { await post('/send_sms', { to: TEDDY, message: '[ant safety] job_safety_sweep FAILED to run — check the system. ' + String(e.message || e).slice(0, 120) }); } catch (_) {}
+  // 1. Reconcile + auto-heal stranded jobs. Retry a couple times before paging —
+  // a single transient "fetch failed" (momentary Xano blip) is not an emergency and
+  // shouldn't text Teddy. Only a sweep that fails on ALL attempts is a real alarm.
+  let rep, lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { rep = await post('/job_safety_sweep', { recover: true, stuck_hours: 3 }); lastErr = null; break; }
+    catch (e) { lastErr = e; if (attempt < 3) await sleep(attempt * 3000); }   // 3s, 6s backoff
+  }
+  if (lastErr) {
+    // Failed all 3 attempts — that's a genuine "check the system" page.
+    try { await post('/send_sms', { to: TEDDY, message: '[ant safety] job_safety_sweep FAILED after 3 tries — check the system. ' + String(lastErr.message || lastErr).slice(0, 120) }); } catch (_) {}
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'sweep_failed' }) };
   }
 
