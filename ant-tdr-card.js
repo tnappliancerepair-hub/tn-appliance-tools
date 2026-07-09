@@ -263,11 +263,26 @@
 
   function simpleTdrPct(d) {
     var fields = (d && d.fields) || {};
+    // ALL 5 must be filled (Teddy 2026-07-09): model #, diagnosis, part & part #, labor, status.
+    var model = ((((d || {}).submission_extras || {}).model_number) || (d || {}).model_number || '').toString().trim();
+    var modelOk = !!model;
     var diag = !!(fields.diagnosis || {}).filled;
     var partsOk = usedPartsList().length > 0 || !!(fields.parts_needed || {}).filled;
     var status = !!(fields.repair_completed || {}).filled;
     var labor = !!(fields.labor_hours || {}).filled;
-    return Math.round([diag, partsOk, status, labor].filter(Boolean).length / 4 * 100);
+    return Math.round([modelOk, diag, partsOk, status, labor].filter(Boolean).length / 5 * 100);
+  }
+  // The 4 prerequisites that must be filled BEFORE a job status counts (model #, diagnosis,
+  // part & part #, labor — the status itself is the 5th, set when the tech picks it). Used
+  // to gate completion + the celebration (Teddy 2026-07-09: "must have all 5 filled out").
+  function __antTdrRequiredCheck() {
+    var d = lastData || {}, f = d.fields || {}, missing = [];
+    var model = ((((d.submission_extras || {}).model_number)) || d.model_number || '').toString().trim();
+    if (!model) missing.push('Model #');
+    if (!(f.diagnosis || {}).filled) missing.push('What failed (diagnosis)');
+    if (!(usedPartsList().length > 0)) missing.push('Part & part #');
+    if (!(f.labor_hours || {}).filled) missing.push('Labor hours');
+    return { ok: missing.length === 0, missing: missing };
   }
 
   function renderModal(d) {
@@ -1393,9 +1408,17 @@
   };
   window.__antTdrSaveOutcome = async function (which) {
     if (!lastData) return;
-    // Unlock audio INSIDE the tap gesture (before any await) so the celebration's
-    // cha-ching + applause can play on iOS Safari too (it blocks audio started after an await).
-    if (which === 'complete') { try { var _AC = window.AudioContext || window.webkitAudioContext; if (_AC) { window.__antAudioCtx = window.__antAudioCtx || new _AC(); if (window.__antAudioCtx.state === 'suspended') window.__antAudioCtx.resume(); } } catch (_) {} }
+    // ALL 5 TDR fields must be filled (Teddy 2026-07-09). Completing REQUIRES all 5 — block
+    // it and say what's missing. Other statuses save fine; they just won't celebrate unless
+    // everything's filled.
+    var _req = __antTdrRequiredCheck();
+    if (which === 'complete' && !_req.ok) {
+      alert('Finish the TDR to complete the job — still need:\n• ' + _req.missing.join('\n• '));
+      return;
+    }
+    // Unlock audio INSIDE the tap gesture (before any await) so the celebration's cha-ching +
+    // applause play on iOS too — only when we'll actually celebrate (all 5 filled).
+    if (_req.ok && role === 'tech') { try { var _AC = window.AudioContext || window.webkitAudioContext; if (_AC) { window.__antAudioCtx = window.__antAudioCtx || new _AC(); if (window.__antAudioCtx.state === 'suspended') window.__antAudioCtx.resume(); } } catch (_) {} }
     var noteEl = document.getElementById('ant-tdr-outcome-note');
     var note = noteEl ? String(noteEl.value || '').trim() : '';
     var base = which === 'second' ? OUTCOME_SECOND_TRIP
@@ -1426,10 +1449,11 @@
         });
       } catch (_) {}
     }
-    // 🎉 THE CELEBRATION — a tech finishing a job earns the confetti + giant check + their
-    // count for the day + the pay (Teddy 2026-07-09: "the celebration needs to be amazing").
-    if (which === 'complete' && role === 'tech') {
-      try { window.__antTdrCelebrate({ appliance: (lastData && lastData.appliance_summary) || '' }); } catch (_) {}
+    // 🎉 THE CELEBRATION — fires on ANY status once all 5 fields are filled. The pay tile +
+    // cha-ching are for "Job complete" only; other statuses get confetti + check + applause,
+    // no pay (Teddy 2026-07-09). No celebration at all if the TDR isn't fully filled.
+    if (_req.ok && role === 'tech') {
+      try { window.__antTdrCelebrate({ appliance: (lastData && lastData.appliance_summary) || '', which: which }); } catch (_) {}
     }
     editKey = null;
     await refresh();
@@ -1442,6 +1466,10 @@
   window.__antTdrCelebrate = function (opts) {
     opts = opts || {};
     if (document.getElementById('ant-tdr-celebrate')) return;
+    var which = opts.which || 'complete';
+    var isComplete = which === 'complete';
+    var HEAD = { complete: { tag: 'Job Complete', big: 'NICE WORK! 🎉' }, second: { tag: 'Second trip set', big: 'LOGGED! 🔁' }, notfix: { tag: 'Recommended replacement', big: 'LOGGED! ♻️' }, reassign: { tag: 'Report filed', big: 'SENT TO OFFICE 🔄' } };
+    var _h = HEAD[which] || HEAD.complete;
     var reduce = false; try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
     var ov = document.createElement('div');
     ov.id = 'ant-tdr-celebrate';
@@ -1455,10 +1483,10 @@
             '<path d="M36 62 L53 80 L86 43" fill="none" stroke="#4ade80" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="92" stroke-dashoffset="92" id="ant-tdr-check"/>' +
           '</svg>' +
         '</div>' +
-        '<div style="font-size:14px;font-weight:900;letter-spacing:.2em;color:#4ade80;text-transform:uppercase">Job Complete</div>' +
-        '<div style="font-size:42px;font-weight:900;color:#fff;line-height:1.05;margin-top:6px;text-shadow:0 4px 34px rgba(16,185,129,.55)">NICE WORK! 🎉</div>' +
+        '<div style="font-size:14px;font-weight:900;letter-spacing:.2em;color:#4ade80;text-transform:uppercase">' + _h.tag + '</div>' +
+        '<div style="font-size:42px;font-weight:900;color:#fff;line-height:1.05;margin-top:6px;text-shadow:0 4px 34px rgba(16,185,129,.55)">' + _h.big + '</div>' +
         (opts.appliance ? '<div style="font-size:15px;color:#b7f7d8;margin-top:8px;font-weight:700">' + escapeHtml(opts.appliance) + '</div>' : '') +
-        '<div style="display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap">' +
+        (isComplete ? ('<div style="display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap">' +
           '<div style="background:rgba(255,255,255,.06);border:1px solid rgba(74,222,128,.4);border-radius:16px;padding:15px 22px;min-width:128px">' +
             '<div id="ant-tdr-cel-count" style="font-size:36px;font-weight:900;color:#fff">1</div>' +
             '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#7fe6ad;text-transform:uppercase">🔥 Done today</div>' +
@@ -1467,7 +1495,7 @@
             '<div id="ant-tdr-cel-pay" style="font-size:36px;font-weight:900;color:#ffd94a">—</div>' +
             '<div id="ant-tdr-cel-paylbl" style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#f2d47a;text-transform:uppercase">💰 Pay</div>' +
           '</div>' +
-        '</div>' +
+        '</div>') : '<div style="height:10px"></div>') +
         '<button onclick="window.__antTdrCelebrateClose()" style="margin-top:26px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:30px;padding:15px 32px;font-size:16px;font-weight:900;cursor:pointer;box-shadow:0 10px 30px rgba(16,185,129,.5)">Keep crushing it →</button>' +
       '</div>';
     document.body.appendChild(ov);
@@ -1482,10 +1510,16 @@
       __antTdrConfetti();
     }
     try { if (navigator.vibrate) navigator.vibrate([35, 55, 35, 55, 70]); } catch (_) {}
-    __antTdrCelebrateSound();
-    __antTdrCelebrateNumbers();
+    if (isComplete) { __antTdrCelebrateSound(); __antTdrCelebrateNumbers(); }
+    else { __antTdrCelebrateApplauseOnly(); }
     ov._t = setTimeout(function () { window.__antTdrCelebrateClose(); }, 14000);
   };
+  // Applause only (no cha-ching) — for non-"complete" statuses: they celebrate the finished
+  // report, but there's no pay, so no money sound (Teddy 2026-07-09).
+  function __antTdrCelebrateApplauseOnly() {
+    var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    try { var ctx = window.__antAudioCtx || (window.__antAudioCtx = new AC()); if (ctx.state === 'suspended') ctx.resume(); __antTdrApplause(ctx, ctx.currentTime + 0.05, 1.6); } catch (_) {}
+  }
   // 🔊 Cash-register cha-ching + a burst of applause — synthesized with Web Audio (no files,
   // works inside the Artifact/CSP). Teddy 2026-07-09: "cash register sounds ... an applause".
   function __antTdrCelebrateSound() {
