@@ -1671,11 +1671,53 @@ function ptRowHtml(idx, part, name){
     <input class="pt-name" placeholder="Part name (optional)" value="${esc(name||'')}" style="${inp}">
     <select class="pt-source" style="${inp};background:#fff">${sel}</select>
     <div style="display:flex;gap:6px">
-      <input class="pt-cost" inputmode="decimal" placeholder="Our cost $" style="flex:1;${inp}">
-      <input class="pt-charge" inputmode="decimal" placeholder="Charge $" style="flex:1;${inp}">
+      <input class="pt-cost" inputmode="decimal" oninput="ptCost(this)" placeholder="Our cost $" style="flex:1;${inp}">
+      <button type="button" onclick="ptMarcone(this)" title="Fetch the live Marcone cost for this part #" style="flex:0 0 auto;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#eef4ff;color:#1f4e9c;font-weight:800;font-size:12px;cursor:pointer">🔍 Marcone</button>
     </div>
+    <input class="pt-charge" inputmode="decimal" oninput="ptChargeEdited(this)" placeholder="Charge AHS $ (auto)" style="${inp}">
+    <div class="pt-hint" style="font-size:12px;color:#2c7a4b;font-weight:700"></div>
     ${idx>0?`<button type="button" title="Remove this part" onclick="this.closest('.pt-row').remove()" style="position:absolute;top:5px;right:7px;background:none;border:0;color:#c0392b;font-size:16px;font-weight:800;cursor:pointer;line-height:1">✕</button>`:''}
   </div>`;
+}
+// AHS parts markup — the house rule (Danielle / Teddy 2026-07-09): part $30+ = cost ÷ .75
+// (25% margin); under $30 = cost + $10. We DO upcharge parts on warranty jobs (bill AHS
+// above cost) and track the margin. Returns dollars. Office can override the auto value.
+function ahsMarkup(cost){
+  cost=Number(cost); if(!cost||cost<=0||isNaN(cost))return null;
+  let charge, rule;
+  if(cost>=30){ charge=cost/0.75; rule='cost÷.75'; } else { charge=cost+10; rule='cost+$10'; }
+  charge=Math.round(charge*100)/100;
+  return { charge, margin:Math.round((charge-cost)*100)/100, rule };
+}
+// Cost typed/filled → auto-compute the AHS charge + show margin. Only fills the charge if
+// the office hasn't hand-edited it (so a manual override sticks).
+function ptCost(el){
+  const row=el.closest('.pt-row'); if(!row)return;
+  const m=ahsMarkup(parseFloat(el.value));
+  const chargeEl=row.querySelector('.pt-charge'), hint=row.querySelector('.pt-hint');
+  if(!m){ if(hint)hint.textContent=''; return; }
+  if(chargeEl && chargeEl.dataset.manual!=='1'){ chargeEl.value=m.charge.toFixed(2); }
+  if(hint) hint.textContent='→ bill AHS $'+m.charge.toFixed(2)+' · margin $'+m.margin.toFixed(2)+' ('+m.rule+')';
+}
+function ptChargeEdited(el){ el.dataset.manual='1'; }
+// One-tap live Marcone cost for the row's part # → fills cost → auto-fills the AHS charge.
+async function ptMarcone(btn){
+  const row=btn.closest('.pt-row'); if(!row)return;
+  const pnEl=row.querySelector('.pt-num'), pn=pnEl?String(pnEl.value||'').trim():'';
+  if(!pn){ toast('Enter the part # first'); return; }
+  const old=btn.textContent; btn.textContent='…'; btn.disabled=true;
+  try{
+    const d=await (await fetch('/.netlify/functions/marcone-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({part_number:pn})})).json();
+    const r=(d&&Array.isArray(d.results)&&d.results[0])||null;
+    const cost=r&&r.cost!=null?Number(r.cost):null;
+    if(cost!=null && !isNaN(cost)){
+      const cEl=row.querySelector('.pt-cost'); cEl.value=cost.toFixed(2); ptCost(cEl);
+      const nmEl=row.querySelector('.pt-name'); if(nmEl&&!nmEl.value.trim()&&r.description)nmEl.value=r.description;
+      const srcEl=row.querySelector('.pt-source'); if(srcEl&&!srcEl.value)srcEl.value='Marcone — delivered';
+      toast('Marcone cost $'+cost.toFixed(2)+' ✓');
+    } else { toast('Marcone: no price for '+pn); }
+  }catch(_){ toast('⚠ Marcone lookup failed'); }
+  btn.textContent=old; btn.disabled=false;
 }
 function addPartRow(){ const c=document.getElementById('pt-rows'); if(!c)return; c.insertAdjacentHTML('beforeend', ptRowHtml(c.querySelectorAll('.pt-row').length,'','')); }
 
