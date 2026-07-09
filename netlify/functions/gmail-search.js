@@ -8,7 +8,7 @@
 //   &full=1 also pulls the To/Cc headers + a longer snippet.
 'use strict';
 const { getSecret } = require('./_lib/secrets');
-const { searchAll, readFirst } = require('./_lib/gmail-accounts');
+const { searchAll, readFirst, readLinks } = require('./_lib/gmail-accounts');
 
 const DEFAULT_Q = '("amazon business" OR amazon.com OR amazonaws.com OR amazonservices.com) '
   + '(api OR "ordering api" OR "business api" OR "selling partner" OR "solution provider" '
@@ -23,6 +23,18 @@ exports.handler = async function (event) {
   if (q0.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   const query = String(q0.q || DEFAULT_Q);
+
+  // &links=1 → pull every URL (esp. Zoom/Teams/Meet) out of the first match, reading
+  // the raw HTML so links inside <a href> survive (the body read strips them).
+  if (q0.links === '1') {
+    try {
+      const m = await readLinks(query);
+      if (!m) return json(200, { ok: true, found: false, query });
+      return json(200, { ok: true, found: true, query, message: m });
+    } catch (e) {
+      return json(200, { ok: false, error: 'gmail links failed: ' + String((e && e.message) || e) });
+    }
+  }
 
   // &read=1 → return the full decoded BODY of the first match (for reading one email)
   if (q0.read === '1') {

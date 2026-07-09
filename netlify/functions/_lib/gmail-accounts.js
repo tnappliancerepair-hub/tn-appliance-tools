@@ -151,4 +151,36 @@ async function readMany(query, opts) {
   return out;
 }
 
-module.exports = { listAccounts, clientFor, searchAll, readFirst, readMany };
+// Pull every URL out of the FIRST matching message — reading the raw HTML part so
+// links inside <a href="..."> survive (decodeBody strips tags and loses the href).
+// Used to recover a meeting/Zoom link a normal body read can't show.
+async function readLinks(query) {
+  const accounts = await listAccounts();
+  const b64 = (d) => { try { return Buffer.from(String(d || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } };
+  const rawWalk = (p) => {
+    if (!p) return '';
+    let s = '';
+    if ((p.mimeType === 'text/html' || p.mimeType === 'text/plain') && p.body && p.body.data) s += b64(p.body.data) + '\n';
+    for (const c of (p.parts || [])) s += rawWalk(c);
+    if (!s && p.body && p.body.data) s += b64(p.body.data);
+    return s;
+  };
+  for (const acct of accounts) {
+    try {
+      const gmail = clientFor(acct);
+      const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 1 });
+      const msgs = (list.data && list.data.messages) || [];
+      if (!msgs.length) continue;
+      const fm = await gmail.users.messages.get({ userId: 'me', id: msgs[0].id, format: 'full' });
+      const hs = (fm.data && fm.data.payload && fm.data.payload.headers) || [];
+      const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
+      const raw = rawWalk(fm.data && fm.data.payload);
+      const urls = Array.from(new Set((raw.match(/https?:\/\/[^\s"'<>)\]]+/g) || []).map((u) => u.replace(/&amp;/g, '&').replace(/[.,;]+$/, ''))));
+      const meeting = urls.filter((u) => /zoom\.us|teams\.microsoft|meet\.google|webex|gotomeet|whereby|frontdoor.*meet/i.test(u));
+      return { account: acct.label, id: msgs[0].id, date: get('Date'), from: get('From'), subject: get('Subject'), meeting, urls };
+    } catch (_) { /* try next inbox */ }
+  }
+  return null;
+}
+
+module.exports = { listAccounts, clientFor, searchAll, readFirst, readMany, readLinks };
