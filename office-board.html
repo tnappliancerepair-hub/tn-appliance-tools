@@ -1986,6 +1986,9 @@ async function loadInvoiceAddons(jid){
   recomputeInvoice();
 }
 async function saveInvoice(jid){
+  // Unlock audio inside the Save tap (before any await) so the celebration's cha-ching +
+  // applause play on iOS too.
+  try{ const _AC=window.AudioContext||window.webkitAudioContext; if(_AC){ window.__antAudioCtx=window.__antAudioCtx||new _AC(); if(window.__antAudioCtx.state==='suspended') window.__antAudioCtx.resume(); } }catch(_){}
   const data={};INV_FIELDS.forEach(f=>{data[f]=(document.getElementById('inv-'+f)||{}).value||'';});
   const cost=num('inv-partcost'), charge=num('inv-parts'), margin=charge-cost;
   const addons=(typeof window.__addonsTotal==='number')?window.__addonsTotal:0;
@@ -2004,6 +2007,18 @@ async function saveInvoice(jid){
       shipping:data.ship,tax:data.tax,tip:data.tip,addons:data.addons,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
     })});
   }catch(_){/* endpoint may not be deployed yet; localStorage holds it */}
+  // 🎉 Office celebration — the invoice worksheet is the office's "finish" (Teddy 2026-07-09:
+  // "the celebration hits when this section is completed"). Fires on a real invoice (total>0).
+  // Shows the invoiced amount + parts margin (office metrics — NOT the tech's pay).
+  if(total>0 && typeof window.antCelebrate==='function'){
+    let nm=((document.getElementById('d-name')||{}).textContent||'').trim(); if(nm==='Loading…') nm='';
+    window.antCelebrate({
+      tag:'Invoiced', big:'INVOICED! 💵', sub: nm || ('Job #'+jid),
+      tiles:[ {value:'$'+total.toFixed(0), label:'Amount invoiced', accent:'#4ade80'},
+              {value:'$'+margin.toFixed(0), label:'Parts margin', accent:'#ffd94a'} ],
+      sound:'both'
+    });
+  }
 }
 
 // ── search ──
@@ -2218,5 +2233,6 @@ initAuth();
 </script>
 <script src="/ant-shell.js?v=20260703h" defer></script>
 <script src="/tech-autoupdate.js" defer></script>
+<script src="/ant-celebrate.js?v=20260709-1"></script>
 </body>
 </html>
