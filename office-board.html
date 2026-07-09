@@ -1357,11 +1357,22 @@ function renderDrawer(d){
     <div class="dcard">
       <h4>${scheduled?'🔄 Reschedule (tech + day)':'📅 Schedule (tech + day)'}</h4>
       ${scheduled&&schDayVal?`<div style="font-size:12.5px;font-weight:800;color:#1f6fed;background:rgba(31,111,237,0.08);border:1px solid rgba(31,111,237,0.3);border-radius:8px;padding:8px 10px;margin-bottom:8px">📅 Currently: ${esc(Number(j.technician_id)>0?(TECH_NAME[j.technician_id]||('Tech '+j.technician_id)):'a tech')} on ${esc(schDayVal)}. Pick a new day (and/or tech) below, then tap Reschedule.</div>`:''}
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech and the <b>day</b> — that's it. No clock time: the job lands as the next <b>stop</b> on that tech's day (1st, 2nd, 3rd…), and the customer gets a live arrival window the morning of. Saves right here in Ant.</div>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech, the <b>day</b>, and which <b>stop</b> (1st–8th — leave on auto for the next open). No clock time: the customer gets a live arrival window the morning of. Saves right here in Ant.</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
         <div id="drawCal" class="dc">${drawCalHtml()}</div>
         <input type="date" id="schDay" value="${schDayVal}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <select id="schPos" title="Which stop on that tech's day" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
+          <option value="">Stop position — auto (next open)</option>
+          <option value="1">1st stop</option>
+          <option value="2">2nd stop</option>
+          <option value="3">3rd stop</option>
+          <option value="4">4th stop</option>
+          <option value="5">5th stop</option>
+          <option value="6">6th stop</option>
+          <option value="7">7th stop (over 6)</option>
+          <option value="8">8th stop (over 6)</option>
+        </select>
         <div style="display:flex;gap:8px">
           <button onclick="scheduleFromDrawer(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${scheduled?'🔄 Reschedule':'📅 Schedule'}</button>
           <button onclick="holdFromDrawer(${jid})" title="Hold this day tentatively while you wait on the customer" style="flex:1;padding:11px;border-radius:9px;background:rgba(224,178,42,0.15);color:#a67c10;border:1px solid #e0b22a;font-weight:800;cursor:pointer">⏳ Hold</button>
@@ -1852,8 +1863,14 @@ async function scheduleFromDrawer(id){
     sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
     if(sameDay>=cap){ if(!confirm((TECH_NAME[tech]||'Tech')+' already has '+sameDay+' stops that day (their limit is '+cap+'). Schedule anyway?')) return; }
   }catch(_){}
-  // No clock time — append as the next stop position on that tech's day (hidden key).
-  const startMs=ctStartMs(day, Math.min(8+sameDay,21));
+  // Stop POSITION: the office can pick 1st–8th (Teddy 2026-07-09: "1-8 even though we
+  // only want to do 6"). Blank = auto (next open stop). Position N → hidden sort-key
+  // hour 8am+(N-1) so the board orders it into that slot; the customer still just gets a
+  // day-of window. (No clock time is shown anywhere — position only.)
+  const posEl=document.getElementById('schPos');
+  const pos=parseInt((posEl&&posEl.value)||'0',10);
+  const posHour=(pos>=1&&pos<=8)?Math.min(8+(pos-1),21):Math.min(8+sameDay,21);
+  const startMs=ctStartMs(day, posHour);
   toast('Scheduling…');
   try{
     let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,service_eta_window:''});
