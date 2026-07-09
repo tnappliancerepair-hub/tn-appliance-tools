@@ -817,7 +817,10 @@
   const NETLIFY_BASE = '';  // same-origin
   const XANO_BASE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   const PIN_STORAGE_KEY = `tn_tech_pin_v1_${TECH_ID}`;
-  const GEO_PREFIX = 'tn_geo_v1:';
+  // v2: was v1 — the LA guys' pins had cached to Los Angeles, CA (Nominatim read
+  // state "LA" as the city). Bumping the key throws away every stale geocode so
+  // the corrected full-state-name lookups re-run. (Teddy 2026-07-09)
+  const GEO_PREFIX = 'tn_geo_v2:';
   const GEO_TTL_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days
 
   // No id anywhere → send them to the picker instead of dead-ending.
@@ -2328,20 +2331,64 @@
   // Try the full address, then progressively looser fallbacks so EVERY stop with
   // a ZIP gets at least an area pin (warranty jobs often have partial addresses
   // that Nominatim can't resolve — that's why only a few pins were showing).
+  // 2-letter state codes → full names. Critical for Louisiana: Nominatim reads a
+  // free-text "LA" as Los Angeles, CA (a high-importance city) and drops the pin in
+  // California. Spelling out "Louisiana" removes the ambiguity. (Teddy 2026-07-09)
+  const US_STATES = { AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming' };
+  function stateFull(st) {
+    const s = String(st || '').trim();
+    return US_STATES[s.toUpperCase()] || s;
+  }
+
   async function geocodeJob(j) {
     const zip = String(j.service_zip || '').trim();
     const city = String(j.service_city || '').trim();
-    const st = String(j.service_state || '').trim();
+    const st = stateFull(j.service_state);   // "LA" -> "Louisiana"
+    // Prefer Nominatim's STRUCTURED query (street/city/state/postalcode/country as
+    // separate params) — it never free-text-guesses a state code as a city, so the
+    // LA→California mixup can't happen. Fall back to free-text with the full state
+    // name + ", USA" appended (also unambiguous) for anything structured misses.
+    if (city || zip) {
+      const struct = await geocodeStructured({ street: j.service_address, city, state: st, postalcode: zip });
+      if (struct) return struct;
+    }
     const variants = [];
     const full = [j.service_address, city, st, zip].filter(Boolean).join(', ');
-    if (full) variants.push(full);
-    if (city && st) variants.push([city, st, zip].filter(Boolean).join(', '));
+    if (full) variants.push(full + ', USA');
+    if (city && st) variants.push([city, st, zip].filter(Boolean).join(', ') + ', USA');
     if (zip) variants.push(zip + ', USA');
     for (const v of variants) {
       const ll = await geocodeWithCache(v);
       if (ll) return ll;
     }
     return null;
+  }
+
+  // Structured Nominatim lookup — cached like the free-text one.
+  async function geocodeStructured(parts) {
+    const qp = [];
+    if (parts.street) qp.push('street=' + encodeURIComponent(String(parts.street).trim()));
+    if (parts.city) qp.push('city=' + encodeURIComponent(String(parts.city).trim()));
+    if (parts.state) qp.push('state=' + encodeURIComponent(String(parts.state).trim()));
+    if (parts.postalcode) qp.push('postalcode=' + encodeURIComponent(String(parts.postalcode).trim()));
+    if (!qp.length) return null;
+    const cacheKey = 'S|' + qp.join('&');
+    const key = GEO_PREFIX + simpleHash(cacheKey);
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) { const p = JSON.parse(raw); if (p && (Date.now() - p.ts) < GEO_TTL_MS) return { lat: p.lat, lng: p.lng }; }
+    } catch (_) {}
+    await sleep(geocodeCursor());
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&${qp.join('&')}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return null;
+      const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+      if (!isFinite(lat) || !isFinite(lng)) return null;
+      localStorage.setItem(key, JSON.stringify({ lat, lng, ts: Date.now() }));
+      return { lat, lng };
+    } catch (err) { console.warn('geocode(structured) error', err); return null; }
   }
 
   async function geocodeWithCache(address) {
