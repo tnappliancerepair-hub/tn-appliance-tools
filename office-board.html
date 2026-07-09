@@ -427,7 +427,7 @@ async function loadHoldMap(){
 async function loadBoard(){
   document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetch(XANO+'/get_office_kanban',{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap()]);
+    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();

@@ -862,8 +862,8 @@
   // at the loading screen — a hang now resolves to the degraded/'unreachable' path
   // that already exists (unlock in degraded mode instead of spinning forever).
   const FETCH_TIMEOUT_MS = 15000;
-  async function fetchT(url, opts) {
-    const c = new AbortController(); const t = setTimeout(function () { try { c.abort(); } catch (_) {} }, FETCH_TIMEOUT_MS);
+  async function fetchT(url, opts, ms) {
+    const c = new AbortController(); const t = setTimeout(function () { try { c.abort(); } catch (_) {} }, ms || FETCH_TIMEOUT_MS);
     try { return await fetch(url, Object.assign({ signal: c.signal }, opts || {})); }
     finally { clearTimeout(t); }
   }
@@ -1356,7 +1356,7 @@
     if (currentDateStr) url += `&date=${encodeURIComponent(currentDateStr)}`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetchT(url);   // time-boxed: a weak-signal hang shows an error instead of spinning forever
       const data = await res.json();
       if (!data || data.success !== true) {
         showError(data && data.error ? data.error : 'failed to load');
@@ -1369,7 +1369,8 @@
       // it in so it shows on his dashboard too. Best-effort — wrapped so a crew
       // hiccup can NEVER break the normal schedule.
       try {
-        const cr = await fetch(`/.netlify/functions/crew?action=list&tech_id=${encodeURIComponent(TECH_ID)}&date=${encodeURIComponent(data.date_ct || '')}`);
+        // Optional overlay — short 6s cap so a slow crew call never delays the day's schedule.
+        const cr = await fetchT(`/.netlify/functions/crew?action=list&tech_id=${encodeURIComponent(TECH_ID)}&date=${encodeURIComponent(data.date_ct || '')}`, null, 6000);
         const cj = await cr.json();
         if (cj && cj.ok && Array.isArray(cj.jobs) && cj.jobs.length && Array.isArray(data.jobs)) {
           const have = new Set(data.jobs.map((it) => it && it.job && it.job.id));
@@ -2297,9 +2298,11 @@
     }).addTo(mapInstance);
 
     const coords = [];
+    const thisMap = mapInstance;   // guard: bail if the day is switched mid-geocode
     for (let i = 0; i < jobs.length; i++) {
       const j = jobs[i].job || {};
       const ll = await geocodeJob(j);
+      if (mapInstance !== thisMap) return;   // a newer render replaced us — stop
       if (!ll) continue;
       const num = i + 1;
       const icon = L.divIcon({
@@ -2319,11 +2322,11 @@
       });
       mapMarkers.push(marker);
       coords.push([ll.lat, ll.lng]);
-    }
-    if (coords.length === 1) {
-      mapInstance.setView(coords[0], 13);
-    } else if (coords.length > 1) {
-      mapInstance.fitBounds(coords, { padding: [30, 30] });
+      // Recenter PROGRESSIVELY as each pin lands — the LA guys stop staring at a
+      // Nashville map for ~8s while pins geocode one at a time. First pin jumps to
+      // the tech's actual area; each subsequent pin reframes to fit them all.
+      if (coords.length === 1) mapInstance.setView(coords[0], 12);
+      else mapInstance.fitBounds(coords, { padding: [30, 30] });
     }
   }
 
