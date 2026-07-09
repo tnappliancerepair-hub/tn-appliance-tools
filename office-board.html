@@ -768,6 +768,11 @@ async function postJSON(ep,payload){
   const r=await fetch(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   return r.json();
 }
+// fetch with a hard timeout — so a slow Xano call can never leave a button hanging.
+function fetchT(url,ms,opts){
+  const c=new AbortController(); const t=setTimeout(()=>c.abort(),ms||8000);
+  return fetch(url,Object.assign({signal:c.signal},opts||{})).finally(()=>clearTimeout(t));
+}
 // Persist a card's column to the job record so it sticks everywhere (all devices,
 // reloads). Optional serviceState moves the job's region (TN <-> LA) at the same
 // time. Fire-and-forget — the optimistic UI already moved the card.
@@ -1855,13 +1860,19 @@ async function scheduleFromDrawer(id){
   const day=(dayEl&&dayEl.value)||'';
   if(!tech){toast('Pick a tech');return;}
   if(!day){toast('Pick a day');return;}
-  // Stop limit + position in one fetch: cap = tech's preference (max_stops_per_day) or 6.
-  let sameDay=0;
+  // Count the tech's stops already on that day so an "auto" position lands as the
+  // NEXT open stop. We do NOT block on the cap: Teddy 2026-07-09 "1-8 even though we
+  // only want to do 6" — the office must be able to overload a day on purpose. (The
+  // old blocking confirm() aborted silently on mobile — iOS suppresses a confirm
+  // fired after an await, so it returned false and the button "did nothing." That was
+  // the "not allowing a schedule add" bug when a tech was already at their cap.)
+  // Fetch is time-boxed so a slow route-days call can never hang the Schedule button.
+  let sameDay=0, capNote='';
   try{
-    const rd=await (await fetch(XANO+'/get_tech_route_days?technician_id='+tech)).json();
+    const rd=await fetchT(XANO+'/get_tech_route_days?technician_id='+tech, 6000).then(r=>r.json());
     const cap=(rd&&Number(rd.max_stops_per_day))||6;
     sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).length;
-    if(sameDay>=cap){ if(!confirm((TECH_NAME[tech]||'Tech')+' already has '+sameDay+' stops that day (their limit is '+cap+'). Schedule anyway?')) return; }
+    if(sameDay>=cap) capNote=' ('+(TECH_NAME[tech]||'tech')+' now over their '+cap+'-stop target)';
   }catch(_){}
   // Stop POSITION: the office can pick 1st–8th (Teddy 2026-07-09: "1-8 even though we
   // only want to do 6"). Blank = auto (next open stop). Position N → hidden sort-key
@@ -1885,7 +1896,7 @@ async function scheduleFromDrawer(id){
     if(d&&d.success){
       try{localStorage.setItem('tn_stage_'+id,'scheduled');}catch(_){}
       persistStage(id,'scheduled');
-      toast('Scheduled ✓ — moved to Scheduled');closeDrawer();loadBoard();
+      toast('Scheduled ✓ — moved to Scheduled'+capNote);closeDrawer();loadBoard();
     } else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ connection error');}
 }
