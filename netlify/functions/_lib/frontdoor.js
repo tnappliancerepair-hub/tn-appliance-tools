@@ -141,4 +141,26 @@ async function caseLifecycleStatusUpdate({ dispatchNumber, status, routingId }) 
   return api('POST', path, { dispatchNumber: Number(dispatchNumber), status: String(status) });
 }
 
-module.exports = { isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase };
+// Our Frontdoor vendor IDs → service area + tech cluster (confirmed 2026-07-09 from the
+// contractor portal + dispatch-email addresses; see docs/frontdoor-integration-spec).
+// Three active appliance accounts, one per area; 1373302/120868 are legacy/inactive.
+// Used to auto-route an inbound dispatch to the right crew, and to echo the correct
+// vendor_id back on a status push (keyed off the job's area).
+const VENDOR_AREAS = {
+  '822418': { area: 'North Shore', state: 'LA', cluster: 'LA North', lead_tech_id: 6 }, // John
+  '822218': { area: 'South Shore', state: 'LA', cluster: 'LA South', lead_tech_id: 3 }, // Andre
+  '839828': { area: 'Middle TN',   state: 'TN', cluster: 'TN Metro', lead_tech_id: 2 }, // Jimmy/Lee
+};
+function areaForVendor(vendorId) {
+  return VENDOR_AREAS[String(vendorId || '').trim()] || null;
+}
+// Reverse: given a job's area name, the vendor_id we push status back under.
+function vendorForArea(area) {
+  const a = String(area || '').trim().toLowerCase();
+  for (const [vid, meta] of Object.entries(VENDOR_AREAS)) {
+    if (meta.area.toLowerCase() === a) return vid;
+  }
+  return null;
+}
+
+module.exports = { isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
