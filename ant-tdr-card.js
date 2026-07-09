@@ -1449,11 +1449,22 @@
         });
       } catch (_) {}
     }
-    // 🎉 THE CELEBRATION — fires on ANY status once all 5 fields are filled. The pay tile +
-    // cha-ching are for "Job complete" only; other statuses get confetti + check + applause,
-    // no pay (Teddy 2026-07-09). No celebration at all if the TDR isn't fully filled.
-    if (_req.ok && role === 'tech') {
-      try { window.__antTdrCelebrate({ appliance: (lastData && lastData.appliance_summary) || '', which: which }); } catch (_) {}
+    // Marking Job Complete must actually COMPLETE the job so it lands on the office Completed
+    // tile — the TDR field write alone is side-effect-free. Flip scheduling_status to completed
+    // (placeOf moves the card to the tech's Invoice/Completion tile) + fire the JOB_COMPLETED
+    // cascade (warranty digest to Danielle, earnings). All 5 fields are verified filled above,
+    // so this is a real, documented completion. (Teddy 2026-07-09: "confirm it all goes to the
+    // office tile completed.")
+    if (which === 'complete') {
+      try { await fetch(XANO + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), scheduling_status: 'completed', actor: (role === 'office' ? 'office' : 'tech') }) }); } catch (_) {}
+      try { await fetch(XANO + '/emit_colony_signal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ signal_type: 'JOB_COMPLETED', signal_strength: 60, source_colony: 'tdr_card', target_colonies: '', payload: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || 0, source: 'tdr_complete' }) }) }); } catch (_) {}
+    }
+    // 🎉 THE CELEBRATION — fires on ANY status once all 5 fields are filled, for BOTH the tech
+    // AND the office (Teddy 2026-07-09: "a similar celebration for office ... just no pay").
+    // Pay tile + count + cha-ching = a TECH completing a job only; everything else (office
+    // finishing it, or second-trip/not-fixable) gets confetti + check + applause, no pay.
+    if (_req.ok && (role === 'tech' || role === 'office')) {
+      try { window.__antTdrCelebrate({ appliance: (lastData && lastData.appliance_summary) || '', which: which, pay: (which === 'complete' && role === 'tech') }); } catch (_) {}
     }
     editKey = null;
     await refresh();
@@ -1468,6 +1479,7 @@
     if (document.getElementById('ant-tdr-celebrate')) return;
     var which = opts.which || 'complete';
     var isComplete = which === 'complete';
+    var showPay = !!opts.pay;   // pay tile + count + cha-ching = a TECH completing a job only
     var HEAD = { complete: { tag: 'Job Complete', big: 'NICE WORK! 🎉' }, second: { tag: 'Second trip set', big: 'LOGGED! 🔁' }, notfix: { tag: 'Recommended replacement', big: 'LOGGED! ♻️' }, reassign: { tag: 'Report filed', big: 'SENT TO OFFICE 🔄' } };
     var _h = HEAD[which] || HEAD.complete;
     var reduce = false; try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
@@ -1486,7 +1498,7 @@
         '<div style="font-size:14px;font-weight:900;letter-spacing:.2em;color:#4ade80;text-transform:uppercase">' + _h.tag + '</div>' +
         '<div style="font-size:42px;font-weight:900;color:#fff;line-height:1.05;margin-top:6px;text-shadow:0 4px 34px rgba(16,185,129,.55)">' + _h.big + '</div>' +
         (opts.appliance ? '<div style="font-size:15px;color:#b7f7d8;margin-top:8px;font-weight:700">' + escapeHtml(opts.appliance) + '</div>' : '') +
-        (isComplete ? ('<div style="display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap">' +
+        (showPay ? ('<div style="display:flex;gap:12px;justify-content:center;margin-top:22px;flex-wrap:wrap">' +
           '<div style="background:rgba(255,255,255,.06);border:1px solid rgba(74,222,128,.4);border-radius:16px;padding:15px 22px;min-width:128px">' +
             '<div id="ant-tdr-cel-count" style="font-size:36px;font-weight:900;color:#fff">1</div>' +
             '<div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#7fe6ad;text-transform:uppercase">🔥 Done today</div>' +
@@ -1510,7 +1522,7 @@
       __antTdrConfetti();
     }
     try { if (navigator.vibrate) navigator.vibrate([35, 55, 35, 55, 70]); } catch (_) {}
-    if (isComplete) { __antTdrCelebrateSound(); __antTdrCelebrateNumbers(); }
+    if (showPay) { __antTdrCelebrateSound(); __antTdrCelebrateNumbers(); }
     else { __antTdrCelebrateApplauseOnly(); }
     ov._t = setTimeout(function () { window.__antTdrCelebrateClose(); }, 14000);
   };
