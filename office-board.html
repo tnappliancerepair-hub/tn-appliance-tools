@@ -855,12 +855,23 @@ async function openDrawer(id){
     // showed "Claim # —" on real warranty jobs. Pull them from get_job (reliable)
     // + the board cache and merge them back in. (Teddy 7/4: "we keep losing those
     // numbers." Proper fix = add both cols to get_job_for_dashboard's job select.)
-    const [r,jr]=await Promise.all([
-      fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),include_events:1})}),
-      fetch(XANO+'/get_job?job_id='+parseInt(id,10)).then(x=>x.json()).catch(()=>null)
+    // Load the job file WITHOUT include_events — that flag re-runs the unindexed
+    // event_log JSON scan that used to make the drawer take 20-35s to open
+    // (Teddy 2026-07-09 "still taking a long time to load each job"). The drawer's
+    // ONLY use of those events was the Office Notes card, so we pull those from the
+    // lightweight office-notes fn instead and reshape them into the recent_events
+    // rows renderDrawer already expects. Everything else renders from the fast path.
+    const [r,jr,onr]=await Promise.all([
+      fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10)})}),
+      fetch(XANO+'/get_job?job_id='+parseInt(id,10)).then(x=>x.json()).catch(()=>null),
+      fetch('/.netlify/functions/office-notes?job_id='+parseInt(id,10),{cache:'no-store'}).then(x=>x.json()).catch(()=>null)
     ]);
     const d=await r.json();
     if(!d.success)throw new Error(d.error||'not found');
+    // Office Notes → recent_events shape ({action:'office_note', metadata, created_at}).
+    d.recent_events=(((onr&&onr.notes)||[]).map(function(n){
+      return {action:'office_note', metadata:{text:n.text||'', by:n.by||'office', at_ms:Number(n.ts||0)}, created_at:Number(n.ts||0)};
+    }));
     if(d.job){
       const bi=(allItems||[]).find(x=>Number(x.id)===parseInt(id,10))||{}; const src=jr||{};
       if(!String(d.job.claim_number||'').trim()) d.job.claim_number=src.claim_number||bi.claim_number||'';
