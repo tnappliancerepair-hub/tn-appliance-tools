@@ -2529,8 +2529,10 @@
     const dows = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const mons = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     let html = '';
-    // 5 days back through 21 days forward — techs mostly look ahead, some back.
-    for (let i = -5; i <= 21; i++) {
+    // ~2 weeks back through 3 weeks forward — techs review/adjust recent TDRs,
+    // so keep a couple weeks of history reachable (Teddy 2026-07-10: "back to
+    // late June"). Range slides with today.
+    for (let i = -14; i <= 21; i++) {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
       const ymd = fmtDateYMD(d);
       html += '<div class="day-chip" data-ymd="' + ymd + '">'
