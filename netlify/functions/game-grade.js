@@ -67,12 +67,17 @@ exports.handler = async function (event) {
   // ── Scoreboard ──
   if (event.httpMethod === 'GET' && (event.queryStringParameters || {}).scoreboard) {
     const rows = await eventRows('beat_boss_result');
+    const demo = !!(event.queryStringParameters || {}).demo;   // ?demo=1 → only the 800000+ demo range
+    const inRange = (jid) => demo ? jid >= 800000 : jid < 800000;
     let boss = 0, tech = 0, ties = 0, none = 0; const perTech = {}; const recent = [];
+    // Per-PERSON accuracy (who's the sharpest pre-diagnosis?). Teddy plays every
+    // graded job, so he's in the ranking too — the boss can crown himself. 👑
+    const players = {}; const teddy = { name: 'Teddy', is_boss: true, plays: 0, correct: 0, seq: [] };
     const seen = new Set();
     rows.sort((a, b) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0));
     for (const row of rows) {
       const m = asObj(row.metadata); const jid = Number(m.job_id); if (seen.has(jid)) continue; seen.add(jid);
-      if (jid >= 800000) continue; // 800000+ = demo/test jobs, kept out of the real tally
+      if (!inRange(jid)) continue;
       const tc = !!m.tech_correct, yc = !!m.teddy_correct;
       const nm = m.tech_name || ('Tech ' + (m.tech_id || '?'));
       perTech[nm] = perTech[nm] || { name: nm, wins: 0, losses: 0 };
@@ -80,9 +85,23 @@ exports.handler = async function (event) {
       else if (tc) { tech++; perTech[nm].wins++; }
       else if (yc) { boss++; perTech[nm].losses++; }
       else { none++; }
+      players[nm] = players[nm] || { name: nm, is_boss: false, plays: 0, correct: 0, seq: [] };
+      players[nm].plays++; if (tc) players[nm].correct++; players[nm].seq.push(tc);
+      teddy.plays++; if (yc) teddy.correct++; teddy.seq.push(yc);
       if (recent.length < 20) recent.push({ job_id: jid, winner: m.winner, real: m.real_component || m.real_part, tech: nm, at: Number(row.created_at) || m.at_ms });
     }
-    return j(200, { ok: true, boss_wins: boss, tech_wins: tech, ties, none, techs: Object.values(perTech).sort((a, b) => b.wins - a.wins), recent });
+    const streakOf = (seq) => { let n = 0; for (const v of seq) { if (v) n++; else break; } return n; };  // seq is most-recent-first
+    const pool = [...Object.values(players), teddy].filter((p) => p.plays > 0).map((p) => ({
+      name: p.name, is_boss: p.is_boss, plays: p.plays, correct: p.correct,
+      rate: p.plays ? Math.round((p.correct / p.plays) * 100) : 0, streak: streakOf(p.seq),
+    }));
+    // Rank: accuracy, then volume of correct, then games played.
+    pool.sort((a, b) => (b.rate - a.rate) || (b.correct - a.correct) || (b.plays - a.plays));
+    const MIN = 3;   // need a few games before you can wear the crown
+    const eligible = pool.filter((p) => p.plays >= MIN);
+    const champion = eligible[0] || null;                 // reigning champ (min games met)
+    const provisional = !champion && pool[0] ? pool[0] : null;  // early leader before MIN
+    return j(200, { ok: true, demo, boss_wins: boss, tech_wins: tech, ties, none, min_plays: MIN, champion, provisional, leaderboard: pool, techs: Object.values(perTech).sort((a, b) => b.wins - a.wins), recent });
   }
 
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });

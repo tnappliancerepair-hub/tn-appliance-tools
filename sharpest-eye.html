@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>👑 Sharpest Eye — Beat the Boss</title>
+<style>
+  :root{
+    --bg:#0b0d14; --card:#171b26; --card2:#1e2230; --line:#2a3040;
+    --ink:#eef1f7; --mut:#8b95a7; --mut2:#c3cad7;
+    --gold:#f5c542; --tech:#3ea6ff; --evil:#ff4d5e; --win:#28d17c;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:radial-gradient(1100px 640px at 50% -12%, #211a10 0%, var(--bg) 58%);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:17px;line-height:1.45;min-height:100vh;overflow-x:hidden}
+  .wrap{max-width:660px;margin:0 auto;padding:20px 16px 70px}
+  .kick{text-align:center;color:var(--gold);font-weight:800;font-size:12px;letter-spacing:.34em;text-transform:uppercase;margin:6px 0 2px}
+  h1{margin:0 0 6px;text-align:center;font-size:clamp(26px,7.5vw,40px);font-weight:900;letter-spacing:-.01em;line-height:1;
+     background:linear-gradient(180deg,#fff,#ffe89a 55%,var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .ticker{overflow:hidden;white-space:nowrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px 0;margin:8px 0 18px;color:var(--gold);font-weight:800;font-size:12.5px;letter-spacing:.06em}
+  .ticker span{display:inline-block;padding-left:100%;animation:tick 18s linear infinite}
+  @keyframes tick{to{transform:translateX(-100%)}}
+
+  .champ{background:linear-gradient(180deg,#332812,#191d29);border:2px solid var(--gold);border-radius:22px;padding:24px 18px 22px;text-align:center;box-shadow:0 0 46px rgba(245,197,66,.22),inset 0 0 0 3px rgba(0,0,0,.2);position:relative;overflow:hidden;margin-bottom:18px;animation:rise .6s cubic-bezier(.2,1.2,.4,1) both}
+  @keyframes rise{from{transform:translateY(14px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+  .champ .crown{font-size:64px;line-height:1;animation:sway 3s ease-in-out infinite}
+  @keyframes sway{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+  .champ .ttl{color:var(--gold);font-weight:900;letter-spacing:.16em;text-transform:uppercase;font-size:13px;margin-top:6px}
+  .champ .nm{font-size:clamp(30px,9vw,46px);font-weight:900;margin:2px 0 6px;line-height:1}
+  .champ .nm .bosstag{font-size:14px;color:var(--evil);font-weight:900;vertical-align:middle;margin-left:6px}
+  .champ .stats{display:flex;justify-content:center;gap:22px;margin:10px 0 2px}
+  .champ .stats .s b{display:block;font-size:26px;font-weight:900;color:var(--gold)}
+  .champ .stats .s span{font-size:11px;color:var(--mut2);text-transform:uppercase;letter-spacing:.08em}
+  .champ .trash{margin-top:14px;color:var(--ink);font-size:15px;font-weight:700;background:rgba(255,77,94,.1);border:1px solid rgba(255,77,94,.3);border-radius:12px;padding:11px 13px;line-height:1.4}
+  .champ.provisional{border-color:var(--tech);box-shadow:0 0 40px rgba(62,166,255,.18)}
+  .champ.empty{border-color:var(--line);box-shadow:none}
+
+  .lb{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px 10px;margin-bottom:16px}
+  .lb .lbh{color:var(--mut);font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:11px;padding:10px 8px 6px}
+  .row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;padding:11px 8px;border-top:1px solid var(--line)}
+  .row:first-of-type{border-top:0}
+  .row .rk{font-weight:900;font-size:17px;text-align:center;color:var(--mut2)}
+  .row.first .rk{color:var(--gold)} .row.second .rk{color:#cdd3de} .row.third .rk{color:#d9a066}
+  .row .who{min-width:0}
+  .row .who .n{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px}
+  .row .who .n .boss{font-size:10px;color:var(--evil);font-weight:900;border:1px solid rgba(255,77,94,.4);border-radius:6px;padding:1px 5px}
+  .row .who .bar{height:7px;background:var(--card2);border-radius:5px;margin-top:6px;overflow:hidden}
+  .row .who .bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--tech),var(--win))}
+  .row.first .who .bar i{background:linear-gradient(90deg,#ffd85e,var(--gold))}
+  .row .rt{text-align:right}
+  .row .rt b{font-size:20px;font-weight:900}
+  .row .rt span{display:block;font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums}
+
+  .tally{display:flex;justify-content:center;gap:24px;color:var(--mut);margin:2px 0 6px}
+  .tally .s{text-align:center}
+  .tally .s b{display:block;font-size:22px;font-weight:900;color:var(--ink)}
+  .tally .s.tech b{color:var(--tech)} .tally .s.boss b{color:var(--gold)}
+  .tally .s span{font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  .foot{text-align:center;color:#6b7484;font-size:12px;margin-top:18px}
+  .foot a{color:var(--tech);text-decoration:none;font-weight:700}
+  .loading{padding:60px 0;text-align:center;color:var(--mut)}
+  canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:60;display:none}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap" id="root"><div class="loading">Tallying the arena…</div></div>
+<script>
+const P=new URLSearchParams(location.search);
+const DEMO=P.get('demo')?'&demo=1':'';
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+let AC=null; function ac(){ try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended')AC.resume(); return AC;}catch(_){return null;} }
+function tone(f,t0,d,ty,v){const c=ac();if(!c)return;const o=c.createOscillator(),g=c.createGain();o.type=ty||'triangle';o.frequency.setValueAtTime(f,c.currentTime+t0);g.gain.setValueAtTime(0,c.currentTime+t0);g.gain.linearRampToValueAtTime(v||.2,c.currentTime+t0+.02);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+t0+d);o.connect(g);g.connect(c.destination);o.start(c.currentTime+t0);o.stop(c.currentTime+t0+d+.02);}
+function fanfare(){ [523,659,784,1046,1318].forEach((f,i)=>tone(f,i*.09,.34,'triangle',.22)); tone(1568,.5,.5,'sine',.16); }
+function burst(theme){const cv=document.getElementById('fx');cv.style.display='block';const ctx=cv.getContext('2d');let W=cv.width=innerWidth,H=cv.height=innerHeight;const cols=theme==='gold'?['#f5c542','#ffe89a','#fff','#3ea6ff']:['#28d17c','#3ea6ff','#f5c542','#fff'];const N=170,ps=[];for(let i=0;i<N;i++)ps.push({x:W/2+(Math.random()-.5)*150,y:H*0.28,vx:(Math.random()-.5)*10,vy:Math.random()*-12-4,g:.28+Math.random()*.13,s:5+Math.random()*7,c:cols[i%cols.length],r:Math.random()*6.28,vr:(Math.random()-.5)*.5});let t=0;(function loop(){t++;ctx.clearRect(0,0,W,H);ps.forEach(p=>{p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);ctx.restore();});if(t<180)requestAnimationFrame(loop);else cv.style.display='none';})();}
+
+const BOSS_TRASH=[
+  "The boss reveals himself. Nobody talks trash like me — and I back it up. 💪😆",
+  "Y'all are playing for SECOND place. 👑 — The Boss",
+  "The crown never left this head. Come take it. 😈",
+];
+function techTrash(n){ return [
+  esc(n)+" is the sharpest eye in the shop. Come knock him off. 🥊",
+  esc(n)+" is on the throne — and the boss wants it back. 👑",
+  "Bow up — "+esc(n)+" is calling parts before anybody. 🔥",
+]; }
+
+async function load(first){
+  let d={};
+  try{ d=await fetch('/.netlify/functions/game-grade?scoreboard=1'+DEMO).then(r=>r.json()); }catch(_){}
+  const root=document.getElementById('root');
+  const champ=d.champion, prov=d.provisional, lb=d.leaderboard||[];
+  let html='<div class="kick">Beat the Boss'+(DEMO?' · demo':'')+'</div><h1>👑 The Sharpest Eye</h1>'
+    +'<div class="ticker"><span>🎯 FIRST-GUESS-RIGHT IS THE FLEX  ·  👑 WEAR THE CROWN, DEFEND THE CROWN  ·  💪 TALK IT — THEN BACK IT  ·  🥊 EVERY JOB IS A TITLE SHOT</span></div>';
+
+  if(champ){
+    const tr=(champ.is_boss?BOSS_TRASH:techTrash(champ.name));
+    html+='<div class="champ">'
+      +'<div class="crown">👑</div><div class="ttl">Reigning Champion — Sharpest Pre-Diagnosis</div>'
+      +'<div class="nm">'+esc(champ.name)+(champ.is_boss?'<span class="bosstag">THE BOSS</span>':'')+'</div>'
+      +'<div class="stats"><div class="s"><b>'+champ.rate+'%</b><span>first-guess right</span></div>'
+      +'<div class="s"><b>'+champ.correct+'/'+champ.plays+'</b><span>called it</span></div>'
+      +(champ.streak>=2?'<div class="s"><b>🔥'+champ.streak+'</b><span>in a row</span></div>':'')+'</div>'
+      +'<div class="trash">'+tr[Math.floor(Math.random()*tr.length)]+'</div></div>';
+  } else if(prov){
+    html+='<div class="champ provisional"><div class="crown">🥊</div><div class="ttl">Crown up for grabs</div>'
+      +'<div class="nm">'+esc(prov.name)+'</div>'
+      +'<div class="stats"><div class="s"><b>'+prov.rate+'%</b><span>first-guess right</span></div><div class="s"><b>'+prov.correct+'/'+prov.plays+'</b><span>called it</span></div></div>'
+      +'<div class="trash">Out front early — but the crown needs '+(d.min_plays||3)+' games to earn. Keep swinging. 🥊</div></div>';
+  } else {
+    html+='<div class="champ empty"><div class="crown">🎰</div><div class="ttl">No champion yet</div><div class="nm" style="font-size:24px">The arena\'s warming up</div><div class="trash" style="background:none;border:0;color:var(--mut2)">Lock in some diagnoses and the sharpest eye reveals himself.</div></div>';
+  }
+
+  if(lb.length){
+    html+='<div class="lb"><div class="lbh">The board · ranked by first-guess accuracy</div>';
+    lb.forEach((p,i)=>{
+      const rkTxt=['🥇','🥈','🥉'][i]||('#'+(i+1));
+      const cls=['first','second','third'][i]||'';
+      html+='<div class="row '+cls+'"><div class="rk">'+rkTxt+'</div>'
+        +'<div class="who"><div class="n">'+esc(p.name)+(p.is_boss?'<span class="boss">BOSS</span>':'')+(p.streak>=2?' <span style="color:var(--gold);font-size:12px">🔥'+p.streak+'</span>':'')+'</div>'
+        +'<div class="bar"><i style="width:'+Math.max(4,p.rate)+'%"></i></div></div>'
+        +'<div class="rt"><b>'+p.rate+'%</b><span>'+p.correct+'/'+p.plays+'</span></div></div>';
+    });
+    html+='</div>';
+  }
+
+  html+='<div class="tally"><div class="s tech"><b>'+((d.tech_wins||0)+(d.ties||0))+'</b><span>tech wins</span></div><div class="s boss"><b>'+(d.boss_wins||0)+'</b><span>boss wins</span></div></div>';
+  html+='<div class="foot">🥊 <a href="beat-the-boss.html?job_id=888777&who=tech">See a match</a> · auto-refreshes'+(DEMO?' · <a href="sharpest-eye.html">live board</a>':' · <a href="sharpest-eye.html?demo=1">demo board</a>')+'</div>';
+
+  root.innerHTML=html;
+  if(first && champ){ setTimeout(()=>{ burst(champ.is_boss?'gold':'win'); fanfare(); }, 350); }
+}
+document.body.addEventListener('click',()=>{ac();},{once:true});
+load(true);
+setInterval(()=>load(false), 30000);
+</script>
+</body>
+</html>

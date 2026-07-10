@@ -406,6 +406,10 @@ async function loadScore(){
     const el=document.createElement('div'); el.className='score';
     el.innerHTML='<div class="s tech"><b>'+techW+'</b><span>tech wins</span></div><div class="vsm">—</div><div class="s boss"><b>'+bossW+'</b><span>boss wins</span></div>';
     document.getElementById('root').appendChild(el);
+    const lk=document.createElement('a'); lk.href='sharpest-eye.html'; lk.textContent='👑 Who\'s the sharpest eye? See the leaderboard →';
+    lk.style.cssText='display:block;text-align:center;color:var(--gold);font-weight:800;font-size:14px;text-decoration:none;margin-top:14px';
+    document.getElementById('root').appendChild(lk);
+    if(s.champion&&s.champion.name){ const c=document.createElement('div'); c.style.cssText='text-align:center;color:var(--mut2);font-size:12.5px;margin-top:6px'; c.innerHTML='👑 Reigning: <b style="color:var(--gold)">'+esc(s.champion.name)+'</b> · '+s.champion.rate+'% first-guess right'; document.getElementById('root').appendChild(c); }
     // streak from most-recent results
     const rec=s.recent||[]; let cur=null,n=0;
     for(const g of rec){ const w=(g.winner==='tech'||g.winner==='both')?'tech':(g.winner==='teddy'?'boss':null); if(w===null) break; if(cur===null){cur=w;n=1;} else if(cur===w){n++;} else break; }
