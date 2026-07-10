@@ -101,9 +101,52 @@ async function block(to, reason, kind, tag) { try { await crud.logEvent('sms_gua
 async function wouldBlock(to, reason, kind) { try { await crud.logEvent('sms_guard_would_block', { phone: to, reason, kind: kind || '', at_ms: Date.now() }); } catch (_) {} }
 
 // The one safe customer send. Returns { sent, reason, shadow? }.
+// 🚫 NO CLOCK TIMES TO CUSTOMERS (Teddy 2026-07-10, hard rule). We schedule by
+// DAY + stop-position, never a promised time — a texted "3:00 PM" is a broken
+// promise the second the route shifts. Scrub any clock time / arrival ETA out of
+// every customer text at the chokepoint, so no matter which function composes one,
+// the customer only ever gets the day-of-window language.
+function scrubTimes(msg) {
+  let s = String(msg || '');
+  // "Expected arrival: 2:47pm CT" / "arrival window of 2-4" / "ETA 3pm" → the standard line
+  s = s.replace(/\b(expected arrival|arrival (?:time|window)|your eta|eta)\b\s*:?\s*[^.!\n]*/gi, "we'll text a live arrival window the morning of");
+  // ranges "between 2 and 4pm", "2-4 pm", "2 to 4 PM"
+  s = s.replace(/\bbetween\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:and|to|-|–)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, 'that day');
+  s = s.replace(/\b\d{1,2}(?::\d{2})?\s*(?:-|to|–)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, 'that day');
+  // "at 3:00 PM", "at 3pm CT", "by 4 pm", "around 2:47pm"
+  s = s.replace(/\b(?:at|by|around|approximately|about|for)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s*[a-z]{2,3})?/gi, '');
+  // standalone "3:00 PM CT" / "2:47pm" / "3 PM"
+  s = s.replace(/\b\d{1,2}:\d{2}\s*(?:am|pm)(?:\s*[a-z]{2,3})?/gi, 'that day');
+  s = s.replace(/\b\d{1,2}\s*(?:am|pm)\b/gi, 'that day');
+  return s.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+}
+
+// ✅ The ONLY proactive customer texts we send (Teddy 2026-07-10: "we just need the
+// intake and availability texts, kill the rest — it caused too many issues"):
+//   1) intake links (shoot a video / model photo / quick check / finish upload)
+//   2) availability asks (what days work)
+// Everything else customer-direction — appointment confirmations, reminders,
+// en-route/ETA/arrival, status updates, part-ordered, waivers, review/feedback
+// requests — is PAUSED at the chokepoint. Reversible: set CUSTOMER_TEXTS_ALL=1
+// to send everything again.
+// Allowed = intake/availability + REACTIVE replies (never go silent on a customer
+// who texts us — but scrubTimes still strips any clock time from those replies).
+const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound/i;
+function isIntakeOrAvailability(kind, tag) {
+  if (String(process.env.CUSTOMER_TEXTS_ALL || '') === '1') return true;   // re-enable all
+  return INTAKE_OK.test(((kind || '') + ' ' + (tag || '')));
+}
+
 async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
   const to = toE164(phone);
+  message = scrubTimes(message);   // strip any promised clock time before anything else
   if (!to || to.length < 12 || !message) return { sent: false, reason: 'bad_input' };
+
+  // 0. INTAKE-ONLY MODE — pause every proactive customer text except intake/availability.
+  if (!isIntakeOrAvailability(kind, tag)) {
+    try { await crud.logEvent('sms_paused_intake_only', { phone: to, kind: kind || '', tag: tag || '', at_ms: Date.now() }); } catch (_) {}
+    return { sent: false, reason: 'customer_texts_paused' };
+  }
 
   // 1. OPT-OUT — absolute, always enforced (even before SMS_GUARD_ENFORCE).
   if (await isOptedOut(to)) { await block(to, 'opted_out', kind, tag); return { sent: false, reason: 'opted_out' }; }
@@ -140,6 +183,7 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
 }
 
 module.exports = {
+  scrubTimes,
   toE164, isStop, isStart, inQuietHours, isOptedOut, recordOptOut, clearOptOut,
   guardedSend, sentSince, globalSentSince,
   ENFORCE, CAP_24H, CAP_7D, GLOBAL_10MIN, QUIET_START, QUIET_END,
