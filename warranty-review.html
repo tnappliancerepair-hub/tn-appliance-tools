@@ -913,6 +913,33 @@
       const d = await r.json();
       bundles = (d && d.bundles) || [];
     } catch (_) { return; }
+    // The bundle's tdr = the NEWEST single TDR row. A tech's diagnosis often sits
+    // one row back (or the voice scribe wrote a newer row with the report in
+    // "technician_notes" and a blank diagnosis field) — so the warranty card would
+    // show a blank Diagnosis while the real one exists. For any job whose bundle
+    // diagnosis is blank, pull all_tdrs and recover the most-recent NON-EMPTY value
+    // per field (Jimmy's "just in the wrong place", 2026-07-10). Ships without a Mac push.
+    const nonEmpty = (v) => v != null && String(v).trim() !== '';
+    await Promise.all(bundles.map(async (b) => {
+      const t0 = b.tdr || {};
+      if (nonEmpty(t0.diagnosis)) return;
+      try {
+        const jr = await fetch(`${XANO_BASE}/get_job_for_dashboard`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ job_id: Number(b.job_id) }) });
+        const jd = await jr.json();
+        const rows = (jd && jd.all_tdrs) || [];
+        const pick = (f) => { for (let i=rows.length-1;i>=0;i--){ if (rows[i] && nonEmpty(rows[i][f])) return rows[i][f]; } return t0[f] || ''; };
+        const merged = Object.assign({}, t0, {
+          diagnosis: pick('diagnosis'), failed_component: pick('failed_component'),
+          repair_completed: pick('repair_completed'), technician_notes: pick('technician_notes'),
+          customer_facing_diagnosis: pick('customer_facing_diagnosis'),
+        });
+        if (!nonEmpty(merged.diagnosis) && nonEmpty(merged.technician_notes)) {
+          const m = String(merged.technician_notes).match(/DIAGNOSIS\s*[:\n]\s*([\s\S]*?)(?:\n\s*(?:FAILED\s*PART|FAILED|REPAIR|LABOR|PART\b)|$)/i);
+          if (m && m[1].trim()) merged.diagnosis = m[1].trim();
+        }
+        b.tdr = merged;
+      } catch (_) {}
+    }));
     for (const b of bundles) {
       const host = document.getElementById('pf-' + b.job_id);
       if (!host) continue;

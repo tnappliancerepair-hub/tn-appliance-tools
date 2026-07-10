@@ -1063,8 +1063,41 @@ async function reqTechReport(jobId){
   }catch(_){ if(m)m.textContent='⚠ connection error'; }
 }
 
+// A tech's diagnosis often lands in an OLDER TDR row (or the voice scribe writes
+// a newer row with the report in "technician_notes" and an empty diagnosis field).
+// get_job_for_dashboard returns d.tdr = the NEWEST single row, so Danielle would
+// see a blank diagnosis while the real one sits one row back ("in the wrong place",
+// Jimmy 2026-07-10). bestTdr merges every field to its most-recent NON-EMPTY value
+// across all rows, and lifts a diagnosis out of a "DIAGNOSIS ..." notes block when
+// the diagnosis column is empty everywhere. Read-only — Save still writes fresh.
+function bestTdr(all, fallback){
+  const rows=(all&&all.length)?all.slice():[]; fallback=fallback||{};
+  const nonEmpty=(v)=>v!=null&&String(v).trim()!=='';
+  const pick=(field)=>{
+    for(let i=rows.length-1;i>=0;i--){ if(rows[i]&&nonEmpty(rows[i][field])) return rows[i][field]; }
+    return nonEmpty(fallback[field])?fallback[field]:'';
+  };
+  const labor=(()=>{ for(let i=rows.length-1;i>=0;i--){ const v=rows[i]&&rows[i].labor_time_hours; if(v!=null&&v!=='') return v; } return (fallback.labor_time_hours!=null?fallback.labor_time_hours:null); })();
+  const out={
+    id: fallback.id || (rows.length?rows[rows.length-1].id:0),
+    diagnosis: pick('diagnosis'),
+    failed_component: pick('failed_component'),
+    verified_part_number: nonEmpty(fallback.verified_part_number)?fallback.verified_part_number:pick('verified_part_number'),
+    technician_notes: pick('technician_notes'),
+    labor_time_hours: labor,
+    repair_completed: pick('repair_completed'),
+    customer_facing_diagnosis: pick('customer_facing_diagnosis'),
+    status: fallback.status||pick('status')||''
+  };
+  if(!nonEmpty(out.diagnosis) && nonEmpty(out.technician_notes)){
+    const m=String(out.technician_notes).match(/DIAGNOSIS\s*[:\n]\s*([\s\S]*?)(?:\n\s*(?:FAILED\s*PART|FAILED|REPAIR|LABOR|PART\b)|$)/i);
+    if(m&&m[1].trim()) out.diagnosis=m[1].trim();
+  }
+  return out;
+}
 function renderDrawer(d){
-  const j=d.job||{},c=d.customer||{},t=d.tech||{},tdr=d.tdr||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
+  const j=d.job||{},c=d.customer||{},t=d.tech||{},ap=d.appliance||{},tdrs=d.all_tdrs||[];
+  const tdr=bestTdr(tdrs, d.tdr||{});
   window.__drawerTech=(j.technician_id||(t&&t.id)||0);
   window.__drawerJob=j; window.__drawerCust=c; window.__drawerClaim=(j.claim_number||'');
   // Self-checkout (#10): for self-pay jobs, show the one-tap "send their options".
