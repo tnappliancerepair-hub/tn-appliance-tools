@@ -343,10 +343,13 @@ function celebrateConfirm(){
 /* ── 🎰 slot reveal + near-miss + sympathy ── */
 function softCompMatch(a,b){ const n=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); const x=n(a),y=n(b); if(!x||!y) return false; if(x===y||x.includes(y)||y.includes(x)) return true; const tok=s=>s.split(' ').filter(w=>w.length>=4); return tok(x).some(w=>tok(y).includes(w)); }
 function myGuess(r){ return WHO==='tech'?{c:r.tech_component,p:r.tech_part}:{c:r.teddy_component,p:r.teddy_part}; }
+function partNorm(s){ return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function partClose(a,b){ const x=partNorm(a),y=partNorm(b); if(!x||!y||x===y) return false; const n=Math.min(x.length,y.length,6); return n>=4 && x.slice(0,n)===y.slice(0,n); }
 function outcomeFor(r){
   const iWon=payoffWin(r);
   const g=myGuess(r);
-  const nearMiss = !iWon && r.winner!=='none' && (softCompMatch(g.c,r.real_component) || (g.p && r.real_part));
+  // near-miss = lost overall but had the RIGHT part family (same prefix, wrong number)
+  const nearMiss = !iWon && r.winner!=='none' && partClose(g.p, r.real_part);
   let syms, reelcls;
   if(r.winner==='both'){ syms=['🤝','🤝','🤝']; reelcls='win'; }
   else if(iWon){ syms=['🎯','🎯','🎯']; reelcls='win'; }
