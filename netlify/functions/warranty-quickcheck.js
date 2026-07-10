@@ -15,6 +15,7 @@
 //   -> { ok, job_id, first_name }
 'use strict';
 const { sendSms } = require('./_lib/sms');
+const { resolveAreaTech, sendAreaTechTeddyTool } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -123,12 +124,18 @@ exports.handler = async function (event) {
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
   const machine = [m.brand, m.appliance].filter(Boolean).join(' ') || 'appliance';
   const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
+  // Fresh strategy (Teddy 7/9): route the Teddy Tool to the ZIP's tech too. Resolve
+  // first so Teddy's siren shows who it auto-routed to (he confirms if needed).
+  const areaTech = await resolveAreaTech(m.zip || '');
+  const areaNote = '  · area tech: ' + (areaTech.tech_name || 'UNROUTED — assign one');
   const msg = '🛡️ WARRANTY pre-diagnosis — ' + (m.name || '(customer)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 110)
     + (m.warranty_company ? (' · ' + m.warranty_company) : '')
-    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote;
+    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'warranty_quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'warranty_quick_check'); } catch (_) {}
+  // → the zip's tech gets the Teddy Tool link directly (heads-up, not an assignment)
+  if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: machine, city: m.town || m.city || '', jobId, kind: 'warranty_qc' }); } catch (_) {} }
 
   // If the SUBMITTER is one of our techs (testing the flow), text THEM the Teddy
   // Tool link too — so they see exactly what the office/Teddy Tool sees. (Teddy

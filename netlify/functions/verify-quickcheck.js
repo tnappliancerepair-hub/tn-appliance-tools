@@ -8,6 +8,7 @@
 const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { resolveAreaTech, sendAreaTechTeddyTool } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -139,11 +140,15 @@ exports.handler = async function (event) {
   // 💵 PAID siren → Teddy + Danielle
   const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
   const sirenHead = service === 'in_home' ? ('🏠💵 IN-HOME PAID — $' + amount) : ('💵💵 CASH QUICK-CHECK PAID — $' + amount);
+  // Fresh strategy (Teddy 7/9): the Teddy Tool also goes to the zip's tech.
+  const areaTech = await resolveAreaTech(m.zip || '');
+  const areaNote = '  · area tech: ' + (areaTech.tech_name || 'UNROUTED — assign one');
   const msg = sirenHead + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
     + (m.town ? (' · ' + m.town) : '') + ' — ' + (m.problem || '').slice(0, 120)
-    + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link;
+    + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
+  if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: m.machine || 'appliance', city: m.town || m.city || '', jobId, kind: 'cash_qc' }); } catch (_) {} }
 
   // ── Never lose the media ──────────────────────────────────────────────────
   // If the video/photo didn't land (low signal that never recovered before the

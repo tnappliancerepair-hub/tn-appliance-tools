@@ -10,6 +10,7 @@
 
 'use strict';
 const { sendSms } = require('./_lib/sms');
+const { resolveAreaTech, sendAreaTechTeddyTool } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -98,11 +99,15 @@ exports.handler = async function (event) {
   // (Teddy 2026-06-26). The shoot-it link was texted to the customer; the media-
   // arrival ping will fire the real "ready to diagnose" notification.
   const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
+  // Fresh strategy (Teddy 7/9): the Teddy Tool also goes to the zip's tech.
+  const areaTech = await resolveAreaTech(m.zip || '');
+  const areaNote = '  · area tech: ' + (areaTech.tech_name || 'UNROUTED — assign one');
   const msg = '💵 FREE QUICK-CHECK — ' + (m.name || '(caller)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 120)
-    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote;
+    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
+  if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: machine, city: m.town || m.city || '', jobId, kind: 'free_qc' }); } catch (_) {} }
 
   // never lose the media — text the no-form finish-upload link if expected media
   // didn't land, AND ALWAYS for the in-home $100 path (Teddy 2026-06-26: every
