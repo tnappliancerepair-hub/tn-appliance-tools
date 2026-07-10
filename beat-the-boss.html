@@ -91,6 +91,23 @@
   .score .s span{font-size:11px;text-transform:uppercase;letter-spacing:.1em}
   .score .vsm{align-self:center;color:var(--mut);font-style:italic;font-weight:900}
 
+  /* 🎰 slot machine */
+  .slotcab{background:linear-gradient(180deg,#33263a,#191d29);border:2px solid var(--gold);border-radius:20px;padding:18px 16px 20px;box-shadow:0 0 44px rgba(245,197,66,.22),inset 0 0 0 3px rgba(0,0,0,.25);text-align:center}
+  .slotcab .cap{color:var(--gold);font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:14px;margin-bottom:12px}
+  .reels{display:flex;gap:8px;justify-content:center;background:#0b0d14;border-radius:14px;padding:12px;border:1px solid var(--line);box-shadow:inset 0 6px 18px rgba(0,0,0,.5)}
+  .reel{width:80px;height:96px;overflow:hidden;background:linear-gradient(180deg,#1c2230,#11141d);border-radius:9px;border:1px solid var(--line);position:relative}
+  .reel::before,.reel::after{content:"";position:absolute;left:0;right:0;height:26px;z-index:2;pointer-events:none}
+  .reel::before{top:0;background:linear-gradient(180deg,rgba(11,13,20,.95),transparent)}
+  .reel::after{bottom:0;background:linear-gradient(0deg,rgba(11,13,20,.95),transparent)}
+  .reel .strip{display:flex;flex-direction:column;will-change:transform}
+  .reel .strip>div{height:96px;display:flex;align-items:center;justify-content:center;font-size:54px}
+  .reel.win{box-shadow:0 0 0 2px var(--win),0 0 18px rgba(40,209,124,.6)}
+  .reel.evil{box-shadow:0 0 0 2px var(--evil),0 0 18px rgba(255,77,94,.55)}
+  .pullbtn{margin-top:16px;width:100%;background:linear-gradient(180deg,#ff6b7a,var(--evil));color:#fff;border:0;border-radius:15px;padding:18px;font-size:20px;font-weight:900;letter-spacing:.05em;cursor:pointer;box-shadow:0 10px 26px rgba(255,77,94,.3);position:relative;overflow:hidden}
+  .pullbtn::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-20deg);animation:sheen 2.4s ease-in-out infinite}
+  .pullbtn:active{transform:translateY(1px)} .pullbtn:disabled{opacity:.6} .pullbtn:disabled::after{display:none}
+  .slotsub{color:var(--mut2);font-size:13.5px;margin-top:12px}
+
   /* effects */
   canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:60;display:none}
   #flash{position:fixed;inset:0;z-index:55;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.9),transparent 60%)}
@@ -141,6 +158,11 @@ function sndWin(){ [523,659,784,1046,1318].forEach((f,i)=>tone(f,i*.09,.34,'tria
 function sndBoss(){ [392,370,349,330,294].forEach((f,i)=>tone(f,i*.13,.3,'sawtooth',.2)); tone(140,.7,.6,'sawtooth',.16); }
 function sndFlat(){ [330,262,196].forEach((f,i)=>tone(f,i*.16,.4,'sawtooth',.18)); }
 function drumroll(ms){ const c=ac(); if(!c) return; const end=(ms||1200)/1000; let t=0; while(t<end){ tone(70+Math.random()*30,t,.05,'triangle',.1); t+=.055; } tone(180,end,.25,'square',.22); }
+function sndLever(){ tone(240,0,.08,'sawtooth',.2); tone(120,.05,.18,'square',.2); tone(500,.14,.1,'triangle',.16); }
+function spinWhir(sec){ const c=ac(); if(!c) return; const dur=sec||2.4; let t=0,gap=.028; while(t<dur){ const f=520+ (1-t/dur)*260 - Math.random()*40; tone(f,t,.03,'triangle',.05); t+=gap; gap+=.0009; } }
+function clunk(){ tone(150,0,.06,'square',.22); tone(70,.02,.12,'square',.18); }
+function jackpot(){ [784,988,1175,1568,1976].forEach((f,i)=>tone(f,i*.07,.3,'triangle',.22)); [1319,1568].forEach((f,i)=>tone(f,.5+i*.12,.5,'sine',.16)); }
+function nearMissSting(){ tone(880,0,.12,'triangle',.2); tone(988,.13,.12,'triangle',.2); tone(392,.3,.5,'sawtooth',.18); }
 function toggleMute(){ MUTED=!MUTED; localStorage.setItem('btb_mute',MUTED?'1':'0'); document.getElementById('muteBtn').textContent=MUTED?'🔇':'🔊'; if(!MUTED) tone(660,0,.12,'triangle',.2); }
 document.getElementById('muteBtn').textContent=MUTED?'🔇':'🔊';
 
@@ -197,7 +219,11 @@ function head(){
 function render(){
   const root=document.getElementById('root');
   const mine = STATE[WHO];
-  if(STATE.result){ root.innerHTML=head()+vsHtml()+ctxHtml()+finalHtml(STATE.result); loadScore(); celebrateFinal(STATE.result); return; }
+  if(STATE.result){
+    if(!pulled()){ root.innerHTML=head()+vsHtml()+ctxHtml()+leverHtml(); wireLever(); loadScore(); }
+    else { root.innerHTML=head()+vsHtml()+ctxHtml()+finalHtml(STATE.result); loadScore(); }
+    return;
+  }
   if(!mine){ root.innerHTML=head()+vsHtml()+ctxHtml()+formHtml(); wireForm(); loadScore(); return; }
   root.innerHTML=head()+vsHtml()+ctxHtml()+lockedHtml(); loadScore();
   if(STATE.confirmed) celebrateConfirm();
@@ -271,6 +297,25 @@ function lockedHtml(){
     +'<a class="finish" href="teddy-tdr-tool.html?job_id='+JOB+(TECH_ID?('&tech_id='+TECH_ID):'')+'">🧰 Now go finish the real report →</a></div>';
 }
 function payoffWin(r){ if(WHO==='tech') return r.winner==='tech'||r.winner==='both'; return r.winner==='teddy'||r.winner==='both'; }
+function leverHtml(){
+  return '<div class="panel"><div class="slotcab"><div class="cap">🎰 The results are in</div>'
+    +'<div class="reels" id="reelsEl"><div class="reel"><div class="strip"><div>🎰</div></div></div><div class="reel"><div class="strip"><div>❓</div></div></div><div class="reel"><div class="strip"><div>🎰</div></div></div></div>'
+    +'<button class="pullbtn" id="pullBtn">🕹️ PULL THE LEVER</button>'
+    +'<div class="slotsub">You locked it in. Reality\'s in the machine. Pull it. 🥁</div></div>'
+    +'<a class="finish" href="teddy-tdr-tool.html?job_id='+JOB+(TECH_ID?('&tech_id='+TECH_ID):'')+'" style="margin-top:14px">🧰 Back to the report</a></div>';
+}
+function wireLever(){
+  const btn=document.getElementById('pullBtn'); if(!btn) return;
+  document.body.addEventListener('touchstart',()=>{ac();},{once:true,passive:true});
+  btn.onclick=async()=>{
+    ac(); sndLever(); btn.disabled=true; btn.textContent='🎰 spinning…'; markPulled();
+    const r=STATE.result, o=outcomeFor(r);
+    await slotReveal(o.syms);
+    // light the reels
+    document.querySelectorAll('#reelsEl .reel').forEach(el=>el.classList.add(o.reelcls||'win'));
+    setTimeout(()=>{ revealPayoff(r,o); setTimeout(()=>{ celebrated='res:'+r.winner; render(); }, 1400); }, 250);
+  };
+}
 function finalHtml(r){
   const real=[r.real_component,r.real_part].filter(Boolean).join(' · ')||'the fix';
   let big,cls,msg;
@@ -282,9 +327,12 @@ function finalHtml(r){
   const foe = WHO==='tech'?{component:r.teddy_component,part:r.teddy_part}:{component:r.tech_component,part:r.tech_part};
   const mineR = WHO==='tech'?r.tech_correct:r.teddy_correct;
   const foeR = WHO==='tech'?r.teddy_correct:r.tech_correct;
-  return '<div class="panel"><div class="reveal"><div class="big '+cls+'">'+big+'</div><p>'+msg+'</p>'
+  const iLost = (cls==='evil');
+  const symp = iLost ? '<div style="margin:12px 0 2px;padding:11px 13px;background:rgba(62,166,255,.08);border:1px solid rgba(62,166,255,.3);border-radius:12px;color:var(--mut2);font-size:14px">🤝 '+esc(sympathyLine(r))+'</div>' : '';
+  return '<div class="panel"><div class="reveal"><div class="big '+cls+'">'+big+'</div><p>'+msg+'</p>'+symp
     +'<div class="pk right" style="margin:14px 0;text-align:center"><div class="h">✅ It was actually</div><div class="c">'+esc(real)+'</div></div>'
-    +'<div class="picks">'+pickCard(WHO==='tech'?'YOU':'BOSS',mine,mineR)+pickCard(WHO==='tech'?'BOSS':'TECH',foe,foeR)+'</div></div></div>';
+    +'<div class="picks">'+pickCard(WHO==='tech'?'YOU':'BOSS',mine,mineR)+pickCard(WHO==='tech'?'BOSS':'TECH',foe,foeR)+'</div>'
+    +'<a class="finish" href="teddy-tdr-tool.html?job_id='+JOB+(TECH_ID?('&tech_id='+TECH_ID):'')+'" style="margin-top:6px">🧰 Finish / open the report</a></div></div>';
 }
 
 /* celebration (guarded so a re-render/poll doesn't replay) */
@@ -292,15 +340,59 @@ function celebrateConfirm(){
   if(celebrated==='confirm') return; celebrated='confirm';
   flash(); slam('CONFIRMED! ✅','confirm'); burst('gold'); sndConfirm();
 }
-function celebrateFinal(r){
-  const key='res:'+r.winner; if(celebrated===key) return; celebrated=key;
+/* ── 🎰 slot reveal + near-miss + sympathy ── */
+function softCompMatch(a,b){ const n=s=>String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); const x=n(a),y=n(b); if(!x||!y) return false; if(x===y||x.includes(y)||y.includes(x)) return true; const tok=s=>s.split(' ').filter(w=>w.length>=4); return tok(x).some(w=>tok(y).includes(w)); }
+function myGuess(r){ return WHO==='tech'?{c:r.tech_component,p:r.tech_part}:{c:r.teddy_component,p:r.teddy_part}; }
+function outcomeFor(r){
   const iWon=payoffWin(r);
-  setTimeout(()=>{
-    if(r.winner==='both'){ flash(); slam('BOTH NAILED IT! 🎉','win'); burst('win'); sndWin(); }
-    else if(iWon){ flash(); slam(WHO==='teddy'?'BOSS WINS! 👑':'WINNER! 🏆', WHO==='teddy'?'gold':'win'); burst(WHO==='teddy'?'gold':'win'); sndWin(); }
-    else if(r.winner==='none'){ slam('STUMPED 🤷','wait'); sndFlat(); }
-    else { shake(); slam(WHO==='tech'?'BOSS WINS AGAIN 😈':'YOU LOSE 😈','evil'); burst('evil'); sndBoss(); }
-  }, 120);
+  const g=myGuess(r);
+  const nearMiss = !iWon && r.winner!=='none' && (softCompMatch(g.c,r.real_component) || (g.p && r.real_part));
+  let syms, reelcls;
+  if(r.winner==='both'){ syms=['🤝','🤝','🤝']; reelcls='win'; }
+  else if(iWon){ syms=['🎯','🎯','🎯']; reelcls='win'; }
+  else if(r.winner==='none'){ syms=['🤷','🤷','🤷']; reelcls=''; }
+  else if(nearMiss){ syms=['🎯','🎯','💥']; reelcls='evil'; }
+  else { syms=['👑','👑','👑']; reelcls='evil'; }
+  return { iWon, nearMiss, syms, reelcls };
+}
+const SYMPATHY=[
+  'Shake it off — that was still a sharp read. 🤛',
+  'The boss got lucky. You\'ll take the next one. 🔁',
+  'Even champs drop rounds. Stay in the ring. 🥊',
+  'So close you could taste it. Next job\'s yours. 😤',
+  'He\'s beatable — you just proved you\'ll swing. 💪',
+  'One off. That\'s not a miss, that\'s a warm-up. 🔥',
+];
+function sympathyLine(r){ const g=myGuess(r); if(softCompMatch(g.c,r.real_component)) return 'You had the right area — just missed the exact part. Painfully close. 😩'; return SYMPATHY[Math.floor(Math.random()*SYMPATHY.length)]; }
+function pulled(){ try{ return localStorage.getItem('btb_pulled_'+JOB)==='1'; }catch(_){ return false; } }
+function markPulled(){ try{ localStorage.setItem('btb_pulled_'+JOB,'1'); }catch(_){ } }
+
+const REEL_POOL=['🔧','🧊','⚙️','🔌','💧','🔥','🥊','👑','💥','🎯','🤝'];
+function slotReveal(syms){
+  return new Promise(res=>{
+    const reelsEl=document.getElementById('reelsEl'); if(!reelsEl){ res(); return; }
+    reelsEl.innerHTML=''; const strips=[]; const LAND=29, H=96;
+    syms.forEach((tgt)=>{
+      const reel=document.createElement('div'); reel.className='reel';
+      const strip=document.createElement('div'); strip.className='strip';
+      let html=''; for(let k=0;k<LAND;k++) html+='<div>'+REEL_POOL[Math.floor(Math.random()*REEL_POOL.length)]+'</div>'; html+='<div>'+tgt+'</div>';
+      strip.innerHTML=html; reel.appendChild(strip); reelsEl.appendChild(reel); strips.push({strip,reel});
+    });
+    spinWhir(2.6);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const durs=[1.4,1.9,2.5];
+      strips.forEach((o,i)=>{ o.strip.style.transition='transform '+durs[i]+'s cubic-bezier(.13,.7,.24,1)'; o.strip.style.transform='translateY(-'+(LAND*H)+'px)';
+        setTimeout(()=>{ clunk(); }, durs[i]*1000); });
+      setTimeout(res, durs[2]*1000+400);
+    }));
+  });
+}
+function revealPayoff(r,o){
+  if(r.winner==='both'){ flash(); slam('BOTH NAILED IT! 🎉','win'); burst('win'); jackpot(); }
+  else if(o.iWon){ flash(); slam(WHO==='teddy'?'JACKPOT — BOSS WINS! 👑':'JACKPOT! 🏆','win'); burst(WHO==='teddy'?'gold':'win'); jackpot(); }
+  else if(r.winner==='none'){ slam('STUMPED 🤷','wait'); sndFlat(); }
+  else if(o.nearMiss){ shake(); slam('SO CLOSE 😩','evil'); burst('evil'); nearMissSting(); }
+  else { shake(); slam(WHO==='tech'?'BOSS WINS AGAIN 😈':'YOU LOSE 😈','evil'); burst('evil'); sndBoss(); }
 }
 
 async function loadScore(){

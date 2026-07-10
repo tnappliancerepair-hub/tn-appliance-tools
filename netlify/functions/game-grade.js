@@ -72,6 +72,7 @@ exports.handler = async function (event) {
     rows.sort((a, b) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0));
     for (const row of rows) {
       const m = asObj(row.metadata); const jid = Number(m.job_id); if (seen.has(jid)) continue; seen.add(jid);
+      if (jid >= 800000) continue; // 800000+ = demo/test jobs, kept out of the real tally
       const tc = !!m.tech_correct, yc = !!m.teddy_correct;
       const nm = m.tech_name || ('Tech ' + (m.tech_id || '?'));
       perTech[nm] = perTech[nm] || { name: nm, wins: 0, losses: 0 };
