@@ -148,10 +148,35 @@ export async function toDanielle(body, context = {}) {
   });
 }
 
+// Strip any promised clock time / arrival ETA — we schedule by day + stop
+// position, never a texted time. (Teddy 2026-07-10)
+function scrubTimes(msg) {
+  let s = String(msg || '');
+  s = s.replace(/\b(expected arrival|arrival (?:time|window)|your eta|eta)\b\s*:?\s*[^.!\n]*/gi, "we'll text a live arrival window the morning of");
+  s = s.replace(/\bbetween\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:and|to|-|–)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, 'that day');
+  s = s.replace(/\b\d{1,2}(?::\d{2})?\s*(?:-|to|–)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, 'that day');
+  s = s.replace(/\b(?:at|by|around|approximately|about|for)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s*[a-z]{2,3})?/gi, '');
+  s = s.replace(/\b\d{1,2}:\d{2}\s*(?:am|pm)(?:\s*[a-z]{2,3})?/gi, 'that day');
+  s = s.replace(/\b\d{1,2}\s*(?:am|pm)\b/gi, 'that day');
+  return s.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+}
+
 export async function toCustomer(phone, body, context = {}) {
   const e164 = normalizeE164(phone);
   if (!e164) {
     return { success: false, error: 'invalid_phone', input: phone };
+  }
+  body = scrubTimes(body);
+  // ✅ INTAKE-ONLY (Teddy 2026-07-10: "we just need the intake and availability
+  // texts, kill the rest — caused too many issues"). Only intake links, the new-
+  // job greeting, availability asks, resume nudges + reactive replies go out.
+  // Every other proactive text — appointment confirmations, reminders, en-route/
+  // ETA/arrival, status, reviews — is PAUSED. Reversible: CUSTOMER_TEXTS_ALL=1.
+  const _lbl = String((context && (context.action || context.outcome || context.tag || context.kind)) || '').toLowerCase();
+  const _INTAKE_OK = /intake|availab|quick.?check|finish.?upload|media|shoot|model|video|new.?lead|resume|new_job_greeting|greeting|reply|response|answer|translated|inbound/;
+  if (process.env.CUSTOMER_TEXTS_ALL !== '1' && !_INTAKE_OK.test(_lbl)) {
+    xano.logLocal('customer_sms_paused_intake_only', { to: e164, action: _lbl, body_preview: String(body || '').slice(0, 120) });
+    return { success: false, paused: true, reason: 'customer_texts_paused', action: _lbl };
   }
   // QUIET HOURS — never proactively text a customer 9pm–8am CT. A real customer
   // got a 3:33am + 3:42am text (Teddy 2026-07-06) from overnight loop sends; a
