@@ -222,6 +222,56 @@
     color: var(--orange);
     pointer-events: none;
   }
+  .date-nav .pick-day-btn {
+    flex: 0 0 auto;
+    padding: 0 12px;
+    font-weight: 700;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .date-nav .pick-day-btn.open {
+    background: var(--orange);
+    color: #1a1208;
+    border-color: var(--orange);
+  }
+
+  /* ── Day-jumper strip ───────────────────────────────────────────── */
+  .day-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 12px 4px;
+    scrollbar-width: none;
+  }
+  .day-strip::-webkit-scrollbar { display: none; }
+  .day-strip.hidden { display: none; }
+  .day-chip {
+    flex: 0 0 auto;
+    min-width: 58px;
+    padding: 9px 4px;
+    background: #0e1320;
+    border: 1px solid #2a3344;
+    border-radius: 12px;
+    color: #cdd6ea;
+    text-align: center;
+    cursor: pointer;
+    line-height: 1.25;
+    transition: transform .06s ease;
+  }
+  .day-chip:active { transform: scale(0.95); }
+  .day-chip .dow { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }
+  .day-chip .dnum { font-size: 19px; font-weight: 800; }
+  .day-chip .mon { font-size: 10px; opacity: .55; }
+  .day-chip.today { border-color: var(--orange); }
+  .day-chip.today .dow { color: var(--orange); opacity: 1; }
+  .day-chip.active {
+    background: var(--orange);
+    border-color: var(--orange);
+    color: #1a1208;
+  }
+  .day-chip.active .dow,
+  .day-chip.active .mon { opacity: .85; }
 
   /* ── Map ────────────────────────────────────────────────────────── */
   #map {
@@ -728,7 +778,12 @@
     <button id="prevDay" aria-label="previous day">‹</button>
     <button id="todayBtn" class="today-btn">today</button>
     <button id="nextDay" aria-label="next day">›</button>
+    <button id="pickDayBtn" class="pick-day-btn" aria-label="jump to a day">📅 pick a day</button>
   </div>
+
+  <!-- Day-jumper (Teddy 2026-07-10: "jump day to day fast to adjust TDRs").
+       Tap 📅 to pop out a strip of days; tap any day to load its schedule. -->
+  <div id="dayStrip" class="day-strip hidden"></div>
 
   <!-- Talk to Ant Scheduler — primary CTA, top of nav so it's the
        fastest action from the dashboard. -->
@@ -1365,6 +1420,7 @@
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
+      highlightDayStrip();  // keep the day-jumper's active chip in sync
       // TWO-MAN jobs: pull any job where this tech is the SECOND man and merge
       // it in so it shows on his dashboard too. Best-effort — wrapped so a crew
       // hiccup can NEVER break the normal schedule.
@@ -2445,17 +2501,77 @@
   nextDay.addEventListener('click', () => goByDays(1));
   todayBtn.addEventListener('click', () => {
     if (currentDateStr === serverTodayCT) return;
-    currentDateStr = serverTodayCT;
-    updateURLDate();
-    loadDashboard();
+    goToDate(serverTodayCT);
   });
 
   function goByDays(delta) {
-    const d = parseLocalDate(currentDateStr);
+    const d = parseLocalDate(currentDateStr || serverTodayCT);
     d.setDate(d.getDate() + delta);
-    currentDateStr = fmtDateYMD(d);
+    goToDate(fmtDateYMD(d));
+  }
+
+  // Single entry point for any date change — keeps URL, reload, and the
+  // day-strip highlight in sync.
+  function goToDate(ymd) {
+    currentDateStr = ymd;
     updateURLDate();
+    highlightDayStrip();
     loadDashboard();
+  }
+
+  // ── Day-jumper: tap 📅 to pop a strip of days, tap a day to load it ──
+  const pickDayBtn = $('pickDayBtn');
+  const dayStrip = $('dayStrip');
+
+  function buildDayStrip() {
+    if (!dayStrip) return;
+    const base = parseLocalDate(serverTodayCT || fmtDateYMD(new Date()));
+    const dows = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const mons = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let html = '';
+    // 5 days back through 21 days forward — techs mostly look ahead, some back.
+    for (let i = -5; i <= 21; i++) {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      const ymd = fmtDateYMD(d);
+      html += '<div class="day-chip" data-ymd="' + ymd + '">'
+        + '<div class="dow">' + dows[d.getDay()] + '</div>'
+        + '<div class="dnum">' + d.getDate() + '</div>'
+        + '<div class="mon">' + mons[d.getMonth()] + '</div>'
+        + '</div>';
+    }
+    dayStrip.innerHTML = html;
+    dayStrip.querySelectorAll('.day-chip').forEach((el) => {
+      el.addEventListener('click', () => {
+        goToDate(el.dataset.ymd);
+        // keep the strip open so they can hop again, just re-center on the pick
+        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      });
+    });
+    highlightDayStrip();
+  }
+
+  function highlightDayStrip() {
+    const strip = document.getElementById('dayStrip');
+    if (!strip) return;
+    const active = currentDateStr || serverTodayCT;
+    strip.querySelectorAll('.day-chip').forEach((el) => {
+      el.classList.toggle('active', el.dataset.ymd === active);
+      el.classList.toggle('today', el.dataset.ymd === serverTodayCT);
+    });
+  }
+
+  if (pickDayBtn && dayStrip) {
+    pickDayBtn.addEventListener('click', () => {
+      const opening = dayStrip.classList.contains('hidden');
+      dayStrip.classList.toggle('hidden');
+      pickDayBtn.classList.toggle('open', opening);
+      if (opening) {
+        if (!dayStrip.children.length) buildDayStrip();
+        highlightDayStrip();
+        const a = dayStrip.querySelector('.day-chip.active') || dayStrip.querySelector('.day-chip.today');
+        if (a) a.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+    });
   }
 
   function updateURLDate() {
