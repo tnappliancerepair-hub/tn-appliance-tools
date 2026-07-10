@@ -100,6 +100,13 @@ exports.handler = async function (event) {
     texted.push({ job: s.job_id, who: s.tech.n, sms: ok ? 'sent' : 'failed' });
   }
 
+  // 1b. 🥊 BEAT THE BOSS — a filed diagnosis IS the real answer. Grade the tech's
+  // vs Teddy's locked-in guesses and fire the win/loss celebration (idempotent —
+  // no-ops if there were no guesses or it was already graded).
+  for (const s of work) {
+    try { await fetch(`${SITE}/.netlify/functions/game-grade`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: s.job_id }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
+  }
+
   // 2. EMAIL the tracking record (dormant until EMAIL_ENABLED=true)
   const lineFor = (s) => `Job #${s.job_id}${s.customer ? ' — ' + s.customer : ''} · ${[s.brand, s.appliance].filter(Boolean).join(' ')}${s.problem ? ' — ' + s.problem : ''} · area tech: ${s.tech ? s.tech.n : 'UNROUTED'} · ${s.at}  →  ${SITE}/teddy-tdr-tool.html?job_id=${s.job_id}`;
   const body = `${work.length} Teddy Tool diagnosis${work.length === 1 ? '' : 'es'} filed:\n\n` + work.map(lineFor).join('\n') + `\n\nBoard: ${SITE}/office-board.html`;

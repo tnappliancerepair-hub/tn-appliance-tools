@@ -10,7 +10,7 @@
 
 'use strict';
 const { sendSms } = require('./_lib/sms');
-const { resolveAreaTech, sendAreaTechTeddyTool } = require('./_lib/area-tech-notify');
+const { resolveAreaTech, sendAreaTechTeddyTool, bossSirenNote } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -101,7 +101,7 @@ exports.handler = async function (event) {
   const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
   // Fresh strategy (Teddy 7/9): the Teddy Tool also goes to the zip's tech.
   const areaTech = await resolveAreaTech(m.zip || '');
-  const areaNote = '  · area tech: ' + (areaTech.tech_name || 'UNROUTED — assign one');
+  const areaNote = bossSirenNote(jobId, areaTech);
   const msg = '💵 FREE QUICK-CHECK — ' + (m.name || '(caller)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 120)
     + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;

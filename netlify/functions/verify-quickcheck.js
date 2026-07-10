@@ -8,7 +8,7 @@
 const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
-const { resolveAreaTech, sendAreaTechTeddyTool } = require('./_lib/area-tech-notify');
+const { resolveAreaTech, sendAreaTechTeddyTool, bossSirenNote } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -142,7 +142,7 @@ exports.handler = async function (event) {
   const sirenHead = service === 'in_home' ? ('🏠💵 IN-HOME PAID — $' + amount) : ('💵💵 CASH QUICK-CHECK PAID — $' + amount);
   // Fresh strategy (Teddy 7/9): the Teddy Tool also goes to the zip's tech.
   const areaTech = await resolveAreaTech(m.zip || '');
-  const areaNote = '  · area tech: ' + (areaTech.tech_name || 'UNROUTED — assign one');
+  const areaNote = bossSirenNote(jobId, areaTech);
   const msg = sirenHead + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
     + (m.town ? (' · ' + m.town) : '') + ' — ' + (m.problem || '').slice(0, 120)
     + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link + areaNote;

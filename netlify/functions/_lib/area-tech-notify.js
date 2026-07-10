@@ -10,6 +10,19 @@
 
 const { sendSms } = require('./sms');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SITE = 'https://tnapplianceexchange.net';
+
+// 🥊 Beat the Boss — the game link each side gets. Tech locks their diagnosis
+// before Teddy; the game screen also links straight to the full Teddy Tool.
+function gameLink(jobId, who, techId) {
+  return `${SITE}/beat-the-boss.html?job_id=${jobId}&who=${who === 'teddy' ? 'teddy' : 'tech'}`
+    + (who !== 'teddy' && techId ? `&tech_id=${techId}` : '');
+}
+// The note appended to Teddy's siren: who it routed to + his own "lock your pick" link.
+function bossSirenNote(jobId, areaTech) {
+  const nm = (areaTech && areaTech.tech_name) || 'UNROUTED — assign one';
+  return '  · area tech: ' + nm + '  · 🥊 beat them, lock your pick: ' + gameLink(jobId, 'teddy', 0);
+}
 
 // Tech id -> cell (roster). Andre = the 504 on his tech row; Billy (5) left.
 const ID_PHONE = {
@@ -47,12 +60,13 @@ async function sendAreaTechTeddyTool(resolved, opts) {
     return { sent: false, tech_id: r.tech_id || 0, tech_name: r.tech_name || '' };
   }
   const head = [o.customer || '', o.appliance || '', o.city || ''].filter(Boolean).join(' · ');
-  const msg = '🔧 New job in your area — ' + head + '. Job #' + (o.jobId || '?')
-    + '. Teddy Tool (pre-diagnosis + video + parts): ' + o.link
-    + '  — this is a heads-up; Teddy will confirm you if it\'s yours.';
+  const game = gameLink(o.jobId, 'tech', r.tech_id);
+  const msg = '🥊 New job in your area — ' + head + ' (Job #' + (o.jobId || '?') + ').'
+    + '  BEAT THE BOSS: lock your diagnosis before Teddy → ' + game
+    + '  (pre-diagnosis + video + parts are right inside). Heads-up — Teddy confirms if it\'s yours.';
   let sent = false;
-  try { sent = !!(await sendSms(r.phone, msg, 'technician', (o.kind || 'area_tech') + '_teddy_tool')); } catch (_) {}
+  try { sent = !!(await sendSms(r.phone, msg, 'technician', (o.kind || 'area_tech') + '_beat_boss')); } catch (_) {}
   return { sent, tech_id: r.tech_id, tech_name: r.tech_name };
 }
 
-module.exports = { resolveAreaTech, sendAreaTechTeddyTool, ID_PHONE };
+module.exports = { resolveAreaTech, sendAreaTechTeddyTool, gameLink, bossSirenNote, ID_PHONE };
