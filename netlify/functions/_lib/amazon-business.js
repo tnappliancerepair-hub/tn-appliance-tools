@@ -32,13 +32,15 @@ const LWA_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
 
 function baseFor(env) { return BASE[String(env || 'sandbox').toLowerCase()] || BASE.sandbox; }
 
-async function creds() {
+// envOverride lets us TEST production without flipping the live AMAZON_BUSINESS_ENV
+// vault flag (so no auto-order path goes live until we've confirmed the trial).
+async function creds(envOverride) {
   const [clientId, clientSecret, refresh, groupId, buyerEmail, paymentRef, region, env] = await Promise.all([
     getSecret('AMAZON_LWA_CLIENT_ID'), getSecret('AMAZON_LWA_CLIENT_SECRET'), getSecret('AMAZON_LWA_REFRESH_TOKEN'),
     getSecret('AMAZON_BUSINESS_GROUP_ID'), getSecret('AMAZON_BUSINESS_BUYER_EMAIL'), getSecret('AMAZON_BUSINESS_PAYMENT_REF'),
     getSecret('AMAZON_BUSINESS_REGION'), getSecret('AMAZON_BUSINESS_ENV'),
   ]);
-  const e = String(env || 'sandbox').toLowerCase();
+  const e = String(envOverride || env || 'sandbox').toLowerCase();
   return { clientId, clientSecret, refresh, groupId, buyerEmail, paymentRef, region: region || 'US', env: e, orderUrl: baseFor(e) + ORDER_PATH };
 }
 
@@ -92,7 +94,7 @@ function buildOrderPayload(opts, c) {
 // place (or trial) an order for one ASIN shipped to a customer address.
 // trial=true (default) appends TrialMode so the order validates without buying.
 async function placeOrder(opts) {
-  const c = await creds();
+  const c = await creds(opts.envOverride);
   // Sandbox uses mock data + the doc's example refs, so it doesn't need the real
   // production group/buyer/payment vault keys. Production does.
   if (c.env !== 'sandbox' && !isConfigured(c)) return { ok: false, configured: false, reason: 'amazon_business_not_configured' };
@@ -111,8 +113,8 @@ async function placeOrder(opts) {
 
 // auth-only smoke test: proves the SPP sandbox creds mint an LWA access token,
 // before group/buyer/payment refs are even set. Returns {ok, env, token_acquired}.
-async function authCheck() {
-  const c = await creds();
+async function authCheck(envOverride) {
+  const c = await creds(envOverride);
   if (!c.clientId || !c.clientSecret || !c.refresh) {
     return { ok: false, configured: false, env: c.env, missing: ['client_id', 'client_secret', 'refresh_token'].filter((k) => !c[{ client_id: 'clientId', client_secret: 'clientSecret', refresh_token: 'refresh' }[k]]) };
   }
