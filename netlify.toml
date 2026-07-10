@@ -136,6 +136,14 @@
 [functions."tech-missed-stop-check"]
   schedule = "0 21,23 * * *"
 
+# 😂 Boss trash-talk — random taunts/laughing from Teddy to the crew to keep
+# "Beat the Boss" loud. Fires hourly at :17 across CT tech hours, but the fn
+# itself only *maybe* sends (~55%) and enforces a 2.5h min-gap + weekday/hours
+# gate — so it lands unpredictably, ~2-4/day. Kill switch: env
+# BOSS_TRASH_ENABLED='false'. (Teddy 2026-07-09). 14-22 UTC = 9a-5p CT (CDT).
+[functions."boss-trash-talk"]
+  schedule = "17 14-22 * * *"
+
 # Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
 # schedule until you pay — fastest path is the $50 Quick Check" + their link.
 # CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.
