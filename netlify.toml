@@ -144,6 +144,12 @@
 [functions."boss-trash-talk"]
   schedule = "17 14-22 * * *"
 
+# 🚪 Frontdoor/AHS key-authorization watcher — probes the dispatch endpoint until
+# Brian links our sandbox key (403 → cleared), then texts Teddy ONCE so we can flip
+# live + run the real status-push test. Quiet while still 403. 3x/day. (Teddy 7/10)
+[functions."frontdoor-auth-watch"]
+  schedule = "23 13,18,23 * * *"
+
 # Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
 # schedule until you pay — fastest path is the $50 Quick Check" + their link.
 # CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.
