@@ -71,5 +71,20 @@ while you're gone — but new-lead intake texts are paused too.
 
 ---
 
+## ⚪ 5. (Optional / low-priority) Backend board trim — needs a Mac push
+**Why:** the office board's main call (`get_office_kanban`) returns ~260KB — every
+field on every job, most of which the board never shows. Trimming it to just the
+~15-20 fields the board renders shrinks it toward ~30KB and cuts the ~1s server
+wait. **Now lower-priority** because the front-end instant-open cache already makes
+the board *feel* instant (shipped 2026-07-10) — this just makes the underlying
+fetch genuinely lighter/faster.
+
+**How:** at the Mac, ask Claude to produce the exact trimmed field list + the edited
+`get_office_kanban` XS (so we don't drop a field the board needs), then:
+`xano workspace push -i "api/**/get_office_kanban*" --force` — verify the board still
+renders every column correctly after.
+
+---
+
 _Captured by Claude during the 2026-07-10 Kentucky-drive session. Ask Claude to
 re-surface this list anytime._
