@@ -82,6 +82,25 @@ async function sentSince(phone, sinceMs) {
     return (rows || []).filter((r) => toE164(metaOf(r).phone) === e && tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
+
+// De-dup: has this EXACT text already gone to this phone in the last window?
+// Kills the two real duplicate-spam bugs (2026-07-11 audit): capture-callback's
+// callback_ack re-fired up to 7× when the Vapi assistant re-invoked the tool in
+// one call, and send-translated-reply double-fired (0.0min apart) on a Netlify
+// retry. Both land here (both are customer-direction → guardedSend), so one
+// idempotency check at the chokepoint fixes both. Exact phone+body match only, so
+// it can never suppress a genuinely different message — just a literal duplicate.
+const DEDUP_WINDOW_MS = (Number(process.env.SMS_DEDUP_WINDOW_MIN) > 0 ? Number(process.env.SMS_DEDUP_WINDOW_MIN) : 30) * 60 * 1000;
+function bodyKey(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200); }
+async function recentDuplicate(phone, message, windowMs) {
+  const e = toE164(phone); if (!e) return false;
+  const key = bodyKey(message);
+  const since = Date.now() - (windowMs || DEDUP_WINDOW_MS);
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    return (rows || []).some((r) => tsOf(r) >= since && toE164(metaOf(r).phone) === e && bodyKey(metaOf(r).body) === key);
+  } catch (_) { return false; } // fail-open: a read error must never block a legit send
+}
 async function globalSentSince(sinceMs) {
   try {
     const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
@@ -164,6 +183,16 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
     return { sent: false, reason: 'quiet_hours' };
   }
 
+  // 2.5. DUPLICATE SUPPRESSION — ALWAYS on (not gated on ENFORCE). If this exact
+  // text already went to this phone within the dedup window, it's a re-fire, not a
+  // new message. Kills the callback_ack burst (Vapi re-invoking capture_callback)
+  // and the translated_reply double-send (Netlify retry). Exact phone+body match,
+  // so a genuinely different message is never suppressed.
+  if (await recentDuplicate(to, message, DEDUP_WINDOW_MS)) {
+    try { await crud.logEvent('sms_dup_suppressed', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 160), at_ms: now }); } catch (_) {}
+    return { sent: false, reason: 'duplicate_suppressed' };
+  }
+
   // 3–4. Frequency / global rate — hard-block only when ENFORCE=1; otherwise
   // shadow-log so we can see the impact before flipping it on.
   const checks = [];
@@ -178,13 +207,13 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
 
   // 5. Send + record (record drives the frequency counters).
   const ok = await xanoSend(to, message, tag);
-  if (ok) { try { await crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', at_ms: now }); } catch (_) {} }
+  if (ok) { try { await crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now }); } catch (_) {} }
   return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', shadow: checks.length ? checks : undefined };
 }
 
 module.exports = {
   scrubTimes,
   toE164, isStop, isStart, inQuietHours, isOptedOut, recordOptOut, clearOptOut,
-  guardedSend, sentSince, globalSentSince,
+  guardedSend, sentSince, globalSentSince, recentDuplicate,
   ENFORCE, CAP_24H, CAP_7D, GLOBAL_10MIN, QUIET_START, QUIET_END,
 };
