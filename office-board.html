@@ -433,13 +433,45 @@ async function loadSlotsMap(){
   }catch(_){ SLOTS_MAP={}; }
 }
 function slotsOf(jobId){ return Math.max(1, Number(SLOTS_MAP[Number(jobId)])||1); }
+
+// ── Instant-open board cache (speed audit 2026-07-10) ──────────────────────────
+// The board's main fetch hauls ~260KB and takes ~1s. Snapshot the 5 inputs
+// renderBoard() needs (all together, so a cached render is never a mismatched
+// board) and paint from it INSTANTLY on open, then let the fresh fetch overwrite
+// a beat later. Fails silent -> falls back to the normal spinner+load.
+const BOARD_CACHE_KEY='tn_board_cache_v2';
+function saveBoardCache(){
+  try{
+    localStorage.setItem(BOARD_CACHE_KEY, JSON.stringify({
+      ts:Date.now(), items:allItems, stageMap:STAGE_MAP, checkMap:CHECK_MAP,
+      noteJobs:[...OFFICE_NOTE_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP
+    }));
+  }catch(_){}
+}
+function renderFromCache(){
+  try{
+    const raw=localStorage.getItem(BOARD_CACHE_KEY); if(!raw) return false;
+    const s=JSON.parse(raw);
+    if(!s||!Array.isArray(s.items)||!s.items.length) return false;
+    if(!s.ts||(Date.now()-s.ts)>86400000) return false;  // ignore snapshots >1 day old
+    allItems=s.items; STAGE_MAP=s.stageMap||{}; CHECK_MAP=s.checkMap||{};
+    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{};
+    renderBoard();
+    return true;
+  }catch(_){ return false; }
+}
+
 async function loadBoard(){
-  document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
+  // Instant-open: paint the last-known board from cache so Danielle never waits
+  // on a spinner while the ~1s fetch runs; fresh data overwrites a beat later.
+  const _cached=renderFromCache();
+  if(!_cached) document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
     const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap(),loadSlotsMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     renderBoard();
+    saveBoardCache();
     loadAddons();
     loadPaid();
     loadInvoices();
