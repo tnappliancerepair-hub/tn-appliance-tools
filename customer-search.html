@@ -274,11 +274,13 @@ const $ = (id) => document.getElementById(id);
   const results = $('results');
   let debounce = null;
 
+  ensureIndex();  // load the client-side customer index once -> instant search
+
   q.addEventListener('input', () => {
     clearTimeout(debounce);
     const v = q.value.trim();
     if (v.length < 2) { results.innerHTML = '<div class="empty">Type at least 2 characters to search.</div>'; return; }
-    debounce = setTimeout(() => doSearch(v), 280);
+    debounce = setTimeout(() => runSearch(v), 120);
   });
 
   // URL-param auto-search — supports ?q= or ?phone= (caller-ID deep-link)
@@ -286,28 +288,74 @@ const $ = (id) => document.getElementById(id);
   const urlQ = urlParams.get('q') || urlParams.get('phone') || urlParams.get('caller');
   if (urlQ) {
     q.value = urlQ;
-    setTimeout(() => doSearch(urlQ.trim()), 50);
+    setTimeout(() => runSearch(urlQ.trim()), 50);
   }
 
-  async function doSearch(query) {
-    results.innerHTML = '<div class="empty">searching…</div>';
+  // ── Instant client-side search (speed fix 2026-07-10) ──────────────────────
+  // The old path scanned 4,000 customers in the cloud PER search (6-30s, often
+  // stuck). Instead we load a lean index of every customer ONCE, cache it, and
+  // filter it in-memory instantly. The server search still runs in the
+  // background to fill in job links — but the person shows up in 0ms first.
+  let CINDEX = null;
+  function hydrate(rows) {
+    return rows.map((r) => ({ id: r[0], first: r[1] || '', last: r[2] || '', phone: r[3] || '', city: r[4] || '',
+      hay: ((r[1] || '') + ' ' + (r[2] || '') + ' ' + (r[4] || '')).toLowerCase() }));
+  }
+  async function ensureIndex() {
+    const KEY = 'tn_cust_index_v1';
     try {
-      // Forgiving search runs in a Netlify function (substring + any-case +
-      // middle names; can't ParseError like the old XS endpoint). Same shape.
-      const res = await fetch(`/.netlify/functions/search-customers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query })
-      });
-      const data = await res.json();
-      if (!data || data.success !== true) {
-        results.innerHTML = `<div class="err">error: ${escapeHtml((data && data.message) || 'failed')}</div>`;
-        return;
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && Array.isArray(s.rows) && s.rows.length) { CINDEX = hydrate(s.rows);
+          if ((Date.now() - (s.built || 0)) < 6 * 3600 * 1000) return; }  // fresh -> done
       }
-      render(data.results || []);
-    } catch (err) {
-      results.innerHTML = `<div class="err">network: ${escapeHtml(err.message)}</div>`;
+    } catch (_) {}
+    try {
+      const d = await fetch('/.netlify/functions/customer-index').then((r) => r.json());
+      if (d && d.ok && Array.isArray(d.rows) && d.rows.length) {
+        CINDEX = hydrate(d.rows);
+        try { localStorage.setItem(KEY, JSON.stringify({ built: Date.now(), rows: d.rows })); } catch (_) {}
+      }
+    } catch (_) {}
+  }
+  function instantSearch(query) {
+    if (!CINDEX) return null;
+    const digits = query.replace(/\D/g, '');
+    const toks = query.toLowerCase().trim().split(/\s+/).filter((t) => t.length >= 2);
+    const out = [];
+    for (const c of CINDEX) {
+      let ok = false, score = 0;
+      if (digits.length >= 4 && c.phone.includes(digits)) { ok = true; score += 5; }
+      if (toks.length) {
+        let all = true;
+        for (const t of toks) {
+          if (c.hay.includes(t)) { score += (c.first.toLowerCase() === t || c.last.toLowerCase() === t) ? 3 : (c.hay.startsWith(t) ? 2 : 1); }
+          else { all = false; }
+        }
+        if (all) ok = true;
+      }
+      if (ok) out.push({ c, score });
     }
+    out.sort((a, b) => b.score - a.score || Number(b.c.id) - Number(a.c.id));
+    return out.slice(0, 40).map((x) => ({ customer: { id: x.c.id, first_name: x.c.first, last_name: x.c.last, phone: x.c.phone, city: x.c.city }, latest_job: null, job_count: null }));
+  }
+
+  let searchSeq = 0;
+  async function runSearch(query) {
+    const seq = ++searchSeq;
+    // 1) INSTANT — client index (0ms). Shows the person immediately.
+    const instant = instantSearch(query);
+    if (instant) render(instant);
+    else results.innerHTML = '<div class="empty">searching…</div>';
+    // 2) BACKGROUND — server search decorates with job links (non-blocking).
+    try {
+      const res = await fetch('/.netlify/functions/search-customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+      const data = await res.json();
+      if (seq !== searchSeq) return;  // a newer keystroke superseded this
+      if (data && data.success === true && (data.results || []).length) render(data.results);
+      else if (!instant || !instant.length) render([]);  // no index hit + no server hit
+    } catch (_) { /* keep the instant results on the screen */ }
   }
 
   let lastRows = [];
@@ -350,7 +398,7 @@ const $ = (id) => document.getElementById(id);
       const last4 = digits.slice(-4);
 
       let latest = '';
-      let pills = `<span class="pill">${r.job_count} job${r.job_count === 1 ? '' : 's'}</span>`;
+      let pills = (r.job_count == null) ? '' : `<span class="pill">${r.job_count} job${r.job_count === 1 ? '' : 's'}</span>`;
       let actions = '';
       if (j) {
         const status = j.scheduling_status || j.current_status || '—';
