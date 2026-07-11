@@ -52,4 +52,29 @@ async function listAccounts() {
   return api('GET', 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts');
 }
 
-module.exports = { REDIRECT, SCOPE, TOKEN_URL, isConfigured, accessToken, api, listAccounts };
+// Locations under an account (Business Information API v1). accountId = the bare
+// id or the "accounts/123" form. Returns names like "locations/456".
+async function listLocations(accountId) {
+  const acct = String(accountId).startsWith('accounts/') ? accountId : ('accounts/' + accountId);
+  const url = 'https://mybusinessbusinessinformation.googleapis.com/v1/' + acct
+    + '/locations?readMask=name,title,storefrontAddress&pageSize=100';
+  return api('GET', url);
+}
+
+// Reviews for a location (legacy v4 reviews host — the allow-listed one).
+// accountId/locationId are bare ids. Review.name comes back as the full
+// "accounts/{a}/locations/{l}/reviews/{r}" resource used to reply.
+async function listReviews(accountId, locationId, pageToken) {
+  const a = String(accountId).replace(/^accounts\//, '');
+  const l = String(locationId).replace(/^locations\//, '');
+  let url = 'https://mybusiness.googleapis.com/v4/accounts/' + a + '/locations/' + l + '/reviews?pageSize=50&orderBy=updateTime%20desc';
+  if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+  return api('GET', url);
+}
+
+// Post/replace the owner reply on a review. reviewName = the full resource name.
+async function putReply(reviewName, comment) {
+  return api('PUT', 'https://mybusiness.googleapis.com/v4/' + reviewName + '/reply', { comment: comment });
+}
+
+module.exports = { REDIRECT, SCOPE, TOKEN_URL, isConfigured, accessToken, api, listAccounts, listLocations, listReviews, putReply };
