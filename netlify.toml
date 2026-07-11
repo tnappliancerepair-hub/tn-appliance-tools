@@ -103,6 +103,13 @@
 [functions."gsc-weekly-report"]
   schedule = "0 13 * * 1"
 
+# Google-review auto-responder — keeps reviews caught up going forward. 4-5 star
+# reviews get a warm personalized reply auto-posted; 1-3 star are NEVER auto-posted
+# (Teddy gets the review + a ready draft to handle by hand). Daytime CT checks so
+# same-day coverage without odd-hour texts (~8am/11am/2pm/5pm CT).
+[functions."gbp-review-autoreply"]
+  schedule = "0 13,16,19,22 * * *"
+
 # One-off Monday reminder (2026-07-13): text Teddy to run the ServicePower parts
 # check (sp-parts-check.html) so we can wire the parts list from the API. Date-gated
 # inside the fn, idempotent, self-noops after that Monday.
