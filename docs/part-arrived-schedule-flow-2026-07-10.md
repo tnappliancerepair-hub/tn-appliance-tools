@@ -36,6 +36,25 @@ and easy.**
 Customer hangs up handled and *moving*; the office gets a parts-pending job that
 unstuck itself with availability already attached; no human touched the call.
 
+## The board state: "Parts Arrived · Needs Scheduled" (office side)
+A part landing must not let the job quietly sit in Waiting Parts hoping someone
+notices. The instant the parts ledger flips the part to **delivered** (or the
+customer says it's here), the job **auto-promotes** out of Waiting Parts into a
+distinct **"Parts Arrived · Needs Scheduled"** lane — clear and near-urgent,
+*separate* from the regular new-job needs-scheduled pile:
+- Regular needs-scheduled = "never booked yet."
+- Parts Arrived · Needs Scheduled = "was waiting on a part, part's in, book the
+  return visit."
+
+This fires **at the same time** as the proactive customer outreach — so the board
+*and* the customer both light up the moment the part's in. Danielle opens the board
+and sees exactly what's ready, and many already have availability attached because
+Ant beat her to it.
+
+**Multi-part guardrail:** only promote when **all** parts the job needs are in. If
+it's 2 of 3, the job stays put with a "2 of 3 parts arrived" note so nobody
+schedules a tech to a job that's still missing a piece.
+
 ## The one honest guardrail
 If a customer says "it's here" but our tracking says the part hasn't landed yet,
 **the AI does not argue.** It takes their word, captures the availability, and
