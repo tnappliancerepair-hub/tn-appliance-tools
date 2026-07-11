@@ -53,7 +53,7 @@ exports.handler = async function (event) {
     const out = [];
     for (const l of locations) {
       const locId = String(l.name).replace(/^locations\//, '');
-      const rev = await gbp.listReviews(acctId, locId);
+      const rev = await gbp.listReviews(acctId, locId, q.page_token);
       if (!rev.ok) { out.push({ location: l.title || locId, location_id: locId, error: rev.status, data: rev.data }); continue; }
       const reviews = (rev.data && rev.data.reviews) || [];
       out.push({
@@ -61,6 +61,7 @@ exports.handler = async function (event) {
         location_id: locId,
         average: rev.data && rev.data.averageRating,
         total: rev.data && rev.data.totalReviewCount,
+        next_page_token: (rev.data && rev.data.nextPageToken) || null,
         reviews: reviews.map((rv) => ({
           name: rv.name,
           reviewer: (rv.reviewer && rv.reviewer.displayName) || 'A Google user',
