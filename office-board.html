@@ -594,7 +594,7 @@ function renderBoard(){
   cols.push({id:'upgrade',label:'Upgrade',cls:'upgrade'});
   cols.push({id:'autho',label:'Waiting for Autho',cls:'autho'});
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
-  cols.push({id:'done',label:'✅ Completed · Ready to Invoice',cls:'done'});
+  cols.push({id:'done',label:'✅ Completed',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
   cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
   // All the per-tech INVOICE folders grouped together (done, ready to bill).
@@ -732,10 +732,15 @@ function cardHtml(j){
   // when a job is complete.") Mirrors the tech dashboard badge.
   const _vss=String(j.scheduling_status||'').toLowerCase(), _vcs=String(j.current_status||'').toLowerCase();
   const _vDone=(_vss==='completed'||_vcs==='completed');
-  const _vCompl=!_vDone && (PARTS_WAIT.test(j.parts_status||'')||_vss==='awaiting_parts'||_vss==='in_progress'||_vcs==='in_progress');
-  if(_vDone) tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #7fd3a3;font-weight:800">✅ DONE</span>');
-  else if(_vCompl) tags.push('<span class="tag" style="background:#e6f7ef;color:#0a7d4a;border:1px solid #7fd3a3;font-weight:800">🔧 COMPLETION</span>');
-  else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 DIAGNOSIS</span>');
+  // The 4 tech close-outs, color-coded so the Completed lane reads at a glance
+  // (Teddy 2026-07-12): 🟢 fixed · 🟠 needs parts · 🟣 replace/no-fix · ⚪ held.
+  // in_progress = started but NOT closed out yet (also carries the ⚠️ flag below).
+  if(_vss==='completed'||_vcs==='completed') tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #7fd3a3;font-weight:800">🟢 Fixed</span>');
+  else if(_vss==='awaiting_parts') tags.push('<span class="tag" style="background:#fff3d0;color:#8a6410;border:1px solid #e0b22a;font-weight:800">🟠 Needs parts</span>');
+  else if(_vss==='no_fix_possible'||_vss==='no_fix') tags.push('<span class="tag" style="background:#efe7fb;color:#5b3ba3;border:1px solid #c9b6ee;font-weight:800">🟣 Replace / no-fix</span>');
+  else if(_vss==='held') tags.push('<span class="tag" style="background:#eef1f5;color:#55617a;border:1px solid #d0d7e2;font-weight:800">⚪ Held (auth)</span>');
+  else if(_vss==='in_progress'||_vcs==='in_progress') tags.push('<span class="tag" style="background:#fdf0e3;color:#9a5a12;border:1px solid #f0c896;font-weight:800">🔧 In progress</span>');
+  else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 Diagnosis</span>');
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
   if(HOLD_MAP[j.id])tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — waiting on the customer to confirm">⏳ HELD</span>');
@@ -900,7 +905,7 @@ async function onDrop(colId,techId,colEl){
       }catch(_){toast('⚠ connection error');}
     }
   } else if(STATUS_MAP[colId]){
-    const label={parts:'Waiting Parts',done:'✅ Completed · Ready to Invoice',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
+    const label={parts:'Waiting Parts',done:'✅ Completed',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
     toast('Moving to '+label+'…');
     try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?(label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
     catch(_){toast('⚠ connection error');}
@@ -1243,7 +1248,7 @@ function renderDrawer(d){
   // move a job from inside the open job file (not just by dragging).
   const moveCols=[['schedule','Needs Scheduled'],['scheduled','Scheduled']];
   (REGION_TECHS[region]||[]).forEach(tt=>{moveCols.push(['rep-'+tt,TECH_NAME[tt]+' · Report']);moveCols.push(['inv-'+tt,TECH_NAME[tt]+' · Invoice']);});
-  moveCols.push(['parts','Waiting Parts'],['done','✅ Completed · Ready to Invoice'],['followup','Follow Up'],['needinv','Needs Invoice'],['paid','Paid · Closed']);
+  moveCols.push(['parts','Waiting Parts'],['done','✅ Completed'],['followup','Follow Up'],['needinv','Needs Invoice'],['paid','Paid · Closed']);
   // Use the board's copy of the job (it carries office_stage + parts_status etc.)
   // so the current column + region reflect the durable server state.
   const boardItem=allItems.find(x=>String(x.id)===String(jid))||j;
@@ -2072,7 +2077,7 @@ async function moveJobFromDrawer(id){
   // Same as a drag-drop: remember placement so it sticks, then fire the action.
   try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
   persistStage(id,colId);
-  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completed · Ready to Invoice',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
+  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completed',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
     if(colId==='paid'){ markInvoicePaid(id,true); toast('💰 Paid — invoice marked paid ✓'); } else toast('Moved to '+label);

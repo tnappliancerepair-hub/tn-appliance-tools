@@ -1169,7 +1169,7 @@ async function sendPayLink(){
 }
 
 function completeFlow(){
-  const types=[['repair_complete','✅ Fixed it — job complete'],['parts_needed','🔩 Diagnosed — need parts, coming back'],['reassignment_needed','↪️ Needs reassigned'],['no_repair','🚫 Can\'t be repaired']];
+  const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion']];
   const out=document.getElementById('lc-stamp');
   out.innerHTML='How did THIS visit end?<div style="font-size:12px;color:#8a93a1;margin:3px 0 2px">“Fixed it” closes the job out. Diagnostic / parts keeps it open and comes back — it won’t mark the job done.</div><div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
