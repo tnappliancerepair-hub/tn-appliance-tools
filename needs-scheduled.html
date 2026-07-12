@@ -795,7 +795,7 @@
     try {
       let d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
       // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
-      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+      if (d && !d.success && /terminal|illegal|transition|locked/i.test(String((d && d.error) || ''))) {
         try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
         d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
       }
@@ -882,7 +882,7 @@
       });
       let d = await r.json();
       // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
-      if (d && !d.success && /terminal/i.test(String((d && d.error) || ''))) {
+      if (d && !d.success && /terminal|illegal|transition|locked/i.test(String((d && d.error) || ''))) {
         showToast('Reopening canceled job…', 'ok');
         try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: currentJob.id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
         d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody })).json();

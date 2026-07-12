@@ -239,7 +239,7 @@ async function doSchedule(){
   try{
     const sb=JSON.stringify({job_id:j.id,technician_id:tech,scheduled_start_ms:startMs,service_eta_window:win});
     let d=await (await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},body:sb})).json();
-    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){
+    if(d&&!d.success&&/terminal|illegal|transition|locked/i.test(String((d&&d.error)||''))){
       try{await fetch(XANO+'/office_set_job_status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:j.id,scheduling_status:'scheduled',actor:'Danielle'})});}catch(_){}
       d=await (await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},body:sb})).json();
     }

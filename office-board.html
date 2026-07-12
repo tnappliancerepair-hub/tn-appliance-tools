@@ -2051,12 +2051,16 @@ async function scheduleFromDrawer(id){
   toast('Scheduling…');
   try{
     let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
-    // Canceled/terminal jobs bounce with "terminal_locked" (the state machine
-    // locks terminal states). Auto-recover the documented way: lift the lock via
-    // the status override, then retry the schedule. No more dead-end for Danielle.
-    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){
-      toast('Reopening canceled job…');
-      try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});}catch(_){}
+    // The state machine can refuse a (re)schedule two ways: "terminal_locked"
+    // (a canceled/completed job) OR "illegal_transition" — e.g. a job that was
+    // STARTED then sent back for a parts return still reads in_progress, and the
+    // machine won't go in_progress -> scheduled. Both are dead-ends for Danielle.
+    // Auto-recover: force it to a clean not_ready via the status override (which
+    // bypasses the machine and sets scheduling_status directly), then retry —
+    // not_ready -> scheduled is always legal. (Craig #20193, Danielle 2026-07-12)
+    if(d&&!d.success&&/terminal|illegal|transition|locked/i.test(String((d&&d.error)||''))){
+      toast('Clearing a stuck status…');
+      try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'not_ready',actor:'Danielle'});}catch(_){}
       d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
     }
     if(d&&d.success){
