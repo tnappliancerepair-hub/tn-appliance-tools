@@ -43,7 +43,7 @@ async function customerTableId() {
 // Get the customer_id for a job via the function API (already returns customer).
 async function customerIdForJob(jobId) {
   try {
-    const r = await fetch(`${XANO}/get_job_for_dashboard?job_id=${encodeURIComponent(jobId)}`, { signal: AbortSignal.timeout(9000) });
+    const r = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) });
     const d = await r.json().catch(() => ({}));
     const cand = (d && d.customer && (d.customer.id || d.customer.customer_id))
       || (d && d.job && d.job.customer_id) || (d && d.customer_id) || 0;
