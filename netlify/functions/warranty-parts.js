@@ -42,7 +42,12 @@ function normStatus(s) {
   if (x === 'unused' || x === 'to_return' || x === 'return') return 'to_return';
   if (x === 'missing' || x === 'not_here' || x === 'not-here' || x === 'discrepancy') return 'missing';
   if (x === 'returned' || x === 'shipped') return 'returned';
-  // requested = we've asked the warranty co to ship this part; awaiting their ETA.
+  // to_order = the tech flagged this part as NEEDED — source not yet decided. The
+  // office then picks who sources it (we order vs warranty ships). (Teddy 2026-07-12)
+  if (x === 'to_order' || x === 'order' || x === 'need' || x === 'needed') return 'to_order';
+  // we_ordering = WE are buying this part ourselves (from a supplier), not the warranty co.
+  if (x === 'we_ordering' || x === 'we_order' || x === 'self_order' || x === 'we_ordered') return 'we_ordering';
+  // requested = we've asked the WARRANTY CO to ship this part; awaiting their ETA.
   if (x === 'requested' || x === 'ordered' || x === 'request') return 'requested';
   return 'to_return';
 }

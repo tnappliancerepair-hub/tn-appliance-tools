@@ -1617,12 +1617,14 @@ async function loadWarrantyParts(jid, claim){
     if(!parts.length){ el.innerHTML='No warranty parts yet — they appear automatically when the vendor emails a return label or ServicePower note, or add one below.'; return; }
     const head=(d.unchecked? `<div style="font-size:11px;font-weight:800;color:#b3690a;margin-bottom:6px">⏳ ${d.unchecked} part${d.unchecked>1?'s':''} the tech hasn't checked yet${d.missing?` · ⚠️ ${d.missing} missing`:''}</div>`:(d.missing?`<div style="font-size:11px;font-weight:800;color:#c0392b;margin-bottom:6px">⚠️ ${d.missing} missing — follow up</div>`:'<div style="font-size:11px;font-weight:800;color:#0a7d33;margin-bottom:6px">✓ all parts checked by the tech</div>'));
     el.innerHTML=head+parts.map(p=>{
-      const st=p.status, ret=st==='returned', miss=st==='missing', tr=st==='to_return', used=st==='used', req=st==='requested';
+      const st=p.status, ret=st==='returned', miss=st==='missing', tr=st==='to_return', used=st==='used', req=st==='requested', toOrd=st==='to_order', weOrd=st==='we_ordering';
       // Badge reflects a CONFIRMED state — an unchecked supply default (often "used")
       // shows "to check" so it never reads done next to the waiting-on-tech flag.
       const badge=ret?'<span style="color:#0a7d33;font-weight:800">✓ returned</span>'
         : miss?'<span style="color:#c0392b;font-weight:800">⚠️ missing</span>'
-        : req?'<span style="color:#2c6fb0;font-weight:800">📨 requested · awaiting part</span>'
+        : toOrd?'<span style="color:#b3690a;font-weight:800">📦 needs ordering — pick a source</span>'
+        : weOrd?'<span style="color:#127a4a;font-weight:800">📦 we\'re ordering it</span>'
+        : req?'<span style="color:#2c6fb0;font-weight:800">🏢 warranty shipping it</span>'
         : !p.checked?'<span style="color:#b3690a;font-weight:800">• to check</span>'
         : used?'<span style="color:#0a7d33;font-weight:800">✓ used</span>'
         : '<span style="color:#b3690a;font-weight:800">↩ unused · return it</span>';
@@ -1634,7 +1636,12 @@ async function loadWarrantyParts(jid, claim){
       const ch=(w)=> (p.checked && st===w) || (w==='missing' && miss); // only light a confirmed choice
       let btns='';
       if(!ret){
-        btns+=ovBtn('📨 Requested','requested',ch('requested')?'#2c6fb0':'#fff',ch('requested')?'#2c6fb0':'var(--line)',ch('requested')?'#fff':'inherit');
+        // SOURCE choice (Teddy 2026-07-12): a needed part is either ordered by US or
+        // shipped by the WARRANTY company — Danielle picks. "Warranty ships" fires the
+        // vendor order-parts request; "We order" just flags it for us to buy (manual for
+        // now). Both replace the old single "Requested" so she's never locked to warranty.
+        btns+=ovBtn('📦 We order','we_ordering',weOrd?'#127a4a':'#fff',weOrd?'#127a4a':'var(--line)',weOrd?'#fff':'inherit');
+        btns+=ovBtn('🏢 Warranty ships','requested',req?'#2c6fb0':'#fff',req?'#2c6fb0':'var(--line)',req?'#fff':'inherit');
         btns+=ovBtn('Used','used',ch('used')?'#0a7d33':'#fff',ch('used')?'#0a7d33':'var(--line)',ch('used')?'#fff':'inherit');
         btns+=ovBtn('Unused','unused',ch('to_return')?'#c2691c':'#fff',ch('to_return')?'#c2691c':'var(--line)',ch('to_return')?'#fff':'inherit');
         // Neutral until actually flagged — a plain button like the others, so an UNchecked

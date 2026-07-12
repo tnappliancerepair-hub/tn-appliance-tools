@@ -517,8 +517,8 @@
       // part ISN'T in hand yet, Used/Return/Not-here don't apply — it needs ordering.
       // Tapping this flags it 'requested' so the office sees it on the to-order list.
       // Used/Return/Not-here stay below for when it arrives + gets installed.
-      var _isReq = st === 'requested';
-      html += '<button onclick="window.__antTdrPartStatus(decodeURIComponent(\'' + enc + '\'),\'requested\')" style="width:100%;margin-top:8px;background:' + (_isReq ? '#f5c266' : '#241d0f') + ';color:' + (_isReq ? '#0e1118' : '#f5c266') + ';border:1px solid #f5c266;border-radius:9px;padding:11px;font-size:13.5px;font-weight:800;cursor:pointer">' + (_isReq ? '📦 On the order list ✓ — office notified' : '📦 Please order this part') + '</button>';
+      var _isReq = st === 'to_order';
+      html += '<button onclick="window.__antTdrPartStatus(decodeURIComponent(\'' + enc + '\'),\'to_order\')" style="width:100%;margin-top:8px;background:' + (_isReq ? '#f5c266' : '#241d0f') + ';color:' + (_isReq ? '#0e1118' : '#f5c266') + ';border:1px solid #f5c266;border-radius:9px;padding:11px;font-size:13.5px;font-weight:800;cursor:pointer">' + (_isReq ? '📦 On the order list ✓ — office notified' : '📦 Please order this part') + '</button>';
       html += '<div style="font-size:11px;color:#8a92a6;margin:7px 0 4px">Once it arrives + you install it:</div>';
       html += '<div style="display:flex;gap:6px">' + btn('✅ Used', 'used', '#4ad991') + btn('↩️ Return', 'to_return', '#f5a623') + btn('❌ Not here', 'missing', '#ff8a8a') + '</div>';
       if (st === 'to_return') {
@@ -548,7 +548,7 @@
     // (Used / Return / Not here + photo + return label), same as the listed ones.
     // For SquareTrade a sent part may need to go back no matter how it got here.
     // Add a part the tech DIAGNOSED but doesn't have → goes straight on the to-order
-    // list (status 'requested'). This is the diagnose-in-person → order flow. (Teddy 7/12)
+    // list (status 'to_order' — office picks the source). Diagnose-in-person → order flow. (Teddy 7/12)
     html += '<button onclick="window.__antTdrAddOrderPart()" style="width:100%;margin-top:10px;background:#241d0f;color:#f5c266;border:1px dashed #f5c266;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">📦 Add a part to ORDER (diagnosed, not here yet)</button>';
     html += '<button onclick="window.__antTdrAddSentPart()" style="width:100%;margin-top:8px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">➕ Add a part they SENT (in hand, not listed)</button>';
     html += '</div>';
@@ -592,12 +592,12 @@
     desc = String(desc).trim();
     var vendor = String((lastData && (lastData.warranty_company || lastData.vendor)) || '');
     suppliedParts = suppliedParts || [];
-    suppliedParts.push({ part: part, description: desc, vendor: vendor, source: 'tech_to_order', status: 'requested', checked: true, photos: [] });
+    suppliedParts.push({ part: part, description: desc, vendor: vendor, source: 'tech_to_order', status: 'to_order', checked: true, photos: [] });
     if (lastData && editKey === null) renderModal(lastData);
     try {
       await fetch('/.netlify/functions/warranty-parts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add', job_id: Number(jobId), part: part, description: desc, vendor: vendor, source: 'tech_to_order', status: 'requested' }),
+        body: JSON.stringify({ action: 'add', job_id: Number(jobId), part: part, description: desc, vendor: vendor, source: 'tech_to_order', status: 'to_order' }),
       });
     } catch (_) {}
     loadSuppliedParts();
