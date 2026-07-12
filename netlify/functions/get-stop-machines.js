@@ -9,6 +9,19 @@
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// The TDR (diagnosis/notes) lives in its OWN table, not on the job row — so we ask
+// the dashboard endpoint (which joins the TDRs) whether this machine has a real
+// report. A machine has a report if any of its TDRs carries a filled field.
+async function jobHasReport(id) {
+  try {
+    const r = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id }), signal: AbortSignal.timeout(8000) });
+    const d = await r.json().catch(() => ({}));
+    const rows = (d && d.all_tdrs) || [];
+    return rows.some((t) => ['diagnosis', 'technician_notes', 'repair_completed', 'failed_component'].some((k) => String((t && t[k]) || '').trim()));
+  } catch (_) { return false; }
+}
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
@@ -42,7 +55,7 @@ exports.handler = async function (event) {
     try { row = await crud.searchOne(crud.TABLES.jobs, { id }); } catch (_) {}
     if (!row) continue;
     const status = String(row.scheduling_status || row.current_status || '').trim();
-    const hasReport = !!(String(row.technician_notes || '').trim() || String(row.diagnosis || '').trim());
+    const hasReport = await jobHasReport(id);
     machines.push({
       job_id: id,
       appliance: String(row.appliance_type || '').trim() || 'appliance',

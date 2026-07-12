@@ -1294,6 +1294,7 @@ function renderDrawer(d){
       <div id="reqrep-msg" style="font-size:12px;color:var(--dim,#8a93a1);margin-top:6px"></div>
     </div>
     ${availHtml}
+    <div id="stop-machines-card"></div>
     <div class="dcard">
       <h4>📋 Job file</h4>
       <div class="kv">
@@ -1538,6 +1539,7 @@ function renderDrawer(d){
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
   loadWarrantyParts(jid, j.claim_number||'');
+  loadStopMachines(jid);
   loadOfficeNoteStatus(jid);
   loadPartsLocation(jid);
   loadPayStatus(jid);
@@ -1608,6 +1610,29 @@ async function loadPartsLocation(jid){
       +(sub?'<div style="font-size:11px;color:var(--ink2)">'+esc(sub)+'</div>':'')
       +'<div style="font-size:12px;font-weight:700;color:'+color+';margin-top:2px">'+esc(p.where_icon)+' '+esc(p.where)+'</div></div>';
   }).join('');
+}
+// Multi-machine stop (Teddy 2026-07-12): a customer can add a 2nd machine to one
+// claim — each machine is its OWN job with its OWN TDR (fridge + stove). The office
+// had no way to see the siblings, so Danielle only saw one. This shows every machine
+// on the stop as a chip (with a ✓ when its report is filed), each opening that
+// machine's job/drawer, so she's aware there are several TDRs and can work each.
+async function loadStopMachines(jid){
+  const el=document.getElementById('stop-machines-card'); if(!el) return;
+  let d=null;
+  try{ d=await fetch('/.netlify/functions/get-stop-machines?job_id='+encodeURIComponent(jid)).then(r=>r.json()); }catch(_){}
+  const ms=(d&&d.machines)||[];
+  if(!d||!d.ok||ms.length<2){ el.innerHTML=''; return; }   // only show when it's actually a multi-machine stop
+  const chips=ms.map(m=>{
+    const cur=String(m.job_id)===String(jid);
+    const label=esc((m.appliance||'machine')+(m.brand?(' · '+m.brand):''))+(m.has_report?' ✓':'');
+    const style='display:inline-flex;align-items:center;gap:4px;padding:8px 12px;border-radius:999px;font-size:12.5px;font-weight:800;cursor:pointer;border:1px solid '+(cur?'#6b46c1':'#cdbdf0')+';'+(cur?'background:#6b46c1;color:#fff':'background:#fff;color:#5b3ba8');
+    return cur?('<span style="'+style+'">'+label+'</span>')
+      :('<span onclick="openDrawer(\''+m.job_id+'\')" style="'+style+'">'+label+'</span>');
+  }).join(' ');
+  el.innerHTML='<div class="dcard" style="border-color:#6b46c1;background:rgba(107,70,193,.05)">'
+    +'<h4>🔧 '+ms.length+' machines on this stop — each has its own TDR</h4>'
+    +'<p style="color:var(--dim,#8a93a1);font-size:12.5px;margin:2px 0 9px">This customer added more than one machine to the claim. Tap a machine to open its job + report. A ✓ means that machine\'s report is filed.</p>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:7px">'+chips+'</div></div>';
 }
 async function loadWarrantyParts(jid, claim){
   const el=document.getElementById('warr-parts'); if(!el) return;
