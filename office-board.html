@@ -1270,7 +1270,7 @@ function renderDrawer(d){
     <div class="dcard">
       <h4>📋 Job file</h4>
       <div class="kv">
-        <div class="k">Customer</div><div class="v">${esc(name)}</div>
+        <div class="k">Customer</div><div class="v" id="jf-name-cell">${esc(name)} <button onclick='editCustomerNameInline(${jid}, ${JSON.stringify(name)})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button></div>
         <div class="k">Address</div><div class="v">${esc(addr||'—')}</div>
         <div class="k">Phone</div><div class="v" id="jf-phone-cell">${c.phone?`${esc(c.phone)} <button onclick='editPhoneInline(${jid}, ${JSON.stringify(c.phone||'')})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button>`:`<button onclick='editPhoneInline(${jid}, "")' style="padding:4px 11px;border:0;border-radius:7px;background:#1f8f3a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">+ Add phone</button>`}</div>
         <div class="k">Warranty</div><div class="v">${esc(j.warranty_company||'—')}</div>
@@ -1668,6 +1668,28 @@ async function savePhoneInline(jid){
     const d=await postJSON('office_quick_fill',{job_id:parseInt(jid,10),customer_phone:ph,actor:'Danielle'});
     if(d&&d.success){toast('Phone saved ✓');openDrawer(String(jid));loadBoard();}
     else{toast('⚠ did not save');}
+  }catch(_){toast('⚠ failed');}
+}
+// Edit a wrong customer NAME in the Job File (Danielle 2026-07-12: parser doubled
+// a last name → "Pryor Pryor" with no way to fix it). Type the corrected full
+// name; we split on the first space into first/last and write the customer record.
+function editCustomerNameInline(jid,cur){
+  const cell=document.getElementById('jf-name-cell'); if(!cell)return;
+  cell.innerHTML='<input id="jf-name-in" type="text" value="'+esc(cur||'')+'" placeholder="First Last" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;width:170px"> <button onclick="saveCustomerNameInline('+jid+')" style="padding:6px 11px;border:0;border-radius:6px;background:var(--ok);color:#fff;font-weight:800;font-size:12px;cursor:pointer">Save</button>';
+  const inp=document.getElementById('jf-name-in'); if(inp){inp.focus();inp.select();inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveCustomerNameInline(jid);});}
+}
+async function saveCustomerNameInline(jid){
+  const inp=document.getElementById('jf-name-in'); const full=inp?(inp.value||'').trim().replace(/\s+/g,' '):'';
+  if(!full){toast('Enter a name');return;}
+  const sp=full.indexOf(' ');
+  const first=sp<0?full:full.slice(0,sp);
+  const last=sp<0?'':full.slice(sp+1);
+  toast('Saving…');
+  try{
+    const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),first_name:first,last_name:last,actor:'Danielle'})});
+    const d=await r.json();
+    if(d&&d.ok){toast('Name saved ✓');openDrawer(String(jid));loadBoard();}
+    else{toast('⚠ '+((d&&d.error)||'did not save'));}
   }catch(_){toast('⚠ failed');}
 }
 // Label row with a one-tap copy button (Danielle pastes these into warranty
