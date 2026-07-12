@@ -1361,7 +1361,7 @@ function renderDrawer(d){
 
     <div class="dcard">
       <h4>📦 Warranty parts (supplied by warranty co)</h4>
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Parts the <b>warranty company ships</b> for this job — auto-pulled from the return-label + ServicePower emails. The <b>tech checks each one in the field</b> (Used / Unused / Missing) and it shows here automatically. A <b>⏳ waiting-on-tech</b> tag means he hasn't checked it yet — you can set it yourself if he missed it. <b>Unused</b> parts must go back; tap <b>Mark returned</b> once it ships.</div>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px"><b>The system fills these in automatically — nobody types them, and you don't have to touch anything.</b> These are the parts the <b>warranty company ships</b>, auto-pulled from the return-label + ServicePower emails. The <b>tech checks each one in the field</b> (Used / Unused / Missing). A <b>⏳ waiting-on-tech</b> tag just means he hasn't checked it yet — it does NOT mean the part is missing. You can set it yourself if he missed one. <b>Unused</b> parts must go back; tap <b>Mark returned</b> once it ships.</div>
       <div id="warr-parts" style="font-size:12px;color:var(--ink2)">Loading…</div>
       <div style="font-size:11px;color:var(--ink2);font-weight:700;margin-top:10px">✍️ Write in a supplied part (SquareTrade / FrontDoor / NSA)</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:5px">
@@ -1610,7 +1610,9 @@ async function loadWarrantyParts(jid, claim){
         btns+=ovBtn('📨 Requested','requested',ch('requested')?'#2c6fb0':'#fff',ch('requested')?'#2c6fb0':'var(--line)',ch('requested')?'#fff':'inherit');
         btns+=ovBtn('Used','used',ch('used')?'#0a7d33':'#fff',ch('used')?'#0a7d33':'var(--line)',ch('used')?'#fff':'inherit');
         btns+=ovBtn('Unused','unused',ch('to_return')?'#c2691c':'#fff',ch('to_return')?'#c2691c':'var(--line)',ch('to_return')?'#fff':'inherit');
-        btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'#f3c0b7',ch('missing')?'#fff':'#c0392b');
+        // Neutral until actually flagged — a plain button like the others, so an UNchecked
+      // part no longer reads as an alarming red "MISSING" (confused Danielle, 2026-07-12).
+      btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'var(--line)',ch('missing')?'#fff':'inherit');
         if(tr) btns+=`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','returned')" style="padding:4px 8px;border:0;border-radius:7px;background:#0a7d33;color:#fff;font-size:11px;font-weight:800;cursor:pointer">Mark returned ✓</button>`;
       }
       return `<div style="padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div>${who}</div><div style="font-size:11px;color:var(--ink2);margin:3px 0 2px">${esc(info)||'—'}</div><div style="font-size:11px;font-weight:700;color:#2c6fb0;margin-bottom:6px">${loc}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div></div>`;
