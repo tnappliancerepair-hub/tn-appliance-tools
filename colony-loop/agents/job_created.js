@@ -44,15 +44,15 @@ function composeGreeting({ first_name, appliance_type, source, customer_type, jo
         : `https://${baseLink}/customer-portal.html?job_id=${job_id}&last4=`)
     : `https://${baseLink}`;
   const applianceWord = appliance || 'appliance';
-  // WARRANTY greeting = the intake pitch (Teddy 2026-07-07). For a warranty customer
-  // the very first text IS the warranty-intake link, and it sells WHY it matters: it
-  // lets us learn the machine, hear the problem in their own words on video, get the
-  // waiver signed, and pre-diagnose so the tech rolls up with the right part and fixes
-  // it in one trip. Keep it warm + emphasize how easy/fast it is.
+  // WARRANTY greeting = SIMPLE + video-first (Teddy 2026-07-12). The whole ask is one
+  // easy thing: give your tech a 10-second video so he knows what's going on before he
+  // comes. The warranty-intake page still collects the days that work; the TEXT leads
+  // with the video so it feels effortless. NEVER the crowded front door — always the
+  // clean warranty-intake link.
   if (isWarranty) {
-    return `Hi ${name}, TN Appliance Exchange 🐜 here — your ${applianceWord} repair is covered by your home warranty, no payment needed. `
-      + `The quickest way to get it fixed is this 2-minute intake — tap ${link}: a 10-second video showing what it's doing (just tell us in your own words), a quick photo of the model-number sticker, tap the days that work for you, and sign a quick waiver. `
-      + `That lets us pre-diagnose it and bring the right part so we fix it in one trip. Thank you!`;
+    return `Hi ${name}, TN Appliance Exchange 🐜 — your ${applianceWord} repair is covered by your home warranty, no payment needed. `
+      + `One quick, easy thing before your visit: tap ${link} and send your tech a 10-second video of what it's doing, so he knows what's going on and shows up with the right part. `
+      + `Takes under a minute — thank you!`;
   }
   // Cash / self-pay: the warm reply-first greeting to the customer-portal flow.
   let body = `Hi ${name}, this is TN Appliance Exchange 🐜 — let's get your ${applianceWord} fixed fast.`;

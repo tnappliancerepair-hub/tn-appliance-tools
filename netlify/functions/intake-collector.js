@@ -36,7 +36,7 @@ const INTAKE_SEQUENCE_CAP = 4;
 function intakeMsg(n, cust, appl, link, isW) {
   if (n <= 0) {
     return isW
-      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. Quickest way to get fixed: tap ${link} (about 2 min) — a 10-second video of what it's doing, a photo of the model-number sticker, and tap the days that work for you. It lets us bring the right part and fix it in one trip. Thank you!`
+      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. One easy thing before your visit: tap ${link} and send your tech a 10-second video of what it's doing, so he shows up with the right part. Under a minute — thank you!`
       : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${link} — about 2 min: a 10-second video, a photo of the model-number sticker (so your tech brings the right part), and tap the days that work for you. Thank you!`;
   }
   if (n === 1) {

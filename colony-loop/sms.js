@@ -167,13 +167,15 @@ export async function toCustomer(phone, body, context = {}) {
     return { success: false, error: 'invalid_phone', input: phone };
   }
   body = scrubTimes(body);
-  // ✅ INTAKE-ONLY (Teddy 2026-07-10: "we just need the intake and availability
-  // texts, kill the rest — caused too many issues"). Only intake links, the new-
-  // job greeting, availability asks, resume nudges + reactive replies go out.
-  // Every other proactive text — appointment confirmations, reminders, en-route/
-  // ETA/arrival, status, reviews — is PAUSED. Reversible: CUSTOMER_TEXTS_ALL=1.
+  // ✅ INTAKE + AVAILABILITY + SCHEDULE-CONFIRMATION only (Teddy 2026-07-12: "text
+  // only if texted, other than the intake and availability texts — plus the one
+  // schedule confirmation: tech + day + slot"). Allowed: intake links, the new-job
+  // greeting, availability asks, resume nudges, reactive replies, AND the single
+  // appointment_confirmation (fires when Danielle schedules). Every OTHER proactive
+  // text — 24h reminders, en-route/ETA/arrival, status, reviews, upsells, part
+  // pings — stays PAUSED. Reversible: CUSTOMER_TEXTS_ALL=1.
   const _lbl = String((context && (context.action || context.outcome || context.tag || context.kind)) || '').toLowerCase();
-  const _INTAKE_OK = /intake|availab|quick.?check|finish.?upload|media|shoot|model|video|new.?lead|resume|new_job_greeting|greeting|reply|response|answer|translated|inbound/;
+  const _INTAKE_OK = /intake|availab|quick.?check|finish.?upload|media|shoot|model|video|new.?lead|resume|new_job_greeting|greeting|reply|response|answer|translated|inbound|appointment_confirmation/;
   if (process.env.CUSTOMER_TEXTS_ALL !== '1' && !_INTAKE_OK.test(_lbl)) {
     xano.logLocal('customer_sms_paused_intake_only', { to: e164, action: _lbl, body_preview: String(body || '').slice(0, 120) });
     return { success: false, paused: true, reason: 'customer_texts_paused', action: _lbl };

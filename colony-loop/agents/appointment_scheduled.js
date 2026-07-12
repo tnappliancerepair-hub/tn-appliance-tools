@@ -71,22 +71,31 @@ function bareDomain() {
   return (config.publicSiteBase || '').replace(/^https?:\/\//, '');
 }
 
-function customerBody({ first, appliance, apptStr, windowStr, techFirst, portalUrl }) {
+// Slot 1-8 from the stored scheduled_start (Teddy's slot model, office-board.html:
+// stop position N is encoded as CT hour 8+(N-1), a hidden sort key — no clock time is
+// ever shown). So slot = CT-hour - 7 (8am->1 ... 3pm->8). 0 = couldn't derive -> omit.
+function slotFromStart(ms) {
+  if (!ms) return 0;
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(ms)));
+  const s = h - 7;
+  return (s >= 1 && s <= 8) ? s : 0;
+}
+
+// The ONE schedule confirmation Teddy wants (2026-07-12): tech + day + slot, "any
+// questions?" and a video-catch link if they still owe their tech a video. DAY ONLY,
+// never a clock time (day-of routing; the live window is a separate morning-of text
+// that stays paused for now). Tech named only when FIRMLY assigned.
+function customerBody({ first, appliance, apptStr, techFirst, slot, finishLink }) {
   const name = (first || '').trim() || 'there';
-  // Only name a tech when one is FIRMLY assigned — never guess a name (Danielle
-  // 2026-06-26: customers were told a tech who wasn't actually on the job).
-  const techClause = techFirst ? `Your tech will be ${techFirst}.` : '';
-  const portalClause = portalUrl ? `View/reschedule: ${portalUrl}` : '';
-  // DAY ONLY — never a clock time AND never a window (Teddy 2026-07-08: "stop giving
-  // times, especially for Jimmy — he's never on time"). We run day-of routing; the live
-  // arrival window is texted the morning of. windowStr is intentionally ignored now.
-  return [
-    `Hi ${name}, your ${appliance} repair is set for ${apptStr}.`,
-    techClause,
-    `We run day-of routing, so we'll text you a live arrival window the morning of.`,
-    portalClause,
-    `Reply STOP to cancel or call 866-268-0111.`,
-  ].filter(Boolean).join(' ');
+  const techPart = techFirst ? `Your tech is ${techFirst}, coming ${apptStr}` : `It's scheduled for ${apptStr}`;
+  const slotPart = slot ? `, and you're stop ${slot} of the day` : '';
+  const lines = [
+    `Hi ${name}, good news — your ${appliance} repair is scheduled.`,
+    `${techPart}${slotPart}.`,
+    `We run day-of routing, so we'll text you a live arrival window that morning. Any questions, just reply here or call 866-268-0111.`,
+  ];
+  if (finishLink) lines.push(`Haven't sent your tech a video yet? Tap here so he shows up ready: ${finishLink}`);
+  return lines.join(' ');
 }
 
 function techBody({ jobLabel, apptStr, custName, address }) {
@@ -177,11 +186,11 @@ export async function run(signal, ctx) {
   } else if (!custPhone) {
     custResult = 'skipped_invalid_phone';
   } else {
-    const last4 = String(custPhone).replace(/\D/g, '').slice(-4);
-    const portalUrl = last4
-      ? `https://${bareDomain()}/customer-portal.html?job_id=${jobId}&last4=${last4}`
-      : '';
-    const body = customerBody({ first: custFirst, appliance, apptStr, windowStr, techFirst, portalUrl });
+    const slot = slotFromStart(scheduledStartMs);
+    // Video-catch link: the no-form finish-upload page works for warranty + cash.
+    // Always offered so a customer who still owes their tech a video has it right here.
+    const finishLink = `https://${bareDomain()}/finish-upload.html?job_id=${jobId}`;
+    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, slot, finishLink });
     const res = await sms.toCustomer(custPhone, body, {
       action: 'appointment_confirmation',
       job_id: jobId,
