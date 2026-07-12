@@ -769,7 +769,7 @@ function cardHtml(j){
   const _canceledLike=/cancel|no_fix/.test(_vss)||/cancel|no_fix/.test(_vcs);
   const _waitingParts=PARTS_WAIT.test(j.parts_status||'')||_vss==='awaiting_parts';
   const _looksDone=!_vDone && !_canceledLike && !_waitingParts && Number(j.technician_id)>0 && _pastSched;
-  if(_looksDone)tags.unshift('<span class="tag" style="background:#fff3d0;color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Scheduled day has passed and it is not marked complete — the tech likely finished it but did not tap Complete">✅ Looks done?</span>');
+  if(_looksDone)tags.unshift('<span class="tag" style="background:#fff3d0;color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="The tech started this but never closed it out — it could be finished, or need parts / a return trip. Open it to read the report, then Mark complete if it is done, or route it to Waiting Parts / Follow Up.">⚠️ Not closed out</span>');
   const _c=Number(j.created_at||0), _days=_c?Math.floor((Date.now()-_c)/86400000):0;
   const _wait=(_days>=1 && j.scheduling_status!=='completed')?('<span class="jc-wait" style="font-size:11px;font-weight:800;color:'+(_days>=7?'#c0392b':(_days>=3?'#b3690a':'#8a96a8'))+'">⏳ '+_days+'d</span>'):'';
   // Report-request button — on the cards she works toward invoicing (Completion /
