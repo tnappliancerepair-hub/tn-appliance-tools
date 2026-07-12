@@ -569,6 +569,7 @@ function render(){
           <button class="act done" id="a-done"><span class="ic">✅</span>Complete</button>
         </div>
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
+        <button id="a-move" style="display:block;width:100%;box-sizing:border-box;margin-top:10px;background:#eef1f5;color:#33415c;border:1px solid #d0d7e2;border-radius:10px;font-size:14px;padding:11px;font-weight:800;cursor:pointer">📅 Move to another day / hand off to a tech</button>
         <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
         <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
         ${job.job_completed_at ? `<a href="sign.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:10px;background:#127a4a;color:#fff;font-size:15px;padding:12px">✍️ Customer sign-off — repair complete</a>` : ''}
@@ -702,10 +703,56 @@ function lifecycleStamp(){
   return p.join(' · ');
 }
 
+// "Move this stop" — Jimmy 2026-07-12: "nobody knew how to move stops over," so
+// jobs got stranded (stuck in_progress / off the schedule) instead of being pushed
+// to another day or handed to another tech. One obvious tap: reschedule to another
+// DAY (reschedule_job) or hand it off (reassign_job). Day-only — we stamp 8am as
+// the day's placeholder; the board shows stop position, not a clock time.
+var MOVE_ROSTER={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+function _dayMs(offset){var d=new Date();d.setDate(d.getDate()+offset);d.setHours(8,0,0,0);return d.getTime();}
+function _dayLabel(ms){try{return fmtDay(ms);}catch(_){return new Date(ms).toLocaleDateString();}}
+function openMoveStop(){
+  _closeMoveStop();
+  var ov=document.createElement('div'); ov.id='move-stop-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(10,14,22,.55);display:flex;align-items:flex-end;justify-content:center';
+  ov.onclick=function(e){ if(e.target===ov) _closeMoveStop(); };
+  var days=[['Tomorrow',_dayMs(1)],['In 2 days',_dayMs(2)],['In 3 days',_dayMs(3)],['In a week',_dayMs(7)]];
+  var dayChips=days.map(function(x){return '<button onclick="_moveStopDay('+x[1]+')" style="flex:1;min-width:46%;padding:12px;border:1px solid #cdd6e2;border-radius:10px;background:#fff;color:#1f2d45;font-weight:800;font-size:14px;cursor:pointer">'+x[0]+'<br><span style="font-weight:600;font-size:11px;color:#68758a">'+_dayLabel(x[1])+'</span></button>';}).join('');
+  var techBtns=Object.keys(MOVE_ROSTER).filter(function(id){return Number(id)!==Number(TECH_ID);}).map(function(id){return '<button onclick="_moveStopTech('+id+',\''+MOVE_ROSTER[id]+'\')" style="flex:1;min-width:30%;padding:12px;border:1px solid #cdd6e2;border-radius:10px;background:#fff;color:#1f2d45;font-weight:800;font-size:14px;cursor:pointer">'+MOVE_ROSTER[id]+'</button>';}).join('');
+  ov.innerHTML='<div style="width:100%;max-width:520px;background:#fff;border-radius:16px 16px 0 0;padding:18px 16px 26px;box-shadow:0 -8px 30px rgba(0,0,0,.25)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-weight:900;font-size:17px;color:#111">Move this stop</div><button onclick="_closeMoveStop()" style="border:0;background:#eef1f5;border-radius:8px;padding:6px 12px;font-weight:800;color:#55617a;cursor:pointer">Close</button></div>'
+    +'<div style="font-weight:800;font-size:13px;color:#68758a;margin:4px 0 8px">📅 Move to another day</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px">'+dayChips+'</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;margin:8px 0 16px"><input type="date" id="move-date" min="'+new Date().toISOString().slice(0,10)+'" style="flex:1;padding:11px;border:1px solid #cdd6e2;border-radius:10px;font-size:15px"><button onclick="_moveStopPicked()" style="padding:11px 16px;border:0;border-radius:10px;background:#1f6feb;color:#fff;font-weight:800;font-size:14px;cursor:pointer">Move</button></div>'
+    +(techBtns?('<div style="font-weight:800;font-size:13px;color:#68758a;margin:4px 0 8px">↪️ Hand off to another tech</div><div style="display:flex;flex-wrap:wrap;gap:8px">'+techBtns+'</div>'):'')
+    +'</div>';
+  document.body.appendChild(ov);
+}
+function _closeMoveStop(){var o=document.getElementById('move-stop-ov'); if(o)o.remove();}
+function _moveStopPicked(){var el=document.getElementById('move-date'); var v=el&&el.value; if(!v){alert('Pick a date first');return;} var p=v.split('-'); var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),8,0,0); _moveStopDay(d.getTime());}
+async function _moveStopDay(ms){
+  if(!confirm('Move this stop to '+_dayLabel(ms)+'? The customer stays scheduled for that day.'))return;
+  _closeMoveStop();
+  try{
+    var d=await xanoPost('reschedule_job',{job_id:parseInt(JOB_ID,10),new_start_ms:ms});
+    if(d&&d.success){ toast('Moved to '+_dayLabel(ms)+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+    else{ toast('⚠ '+((d&&d.error)||'could not move')); }
+  }catch(_){ toast('⚠ failed — try again'); }
+}
+async function _moveStopTech(tid,name){
+  if(!confirm('Hand this stop to '+name+'? It moves off your day onto theirs.'))return;
+  _closeMoveStop();
+  try{
+    var d=await xanoPost('reassign_job',{job_id:parseInt(JOB_ID,10),technician_id:parseInt(tid,10)});
+    if(d&&d.success){ toast('Handed to '+name+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+    else{ toast('⚠ '+((d&&d.error)||'could not hand off')); }
+  }catch(_){ toast('⚠ failed — try again'); }
+}
 function wireActions(){
   document.getElementById('a-otw').onclick=()=>lifecycle('tech_on_the_way','On-my-way sent ✓','en_route');
   document.getElementById('a-start').onclick=startJobGated;
   document.getElementById('a-done').onclick=completeFlow;
+  var _mv=document.getElementById('a-move'); if(_mv) _mv.onclick=openMoveStop;
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
   document.getElementById('refresh-media').onclick=loadAttachments;
