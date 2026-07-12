@@ -1298,7 +1298,7 @@ function renderDrawer(d){
       <h4>📋 Job file</h4>
       <div class="kv">
         <div class="k">Customer</div><div class="v" id="jf-name-cell">${esc(name)} <button onclick='editCustomerNameInline(${jid}, ${JSON.stringify(name)})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button></div>
-        <div class="k">Address</div><div class="v">${esc(addr||'—')}</div>
+        <div class="k">Address</div><div class="v">${esc(addr||'—')} <button onclick='editCustomerInfo(${jid})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit all</button></div>
         <div class="k">Phone</div><div class="v" id="jf-phone-cell">${c.phone?`${esc(c.phone)} <button onclick='editPhoneInline(${jid}, ${JSON.stringify(c.phone||'')})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button>`:`<button onclick='editPhoneInline(${jid}, "")' style="padding:4px 11px;border:0;border-radius:7px;background:#1f8f3a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">+ Add phone</button>`}</div>
         <div class="k">Warranty</div><div class="v">${esc(j.warranty_company||'—')}</div>
         <div class="k">Claim #</div><div class="v mono">${esc(j.claim_number||'—')}</div>
@@ -1737,6 +1737,40 @@ async function saveCustomerNameInline(jid){
     if(d&&d.ok){toast('Name saved ✓');openDrawer(String(jid));loadBoard();}
     else{toast('⚠ '+((d&&d.error)||'did not save'));}
   }catch(_){toast('⚠ failed');}
+}
+// Edit the WHOLE customer record — Danielle 2026-07-12: "adjust ALL of the
+// customer's information because of errors, not just name + phone." Opens a form
+// with every field; saves only what changed (partial). One place to fix a bad
+// intake (wrong address, email, city/zip, etc.).
+async function editCustomerInfo(jid){
+  let c={};
+  try{ const d=await postJSON('get_job_for_dashboard',{job_id:parseInt(jid,10)}); c=(d&&d.customer)||{}; }catch(_){}
+  const ov=document.createElement('div'); ov.id='cust-edit-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,14,22,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+  const F=(id,label,val,ph)=>'<label style="display:block;font-size:11px;font-weight:700;color:#6b7280;margin:9px 0 3px">'+label+'</label><input id="ce-'+id+'" value="'+esc(val||'')+'" placeholder="'+(ph||'')+'" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid var(--line,#d0d7e2);border-radius:8px;font-size:15px">';
+  ov.innerHTML='<div style="width:100%;max-width:460px;max-height:88vh;overflow-y:auto;background:var(--card,#fff);color:var(--ink,#111);border-radius:14px;padding:18px 16px 20px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-weight:900;font-size:17px">✏️ Edit customer info</div><button onclick="document.getElementById(\'cust-edit-ov\').remove()" style="border:0;background:#eef1f5;border-radius:8px;padding:6px 12px;font-weight:800;color:#55617a;cursor:pointer">Close</button></div>'
+    +'<div style="display:flex;gap:8px"><div style="flex:1">'+F('first','First name',c.first_name)+'</div><div style="flex:1">'+F('last','Last name',c.last_name)+'</div></div>'
+    +F('phone','Phone',c.phone,'(615) 555-1234')
+    +F('email','Email',c.email)
+    +F('address','Street address',c.address)
+    +'<div style="display:flex;gap:8px"><div style="flex:2">'+F('city','City',c.city)+'</div><div style="flex:1">'+F('state','State',c.state,'TN')+'</div><div style="flex:1">'+F('zip','Zip',c.zip)+'</div></div>'
+    +'<button onclick="saveCustomerInfo('+parseInt(jid,10)+')" style="width:100%;margin-top:16px;padding:12px;border:0;border-radius:10px;background:var(--ok,#1f8f3a);color:#fff;font-weight:800;font-size:15px;cursor:pointer">✓ Save all</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  const f=document.getElementById('ce-first'); if(f){ try{f.focus();}catch(_){}}
+}
+async function saveCustomerInfo(jid){
+  const g=function(id){ const el=document.getElementById('ce-'+id); return el?el.value.trim():undefined; };
+  const body={job_id:parseInt(jid,10),actor:'Danielle',first_name:g('first'),last_name:g('last'),phone:g('phone'),email:g('email'),address:g('address'),city:g('city'),state:g('state'),zip:g('zip')};
+  toast('Saving…');
+  try{
+    const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(d&&d.ok){ toast('Customer info saved ✓'); const ov=document.getElementById('cust-edit-ov'); if(ov)ov.remove(); openDrawer(String(jid)); loadBoard(); }
+    else toast('⚠ '+((d&&d.error)||'did not save'));
+  }catch(_){ toast('⚠ failed'); }
 }
 // Label row with a one-tap copy button (Danielle pastes these into warranty
 // portals / vendor orders and shouldn't have to hand-select each box). Teddy 7/3.

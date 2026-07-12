@@ -58,11 +58,30 @@ exports.handler = async function (event) {
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return j(400, { ok: false, error: 'invalid_json' }); }
   const jobId = parseInt(b.job_id, 10);
   let customerId = parseInt(b.customer_id, 10) || 0;
-  const first = String(b.first_name == null ? '' : b.first_name).trim().slice(0, 80);
-  const last = String(b.last_name == null ? '' : b.last_name).trim().slice(0, 80);
   const actor = String(b.actor || 'office').slice(0, 40);
-  if (!first && !last) return j(400, { ok: false, error: 'first_name or last_name required' });
   if (!jobId && !customerId) return j(400, { ok: false, error: 'job_id or customer_id required' });
+
+  // Any customer field the office needs to fix — Danielle 2026-07-12: "adjust ALL of
+  // the customer's information because of errors, not just name + phone." Only the
+  // fields actually PRESENT in the request are written (partial PUT preserves the rest).
+  function norm(v, max) { return String(v == null ? '' : v).trim().slice(0, max || 160); }
+  function normPhone(v) {
+    const d = String(v == null ? '' : v).replace(/[^\d+]/g, '');
+    const digits = d.replace(/\D/g, '');
+    if (digits.length === 10) return '+1' + digits;
+    if (digits.length === 11 && digits[0] === '1') return '+' + digits;
+    return d;
+  }
+  const partial = {};
+  if (b.first_name !== undefined) partial.first_name = norm(b.first_name, 80);
+  if (b.last_name !== undefined) partial.last_name = norm(b.last_name, 80);
+  if (b.phone !== undefined) partial.phone = normPhone(b.phone);
+  if (b.email !== undefined) partial.email = norm(b.email, 160);
+  if (b.address !== undefined) partial.address = norm(b.address, 200);
+  if (b.city !== undefined) partial.city = norm(b.city, 80);
+  if (b.state !== undefined) partial.state = norm(b.state, 40);
+  if (b.zip !== undefined) partial.zip = norm(b.zip, 20);
+  if (!Object.keys(partial).length) return j(400, { ok: false, error: 'no customer fields provided' });
 
   let h;
   try { h = authHeaders(); } catch (e) { return j(500, { ok: false, error: String(e.message || e) }); }
@@ -73,22 +92,19 @@ exports.handler = async function (event) {
   let CUST;
   try { CUST = await customerTableId(); } catch (e) { return j(500, { ok: false, error: String(e.message || e) }); }
 
-  // Partial PUT — write only the name fields, preserve everything else on the row.
-  const partial = {};
-  if (first) partial.first_name = first;
-  if (last) partial.last_name = last;
+  // Partial PUT — write only the provided fields, preserve everything else on the row.
   try {
     const r = await fetch(`${META}/table/${CUST}/content/${customerId}`, { method: 'PUT', headers: h, body: JSON.stringify(partial) });
     if (!r.ok) { const t = await r.text().catch(() => ''); return j(200, { ok: false, error: 'customer PUT ' + r.status + ' ' + t.slice(0, 160) }); }
   } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
-  // Audit — so danielle-activity / the log show who fixed it.
+  // Audit — so danielle-activity / the log show who fixed it + which fields changed.
   try {
     await fetch(`${META}/table/${EVENT_LOG}/content`, {
       method: 'POST', headers: h,
-      body: JSON.stringify({ action: 'customer_name_edited', metadata: { job_id: jobId || null, customer_id: customerId, first_name: first, last_name: last, actor, at_ms: Date.now() } }),
+      body: JSON.stringify({ action: 'customer_info_edited', metadata: { job_id: jobId || null, customer_id: customerId, fields: partial, actor, at_ms: Date.now() } }),
     });
   } catch (_) {}
 
-  return j(200, { ok: true, customer_id: customerId, name: (first + ' ' + last).trim() });
+  return j(200, { ok: true, customer_id: customerId, updated: Object.keys(partial) });
 };
