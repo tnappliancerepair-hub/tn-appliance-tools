@@ -21,14 +21,20 @@ const first = (r, keys) => { for (const k of keys) { const v = r[k]; if (v !== u
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
 
-  // Pull the newest scheduled jobs (single-field filter — metadata search rule).
+  // Pull the newest jobs in every status that can HIDE an accepted job. Just
+  // 'scheduled' missed the worst case: SquareTrade auto-accepts land as
+  // 'needs_more_info' (or 'held') WITH a date but no tech — and the board doesn't
+  // even render those statuses, so the job was invisible everywhere (Calvin Gibson,
+  // 2026-07-13). Scan all three; single-field filter per the metadata search rule.
   let rows = [];
   try {
-    for (let p = 1; p <= 6; p++) {
-      const page = await crud.searchPageN(crud.TABLES.jobs, { scheduling_status: 'scheduled' }, { id: 'desc' }, 100, p);
-      if (!page.length) break;
-      rows = rows.concat(page);
-      if (page.length < 100) break;
+    for (const st of ['scheduled', 'needs_more_info', 'held']) {
+      for (let p = 1; p <= 4; p++) {
+        const page = await crud.searchPageN(crud.TABLES.jobs, { scheduling_status: st }, { id: 'desc' }, 100, p);
+        if (!page.length) break;
+        rows = rows.concat(page);
+        if (page.length < 100) break;
+      }
     }
   } catch (e) {
     return j(500, { ok: false, error: 'scan_failed', detail: String(e && e.message || e) });
@@ -36,12 +42,20 @@ exports.handler = async function (event) {
 
   const FRESH_MS = 3 * 86400000;   // "accepted recently, not yet routed" window
   const now = Date.now();
+  const seen = new Set();
   const out = [];
   for (const r of rows) {
+    if (seen.has(r.id)) continue; seen.add(r.id);   // de-dupe across the status scans
     const tid = Number(r.technician_id || 0) || 0;
     if (tid) continue;                              // only NO-TECH jobs can vanish off every day
-    const ss = Number(r.scheduled_start || 0) || 0;
-    const hasDate = !!ss;
+    const st = String(r.scheduling_status || ''); const cst = String(r.current_status || '');
+    if (/cancel|complete/i.test(st) || /cancel|complete/i.test(cst)) continue;
+    const ssn = Number(r.scheduled_start || 0) || 0;
+    // A date only counts as "urgent" if it's NEAR-TERM (a real current appointment).
+    // Ancient dated shells (old SquareTrade stubs) don't fire the alarm — they're
+    // backlog, treated as no-date below.
+    const hasDate = !!ssn && ssn > (now - 5 * 86400000) && ssn < (now + 21 * 86400000);
+    const ss = ssn;
     const created = Number(r.created_at || 0) || 0;
     const fresh = created && (now - created) < FRESH_MS;
     // A no-tech job WITH a date = a real appointment nobody's assigned to (the fire).

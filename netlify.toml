@@ -310,6 +310,13 @@
 [functions."overtexting-watch"]
   schedule = "0 15,19,23 * * *"
 
+# accepted-not-scheduled-watch — the active tripwire for the Calvin Gibson failure:
+# a warranty job accepted (real date lands) but never assigned a tech, invisible on
+# the board + every tech's day, nobody knows. Texts Teddy + Danielle until it gets a
+# tech. Hourly during business hours (13:00-01:00 UTC ~ 8a-8p CT).
+[functions."accepted-not-scheduled-watch"]
+  schedule = "5 13-23,0,1 * * *"
+
 # Andre "running behind" reply forwarder (Teddy 2026-07-07) — forwards replies from
 # Andre's today-customers to Teddy's cell. Self-expires ~18h after the notice, then
 # no-ops. Safe to remove the cron after today.
