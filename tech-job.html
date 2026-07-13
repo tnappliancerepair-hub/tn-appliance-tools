@@ -1278,10 +1278,14 @@ function completeFlow(){
     if(b.dataset.ct==='repair_complete'){
       const nEl=document.getElementById('notes');
       const note=(nEl?nEl.value:'').trim();
-      const ex=(typeof pickTdr==='function' && typeof allTdrs!=='undefined') ? (pickTdr(allTdrs)||{}) : {};
-      // Count the same fields pickTdr does — a TDR with a failed part + labor (e.g.
-      // from a phone-call report) is a real report even if the notes box is empty.
-      const hasReport = note.length>=12 || (ex.repair_completed||'').trim() || (ex.diagnosis||'').trim() || (ex.failed_component||'').trim() || Number(ex.labor_time_hours||0)>0;
+      // Find any saved TDR that already carries a real report (diagnosis / failed part
+      // / repair / labor). pickTdr() NEVER EXISTED — so this gate used to fall back to
+      // {} and only pass on 12+ typed chars, blocking Complete on jobs whose TDR is
+      // 100% filled (Jimmy 2026-07-13: "the report is there, not sure why it's needed
+      // again"). Scan the same data the visible TDR card renders from: allTdrs + tdr.
+      const _hasFields=t=>!!t&&(((t.diagnosis||'').trim())||((t.failed_component||'').trim())||((t.repair_completed||'').trim())||Number(t.labor_time_hours||0)>0);
+      const ex=((typeof allTdrs!=='undefined'&&(allTdrs||[]).find(_hasFields))||(typeof tdr!=='undefined'&&_hasFields(tdr)?tdr:null)||{});
+      const hasReport = note.length>=12 || _hasFields(ex);
       if(!hasReport){
         toast('✍️ Add your report first');
         if(nEl){ nEl.scrollIntoView({behavior:'smooth',block:'center'}); nEl.focus(); }
