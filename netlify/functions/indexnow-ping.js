@@ -9,15 +9,28 @@ const { getSecret } = require('./_lib/secrets');
 const HOST = 'tnapplianceexchange.net';
 const KEY = '2ff3da0fb2cd75d8c364edbf26878166';
 const KEY_LOC = `https://${HOST}/${KEY}.txt`;
-// Priority pages: homepage + the cash-lead city hubs we optimize most.
-const DEFAULTS = ['/', '/nashville', '/antioch', '/la-vergne', '/murfreesboro', '/smyrna'];
+// Priority cash-lead pages re-submitted on every scheduled run: homepage + service
+// hubs + the TN/LA city hubs. IndexNow is cheap + deduped, so a daily refresh keeps
+// Bing/Yandex crawling our money pages.
+const DEFAULTS = [
+  '/',
+  '/dryer-repair', '/washer-repair', '/refrigerator-repair', '/dishwasher-repair', '/oven-repair', '/dryer-vent-cleaning',
+  '/nashville', '/antioch', '/la-vergne', '/murfreesboro', '/smyrna', '/franklin', '/brentwood', '/clarksville', '/hendersonville', '/hermitage', '/mt-juliet', '/gallatin', '/lebanon', '/spring-hill',
+  '/new-orleans', '/baton-rouge', '/hammond', '/metairie', '/kenner', '/slidell', '/covington', '/mandeville',
+];
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  // Scheduled (cron) invocations carry {next_run} in the body — those run the default
+  // priority set with no secret. Manual HTTP calls still require the admin secret.
+  let scheduled = false;
+  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (!scheduled) {
+    const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  }
 
   const paths = (q.urls ? q.urls.split(',') : DEFAULTS).map((s) => s.trim()).filter(Boolean);
   const urlList = paths.map((p) => (p.startsWith('http') ? p : `https://${HOST}${p.startsWith('/') ? '' : '/'}${p}`)).slice(0, 10000);

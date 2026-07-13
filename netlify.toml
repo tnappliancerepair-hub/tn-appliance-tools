@@ -91,6 +91,13 @@
 [functions."ant-brain-sweep"]
   schedule = "*/20 * * * *"
 
+# Auto-IndexNow — resubmit the priority cash-lead pages (homepage + service hubs +
+# TN/LA city hubs) to Bing/Yandex daily so content changes get re-crawled without
+# anyone pinging by hand. 8:10am CT. (Google ignores IndexNow — for Google we lean on
+# the sitemap lastmod + Request Indexing.)
+[functions."indexnow-ping"]
+  schedule = "10 13 * * *"
+
 # Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
 # warranty-email intake outages are caught SAME-DAY (not when the office runs
 # short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or
