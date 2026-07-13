@@ -263,13 +263,20 @@ query tech_job_complete verb=POST {
       }
     }
   
-    // Stamp the completion timestamp + current_status mirror separately.
+    // Stamp the completion timestamp + BOTH status fields directly. scheduling_status
+    // is what the office board reads for "complete." It used to be written ONLY by the
+    // transition_job_state state machine below, which can no-op (esp. the auto-start
+    // two-hop) — leaving the tech seeing "Done" (job_completed_at set) while the office
+    // saw "not complete" (scheduling_status still 'scheduled'), and the "is this done?"
+    // nudges kept firing (Jimmy 2026-07-13). Writing it here makes the completion
+    // self-sufficient; the state-machine call stays for its side effects (signals).
     db.edit jobs {
       field_name = "id"
       field_value = $input.job_id
       data = {
         job_completed_at    : $now_ts
         time_on_site_minutes: $time_on_site_minutes
+        scheduling_status   : $new_status
         current_status      : $new_status
       }
     } as $job_updated
