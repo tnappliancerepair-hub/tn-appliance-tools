@@ -586,9 +586,16 @@ query ahs_email_intake verb=POST {
         var.update $first_name_upper {
           value = $last_name_upper
         }
+        // Single-token AHS Name (e.g. "JOHNSON") — we just moved it into first_name.
+        // Blank last_name so it doesn't render TWICE ("Johnson Johnson"). The name
+        // shows once as the first name (greeting-friendly). (Teddy 2026-07-13:
+        // "not sure why it's adding the name twice" — job 20358.)
+        var.update $last_name_upper {
+          value = ""
+        }
       }
     }
-  
+
     var $fn_lower {
       value = $first_name_upper|to_lower
     }
