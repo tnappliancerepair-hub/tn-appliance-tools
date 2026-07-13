@@ -43,6 +43,22 @@ exports.handler = async function (event) {
       return json(200, { ok: r.ok, status: r.status, updated: r.ok ? 'profile.description' : null, chars: desc.length, data: r.ok ? undefined : r.data });
     }
 
+    // POST { serviceItems:[...] } -> patch the full services list (updateMask=serviceItems
+    // REPLACES the whole array, so callers MUST send existing+additions). SAFETY GUARD:
+    // refuse a write that would shrink the list below what's live now, so a malformed
+    // short array can never wipe the well-crafted items.
+    if (event.httpMethod === 'POST' && Array.isArray(body.serviceItems)) {
+      const cur = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=serviceItems');
+      const curCount = ((cur.data && cur.data.serviceItems) || []).length;
+      if (body.serviceItems.length < curCount) {
+        return json(400, { ok: false, error: 'refused: would shrink services from ' + curCount + ' to ' + body.serviceItems.length });
+      }
+      const r = await gbp.api('PATCH',
+        'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?updateMask=serviceItems',
+        { serviceItems: body.serviceItems });
+      return json(200, { ok: r.ok, status: r.status, updated: r.ok ? 'serviceItems' : null, count: body.serviceItems.length, prev_count: curCount, data: r.ok ? undefined : r.data });
+    }
+
     // GET -> read-only audit
     const detail = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=' + encodeURIComponent(MASK));
     return json(200, { ok: detail.ok, status: detail.status, location_id: locId, profile: detail.data });
