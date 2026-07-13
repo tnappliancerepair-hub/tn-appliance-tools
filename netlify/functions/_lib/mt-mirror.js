@@ -144,6 +144,10 @@ async function reconcile(boardsCsv) {
 
   const matchedAgree = [], wouldMove = [], nameMatches = [], missing = [], unknownSection = [], conflicts = [];
   const claimedJob = new Map();          // job_id -> board key that already placed it
+  const matchedJobIds = new Set();       // every board job a MT card matched
+  const mtFolderCount = {};              // mapped folder -> # open MT cards (MeisterTask's count)
+  const mtOnlyByFolder = {};             // folder -> # MT cards with NO board job (under-count)
+  const mtOnlySamples = {};              // folder -> [card titles] causing the under-count
   let openCardTotal = 0; const pulled = [];
 
   for (const b of boards) {
@@ -152,13 +156,19 @@ async function reconcile(boardsCsv) {
     for (const c of cards) {
       const t = c.task;
       const folder = sectionToFolder(c.section);
+      if (folder) mtFolderCount[folder] = (mtFolderCount[folder] || 0) + 1;   // MT's authoritative per-column count
       const blob = (t.name || '') + '\n' + (t.notes || t.description || '');
       let job = null, via = '';
       for (const cd of claimCandidates(blob)) { if (byClaim.has(cd)) { job = byClaim.get(cd); via = 'claim'; break; } }
       if (!job) { for (const ph of phoneCandidates(blob)) { if (byPhone.has(ph)) { job = byPhone.get(ph); via = 'phone'; break; } } }
       if (!job) { const nm = parseCardName(t.name); for (const k of nameKeys(nm.first, nm.last)) { if (byName.has(k)) { job = byName.get(k); via = 'name'; break; } } }
-      if (!job) { missing.push({ card: (t.name || '').slice(0, 80), board: b.key, section: c.section, folder: folderLabel(folder) }); continue; }
+      if (!job) {
+        missing.push({ card: (t.name || '').slice(0, 80), board: b.key, section: c.section, folder: folderLabel(folder) });
+        if (folder) { mtOnlyByFolder[folder] = (mtOnlyByFolder[folder] || 0) + 1; (mtOnlySamples[folder] = mtOnlySamples[folder] || []).push((t.name || '').slice(0, 50)); }
+        continue;
+      }
       if (claimedJob.has(job.id)) { conflicts.push({ job_id: job.id, first_board: claimedJob.get(job.id), also: b.key, section: c.section }); continue; }
+      matchedJobIds.add(job.id);
       if (!folder) { unknownSection.push({ job_id: job.id, board: b.key, section: c.section }); claimedJob.set(job.id, b.key); continue; }
       claimedJob.set(job.id, b.key);
       const cur = currentFolder(job);
@@ -168,14 +178,40 @@ async function reconcile(boardsCsv) {
       else nameMatches.push(rec);                                          // name-only → review
     }
   }
+
+  // Board side: where each active job actually sits + which are on the board with
+  // NO MeisterTask card (the over-count). Skip canceled (they leave the board).
+  const boardByFolder = {}; const boardOnlyByFolder = {}; const boardOnlySamples = {};
+  for (const job of jobs) {
+    const ss = lc(job.scheduling_status), cs = lc(job.current_status);
+    if (/cancel/.test(ss) || /cancel/.test(cs)) continue;
+    const f = currentFolder(job);
+    boardByFolder[f] = (boardByFolder[f] || 0) + 1;
+    if (!matchedJobIds.has(job.id)) {
+      boardOnlyByFolder[f] = (boardOnlyByFolder[f] || 0) + 1;
+      (boardOnlySamples[f] = boardOnlySamples[f] || []).push({ id: job.id, cust: ((job.customer_first || '') + ' ' + (job.customer_last || '')).trim(), status: job.scheduling_status || '', claim: job.claim_number || '', phone: String(job.customer_phone || '').replace(/\D/g, '').slice(-4) });
+    }
+  }
+
+  // Per-column truth table: MeisterTask count vs board count + the gap makers.
+  const folders = new Set([...Object.keys(mtFolderCount), ...Object.keys(boardByFolder)]);
+  const column_reconcile = {};
+  for (const f of folders) {
+    column_reconcile[folderLabel(f)] = {
+      folder_id: f, meistertask: mtFolderCount[f] || 0, board: boardByFolder[f] || 0, delta: (boardByFolder[f] || 0) - (mtFolderCount[f] || 0),
+      board_extra_no_mt_card: boardOnlyByFolder[f] || 0, mt_missing_from_board: mtOnlyByFolder[f] || 0,
+      board_only_samples: (boardOnlySamples[f] || []).slice(0, 25), mt_only_samples: (mtOnlySamples[f] || []).slice(0, 25),
+    };
+  }
+
   const dir = {}; for (const m of wouldMove) { const k = m.from_id + ' → ' + m.to_id; dir[k] = (dir[k] || 0) + 1; }
   const via = { claim: 0, phone: 0, name: 0 };
   for (const m of matchedAgree.concat(wouldMove, nameMatches)) { if (via[m.via] != null) via[m.via]++; }
   return {
     project: boards.map((b) => b.project.name || b.project.title).join(' + '), boards_pulled: pulled,
     open_cards: openCardTotal, board_jobs: jobs.length,
-    counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length, cross_board_conflicts: conflicts.length },
-    matched_via: via, move_breakdown: dir,
+    counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length, cross_board_conflicts: conflicts.length, board_only_no_mt_card: Object.values(boardOnlyByFolder).reduce((a, n) => a + n, 0) },
+    matched_via: via, move_breakdown: dir, column_reconcile,
     would_move: wouldMove, name_matches: nameMatches, missing, unknown_section: unknownSection, conflicts,
   };
 }
