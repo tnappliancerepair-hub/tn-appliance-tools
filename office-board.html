@@ -1478,21 +1478,23 @@ function renderDrawer(d){
     <div class="dcard">
       <h4>${scheduled?'🔄 Reschedule (tech + day)':'📅 Schedule (tech + day)'}</h4>
       ${scheduled&&schDayVal?`<div style="font-size:12.5px;font-weight:800;color:#1f6fed;background:rgba(31,111,237,0.08);border:1px solid rgba(31,111,237,0.3);border-radius:8px;padding:8px 10px;margin-bottom:8px">📅 Currently: ${esc(Number(j.technician_id)>0?(TECH_NAME[j.technician_id]||('Tech '+j.technician_id)):'a tech')} on ${esc(schDayVal)}. Pick a new day (and/or tech) below, then tap Reschedule.</div>`:''}
-      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech, the <b>day</b>, and which <b>stop</b> (1st–8th — leave on auto for the next open). No clock time: the customer gets a live arrival window the morning of. Saves right here in Ant.</div>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Pick the tech, the <b>day</b>, and the <b>time</b> (or leave on auto for the next open stop). The <b>time is office-only</b> — the customer still just gets the day, with a live arrival window the morning of. Saves right here in Ant.</div>
       <div style="display:flex;flex-direction:column;gap:8px">
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
         <div id="drawCal" class="dc">${drawCalHtml()}</div>
         <input type="date" id="schDay" value="${schDayVal}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
-        <select id="schPos" title="Which stop on that tech's day" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
-          <option value="">Stop position — auto (next open)</option>
-          <option value="1">1st stop</option>
-          <option value="2">2nd stop</option>
-          <option value="3">3rd stop</option>
-          <option value="4">4th stop</option>
-          <option value="5">5th stop</option>
-          <option value="6">6th stop</option>
-          <option value="7">7th stop (over 6)</option>
-          <option value="8">8th stop (over 6)</option>
+        <select id="schPos" title="Pick the time on that tech's day (office-only — customer still gets day-of)" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
+          <option value="">Time — auto (next open stop)</option>
+          <option value="8">8:00 AM (1st stop)</option>
+          <option value="9">9:00 AM (2nd stop)</option>
+          <option value="10">10:00 AM (3rd)</option>
+          <option value="11">11:00 AM (4th)</option>
+          <option value="12">12:00 PM (5th)</option>
+          <option value="13">1:00 PM (6th)</option>
+          <option value="14">2:00 PM (7th)</option>
+          <option value="15">3:00 PM (8th)</option>
+          <option value="16">4:00 PM</option>
+          <option value="17">5:00 PM</option>
         </select>
         <select id="schSlots" title="How many stops this job takes on the tech's day" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
           <option value="1">Job length — 1 slot (standard)</option>
@@ -2103,13 +2105,14 @@ async function scheduleFromDrawer(id){
     sameDay=((rd&&rd.stops)||[]).filter(s=>new Date(s.scheduled_start_ms||0).toLocaleDateString('en-CA',{timeZone:'America/Chicago'})===day).reduce((a,s)=>a+slotsOf(s.job_id),0);
     if(sameDay+jobSlots>cap) capNote=' ('+(TECH_NAME[tech]||'tech')+' now at '+(sameDay+jobSlots)+'/'+cap+' slots'+(jobSlots>1?', long job':'')+')';
   }catch(_){}
-  // Stop POSITION: the office can pick 1st–8th (Teddy 2026-07-09: "1-8 even though we
-  // only want to do 6"). Blank = auto (next open stop). Position N → hidden sort-key
-  // hour 8am+(N-1) so the board orders it into that slot; the customer still just gets a
-  // day-of window. (No clock time is shown anywhere — position only.)
+  // TIME (office-only): Danielle picks the real hour (8am–5pm) so completions stop
+  // landing at the wrong time (Danielle 2026-07-13: "auto is putting jobs in wrong
+  // times"). The value IS the hour and maps 1:1 to the hidden sort key. Blank = auto
+  // (next open stop = 8 + slots already on the day). CUSTOMER STILL GETS DAY ONLY —
+  // the time is never shown to them (Teddy's no-times-to-customers rule intact).
   const posEl=document.getElementById('schPos');
   const pos=parseInt((posEl&&posEl.value)||'0',10);
-  const posHour=(pos>=1&&pos<=8)?Math.min(8+(pos-1),21):Math.min(8+sameDay,21);
+  const posHour=(pos>=8&&pos<=21)?pos:Math.min(8+sameDay,21);
   const startMs=ctStartMs(day, posHour);
   // A long job blocks the tech's day for longer — reserve ~2.5hr per slot so the day's
   // real duration reflects it (the board still shows position, not clock time).
