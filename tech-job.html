@@ -297,16 +297,38 @@ async function xanoGet(ep,qs){
   return r.json();
 }
 
+// SWR job cache — the "fastest available system" lever. We stash the last-good job
+// payload per job_id on THIS device, so reopening a job PAINTS INSTANTLY (0ms) from
+// cache while the fresh copy loads in the background. The tech never waits on Xano
+// to see his job — even during a load spike. (Teddy 2026-07-13: time is money.)
+function jobCacheKey(id){ return 'tn_job_cache_'+id; }
+function saveJobCache(id,d){ try{ localStorage.setItem(jobCacheKey(id),JSON.stringify({d:d,at:Date.now()})); }catch(_){} }
+function loadJobCache(id){ try{ const r=JSON.parse(localStorage.getItem(jobCacheKey(id))||'null'); return (r&&r.d)?r.d:null; }catch(_){ return null; } }
+function applyJobPayload(d){
+  job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
+}
+
 async function loadJob(){
   // Preserve any report the tech has typed but not yet saved — a re-render (OCR of a
   // model photo, a lifecycle tap, save-basics) reseeds the notes box from the saved
   // TDR and would otherwise wipe what he just typed.
   const _prevNotes=(document.getElementById('notes')||{}).value;
-  document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
+  // 1) INSTANT: paint from cache if we have this job — zero wait.
+  const cached=loadJobCache(JOB_ID);
+  let painted=false;
+  if(cached && cached.job){
+    applyJobPayload(cached);
+    render(); renderAntTdr(tdr, allTdrs);
+    painted=true;
+  } else {
+    document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
+  }
+  // 2) REFRESH: fetch fresh in the background, re-render + cache when it lands.
   try{
     const d=await xanoGetJob({job_id:JOB_ID});
     if(!d.success) throw new Error(d.error||'not found');
-    job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
+    saveJobCache(JOB_ID,d);
+    applyJobPayload(d);
     render();
     recordRecentJob();
     try{ const _n=document.getElementById('notes'); if(_n && _prevNotes!=null && _prevNotes.trim() && _prevNotes!==_n.value){ _n.value=_prevNotes; } }catch(_){}
@@ -318,7 +340,12 @@ async function loadJob(){
     loadOfficeNotes();
     loadMachines();
   }catch(e){
-    document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'</div>';
+    // If we already painted from cache, keep it — a slow refresh must NEVER blank a
+    // job the tech is looking at. Only show the error when we have nothing to show.
+    if(!painted){
+      document.getElementById('content').innerHTML='<div class="empty">⚠️ Could not load job — '+esc(e.message)+'. Retrying…</div>';
+      setTimeout(loadJob,3000);
+    }
   }
 }
 

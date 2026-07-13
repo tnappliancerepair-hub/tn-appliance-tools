@@ -1410,26 +1410,47 @@
     }
   }
 
+  // SWR schedule cache — paint the tech's day INSTANTLY from his device, then refresh.
+  // So "where do I go?" is answered at 0ms even during a Xano load spike. (2026-07-13)
+  function schedCacheKey() { return 'tn_sched_' + TECH_ID + '_' + (currentDateStr || 'today'); }
+  function saveSchedCache(data) { try { localStorage.setItem(schedCacheKey(), JSON.stringify({ d: data, at: Date.now() })); } catch (_) {} }
+  function loadSchedCache() { try { const r = JSON.parse(localStorage.getItem(schedCacheKey()) || 'null'); return (r && r.d) ? r.d : null; } catch (_) { return null; } }
+
   // ── Data load ──────────────────────────────────────────────────
   async function loadDashboard() {
-    loading.style.display = 'block';
-    summary.innerHTML = '';
-    jobsHost.innerHTML = '';
-    mapHost.innerHTML = '';
-    if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-    mapMarkers = [];
-
     let url = `${XANO_BASE}/get_tech_daily_dashboard?tech_id=${encodeURIComponent(TECH_ID)}`;
     if (currentDateStr) url += `&date=${encodeURIComponent(currentDateStr)}`;
 
+    // 1) INSTANT: paint the cached day if we have it — zero wait on Xano.
+    const cached = loadSchedCache();
+    let painted = false;
+    if (cached && cached.success === true) {
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapMarkers = [];
+      dashboardData = cached;
+      serverTodayCT = cached.today_ct;
+      try { render(cached); } catch (_) {}
+      loading.style.display = 'none';
+      painted = true;
+    } else {
+      loading.style.display = 'block';
+      summary.innerHTML = '';
+      jobsHost.innerHTML = '';
+      mapHost.innerHTML = '';
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapMarkers = [];
+    }
+
     try {
-      // Retry the schedule load so one slow/aborted Xano response (load spike) doesn't
-      // leave the tech with a blank day — a slow load beats "can't see where to go".
+      // 2) REFRESH: fetch fresh (retry so a load spike can't blank the day), re-render + cache.
       const data = await fetchJsonRetry(url, { cache: 'no-store' }, 3);
       if (!data || data.success !== true) {
-        showError(data && data.error ? data.error : 'failed to load');
+        if (!painted) showError(data && data.error ? data.error : 'failed to load');
         return;
       }
+      saveSchedCache(data);
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapMarkers = [];
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
