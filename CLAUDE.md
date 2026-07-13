@@ -11,7 +11,101 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
-## 🗓️🐜 2026-07-07 (Tue) — MULTI-MACHINE PER STOP (Option B) shipped — READ FIRST
+## 🗓️🐜 2026-07-13 (Sun) — FINAL TEXT STRATEGY + FULL SPEED SWEEP + kanban denorm (blocked on cols) — READ FIRST
+
+Long Sunday. Theme: minimize customer texts to Teddy's "only if texted, plus intake +
+availability" rule, then a **system-wide speed sweep** ("time is money — save it everywhere,
+never at the expense of quality"). All shipped to `main` (Netlify auto-deploys). **TOP
+PRIORITY TOMORROW = finish the kanban denormalization (blocked only on 3 Xano columns).**
+
+### ✅ SHIPPED + LIVE (Netlify)
+- **Text strategy — warranty intake is now SIMPLE + video-first.** `job_created.js` (warranty
+  greeting) + `intake-collector.js` (touch-0) rewritten: "tap {warranty-intake link} and send
+  your tech a 10-second video of what it's doing." Always the clean `warranty-intake.html`,
+  **never the crowded front door** (`tnapplianceexchange.net`/`appliance-ai.html`) — Teddy: stop
+  sending the crowded page as intake to anybody. Every proactive warranty intake path
+  (greeting/intake-collector/resume_nudge/availability_request) verified → warranty-intake only.
+- **The ONE schedule confirmation Teddy wants** (`appointment_scheduled.js` customerBody):
+  "your tech is {name}, coming {day}, and you're **stop {slot} of the day**. Any questions?
+  Haven't sent a video yet? {finish-upload link}." **Slot 1-8 derived from the stored
+  scheduled_start** (office slot encoding: hour = 8+(slot-1); no clock time shown to customer).
+  `colony-loop/sms.js` gate now also allows `appointment_confirmation` (intake + availability +
+  this one confirmation; every other proactive text stays paused).
+  ⚠️ **These 3 loop files (job_created, appointment_scheduled, sms.js) need a Mac PULL+KICKSTART
+  to go live:** `cd ~/tn-appliance-tools && git pull origin main && launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`
+- **Office schedule picker → real CLOCK TIMES (office-only).** `office-board.html` `schPos`:
+  Danielle now picks 8:00 AM–5:00 PM instead of abstract "1st/2nd stop." Fixes her "auto is
+  putting completions at wrong times" (auto collapsed to 8am when `get_tech_route_days` couldn't
+  see completion jobs → they stacked → board sorted them scrambled). Value maps 1:1 to the hidden
+  hour sort key; **customer still gets DAY ONLY** (no-times-to-customers rule intact).
+- **Tech app instant recent-jobs search** (`tech-job.html`) — Andre: "takes forever to load jobs
+  when I search." Every opened job is remembered in localStorage (last 25); search shows matching
+  recents INSTANTLY (0ms), the 2s `office_universal_search` scan only runs for a genuinely new
+  lookup at 3+ chars. Focus-empty shows "Recent — tap to reopen."
+
+### ⚡ SPEED SWEEP (3 parallel audits → quality-safe wins, all Netlify LIVE)
+- **`brain-core.js`: prompt caching** (`cache_control: ephemeral` on the system prompt) → every
+  live chat brain (customer/office/website/tech-assist/scheduler/phone/troubleshoot) serves its
+  big static system prompt from cache turn 2+. Faster + cheaper, identical output.
+- **Faster AI tiers:** `office-sms-inbound` + `tech-schedule-talk` Sonnet→**Haiku 4.5**;
+  `whisper-transcribe` whisper-1→**gpt-4o-mini-transcribe**. (Kept Sonnet/Opus on the
+  quality-critical stuff: diagnosis, phone brain, tech-assist, model-sticker OCR.)
+- **`tech-daily-dashboard`:** paint the schedule immediately; the optional two-man crew overlay
+  (up to 6s spinner on weak cell) now runs AFTER first paint, re-renders only if it adds a job.
+- **`new-scheduling`:** paint the grid first, load cash-paid + hold badges in PARALLEL + 20s
+  timeout. **`customer-portal` + `metadata-crud callXano`:** fail-fast AbortSignal timeouts.
+  **`get-stop-machines`:** parallel hydration.
+
+### ✅ PUSHED + VERIFIED (XS on the Mac — Teddy ran + I verified identical output)
+- **`get_tech_route_days`:** loaded `service_zone` ONCE (was a zip→cluster query PER stop, up to
+  100 round-trips). Verified: 10 stops, clusters correct (Metairie→LA South), ~2s.
+- **`get_job_for_dashboard`:** loaded `technicians` ONCE (was a `db.get` PER TDR, up to 20). Verified:
+  all_tdrs authors correct (Teddy/Jimmy), ~1s. **The hottest endpoint (tech app, job-truth, stop-machines).**
+- FOOTGUN: right after a push, our endpoints spiked to 15-18s — but a **control endpoint I didn't
+  touch (`get_office_kanban`) was ALSO 16s**, proving it was Xano platform load, not the change.
+  Ours snapped back to 1-2s; kanban stayed 16s. **Always verify a regression against an untouched control.**
+
+### 🔴 TOP PRIORITY TOMORROW — kanban denormalization (built, blocked on 3 columns)
+**Problem:** `get_office_kanban_GET.xs` does `db.get customer` PER job (up to **300 round-trips
+every 30s poll**) → **16s under load**. This is the #1 recurring latency; Danielle's board polls it.
+**Fix = denormalize `customer_first`/`customer_last`/`customer_phone` onto the jobs row.**
+- **Built + committed (NOT yet active):**
+  - `get_office_kanban_GET.xs` — reads the denorm name off the job; **falls back to a live db.get
+    ONLY when blank** (brand-new job) so a name ALWAYS shows (zero quality regression). Needs Mac push AFTER cols exist.
+  - `netlify/functions/denorm-job-customer.js` (NEW, admin-gated `VAPI_ADMIN_SECRET`):
+    `?action=addcols` (schema API + verify), `?action=backfill` (concurrent writes, time-boxed,
+    follow `next_page`), `?action=sweep` (fill only blanks — for a cron), `?action=probe` (read-only).
+    Reads the token **vault-first**. **Backfill mechanism VALIDATED** (loads 2481 customers, loaders work).
+  - `update-customer-name.js` — syncs denorm onto a customer's jobs on any edit (best-effort).
+- **THE BLOCKER:** the 3 columns don't exist on `jobs` yet, and `XANO_METADATA_TOKEN` (ends **…KWzggs**,
+  same in env + vault) is **content-scoped → 403 on the schema API** (proven via `?action=addcols`
+  diagnostic). So columns can't be added via API with that token.
+- **TOMORROW, pick one:**
+  - **(A) fast:** Xano UI → Database → `jobs` → Add field ×3: `customer_first`, `customer_last`,
+    `customer_phone` (all **Text**).
+  - **(B) API route Teddy wants:** create a Xano Metadata token WITH **Database/schema scope** (a NEW
+    token, value ≠ …KWzggs), vault it as `XANO_METADATA_TOKEN` via admin-secrets.html (function reads
+    vault-first). Then `?action=addcols` adds them via API.
+  - **THEN:** run `?action=backfill&secret=…&per=120&page=1` (follow next_page to done) → push
+    `get_office_kanban` (`/opt/homebrew/bin/xano workspace push -i "api/**/get_office_kanban*" --force`)
+    → verify board fast + all names correct → add the `sweep` cron to `netlify.toml` (every few min) so
+    new jobs stay denormalized.
+
+### 🏗️ REMAINING SPEED ROADMAP (audited, not yet built)
+1. **SWR instant-load caches** on tech-daily / new-scheduling / tech-job (copy office-board's
+   `renderFromCache`/`saveBoardCache` pattern) — the audit's #1 *perceived* speed win, zero quality loss.
+2. **Live phone-call streaming** (`brain-core`/`phone-ant-*`) — today Vapi waits for the whole reply
+   before speaking = dead air. Biggest voice win.
+3. **Merge the 2 sequential Haiku calls** in `customer-sms-inbound` (classify + reply → one JSON call).
+
+### ⚠️ FOOTGUNS (this session)
+- **`XANO_METADATA_TOKEN` is content-scoped → 403 on ALL schema endpoints** (`GET/POST /table/{id}/schema…`).
+  Adding columns needs a Database-scoped token or the UI. Content ops (rows) work fine.
+- **Metadata content/search 400s on an empty filter `{}`** — for all-rows loads use the content-LIST
+  GET (`GET /table/{id}/content?page=&per_page=`), which returns id-ASC.
+- Post-push Xano latency spikes are platform load, not your change — verify against an untouched control.
+
+
 
 Teddy: techs often work **multiple machines at one stop** (AHS multi-item claims — a
 dishwasher AND a stove on one dispatch), but the tile had no setup for it and the 2nd
