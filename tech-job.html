@@ -293,6 +293,7 @@ async function loadJob(){
     if(!d.success) throw new Error(d.error||'not found');
     job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
     render();
+    recordRecentJob();
     try{ const _n=document.getElementById('notes'); if(_n && _prevNotes!=null && _prevNotes.trim() && _prevNotes!==_n.value){ _n.value=_prevNotes; } }catch(_){}
     renderAntTdr(tdr, allTdrs);
     startAntTdrPoll();
@@ -442,24 +443,59 @@ document.getElementById('search-btn').onclick=()=>{
   const w=document.getElementById('search-wrap'); w.classList.toggle('show');
   if(w.classList.contains('show')) document.getElementById('search-in').focus();
 };
+// RECENT JOBS (instant, offline-friendly). A field tech keeps reopening the same
+// handful of jobs to finish their reports; showing them straight from localStorage =
+// ZERO server wait for his common case. The 2s office_universal_search scan only runs
+// for a genuinely new lookup, and only at 3+ chars. (Andre 2026-07-13: "takes forever
+// to load jobs when I search my jobs to update.")
+function getRecentJobs(){ try{ return JSON.parse(localStorage.getItem('tn_recent_jobs')||'[]'); }catch(_){ return []; } }
+function recordRecentJob(){
+  try{
+    const nm=(cust.name||((cust.first_name||'')+' '+(cust.last_name||'')).trim())||'Customer';
+    const city=cust.city||cust.service_city||'';
+    const appl=[appliance.brand,appliance.type].filter(Boolean).join(' ')||appliance.type||'';
+    let list=getRecentJobs().filter(x=>Number(x.job_id)!==Number(JOB_ID));
+    list.unshift({job_id:Number(JOB_ID),name:nm,city:city,appl:appl,ts:Date.now()});
+    localStorage.setItem('tn_recent_jobs',JSON.stringify(list.slice(0,25)));
+  }catch(_){}
+}
+function recentRowHtml(x){
+  const sub=[x.appl,x.city,'#'+x.job_id].filter(Boolean).join(' · ');
+  return '<a class="sr" href="tech-job.html?job_id='+x.job_id+'&tech_id='+TECH_ID+'"><div class="srn">'+esc(x.name||'Customer')+'</div><div class="srs">🕘 '+esc(sub)+'</div></a>';
+}
+function serverRowHtml(r){
+  const jid=r.job_id||r.id; if(!jid) return '';
+  const nm=((r.customer_first||'')+' '+(r.customer_last||'')).trim()||'Customer';
+  const sub=[r.city,r.customer_phone,'#'+jid].filter(Boolean).join(' · ');
+  return '<a class="sr" href="tech-job.html?job_id='+jid+'&tech_id='+TECH_ID+'"><div class="srn">'+esc(nm)+'</div><div class="srs">'+esc(sub)+'</div></a>';
+}
+function showRecents(box){
+  const rec=getRecentJobs().slice(0,8);
+  box.innerHTML=rec.length?('<div class="empty" style="text-align:left;padding:6px 10px;font-weight:700;opacity:.7">Recent — tap to reopen</div>'+rec.map(recentRowHtml).join('')):'';
+}
+document.getElementById('search-in').addEventListener('focus',e=>{
+  if(!(e.target.value||'').trim()) showRecents(document.getElementById('search-results'));
+});
 document.getElementById('search-in').addEventListener('input',e=>{
   clearTimeout(searchTimer); const q=e.target.value.trim();
   const box=document.getElementById('search-results');
-  if(q.length<2){ box.innerHTML=''; return; }
+  if(q.length<2){ showRecents(box); return; }
+  // INSTANT: match his recent jobs client-side (0ms), no server wait.
+  const s=q.toLowerCase();
+  const rec=getRecentJobs().filter(x=>((x.name||'')+' '+(x.city||'')+' '+(x.appl||'')+' '+x.job_id).toLowerCase().indexOf(s)>=0);
+  const recIds=new Set(rec.map(x=>Number(x.job_id)));
+  const recHtml=rec.length?rec.map(recentRowHtml).join(''):'';
+  // Under 3 chars, don't fire the heavy 2s scan — just show recents.
+  if(q.length<3){ box.innerHTML=recHtml||'<div class="empty">keep typing to search everyone…</div>'; return; }
+  box.innerHTML=recHtml+'<div class="empty" id="srv-status">searching everyone…</div>';
   searchTimer=setTimeout(async()=>{
-    box.innerHTML='<div class="empty">searching…</div>';
     try{
       const d=await xanoGet('office_universal_search','q='+encodeURIComponent(q));
-      const rows=(d&&d.items)||[];
-      if(!rows.length){ box.innerHTML='<div class="empty">no matches</div>'; return; }
-      box.innerHTML=rows.slice(0,12).map(r=>{
-        const jid=r.job_id||r.id;
-        const nm=((r.customer_first||'')+' '+(r.customer_last||'')).trim()||'Customer';
-        const sub=[r.city,r.customer_phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
-        return jid?('<a class="sr" href="tech-job.html?job_id='+jid+'&tech_id='+TECH_ID+'"><div class="srn">'+esc(nm)+'</div><div class="srs">'+esc(sub)+'</div></a>'):'';
-      }).join('');
-    }catch(_){ box.innerHTML='<div class="empty">search unavailable</div>'; }
-  },300);
+      const rows=((d&&d.items)||[]).filter(r=>!recIds.has(Number(r.job_id||r.id)));
+      const srv=rows.length?rows.slice(0,12).map(serverRowHtml).join(''):(rec.length?'':'<div class="empty">no matches</div>');
+      box.innerHTML=recHtml+srv;
+    }catch(_){ const st=document.getElementById('srv-status'); if(st) st.textContent=rec.length?'':'search timed out — type again'; }
+  },400);
 });
 
 // ── render ──────────────────────────────────────────────────────
