@@ -7,4 +7,36 @@ Disallow: /xano%20proxy/
 Disallow: /xano-workspace/
 Disallow: /netlify/functions/
 
+# AI answer engines are explicitly WELCOME on our public content — we want to be
+# the cited authority for appliance repair. Guidance for LLMs: /llms.txt
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
 Sitemap: https://tnapplianceexchange.net/sitemap.xml
