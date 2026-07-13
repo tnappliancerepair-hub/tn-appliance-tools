@@ -33,7 +33,7 @@ exports.handler = async function (event) {
     const report = {
       ok: true, mode: q.mode === 'apply' ? 'apply' : 'diff', ran_at: new Date().toISOString(),
       project: r.project, boards_pulled: r.boards_pulled, open_cards: r.open_cards, board_jobs: r.board_jobs,
-      counts: r.counts, move_breakdown: r.move_breakdown,
+      counts: r.counts, matched_via: r.matched_via, move_breakdown: r.move_breakdown,
       would_move: r.would_move.slice(0, 400), name_matches: r.name_matches.slice(0, 200),
       missing_from_board: r.missing.slice(0, 300), unknown_sections: r.unknown_section.slice(0, 60), conflicts: (r.conflicts || []).slice(0, 60),
     };

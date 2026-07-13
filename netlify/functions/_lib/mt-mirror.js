@@ -19,6 +19,14 @@ function claimCandidates(blob) {
   for (const raw of m) { const d = raw.replace(/\D/g, ''); if (d.length >= 6 && d.length <= 14) out.add(d); }
   return [...out];
 }
+// 10-digit US phones (or 11 with a leading 1) anywhere in the card — very reliable
+// key when the claim # isn't on the card. Returns last-10-digit strings.
+function phoneCandidates(blob) {
+  const out = new Set();
+  const m = String(blob || '').match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g) || [];
+  for (const raw of m) { const d = raw.replace(/\D/g, ''); const ten = d.length === 11 && d[0] === '1' ? d.slice(1) : d; if (ten.length === 10 && ten[0] !== '0' && ten[0] !== '1') out.add(ten); }
+  return [...out];
+}
 function nameKeys(first, last) {
   const f = lc(first).replace(/[^a-z]/g, ''); const l = lc(last).replace(/[^a-z]/g, '');
   const keys = new Set();
@@ -127,9 +135,10 @@ async function reconcile(boardsCsv) {
   if (!boards.length) throw new Error('no matching MeisterTask boards for "' + (boardsCsv || 'tn,nola') + '"');
   const jobs = await loadJobs();
 
-  const byClaim = new Map(); const byName = new Map();
+  const byClaim = new Map(); const byPhone = new Map(); const byName = new Map();
   for (const job of jobs) {
     const cd = digits(job.claim_number); if (cd.length >= 6 && !byClaim.has(cd)) byClaim.set(cd, job);
+    const ph = digits(job.customer_phone).slice(-10); if (ph.length === 10 && !byPhone.has(ph)) byPhone.set(ph, job);
     for (const k of nameKeys(job.customer_first, job.customer_last)) { if (!byName.has(k)) byName.set(k, job); }
   }
 
@@ -146,6 +155,7 @@ async function reconcile(boardsCsv) {
       const blob = (t.name || '') + '\n' + (t.notes || t.description || '');
       let job = null, via = '';
       for (const cd of claimCandidates(blob)) { if (byClaim.has(cd)) { job = byClaim.get(cd); via = 'claim'; break; } }
+      if (!job) { for (const ph of phoneCandidates(blob)) { if (byPhone.has(ph)) { job = byPhone.get(ph); via = 'phone'; break; } } }
       if (!job) { const nm = parseCardName(t.name); for (const k of nameKeys(nm.first, nm.last)) { if (byName.has(k)) { job = byName.get(k); via = 'name'; break; } } }
       if (!job) { missing.push({ card: (t.name || '').slice(0, 80), board: b.key, section: c.section, folder: folderLabel(folder) }); continue; }
       if (claimedJob.has(job.id)) { conflicts.push({ job_id: job.id, first_board: claimedJob.get(job.id), also: b.key, section: c.section }); continue; }
@@ -154,16 +164,18 @@ async function reconcile(boardsCsv) {
       const cur = currentFolder(job);
       const rec = { job_id: job.id, via, board: b.key, section: c.section, customer: ((job.customer_first || '') + ' ' + (job.customer_last || '')).trim(), from: folderLabel(cur), from_id: cur, to: folderLabel(folder), to_id: folder };
       if (cur === folder) matchedAgree.push(rec);
-      else if (via === 'claim') wouldMove.push(rec);
-      else nameMatches.push(rec);
+      else if (via === 'claim' || via === 'phone') wouldMove.push(rec);   // confident keys → auto-applyable
+      else nameMatches.push(rec);                                          // name-only → review
     }
   }
   const dir = {}; for (const m of wouldMove) { const k = m.from_id + ' → ' + m.to_id; dir[k] = (dir[k] || 0) + 1; }
+  const via = { claim: 0, phone: 0, name: 0 };
+  for (const m of matchedAgree.concat(wouldMove, nameMatches)) { if (via[m.via] != null) via[m.via]++; }
   return {
     project: boards.map((b) => b.project.name || b.project.title).join(' + '), boards_pulled: pulled,
     open_cards: openCardTotal, board_jobs: jobs.length,
     counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length, cross_board_conflicts: conflicts.length },
-    move_breakdown: dir,
+    matched_via: via, move_breakdown: dir,
     would_move: wouldMove, name_matches: nameMatches, missing, unknown_section: unknownSection, conflicts,
   };
 }
