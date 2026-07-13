@@ -9,6 +9,10 @@ const fd = require('./_lib/frontdoor');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
+// The ?push=1 path makes a live sandbox round-trip (JWT mint + POST) that can exceed
+// the default sync cap — give it the full window so we actually see the result.
+exports.config = { timeout: 26 };
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const adminSecret = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
