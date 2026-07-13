@@ -56,13 +56,13 @@ exports.handler = async function (event) {
     const ss = String(r.scheduling_status || ''); const cs = String(r.current_status || '');
     if (TERMINAL.test(ss) || TERMINAL.test(cs)) continue;
     const date = Number(r.scheduled_start || 0) || 0;
-    const created = Number(r.created_at || 0) || 0;
     const nearTerm = date && date > (now - NEAR_PAST_MS) && date < (now + NEAR_FUTURE_MS);   // a real, current appointment
-    const fresh = created && (now - created) < FRESH_MS;
-    // Only the fire: a near-term appointment with no tech, OR a fresh warranty accept
-    // with no tech. Skips the ancient dateless SquareTrade shells (a separate backlog).
+    // THE FIRE, precisely: a committed appointment date with NO tech. That is the
+    // Calvin Gibson signature (accepted → date set → never assigned). We do NOT
+    // alarm on fresh dateless SquareTrade shells — those are normal intake being
+    // triaged, and alerting on every incoming dispatch would spam the phone.
+    if (!nearTerm) continue;
     const vendor = first(r, ['warranty_company']);
-    if (!nearTerm && !(fresh && vendor)) continue;
     out.push({
       job_id: r.id,
       customer: `${first(r, ['customer_first'])} ${first(r, ['customer_last'])}`.trim() || '(no name)',
