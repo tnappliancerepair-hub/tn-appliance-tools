@@ -1073,6 +1073,44 @@ function closeThread(){ const el=document.getElementById('smsThread'); if(el)el.
 // AND the customer uploaded (shared between all sides; office-only view). Danielle
 // can open/download them to attach to an invoice. Source = qc_cockpit_load (signed
 // URLs + Cloudflare Stream), the same media the Teddy Tool shows.
+// Office-side photo upload (Danielle): downscale in the browser → base64 → the
+// reliable photo-upload proxy (S3 server-side) → a job_attachments row that shows
+// for the OFFICE drawer AND the techs' pages. (Teddy 2026-07-13: "she can't add
+// photos.") No weak-signal S3 PUT — the proxy handles the store.
+function _officeDownscale(file, maxPx){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{ let w=img.width,h=img.height; const m=maxPx||1600;
+      if(w>m||h>m){ if(w>=h){ h=Math.round(h*m/w); w=m; } else { w=Math.round(w*m/h); h=m; } }
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg',0.82)); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('bad image')); };
+    img.src=url;
+  });
+}
+async function officeUploadPhoto(input, jobId){
+  const files=input&&input.files?Array.from(input.files):[]; if(!files.length) return;
+  const host=document.getElementById('drawer-media'); const note=host&&host.querySelector('.office-upl-note');
+  let ok=0;
+  for(let i=0;i<files.length;i++){
+    if(note) note.textContent='Uploading '+(i+1)+' of '+files.length+'…';
+    try{
+      const b64=await _officeDownscale(files[i],1600);
+      const r=await fetch('/.netlify/functions/photo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_base64:b64,job_id:parseInt(jobId,10),uploaded_by:'office'})}).then(x=>x.json());
+      if(r&&r.ok) ok++;
+    }catch(_){}
+  }
+  input.value='';
+  if(note) note.textContent=ok?('✓ Added '+ok+(ok>1?' photos':' photo')):'⚠ upload failed — try again';
+  if(ok) loadDrawerMedia(jobId);
+}
+function officeUplControl(id){
+  return '<div style="margin:8px 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+    +'<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#111827;color:#fff;font-weight:800;font-size:12px;padding:8px 13px;border-radius:8px">📤 Add photo'
+    +'<input type="file" accept="image/*" multiple style="display:none" onchange="officeUploadPhoto(this,\''+id+'\')"></label>'
+    +'<span class="office-upl-note" style="font-size:11px;color:var(--ink2)"></span></div>';
+}
 async function loadDrawerMedia(id){
   let host=document.getElementById('drawer-media');
   if(!host){ host=document.createElement('div'); host.id='drawer-media'; const body=document.getElementById('d-body'); if(body) body.insertBefore(host, body.firstChild); }
@@ -1081,7 +1119,7 @@ async function loadDrawerMedia(id){
     const r=await fetch(XANO+'/qc_cockpit_load?job_id='+id);
     const d=await r.json();
     const atts=(d&&(d.attachments||(d.cockpit&&d.cockpit.attachments)))||[];
-    if(!atts.length){ host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video</h4><div style="font-size:12px;color:var(--ink2)">No photos or video uploaded yet.</div></div>'; return; }
+    if(!atts.length){ host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video</h4><div style="font-size:12px;color:var(--ink2)">No photos or video uploaded yet.</div>'+officeUplControl(id)+'</div>'; return; }
     const cell=(a)=>{
       const sk=a.s3_key||a.cf_key||''; const url=a.signed_view_url||'';
       if(sk.indexOf('cfstream:')===0){ const uid=sk.slice(9);
@@ -1090,7 +1128,8 @@ async function loadDrawerMedia(id){
       return url?('<a href="'+esc(url)+'" target="_blank" rel="noopener"><img src="'+esc(url)+'" loading="lazy" style="width:100%;border-radius:8px;display:block;border:1px solid var(--line)"></a><a href="'+esc(url)+'" target="_blank" rel="noopener" download style="font-size:11px;font-weight:700;color:var(--blue)">⬇ Download</a>'):'<div style="font-size:11px;color:var(--ink2)">photo unavailable</div>';
     };
     host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video <span style="font-weight:600;color:var(--ink2)">('+atts.length+')</span></h4>'
-      +'<div style="font-size:11px;color:var(--ink2);margin-bottom:8px">From the customer + the tech. Tap to open, ⬇ to save for an invoice.</div>'
+      +'<div style="font-size:11px;color:var(--ink2);margin-bottom:2px">From the customer, the tech + the office. Tap to open, ⬇ to save for an invoice.</div>'
+      +officeUplControl(id)
       +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'+atts.map(a=>'<div>'+cell(a)+'</div>').join('')+'</div></div>';
   }catch(e){ host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video</h4><div style="font-size:12px;color:var(--ink2)">Could not load media.</div></div>'; }
 }

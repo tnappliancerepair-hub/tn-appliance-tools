@@ -33,7 +33,7 @@ exports.handler = async function (event) {
 
   const convId = b.conversation_id != null && String(b.conversation_id).replace(/\D/g, '') ? parseInt(String(b.conversation_id).replace(/\D/g, ''), 10) : null;
   const jobId = b.job_id != null && String(b.job_id).replace(/\D/g, '') ? parseInt(String(b.job_id).replace(/\D/g, ''), 10) : null;
-  const uploadedBy = ['customer', 'tech', 'teddy'].includes(String(b.uploaded_by)) ? String(b.uploaded_by) : 'customer';
+  const uploadedBy = ['customer', 'tech', 'teddy', 'office'].includes(String(b.uploaded_by)) ? String(b.uploaded_by) : 'customer';
 
   // 1. store to S3 server-side (reliable — no browser CORS/checksum/preflight issues)
   const bucket = process.env.TN_AWS_S3_BUCKET;
