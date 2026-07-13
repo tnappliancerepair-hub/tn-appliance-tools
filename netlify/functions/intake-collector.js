@@ -39,15 +39,22 @@ const INTAKE_SEQUENCE_CAP = 4;
 // spaced by PHONE_RESEND_MS. Teddy's rule = "2 texts max, ever: the link + one
 // reminder ~2 days later if no reply, then reactive-only."
 const PHONE_CAP = Number(process.env.INTAKE_PHONE_CAP) || 2;
-const PHONE_RESEND_MS = (Number(process.env.INTAKE_PHONE_RESEND_HOURS) || 48) * 3600 * 1000;
+const PHONE_RESEND_MS = (Number(process.env.INTAKE_PHONE_RESEND_HOURS) || 5) * 3600 * 1000;
+// The reminder (2nd touch) goes in the EVENING when people are home (Teddy 2026-07-13:
+// "the second one, early evening ~6, when people are home"). Touch 0 fires anytime.
+const EVENING_START_CT = Number(process.env.INTAKE_EVENING_START_CT) || 17;   // 5pm CT+
 function intakeMsg(n, cust, appl, link, isW) {
+  // Touch 0 = the pitch. Simple, warm, benefit-first — and it TELLS them WHY the
+  // model pic matters ("that's how we find the part for YOUR machine"). Compliance
+  // jumps when people know the reason. (Teddy 2026-07-13, Buc-ee's-simple.)
   if (n <= 0) {
     return isW
-      ? `Hi ${cust} — TN Appliance Exchange 🐜. Your ${appl} repair is covered by your home warranty, no payment needed. One easy thing before your visit: tap ${link} and send your tech a 10-second video of what it's doing, so he shows up with the right part. Under a minute — thank you!`
-      : `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} fixed fast. Tap ${link} — about 2 min: a 10-second video, a photo of the model-number sticker (so your tech brings the right part), and tap the days that work for you. Thank you!`;
+      ? `Hi ${cust}! 🐜 TN Appliance — your ${appl} repair is covered, no charge. Two quick things and we've got you: (1) a 10-second video of your ${appl} doing — or NOT doing — its thing, and (2) a photo of the model-number sticker. That's exactly how we find the right part for YOUR machine, so your tech rolls up ready. Tap ${link} — takes about a minute. 🙌`
+      : `Hi ${cust}! 🐜 TN Appliance — let's get your ${appl} fixed fast. Two quick things: (1) a 10-second video of what it's doing — or NOT doing — and (2) a photo of the model-number sticker. That's how we find the right part for YOUR machine. Tap ${link} + pick your days. About 2 min. 🙌`;
   }
+  // Touch 1 = the EVENING reminder — warm "still here for you," never a nag.
   if (n === 1) {
-    return `Hi ${cust} — just following up from TN Appliance Exchange 🐜 on your ${appl}. Whenever you get a sec, tap ${link} to send a quick 10-second video + a photo of the model-number sticker so we can bring the right part. Thank you!`;
+    return `Hey ${cust}! 🐜 Still here to get your ${appl} fixed fast. Whenever you've got a sec tonight, tap ${link} — a quick 10-second video + a pic of the model-number sticker, and we'll bring the exact part and lock in your day. Easiest repair you'll ever book. 🙌`;
   }
   if (n === 2) {
     return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, just let us know your availability — what days work best for you, and any that don't? Reply right here. Thank you!`;
@@ -315,6 +322,8 @@ exports.handler = async function (event) {
     const pInfo = phoneCount[phone] || { count: 0, lastMs: 0 };
     if (pInfo.count >= PHONE_CAP) { skipped_phone_cap++; continue; }
     if (pInfo.count >= 1 && pInfo.lastMs && (Date.now() - pInfo.lastMs) < PHONE_RESEND_MS) { skipped_phone_cap++; continue; }
+    // The reminder lands in the EVENING when people are home (not mid-workday).
+    if (pInfo.count >= 1 && h < EVENING_START_CT) { skipped_phone_cap++; continue; }
 
     // Claim BEFORE sending (optimistic lock) so a parallel run never double-texts.
     let claimed = false;
