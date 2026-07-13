@@ -610,11 +610,17 @@ function placeOf(j){
   // (Teddy 2026-07-08: "when parts are received the customer added back to the
   // needs scheduled list.")
   if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='arrived') return 'schedule';
-  if(hasTech) return 'rep-'+t;                                 // assigned -> tech Report folder
-  // Scheduled (a real day is set) but no tech yet → the Scheduled folder, NOT
-  // Needs Scheduled. SquareTrade/AHS jobs often land scheduled-with-a-date but
-  // tech-less; without this they got stuck in Needs Scheduled after scheduling.
-  if(ss==='scheduled'||(Number(j.scheduled_start)>0&&ss!=='not_ready'&&cs!=='not_ready')) return 'scheduled';
+  // A SCHEDULED job (a real day is set, not yet started) goes to the SCHEDULED
+  // folder — NOT the tech's Report folder — so the office moves it forward
+  // manually from there (her manual drop sticks via office_stage). Only a job the
+  // tech has actually STARTED (in_progress) drops into his Report folder.
+  // (Teddy 2026-07-13: "whenever a job is scheduled it moved to technician reports
+  // — wrong; it should go to Scheduled and let the office move it to the next
+  // place manually." The old `hasTech -> rep` default caught every scheduled job
+  // because scheduling assigns a tech.)
+  const _started=(ss==='in_progress'||cs==='in_progress');
+  if(!_started && (ss==='scheduled'||(Number(j.scheduled_start)>0&&ss!=='not_ready'&&cs!=='not_ready'))) return 'scheduled';
+  if(hasTech) return 'rep-'+t;                                 // started/active with a tech -> tech Report
   return 'schedule';                                           // accepted/untimed/callback
 }
 
