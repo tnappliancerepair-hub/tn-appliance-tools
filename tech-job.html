@@ -304,6 +304,23 @@ async function xanoGet(ep,qs){
 function jobCacheKey(id){ return 'tn_job_cache_'+id; }
 function saveJobCache(id,d){ try{ localStorage.setItem(jobCacheKey(id),JSON.stringify({d:d,at:Date.now()})); }catch(_){} }
 function loadJobCache(id){ try{ const r=JSON.parse(localStorage.getItem(jobCacheKey(id))||'null'); return (r&&r.d)?r.d:null; }catch(_){ return null; } }
+// Fallback seed: find THIS job inside the daily-dashboard cache the tech just loaded
+// (tn_sched_*). Lets a cold job-open PAINT the customer/address/appliance instantly
+// from the schedule he already has, instead of hanging on a slow get_job_for_dashboard.
+function seedFromSchedCache(id){
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(!k||k.indexOf('tn_sched_')!==0) continue;
+      const r=JSON.parse(localStorage.getItem(k)||'null');
+      const jobs=(r&&r.d&&r.d.jobs)||[];
+      for(const it of jobs){ if(it&&it.job&&String(it.job.id)===String(id)){
+        return { success:true, job:it.job||{}, customer:it.customer||{}, tech:it.tech||{}, appliance:it.appliance||{}, tdr:{}, all_tdrs:[], _partial:true };
+      } }
+    }
+  }catch(_){}
+  return null;
+}
 function applyJobPayload(d){
   job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
 }
@@ -313,14 +330,19 @@ async function loadJob(){
   // model photo, a lifecycle tap, save-basics) reseeds the notes box from the saved
   // TDR and would otherwise wipe what he just typed.
   const _prevNotes=(document.getElementById('notes')||{}).value;
-  // 1) INSTANT: paint from cache if we have this job — zero wait.
-  const cached=loadJobCache(JOB_ID);
+  // 1) INSTANT: paint from the full job cache, else seed from the schedule the tech
+  // already loaded (so a cold open during a Xano slowdown still shows the job now).
+  const cached=loadJobCache(JOB_ID) || seedFromSchedCache(JOB_ID);
   let painted=false;
   if(cached && cached.job){
-    applyJobPayload(cached);
-    render(); renderAntTdr(tdr, allTdrs);
-    painted=true;
-  } else {
+    try{
+      applyJobPayload(cached);
+      render(); renderAntTdr(tdr, allTdrs);
+      painted=true;
+      if(cached._partial){ const _b=document.getElementById('content'); if(_b){ const n=document.createElement('div'); n.style.cssText='margin:8px 0;padding:8px 12px;background:#1a2410;border:1px solid #2f4d14;border-radius:8px;color:#9fe870;font-size:13px'; n.textContent='Loading full details…'; _b.insertBefore(n,_b.firstChild); } }
+    }catch(_){ painted=false; }
+  }
+  if(!painted){
     document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
   }
   // 2) REFRESH: fetch fresh in the background, re-render + cache when it lands.
