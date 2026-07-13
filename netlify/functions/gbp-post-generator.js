@@ -30,15 +30,20 @@ function isoWeek(d) {
   return t.getUTCFullYear() * 100 + Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
 }
 
-// dryer-weighted rotation (the demand push), with safety + seasonal + trust mixed in
+// dryer-weighted rotation (the demand push), with the ALWAYS-ON message (our real
+// moat — 24/7/365, contact us anytime on your own time, we text you right back)
+// woven through so it recurs, plus safety + trust angles.
 const TOPICS = [
   'A dryer-repair tip: why a dryer that "runs but won\'t dry" is usually airflow or a heating element — and that it\'s an affordable fix, not a replacement.',
+  'An ALWAYS-ON post: we\'re here 24/7, 365 days a year. Text us, call us, or send a quick video anytime — day, night, weekend, holiday — and a real answer comes back. No phone tag, no waiting for business hours. Contact us on YOUR time.',
   'A dryer-not-heating post: the common causes (heating element, thermal fuse, thermostat) and that we come out same-day with the part on the truck.',
-  'A trust post: we REPAIR dryers, we don\'t sell them — we answer the phone live and give an upfront price before any work starts.',
+  'A do-it-on-your-own-time post: snap a 10-second video of the appliance acting up — at midnight, on your lunch break, whenever works for you — send it over and we tell you what\'s wrong. No sitting on hold, no waiting room.',
+  'A trust post: we REPAIR appliances, we don\'t sell used ones — we answer live, 24/7, and give an upfront price before any work starts.',
+  'A we-text-you-right-back post: call OR text anytime and Appliance Ant answers in seconds, then a real technician takes it from there. Repair on your schedule, not ours.',
   'A dryer-vent safety post: a clogged vent is a fire risk and makes drying take 2-3 cycles. (Mention we\'re CSIA C-DET certified and can clean inside the dryer too.)',
-  'A "is it worth fixing?" post: most dryer problems are inexpensive parts (belt, roller, fuse) — age matters less than people think. Honest cost-of-repair every time.',
+  'A "is it worth fixing?" post: most appliance problems are inexpensive parts — age matters less than people think. Honest cost-of-repair every time. And you can ask us anytime, day or night.',
   'A dryer-making-noise post: squealing or thumping usually means drum rollers, idler pulley, or belt — a quick, common fix.',
-  'A local service post: same-day dryer repair across Middle Tennessee and the Walker/Hammond/Baton Rouge area — book online and we text you right back.',
+  'A local + always-on post: same-day appliance repair across Middle Tennessee and the Walker/Hammond/Baton Rouge area, reachable 24/7/365 — book online or text us anytime and we text you right back.',
   'A dryer-wont-start post: door switch, start switch, or thermal fuse are the usual culprits — we diagnose it fast and fix it right.',
 ];
 
@@ -48,8 +53,9 @@ Voice: warm, plainspoken, honest, local, confident — a real small-business own
 
 Rules:
 - 90-160 words. One short paragraph or two. Easy to skim on a phone.
-- Naturally include the phrase "dryer repair" (or the specific symptom) and a local reference — this is for local SEO, but it must read like a human, never keyword-stuffed.
-- End with a clear call to action to book or call. The booking link and phone are added by the system — you just write the words leading into it (e.g. "Book online and we'll text you right back, or call us.").
+- Include a natural local reference (Nashville / Middle Tennessee / Baton Rouge area) — this is for local SEO, but it must read like a human, never keyword-stuffed. If the angle is about a specific appliance/symptom, name it; if the angle is our always-on availability, lead with that instead — don't force an appliance keyword in.
+- When the angle is availability: hammer that we're reachable 24/7, 365 days a year — text, call, or send a quick video anytime, even the middle of the night, and we text you right back. That "on your own time, we always answer" promise is our biggest edge — make it the hero of those posts.
+- End with a clear call to action to book, text, or call. The booking link and phone are added by the system — you just write the words leading into it (e.g. "Text us anytime and we'll text you right back, or book online.").
 - We REPAIR, we don't sell used appliances — never imply we sell machines.
 - Never invent specific prices, dates, or guarantees. Keep claims honest and general.
 
@@ -90,7 +96,8 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const dry = q.dryrun === '1';
   const test = q.test === '1';
-  if (test) {
+  const publish = q.publish === '1';   // admin: publish ONE post now (keeps it), ignores dedup
+  if (test || publish) {
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   }
@@ -104,12 +111,13 @@ exports.handler = async function (event) {
   const dow = now.getUTCDay() || 7;            // 1=Mon .. 7=Sun (UTC ~ CT-adjacent for bucketing)
   const slot = dow < 4 ? 'a' : 'b';            // Mon-Wed = a, Thu-Sun = b -> 2 posts/week
   const bucket = `${wk}:${slot}`;
-  if (!dry && !test) {
+  if (!dry && !test && !publish) {
     if (await bucketPosted(bucket)) return json(200, { ok: true, note: 'already posted this slot', bucket });
   }
 
   // Vary the pair: slot b is offset half the list so the two weekly posts never match.
-  const topicIdx = (wk + (slot === 'b' ? 4 : 0)) % TOPICS.length;
+  // ?theme=alwayson (or the manual publish default) forces the core 24/7 post (idx 1).
+  const topicIdx = (publish || q.theme === 'alwayson') ? 1 : ((wk + (slot === 'b' ? 4 : 0)) % TOPICS.length);
   const topic = TOPICS[topicIdx];
   const post = await draftPost(topic, anthropic);
   if (!post || !post.body) return json(200, { ok: false, error: 'draft failed' });
@@ -124,6 +132,16 @@ exports.handler = async function (event) {
     let deleted = null;
     if (r.ok && name) { const d = await gbp.deleteLocalPost(name); deleted = d.ok; }
     return json(200, { ok: r.ok, mode: 'test', published: r.ok, post_name: name || null, deleted, status: r.status, error: r.ok ? undefined : r.data });
+  }
+
+  // PUBLISH: fire one real post NOW and keep it (admin on-demand). Logged with a manual
+  // bucket so it never blocks a scheduled Mon/Thu slot.
+  if (publish) {
+    const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: BOOK_URL });
+    if (r.ok) {
+      try { await crud.logEvent('gbp_post_published', { bucket: 'manual:' + Date.now(), title: post.title || '', topic, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {}
+    }
+    return json(200, { ok: r.ok, mode: 'publish', published: r.ok, title: post.title, post: fullPost, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
   }
 
   // LIVE: auto-publish via the API; fall back to texting Teddy the draft on any failure.
