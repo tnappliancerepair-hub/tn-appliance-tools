@@ -25,7 +25,7 @@ query get_office_kanban verb=GET {
 
   stack {
     var $window_days {
-      value = ($input.days_back ?? 45)
+      value = ($input.days_back ?? 60)
     }
   
     var $now_ms {
