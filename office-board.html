@@ -270,6 +270,7 @@
 </script>
 
 <div id="msg-banner" style="padding:0 12px"></div>
+<div id="stranded-banner" style="padding:0 12px"></div>
 <div id="addons-banner"></div>
 
 <div id="board-host">
@@ -476,6 +477,7 @@ async function loadBoard(){
     loadPaid();
     loadInvoices();
     loadMessages();
+    loadStranded();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -492,6 +494,47 @@ async function loadMessages(){
       : '';
   }catch(_){}
 }
+
+// SAFETY NET — "accepted but nowhere." A job whose status is 'scheduled' with NO
+// tech is invisible everywhere (skipped by Needs-Scheduled, can't render on a
+// tech's day). This surfaces every one so an accepted job can't silently vanish.
+// Surface-only: tapping a row opens the job file so DANIELLE assigns it — Ant
+// never auto-assigns. (Teddy 2026-07-13: "we accepted a job and it didn't go on
+// anyone's schedule this morning.")
+let __strandedOpen=false;
+async function loadStranded(){
+  const el=document.getElementById('stranded-banner'); if(!el)return;
+  try{
+    const d=await (await fetch('/.netlify/functions/stranded-jobs',{cache:'no-store'})).json();
+    const jobs=(d&&d.jobs)||[]; const n=jobs.length; const urgent=(d&&d.urgent)||0;
+    if(!n){ el.innerHTML=''; return; }
+    const day=(ms)=>{ if(!ms)return ''; try{return new Date(ms).toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'});}catch(_){return '';} };
+    const rows=jobs.map(function(x){
+      const badge = x.urgent
+        ? '<span style="background:#b91c1c;color:#fff;font-weight:800;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap">⚠ '+day(x.scheduled_start)+' · NO TECH</span>'
+        : '<span style="background:#fde3e3;color:#b91c1c;font-weight:700;font-size:11px;padding:2px 7px;border-radius:6px;white-space:nowrap">'+esc(x.reason)+'</span>';
+      const where=[x.zip,x.state].filter(Boolean).join(' ');
+      const appl=(x.appliance||'').trim();
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid #f3caca">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-weight:800;color:#7f1d1d;font-size:14px">'+esc(x.customer||'(no name)')+(x.vendor?' <span style="font-weight:600;color:#b45454">· '+esc(x.vendor)+'</span>':'')+'</div>'
+          +'<div style="font-size:12px;color:#a15a5a">'+[appl,where].filter(Boolean).map(esc).join(' · ')+'</div>'
+        +'</div>'
+        +badge
+        +'<button onclick="closeStrandedThenOpen(\''+x.job_id+'\')" style="background:#111827;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">Schedule →</button>'
+      +'</div>';
+    }).join('');
+    const head='⚠️ Accepted but nowhere — '+n+' job'+(n===1?'':'s')+' on no one’s schedule'+(urgent?' · '+urgent+' with a date + no tech':'');
+    el.innerHTML='<div style="background:#fff5f5;border:1px solid #f0a9a9;border-radius:11px;padding:12px 14px;margin-bottom:8px">'
+      +'<div onclick="__strandedOpen=!__strandedOpen;loadStrandedRender()" style="cursor:pointer;display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
+        +'<span id="stranded-caret">'+(__strandedOpen?'▾':'▸')+'</span><span style="flex:1">'+head+'</span>'
+      +'</div>'
+      +'<div id="stranded-list" style="'+(__strandedOpen?'':'display:none;')+'margin-top:4px">'+rows+'</div>'
+    +'</div>';
+  }catch(_){ /* never block the board on the safety net */ }
+}
+function loadStrandedRender(){ const l=document.getElementById('stranded-list'); const c=document.getElementById('stranded-caret'); if(l)l.style.display=__strandedOpen?'':'none'; if(c)c.textContent=__strandedOpen?'▾':'▸'; }
+function closeStrandedThenOpen(id){ openDrawer(String(id)); }
 
 // place a job into a column id.
 // "Needs Scheduled" is the catch-all entry: accepted jobs, callbacks, and
