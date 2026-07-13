@@ -142,6 +142,40 @@ export async function run(signal, ctx) {
     };
   }
 
+  // ── PHONE-LEVEL CAP + KILL SWITCH (Teddy 2026-07-13) ──────────────────────────
+  // The greeting fires once PER JOB, so a customer whose dispatches spawned N
+  // duplicate job rows used to get N greetings = the SquareTrade over-texting mess.
+  // Cap by the PERSON: no greeting if this phone already hit the intake cap (shared
+  // with the collector via the intake_light_sent marker keyed by phone_e164), and
+  // honor the outreach pause. FAIL CLOSED — if we can't verify, skip (the collector,
+  // itself capped, still reaches them safely). This is the last mouth to get capped.
+  const INTAKE_PHONE_CAP = Number(process.env.INTAKE_PHONE_CAP) || 2;
+  try {
+    const [pausedRows, resumedRows] = await Promise.all([
+      xano.listRecentEventLog({ action: 'intake_outreach_paused', days_back: 30, limit: 1 }),
+      xano.listRecentEventLog({ action: 'intake_outreach_resumed', days_back: 30, limit: 1 }),
+    ]);
+    const tms = (rows) => { const it = rows && rows[0]; if (!it) return 0; let m = it.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return Number((m && m.at_ms) || 0) || new Date(it.created_at || 0).getTime() || 0; };
+    if (tms(pausedRows) > tms(resumedRows)) {
+      log('greeting_skipped_paused', { job_id: jobId });
+      return { success: true, action: 'skipped_outreach_paused', job_id: jobId };
+    }
+    const priorRows = await xano.listRecentEventLog({ action: 'intake_light_sent', days_back: 120, limit: 3000 });
+    let phoneTouches = 0;
+    for (const r of (priorRows || [])) {
+      let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      if (m && String(m.phone_e164 || '') === phone) phoneTouches++;
+    }
+    if (phoneTouches >= INTAKE_PHONE_CAP) {
+      await xano.markSignalProcessed(signal.id, 'new_job_greeting_skipped_phone_cap', { job_id: jobId, phone_touches: phoneTouches });
+      log('greeting_skipped_phone_cap', { job_id: jobId, phone_touches: phoneTouches });
+      return { success: true, action: 'skipped_phone_cap', job_id: jobId, phone_touches: phoneTouches };
+    }
+  } catch (e) {
+    log('greeting_skipped_cap_unverified', { job_id: jobId, error: String(e.message || e) });
+    return { success: true, action: 'skipped_cap_unverified', job_id: jobId };
+  }
+
   const body = composeGreeting({
     first_name: payload.customer_first_name,
     appliance_type: payload.appliance_type,
@@ -163,6 +197,13 @@ export async function run(signal, ctx) {
     source: payload.source,
     sms_result: smsRes && smsRes.success ? 'ok' : 'maybe_failed',
   });
+
+  // Shared phone-keyed marker so the COLLECTOR's phone-cap AND the overtexting-watch
+  // tripwire both count this greeting — one unified per-customer counter across every
+  // sender. (Teddy 2026-07-13.)
+  try {
+    await xano.recordEventLog('intake_light_sent', { job_id: jobId, phone_e164: phone, source: 'loop_greeting', at_ms: Date.now() });
+  } catch (_) {}
 
   // Mark the job awaiting-availability so the customer's REPLY to this greeting
   // routes to the availability parser (sms_response_availability), which splits
