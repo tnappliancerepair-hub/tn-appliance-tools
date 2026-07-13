@@ -45,21 +45,41 @@ query get_office_kanban verb=GET {
   
     foreach ($job_rows.items) {
       each as $j {
-        db.get customer {
-          field_name = "id"
-          field_value = ($j.customer_id ?? 0)
-        } as $cust
-      
+        // FAST PATH: read the denormalized name straight off the job row (no customer
+        // lookup). Falls back to a live db.get ONLY when the name is blank (a brand-new
+        // job not yet backfilled) so a name ALWAYS shows. Kills the per-job N+1 that made
+        // this endpoint 300 round-trips per 30s poll. (2026-07-13)
         var $cust_first {
-          value = (($cust ?? {first_name: ""}).first_name ?? "")
+          value = (($j.customer_first ?? "")|trim)
         }
-      
+
         var $cust_last {
-          value = (($cust ?? {last_name: ""}).last_name ?? "")
+          value = (($j.customer_last ?? "")|trim)
         }
 
         var $cust_phone {
-          value = (($cust ?? {phone: ""}).phone ?? "")
+          value = (($j.customer_phone ?? "")|trim)
+        }
+
+        conditional {
+          if ($cust_first == "" && $cust_last == "") {
+            db.get customer {
+              field_name = "id"
+              field_value = ($j.customer_id ?? 0)
+            } as $cust
+
+            var.update $cust_first {
+              value = (($cust ?? {first_name: ""}).first_name ?? "")
+            }
+
+            var.update $cust_last {
+              value = (($cust ?? {last_name: ""}).last_name ?? "")
+            }
+
+            var.update $cust_phone {
+              value = (($cust ?? {phone: ""}).phone ?? "")
+            }
+          }
         }
       
         var $row {

@@ -13,6 +13,7 @@
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const EVENT_LOG = 3;
+const JOBS_TABLE = 7;
 
 function authHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
@@ -97,6 +98,24 @@ exports.handler = async function (event) {
     const r = await fetch(`${META}/table/${CUST}/content/${customerId}`, { method: 'PUT', headers: h, body: JSON.stringify(partial) });
     if (!r.ok) { const t = await r.text().catch(() => ''); return j(200, { ok: false, error: 'customer PUT ' + r.status + ' ' + t.slice(0, 160) }); }
   } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+
+  // Keep the board's denormalized name in sync (get_office_kanban reads customer_first/
+  // last/phone straight off the job to skip a per-job lookup). Best-effort — never fails
+  // the name edit. (2026-07-13)
+  try {
+    const cr = await fetch(`${META}/table/${CUST}/content/${customerId}`, { headers: h });
+    const cust = cr.ok ? await cr.json().catch(() => null) : null;
+    if (cust) {
+      const denorm = {
+        customer_first: String(cust.first_name || '').trim(),
+        customer_last: String(cust.last_name || '').trim(),
+        customer_phone: String(cust.phone || '').trim(),
+      };
+      const sr = await fetch(`${META}/table/${JOBS_TABLE}/content/search`, { method: 'POST', headers: h, body: JSON.stringify({ search: { customer_id: customerId }, per_page: 100 }) });
+      const items = sr.ok ? ((await sr.json().catch(() => ({}))).items || []) : [];
+      await Promise.all(items.map((jb) => fetch(`${META}/table/${JOBS_TABLE}/content/${jb.id}`, { method: 'PUT', headers: h, body: JSON.stringify(denorm) }).catch(() => {})));
+    }
+  } catch (_) {}
 
   // Audit — so danielle-activity / the log show who fixed it + which fields changed.
   try {
