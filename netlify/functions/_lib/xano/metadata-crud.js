@@ -57,6 +57,10 @@ async function callXano(method, path, body, op) {
         method,
         headers: authHeaders(),
         body: body == null ? undefined : JSON.stringify(body),
+        // Fail-fast: a stalled Metadata API used to hang crud-based functions
+        // (warranty-parts, get-stop-machines, etc.) forever. 10s cap -> catchable
+        // network error -> the retry/catch below handles it. (2026-07-13)
+        signal: AbortSignal.timeout(10000),
       });
       text = await res.text();
     } catch (netErr) {

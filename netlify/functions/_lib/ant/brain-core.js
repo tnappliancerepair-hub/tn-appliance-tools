@@ -97,7 +97,13 @@ async function runBrainTurn({
         body: JSON.stringify({
           model,
           max_tokens: maxTokens,
-          system: systemPrompt,
+          // Prompt caching: the system prompt is large + static across every turn of a
+          // live chat (customer/office/website/tech-assist/scheduler/phone/troubleshoot).
+          // Marking it ephemeral lets Anthropic serve it from cache on turn 2+ — big TTFT
+          // + cost win, zero output change. Mirrors colony-loop/claude.js. (2026-07-13)
+          system: systemPrompt
+            ? [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }]
+            : undefined,
           tools,
           messages,
         }),

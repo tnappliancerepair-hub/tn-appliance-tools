@@ -48,15 +48,15 @@ exports.handler = async function (event) {
     }
   }
 
-  // hydrate each machine job
-  const machines = [];
-  for (const id of ids) {
+  // hydrate each machine job — in PARALLEL (each machine's job fetch + report check
+  // are independent). Promise.all preserves input order, so the switcher stays stable.
+  const machines = (await Promise.all(ids.map(async (id) => {
     let row = null;
     try { row = await crud.searchOne(crud.TABLES.jobs, { id }); } catch (_) {}
-    if (!row) continue;
+    if (!row) return null;
     const status = String(row.scheduling_status || row.current_status || '').trim();
     const hasReport = await jobHasReport(id);
-    machines.push({
+    return {
       job_id: id,
       appliance: String(row.appliance_type || '').trim() || 'appliance',
       brand: String(row.brand || '').trim(),
@@ -65,8 +65,8 @@ exports.handler = async function (event) {
       status,
       is_primary: id === stopId,
       has_report: hasReport,
-    });
-  }
+    };
+  }))).filter(Boolean);
 
   return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, stop_id: stopId, count: machines.length, machines }) };
 };

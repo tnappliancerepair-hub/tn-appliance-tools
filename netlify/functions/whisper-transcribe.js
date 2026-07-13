@@ -83,7 +83,7 @@ exports.handler = async (event) => {
   segments.push(Buffer.from(`Content-Type: ${audioPart.contentType || 'audio/webm'}\r\n\r\n`));
   segments.push(audioPart.data);
   segments.push(Buffer.from(`\r\n--${newBoundary}\r\n`));
-  segments.push(Buffer.from(`Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1`));
+  segments.push(Buffer.from(`Content-Disposition: form-data; name="model"\r\n\r\ngpt-4o-mini-transcribe`));
   segments.push(Buffer.from(`\r\n--${newBoundary}\r\n`));
   segments.push(Buffer.from(`Content-Disposition: form-data; name="response_format"\r\n\r\njson`));
   segments.push(Buffer.from(`\r\n--${newBoundary}--\r\n`));

@@ -1421,20 +1421,26 @@
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
       highlightDayStrip();  // keep the day-jumper's active chip in sync
-      // TWO-MAN jobs: pull any job where this tech is the SECOND man and merge
-      // it in so it shows on his dashboard too. Best-effort — wrapped so a crew
-      // hiccup can NEVER break the normal schedule.
+      // Paint the day's schedule NOW — don't make the tech wait on the optional
+      // two-man crew overlay (up to 6s on weak cell for data most days don't have).
+      render(data);
+      loading.style.display = 'none';
+      // TWO-MAN jobs: pull any job where this tech is the SECOND man and merge it in.
+      // Runs AFTER first paint; only re-renders if it actually adds a job. A crew
+      // hiccup can never delay or break the normal schedule. (2026-07-13)
       try {
-        // Optional overlay — short 6s cap so a slow crew call never delays the day's schedule.
         const cr = await fetchT(`/.netlify/functions/crew?action=list&tech_id=${encodeURIComponent(TECH_ID)}&date=${encodeURIComponent(data.date_ct || '')}`, null, 6000);
         const cj = await cr.json();
         if (cj && cj.ok && Array.isArray(cj.jobs) && cj.jobs.length && Array.isArray(data.jobs)) {
           const have = new Set(data.jobs.map((it) => it && it.job && it.job.id));
-          cj.jobs.forEach((it) => { if (it && it.job && !have.has(it.job.id)) data.jobs.push(it); });
-          data.jobs.sort((a, b) => (Number((a.job || {}).scheduled_start) || Infinity) - (Number((b.job || {}).scheduled_start) || Infinity));
+          let added = false;
+          cj.jobs.forEach((it) => { if (it && it.job && !have.has(it.job.id)) { data.jobs.push(it); added = true; } });
+          if (added) {
+            data.jobs.sort((a, b) => (Number((a.job || {}).scheduled_start) || Infinity) - (Number((b.job || {}).scheduled_start) || Infinity));
+            render(data);   // re-render with the merged two-man job
+          }
         }
       } catch (_) { /* crew overlay is optional; ignore */ }
-      render(data);
     } catch (err) {
       console.error(err);
       showError('network error');
