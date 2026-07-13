@@ -343,8 +343,14 @@
   body.nsmap #cal-rail, body.nsmap #miniCal { display: none !important; }
   body.nsmap #content { width: 100%; flex: 1 1 auto; }
   #ns-map { width: 100%; height: calc(100vh - 210px); min-height: 420px; border-radius: 10px; overflow: hidden; margin: 0 8px; }
-  .ns-map-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 14px; font-size: 12.5px; font-weight: 700; align-items: center; }
+  .ns-map-legend { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 14px 8px; font-size: 12.5px; font-weight: 700; align-items: center; }
   .ns-map-legend .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: middle; border: 1px solid rgba(255,255,255,.6); }
+  /* Map filter chips — pick the day + tech so she sees where a guy is working. */
+  .ns-map-days { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px 4px; align-items: center; }
+  .ns-day-chip, .ns-tech-chip { cursor: pointer; border: 1px solid #cfd6e0; background: #fff; color: #33415c; border-radius: 999px; padding: 6px 11px; font-size: 12.5px; font-weight: 700; line-height: 1; white-space: nowrap; }
+  .ns-day-chip.on { background: #2f6fb0; border-color: #2f6fb0; color: #fff; }
+  .ns-tech-chip.on { background: #16324f; border-color: #16324f; color: #fff; box-shadow: 0 0 0 2px rgba(47,111,176,.35); }
+  .ns-day-chip:hover, .ns-tech-chip:hover { border-color: #2f6fb0; }
   .leaflet-popup-content { margin: 10px 12px; }
   #cal-rail #railMap #antmap-panel.antmap-inline { height: 100%; width: 100%; }
   #cal-rail #railQueue { flex: 0 0 auto; }
@@ -2026,6 +2032,9 @@ function __initCalendar() {
   const NS_GEO_PREFIX = 'tn_geo_v1:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
   const NS_MAP_COLORS = ['#7a5cf0', '#e67e22', '#2c8c4a', '#2c6fb0', '#c0392b', '#0d9488', '#b45309', '#db2777'];
   let _nsMap = null, _nsMapSig = '', _nsLastGeo = 0;
+  // Map filters so Danielle can see WHERE a given tech is working on a given day
+  // while she's scheduling (Teddy 2026-07-13): '' day = all days, 0 tech = all techs.
+  let _nsMapDay = '', _nsMapTech = 0, _nsMapGen = 0;
   function _nsHash(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return String(Math.abs(h)); }
   function ensureLeafletNS() {
     return new Promise((res, rej) => {
@@ -2050,30 +2059,55 @@ function __initCalendar() {
       return { lat, lng };
     } catch (_) { return null; }
   }
+  function _nsWireMapControls() {
+    document.querySelectorAll('.ns-day-chip').forEach((el) => { el.onclick = () => { _nsMapDay = el.dataset.day || ''; if (dashboardData) render(dashboardData); }; });
+    document.querySelectorAll('.ns-tech-chip').forEach((el) => { el.onclick = () => { _nsMapTech = Number(el.dataset.tech) || 0; if (dashboardData) render(dashboardData); }; });
+  }
   async function renderMapView(data, techs, jobs) {
     document.body.classList.add('nsmap');
     const host = $('content'); if (!host) return;
-    // Scheduled jobs only: a real day + a tech + an address to plot.
-    const sched = jobs.filter((j) => Number(j.scheduled_start) > 0 && Number(j.technician_id) > 0 && (j.service_address || j.service_city));
+    // Every scheduled job (a real day + a tech + an address to plot).
+    const all = jobs.filter((j) => Number(j.scheduled_start) > 0 && Number(j.technician_id) > 0 && (j.service_address || j.service_city));
     const techColor = {}, techName = {};
     techs.forEach((t, i) => { techColor[Number(t.id)] = NS_MAP_COLORS[i % NS_MAP_COLORS.length]; techName[Number(t.id)] = t.first_name || ('Tech ' + t.id); });
-    // Legend — tech + how many stops each has plotted.
-    let leg = '<div class="ns-map-legend">';
-    techs.forEach((t) => { const c = techColor[Number(t.id)], cnt = sched.filter((j) => Number(j.technician_id) === Number(t.id)).length; if (cnt) leg += `<span><span class="dot" style="background:${c}"></span>${escapeHtml(techName[Number(t.id)])} · ${cnt}</span>`; });
+
+    // ── FILTERS: day + tech ── so she can see where a guy is working the day she's
+    // scheduling. Drop a stale filter that no longer has any jobs.
+    const dayMap = {};
+    all.forEach((j) => { const ds = ctDateForMs(j.scheduled_start); (dayMap[ds] = dayMap[ds] || []).push(j); });
+    const days = Object.keys(dayMap).sort();
+    if (_nsMapDay && !dayMap[_nsMapDay]) _nsMapDay = '';
+    const dayScoped = _nsMapDay ? dayMap[_nsMapDay] : all;         // day filter applied
+    const techIds = [...new Set(dayScoped.map((j) => Number(j.technician_id)))];
+    if (_nsMapTech && !techIds.includes(_nsMapTech)) _nsMapTech = 0;
+    const sched = _nsMapTech ? dayScoped.filter((j) => Number(j.technician_id) === _nsMapTech) : dayScoped;
+
+    // Day chips (All + each day that has jobs, with a count).
+    let dayBar = '<div class="ns-map-days"><button class="ns-day-chip' + (_nsMapDay ? '' : ' on') + '" data-day="">All days</button>';
+    days.forEach((ds) => { const d = parseYMD(ds); const lbl = d.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' }); dayBar += '<button class="ns-day-chip' + (_nsMapDay === ds ? ' on' : '') + '" data-day="' + ds + '">' + lbl + ' · ' + dayMap[ds].length + '</button>'; });
+    dayBar += '</div>';
+    // Tech legend — clickable to isolate one tech; counts within the day filter.
+    let leg = '<div class="ns-map-legend"><button class="ns-tech-chip' + (_nsMapTech ? '' : ' on') + '" data-tech="0">All techs</button>';
+    techs.forEach((t) => { const id = Number(t.id); const c = techColor[id]; const cnt = dayScoped.filter((j) => Number(j.technician_id) === id).length; if (cnt) leg += '<button class="ns-tech-chip' + (_nsMapTech === id ? ' on' : '') + '" data-tech="' + id + '"><span class="dot" style="background:' + c + '"></span>' + escapeHtml(techName[id]) + ' · ' + cnt + '</button>'; });
     leg += '</div>';
-    // Only rebuild when the plotted set actually changed (keeps zoom/pan across polls).
-    const sig = sched.map((j) => j.id + ':' + j.technician_id + ':' + j.scheduled_start).sort().join('|');
-    if (_nsMap && _nsMapSig === sig && document.getElementById('ns-map')) { const lg = host.querySelector('.ns-map-legend'); if (lg) lg.outerHTML = leg; return; }
+    const controls = dayBar + leg;
+
+    // Only rebuild the map when the plotted set actually changed (keeps zoom/pan).
+    const sig = _nsMapDay + '|' + _nsMapTech + '|' + sched.map((j) => j.id + ':' + j.technician_id + ':' + j.scheduled_start).sort().join('|');
+    if (_nsMap && _nsMapSig === sig && document.getElementById('ns-map')) { const cc = host.querySelector('.ns-map-controls'); if (cc) cc.innerHTML = controls; _nsWireMapControls(); return; }
     _nsMapSig = sig;
-    host.innerHTML = leg + '<div id="ns-map"></div><div id="ns-map-status" style="padding:6px 14px;font-size:12px;color:var(--muted,#888)">Loading map…</div>';
+    const myGen = ++_nsMapGen;   // supersede any in-flight geocode loop (filter re-render)
+    host.innerHTML = '<div class="ns-map-controls">' + controls + '</div><div id="ns-map"></div><div id="ns-map-status" style="padding:6px 14px;font-size:12px;color:var(--muted,#888)">Loading map…</div>';
+    _nsWireMapControls();
     try { await ensureLeafletNS(); } catch (_) { const s = $('ns-map-status'); if (s) s.textContent = '⚠ map failed to load'; return; }
-    const el = $('ns-map'); if (!el || !window.L) return;
+    const el = $('ns-map'); if (!el || !window.L || _nsMapGen !== myGen) return;
     if (_nsMap) { try { _nsMap.remove(); } catch (_) {} _nsMap = null; }
     _nsMap = L.map(el).setView([35.9, -87.5], 6);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(_nsMap);
     const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0;
-    if (!sched.length && status) status.textContent = 'No scheduled jobs with an address in this range.';
+    if (!sched.length && status) status.textContent = (_nsMapDay || _nsMapTech) ? 'No stops for this day/tech — pick another chip above.' : 'No scheduled jobs with an address to plot.';
     for (const j of sched) {
+      if (_nsMapGen !== myGen) return;   // a newer filter/view superseded us — stop
       const addr = [j.service_address, j.service_city].filter(Boolean).join(', ');
       const g = await _nsGeocode(addr);
       done++;
