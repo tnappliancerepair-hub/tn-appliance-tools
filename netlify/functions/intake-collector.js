@@ -127,6 +127,21 @@ exports.handler = async function (event) {
   const h = ctHour();
   if (!force && !dryrun && (h < 8 || h >= 20)) return ok({ status: 'skipped_quiet_hours', ct_hour: h });
 
+  // KILL SWITCH — the over-texting watchdog (or a human) can PAUSE all intake outreach
+  // instantly; respect it. Paused = latest 'intake_outreach_paused' newer than the
+  // latest 'intake_outreach_resumed'. (Teddy 2026-07-13: "know if it over-texts +
+  // pause it and fix it.")
+  if (!dryrun) {
+    try {
+      const [pp, rr] = await Promise.all([
+        jget(`${XANO}/list_recent_event_log?action=intake_outreach_paused&days_back=30&limit=1`, 6000),
+        jget(`${XANO}/list_recent_event_log?action=intake_outreach_resumed&days_back=30&limit=1`, 6000),
+      ]);
+      const tms = (d) => { const it = d && d.items && d.items[0]; if (!it) return 0; let m = it.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return Number((m && m.at_ms) || 0) || new Date(it.created_at || 0).getTime() || 0; };
+      if (tms(pp) > tms(rr)) return ok({ status: 'paused', note: 'intake outreach paused — resume via overtexting-watch?resume=1&secret=' });
+    } catch (_) { /* fail open on the pause read — the phone-cap still guards */ }
+  }
+
   // REGRESSION FIX (Teddy 2026-07-07: "the warranty intake just stopped"):
   // list_needs_scheduled_parallel grew to ~447 jobs and now takes ~12.3s — right
   // at the old 12s timeout, so nearly every hourly run aborted at list_failed and
@@ -258,7 +273,8 @@ exports.handler = async function (event) {
   const phoneCount = {};   // e164 -> { count, lastMs }
   try {
     const pr = await jget(`${XANO}/list_recent_event_log?action=intake_light_sent&days_back=120&limit=3000`, 12000);
-    for (const r of (pr.items || [])) {
+    if (!pr || !Array.isArray(pr.items)) throw new Error('no items');
+    for (const r of pr.items) {
       let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
       m = m || {}; const ph = String(m.phone_e164 || '');
       if (!ph) continue;
@@ -268,7 +284,11 @@ exports.handler = async function (event) {
       if (ts > cur.lastMs) cur.lastMs = ts;
       phoneCount[ph] = cur;
     }
-  } catch (_) { /* fail open — per-job cap still guards */ }
+  } catch (_) {
+    // FAIL CLOSED — without the per-phone history we can't enforce the cap, and
+    // over-texting is the one thing we will not risk. Skip the run; next one retries.
+    return ok({ status: 'aborted_phone_count_unavailable', note: 'skipped to avoid over-texting — could not verify per-phone counts' });
+  }
 
   let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0, skipped_phone_cap = 0;
   const done = [];

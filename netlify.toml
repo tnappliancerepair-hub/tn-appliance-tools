@@ -304,6 +304,12 @@
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
+# Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
+# alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so
+# the SquareTrade over-texting mess can never quietly run for a week again. 10a/2p/6p CT.
+[functions."overtexting-watch"]
+  schedule = "0 15,19,23 * * *"
+
 # Andre "running behind" reply forwarder (Teddy 2026-07-07) — forwards replies from
 # Andre's today-customers to Teddy's cell. Self-expires ~18h after the notice, then
 # no-ops. Safe to remove the cron after today.
