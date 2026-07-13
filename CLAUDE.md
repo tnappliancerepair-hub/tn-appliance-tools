@@ -111,6 +111,42 @@ ghost** still bleeds intent (the Exchange-name legacy). Shipped, quickest-first:
 - NEXT SEO (not built): `freezer-repair.html` (pos 18.3, no page); a proper location hub; roll title/meta
   to the remaining symptom/brand pages as they gain impressions.
 
+### 🐜🤖 2026-07-13 (PM) — GBP AUTO-POSTING + ALWAYS-ON THEME + GEO/AI-AUTHORITY FOUNDATION + CONTENT ENGINE (all LIVE)
+Teddy: push the 24/7/365 "contact us anytime, we text you right back, send a video middle-of-the-night" idea
+everywhere; make Google + every AI (ChatGPT/Gemini/Claude/Perplexity/Alexa) see us as THE appliance authority
+and recommend us — incl. out-of-area via the video-diagnostic/ship-the-part service. All shipped to `main`.
+- **GBP API is APPROVED + LIVE** (business.manage, case 4-9470000041082, approved 2026-07-10; `_lib/gbp.js` +
+  vault `GBP_REFRESH_TOKEN` off the shared "Ant Ads" WEB OAuth client). **We can now READ + WRITE the profile.**
+- **Profile audited via `gbp-profile.js` (GET) — it's already dialed in:** primary cat "Appliance repair service"
+  (+ "Dryer vent cleaning"), NO used-store anywhere (Teddy confirmed; stop pushing that), cash-first description,
+  24/7 hours, phone (615) 280-2949 (LOCAL number = map-pack-preferred, keep it), service area 20/20 maxed.
+- **Edited via API:** (1) **services 8→10** — added Microwave + Stove/cooktop (append-only guard in `gbp-profile.js`
+  POST {serviceItems} refuses any write that shrinks the list, so it can't wipe the good ones); (2) **description
+  rewritten** to LEAD with the 24/7/365 always-on hook (POST {description}, 742 chars, live).
+- **GBP AUTO-POSTING LIVE (`gbp-post-generator.js`):** flipped from draft-and-text-Teddy to **auto-publish via
+  `_lib/gbp.createLocalPost` (v4 localPosts, BOOK CTA)**. **Cadence = 2×/week (Mon+Thu, netlify.toml `0 14 * * 1,4`)** —
+  the freshness sweet spot; daily is counterproductive (posts bury each other, thin repetition hurts). Per-(week,slot)
+  dedup + topic offset so the pair never repeats. **Always-on theme woven into the topic rotation** so the 24/7 message
+  recurs. Fallback: any API failure texts Teddy the draft (slot never goes silent). Proven end-to-end via `?test=1`
+  (publish-then-delete) + fired one live always-on post now ("We Answer 24/7—Even at 2 AM"). Kill: `GBP_POST_GENERATOR=false`;
+  draft-only: `GBP_AUTOPOST=false`; on-demand: `?publish=1&secret=` (keeps) / `?test=1` (publish+delete proof).
+- **GEO / AI-authority foundation (NEW):** `llms.txt` (curated authority profile the AIs read — who we are, why expert,
+  key pages, service area, + the **nationwide video-diagnostic/ship-the-part** tier so AIs recommend us OUT-OF-AREA);
+  `robots.txt` explicitly WELCOMES AI crawlers (GPTBot/ClaudeBot/PerplexityBot/Google-Extended/Applebot) + points at
+  llms.txt; homepage `LocalBusiness` schema hardened — **founder James "Teddy" Pivacek** (named expert = E-E-A-T
+  Experience), foundingDate 2012, machine-readable 24/7 `openingHoursSpecification`, `knowsAbout` broadened to 20
+  topics+brands, and a **US-wide video-diagnostic Offer** (`areaServed: Country US`, $50, part shipping).
+- **AUTHORITY CONTENT ENGINE (NEW, the moat play):** `scripts/troubleshooting-content.js` (curated, expert-authored
+  data — QUALITY over the thin-lander pattern that doesn't index) + `scripts/build-troubleshooting-pages.js` (renders
+  `/fix/<slug>.html` + a `/fix/` hub, each with **FAQPage + HowTo + BreadcrumbList** schema, honest causes, safe DIY
+  checks, repair-vs-replace, dual CTAs local+nationwide). **6 flagship pages LIVE** (washer-wont-drain, dryer-not-heating,
+  refrigerator-not-cooling, dishwasher-wont-drain, oven-not-heating, washer-not-spinning) — the exact spoken questions
+  ("my washer won't drain, what do I do?") voice assistants/AI quote. In sitemap (7 urls), linked from homepage footer +
+  llms.txt, **submitted to IndexNow**. **GROW IT:** add an entry to `troubleshooting-content.js` → `node scripts/build-troubleshooting-pages.js`
+  → bump sitemap → commit. Next batches: ice-maker, fridge leaking, dryer noise, washer smell, dishwasher not cleaning, brand fault-codes.
+- **Teddy's part (off-site):** reviews remain the #1 map-pack lever (ask same-day; auto-reply drafts handled). GBP category
+  already clean — no action needed there.
+
 ### 🏗️ REMAINING SPEED ROADMAP (audited, not yet built)
 1. **SWR instant-load caches** on tech-daily / new-scheduling / tech-job (copy office-board's
    `renderFromCache`/`saveBoardCache` pattern) — the audit's #1 *perceived* speed win, zero quality loss.
