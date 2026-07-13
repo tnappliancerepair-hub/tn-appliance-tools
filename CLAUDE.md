@@ -147,6 +147,55 @@ and recommend us — incl. out-of-area via the video-diagnostic/ship-the-part se
 - **Teddy's part (off-site):** reviews remain the #1 map-pack lever (ask same-day; auto-reply drafts handled). GBP category
   already clean — no action needed there.
 
+### 🚀🔥 2026-07-13 (PM) — XANO UPGRADED TO **PRO** (the fix for the field-slowness incident) + TECH APP v11 SWR — READ
+Live-ops incident: mid-day Sunday, **Jimmy + Andre couldn't open jobs/schedules in the field** ("signal is aborted
+without reason," "Loading job…" forever). A tech went home over it. Root-caused + fixed end-to-end.
+- **ROOT CAUSE = Xano compute ceiling, NOT the app.** Proved it: an **untouched control endpoint** (`get_office_kanban`)
+  was ALSO 12–18s. Xano's own dashboard showed the tell — individual queries execute **sub-second** (295ms–1.3s in the
+  request log) but P95 was 3s with a **tail to 30s** = requests **QUEUING**. We were on the **Essential plan** ($99); its
+  fixed single instance saturated under concurrent load (crew + office + loop all at once). **Diagnostic rule reaffirmed:
+  always time a control endpoint you didn't touch — if it's slow too, it's platform/compute, not your change.**
+- **THE FIX: upgraded Xano Essential → PRO ($249/mo).** Pro = **3× compute & storage + managed load balancer + CPU/
+  autoscaling** (Boost add-on autoscales to 300% on peak). **Result, measured live: `get_job_for_dashboard` 18–40s → 0.3–0.8s;
+  `get_tech_daily_dashboard` 9–40s → 0.44s; control 12–18s → 1.1s.** Jimmy confirmed in the field: "seems pretty quick now."
+  **The loop did NOT need pausing — Pro has headroom to run the loop + crew + office together.** (Loop-pause command exists
+  as an emergency lever but was NOT needed.)
+- **TECH APP v11 (resilience, shipped alongside — all Netlify):** `tech-job.html` + `tech-daily-dashboard.html` now (1)
+  **SWR instant-load** — cache the last job payload (per `tn_job_cache_<id>`) + schedule (per `tn_sched_<tech>_<date>`) in
+  localStorage, **paint at 0ms** then refresh in bg (mirrors office-board `renderFromCache`); (2) `tech-job` **seeds a cold
+  job-open from the daily-dashboard cache** (`seedFromSchedCache` scans `tn_sched_*`) so a job opens instantly from the
+  schedule the tech already loaded even if Xano is slow; (3) `FETCH_TIMEOUT_MS` **15s→40s** + **3× auto-retry** with backoff on
+  the read/load path (get_job_for_dashboard is idempotent). **`sw-tech.js CACHE_VERSION → ant-field-v11-2026-07-13-jobseed`**
+  (bump purges stale cache; `tech-autoupdate.js` also shows the "Update now" bar). **Techs must fully close+reopen once** to get v11.
+- FOOTGUN: the SW serves **cached HTML instantly** on navigation (stale-while-revalidate) → a freshly deployed tech-page fix
+  doesn't show until the SW cache version is bumped OR the tech reopens twice. Bump `CACHE_VERSION` to force it.
+
+### 🚪 2026-07-13 (PM) — FRONTDOOR API: our side 100% STAGED (both directions) — checklist in repo
+Revisited the Frontdoor/AHS integration (the "kills Danielle's manual portal updating" lever). **Our side is fully ready.**
+- **Inbound (us→Frontdoor push):** sandbox creds VAULTED + **auth proven live** (`frontdoor-test?secret=` mints a JWT).
+  Connector `_lib/frontdoor.js` (`dispatchStatusUpdate` + STATUS catalog + vendor→area map). **Blocked on Brian Bullock
+  (Brian.Bullock@ahs.com) linking our sandbox Client ID `040c014f-06e5-4697-a336-137dfa942128` to our account → clears the 403.**
+- **Outbound (Frontdoor→us auto-intake):** receiver `frontdoor-webhook.js` deployed **DARK/dry-run** (bearer auth, parses
+  Schedule/Status/notes/ncc, dedups, vendor→crew routing). **Vaulted `FRONTDOOR_WEBHOOK_TOKEN=fdw_DlR6xaMXSaY3rd5Hr5493mGgXl6OMWmhkp7kxI79Xp8`.**
+  Webhook URL handed to Frontdoor: `https://tnapplianceexchange.net/.netlify/functions/frontdoor-webhook`. **Go live = flip
+  `FRONTDOOR_WEBHOOK_LIVE=1` after watching real sandbox payloads land.**
+- **Follow-up email SENT to Brian 2026-07-13** (creds + webhook URL + token). Vendor IDs: 822418 John/North Shore ·
+  822218 Andre/South Shore · 839828 TN crew. **Full runbook: `docs/frontdoor-go-live-checklist-2026-07-13.md`** (both test
+  sequences + production cutover + kill switches).
+
+### 📦 2026-07-13 (PM) — AMAZON ORDERING API: our side ready, blocked on Amazon's production role
+- **All 6 vault creds present + `configured:true`; LWA auth mints (sandbox + prod).** Account-side done (group "Parts
+  Ordering", Amex shared, buyer tnappliance@gmail.com). **BUT production ordering = 403 "Access denied / token invalid"** —
+  the buyer-side `AmazonBusinessOrderPlacement` role isn't provisioned yet. Tested safely via `amazon-business-test?env=production&order=1&real=1`
+  (TrialMode = validates, buys nothing). **Buyer-side request emailed to `ab-api-access-approvals@amazon.com` on 7/03 (10
+  days ago); follow-up nudge drafted.** `amazon-api-watch` armed (hourly). When approved → re-run TrialMode until 200 → one
+  real low-cost test order → flip `AMAZON_BUSINESS_ENV=production`. (SP-API seller approval = WRONG product, ignore it.)
+
+### 📍 OPEN LIVE-OPS: Andre's job 20362 (Michelle Johnson, LaPlace LA 70068, AHS washer) shows "1, LA" — **the AHS parser
+only captured the street NUMBER ("1") and dropped the street name** (recurring class — jobs land "1, LA"). Full address is in
+AHS dispatch **#63619839** / phone 504-957-9371. Get the street (dispatch email or call) → write onto job 20362 via
+`update_job_basics`, AND fix the AHS address parser so future dispatches stop losing the street.
+
 ### 🏗️ REMAINING SPEED ROADMAP (audited, not yet built)
 1. **SWR instant-load caches** on tech-daily / new-scheduling / tech-job (copy office-board's
    `renderFromCache`/`saveBoardCache` pattern) — the audit's #1 *perceived* speed win, zero quality loss.
