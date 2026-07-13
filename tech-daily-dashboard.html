@@ -2195,9 +2195,19 @@
     const appliance = (j.appliance_type || 'appliance').toLowerCase();
     const brand = (j.brand || '').trim();
     const applianceLine = brand ? `${appliance} <span class="dot">·</span> ${escapeHtml(brand)}` : appliance;
-    const addressParts = [j.service_address, j.service_city, j.service_state].filter(Boolean);
+    // Warranty dispatches often land with a BLANK job.service_address (the AHS/
+    // ServicePower parser drops the street) even though the real address is on the
+    // customer record. Fall back to the customer (c.*) field-by-field so the tech
+    // SEES the address AND the 🧭 nav link resolves the real street, not a bare zip
+    // or an empty maps query. (Jimmy 2026-07-13: "shows no address, but hit navigation
+    // and it pulls it up" — the two were reading different fields.)
+    const _street = (j.service_address || c.address || '').trim();
+    const _acity  = (j.service_city    || c.city    || '').trim();
+    const _astate = (j.service_state   || c.state   || '').trim();
+    const _azip   = (j.service_zip     || c.zip     || '').trim();
+    const addressParts = [_street, _acity, _astate].filter(Boolean);
     const addressText = addressParts.length ? addressParts.join(', ') : '(no address)';
-    const addrForMaps = encodeURIComponent([j.service_address, j.service_city, j.service_state, j.service_zip].filter(Boolean).join(', '));
+    const addrForMaps = encodeURIComponent([_street, _acity, _astate, _azip].filter(Boolean).join(', '));
     const problem = (j.problem_summary || '').trim();
     // Customer availability (collected by the greeting → availability cascade,
     // parsed onto the job as customer_preference_text). Surfacing it here so the
