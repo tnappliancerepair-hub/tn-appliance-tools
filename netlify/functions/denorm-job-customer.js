@@ -58,18 +58,27 @@ async function addCols() {
   return { ok: allThere, results, columns_present: COLS.filter((c) => after.includes(c)), hint: allThere ? 'columns ready — run ?action=backfill' : 'schema API did not add all cols; add the missing ones in the Xano UI (jobs table -> add text field)' };
 }
 
-// Load every customer into an id -> {first,last,phone} map (few pages of 1000).
+// Metadata content-LIST GET (no search filter — an empty search 400s). Returns the
+// page's rows regardless of the wrapper shape. Pages until an empty page.
+async function contentPage(tableId, page, perPage) {
+  const r = await fetch(`${META}/table/${tableId}/content?page=${page}&per_page=${perPage}`, { headers: metaHeaders(), signal: AbortSignal.timeout(20000) });
+  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('content GET ' + tableId + ' -> ' + r.status + ' ' + t.slice(0, 120)); }
+  const d = await r.json().catch(() => ({}));
+  return Array.isArray(d) ? d : (d.items || []);
+}
+
+// Load every customer into an id -> {first,last,phone} map.
 async function loadCustomerMap() {
   const map = new Map();
-  for (let p = 1; p <= 10; p++) {
-    const rows = await crud.searchPageN(crud.TABLES.customer, {}, { id: 'desc' }, 1000, p);
+  for (let p = 1; p <= 60; p++) {
+    const rows = await contentPage(crud.TABLES.customer, p, 500);
     if (!rows || !rows.length) break;
     for (const c of rows) map.set(Number(c.id), {
       first: String(c.first_name || '').trim(),
       last: String(c.last_name || '').trim(),
       phone: String(c.phone || '').trim(),
     });
-    if (rows.length < 1000) break;
+    if (rows.length < 500) break;
   }
   return map;
 }
@@ -109,6 +118,23 @@ exports.handler = async function (event) {
 
   const action = String(q.action || 'backfill');
   if (action === 'addcols') { try { return json(200, await addCols()); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); } }
+
+  // Read-only sanity check: confirm the loaders work + whether the denorm columns exist.
+  if (action === 'probe') {
+    try {
+      const t0 = Date.now();
+      const custMap = await loadCustomerMap();
+      const jobs = await contentPage(crud.TABLES.jobs, 1, 5);
+      const j0 = jobs[0] || {};
+      return json(200, {
+        ok: true,
+        customers_loaded: custMap.size,
+        first_job_ids: jobs.map((j) => j.id),
+        denorm_columns_exist: Object.prototype.hasOwnProperty.call(j0, 'customer_first'),
+        elapsed_ms: Date.now() - t0,
+      });
+    } catch (e) { return json(200, { ok: false, stage: 'probe', error: String(e.message || e) }); }
+  }
 
   const mode = action === 'sweep' ? 'sweep' : 'all';
   const per = Math.min(200, Math.max(20, Number(q.per) || 120));
