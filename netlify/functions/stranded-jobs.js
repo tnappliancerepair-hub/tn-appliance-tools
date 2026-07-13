@@ -69,11 +69,12 @@ exports.handler = async function (event) {
     });
   }
 
-  // Most urgent first: has-a-date-no-tech (soonest date), then never-routed (newest),
-  // then past-date.
+  // Most urgent first: has-a-date-no-tech, newest/upcoming date first (a job dated
+  // today or in the future — nobody assigned — beats a month-old shell). Then the
+  // fresh no-date accepts, newest first.
   out.sort((a, b) => {
     if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
-    if (a.urgent && b.urgent) return (a.scheduled_start || 0) - (b.scheduled_start || 0);
+    if (a.urgent && b.urgent) return (b.scheduled_start || 0) - (a.scheduled_start || 0);
     return (b.created_at || 0) - (a.created_at || 0);
   });
 
